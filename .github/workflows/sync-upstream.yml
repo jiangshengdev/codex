@@ -30,16 +30,54 @@ jobs:
         run: |
           git fetch upstream main
 
+      - name: Select latest stable rust release tag
+        id: rust_tags
+        run: |
+          stable_tag="$(
+            git ls-remote --tags --refs upstream 'rust-v*' \
+              | awk '{print $2}' \
+              | sed 's#refs/tags/##' \
+              | grep -E '^rust-v[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V \
+              | tail -n1
+          )"
+
+          echo "stable_tag=${stable_tag}" >> "$GITHUB_OUTPUT"
+          echo "Selected stable tag: ${stable_tag:-<none>}"
+
       - name: Update local main to match upstream
         run: |
           git branch -f main upstream/main
 
+      - name: Fetch latest stable rust release tag
+        run: |
+          tag="${{ steps.rust_tags.outputs.stable_tag }}"
+          if [ -n "$tag" ]; then
+            git fetch upstream "refs/tags/${tag}:refs/tags/${tag}"
+          fi
+
       - name: Push mirrored main to GitHub fork
         run: |
           git push origin +main:main
+
+      - name: Push latest stable rust release tag to GitHub fork
+        run: |
+          tag="${{ steps.rust_tags.outputs.stable_tag }}"
+          if [ -n "$tag" ]; then
+            git push origin "+refs/tags/${tag}:refs/tags/${tag}"
+          fi
 
       - name: Push mirrored main to CNB
         env:
           CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
         run: |
           git push https://cnb:${CNB_TOKEN}@cnb.cool/jiangshengdev/codex.git +main:main
+
+      - name: Push latest stable rust release tag to CNB
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+        run: |
+          tag="${{ steps.rust_tags.outputs.stable_tag }}"
+          if [ -n "$tag" ]; then
+            git push "https://cnb:${CNB_TOKEN}@cnb.cool/jiangshengdev/codex.git" "+refs/tags/${tag}:refs/tags/${tag}"
+          fi
