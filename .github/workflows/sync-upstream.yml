@@ -1,0 +1,37 @@
+name: Sync upstream main
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout control branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: sync-control
+
+      - name: Configure upstream
+        run: |
+          git remote remove upstream || true
+          git remote add upstream https://github.com/openai/codex.git
+
+      - name: Fetch upstream main
+        run: |
+          git fetch upstream main
+
+      - name: Update local main to match upstream
+        run: |
+          git branch -f main upstream/main
+
+      - name: Push mirrored main
+        run: |
+          git push origin +main:main
