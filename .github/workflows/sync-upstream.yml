@@ -34,6 +34,12 @@ jobs:
         run: |
           git branch -f main upstream/main
 
-      - name: Push mirrored main
+      - name: Push mirrored main to GitHub fork
         run: |
           git push origin +main:main
+
+      - name: Push mirrored main to CNB
+        env:
+          CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
+        run: |
+          git push https://cnb:${CNB_TOKEN}@cnb.cool/jiangshengdev/codex.git +main:main
