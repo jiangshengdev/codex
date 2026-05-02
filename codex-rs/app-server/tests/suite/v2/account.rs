@@ -112,6 +112,7 @@ sandbox_mode = "danger-full-access"
 model_provider = "{model_provider_id}"
 
 [features]
+apps = false
 shell_snapshot = false
 
 {provider_section}
