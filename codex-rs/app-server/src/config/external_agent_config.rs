@@ -37,7 +37,8 @@ const EXTERNAL_AGENT_CONFIG_IMPORT_METRIC: &str = "codex.external_agent_config.i
 const EXTERNAL_AGENT_DIR: &str = ".claude";
 const EXTERNAL_AGENT_CONFIG_MD: &str = "CLAUDE.md";
 const EXTERNAL_OFFICIAL_MARKETPLACE_NAME: &str = "claude-plugins-official";
-const EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE: &str = "anthropics/claude-plugins-official";
+const EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE: &str =
+    "https://cnb.cool/jiangshengdev/claude-plugins-official";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ExternalAgentConfigDetectOptions {
