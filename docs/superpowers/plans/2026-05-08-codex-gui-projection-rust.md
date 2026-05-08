@@ -21,6 +21,25 @@
 - `ServerNotification::ItemStarted`
 - `ServerNotification::ItemCompleted`
 
+## Task 0: Tap Coverage Precheck
+
+**Files:** Review only. 不修改源码。
+
+- [ ] **Step 1: 枚举四类 notification 的生产路径**
+
+Run:
+
+```bash
+rg -n "ServerNotification::(TurnStarted|TurnCompleted|ItemStarted|ItemCompleted)" codex-rs/app-server/src
+rg -n "send_server_notification" codex-rs/app-server/src
+```
+
+- [ ] **Step 2: 人工确认所有生产路径都经过 `ThreadScopedOutgoingMessageSender::send_server_notification`**
+
+若任一路径绕过该层（例如 error/completion 直接写 outgoing channel），必须先新增前置子任务把它们收束到该层，再进入 Task 1；否则 tap 会漏事件、commit 链会断。
+
+- [ ] **Step 3: 记录四类 notification 的产生位置（path:line）与覆盖结论**
+
 ## File Structure
 
 Create:
@@ -252,12 +271,46 @@ impl ThreadProjectionManager {
 }
 ```
 
+Manager 内部类型与 attach 返回值：
+
+```rust
+pub(crate) struct ProjectionAttachResult {
+    pub subscription_id: String,
+    pub head_commit_id: Option<String>,
+}
+
+struct ThreadEntry {
+    head_commit_id: Option<String>,
+    subscribers: HashMap<ConnectionId, ProjectionSubscriber>,
+    has_subscribers_tx: watch::Sender<bool>,
+}
+
+struct ProjectionSubscriber {
+    subscription_id: String,
+}
+
+struct ThreadProjectionManagerInner {
+    threads: HashMap<ThreadId, ThreadEntry>,
+    connection_index: HashMap<ConnectionId, HashSet<ThreadId>>,
+}
+```
+
+`connection_index` 让 `remove_connection` 在 O(affected threads) 时间内定位所有受影响 thread，返回 `Vec<ThreadId>` 供 unload watch 复评。head 推进与 subscriber 列表必须在同一把 `Mutex<ThreadProjectionManagerInner>` 下读写。
+
 `project_notification` must:
 
 1. ignore non-whitelisted notifications;
 2. advance one `commit_id` per source notification, not per subscriber;
 3. capture current subscribers in the same lock section as head advancement;
 4. return one `ProjectionDelivery` per subscriber.
+
+`attach` 与 `project_notification` 共享同一把 Mutex：
+
+- `attach`：生成 subscription_id + 读当前 head + 写入 subscriber，同一临界区完成。
+- `project_notification`：advance head + 生成 commit_id + capture 当前 subscribers 快照，同一临界区完成。
+- 禁止时序：attach 读 head=H 后尚未写入 subscriber，project_notification 并发推进 head 到 H' 并向当时 subscriber set 广播 —— 这会让该 subscriber 缺失首条 envelope，GUI 必然触发一次 reattach。
+
+envelope 向连接 outgoing 队列的入队可以在锁外执行；commit 生成与 subscriber 捕获必须在锁内完成。
 
 - [ ] **Step 2: Add manager to outgoing sender**
 
@@ -298,6 +351,8 @@ In `thread_projection.rs`, add tests that assert:
 - two subscribers receive the same `commit_id`;
 - detach removes only that connection;
 - non-whitelisted notifications produce no deliveries and do not advance head.
+- 多订阅同一 thread：一个 thread 上两条 connection 各自 attach（两个不同 subscription_id）；触发一次 whitelisted notification 后，两条 envelope 的 commit_id 与 parent_commit_id 必须相等。
+- attach / emit 竞态：一个 tokio 任务反复 attach，另一个反复触发 whitelisted notification；对任一 subscriber，`env.parent_commit_id == local.head_commit_id` 恒成立（local.head 来自最近一次 attach 返回或上一条 envelope.commit_id）。
 
 Run:
 
@@ -317,6 +372,28 @@ git add codex-rs/app-server/src/thread_projection.rs \
 git commit -m "feat(app-server): add thread projection manager"
 ```
 
+## Task 2.5: Listener Presence Contract
+
+**Files:** Review / design。代码改动落在 Task 3。
+
+- [ ] **Step 1: 确定 listener 生命周期与 subscriber 的耦合方式**
+
+当前 0.129 listener 启停与 normal thread subscriber 计数耦合。projection attach 需要 listener 在位，但不应计入 normal subscriber。二选一：
+
+A) 将 listener 启动条件从 "normal_subscribers > 0" 扩展为 "normal_subscribers > 0 || projection_subscribers > 0"。
+B) 新增独立 "projection presence" 计数与 normal subscriber 并列，manager 通过 `watch::Receiver<bool>` 广播，thread_lifecycle 订阅。
+
+采用：**A**
+
+理由：两类 subscription 对 listener 寿命作用等价，合并判定更贴近事实，避免多一个同步源。
+
+- [ ] **Step 2: 落实到后续任务**
+
+Task 3 中 "ensure listener task is running without adding a normal thread subscriber" 改为：
+"按方案 A 在 thread_lifecycle 扩展 listener 启动判定，让 projection subscriber 参与保活 listener，但不进入 normal subscriber 列表。"
+
+Task 5 的 UnloadingState 同时观察两类 subscriber。
+
 ## Task 3: Attach/Detach Runtime Path
 
 **Files:**
@@ -333,11 +410,12 @@ Add a `ThreadListenerCommand` variant that lets the listener build snapshot, rea
 ```rust
 SendThreadProjectionAttachResponse {
     request_id: ConnectionRequestId,
+    connection_id: ConnectionId,
     completion_tx: oneshot::Sender<()>,
 }
 ```
 
-The handler must use `include_turns: true` snapshot semantics.
+listener 处理该命令时：用 `include_turns: true` 读 snapshot，调 `ThreadProjectionManager::attach(thread_id, connection_id)` 取得 `(subscription_id, head_commit_id)`，构造 `ThreadProjectionAttachResponse` 回送。snapshot 读失败时返回 JSON-RPC error，不调用 `attach`，不分配 subscription_id。
 
 - [ ] **Step 2: Add processor methods**
 
@@ -361,7 +439,8 @@ Attach flow:
 
 1. parse `thread_id`;
 2. fail if thread does not exist or is in `pending_thread_unloads`;
-3. ensure listener task is running without adding a normal thread subscriber;
+   - listener 内 `read_thread_view` 报错时返回 JSON-RPC error，不创建 ProjectionSubscriber。
+3. 按 Task 2.5 方案 A 保证 listener 在位：projection subscriber 参与保活 listener，但不进入 normal subscriber 列表。
 4. send listener command;
 5. listener command builds `ThreadProjectionAttachResponse`;
 6. attach failure returns standard JSON-RPC error and does not create a subscriber.
@@ -401,6 +480,8 @@ Add an integration test that:
 5. asserts `snapshot.headCommitId == None` before any projected event;
 6. calls `thread/projection/detach`;
 7. asserts status is `detached`.
+
+注意：`snapshot.headCommitId == None` 的断言要求 thread 尚未产生任何 whitelisted notification。test harness 启动 thread 后不要调度任何 turn，直接 attach，避免竞态导致偶发非 None。
 
 Run:
 
@@ -580,10 +661,12 @@ In `codex-rs/app-server/README.md`, add a short v2 section:
 ```markdown
 ### Thread projection
 
-`thread/projection/attach` returns a snapshot plus a projection subscription id.
-The server only emits `thread/projection/event` notifications to projection subscribers.
-The first version wraps `turn/started`, `turn/completed`, `item/started`, and `item/completed`.
-`thread/projection/detach` removes the projection subscription without changing the normal thread subscription.
+`thread/projection/attach` 返回 `{ subscriptionId, snapshot: { thread, headCommitId } }`。
+server 仅向 projection subscriber 发送 `thread/projection/event`，第一版包装
+`turn/started`、`turn/completed`、`item/started`、`item/completed` 四类 typed notification。
+`thread/projection/detach` 返回 `{ status }`，`status` ∈ `detached | notSubscribed | notLoaded`；
+GUI 一律视作本地已解除订阅。
+普通 thread 订阅与 projection 订阅相互独立，任一方的 unsubscribe/detach 不取消另一方。
 ```
 
 - [ ] **Step 3: Generate schema fixtures**
@@ -657,7 +740,7 @@ rg -n "ThreadHistoryBuilder|ProjectionEventPayload|latestSequence|projectionInst
 
 Expected: no new implementation depends on old `ProjectionEventPayload`, `latestSequence`, or server-side thread history reducer.
 
-- [ ] **Step 3: Verify tap coverage**
+- [ ] **Step 3: 回归检查 tap 覆盖**（与 Task 0 相同，用于回归防止实现偏离）
 
 Run:
 
