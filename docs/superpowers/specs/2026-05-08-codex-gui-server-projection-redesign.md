@@ -41,9 +41,9 @@ GUI:
 
 server 不判断 foreground/background，不理解 tab 策略，也不决定哪些 thread 应该实时显示。GUI 自己决定哪些 thread 需要 attach。
 
-## 和当前分支的取舍
+## 和 `port/lazy-projections` 的取舍
 
-当前分支可以保留的方向：
+`port/lazy-projections` 可以保留的方向：
 
 - `thread/projection/attach`
 - `thread/projection/detach`
@@ -52,7 +52,7 @@ server 不判断 foreground/background，不理解 tab 策略，也不决定哪�
 - projection subscribers 参与 thread unloading 判断
 - connection close 清理 projection subscription
 
-当前分支需要收缩的方向：
+`port/lazy-projections` 需要收缩的方向：
 
 - 不再使用 `ProjectionEventPayload` 作为新的 domain event。
 - 不从底层 `EventMsg` 手写 projection reducer。
