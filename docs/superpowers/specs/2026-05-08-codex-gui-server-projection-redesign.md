@@ -107,11 +107,25 @@ thread/projection/attach({ threadId })
 
 ```text
 ThreadProjectionAttachResponse {
-  thread: Thread,
-  headCommitId: string | null,
   subscriptionId: string,
+  snapshot: {
+    thread: Thread,
+    headCommitId: string | null,
+  },
 }
 ```
+
+> 包一层 `snapshot` 是为未来 catch-up 留扩展点。catch-up 版本会把 `snapshot` 变成 `snapshot | missedCommits` 的二选一，不用破坏外层结构。
+
+## Attach 错误路径
+
+attach 可能失败的场景：thread 不存在、无权限、thread 正在 unload、snapshot 构造失败。
+
+失败时：
+
+- 返回标准 error，不生成 subscriptionId。
+- server 不创建 ProjectionSubscriber。
+- GUI 不进入已订阅状态，也不更新本地 headCommitId。
 
 `detach`：
 
@@ -166,6 +180,12 @@ projection subscribers
 
 只有白名单 projection event 才生成 commit 并推进 `headCommitId`。
 
+`headCommitId` 表示 server 已经 emit 过的最新 projection commit。`snapshot.thread` 来自 thread 的最新可读持久化视图。两者不保证刚好截止在同一事件上：core 先 persist 再 deliver event，所以 snapshot 可能已经包含还没经 tap 推进 head 的事件。
+
+这意味着 GUI 收到 attach response 后，第一条 projection event 可能对应 snapshot 里已经反映过的 turn 或 item。GUI reducer 对 `TurnStarted / TurnCompleted / ItemStarted / ItemCompleted` 的 apply 必须幂等且单调：重复 apply 不应破坏状态，旧状态不覆盖新状态。
+
+commit 链只保证 projection event stream 连续性（`parentCommitId == local.headCommitId` 说明中间没有漏事件），不表示 snapshot 内容精确边界。
+
 ```text
 parentCommitId = old headCommitId
 commitId = uuid-v7
@@ -189,6 +209,14 @@ else:
 
 第一版发现断链后不补事件，直接重新 attach snapshot。
 
+reattach 成功后，GUI 对该 thread 的 store 做整棵替换，不 merge：
+
+```text
+replace per-thread store from snapshot
+replace headCommitId
+replace subscriptionId
+```
+
 ## Subscription Id
 
 `subscriptionId` 是一次 attach 生命周期的身份，用来处理 detach / reattach 竞态和在路上的旧事件。
@@ -208,7 +236,7 @@ ProjectionSubscriber {
 
 规则：
 
-- 每次 attach 成功都生成新的 `subscriptionId`。
+- 每次 attach 成功都生成新的 `subscriptionId`；`subscriptionId` 与 `commitId` 均使用 uuid-v7，保持 id 策略一致，方便日志按时间排序。
 - 同一 connection 对同一 thread 重复 attach，会替换旧 subscription。
 - event envelope 带当前 subscription 的 `subscriptionId`。
 - detach 移除当前 connection 的 subscriber。
@@ -238,6 +266,13 @@ attach 必须在 listener command 内完成：
 
 这样可以保证 attach response 的 `headCommitId` 与后续第一条 projection event 的 `parentCommitId` 接上。
 
+由于 snapshot 和 headCommitId 不保证严格对齐（见 Commit 链），第一版 GUI reducer 必须满足：
+
+- 幂等：同一 notification 重复 apply 得到相同状态。
+- 单调：新状态只覆盖更早或相同的状态，`ItemCompleted` 不会退回到 `ItemStarted`。
+
+第一版不引入 server-side shadow state 去对齐 snapshot 边界。对齐职责完全放在 GUI reducer。
+
 ## Event Source
 
 projection event 来源是 typed notification tap，不是底层 `EventMsg` reducer。
@@ -252,12 +287,18 @@ EventMsg
   -> projection subscribers
 ```
 
+实现前置检查：
+
+开工前必须用 grep/test 覆盖 `TurnStarted / TurnCompleted / ItemStarted / ItemCompleted` 四类 typed notification 的所有生产路径，确认它们全部经过 `ThreadScopedOutgoingMessageSender`。若有任何路径绕过这一层（例如 error/completion 特殊路径直接写连接 channel），必须先把它们收束到这一层，否则 tap 会漏事件、commit 链会断。
+
 tap 位置优先放在 `ThreadScopedOutgoingMessageSender` 层：
 
 - 这一层已有 thread scope。
 - 能覆盖 thread-scoped typed notification 出口。
 - 不需要修改每个 `bespoke_event_handling` 分支。
 - projection 只接收已经成型的 typed notification。
+
+Head 推进的原子性：同一 thread 内，"advance headCommitId + build projection envelope + capture current subscriber snapshot" 必须在 `ProjectionManager` 的同一同步区间（同一把锁）内完成。envelope 往连接 outgoing 队列的入队可以在锁外做，但 commit/head 生成不能被同 thread 的另一个 projection event 穿插，否则 subscriber 之间会看到不同的 head 序列。
 
 ## Thread Subscription 分离
 
@@ -279,6 +320,27 @@ thread/projection/attach:
 - thread unloading 判断需要同时考虑两边。
 
 只要有 projection subscriber，thread 应暂时保持 loaded，避免 GUI 正在显示的 thread 丢失实时事件。
+
+Thread unload 判定必须显式同时考虑两类 subscriber：
+
+```text
+thread_can_unload = normal_subscribers.is_empty()
+                 && projection_subscribers.is_empty()
+```
+
+任一类有订阅者，thread 保持 loaded。
+
+## Connection Close 与 重连
+
+connection close 时：
+
+- 清空该 connection 下所有 normal thread subscription。
+- 清空该 connection 下所有 projection subscription（释放 `ProjectionSubscriber`）。
+- thread 再次落入 unload 判定。
+
+第一版不做 grace period / 续订窗口。短暂网络抖动后，GUI 重连必须重新走 `thread/projection/attach`，拿新的 subscriptionId 和新的 snapshot。旧 subscriptionId 在 server 侧已随 connection 销毁，不再复用。
+
+detach 的三种返回（`Detached / NotSubscribed / NotLoaded`）GUI 一律视为"本地已解除订阅"：清掉本地 `subscriptionId`，停止对该 thread 的 event apply。
 
 ## 后续方向
 
