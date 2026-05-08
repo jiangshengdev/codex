@@ -3851,6 +3851,28 @@
       ],
       "type": "object"
     },
+    "ThreadProjectionAttachParams": {
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
+    },
+    "ThreadProjectionDetachParams": {
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadReadParams": {
       "properties": {
         "includeTurns": {
@@ -4729,6 +4751,54 @@
         "params"
       ],
       "title": "Thread/unsubscribeRequest",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/projection/attach"
+          ],
+          "title": "Thread/projection/attachRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadProjectionAttachParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/projection/attachRequest",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/projection/detach"
+          ],
+          "title": "Thread/projection/detachRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadProjectionDetachParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/projection/detachRequest",
       "type": "object"
     },
     {

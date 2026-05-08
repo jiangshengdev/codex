@@ -383,6 +383,14 @@ export type { ThreadMetadataGitInfoUpdateParams } from "./ThreadMetadataGitInfoU
 export type { ThreadMetadataUpdateParams } from "./ThreadMetadataUpdateParams";
 export type { ThreadMetadataUpdateResponse } from "./ThreadMetadataUpdateResponse";
 export type { ThreadNameUpdatedNotification } from "./ThreadNameUpdatedNotification";
+export type { ThreadProjectionAttachParams } from "./ThreadProjectionAttachParams";
+export type { ThreadProjectionAttachResponse } from "./ThreadProjectionAttachResponse";
+export type { ThreadProjectionDetachParams } from "./ThreadProjectionDetachParams";
+export type { ThreadProjectionDetachResponse } from "./ThreadProjectionDetachResponse";
+export type { ThreadProjectionDetachStatus } from "./ThreadProjectionDetachStatus";
+export type { ThreadProjectionEvent } from "./ThreadProjectionEvent";
+export type { ThreadProjectionEventNotification } from "./ThreadProjectionEventNotification";
+export type { ThreadProjectionSnapshot } from "./ThreadProjectionSnapshot";
 export type { ThreadReadParams } from "./ThreadReadParams";
 export type { ThreadReadResponse } from "./ThreadReadResponse";
 export type { ThreadRealtimeAudioChunk } from "./ThreadRealtimeAudioChunk";

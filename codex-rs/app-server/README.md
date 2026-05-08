@@ -161,6 +161,9 @@ Example with notification opt-out:
 - `thread/status/changed` — notification emitted when a loaded thread’s status changes (`threadId` + new `status`).
 - `thread/archive` — move a thread’s rollout file into the archived directory and attempt to move any spawned descendant thread rollout files; returns `{}` on success and emits `thread/archived` for each archived thread.
 - `thread/unsubscribe` — unsubscribe this connection from thread turn/item events. If this was the last subscriber, the server keeps the thread loaded and unloads it only after it has had no subscribers and no thread activity for 30 minutes, then emits `thread/closed`.
+- `thread/projection/attach` — subscribe this connection to GUI projection events for a loaded thread. The response returns a `subscriptionId` and `snapshot` containing the current `thread` plus `headCommitId`.
+- `thread/projection/detach` — remove this connection's projection subscription for a thread. The response `status` is `detached`, `notSubscribed`, or `notLoaded`.
+- `thread/projection/event` — notification emitted to projection subscribers. Each event has `threadId`, `subscriptionId`, `commitId`, `parentCommitId`, and wraps one of `turn/started`, `turn/completed`, `item/started`, or `item/completed`.
 - `thread/name/set` — set or update a thread’s user-facing name for either a loaded thread or a persisted rollout; returns `{}` on success and emits `thread/name/updated` to initialized, opted-in clients. Thread names are not required to be unique; name lookups resolve to the most recently updated thread.
 - `thread/unarchive` — move an archived rollout file back into the sessions directory; returns the restored `thread` on success and emits `thread/unarchived`.
 - `thread/compact/start` — trigger conversation history compaction for a thread; returns `{}` immediately while progress streams through standard turn/item notifications.
@@ -403,6 +406,35 @@ Later, after the idle unload timeout:
     "status": { "type": "notLoaded" }
 } }
 { "method": "thread/closed", "params": { "threadId": "thr_123" } }
+```
+
+### Example: Attach to a thread projection
+
+Use `thread/projection/attach` to receive a GUI projection stream for a loaded thread. The response includes a `subscriptionId` and a snapshot with the current `thread` and `headCommitId`. Later `thread/projection/event` notifications wrap only four typed notifications: `turn/started`, `turn/completed`, `item/started`, and `item/completed`.
+
+Normal thread subscriptions and projection subscriptions are independent. `thread/unsubscribe` does not detach a projection subscription, and `thread/projection/detach` does not unsubscribe normal turn/item notifications.
+
+```json
+{ "method": "thread/projection/attach", "id": 23, "params": { "threadId": "thr_123" } }
+{ "id": 23, "result": {
+    "subscriptionId": "sub_123",
+    "snapshot": {
+      "thread": { "id": "thr_123", "status": { "type": "idle" }, "turns": [] },
+      "headCommitId": null
+    }
+} }
+{ "method": "thread/projection/event", "params": {
+    "threadId": "thr_123",
+    "subscriptionId": "sub_123",
+    "commitId": "commit_1",
+    "parentCommitId": null,
+    "event": {
+      "type": "turnStarted",
+      "notification": { "threadId": "thr_123", "turn": { "...": "..." } }
+    }
+} }
+{ "method": "thread/projection/detach", "id": 24, "params": { "threadId": "thr_123" } }
+{ "id": 24, "result": { "status": "detached" } }
 ```
 
 ### Example: Read a thread

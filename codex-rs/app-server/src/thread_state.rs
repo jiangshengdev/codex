@@ -1,6 +1,8 @@
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
+use codex_app_server_protocol::JSONRPCErrorError;
 use codex_app_server_protocol::RequestId;
+use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadGoal;
 use codex_app_server_protocol::ThreadHistoryBuilder;
 use codex_app_server_protocol::Turn;
@@ -14,6 +16,8 @@ use codex_rollout::state_db::StateDbHandle;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Weak;
 use tokio::sync::Mutex;
@@ -23,6 +27,8 @@ use tokio::sync::watch;
 use tracing::error;
 
 type PendingInterruptQueue = Vec<ConnectionRequestId>;
+pub(crate) type ThreadProjectionSnapshotFuture =
+    Pin<Box<dyn Future<Output = Result<Thread, JSONRPCErrorError>> + Send>>;
 
 pub(crate) struct PendingThreadResumeRequest {
     pub(crate) request_id: ConnectionRequestId,
@@ -53,6 +59,12 @@ pub(crate) enum ThreadListenerCommand {
     // It is executed in the thread listener's context to ensure that the resolved notification is ordered with regard to the request itself.
     ResolveServerRequest {
         request_id: RequestId,
+        completion_tx: oneshot::Sender<()>,
+    },
+    SendThreadProjectionAttachResponse {
+        request_id: ConnectionRequestId,
+        connection_id: ConnectionId,
+        snapshot: ThreadProjectionSnapshotFuture,
         completion_tx: oneshot::Sender<()>,
     },
 }
@@ -231,6 +243,14 @@ impl ThreadStateManager {
             .unwrap_or_default()
     }
 
+    pub(crate) async fn is_live_connection(&self, connection_id: ConnectionId) -> bool {
+        self.state
+            .lock()
+            .await
+            .live_connections
+            .contains(&connection_id)
+    }
+
     pub(crate) async fn thread_state(&self, thread_id: ThreadId) -> Arc<Mutex<ThreadState>> {
         let mut state = self.state.lock().await;
         state.threads.entry(thread_id).or_default().state.clone()
@@ -358,6 +378,18 @@ impl ThreadStateManager {
             }
         }
         Some(thread_state)
+    }
+
+    pub(crate) async fn try_thread_state_for_live_connection(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) -> Option<Arc<Mutex<ThreadState>>> {
+        let mut state = self.state.lock().await;
+        if !state.live_connections.contains(&connection_id) {
+            return None;
+        }
+        Some(state.threads.entry(thread_id).or_default().state.clone())
     }
 
     pub(crate) async fn try_add_connection_to_thread(

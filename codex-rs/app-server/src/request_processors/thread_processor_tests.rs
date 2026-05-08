@@ -56,9 +56,11 @@ mod thread_processor_behavior_tests {
     use codex_app_server_protocol::ToolRequestUserInputParams;
     use codex_config::CloudRequirementsLoader;
     use codex_config::LoaderOverrides;
+    use codex_config::NoopThreadConfigLoader;
     use codex_config::SessionThreadConfig;
     use codex_config::StaticThreadConfigLoader;
     use codex_config::ThreadConfigSource;
+    use codex_core::config::ConfigBuilder;
     use codex_model_provider_info::ModelProviderInfo;
     use codex_model_provider_info::WireApi;
     use codex_protocol::ThreadId;
@@ -72,7 +74,10 @@ mod thread_processor_behavior_tests {
     use codex_protocol::protocol::SessionSource;
     use codex_protocol::protocol::SubAgentSource;
     use codex_state::ThreadMetadataBuilder;
+    use codex_thread_store::AppendThreadItemsParams;
+    use codex_thread_store::InMemoryThreadStore;
     use codex_thread_store::StoredThread;
+    use codex_thread_store::ThreadStore;
     use codex_utils_absolute_path::test_support::PathBufExt;
     use codex_utils_absolute_path::test_support::test_path_buf;
     use pretty_assertions::assert_eq;
@@ -238,6 +243,113 @@ mod thread_processor_behavior_tests {
         );
 
         assert_eq!(turns.last(), Some(&active_turn));
+    }
+
+    #[tokio::test]
+    async fn thread_read_loaded_include_turns_merges_active_turn_snapshot() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let store_id = uuid::Uuid::new_v4().to_string();
+        write_in_memory_thread_store_config(temp_dir.path(), &store_id)?;
+        let store = InMemoryThreadStore::for_id(store_id.clone());
+        let _store_guard = InMemoryThreadStoreId { store_id };
+        let loader_overrides = LoaderOverrides::without_managed_config_for_tests();
+        let config = Arc::new(
+            ConfigBuilder::default()
+                .codex_home(temp_dir.path().to_path_buf())
+                .fallback_cwd(Some(temp_dir.path().to_path_buf()))
+                .loader_overrides(loader_overrides.clone())
+                .build()
+                .await?,
+        );
+        let auth_manager = AuthManager::from_auth_for_testing(CodexAuth::from_api_key("dummy"));
+        let thread_store = codex_core::thread_store_from_config(&config, /*state_db*/ None);
+        let thread_manager = Arc::new(ThreadManager::new(
+            &config,
+            auth_manager.clone(),
+            SessionSource::Cli,
+            Arc::new(EnvironmentManager::default_for_tests()),
+            /*analytics_events_client*/ None,
+            thread_store.clone(),
+            /*state_db*/ None,
+            uuid::Uuid::new_v4().to_string(),
+        ));
+        let (outgoing_tx, _outgoing_rx) = tokio::sync::mpsc::channel(8);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            outgoing_tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_state_manager = ThreadStateManager::new();
+        let thread_goal_processor = ThreadGoalRequestProcessor::new(
+            thread_manager.clone(),
+            outgoing.clone(),
+            config.clone(),
+            thread_state_manager.clone(),
+            /*state_db*/ None,
+        );
+        let processor = ThreadRequestProcessor::new(
+            auth_manager,
+            thread_manager.clone(),
+            outgoing,
+            Arg0DispatchPaths::default(),
+            config.clone(),
+            ConfigManager::new(
+                temp_dir.path().to_path_buf(),
+                Vec::new(),
+                loader_overrides,
+                CloudRequirementsLoader::default(),
+                Arg0DispatchPaths::default(),
+                Arc::new(NoopThreadConfigLoader),
+            ),
+            thread_store,
+            Arc::new(Mutex::new(HashSet::new())),
+            thread_state_manager.clone(),
+            ThreadWatchManager::new(),
+            Arc::new(Semaphore::new(1)),
+            thread_goal_processor,
+            /*state_db*/ None,
+        );
+
+        let new_thread = thread_manager.start_thread(config.as_ref().clone()).await?;
+        let thread_id = new_thread.thread_id;
+        store
+            .append_items(AppendThreadItemsParams {
+                thread_id,
+                items: persisted_history_items("persisted"),
+            })
+            .await?;
+        {
+            let state = thread_state_manager.thread_state(thread_id).await;
+            state.lock().await.track_current_turn_event(
+                "live-turn",
+                &EventMsg::TurnStarted(codex_protocol::protocol::TurnStartedEvent {
+                    turn_id: "live-turn".to_string(),
+                    started_at: None,
+                    model_context_window: None,
+                    collaboration_mode_kind: Default::default(),
+                }),
+            );
+        }
+
+        let response = processor
+            .thread_read_response_inner(ThreadReadParams {
+                thread_id: thread_id.to_string(),
+                include_turns: true,
+            })
+            .await
+            .expect("thread/read should include turns for materialized loaded thread");
+
+        assert_eq!(turn_user_texts(&response.thread.turns), vec!["persisted"]);
+        let active_turn = response
+            .thread
+            .turns
+            .last()
+            .expect("active turn should be merged into read response");
+        assert_eq!(active_turn.id, "live-turn");
+        assert_eq!(active_turn.status, TurnStatus::InProgress);
+
+        new_thread.thread.shutdown_and_wait().await?;
+        let _ = thread_manager.remove_thread(&thread_id).await;
+        Ok(())
     }
 
     #[test]
@@ -1006,6 +1118,69 @@ mod thread_processor_behavior_tests {
             Some(forked_from_id.to_string())
         );
         Ok(())
+    }
+
+    fn persisted_history_items(message: &str) -> Vec<RolloutItem> {
+        vec![RolloutItem::EventMsg(EventMsg::UserMessage(
+            codex_protocol::protocol::UserMessageEvent {
+                message: message.to_string(),
+                images: None,
+                local_images: Vec::new(),
+                text_elements: Vec::new(),
+            },
+        ))]
+    }
+
+    fn turn_user_texts(turns: &[Turn]) -> Vec<&str> {
+        turns
+            .iter()
+            .filter_map(|turn| match turn.items.first()? {
+                ThreadItem::UserMessage { content, .. } => match content.first()? {
+                    V2UserInput::Text { text, .. } => Some(text.as_str()),
+                    V2UserInput::Image { .. }
+                    | V2UserInput::LocalImage { .. }
+                    | V2UserInput::Skill { .. }
+                    | V2UserInput::Mention { .. } => None,
+                },
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn write_in_memory_thread_store_config(
+        codex_home: &Path,
+        store_id: &str,
+    ) -> std::io::Result<()> {
+        std::fs::write(
+            codex_home.join("config.toml"),
+            format!(
+                r#"
+model = "mock-model"
+approval_policy = "never"
+sandbox_mode = "read-only"
+experimental_thread_store = {{ type = "in_memory", id = "{store_id}" }}
+
+model_provider = "mock_provider"
+
+[model_providers.mock_provider]
+name = "Mock provider for test"
+base_url = "http://127.0.0.1:1/v1"
+wire_api = "responses"
+request_max_retries = 0
+stream_max_retries = 0
+"#
+            ),
+        )
+    }
+
+    struct InMemoryThreadStoreId {
+        store_id: String,
+    }
+
+    impl Drop for InMemoryThreadStoreId {
+        fn drop(&mut self) {
+            InMemoryThreadStore::remove_id(&self.store_id);
+        }
     }
 
     #[tokio::test]
