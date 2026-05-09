@@ -322,6 +322,73 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connection_close_interleaving_does_not_leave_projection_subscription()
+    -> anyhow::Result<()> {
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        let request_id = ConnectionRequestId {
+            connection_id,
+            request_id: RequestId::Integer(1),
+        };
+        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
+        let thread_state_manager = ThreadStateManager::new();
+        thread_state_manager
+            .connection_initialized(connection_id)
+            .await;
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tokio::sync::mpsc::channel(1).0,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let (snapshot_tx, snapshot_rx) = oneshot::channel();
+        let snapshot = Box::pin(async move {
+            snapshot_rx
+                .await
+                .expect("snapshot sender should resolve the future")
+        });
+
+        let attach_task = tokio::spawn({
+            let pending_thread_unloads = pending_thread_unloads.clone();
+            let outgoing = outgoing.clone();
+            let thread_state_manager = thread_state_manager.clone();
+            async move {
+                handle_projection_attach_response(
+                    thread_id,
+                    &pending_thread_unloads,
+                    &outgoing,
+                    &thread_state_manager,
+                    request_id,
+                    connection_id,
+                    snapshot,
+                )
+                .await;
+            }
+        });
+
+        let early_projection_cleanup = outgoing
+            .thread_projection_manager()
+            .remove_connection(connection_id)
+            .await;
+        assert_eq!(early_projection_cleanup, Vec::new());
+
+        snapshot_tx
+            .send(Ok(test_thread(thread_id)))
+            .expect("snapshot receiver should be waiting");
+        timeout(Duration::from_secs(1), attach_task)
+            .await
+            .expect("attach task should finish")
+            .expect("attach task should not panic");
+
+        thread_state_manager.remove_connection(connection_id).await;
+
+        let deliveries = outgoing
+            .thread_projection_manager()
+            .project_notification(thread_id, &turn_started_notification(thread_id))
+            .await;
+        assert_eq!(deliveries, Vec::new());
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn late_connection_close_cleanup_removes_projection_attach_race() -> anyhow::Result<()> {
         let thread_id = ThreadId::new();
         let connection_id = ConnectionId(1);
