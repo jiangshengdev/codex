@@ -162,12 +162,8 @@ impl ThreadEntry {
     fn attach(&mut self, connection_id: ConnectionId, subscription_id: String) -> Option<String> {
         let had_subscribers = !self.subscribers.is_empty();
         let head_commit_id = self.head_commit_id.clone();
-        self.subscribers.insert(
-            connection_id,
-            ProjectionSubscriber {
-                subscription_id: subscription_id.clone(),
-            },
-        );
+        self.subscribers
+            .insert(connection_id, ProjectionSubscriber { subscription_id });
         if !had_subscribers {
             let _ = self.has_subscribers_tx.send(true);
         }
