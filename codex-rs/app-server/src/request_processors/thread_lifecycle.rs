@@ -46,33 +46,19 @@ impl UnloadingState {
             .thread_watch_manager
             .subscribe(thread_id)
             .await?;
-        Some(Self::from_receivers(
-            delay,
-            has_subscribers_rx,
-            projection_subscribers,
-            thread_status_rx,
-        ))
-    }
-
-    fn from_receivers(
-        delay: Duration,
-        has_subscribers_rx: watch::Receiver<bool>,
-        projection_subscribers: crate::thread_projection_runtime::ProjectionSubscriberWatch,
-        thread_status_rx: watch::Receiver<ThreadStatus>,
-    ) -> Self {
         let has_subscribers = (*has_subscribers_rx.borrow(), Instant::now());
         let is_active = (
             matches!(*thread_status_rx.borrow(), ThreadStatus::Active { .. }),
             Instant::now(),
         );
-        Self {
+        Some(Self {
             delay,
             has_subscribers_rx,
             has_subscribers,
             projection_subscribers,
             thread_status_rx,
             is_active,
-        }
+        })
     }
 
     fn unloading_target(&self) -> Option<Instant> {
