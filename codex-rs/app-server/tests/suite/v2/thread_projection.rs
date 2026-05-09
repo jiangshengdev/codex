@@ -45,6 +45,23 @@ async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result
     timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
     let thread = start_thread(&mut mcp).await?;
 
+    let detach_without_attach_id = mcp
+        .send_thread_projection_detach_request(ThreadProjectionDetachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let detach_without_attach_response: JSONRPCResponse = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_stream_until_response_message(RequestId::Integer(detach_without_attach_id)),
+    )
+    .await??;
+    let detach_without_attach: ThreadProjectionDetachResponse =
+        to_response(detach_without_attach_response)?;
+    assert_eq!(
+        ThreadProjectionDetachStatus::NotSubscribed,
+        detach_without_attach.status
+    );
+
     let attach_id = mcp
         .send_thread_projection_attach_request(ThreadProjectionAttachParams {
             thread_id: thread.id.clone(),

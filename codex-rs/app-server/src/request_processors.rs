@@ -486,6 +486,7 @@ mod config_errors;
 mod request_errors;
 mod thread_goal_processor;
 mod thread_lifecycle;
+mod thread_projection;
 mod thread_summary;
 
 use self::config_errors::*;

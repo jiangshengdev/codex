@@ -246,7 +246,8 @@ mod thread_processor_behavior_tests {
     }
 
     #[tokio::test]
-    async fn thread_read_loaded_include_turns_merges_active_turn_snapshot() -> Result<()> {
+    async fn thread_read_loaded_include_turns_preserves_history_and_projection_merges_active_turn()
+    -> Result<()> {
         let temp_dir = TempDir::new()?;
         let store_id = uuid::Uuid::new_v4().to_string();
         write_in_memory_thread_store_config(temp_dir.path(), &store_id)?;
@@ -330,7 +331,7 @@ mod thread_processor_behavior_tests {
             );
         }
 
-        let response = processor
+        let read_response = processor
             .thread_read_response_inner(ThreadReadParams {
                 thread_id: thread_id.to_string(),
                 include_turns: true,
@@ -338,12 +339,29 @@ mod thread_processor_behavior_tests {
             .await
             .expect("thread/read should include turns for materialized loaded thread");
 
-        assert_eq!(turn_user_texts(&response.thread.turns), vec!["persisted"]);
-        let active_turn = response
-            .thread
+        assert_eq!(
+            turn_user_texts(&read_response.thread.turns),
+            vec!["persisted"]
+        );
+        assert!(
+            read_response
+                .thread
+                .turns
+                .iter()
+                .all(|turn| turn.id != "live-turn"),
+            "thread/read should not merge the active turn snapshot"
+        );
+
+        let thread = processor
+            .read_thread_projection_snapshot(thread_id)
+            .await
+            .unwrap_or_else(|_| panic!("projection snapshot should include the active turn"));
+
+        assert_eq!(turn_user_texts(&thread.turns), vec!["persisted"]);
+        let active_turn = thread
             .turns
             .last()
-            .expect("active turn should be merged into read response");
+            .expect("active turn should be merged into projection snapshot");
         assert_eq!(active_turn.id, "live-turn");
         assert_eq!(active_turn.status, TurnStatus::InProgress);
 

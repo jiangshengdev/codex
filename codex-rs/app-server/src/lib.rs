@@ -94,6 +94,7 @@ mod request_processors;
 mod request_serialization;
 mod server_request_error;
 mod thread_projection;
+mod thread_projection_runtime;
 mod thread_state;
 mod thread_status;
 mod transport;

@@ -1,6 +1,4 @@
 use super::*;
-use codex_app_server_protocol::ThreadProjectionAttachResponse;
-use codex_app_server_protocol::ThreadProjectionSnapshot;
 
 pub(super) const THREAD_UNLOADING_DELAY: Duration = Duration::from_secs(30 * 60);
 
@@ -18,10 +16,9 @@ pub(super) struct ListenerTaskContext {
 
 struct UnloadingState {
     delay: Duration,
-    has_normal_subscribers_rx: watch::Receiver<bool>,
-    has_normal_subscribers: (bool, Instant),
-    has_projection_subscribers_rx: watch::Receiver<bool>,
-    has_projection_subscribers: (bool, Instant),
+    has_subscribers_rx: watch::Receiver<bool>,
+    has_subscribers: (bool, Instant),
+    projection_subscribers: crate::thread_projection_runtime::ProjectionSubscriberWatch,
     thread_status_rx: watch::Receiver<ThreadStatus>,
     is_active: (bool, Instant),
 }
@@ -41,6 +38,10 @@ impl UnloadingState {
             .thread_projection_manager()
             .subscribe_to_has_subscribers(thread_id)
             .await;
+        let projection_subscribers =
+            crate::thread_projection_runtime::ProjectionSubscriberWatch::new(
+                has_projection_subscribers_rx,
+            );
         let thread_status_rx = listener_task_context
             .thread_watch_manager
             .subscribe(thread_id)
@@ -48,67 +49,56 @@ impl UnloadingState {
         Some(Self::from_receivers(
             delay,
             has_subscribers_rx,
-            has_projection_subscribers_rx,
+            projection_subscribers,
             thread_status_rx,
         ))
     }
 
     fn from_receivers(
         delay: Duration,
-        has_normal_subscribers_rx: watch::Receiver<bool>,
-        has_projection_subscribers_rx: watch::Receiver<bool>,
+        has_subscribers_rx: watch::Receiver<bool>,
+        projection_subscribers: crate::thread_projection_runtime::ProjectionSubscriberWatch,
         thread_status_rx: watch::Receiver<ThreadStatus>,
     ) -> Self {
-        let has_normal_subscribers = (*has_normal_subscribers_rx.borrow(), Instant::now());
-        let has_projection_subscribers = (*has_projection_subscribers_rx.borrow(), Instant::now());
+        let has_subscribers = (*has_subscribers_rx.borrow(), Instant::now());
         let is_active = (
             matches!(*thread_status_rx.borrow(), ThreadStatus::Active { .. }),
             Instant::now(),
         );
         Self {
             delay,
-            has_normal_subscribers_rx,
-            has_normal_subscribers,
-            has_projection_subscribers_rx,
-            has_projection_subscribers,
+            has_subscribers_rx,
+            has_subscribers,
+            projection_subscribers,
             thread_status_rx,
             is_active,
         }
     }
 
     fn unloading_target(&self) -> Option<Instant> {
-        match (
-            self.has_normal_subscribers,
-            self.has_projection_subscribers,
-            self.is_active,
-        ) {
-            (
-                (false, has_no_normal_subscribers_since),
-                (false, has_no_projection_subscribers_since),
-                (false, is_inactive_since),
-            ) => Some(
-                std::cmp::max(
+        match (self.has_subscribers, self.is_active) {
+            ((false, has_no_subscribers_since), (false, is_inactive_since)) => self
+                .projection_subscribers
+                .no_subscribers_since()
+                .map(|has_no_projection_subscribers_since| {
                     std::cmp::max(
-                        has_no_normal_subscribers_since,
-                        has_no_projection_subscribers_since,
-                    ),
-                    is_inactive_since,
-                ) + self.delay,
-            ),
+                        std::cmp::max(
+                            has_no_subscribers_since,
+                            has_no_projection_subscribers_since,
+                        ),
+                        is_inactive_since,
+                    ) + self.delay
+                }),
             _ => None,
         }
     }
 
     fn sync_receiver_values(&mut self) {
-        let has_normal_subscribers = *self.has_normal_subscribers_rx.borrow();
-        if self.has_normal_subscribers.0 != has_normal_subscribers {
-            self.has_normal_subscribers = (has_normal_subscribers, Instant::now());
+        let has_subscribers = *self.has_subscribers_rx.borrow();
+        if self.has_subscribers.0 != has_subscribers {
+            self.has_subscribers = (has_subscribers, Instant::now());
         }
-
-        let has_projection_subscribers = *self.has_projection_subscribers_rx.borrow();
-        if self.has_projection_subscribers.0 != has_projection_subscribers {
-            self.has_projection_subscribers = (has_projection_subscribers, Instant::now());
-        }
+        self.projection_subscribers.sync();
 
         let is_active = matches!(*self.thread_status_rx.borrow(), ThreadStatus::Active { .. });
         if self.is_active.0 != is_active {
@@ -146,13 +136,13 @@ impl UnloadingState {
             };
             tokio::select! {
                 _ = unloading_sleep => return true,
-                changed = self.has_normal_subscribers_rx.changed() => {
+                changed = self.has_subscribers_rx.changed() => {
                     if changed.is_err() {
                         return false;
                     }
                     self.sync_receiver_values();
                 },
-                changed = self.has_projection_subscribers_rx.changed() => {
+                changed = self.projection_subscribers.changed() => {
                     if changed.is_err() {
                         return false;
                     }
@@ -549,7 +539,7 @@ pub(super) async fn handle_thread_listener_command(
             snapshot,
             completion_tx,
         } => {
-            handle_thread_projection_attach_request(
+            crate::thread_projection_runtime::handle_projection_attach_response(
                 conversation_id,
                 pending_thread_unloads,
                 outgoing,
@@ -562,94 +552,6 @@ pub(super) async fn handle_thread_listener_command(
             let _ = completion_tx.send(());
         }
     }
-}
-
-async fn handle_thread_projection_attach_request(
-    conversation_id: ThreadId,
-    pending_thread_unloads: &Arc<Mutex<HashSet<ThreadId>>>,
-    outgoing: &Arc<OutgoingMessageSender>,
-    thread_state_manager: &ThreadStateManager,
-    request_id: ConnectionRequestId,
-    connection_id: ConnectionId,
-    snapshot: crate::thread_state::ThreadProjectionSnapshotFuture,
-) {
-    if pending_thread_unloads
-        .lock()
-        .await
-        .contains(&conversation_id)
-    {
-        outgoing
-            .send_error(
-                request_id,
-                invalid_request(format!(
-                    "thread {conversation_id} is closing; retry thread/projection/attach after the thread is closed"
-                )),
-            )
-            .await;
-        return;
-    }
-
-    let thread = match snapshot.await {
-        Ok(thread) => thread,
-        Err(error) => {
-            outgoing.send_error(request_id, error).await;
-            return;
-        }
-    };
-
-    if !thread_state_manager.is_live_connection(connection_id).await {
-        tracing::debug!(
-            thread_id = %conversation_id,
-            connection_id = ?connection_id,
-            "skipping thread projection attach after connection closed"
-        );
-        return;
-    }
-
-    if pending_thread_unloads
-        .lock()
-        .await
-        .contains(&conversation_id)
-    {
-        outgoing
-            .send_error(
-                request_id,
-                invalid_request(format!(
-                    "thread {conversation_id} is closing; retry thread/projection/attach after the thread is closed"
-                )),
-            )
-            .await;
-        return;
-    }
-
-    let attach_result = outgoing
-        .thread_projection_manager()
-        .attach(conversation_id, connection_id)
-        .await;
-    if !thread_state_manager.is_live_connection(connection_id).await {
-        let _ = outgoing
-            .thread_projection_manager()
-            .detach(conversation_id, connection_id)
-            .await;
-        tracing::debug!(
-            thread_id = %conversation_id,
-            connection_id = ?connection_id,
-            "removed thread projection attach after connection closed"
-        );
-        return;
-    }
-    outgoing
-        .send_response(
-            request_id,
-            ThreadProjectionAttachResponse {
-                subscription_id: attach_result.subscription_id,
-                snapshot: ThreadProjectionSnapshot {
-                    thread,
-                    head_commit_id: attach_result.head_commit_id,
-                },
-            },
-        )
-        .await;
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -907,149 +809,4 @@ pub(super) fn set_thread_status_and_interrupt_stale_turns(
         }
     }
     thread.status = status;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use codex_app_server_protocol::SessionSource;
-    use codex_app_server_protocol::TurnStartedNotification;
-    use codex_utils_absolute_path::test_support::PathBufExt;
-    use codex_utils_absolute_path::test_support::test_path_buf;
-    use pretty_assertions::assert_eq;
-    use tokio::sync::watch;
-    use tokio::time::timeout;
-
-    fn test_thread(thread_id: ThreadId) -> Thread {
-        Thread {
-            id: thread_id.to_string(),
-            session_id: thread_id.to_string(),
-            forked_from_id: None,
-            preview: String::new(),
-            ephemeral: false,
-            model_provider: "mock-provider".to_string(),
-            created_at: 0,
-            updated_at: 0,
-            status: ThreadStatus::Idle,
-            path: None,
-            cwd: test_path_buf("/tmp").abs(),
-            cli_version: "test".to_string(),
-            source: SessionSource::AppServer,
-            thread_source: None,
-            agent_nickname: None,
-            agent_role: None,
-            git_info: None,
-            name: None,
-            turns: Vec::new(),
-        }
-    }
-
-    fn turn_started_notification(thread_id: ThreadId) -> ServerNotification {
-        ServerNotification::TurnStarted(TurnStartedNotification {
-            thread_id: thread_id.to_string(),
-            turn: Turn {
-                id: "turn-1".to_string(),
-                items: Vec::new(),
-                items_view: TurnItemsView::Full,
-                status: TurnStatus::InProgress,
-                error: None,
-                started_at: Some(1),
-                completed_at: None,
-                duration_ms: None,
-            },
-        })
-    }
-
-    #[tokio::test]
-    async fn thread_projection_subscriber_prevents_idle_unload_until_detached() {
-        let (_normal_tx, normal_rx) = watch::channel(false);
-        let (projection_tx, projection_rx) = watch::channel(true);
-        let (_status_tx, status_rx) = watch::channel(ThreadStatus::Idle);
-        let mut unloading_state = UnloadingState::from_receivers(
-            Duration::from_millis(1),
-            normal_rx,
-            projection_rx,
-            status_rx,
-        );
-
-        assert!(
-            timeout(
-                Duration::from_millis(20),
-                unloading_state.wait_for_unloading_trigger()
-            )
-            .await
-            .is_err()
-        );
-
-        projection_tx
-            .send(false)
-            .expect("projection watcher is open");
-        assert!(
-            timeout(
-                Duration::from_secs(1),
-                unloading_state.wait_for_unloading_trigger()
-            )
-            .await
-            .expect("idle unload should be triggered")
-        );
-    }
-
-    #[tokio::test]
-    async fn thread_projection_attach_after_connection_close_does_not_subscribe()
-    -> anyhow::Result<()> {
-        let thread_id = ThreadId::new();
-        let connection_id = ConnectionId(1);
-        let request_id = ConnectionRequestId {
-            connection_id,
-            request_id: RequestId::Integer(1),
-        };
-        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
-        let thread_state_manager = ThreadStateManager::new();
-        thread_state_manager
-            .connection_initialized(connection_id)
-            .await;
-        let outgoing = Arc::new(OutgoingMessageSender::new(
-            tokio::sync::mpsc::channel(1).0,
-            codex_analytics::AnalyticsEventsClient::disabled(),
-        ));
-        let (snapshot_tx, snapshot_rx) = oneshot::channel();
-        let snapshot = Box::pin(async move {
-            snapshot_rx
-                .await
-                .expect("snapshot sender should resolve the future")
-        });
-
-        let task = tokio::spawn({
-            let pending_thread_unloads = pending_thread_unloads.clone();
-            let outgoing = outgoing.clone();
-            let thread_state_manager = thread_state_manager.clone();
-            async move {
-                handle_thread_projection_attach_request(
-                    thread_id,
-                    &pending_thread_unloads,
-                    &outgoing,
-                    &thread_state_manager,
-                    request_id,
-                    connection_id,
-                    snapshot,
-                )
-                .await;
-            }
-        });
-        thread_state_manager.remove_connection(connection_id).await;
-        snapshot_tx
-            .send(Ok(test_thread(thread_id)))
-            .expect("snapshot receiver should be waiting");
-        timeout(Duration::from_secs(1), task)
-            .await
-            .expect("attach task should finish")
-            .expect("attach task should not panic");
-
-        let deliveries = outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await;
-        assert_eq!(deliveries, Vec::new());
-        Ok(())
-    }
 }

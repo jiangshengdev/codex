@@ -21,6 +21,8 @@ pub(crate) struct ThreadProjectionManager {
 pub(crate) enum ProjectionDetachResult {
     Detached,
     NotSubscribed,
+    // Manager-level NotLoaded means no projection entry exists for the thread.
+    // API handlers must check thread loaded state before mapping this to wire status.
     NotLoaded,
 }
 

@@ -1,8 +1,6 @@
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
-use codex_app_server_protocol::JSONRPCErrorError;
 use codex_app_server_protocol::RequestId;
-use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadGoal;
 use codex_app_server_protocol::ThreadHistoryBuilder;
 use codex_app_server_protocol::Turn;
@@ -16,8 +14,6 @@ use codex_rollout::state_db::StateDbHandle;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Weak;
 use tokio::sync::Mutex;
@@ -27,8 +23,6 @@ use tokio::sync::watch;
 use tracing::error;
 
 type PendingInterruptQueue = Vec<ConnectionRequestId>;
-pub(crate) type ThreadProjectionSnapshotFuture =
-    Pin<Box<dyn Future<Output = Result<Thread, JSONRPCErrorError>> + Send>>;
 
 pub(crate) struct PendingThreadResumeRequest {
     pub(crate) request_id: ConnectionRequestId,
@@ -64,7 +58,7 @@ pub(crate) enum ThreadListenerCommand {
     SendThreadProjectionAttachResponse {
         request_id: ConnectionRequestId,
         connection_id: ConnectionId,
-        snapshot: ThreadProjectionSnapshotFuture,
+        snapshot: crate::thread_projection_runtime::ThreadProjectionSnapshotFuture,
         completion_tx: oneshot::Sender<()>,
     },
 }
