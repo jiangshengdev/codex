@@ -8,12 +8,44 @@ use codex_app_server_protocol::ThreadProjectionDetachResponse;
 use codex_app_server_protocol::ThreadProjectionDetachStatus;
 use std::sync::Arc;
 
+struct PreparedProjectionAttach {
+    thread_id: ThreadId,
+    thread_state: Arc<Mutex<crate::thread_state::ThreadState>>,
+}
+
 impl ThreadRequestProcessor {
     pub(crate) async fn thread_projection_attach(
         &self,
         request_id: &ConnectionRequestId,
         params: ThreadProjectionAttachParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        let Some(attach) = self.prepare_projection_attach(request_id, params).await? else {
+            return Ok(None);
+        };
+
+        let snapshot_processor = self.clone();
+        let thread_id = attach.thread_id;
+        let snapshot = Box::pin(async move {
+            snapshot_processor
+                .read_thread_projection_snapshot(thread_id)
+                .await
+                .map_err(thread_read_view_error)
+        });
+        enqueue_projection_attach_response(
+            attach.thread_state,
+            attach.thread_id,
+            request_id.clone(),
+            snapshot,
+        )
+        .await?;
+        Ok(None)
+    }
+
+    async fn prepare_projection_attach(
+        &self,
+        request_id: &ConnectionRequestId,
+        params: ThreadProjectionAttachParams,
+    ) -> Result<Option<PreparedProjectionAttach>, JSONRPCErrorError> {
         let thread_id = ThreadId::from_string(&params.thread_id)
             .map_err(|err| invalid_request(format!("invalid thread id: {err}")))?;
         let thread = self
@@ -48,16 +80,10 @@ impl ThreadRequestProcessor {
         self.ensure_listener_task_running(thread_id, thread, thread_state.clone())
             .await?;
 
-        let snapshot_processor = self.clone();
-        let snapshot = Box::pin(async move {
-            snapshot_processor
-                .read_thread_projection_snapshot(thread_id)
-                .await
-                .map_err(thread_read_view_error)
-        });
-        enqueue_projection_attach_response(thread_state, thread_id, request_id.clone(), snapshot)
-            .await?;
-        Ok(None)
+        Ok(Some(PreparedProjectionAttach {
+            thread_id,
+            thread_state,
+        }))
     }
 
     pub(crate) async fn thread_projection_detach(
