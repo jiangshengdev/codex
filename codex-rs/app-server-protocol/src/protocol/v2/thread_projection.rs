@@ -1,8 +1,6 @@
 use super::ItemCompletedNotification;
 use super::ItemStartedNotification;
 use super::Thread;
-use super::ThreadItem;
-use super::Turn;
 use super::TurnCompletedNotification;
 use super::TurnStartedNotification;
 use schemars::JsonSchema;
@@ -72,52 +70,17 @@ pub struct ThreadProjectionEventNotification {
 #[ts(tag = "type", rename_all = "camelCase", export_to = "v2/")]
 pub enum ThreadProjectionEvent {
     TurnStarted {
-        #[schemars(with = "ThreadProjectionTurnNotificationSchema")]
         notification: TurnStartedNotification,
     },
     TurnCompleted {
-        #[schemars(with = "ThreadProjectionTurnNotificationSchema")]
         notification: TurnCompletedNotification,
     },
     ItemStarted {
-        #[schemars(with = "ThreadProjectionItemStartedNotificationSchema")]
         notification: ItemStartedNotification,
     },
     ItemCompleted {
-        #[schemars(with = "ThreadProjectionItemCompletedNotificationSchema")]
         notification: ItemCompletedNotification,
     },
-}
-
-#[derive(JsonSchema)]
-#[serde(rename_all = "camelCase")]
-#[schemars(rename = "ThreadProjectionTurnNotification")]
-#[allow(dead_code)]
-struct ThreadProjectionTurnNotificationSchema {
-    thread_id: String,
-    turn: Turn,
-}
-
-#[derive(JsonSchema)]
-#[serde(rename_all = "camelCase")]
-#[schemars(rename = "ThreadProjectionItemStartedNotification")]
-#[allow(dead_code)]
-struct ThreadProjectionItemStartedNotificationSchema {
-    item: ThreadItem,
-    thread_id: String,
-    turn_id: String,
-    started_at_ms: i64,
-}
-
-#[derive(JsonSchema)]
-#[serde(rename_all = "camelCase")]
-#[schemars(rename = "ThreadProjectionItemCompletedNotification")]
-#[allow(dead_code)]
-struct ThreadProjectionItemCompletedNotificationSchema {
-    item: ThreadItem,
-    thread_id: String,
-    turn_id: String,
-    completed_at_ms: i64,
 }
 
 #[cfg(test)]

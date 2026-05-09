@@ -16590,7 +16590,7 @@
           {
             "properties": {
               "notification": {
-                "$ref": "#/definitions/v2/ThreadProjectionTurnNotification"
+                "$ref": "#/definitions/v2/TurnStartedNotification"
               },
               "type": {
                 "enum": [
@@ -16610,7 +16610,7 @@
           {
             "properties": {
               "notification": {
-                "$ref": "#/definitions/v2/ThreadProjectionTurnNotification"
+                "$ref": "#/definitions/v2/TurnCompletedNotification"
               },
               "type": {
                 "enum": [
@@ -16630,7 +16630,7 @@
           {
             "properties": {
               "notification": {
-                "$ref": "#/definitions/v2/ThreadProjectionItemStartedNotification"
+                "$ref": "#/definitions/v2/ItemStartedNotification"
               },
               "type": {
                 "enum": [
@@ -16650,7 +16650,7 @@
           {
             "properties": {
               "notification": {
-                "$ref": "#/definitions/v2/ThreadProjectionItemCompletedNotification"
+                "$ref": "#/definitions/v2/ItemCompletedNotification"
               },
               "type": {
                 "enum": [
@@ -16700,54 +16700,6 @@
         "title": "ThreadProjectionEventNotification",
         "type": "object"
       },
-      "ThreadProjectionItemCompletedNotification": {
-        "properties": {
-          "completedAtMs": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "item": {
-            "$ref": "#/definitions/v2/ThreadItem"
-          },
-          "threadId": {
-            "type": "string"
-          },
-          "turnId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "completedAtMs",
-          "item",
-          "threadId",
-          "turnId"
-        ],
-        "type": "object"
-      },
-      "ThreadProjectionItemStartedNotification": {
-        "properties": {
-          "item": {
-            "$ref": "#/definitions/v2/ThreadItem"
-          },
-          "startedAtMs": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "threadId": {
-            "type": "string"
-          },
-          "turnId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "item",
-          "startedAtMs",
-          "threadId",
-          "turnId"
-        ],
-        "type": "object"
-      },
       "ThreadProjectionSnapshot": {
         "properties": {
           "headCommitId": {
@@ -16762,21 +16714,6 @@
         },
         "required": [
           "thread"
-        ],
-        "type": "object"
-      },
-      "ThreadProjectionTurnNotification": {
-        "properties": {
-          "threadId": {
-            "type": "string"
-          },
-          "turn": {
-            "$ref": "#/definitions/v2/Turn"
-          }
-        },
-        "required": [
-          "threadId",
-          "turn"
         ],
         "type": "object"
       },

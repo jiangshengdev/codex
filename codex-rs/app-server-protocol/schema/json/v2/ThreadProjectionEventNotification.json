@@ -422,6 +422,56 @@
       ],
       "type": "object"
     },
+    "ItemCompletedNotification": {
+      "properties": {
+        "completedAtMs": {
+          "description": "Unix timestamp (in milliseconds) when this item lifecycle completed.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "item": {
+          "$ref": "#/definitions/ThreadItem"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "completedAtMs",
+        "item",
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
+    "ItemStartedNotification": {
+      "properties": {
+        "item": {
+          "$ref": "#/definitions/ThreadItem"
+        },
+        "startedAtMs": {
+          "description": "Unix timestamp (in milliseconds) when this item lifecycle started.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "item",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "McpToolCallError": {
       "properties": {
         "message": {
@@ -1296,7 +1346,7 @@
         {
           "properties": {
             "notification": {
-              "$ref": "#/definitions/ThreadProjectionTurnNotification"
+              "$ref": "#/definitions/TurnStartedNotification"
             },
             "type": {
               "enum": [
@@ -1316,7 +1366,7 @@
         {
           "properties": {
             "notification": {
-              "$ref": "#/definitions/ThreadProjectionTurnNotification"
+              "$ref": "#/definitions/TurnCompletedNotification"
             },
             "type": {
               "enum": [
@@ -1336,7 +1386,7 @@
         {
           "properties": {
             "notification": {
-              "$ref": "#/definitions/ThreadProjectionItemStartedNotification"
+              "$ref": "#/definitions/ItemStartedNotification"
             },
             "type": {
               "enum": [
@@ -1356,7 +1406,7 @@
         {
           "properties": {
             "notification": {
-              "$ref": "#/definitions/ThreadProjectionItemCompletedNotification"
+              "$ref": "#/definitions/ItemCompletedNotification"
             },
             "type": {
               "enum": [
@@ -1374,69 +1424,6 @@
           "type": "object"
         }
       ]
-    },
-    "ThreadProjectionItemCompletedNotification": {
-      "properties": {
-        "completedAtMs": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "item": {
-          "$ref": "#/definitions/ThreadItem"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "turnId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "completedAtMs",
-        "item",
-        "threadId",
-        "turnId"
-      ],
-      "type": "object"
-    },
-    "ThreadProjectionItemStartedNotification": {
-      "properties": {
-        "item": {
-          "$ref": "#/definitions/ThreadItem"
-        },
-        "startedAtMs": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "turnId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "item",
-        "startedAtMs",
-        "threadId",
-        "turnId"
-      ],
-      "type": "object"
-    },
-    "ThreadProjectionTurnNotification": {
-      "properties": {
-        "threadId": {
-          "type": "string"
-        },
-        "turn": {
-          "$ref": "#/definitions/Turn"
-        }
-      },
-      "required": [
-        "threadId",
-        "turn"
-      ],
-      "type": "object"
     },
     "Turn": {
       "properties": {
@@ -1505,6 +1492,21 @@
       ],
       "type": "object"
     },
+    "TurnCompletedNotification": {
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "turn": {
+          "$ref": "#/definitions/Turn"
+        }
+      },
+      "required": [
+        "threadId",
+        "turn"
+      ],
+      "type": "object"
+    },
     "TurnError": {
       "properties": {
         "additionalDetails": {
@@ -1557,6 +1559,21 @@
           "type": "string"
         }
       ]
+    },
+    "TurnStartedNotification": {
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "turn": {
+          "$ref": "#/definitions/Turn"
+        }
+      },
+      "required": [
+        "threadId",
+        "turn"
+      ],
+      "type": "object"
     },
     "TurnStatus": {
       "enum": [
