@@ -63,18 +63,19 @@ impl UnloadingState {
 
     fn unloading_target(&self) -> Option<Instant> {
         match (self.has_subscribers, self.is_active) {
-            ((false, has_no_subscribers_since), (false, is_inactive_since)) => self
-                .projection_subscribers
-                .no_subscribers_since()
-                .map(|has_no_projection_subscribers_since| {
+            ((false, has_no_subscribers_since), (false, is_inactive_since)) => {
+                let has_no_projection_subscribers_since =
+                    self.projection_subscribers.no_subscribers_since()?;
+                Some(
                     std::cmp::max(
                         std::cmp::max(
                             has_no_subscribers_since,
                             has_no_projection_subscribers_since,
                         ),
                         is_inactive_since,
-                    ) + self.delay
-                }),
+                    ) + self.delay,
+                )
+            }
             _ => None,
         }
     }
