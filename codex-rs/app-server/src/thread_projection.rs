@@ -78,11 +78,7 @@ impl ThreadProjectionManager {
         if !had_subscribers {
             let _ = entry.has_subscribers_tx.send(true);
         }
-        inner
-            .connection_index
-            .entry(connection_id)
-            .or_default()
-            .insert(thread_id);
+        inner.add_connection_thread_index(connection_id, thread_id);
         ProjectionAttachResult {
             subscription_id,
             head_commit_id,
@@ -104,12 +100,7 @@ impl ThreadProjectionManager {
         if entry.subscribers.is_empty() {
             let _ = entry.has_subscribers_tx.send(false);
         }
-        if let Some(thread_ids) = inner.connection_index.get_mut(&connection_id) {
-            thread_ids.remove(&thread_id);
-            if thread_ids.is_empty() {
-                inner.connection_index.remove(&connection_id);
-            }
-        }
+        inner.remove_connection_thread_index(connection_id, thread_id);
         ProjectionDetachResult::Detached
     }
 
@@ -138,12 +129,7 @@ impl ThreadProjectionManager {
             return;
         };
         for connection_id in entry.subscribers.into_keys() {
-            if let Some(thread_ids) = inner.connection_index.get_mut(&connection_id) {
-                thread_ids.remove(&thread_id);
-                if thread_ids.is_empty() {
-                    inner.connection_index.remove(&connection_id);
-                }
-            }
+            inner.remove_connection_thread_index(connection_id, thread_id);
         }
     }
 
@@ -153,24 +139,8 @@ impl ThreadProjectionManager {
         notification: &ServerNotification,
     ) -> Vec<ProjectionDelivery> {
         let mut inner = self.inner.lock().await;
-        let event = match notification {
-            ServerNotification::TurnStarted(notification) => ThreadProjectionEvent::TurnStarted {
-                notification: notification.clone(),
-            },
-            ServerNotification::TurnCompleted(notification) => {
-                ThreadProjectionEvent::TurnCompleted {
-                    notification: notification.clone(),
-                }
-            }
-            ServerNotification::ItemStarted(notification) => ThreadProjectionEvent::ItemStarted {
-                notification: notification.clone(),
-            },
-            ServerNotification::ItemCompleted(notification) => {
-                ThreadProjectionEvent::ItemCompleted {
-                    notification: notification.clone(),
-                }
-            }
-            _ => return Vec::new(),
+        let Some(event) = projection_event_from_notification(notification) else {
+            return Vec::new();
         };
         let entry = inner.thread_entry_mut(thread_id);
         let commit_id = Uuid::now_v7().to_string();
@@ -210,6 +180,22 @@ impl ThreadProjectionManager {
 }
 
 impl ThreadProjectionManagerInner {
+    fn add_connection_thread_index(&mut self, connection_id: ConnectionId, thread_id: ThreadId) {
+        self.connection_index
+            .entry(connection_id)
+            .or_default()
+            .insert(thread_id);
+    }
+
+    fn remove_connection_thread_index(&mut self, connection_id: ConnectionId, thread_id: ThreadId) {
+        if let Some(thread_ids) = self.connection_index.get_mut(&connection_id) {
+            thread_ids.remove(&thread_id);
+            if thread_ids.is_empty() {
+                self.connection_index.remove(&connection_id);
+            }
+        }
+    }
+
     fn thread_entry_mut(&mut self, thread_id: ThreadId) -> &mut ThreadEntry {
         self.threads.entry(thread_id).or_insert_with(|| {
             let (has_subscribers_tx, _) = watch::channel(false);
@@ -219,6 +205,30 @@ impl ThreadProjectionManagerInner {
                 has_subscribers_tx,
             }
         })
+    }
+}
+
+fn projection_event_from_notification(
+    notification: &ServerNotification,
+) -> Option<ThreadProjectionEvent> {
+    match notification {
+        ServerNotification::TurnStarted(notification) => Some(ThreadProjectionEvent::TurnStarted {
+            notification: notification.clone(),
+        }),
+        ServerNotification::TurnCompleted(notification) => {
+            Some(ThreadProjectionEvent::TurnCompleted {
+                notification: notification.clone(),
+            })
+        }
+        ServerNotification::ItemStarted(notification) => Some(ThreadProjectionEvent::ItemStarted {
+            notification: notification.clone(),
+        }),
+        ServerNotification::ItemCompleted(notification) => {
+            Some(ThreadProjectionEvent::ItemCompleted {
+                notification: notification.clone(),
+            })
+        }
+        _ => None,
     }
 }
 

@@ -69,14 +69,7 @@ pub(crate) async fn handle_projection_attach_response(
         .await
         .contains(&conversation_id)
     {
-        outgoing
-            .send_error(
-                request_id,
-                invalid_request(format!(
-                    "thread {conversation_id} is closing; retry thread/projection/attach after the thread is closed"
-                )),
-            )
-            .await;
+        send_projection_attach_closing_error(outgoing, request_id, conversation_id).await;
         return;
     }
 
@@ -102,14 +95,7 @@ pub(crate) async fn handle_projection_attach_response(
         .await
         .contains(&conversation_id)
     {
-        outgoing
-            .send_error(
-                request_id,
-                invalid_request(format!(
-                    "thread {conversation_id} is closing; retry thread/projection/attach after the thread is closed"
-                )),
-            )
-            .await;
+        send_projection_attach_closing_error(outgoing, request_id, conversation_id).await;
         return;
     }
 
@@ -139,6 +125,21 @@ pub(crate) async fn handle_projection_attach_response(
                     head_commit_id: attach_result.head_commit_id,
                 },
             },
+        )
+        .await;
+}
+
+async fn send_projection_attach_closing_error(
+    outgoing: &Arc<OutgoingMessageSender>,
+    request_id: ConnectionRequestId,
+    conversation_id: ThreadId,
+) {
+    outgoing
+        .send_error(
+            request_id,
+            invalid_request(format!(
+                "thread {conversation_id} is closing; retry thread/projection/attach after the thread is closed"
+            )),
         )
         .await;
 }

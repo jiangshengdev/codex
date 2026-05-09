@@ -6,6 +6,7 @@ use codex_app_server_protocol::ThreadProjectionAttachParams;
 use codex_app_server_protocol::ThreadProjectionDetachParams;
 use codex_app_server_protocol::ThreadProjectionDetachResponse;
 use codex_app_server_protocol::ThreadProjectionDetachStatus;
+use std::sync::Arc;
 
 impl ThreadRequestProcessor {
     pub(crate) async fn thread_projection_attach(
@@ -54,35 +55,8 @@ impl ThreadRequestProcessor {
                 .await
                 .map_err(thread_read_view_error)
         });
-
-        let listener_command_tx = {
-            let thread_state = thread_state.lock().await;
-            thread_state.listener_command_tx()
-        };
-        let Some(listener_command_tx) = listener_command_tx else {
-            return Err(internal_error(format!(
-                "failed to enqueue thread projection attach for thread {thread_id}: thread listener is not running"
-            )));
-        };
-
-        let (completion_tx, completion_rx) = tokio::sync::oneshot::channel();
-        listener_command_tx
-            .send(crate::thread_state::ThreadListenerCommand::SendThreadProjectionAttachResponse {
-                request_id: request_id.clone(),
-                connection_id: request_id.connection_id,
-                snapshot,
-                completion_tx,
-            })
-            .map_err(|_| {
-                internal_error(format!(
-                    "failed to enqueue thread projection attach for thread {thread_id}: thread listener command channel is closed"
-                ))
-            })?;
-        completion_rx.await.map_err(|err| {
-            internal_error(format!(
-                "failed to complete thread projection attach for thread {thread_id}: {err}"
-            ))
-        })?;
+        enqueue_projection_attach_response(thread_state, thread_id, request_id.clone(), snapshot)
+            .await?;
         Ok(None)
     }
 
@@ -115,11 +89,21 @@ impl ThreadRequestProcessor {
         &self,
         thread_id: ThreadId,
     ) -> Result<Thread, ThreadReadViewError> {
-        let mut thread = match self
+        let mut thread = self.read_projection_base_thread_view(thread_id).await?;
+        self.merge_live_projection_state(thread_id, &mut thread)
+            .await;
+        Ok(thread)
+    }
+
+    async fn read_projection_base_thread_view(
+        &self,
+        thread_id: ThreadId,
+    ) -> Result<Thread, ThreadReadViewError> {
+        match self
             .read_thread_view(thread_id, /*include_turns*/ true)
             .await
         {
-            Ok(thread) => thread,
+            Ok(thread) => Ok(thread),
             Err(ThreadReadViewError::InvalidRequest(message))
                 if message
                     == format!(
@@ -127,11 +111,13 @@ impl ThreadRequestProcessor {
                     ) =>
             {
                 self.read_thread_view(thread_id, /*include_turns*/ false)
-                    .await?
+                    .await
             }
-            Err(err) => return Err(err),
-        };
+            Err(err) => Err(err),
+        }
+    }
 
+    async fn merge_live_projection_state(&self, thread_id: ThreadId, thread: &mut Thread) {
         let thread_state = self.thread_state_manager.thread_state(thread_id).await;
         let active_turn = thread_state.lock().await.active_turn_snapshot();
         let has_live_in_progress_turn = active_turn
@@ -146,13 +132,49 @@ impl ThreadRequestProcessor {
                 .loaded_status_for_thread(&thread.id)
                 .await;
             set_thread_status_and_interrupt_stale_turns(
-                &mut thread,
+                thread,
                 thread_status,
                 has_live_in_progress_turn,
             );
         }
-        Ok(thread)
     }
+}
+
+async fn enqueue_projection_attach_response(
+    thread_state: Arc<Mutex<crate::thread_state::ThreadState>>,
+    thread_id: ThreadId,
+    request_id: ConnectionRequestId,
+    snapshot: crate::thread_projection_runtime::ThreadProjectionSnapshotFuture,
+) -> Result<(), JSONRPCErrorError> {
+    let listener_command_tx = {
+        let thread_state = thread_state.lock().await;
+        thread_state.listener_command_tx()
+    };
+    let Some(listener_command_tx) = listener_command_tx else {
+        return Err(internal_error(format!(
+            "failed to enqueue thread projection attach for thread {thread_id}: thread listener is not running"
+        )));
+    };
+
+    let (completion_tx, completion_rx) = tokio::sync::oneshot::channel();
+    listener_command_tx
+        .send(crate::thread_state::ThreadListenerCommand::SendThreadProjectionAttachResponse {
+            request_id: request_id.clone(),
+            connection_id: request_id.connection_id,
+            snapshot,
+            completion_tx,
+        })
+        .map_err(|_| {
+            internal_error(format!(
+                "failed to enqueue thread projection attach for thread {thread_id}: thread listener command channel is closed"
+            ))
+        })?;
+    completion_rx.await.map_err(|err| {
+        internal_error(format!(
+            "failed to complete thread projection attach for thread {thread_id}: {err}"
+        ))
+    })?;
+    Ok(())
 }
 
 #[cfg(test)]
