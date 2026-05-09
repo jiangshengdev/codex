@@ -665,6 +665,14 @@ impl MessageProcessor {
     ) {
         session_state.rpc_gate.shutdown().await;
         self.outgoing.connection_closed(connection_id).await;
+        self.fs_processor.connection_closed(connection_id).await;
+        self.command_exec_processor
+            .connection_closed(connection_id)
+            .await;
+        self.process_exec_processor
+            .connection_closed(connection_id)
+            .await;
+        self.thread_processor.connection_closed(connection_id).await;
         let projection_threads = self
             .outgoing
             .thread_projection_manager()
@@ -677,14 +685,6 @@ impl MessageProcessor {
                 "removed thread projection subscriptions for closed connection"
             );
         }
-        self.fs_processor.connection_closed(connection_id).await;
-        self.command_exec_processor
-            .connection_closed(connection_id)
-            .await;
-        self.process_exec_processor
-            .connection_closed(connection_id)
-            .await;
-        self.thread_processor.connection_closed(connection_id).await;
     }
 
     pub(crate) fn subscribe_running_assistant_turn_count(&self) -> watch::Receiver<usize> {

@@ -364,11 +364,10 @@ mod tests {
             }
         });
 
-        let early_projection_cleanup = outgoing
-            .thread_projection_manager()
-            .remove_connection(connection_id)
-            .await;
-        assert_eq!(early_projection_cleanup, Vec::new());
+        // Production close handling must mark the connection closed before the
+        // final projection cleanup so a listener-queued attach observes the
+        // closed connection and does not register a subscriber.
+        thread_state_manager.remove_connection(connection_id).await;
 
         snapshot_tx
             .send(Ok(test_thread(thread_id)))
@@ -378,7 +377,11 @@ mod tests {
             .expect("attach task should finish")
             .expect("attach task should not panic");
 
-        thread_state_manager.remove_connection(connection_id).await;
+        let projection_cleanup = outgoing
+            .thread_projection_manager()
+            .remove_connection(connection_id)
+            .await;
+        assert_eq!(projection_cleanup, Vec::new());
 
         let deliveries = outgoing
             .thread_projection_manager()
