@@ -66,18 +66,8 @@ impl ThreadProjectionManager {
     ) -> ProjectionAttachResult {
         let mut inner = self.inner.lock().await;
         let entry = inner.thread_entry_mut(thread_id);
-        let had_subscribers = !entry.subscribers.is_empty();
         let subscription_id = Uuid::now_v7().to_string();
-        let head_commit_id = entry.head_commit_id.clone();
-        entry.subscribers.insert(
-            connection_id,
-            ProjectionSubscriber {
-                subscription_id: subscription_id.clone(),
-            },
-        );
-        if !had_subscribers {
-            let _ = entry.has_subscribers_tx.send(true);
-        }
+        let head_commit_id = entry.attach(connection_id, subscription_id.clone());
         inner.add_connection_thread_index(connection_id, thread_id);
         ProjectionAttachResult {
             subscription_id,
@@ -94,11 +84,8 @@ impl ThreadProjectionManager {
         let Some(entry) = inner.threads.get_mut(&thread_id) else {
             return ProjectionDetachResult::NotLoaded;
         };
-        if entry.subscribers.remove(&connection_id).is_none() {
+        if !entry.detach(connection_id) {
             return ProjectionDetachResult::NotSubscribed;
-        }
-        if entry.subscribers.is_empty() {
-            let _ = entry.has_subscribers_tx.send(false);
         }
         inner.remove_connection_thread_index(connection_id, thread_id);
         ProjectionDetachResult::Detached
@@ -112,11 +99,8 @@ impl ThreadProjectionManager {
         let mut removed_thread_ids = Vec::with_capacity(thread_ids.len());
         for thread_id in thread_ids {
             if let Some(entry) = inner.threads.get_mut(&thread_id)
-                && entry.subscribers.remove(&connection_id).is_some()
+                && entry.detach(connection_id)
             {
-                if entry.subscribers.is_empty() {
-                    let _ = entry.has_subscribers_tx.send(false);
-                }
                 removed_thread_ids.push(thread_id);
             }
         }
@@ -144,14 +128,9 @@ impl ThreadProjectionManager {
         };
         let entry = inner.thread_entry_mut(thread_id);
         let commit_id = Uuid::now_v7().to_string();
-        let parent_commit_id = entry.head_commit_id.replace(commit_id.clone());
-        let mut subscribers = entry
-            .subscribers
-            .iter()
-            .map(|(connection_id, subscriber)| (*connection_id, subscriber.subscription_id.clone()))
-            .collect::<Vec<_>>();
-        subscribers.sort_by_key(|(connection_id, _)| connection_id.0);
-        subscribers
+        let parent_commit_id = entry.advance_head(commit_id.clone());
+        entry
+            .sorted_subscribers()
             .into_iter()
             .map(|(connection_id, subscription_id)| ProjectionDelivery {
                 connection_id,
@@ -176,6 +155,47 @@ impl ThreadProjectionManager {
             .thread_entry_mut(thread_id)
             .has_subscribers_tx
             .subscribe()
+    }
+}
+
+impl ThreadEntry {
+    fn attach(&mut self, connection_id: ConnectionId, subscription_id: String) -> Option<String> {
+        let had_subscribers = !self.subscribers.is_empty();
+        let head_commit_id = self.head_commit_id.clone();
+        self.subscribers.insert(
+            connection_id,
+            ProjectionSubscriber {
+                subscription_id: subscription_id.clone(),
+            },
+        );
+        if !had_subscribers {
+            let _ = self.has_subscribers_tx.send(true);
+        }
+        head_commit_id
+    }
+
+    fn detach(&mut self, connection_id: ConnectionId) -> bool {
+        if self.subscribers.remove(&connection_id).is_none() {
+            return false;
+        }
+        if self.subscribers.is_empty() {
+            let _ = self.has_subscribers_tx.send(false);
+        }
+        true
+    }
+
+    fn advance_head(&mut self, commit_id: String) -> Option<String> {
+        self.head_commit_id.replace(commit_id)
+    }
+
+    fn sorted_subscribers(&self) -> Vec<(ConnectionId, String)> {
+        let mut subscribers = self
+            .subscribers
+            .iter()
+            .map(|(connection_id, subscriber)| (*connection_id, subscriber.subscription_id.clone()))
+            .collect::<Vec<_>>();
+        subscribers.sort_by_key(|(connection_id, _)| connection_id.0);
+        subscribers
     }
 }
 

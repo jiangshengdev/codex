@@ -64,12 +64,14 @@ pub(crate) async fn handle_projection_attach_response(
     connection_id: ConnectionId,
     snapshot: ThreadProjectionSnapshotFuture,
 ) {
-    if pending_thread_unloads
-        .lock()
-        .await
-        .contains(&conversation_id)
+    if reject_projection_attach_for_closing_thread(
+        pending_thread_unloads,
+        outgoing,
+        request_id.clone(),
+        conversation_id,
+    )
+    .await
     {
-        send_projection_attach_closing_error(outgoing, request_id, conversation_id).await;
         return;
     }
 
@@ -81,21 +83,24 @@ pub(crate) async fn handle_projection_attach_response(
         }
     };
 
-    if !thread_state_manager.is_live_connection(connection_id).await {
-        tracing::debug!(
-            thread_id = %conversation_id,
-            connection_id = ?connection_id,
-            "skipping thread projection attach after connection closed"
-        );
+    if skip_projection_attach_after_connection_closed(
+        thread_state_manager,
+        conversation_id,
+        connection_id,
+    )
+    .await
+    {
         return;
     }
 
-    if pending_thread_unloads
-        .lock()
-        .await
-        .contains(&conversation_id)
+    if reject_projection_attach_for_closing_thread(
+        pending_thread_unloads,
+        outgoing,
+        request_id.clone(),
+        conversation_id,
+    )
+    .await
     {
-        send_projection_attach_closing_error(outgoing, request_id, conversation_id).await;
         return;
     }
 
@@ -103,16 +108,14 @@ pub(crate) async fn handle_projection_attach_response(
         .thread_projection_manager()
         .attach(conversation_id, connection_id)
         .await;
-    if !thread_state_manager.is_live_connection(connection_id).await {
-        let _ = outgoing
-            .thread_projection_manager()
-            .detach(conversation_id, connection_id)
-            .await;
-        tracing::debug!(
-            thread_id = %conversation_id,
-            connection_id = ?connection_id,
-            "removed thread projection attach after connection closed"
-        );
+    if remove_projection_attach_after_connection_closed(
+        outgoing,
+        thread_state_manager,
+        conversation_id,
+        connection_id,
+    )
+    .await
+    {
         return;
     }
     outgoing
@@ -129,6 +132,24 @@ pub(crate) async fn handle_projection_attach_response(
         .await;
 }
 
+async fn reject_projection_attach_for_closing_thread(
+    pending_thread_unloads: &Arc<Mutex<HashSet<ThreadId>>>,
+    outgoing: &Arc<OutgoingMessageSender>,
+    request_id: ConnectionRequestId,
+    conversation_id: ThreadId,
+) -> bool {
+    if pending_thread_unloads
+        .lock()
+        .await
+        .contains(&conversation_id)
+    {
+        send_projection_attach_closing_error(outgoing, request_id, conversation_id).await;
+        true
+    } else {
+        false
+    }
+}
+
 async fn send_projection_attach_closing_error(
     outgoing: &Arc<OutgoingMessageSender>,
     request_id: ConnectionRequestId,
@@ -142,6 +163,45 @@ async fn send_projection_attach_closing_error(
             )),
         )
         .await;
+}
+
+async fn skip_projection_attach_after_connection_closed(
+    thread_state_manager: &ThreadStateManager,
+    conversation_id: ThreadId,
+    connection_id: ConnectionId,
+) -> bool {
+    if thread_state_manager.is_live_connection(connection_id).await {
+        return false;
+    }
+
+    tracing::debug!(
+        thread_id = %conversation_id,
+        connection_id = ?connection_id,
+        "skipping thread projection attach after connection closed"
+    );
+    true
+}
+
+async fn remove_projection_attach_after_connection_closed(
+    outgoing: &Arc<OutgoingMessageSender>,
+    thread_state_manager: &ThreadStateManager,
+    conversation_id: ThreadId,
+    connection_id: ConnectionId,
+) -> bool {
+    if thread_state_manager.is_live_connection(connection_id).await {
+        return false;
+    }
+
+    let _ = outgoing
+        .thread_projection_manager()
+        .detach(conversation_id, connection_id)
+        .await;
+    tracing::debug!(
+        thread_id = %conversation_id,
+        connection_id = ?connection_id,
+        "removed thread projection attach after connection closed"
+    );
+    true
 }
 
 #[cfg(test)]
