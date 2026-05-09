@@ -76,11 +76,6 @@ impl UnloadingState {
     }
 
     fn unloading_target(&self) -> Option<Instant> {
-        self.inactive_since_if_unloadable()
-            .map(|inactive_since| inactive_since + self.delay)
-    }
-
-    fn inactive_since_if_unloadable(&self) -> Option<Instant> {
         match (self.has_subscribers, self.is_active) {
             ((false, has_no_subscribers_since), (false, is_inactive_since)) => self
                 .projection_subscribers
@@ -92,7 +87,7 @@ impl UnloadingState {
                             has_no_projection_subscribers_since,
                         ),
                         is_inactive_since,
-                    )
+                    ) + self.delay
                 }),
             _ => None,
         }
