@@ -117,6 +117,8 @@ fn main() {
 }
 ```
 
+Keep the non-unix stub silent. The crate denies `clippy::print_stdout` and `clippy::print_stderr`, so do not add `println!` or `eprintln!` here unless the lint policy changes.
+
 - [ ] **Step 3: Verify the binary is discoverable without running it**
 
 Run:
@@ -779,10 +781,11 @@ Do not run the binary without `--out-dir` in this Rust-only plan.
 
 - [ ] **Step 1: Format Rust**
 
+Run `just` from the repository root. The root `justfile` has `set working-directory := "codex-rs"`, so do not `cd codex-rs` before invoking `just` recipes.
+
 Run:
 
 ```bash
-cd codex-rs
 just fmt
 ```
 
@@ -812,12 +815,11 @@ Expected: PASS.
 
 - [ ] **Step 4: Run scoped clippy fix**
 
-The repository root `justfile` defines `fix *args` as `cargo clippy --fix --tests --allow-dirty "$@"`, so `-p codex-app-server` is passed through to Cargo. If that recipe changes before implementation, use the current scoped clippy-fix recipe that targets only `codex-app-server`.
+Run `just` from the repository root. The root `justfile` defines `fix *args` as `cargo clippy --fix --tests --allow-dirty "$@"`, so `-p codex-app-server` is passed through to Cargo. If that recipe changes before implementation, use the current scoped clippy-fix recipe that targets only `codex-app-server`.
 
 Run:
 
 ```bash
-cd codex-rs
 just fix -p codex-app-server
 ```
 
