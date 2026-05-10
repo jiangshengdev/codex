@@ -119,6 +119,7 @@ codex-rs/app-server/src/thread_projection_fixtures.rs
 
 ```text
 codex-rs/app-server/src/lib.rs
+codex-gui/.prettierignore
 codex-gui/src/features/projection/__fixtures__/*.json
 codex-gui/src/features/projection/__tests__/projectionFixtures.test.ts
 codex-gui/src/features/projection/__tests__/projectionSlice.test.ts
@@ -287,8 +288,10 @@ event.type = "turnCompleted"
 - `subscriptionId = "projection-fixture-replacement-subscription"`
 - `parentCommitId = "commit-replacement-head"`
 - `commitId = "commit-replacement-next"`
+- `event.type = "turnStarted"`
+- `event.notification` 使用完整 `TurnStartedNotification`，即包含 replacement thread id 和一个 replacement turn。
 
-用于验证前端 reattach 后只接受新 subscription 的事件。
+用于验证前端 reattach 后只接受新 subscription 的事件。这个 fixture 也复用于 stale subscription 测试：在 baseline subscription 状态下派发它，应因为 `subscriptionId` 不匹配而被忽略；在 `attach-replacement` 后派发它，应按 replacement 链正常 apply。
 
 ## Commit Chain 拓扑
 
@@ -333,6 +336,7 @@ attach-replacement
 event-subscription-replacement
   parentCommitId = "commit-replacement-head"
   commitId = "commit-replacement-next"
+  event.type = "turnStarted"
 ```
 
 不新增 `event-commit-chain-second.json`。`event-item-started`、`event-item-completed`、`event-turn-completed` 已经覆盖连续 commit chain，额外 fixture 只会增加维护面。
@@ -427,9 +431,22 @@ else:
 - 使用固定 timestamp。
 - 使用固定 cwd。
 - Windows 上如果必须构造绝对路径，序列化后归一化为 `/tmp/codex-gui-projection-fixtures`。
+- 所有 path-shaped fixture 字段都必须输出正斜杠路径；不要通过 `Path::display()` 把 Windows `\` 写入 fixture。
 - 使用 `serde_json::to_string_pretty`，末尾追加 `\n`。
 
 不要在 fixture 中使用 `Uuid::now_v7()`、当前时间或临时目录路径。
+
+## Prettier 边界
+
+`codex-gui` 的 `ci` 脚本第一步会运行 `prettier --check .`。Rust 的 `serde_json::to_string_pretty` 输出不应被要求匹配 Prettier 的 JSON 格式，否则 generator 输出和前端 formatter 会争夺 fixture 文件所有权。
+
+实现时应新增或更新 `codex-gui/.prettierignore`，排除 generator-owned fixture 目录：
+
+```text
+src/features/projection/__fixtures__/
+```
+
+这样 JSON fixture 的格式由 Rust generator 负责，Prettier 不再重排这些文件。不要改成让 generator 复刻 Prettier 输出；那会让 byte stability 依赖前端 formatter 版本和配置。
 
 ## Rust 测试
 
@@ -440,6 +457,7 @@ generated_fixture_set_is_stable
 generated_fixtures_match_current_projection_shape
 generated_fixtures_round_trip_through_protocol_types
 generated_commit_chain_is_contiguous
+generated_fixtures_match_committed_files
 write_preserves_unrelated_files
 ```
 
@@ -453,7 +471,25 @@ write_preserves_unrelated_files
 - 每个 attach fixture 都能 `serde_json::from_str::<ThreadProjectionAttachResponse>`。
 - 每个 event fixture 都能 `serde_json::from_str::<ThreadProjectionEventNotification>`。
 - 反序列化后的结构体再次 pretty serialize，应与原 fixture 内容一致。
+- `generated_fixtures_match_committed_files` 应把 generator 输出和已提交的 GUI fixture 文件逐字节比较。
 - writer 不删除 unrelated file。
+
+`generated_fixtures_match_committed_files` 的测试形状：
+
+```text
+for each (name, generated_contents) in generate_fixture_files():
+  committed_path = CARGO_MANIFEST_DIR/../../codex-gui/src/features/projection/__fixtures__/<name>
+  committed_contents = read(committed_path)
+  assert_eq!(committed_contents, generated_contents)
+```
+
+失败信息应明确提示：
+
+```text
+re-run cargo run -p codex-app-server --bin write_gui_projection_fixtures and commit the fixture changes
+```
+
+这个测试让 generator 漂移在 Rust 测试阶段暴露，而不是等到前端测试或 code review 才发现 fixture 过时。
 
 ## GUI 测试
 
@@ -470,7 +506,7 @@ write_preserves_unrelated_files
 
 - attach stores `subscriptionId`、`thread`、`headCommitId`。
 - unknown thread event ignored。
-- stale subscription event ignored。
+- stale subscription event ignored。这个用例复用 `event-subscription-replacement.json`：在 baseline projection state 下派发 replacement subscription event，状态不应变化。
 - duplicate latest commit ignored。
 - `parentCommitId` mismatch marks reattach。
 - matching `parentCommitId` applies event and advances `headCommitId`。
@@ -509,7 +545,10 @@ just fmt
 cargo test -p codex-app-server thread_projection_fixtures --no-fail-fast
 cargo test -p codex-app-server-protocol thread_projection --no-fail-fast
 cargo run -p codex-app-server --bin write_gui_projection_fixtures
+git status --short -- ../codex-gui/src/features/projection/__fixtures__
 ```
+
+`write_gui_projection_fixtures` 必须是幂等的。在干净 working tree 上运行后，`git status` 不应该出现 fixture 改动；如果出现改动，说明 generator 输出不稳定，或者已提交 fixture 过时，需要重新生成并提交。
 
 然后在 `codex-gui` 目录内运行前端测试。具体命令以 `codex-gui/package.json` scripts 为准，预期至少覆盖：
 
