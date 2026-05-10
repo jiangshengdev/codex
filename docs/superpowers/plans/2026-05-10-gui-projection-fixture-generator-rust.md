@@ -127,6 +127,7 @@ cargo check -p codex-app-server --bin write_gui_projection_fixtures
 ```
 
 Expected before Task 2 implementation: FAIL because `thread_projection_fixtures` does not exist yet.
+This is an early discoverability check only. If running this task strictly before Task 2, skip this command or accept that failure; do not treat it as a blocker until the unix-gated module exists.
 
 - [ ] **Step 4: Commit the entry scaffolding after Task 2 compiles**
 
@@ -308,7 +309,31 @@ fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thr
 }
 ```
 
-- [ ] **Step 3: Add turn and item builders**
+- [ ] **Step 3: Confirm current `Turn` and `ThreadItem` protocol fields**
+
+Before writing the builders, read the current protocol structs:
+
+```bash
+sed -n '153,190p' codex-rs/app-server-protocol/src/protocol/v2/thread_data.rs
+sed -n '212,236p' codex-rs/app-server-protocol/src/protocol/v2/item.rs
+```
+
+Current expected `Turn` fields are:
+
+- `id`
+- `items`
+- `items_view`
+- `status`
+- `error`
+- `started_at`
+- `completed_at`
+- `duration_ms`
+
+If the source definition has changed, update the builder struct literals to explicitly set every field. Do not use `..Default::default()` for fixture structs; default drift would silently change fixture semantics.
+
+The first fixture version intentionally uses only `ThreadItem::Plan { id, text }`. `Plan` is marked experimental in the protocol, but it matches the historical GUI projection fixtures and avoids `AgentMessage` fields with `#[serde(default)]` that can create round-trip field drift. If the protocol removes or renames `Plan`, update the builders and tests in the same change.
+
+- [ ] **Step 4: Add turn and item builders**
 
 Append:
 
@@ -373,7 +398,7 @@ fn plan_item(item_id: &str, text: &str) -> ThreadItem {
 }
 ```
 
-- [ ] **Step 4: Add event fixture builders**
+- [ ] **Step 5: Add event fixture builders**
 
 Append:
 
@@ -473,7 +498,7 @@ fn serialize_fixture<T: Serialize>(value: &T) -> Result<String> {
 }
 ```
 
-- [ ] **Step 5: Run check**
+- [ ] **Step 6: Run check**
 
 Run:
 
@@ -553,6 +578,7 @@ Inside the same `tests` module append:
         assert!(attach.get("snapshot").is_some());
         assert!(attach["snapshot"].get("thread").is_some());
         assert!(attach["snapshot"].get("headCommitId").is_some());
+        assert_eq!(attach["snapshot"]["thread"]["status"]["type"], "idle");
 
         assert_eq!(event["threadId"], THREAD_ID);
         assert_eq!(event["subscriptionId"], SUBSCRIPTION_ID);
@@ -726,6 +752,7 @@ Run:
 ```bash
 cd codex-rs
 tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
 cargo run -p codex-app-server --bin write_gui_projection_fixtures -- --out-dir "$tmpdir"
 find "$tmpdir" -maxdepth 1 -type f -name '*.json' -exec basename {} \; | sort
 ```
@@ -784,6 +811,8 @@ cargo check -p codex-app-server --bin write_gui_projection_fixtures
 Expected: PASS.
 
 - [ ] **Step 4: Run scoped clippy fix**
+
+The repository root `justfile` defines `fix *args` as `cargo clippy --fix --tests --allow-dirty "$@"`, so `-p codex-app-server` is passed through to Cargo. If that recipe changes before implementation, use the current scoped clippy-fix recipe that targets only `codex-app-server`.
 
 Run:
 
