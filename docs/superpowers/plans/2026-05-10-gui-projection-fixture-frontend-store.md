@@ -68,7 +68,7 @@ Do not modify:
 Run from repo root:
 
 ```bash
-cd codex-rs && cargo run -p codex-app-server --bin write_gui_projection_fixtures
+cargo run --manifest-path codex-rs/Cargo.toml -p codex-app-server --bin write_gui_projection_fixtures
 ```
 
 Expected: command exits successfully and rewrites only `codex-gui/src/features/projection/__fixtures__/`.
@@ -123,22 +123,14 @@ Expected: no matches.
 Run:
 
 ```bash
-cd codex-gui && pnpm run format
+pnpm -C codex-gui run format
 ```
 
 Expected: PASS. The generated fixture JSON files should not be checked by Prettier.
 
-- [ ] **Step 6: Commit fixture generation boundary**
+- [ ] **Step 6: Leave fixture changes uncommitted**
 
-Run:
-
-```bash
-git add codex-gui/.prettierignore \
-  codex-gui/src/features/projection/__fixtures__
-git commit -m "test(gui): update projection fixtures for commit chain protocol"
-```
-
-Expected: commit includes generated fixture changes, stale fixture deletions, `event-subscription-replacement.json`, and `.prettierignore`.
+Do not commit yet. The current `codex-gui` type-check and projection tests are still expected to fail until Tasks 3-5 migrate the frontend tests and reducer to the current protocol.
 
 ## Task 2: Enable Rust Golden Test For Committed Fixtures
 
@@ -178,24 +170,24 @@ Inside the existing `#[cfg(test)] mod tests` in `codex-rs/app-server/src/thread_
     }
 ```
 
-The test can use `Path` and `fs` through the existing `use super::*;` in the test module.
+The test can use `Path`, `fs`, and `Context` through the existing `use super::*;` in the test module.
 
 - [ ] **Step 2: Run the new golden test**
 
 Run:
 
 ```bash
-cd codex-rs && cargo test -p codex-app-server thread_projection_fixtures::tests::generated_fixtures_match_committed_files -- --nocapture
+cargo test --manifest-path codex-rs/Cargo.toml -p codex-app-server thread_projection_fixtures::tests::generated_fixtures_match_committed_files -- --nocapture
 ```
 
-Expected: PASS because Task 1 committed current generator output.
+Expected: PASS because Task 1 generated current fixture output in the working tree.
 
 - [ ] **Step 3: Run the full fixture test group**
 
 Run:
 
 ```bash
-cd codex-rs && cargo test -p codex-app-server thread_projection_fixtures --no-fail-fast
+cargo test --manifest-path codex-rs/Cargo.toml -p codex-app-server thread_projection_fixtures --no-fail-fast
 ```
 
 Expected: PASS.
@@ -210,16 +202,9 @@ just fmt
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit golden coverage**
+- [ ] **Step 5: Leave golden coverage uncommitted**
 
-Run:
-
-```bash
-git add codex-rs/app-server/src/thread_projection_fixtures.rs
-git commit -m "test(app-server): lock GUI projection fixtures to generator output"
-```
-
-Expected: commit includes only the Rust golden test.
+Do not commit yet. This test depends on the generated GUI fixtures from Task 1. It will be committed after the frontend migration commit so every committed state remains self-consistent.
 
 ## Task 3: Rewrite Fixture Import Tests For Current Protocol Shape
 
@@ -339,21 +324,14 @@ describe("Rust-generated projection fixtures", () => {
 Run:
 
 ```bash
-cd codex-gui && pnpm vitest --run src/features/projection/__tests__/projectionFixtures.test.ts
+pnpm -C codex-gui run test -- src/features/projection/__tests__/projectionFixtures.test.ts
 ```
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit fixture test rewrite**
+- [ ] **Step 3: Leave fixture test rewrite uncommitted**
 
-Run:
-
-```bash
-git add codex-gui/src/features/projection/__tests__/projectionFixtures.test.ts
-git commit -m "test(gui): assert current projection fixture envelope"
-```
-
-Expected: commit includes only the fixture test rewrite.
+Do not commit yet. `projectionSlice.ts` and `projectionSlice.test.ts` still use the removed historical fixture and protocol shapes.
 
 ## Task 4: Write Commit-Chain Reducer Tests
 
@@ -611,7 +589,7 @@ describe("projection reducer", () => {
 Run:
 
 ```bash
-cd codex-gui && pnpm vitest --run src/features/projection/__tests__/projectionSlice.test.ts
+pnpm -C codex-gui run test -- src/features/projection/__tests__/projectionSlice.test.ts
 ```
 
 Expected before Task 5: FAIL with TypeScript/runtime errors because `projectionSlice.ts` still exports the old sequence-based action payloads and state shape.
@@ -798,7 +776,7 @@ export default projectionSlice;
 Run:
 
 ```bash
-cd codex-gui && pnpm vitest --run src/features/projection/__tests__/projectionSlice.test.ts
+pnpm -C codex-gui run test -- src/features/projection/__tests__/projectionSlice.test.ts
 ```
 
 Expected: PASS.
@@ -808,81 +786,95 @@ Expected: PASS.
 Run:
 
 ```bash
-cd codex-gui && pnpm vitest --run src/features/projection/__tests__/projectionFixtures.test.ts src/features/projection/__tests__/projectionSlice.test.ts
+pnpm -C codex-gui run test -- src/features/projection/__tests__/projectionFixtures.test.ts src/features/projection/__tests__/projectionSlice.test.ts
 ```
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit reducer migration**
+- [ ] **Step 4: Commit self-consistent frontend migration**
 
 Run:
 
 ```bash
-git add codex-gui/src/features/projection/projectionSlice.ts \
+git add codex-gui/.prettierignore \
+  codex-gui/src/features/projection/__fixtures__ \
+  codex-gui/src/features/projection/__tests__/projectionFixtures.test.ts \
+  codex-gui/src/features/projection/projectionSlice.ts \
   codex-gui/src/features/projection/__tests__/projectionSlice.test.ts
-git commit -m "feat(gui): consume projection commit chain events"
+git commit -m "feat(gui): consume projection commit chain protocol"
 ```
 
-Expected: commit includes the slice migration and reducer tests.
+Expected: commit includes generated fixture changes, stale fixture deletions, `.prettierignore`, fixture tests, slice migration, and reducer tests. This is the first commit in this plan that is expected to leave `codex-gui` type-check and tests green.
 
-## Task 6: Full Verification
+## Task 6: Commit Rust Golden Test And Full Verification
 
 **Files:**
 
-- Verify only.
+- Modify: `codex-rs/app-server/src/thread_projection_fixtures.rs`
 
-- [ ] **Step 1: Run frontend type-check**
+- [ ] **Step 1: Commit golden coverage**
 
 Run:
 
 ```bash
-cd codex-gui && pnpm run type-check
+git add codex-rs/app-server/src/thread_projection_fixtures.rs
+git commit -m "test(app-server): lock GUI projection fixtures to generator output"
+```
+
+Expected: commit includes only the Rust golden test.
+
+- [ ] **Step 2: Run frontend type-check**
+
+Run:
+
+```bash
+pnpm -C codex-gui run type-check
 ```
 
 Expected: PASS.
 
-- [ ] **Step 2: Run frontend lint**
+- [ ] **Step 3: Run frontend lint**
 
 Run:
 
 ```bash
-cd codex-gui && pnpm run lint
+pnpm -C codex-gui run lint
 ```
 
 Expected: PASS.
 
-- [ ] **Step 3: Run frontend tests**
+- [ ] **Step 4: Run frontend tests**
 
 Run:
 
 ```bash
-cd codex-gui && pnpm run test
+pnpm -C codex-gui run test
 ```
 
 Expected: PASS.
 
-- [ ] **Step 4: Run app-server fixture tests**
+- [ ] **Step 5: Run app-server fixture tests**
 
 Run:
 
 ```bash
-cd codex-rs && cargo test -p codex-app-server thread_projection_fixtures --no-fail-fast
+cargo test --manifest-path codex-rs/Cargo.toml -p codex-app-server thread_projection_fixtures --no-fail-fast
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Verify generator idempotence**
+- [ ] **Step 6: Verify generator idempotence**
 
 Run:
 
 ```bash
-cd codex-rs && cargo run -p codex-app-server --bin write_gui_projection_fixtures
+cargo run --manifest-path codex-rs/Cargo.toml -p codex-app-server --bin write_gui_projection_fixtures
 git status --short -- codex-gui/src/features/projection/__fixtures__
 ```
 
 Expected: no output from `git status --short -- codex-gui/src/features/projection/__fixtures__`.
 
-- [ ] **Step 6: Check final status**
+- [ ] **Step 7: Check final status**
 
 Run:
 
@@ -896,22 +888,18 @@ Expected: clean working tree after all planned commits.
 
 Use these commits:
 
-1. `test(gui): update projection fixtures for commit chain protocol`
+1. `feat(gui): consume projection commit chain protocol`
    - generated GUI fixture JSON
    - stale fixture deletions
    - `codex-gui/.prettierignore`
+   - `projectionFixtures.test.ts`
+   - `projectionSlice.ts`
+   - `projectionSlice.test.ts`
 
 2. `test(app-server): lock GUI projection fixtures to generator output`
    - committed-file golden test in `thread_projection_fixtures.rs`
 
-3. `test(gui): assert current projection fixture envelope`
-   - `projectionFixtures.test.ts`
-
-4. `feat(gui): consume projection commit chain events`
-   - `projectionSlice.ts`
-   - `projectionSlice.test.ts`
-
-If the implementation is done by a single agent and the first three commits are trivial to review together, commits 1-3 may be squashed into one `test(gui): refresh projection fixtures` commit. Keep the reducer migration separate because it changes runtime behavior.
+Do not split fixture deletion, fixture test rewrite, and reducer migration into separate commits. The current branch starts with `codex-gui` already red against the current generated protocol, and deleting historical fixtures before migrating `projectionSlice.ts` leaves imports broken. The first commit above is intentionally larger so each committed state is self-consistent for type-checking and tests.
 
 ## Self-Review Checklist
 
