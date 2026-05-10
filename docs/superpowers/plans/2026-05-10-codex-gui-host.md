@@ -47,6 +47,16 @@
   - Pins dev host/port/HMR to Vite and leaves projection `/ws` on `GuiHost`.
 - Modify: `codex-gui/e2e/app.spec.ts`
   - Adds Playwright coverage for hash clearing and connection verification.
+
+**通用说明:** Step 2 的 Expected 输出描述 FAIL 的性质（编译错误类别/断言失败语义）；实际运行文字可能因 Rust、axum、tungstenite 等版本不同而有出入，只要呈现对应 FAIL 即可，不视为 plan 偏差。
+
+**前置确认:** 开始 Task 1 前先在 repo root 运行依赖核实，避免重复 pin 或遗漏 workspace pin：
+```bash
+rg -n '^(base64|rand|urlencoding|tempfile|reqwest|async-trait|thiserror|futures|tower-http|tokio-tungstenite|axum) ' codex-rs/Cargo.toml
+```
+本计划按当前仓库核实结果编写：`base64`、`rand`、`urlencoding`、`tempfile`、`reqwest`、`async-trait`、`thiserror`、`futures`、`tokio-tungstenite`、`axum` 已有 workspace pin；`tower-http` 未 pin，Task 11 首次使用时补 `[workspace.dependencies] tower-http`。
+
+**模块可见性策略:** `codex-rs/app-server/src/lib.rs` 从 Task 1 起使用 `#[doc(hidden)] pub mod gui_host;`，因为 Task 14 的 TUI 非测试代码需要跨 crate 使用 `codex_app_server::gui_host::{...}`。`gui_host` 只公开 TUI 和 integration tests 必需的 `GuiHost`、`GuiHostConfig`、`GuiHostMode`、`DevAssetProxyConfig`、`ProdAssetConfig`、`GuiHostHandle`、`LaunchToken` 及其必要方法；后续 Task 不再调整模块可见性，也不加 conditional pub gate。
 ### Task 1: GuiHost binds loopback and serves root
 **Files:**
 - Create: `codex-rs/app-server/src/gui_host.rs`
@@ -90,24 +100,24 @@ use std::net::SocketAddr;
 use axum::{routing::get, Router};
 use tokio::{net::TcpListener, sync::oneshot};
 #[derive(Debug, Clone)]
-pub(crate) struct GuiHostConfig { pub(crate) mode: GuiHostMode }
+pub struct GuiHostConfig { pub mode: GuiHostMode }
 #[derive(Debug, Clone)]
-pub(crate) enum GuiHostMode { Dev(DevAssetProxyConfig), Prod(ProdAssetConfig) }
+pub enum GuiHostMode { Dev(DevAssetProxyConfig), Prod(ProdAssetConfig) }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DevAssetProxyConfig { pub(crate) vite_origin: String }
+pub struct DevAssetProxyConfig { pub vite_origin: String }
 impl Default for DevAssetProxyConfig {
     fn default() -> Self { Self { vite_origin: "http://127.0.0.1:5173".to_string() } }
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ProdAssetConfig { pub(crate) package_root: std::path::PathBuf }
-pub(crate) struct GuiHost;
-pub(crate) struct GuiHostHandle {
+pub struct ProdAssetConfig { pub package_root: std::path::PathBuf }
+pub struct GuiHost;
+pub struct GuiHostHandle {
     local_addr: SocketAddr,
     shutdown_tx: Option<oneshot::Sender<()>>,
     server_task: tokio::task::JoinHandle<()>,
 }
 impl GuiHost {
-    pub(crate) async fn start(config: GuiHostConfig) -> std::io::Result<GuiHostHandle> {
+    pub async fn start(config: GuiHostConfig) -> std::io::Result<GuiHostHandle> {
         let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
         let local_addr = listener.local_addr()?;
         let app = Router::new().route("/", get(|| async { "Codex GUI Host" }));
@@ -123,9 +133,9 @@ impl GuiHost {
     }
 }
 impl GuiHostHandle {
-    pub(crate) fn local_addr(&self) -> SocketAddr { self.local_addr }
-    pub(crate) fn base_url(&self) -> String { format!("http://{}", self.local_addr) }
-    pub(crate) async fn shutdown(mut self) {
+    pub fn local_addr(&self) -> SocketAddr { self.local_addr }
+    pub fn base_url(&self) -> String { format!("http://{}", self.local_addr) }
+    pub async fn shutdown(mut self) {
         if let Some(tx) = self.shutdown_tx.take() { let _ = tx.send(()); }
         let _ = self.server_task.await;
     }
@@ -133,7 +143,8 @@ impl GuiHostHandle {
 ```
 Modify `codex-rs/app-server/src/lib.rs`:
 ```rust
-pub(crate) mod gui_host;
+#[doc(hidden)]
+pub mod gui_host;
 ```
 If `reqwest` is missing for tests, add to `codex-rs/app-server/Cargo.toml`:
 ```toml
@@ -186,36 +197,41 @@ Add to `gui_host.rs`:
 ```rust
 use base64::Engine;
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LaunchToken(String);
+pub struct LaunchToken(String);
 impl LaunchToken {
-    pub(crate) fn generate() -> Self {
+    pub fn generate() -> Self {
         use rand::RngCore;
         let mut bytes = [0_u8; 32];
         rand::rngs::OsRng.fill_bytes(&mut bytes);
         Self(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes))
     }
-    pub(crate) fn as_str(&self) -> &str { &self.0 }
+    pub fn as_str(&self) -> &str { &self.0 }
     #[cfg(test)]
     pub(crate) fn from_test_value(value: &str) -> Self { Self(value.to_string()) }
 }
-pub(crate) struct GuiHostHandle {
+pub struct GuiHostHandle {
     local_addr: SocketAddr,
     launch_token: LaunchToken,
     shutdown_tx: Option<oneshot::Sender<()>>,
-    server_task: tokio::task::JoinHandle<()>,
+    server_task: Option<tokio::task::JoinHandle<()>>,
 }
 impl GuiHostHandle {
     #[cfg(test)]
     pub(crate) fn new_for_test(local_addr: SocketAddr, launch_token: LaunchToken) -> Self {
-        Self { local_addr, launch_token, shutdown_tx: None, server_task: tokio::spawn(async {}) }
+        Self { local_addr, launch_token, shutdown_tx: None, server_task: None }
     }
-    pub(crate) fn launch_token(&self) -> &LaunchToken { &self.launch_token }
-    pub(crate) fn launch_url_for_thread(&self, thread_id: &str) -> String {
-        format!("{}/?threadId={}#token={}", self.base_url(), urlencoding::encode(thread_id), self.launch_token.as_str())
+    pub fn launch_token(&self) -> &LaunchToken { &self.launch_token }
+    pub fn launch_url_for_thread(&self, thread_id: impl std::fmt::Display) -> String {
+        let thread_id = thread_id.to_string();
+        format!("{}/?threadId={}#token={}", self.base_url(), urlencoding::encode(&thread_id), self.launch_token.as_str())
+    }
+    pub async fn shutdown(mut self) {
+        if let Some(tx) = self.shutdown_tx.take() { let _ = tx.send(()); }
+        if let Some(server_task) = self.server_task.take() { let _ = server_task.await; }
     }
 }
 ```
-In `GuiHost::start`, create `let launch_token = LaunchToken::generate();` and return it in `GuiHostHandle`. If needed, add:
+In `GuiHost::start`, create `let launch_token = LaunchToken::generate();` and return it in `GuiHostHandle` as `server_task: Some(server_task)`. If needed, add:
 ```toml
 [dependencies]
 base64 = { workspace = true }
@@ -691,11 +707,10 @@ error[E0425]: cannot find function `forward_authenticated_message` in this scope
 ```
 - [ ] **Step 3: Write minimal implementation to make test pass**
 ```rust
-#[async_trait::async_trait]
 pub(crate) trait GuiConnectionRouter: Send + Sync {
-    async fn incoming_text(&self, text: String) -> anyhow::Result<()>;
+    fn incoming_text(&self, text: String) -> impl std::future::Future<Output = anyhow::Result<()>> + Send;
 }
-pub(crate) async fn forward_authenticated_message(router: &dyn GuiConnectionRouter, text: String) -> anyhow::Result<bool> {
+pub(crate) async fn forward_authenticated_message(router: &impl GuiConnectionRouter, text: String) -> anyhow::Result<bool> {
     if !gui_host_allows_incoming_text(&text) { return Ok(false); }
     router.incoming_text(text).await?;
     Ok(true)
@@ -704,7 +719,6 @@ pub(crate) async fn forward_authenticated_message(router: &dyn GuiConnectionRout
 #[derive(Default)]
 struct TestGuiConnectionRouter { messages: tokio::sync::Mutex<Vec<String>> }
 #[cfg(test)]
-#[async_trait::async_trait]
 impl GuiConnectionRouter for TestGuiConnectionRouter {
     async fn incoming_text(&self, text: String) -> anyhow::Result<()> {
         self.messages.lock().await.push(text);
@@ -716,30 +730,74 @@ impl TestGuiConnectionRouter {
     async fn messages(&self) -> Vec<String> { self.messages.lock().await.clone() }
 }
 ```
-In `lib.rs`, extract a production router that calls the same `MessageProcessor::process_request`, `process_response`, `process_error`, `process_notification`, and `connection_closed` paths used by `TransportEvent`.
+In `lib.rs`, extract a production router that calls the same `MessageProcessor::process_request`, `process_response`, `process_error`, `process_notification`, and `connection_closed` paths used by the current websocket `TransportEvent::IncomingMessage` loop. The real message enum is `codex_app_server_protocol::JSONRPCMessage` (re-exported from `jsonrpc_lite.rs`), not `protocol::ClientMessage`; its variants are `Request`, `Notification`, `Response`, and `Error`. The real processor signatures include `ConnectionId`, `AppServerTransport`, and `Arc<ConnectionSessionState>`.
 ```rust
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
+use codex_app_server_protocol::JSONRPCMessage;
+
 pub(crate) struct AppServerConnectionRouter {
-    message_processor: std::sync::Arc<MessageProcessor>,
+    connection_id: ConnectionId,
+    processor: Arc<MessageProcessor>,
+    transport: AppServerTransport,
+    session: Arc<ConnectionSessionState>,
+    outbound_initialized: Arc<AtomicBool>,
+    outbound_experimental_api_enabled: Arc<AtomicBool>,
+    outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
 }
-impl MessageProcessor {
-    pub(crate) async fn process_raw_jsonrpc_text(&self, text: String) {
-        match serde_json::from_str::<codex_app_server_protocol::protocol::ClientMessage>(&text) {
-            Ok(codex_app_server_protocol::protocol::ClientMessage::Request(request)) => self.process_request(request).await,
-            Ok(codex_app_server_protocol::protocol::ClientMessage::Response(response)) => self.process_response(response).await,
-            Ok(codex_app_server_protocol::protocol::ClientMessage::Error(error)) => self.process_error(error).await,
-            Ok(codex_app_server_protocol::protocol::ClientMessage::Notification(notification)) => self.process_notification(notification).await,
+impl AppServerConnectionRouter {
+    pub(crate) async fn process_jsonrpc_text(&self, text: String) -> anyhow::Result<()> {
+        match serde_json::from_str::<JSONRPCMessage>(&text) {
+            Ok(JSONRPCMessage::Request(request)) => {
+                let was_initialized = self.session.initialized();
+                self.processor
+                    .process_request(
+                        self.connection_id,
+                        request,
+                        &self.transport,
+                        Arc::clone(&self.session),
+                    )
+                    .await;
+                if let Ok(mut opted_out) = self.outbound_opted_out_notification_methods.write() {
+                    *opted_out = self.session.opted_out_notification_methods();
+                } else {
+                    tracing::warn!("failed to update GUI outbound opted-out notifications");
+                }
+                self.outbound_experimental_api_enabled.store(
+                    self.session.experimental_api_enabled(),
+                    std::sync::atomic::Ordering::Release,
+                );
+                if !was_initialized && self.session.initialized() {
+                    self.processor
+                        .send_initialize_notifications_to_connection(self.connection_id)
+                        .await;
+                    self.processor.connection_initialized(self.connection_id).await;
+                    self.outbound_initialized.store(true, std::sync::atomic::Ordering::Release);
+                }
+            }
+            Ok(JSONRPCMessage::Response(response)) => {
+                self.processor.process_response(response).await;
+            }
+            Ok(JSONRPCMessage::Notification(notification)) => {
+                self.processor.process_notification(notification).await;
+            }
+            Ok(JSONRPCMessage::Error(err)) => {
+                self.processor.process_error(err).await;
+            }
             Err(err) => tracing::warn!(?err, "failed to parse GUI JSON-RPC message"),
         }
-    }
-}
-#[async_trait::async_trait]
-impl crate::gui_host::GuiConnectionRouter for AppServerConnectionRouter {
-    async fn incoming_text(&self, text: String) -> anyhow::Result<()> {
-        self.message_processor.process_raw_jsonrpc_text(text).await;
         Ok(())
     }
 }
+impl crate::gui_host::GuiConnectionRouter for AppServerConnectionRouter {
+    async fn incoming_text(&self, text: String) -> anyhow::Result<()> {
+        self.process_jsonrpc_text(text).await
+    }
+}
 ```
+When a GUI websocket closes, call `processor.connection_closed(connection_id, &session).await` from the GUI websocket task after the read/write loop ends, matching the app-server connection cleanup path rather than adding TUI-side cleanup.
 - [ ] **Step 4: Run test to confirm PASS**
 Run from `codex-rs`:
 ```bash
@@ -768,12 +826,17 @@ async fn prod_serves_index_html_from_package_dist() {
     let dist = tempdir.path().join("dist");
     std::fs::create_dir(&dist).unwrap();
     std::fs::write(dist.join("index.html"), "<main>Codex GUI</main>").unwrap();
+    std::fs::create_dir(dist.join("assets")).unwrap();
+    std::fs::write(dist.join("assets/app.js"), "console.log('codex gui');").unwrap();
     let handle = GuiHost::start(GuiHostConfig {
         mode: GuiHostMode::Prod(ProdAssetConfig { package_root: tempdir.path().to_path_buf() }),
     }).await.unwrap();
     let response = reqwest::get(handle.base_url()).await.unwrap();
     assert_eq!(response.status(), reqwest::StatusCode::OK);
     assert_eq!(response.text().await.unwrap(), "<main>Codex GUI</main>");
+    let asset = reqwest::get(format!("{}/assets/app.js", handle.base_url())).await.unwrap();
+    assert_eq!(asset.status(), reqwest::StatusCode::OK);
+    assert_eq!(asset.text().await.unwrap(), "console.log('codex gui');");
     handle.shutdown().await;
 }
 ```
@@ -809,8 +872,23 @@ async fn serve_root(State(state): State<Arc<GuiHostState>>) -> Result<axum::resp
 fn internal_server_error(err: anyhow::Error) -> (axum::http::StatusCode, String) {
     (axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
 }
+fn prod_router(state: Arc<GuiHostState>, dist: std::path::PathBuf) -> Router {
+    Router::new()
+        .route("/ws", get(GuiHost::ws_handler))
+        .nest_service("/assets", tower_http::services::ServeDir::new(dist.join("assets")))
+        .fallback_service(tower_http::services::ServeDir::new(dist).append_index_html_on_directories(true))
+        .with_state(state)
+}
 ```
-Use `serve_root` for `/`, and set the package root in `codex-cli/bin/codex.js`:
+Use `serve_root` for `/` and `tower_http::services::ServeDir` as the fallback service for the entire `$CODEX_GUI_PACKAGE_ROOT/dist/` tree so Vite-built `/assets/**` files are served by the same origin. Add `tower-http` at first use because the preflight grep shows it is not pinned:
+```toml
+[workspace.dependencies]
+tower-http = { version = "0.6", features = ["fs"] }
+
+[dependencies]
+tower-http = { workspace = true }
+```
+Set the package root in `codex-cli/bin/codex.js`:
 ```javascript
 const guiPackageRoot = path.join(vendorRoot, "codex-gui");
 const env = { ...process.env, PATH: updatedPath, CODEX_GUI_PACKAGE_ROOT: guiPackageRoot };
@@ -824,14 +902,16 @@ Run from `codex-rs`:
 ```bash
 cargo test -p codex-app-server gui_host::tests::prod_serves_index_html_from_package_dist
 node --check ../codex-cli/bin/codex.js
+node -e "const path=require('node:path'); const vendorRoot=process.cwd(); const env={...process.env, CODEX_GUI_PACKAGE_ROOT:path.join(vendorRoot,'codex-gui')}; if (!env.CODEX_GUI_PACKAGE_ROOT) process.exit(1); console.log(env.CODEX_GUI_PACKAGE_ROOT)"
 ```
 Expected output:
 ```text
 test gui_host::tests::prod_serves_index_html_from_package_dist ... ok
+.../codex-gui
 ```
 - [ ] **Step 5: Commit**
 ```bash
-git add codex-rs/app-server/src/gui_host.rs codex-cli/bin/codex.js codex-cli/scripts/build_npm_package.py
+git add codex-rs/Cargo.toml codex-rs/app-server/Cargo.toml codex-rs/app-server/src/gui_host.rs codex-cli/bin/codex.js codex-cli/scripts/build_npm_package.py
 git commit -m "feat(app-server): serve packaged GUI assets"
 ```
 ### Task 12: Dev mode proxies Vite and keeps HMR on Vite
@@ -844,6 +924,28 @@ git commit -m "feat(app-server): serve packaged GUI assets"
 #[test]
 fn dev_uses_default_vite_origin() {
     assert_eq!(DevAssetProxyConfig::default().vite_origin, "http://127.0.0.1:5173");
+}
+#[tokio::test]
+async fn dev_proxies_all_non_ws_paths_to_vite() {
+    let vite = axum::Router::new()
+        .route("/", axum::routing::get(|| async { "<main>Vite</main>" }))
+        .route("/assets/app.js", axum::routing::get(|| async { "console.log('vite');" }));
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let vite_addr = listener.local_addr().unwrap();
+    let vite_task = tokio::spawn(async move {
+        axum::serve(listener, vite).await.unwrap();
+    });
+    let handle = GuiHost::start(GuiHostConfig {
+        mode: GuiHostMode::Dev(DevAssetProxyConfig { vite_origin: format!("http://{vite_addr}") }),
+    }).await.unwrap();
+    let root = reqwest::get(handle.base_url()).await.unwrap();
+    assert_eq!(root.status(), reqwest::StatusCode::OK);
+    assert_eq!(root.text().await.unwrap(), "<main>Vite</main>");
+    let asset = reqwest::get(format!("{}/assets/app.js", handle.base_url())).await.unwrap();
+    assert_eq!(asset.status(), reqwest::StatusCode::OK);
+    assert_eq!(asset.text().await.unwrap(), "console.log('vite');");
+    handle.shutdown().await;
+    vite_task.abort();
 }
 #[tokio::test]
 async fn dev_proxy_error_names_vite_origin() {
@@ -859,7 +961,7 @@ async fn dev_proxy_error_names_vite_origin() {
 - [ ] **Step 2: Run the test to confirm FAIL**
 Run from `codex-rs`:
 ```bash
-cargo test -p codex-app-server gui_host::tests::dev_proxy_error_names_vite_origin
+cargo test -p codex-app-server gui_host::tests::dev_proxies_all_non_ws_paths_to_vite gui_host::tests::dev_proxy_error_names_vite_origin
 ```
 Expected error output:
 ```text
@@ -868,17 +970,38 @@ left: 200
 right: 502
 ```
 - [ ] **Step 3: Write minimal implementation to make test pass**
-Change the dev arm in `serve_root`:
+Change the dev arm in `serve_root` and the router fallback so every non-`/ws` request is proxied to Vite with the original path and query. Do not proxy the Vite HMR websocket: HMR remains a direct connection from browser to `ws://127.0.0.1:5173` as configured in `codex-gui/vite.config.ts`.
 ```rust
-GuiHostMode::Dev(config) => {
-    let url = format!("{}/", config.vite_origin.trim_end_matches('/'));
+async fn proxy_vite(
+    State(state): State<Arc<GuiHostState>>,
+    uri: axum::http::Uri,
+) -> Result<axum::response::Response, (axum::http::StatusCode, String)> {
+    let GuiHostMode::Dev(config) = &state.mode else {
+        return serve_root(State(state)).await;
+    };
+    let path_and_query = uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("/");
+    let url = format!("{}{}", config.vite_origin.trim_end_matches('/'), path_and_query);
     let response = reqwest::get(&url).await.map_err(|_| {
         (axum::http::StatusCode::BAD_GATEWAY, format!("Start Vite at {}", config.vite_origin))
     })?;
-    let body = response.text().await.map_err(|err| {
+    let status = response.status();
+    let content_type = response.headers().get(axum::http::header::CONTENT_TYPE).cloned();
+    let body = response.bytes().await.map_err(|err| {
         (axum::http::StatusCode::BAD_GATEWAY, format!("Failed to read Vite response from {}: {err}", config.vite_origin))
     })?;
-    Ok(axum::response::Html(body).into_response())
+    let mut builder = axum::response::Response::builder().status(status);
+    if let Some(content_type) = content_type {
+        builder = builder.header(axum::http::header::CONTENT_TYPE, content_type);
+    }
+    builder
+        .body(axum::body::Body::from(body))
+        .map_err(|err| (axum::http::StatusCode::BAD_GATEWAY, err.to_string()))
+}
+fn dev_router(state: Arc<GuiHostState>) -> Router {
+    Router::new()
+        .route("/ws", get(GuiHost::ws_handler))
+        .fallback(get(proxy_vite))
+        .with_state(state)
 }
 ```
 Set `codex-gui/vite.config.ts`:
@@ -896,11 +1019,12 @@ export default defineConfig({
 - [ ] **Step 4: Run test to confirm PASS**
 Run from `codex-rs` and repo root:
 ```bash
-cargo test -p codex-app-server gui_host::tests::dev_proxy_error_names_vite_origin
+cargo test -p codex-app-server gui_host::tests::dev_proxies_all_non_ws_paths_to_vite gui_host::tests::dev_proxy_error_names_vite_origin
 pnpm -C ../codex-gui run type-check
 ```
 Expected output:
 ```text
+test gui_host::tests::dev_proxies_all_non_ws_paths_to_vite ... ok
 test gui_host::tests::dev_proxy_error_names_vite_origin ... ok
 ```
 - [ ] **Step 5: Commit**
@@ -935,25 +1059,530 @@ error[E0599]: no variant or associated item named `Gui` found for enum `SlashCom
 ```
 - [ ] **Step 3: Write minimal implementation to make test pass**
 ```rust
-pub(crate) enum SlashCommand { Gui, /* existing variants */ }
-impl SlashCommand {
-    pub(crate) fn description(self) -> &'static str {
-        match self { SlashCommand::Gui => "Open GUI for the primary thread", /* existing arms */ }
-    }
-    pub(crate) fn is_visible(self) -> bool {
-        match self { SlashCommand::Gui => true, /* existing arms */ }
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, EnumString, EnumIter, AsRefStr, IntoStaticStr,
+)]
+#[strum(serialize_all = "kebab-case")]
+pub enum SlashCommand {
+    // DO NOT ALPHA-SORT! Enum order is presentation order in the popup, so
+    // more frequently used commands should be listed first.
+    Model,
+    Fast,
+    Ide,
+    Gui,
+    Permissions,
+    Keymap,
+    Vim,
+    #[strum(serialize = "setup-default-sandbox")]
+    ElevateSandbox,
+    #[strum(serialize = "sandbox-add-read-dir")]
+    SandboxReadRoot,
+    Experimental,
+    #[strum(to_string = "approve")]
+    AutoReview,
+    Memories,
+    Skills,
+    Hooks,
+    Review,
+    Rename,
+    New,
+    Resume,
+    Fork,
+    Init,
+    Compact,
+    Plan,
+    Goal,
+    Collab,
+    Agent,
+    Side,
+    Copy,
+    Raw,
+    Diff,
+    Mention,
+    Status,
+    DebugConfig,
+    Title,
+    Statusline,
+    Theme,
+    Mcp,
+    Apps,
+    Plugins,
+    Logout,
+    Quit,
+    Exit,
+    Feedback,
+    Rollout,
+    Ps,
+    #[strum(to_string = "stop", serialize = "clean")]
+    Stop,
+    Clear,
+    Personality,
+    Realtime,
+    Settings,
+    TestApproval,
+    #[strum(serialize = "subagents")]
+    MultiAgents,
+    #[strum(serialize = "debug-m-drop")]
+    MemoryDrop,
+    #[strum(serialize = "debug-m-update")]
+    MemoryUpdate,
+}
+```
+`FromStr` remains generated by the existing `EnumString` derive and `#[strum(serialize_all = "kebab-case")]`, so adding `Gui` makes `SlashCommand::from_str("gui")` work without a manual parser.
+
+Update `description` with the complete current match:
+```rust
+pub fn description(self) -> &'static str {
+    match self {
+        SlashCommand::Feedback => "send logs to maintainers",
+        SlashCommand::New => "start a new chat during a conversation",
+        SlashCommand::Init => "create an AGENTS.md file with instructions for Codex",
+        SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
+        SlashCommand::Review => "review my current changes and find issues",
+        SlashCommand::Rename => "rename the current thread",
+        SlashCommand::Resume => "resume a saved chat",
+        SlashCommand::Clear => "clear the terminal and start a new chat",
+        SlashCommand::Fork => "fork the current chat",
+        SlashCommand::Quit | SlashCommand::Exit => "exit Codex",
+        SlashCommand::Copy => "copy last response as markdown",
+        SlashCommand::Raw => "toggle raw scrollback mode for copy-friendly terminal selection",
+        SlashCommand::Diff => "show git diff (including untracked files)",
+        SlashCommand::Mention => "mention a file",
+        SlashCommand::Skills => "use skills to improve how Codex performs specific tasks",
+        SlashCommand::Hooks => "view and manage lifecycle hooks",
+        SlashCommand::Status => "show current session configuration and token usage",
+        SlashCommand::DebugConfig => "show config layers and requirement sources for debugging",
+        SlashCommand::Title => "configure which items appear in the terminal title",
+        SlashCommand::Statusline => "configure which items appear in the status line",
+        SlashCommand::Theme => "choose a syntax highlighting theme",
+        SlashCommand::Ps => "list background terminals",
+        SlashCommand::Stop => "stop all background terminals",
+        SlashCommand::MemoryDrop => "DO NOT USE",
+        SlashCommand::MemoryUpdate => "DO NOT USE",
+        SlashCommand::Model => "choose what model and reasoning effort to use",
+        SlashCommand::Fast => {
+            "toggle Fast mode to enable fastest inference with increased plan usage"
+        }
+        SlashCommand::Ide => {
+            "include current selection, open files, and other context from your IDE"
+        }
+        SlashCommand::Gui => "Open GUI for the primary thread",
+        SlashCommand::Personality => "choose a communication style for Codex",
+        SlashCommand::Realtime => "toggle realtime voice mode (experimental)",
+        SlashCommand::Settings => "configure realtime microphone/speaker",
+        SlashCommand::Plan => "switch to Plan mode",
+        SlashCommand::Goal => "set or view the goal for a long-running task",
+        SlashCommand::Collab => "change collaboration mode (experimental)",
+        SlashCommand::Agent | SlashCommand::MultiAgents => "switch the active agent thread",
+        SlashCommand::Side => "start a side conversation in an ephemeral fork",
+        SlashCommand::Permissions => "choose what Codex is allowed to do",
+        SlashCommand::Keymap => "remap TUI shortcuts",
+        SlashCommand::Vim => "toggle Vim mode for the composer",
+        SlashCommand::ElevateSandbox => "set up elevated agent sandbox",
+        SlashCommand::SandboxReadRoot => {
+            "let sandbox read a directory: /sandbox-add-read-dir <absolute_path>"
+        }
+        SlashCommand::Experimental => "toggle experimental features",
+        SlashCommand::AutoReview => "approve one retry of a recent auto-review denial",
+        SlashCommand::Memories => "configure memory use and generation",
+        SlashCommand::Mcp => "list configured MCP tools; use /mcp verbose for details",
+        SlashCommand::Apps => "manage apps",
+        SlashCommand::Plugins => "browse plugins",
+        SlashCommand::Logout => "log out of Codex",
+        SlashCommand::Rollout => "print the rollout file path",
+        SlashCommand::TestApproval => "test approval request",
     }
 }
-impl std::str::FromStr for SlashCommand {
-    type Err = ();
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value { "gui" => Ok(SlashCommand::Gui), /* existing arms */ _ => Err(()) }
+```
+
+Update `is_visible` with the complete current match:
+```rust
+fn is_visible(self) -> bool {
+    match self {
+        SlashCommand::SandboxReadRoot => cfg!(target_os = "windows"),
+        SlashCommand::Copy => !cfg!(target_os = "android"),
+        SlashCommand::Rollout | SlashCommand::TestApproval => cfg!(debug_assertions),
+        SlashCommand::Gui
+        | SlashCommand::Feedback
+        | SlashCommand::New
+        | SlashCommand::Init
+        | SlashCommand::Compact
+        | SlashCommand::Review
+        | SlashCommand::Rename
+        | SlashCommand::Resume
+        | SlashCommand::Clear
+        | SlashCommand::Fork
+        | SlashCommand::Quit
+        | SlashCommand::Exit
+        | SlashCommand::Raw
+        | SlashCommand::Diff
+        | SlashCommand::Mention
+        | SlashCommand::Skills
+        | SlashCommand::Hooks
+        | SlashCommand::Status
+        | SlashCommand::DebugConfig
+        | SlashCommand::Title
+        | SlashCommand::Statusline
+        | SlashCommand::Theme
+        | SlashCommand::Ps
+        | SlashCommand::Stop
+        | SlashCommand::MemoryDrop
+        | SlashCommand::MemoryUpdate
+        | SlashCommand::Model
+        | SlashCommand::Fast
+        | SlashCommand::Ide
+        | SlashCommand::Personality
+        | SlashCommand::Realtime
+        | SlashCommand::Settings
+        | SlashCommand::Plan
+        | SlashCommand::Goal
+        | SlashCommand::Collab
+        | SlashCommand::Agent
+        | SlashCommand::MultiAgents
+        | SlashCommand::Side
+        | SlashCommand::Permissions
+        | SlashCommand::Keymap
+        | SlashCommand::Vim
+        | SlashCommand::ElevateSandbox
+        | SlashCommand::Experimental
+        | SlashCommand::AutoReview
+        | SlashCommand::Memories
+        | SlashCommand::Mcp
+        | SlashCommand::Apps
+        | SlashCommand::Plugins
+        | SlashCommand::Logout => true,
     }
 }
-pub(crate) enum AppEvent { OpenGui, /* existing variants */ }
-match command {
-    SlashCommand::Gui => self.app_event_tx.send(AppEvent::OpenGui),
-    /* existing command arms */
+```
+
+Add `OpenGui` to `codex-rs/tui/src/app_event.rs` immediately after `OpenAgentPicker`:
+```rust
+#[derive(Debug)]
+pub(crate) enum AppEvent {
+    /// Open the agent picker for switching active threads.
+    OpenAgentPicker,
+    /// Open the browser GUI for the primary thread.
+    OpenGui,
+    /// Switch the active thread to the selected agent.
+    SelectAgentThread(ThreadId),
+}
+```
+
+Update the complete `ChatWidget::dispatch_command` match in `codex-rs/tui/src/chatwidget/slash_dispatch.rs` by inserting `SlashCommand::Gui` and keeping all current real branches:
+```rust
+match cmd {
+    SlashCommand::Feedback => {
+        if !self.config.feedback_enabled {
+            let params = crate::bottom_pane::feedback_disabled_params();
+            self.bottom_pane.show_selection_view(params);
+            self.request_redraw();
+            return;
+        }
+        let params = crate::bottom_pane::feedback_selection_params(self.app_event_tx.clone());
+        self.bottom_pane.show_selection_view(params);
+        self.request_redraw();
+    }
+    SlashCommand::New => {
+        self.app_event_tx.send(AppEvent::NewSession);
+    }
+    SlashCommand::Clear => {
+        self.app_event_tx.send(AppEvent::ClearUi);
+    }
+    SlashCommand::Resume => {
+        self.app_event_tx.send(AppEvent::OpenResumePicker);
+    }
+    SlashCommand::Fork => {
+        self.app_event_tx.send(AppEvent::ForkCurrentSession);
+    }
+    SlashCommand::Init => {
+        let init_target = self.config.cwd.join(DEFAULT_AGENTS_MD_FILENAME);
+        if init_target.exists() {
+            let message = format!(
+                "{DEFAULT_AGENTS_MD_FILENAME} already exists here. Skipping /init to avoid overwriting it."
+            );
+            self.add_info_message(message, /*hint*/ None);
+            return;
+        }
+        const INIT_PROMPT: &str = include_str!("../../prompt_for_init_command.md");
+        self.submit_user_message(INIT_PROMPT.to_string().into());
+    }
+    SlashCommand::Compact => {
+        self.clear_token_usage();
+        if !self.bottom_pane.is_task_running() {
+            self.bottom_pane.set_task_running(/*running*/ true);
+        }
+        self.app_event_tx.compact();
+    }
+    SlashCommand::Review => {
+        self.open_review_popup();
+    }
+    SlashCommand::Rename => {
+        self.session_telemetry
+            .counter("codex.thread.rename", /*inc*/ 1, &[]);
+        self.show_rename_prompt();
+    }
+    SlashCommand::Model => {
+        self.open_model_popup();
+    }
+    SlashCommand::Fast => {
+        self.toggle_fast_mode_from_ui();
+    }
+    SlashCommand::Realtime => {
+        if !self.realtime_conversation_enabled() {
+            return;
+        }
+        if self.realtime_conversation.is_live() {
+            self.stop_realtime_conversation_from_ui();
+        } else {
+            self.start_realtime_conversation();
+        }
+    }
+    SlashCommand::Settings => {
+        if !self.realtime_audio_device_selection_enabled() {
+            return;
+        }
+        self.open_realtime_audio_popup();
+    }
+    SlashCommand::Personality => {
+        self.open_personality_popup();
+    }
+    SlashCommand::Plan => {
+        self.apply_plan_slash_command();
+    }
+    SlashCommand::Goal => {
+        if !self.config.features.enabled(Feature::Goals) {
+            return;
+        }
+        if let Some(thread_id) = self.thread_id {
+            self.app_event_tx
+                .send(AppEvent::OpenThreadGoalMenu { thread_id });
+        } else {
+            self.add_info_message(
+                GOAL_USAGE.to_string(),
+                Some(GOAL_USAGE_HINT.to_string()),
+            );
+        }
+    }
+    SlashCommand::Collab => {
+        if !self.collaboration_modes_enabled() {
+            self.add_info_message(
+                "Collaboration modes are disabled.".to_string(),
+                Some("Enable collaboration modes to use /collab.".to_string()),
+            );
+            return;
+        }
+        self.open_collaboration_modes_popup();
+    }
+    SlashCommand::Side => {
+        self.request_empty_side_conversation();
+    }
+    SlashCommand::Agent | SlashCommand::MultiAgents => {
+        self.app_event_tx.send(AppEvent::OpenAgentPicker);
+    }
+    SlashCommand::Permissions => {
+        self.open_permissions_popup();
+    }
+    SlashCommand::Vim => {
+        self.toggle_vim_mode_and_notify();
+    }
+    SlashCommand::Keymap => {
+        self.open_keymap_picker();
+    }
+    SlashCommand::ElevateSandbox => {
+        #[cfg(target_os = "windows")]
+        {
+            let windows_sandbox_level = WindowsSandboxLevel::from_config(&self.config);
+            let windows_degraded_sandbox_enabled =
+                matches!(windows_sandbox_level, WindowsSandboxLevel::RestrictedToken);
+            if !windows_degraded_sandbox_enabled
+                || !crate::legacy_core::windows_sandbox::ELEVATED_SANDBOX_NUX_ENABLED
+            {
+                return;
+            }
+            let Some(preset) = builtin_approval_presets()
+                .into_iter()
+                .find(|preset| preset.id == "auto")
+            else {
+                self.add_error_message(
+                    "Internal error: missing the 'auto' approval preset.".to_string(),
+                );
+                return;
+            };
+            if let Err(err) = self
+                .config
+                .permissions
+                .approval_policy
+                .can_set(&preset.approval)
+            {
+                self.add_error_message(err.to_string());
+                return;
+            }
+            self.session_telemetry.counter(
+                "codex.windows_sandbox.setup_elevated_sandbox_command",
+                /*inc*/ 1,
+                &[],
+            );
+            self.app_event_tx
+                .send(AppEvent::BeginWindowsSandboxElevatedSetup { preset });
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = &self.session_telemetry;
+        }
+    }
+    SlashCommand::SandboxReadRoot => {
+        self.add_error_message(
+            "Usage: /sandbox-add-read-dir <absolute-directory-path>".to_string(),
+        );
+    }
+    SlashCommand::Experimental => {
+        self.open_experimental_popup();
+    }
+    SlashCommand::AutoReview => {
+        self.open_auto_review_denials_popup();
+    }
+    SlashCommand::Memories => {
+        self.open_memories_popup();
+    }
+    SlashCommand::Quit | SlashCommand::Exit => {
+        self.request_quit_without_confirmation();
+    }
+    SlashCommand::Logout => {
+        self.app_event_tx.send(AppEvent::Logout);
+    }
+    SlashCommand::Copy => {
+        self.copy_last_agent_markdown();
+    }
+    SlashCommand::Raw => {
+        let enabled = self.toggle_raw_output_mode_and_notify();
+        self.emit_raw_output_mode_changed(enabled);
+    }
+    SlashCommand::Diff => {
+        self.add_diff_in_progress();
+        let tx = self.app_event_tx.clone();
+        let runner = self.workspace_command_runner.clone();
+        let cwd = self
+            .current_cwd
+            .clone()
+            .unwrap_or_else(|| self.config.cwd.to_path_buf());
+        tokio::spawn(async move {
+            let text = match runner {
+                Some(runner) => match get_git_diff(runner.as_ref(), &cwd).await {
+                    Ok((is_git_repo, diff_text)) => {
+                        if is_git_repo {
+                            diff_text
+                        } else {
+                            "`/diff` — _not inside a git repository_".to_string()
+                        }
+                    }
+                    Err(e) => format!("Failed to compute diff: {e}"),
+                },
+                None => "Failed to compute diff: workspace command runner unavailable".to_string(),
+            };
+            tx.send(AppEvent::DiffResult(text));
+        });
+    }
+    SlashCommand::Mention => {
+        self.insert_str("@");
+    }
+    SlashCommand::Skills => {
+        self.open_skills_menu();
+    }
+    SlashCommand::Hooks => {
+        self.add_hooks_output();
+    }
+    SlashCommand::Status => {
+        if self.should_prefetch_rate_limits() {
+            let request_id = self.next_status_refresh_request_id;
+            self.next_status_refresh_request_id =
+                self.next_status_refresh_request_id.wrapping_add(1);
+            self.add_status_output(/*refreshing_rate_limits*/ true, Some(request_id));
+            self.app_event_tx.send(AppEvent::RefreshRateLimits {
+                origin: RateLimitRefreshOrigin::StatusCommand { request_id },
+            });
+        } else {
+            self.add_status_output(/*refreshing_rate_limits*/ false, /*request_id*/ None);
+        }
+    }
+    SlashCommand::Ide => {
+        self.handle_ide_command();
+    }
+    SlashCommand::Gui => {
+        self.app_event_tx.send(AppEvent::OpenGui);
+    }
+    SlashCommand::DebugConfig => {
+        self.add_debug_config_output();
+    }
+    SlashCommand::Title => {
+        self.open_terminal_title_setup();
+    }
+    SlashCommand::Statusline => {
+        self.open_status_line_setup();
+    }
+    SlashCommand::Theme => {
+        self.open_theme_picker();
+    }
+    SlashCommand::Ps => {
+        self.add_ps_output();
+    }
+    SlashCommand::Stop => {
+        self.clean_background_terminals();
+    }
+    SlashCommand::MemoryDrop => {
+        self.add_app_server_stub_message("Memory maintenance");
+    }
+    SlashCommand::MemoryUpdate => {
+        self.add_app_server_stub_message("Memory maintenance");
+    }
+    SlashCommand::Mcp => {
+        self.add_mcp_output(McpServerStatusDetail::ToolsAndAuthOnly);
+    }
+    SlashCommand::Apps => {
+        self.add_connectors_output();
+    }
+    SlashCommand::Plugins => {
+        self.add_plugins_output();
+    }
+    SlashCommand::Rollout => {
+        if let Some(path) = self.rollout_path() {
+            self.add_info_message(
+                format!("Current rollout path: {}", path.display()),
+                /*hint*/ None,
+            );
+        } else {
+            self.add_info_message(
+                "Rollout path is not available yet.".to_string(),
+                /*hint*/ None,
+            );
+        }
+    }
+    SlashCommand::TestApproval => {
+        use std::collections::HashMap;
+        use crate::approval_events::ApplyPatchApprovalRequestEvent;
+        use crate::diff_model::FileChange;
+        self.on_apply_patch_approval_request(
+            "1".to_string(),
+            ApplyPatchApprovalRequestEvent {
+                call_id: "1".to_string(),
+                turn_id: "turn-1".to_string(),
+                changes: HashMap::from([
+                    (
+                        PathBuf::from("/tmp/test.txt"),
+                        FileChange::Add { content: "test".to_string() },
+                    ),
+                    (
+                        PathBuf::from("/tmp/test2.txt"),
+                        FileChange::Update {
+                            unified_diff: "+test\n-test2".to_string(),
+                            move_path: None,
+                        },
+                    ),
+                ]),
+                reason: None,
+                grant_root: Some(PathBuf::from("/tmp")),
+            },
+        );
+    }
 }
 ```
 - [ ] **Step 4: Run test to confirm PASS**
@@ -982,13 +1611,15 @@ git commit -m "feat(tui): register gui slash command"
 #[tokio::test]
 async fn gui_command_uses_primary_thread_id_and_reuses_host() {
     let opener = RecordingGuiOpener::default();
-    let mut app = test_app_with_threads("primary-thread", "side-thread", opener.clone());
+    let primary_thread_id = "00000000-0000-0000-0000-000000000001";
+    let side_thread_id = "00000000-0000-0000-0000-000000000002";
+    let mut app = test_app_with_threads(primary_thread_id, side_thread_id, opener.clone()).await;
     app.open_gui().await.unwrap();
     app.open_gui().await.unwrap();
     let opened = opener.opened_urls().await;
     assert_eq!(opened.len(), 2);
-    assert!(opened[0].contains("threadId=primary-thread"));
-    assert!(!opened[0].contains("side-thread"));
+    assert!(opened[0].contains(primary_thread_id));
+    assert!(!opened[0].contains(side_thread_id));
     assert_eq!(opened[0].split('#').next().unwrap(), opened[1].split('#').next().unwrap());
 }
 ```
@@ -1024,12 +1655,18 @@ use codex_app_server::gui_host::{DevAssetProxyConfig, GuiHost, GuiHostConfig, Gu
 impl App {
     pub(crate) async fn open_gui(&mut self) -> anyhow::Result<()> {
         let Some(thread_id) = self.primary_thread_id() else {
-            self.add_status_message("Current session is not ready to open GUI.");
+            self.add_info_message(
+                "Current session is not ready to open GUI.".to_string(),
+                /*hint*/ None,
+            );
             return Ok(());
         };
         let url = self.ensure_gui_host().await?.launch_url_for_thread(&thread_id);
         if let Err(err) = self.gui_opener.open(&url) {
-            self.add_status_message(format!("Open this URL in a browser: {url}\n{err}"));
+            self.add_info_message(
+                format!("Open this URL in a browser: {url}\n{err}"),
+                /*hint*/ None,
+            );
         }
         Ok(())
     }
@@ -1041,32 +1678,122 @@ impl App {
         }
         Ok(self.gui_host.as_ref().unwrap())
     }
+    pub(crate) async fn shutdown_gui_host(&mut self) {
+        if let Some(handle) = self.gui_host.take() {
+            handle.shutdown().await;
+        }
+    }
 }
 ```
 Add `gui_host: Option<GuiHostHandle>`, `gui_opener: Box<dyn GuiOpener>`, a `primary_thread_id()` accessor, and this test opener:
 ```rust
-fn test_app_with_threads(
+// In codex-rs/tui/src/app.rs App fields:
+gui_host: Option<GuiHostHandle>,
+gui_opener: Box<dyn GuiOpener>,
+
+// In the real App::run Self initializer:
+let mut app = Self {
+    model_catalog,
+    session_telemetry: session_telemetry.clone(),
+    app_event_tx,
+    chat_widget,
+    workspace_command_runner: Some(workspace_command_runner),
+    config,
+    state_db,
+    active_profile,
+    cli_kv_overrides,
+    harness_overrides,
+    runtime_approval_policy_override: None,
+    runtime_permission_profile_override: None,
+    file_search,
+    enhanced_keys_supported,
+    keymap: runtime_keymap,
+    transcript_cells: Vec::new(),
+    overlay: None,
+    deferred_history_lines: Vec::new(),
+    has_emitted_history_lines: false,
+    transcript_reflow: TranscriptReflowState::default(),
+    initial_history_replay_buffer: None,
+    commit_anim_running: Arc::new(AtomicBool::new(false)),
+    status_line_invalid_items_warned: status_line_invalid_items_warned.clone(),
+    terminal_title_invalid_items_warned: terminal_title_invalid_items_warned.clone(),
+    backtrack: BacktrackState::default(),
+    backtrack_render_pending: false,
+    feedback: feedback.clone(),
+    feedback_audience,
+    environment_manager,
+    remote_app_server_url,
+    remote_app_server_auth_token,
+    pending_update_action: None,
+    pending_shutdown_exit_thread_id: None,
+    windows_sandbox: WindowsSandboxState::default(),
+    thread_event_channels: HashMap::new(),
+    thread_event_listener_tasks: HashMap::new(),
+    agent_navigation: AgentNavigationState::default(),
+    side_threads: HashMap::new(),
+    active_thread_id: None,
+    active_thread_rx: None,
+    primary_thread_id: None,
+    last_subagent_backfill_attempt: None,
+    primary_session_configured: None,
+    pending_primary_events: VecDeque::new(),
+    pending_app_server_requests: PendingAppServerRequests::default(),
+    pending_plugin_enabled_writes: HashMap::new(),
+    pending_hook_enabled_writes: HashMap::new(),
+    gui_host: None,
+    gui_opener: Box::new(PlatformGuiOpener),
+};
+
+// In codex-rs/tui/src/app/thread_routing.rs:
+impl App {
+    pub(crate) fn primary_thread_id(&self) -> Option<ThreadId> {
+        self.primary_thread_id
+    }
+}
+
+// In codex-rs/tui/src/app/test_support.rs and codex-rs/tui/src/app/tests.rs,
+// update every existing App { ... } test fixture initializer, including
+// make_test_app() and make_test_app_with_channels(), with:
+gui_host: None,
+gui_opener: Box::new(PlatformGuiOpener),
+
+// In codex-rs/tui/src/app/tests.rs, use the existing async make_test_app()
+// helper instead of adding another App fixture constructor:
+async fn test_app_with_threads(
     primary_thread_id: &str,
     active_thread_id: &str,
     opener: RecordingGuiOpener,
 ) -> App {
-    let mut app = App::new_for_test();
-    app.set_primary_thread_id_for_test(primary_thread_id);
-    app.set_active_thread_id_for_test(active_thread_id);
+    let mut app = make_test_app().await;
+    app.set_primary_thread_id_for_test(ThreadId::from_string(primary_thread_id).unwrap());
+    app.set_active_thread_id_for_test(ThreadId::from_string(active_thread_id).unwrap());
     app.gui_opener = Box::new(opener);
     app
 }
 
 #[derive(Clone, Default)]
-struct RecordingGuiOpener { opened: std::sync::Arc<tokio::sync::Mutex<Vec<String>>> }
+struct RecordingGuiOpener {
+    opened: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+}
 impl GuiOpener for RecordingGuiOpener {
     fn open(&self, url: &str) -> Result<(), OpenGuiError> {
-        self.opened.blocking_lock().push(url.to_string());
+        self.opened.lock().unwrap().push(url.to_string());
         Ok(())
     }
 }
 impl RecordingGuiOpener {
-    async fn opened_urls(&self) -> Vec<String> { self.opened.lock().await.clone() }
+    async fn opened_urls(&self) -> Vec<String> { self.opened.lock().unwrap().clone() }
+}
+
+#[cfg(test)]
+impl App {
+    fn set_primary_thread_id_for_test(&mut self, thread_id: ThreadId) {
+        self.primary_thread_id = Some(thread_id);
+    }
+
+    fn set_active_thread_id_for_test(&mut self, thread_id: ThreadId) {
+        self.active_thread_id = Some(thread_id);
+    }
 }
 ```
 - [ ] **Step 4: Run test to confirm PASS**
@@ -1083,7 +1810,90 @@ test app::tests::gui_command_uses_primary_thread_id_and_reuses_host ... ok
 git add codex-rs/tui/src/gui_opener.rs codex-rs/tui/src/app/gui.rs codex-rs/tui/src/app.rs codex-rs/tui/src/app/thread_routing.rs codex-rs/tui/src/app/tests.rs
 git commit -m "feat(tui): open GUI for primary thread"
 ```
-### Task 15: Frontend reads launch params and clears fragment
+### Task 15: TUI shuts down GuiHost with the session
+**Files:**
+- Modify: `codex-rs/tui/src/app/gui.rs`
+- Modify: `codex-rs/tui/src/app.rs`
+- Test: `codex-rs/tui/src/app/tests.rs`
+- [ ] **Step 1: Write a failing test**
+```rust
+#[tokio::test]
+async fn shutdown_gui_host_stops_ws_and_server_task() {
+    let opener = RecordingGuiOpener::default();
+    let mut app = test_app_with_threads(
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+        opener,
+    )
+    .await;
+    app.open_gui().await.unwrap();
+    let addr = app.gui_host.as_ref().unwrap().local_addr();
+    app.shutdown_gui_host().await;
+    assert!(app.gui_host.is_none());
+    let ws_url = format!("ws://{addr}/ws");
+    assert!(tokio_tungstenite::connect_async(ws_url).await.is_err());
+}
+```
+- [ ] **Step 2: Run the test to confirm FAIL**
+Run from `codex-rs`:
+```bash
+cargo test -p codex-tui shutdown_gui_host_stops_ws_and_server_task
+```
+Expected error output:
+```text
+error[E0599]: no method named `shutdown_gui_host` found for struct `App`
+```
+- [ ] **Step 3: Write minimal implementation to make test pass**
+`App::shutdown_gui_host` was introduced in Task 14's `app/gui.rs`; wire it into every TUI exit path that returns from `App::run`, including normal exit and Ctrl-C/quit branches:
+```rust
+// Before returning from App::run after the app loop has decided to exit:
+app.shutdown_gui_host().await;
+app_server
+    .shutdown()
+    .await
+    .inspect_err(|err| {
+        tracing::warn!("app-server shutdown failed: {err}");
+    })
+    .ok();
+return Ok(exit_info);
+```
+Keep `server_task` private. Put the websocket failure assertion in TUI and the `server_task.await` completion assertion in `codex-rs/app-server/src/gui_host.rs` as a focused unit test:
+```rust
+#[tokio::test]
+async fn shutdown_completes_server_task_and_rejects_later_ws() {
+    let handle = GuiHost::start(GuiHostConfig {
+        mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
+    })
+    .await
+    .unwrap();
+    let addr = handle.local_addr();
+    let mut handle = handle;
+    if let Some(tx) = handle.shutdown_tx.take() { let _ = tx.send(()); }
+    if let Some(server_task) = handle.server_task.take() {
+        server_task.await.unwrap();
+    } else {
+        panic!("running GuiHost should have a server task");
+    }
+    assert!(tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await.is_err());
+}
+```
+- [ ] **Step 4: Run test to confirm PASS**
+Run from `codex-rs`:
+```bash
+cargo test -p codex-tui shutdown_gui_host_stops_ws_and_server_task
+cargo test -p codex-app-server gui_host::tests::shutdown_completes_server_task_and_rejects_later_ws
+```
+Expected output:
+```text
+test app::tests::shutdown_gui_host_stops_ws_and_server_task ... ok
+test gui_host::tests::shutdown_completes_server_task_and_rejects_later_ws ... ok
+```
+- [ ] **Step 5: Commit**
+```bash
+git add codex-rs/tui/src/app/gui.rs codex-rs/tui/src/app.rs codex-rs/tui/src/app/tests.rs codex-rs/app-server/src/gui_host.rs
+git commit -m "feat(tui): shut down GUI host on exit"
+```
+### Task 16: Frontend reads launch params and clears fragment
 **Files:**
 - Create: `codex-gui/src/features/guiHost/guiHostClient.ts`
 - Create: `codex-gui/src/features/guiHost/guiHostClient.test.ts`
@@ -1142,7 +1952,7 @@ Expected output:
 git add codex-gui/src/features/guiHost/guiHostClient.ts codex-gui/src/features/guiHost/guiHostClient.test.ts
 git commit -m "feat(gui): read GUI host launch params"
 ```
-### Task 16: Frontend authenticates before initialize and attach
+### Task 17: Frontend authenticates before initialize and attach
 **Files:**
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.ts`
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.test.ts`
@@ -1245,7 +2055,7 @@ Expected output:
 git add codex-gui/src/features/guiHost/guiHostClient.ts codex-gui/src/features/guiHost/guiHostClient.test.ts codex-gui/src/App.tsx
 git commit -m "feat(gui): authenticate GUI host websocket"
 ```
-### Task 17: Integration acceptance covers tabs and session isolation
+### Task 18: Integration acceptance covers tabs and session isolation
 **Files:**
 - Create: `codex-rs/app-server/tests/suite/v2/gui_host.rs`
 - Modify: `codex-rs/app-server/tests/suite/v2/mod.rs`
@@ -1269,6 +2079,22 @@ async fn gui_host_allows_multiple_tabs_with_same_token() {
     }
     handle.shutdown().await;
 }
+#[tokio::test]
+async fn gui_host_isolates_multiple_sessions() {
+    let host_a = GuiHost::start(GuiHostConfig { mode: GuiHostMode::Dev(DevAssetProxyConfig::default()) }).await.unwrap();
+    let host_b = GuiHost::start(GuiHostConfig { mode: GuiHostMode::Dev(DevAssetProxyConfig::default()) }).await.unwrap();
+    assert_ne!(host_a.local_addr().port(), host_b.local_addr().port());
+    assert_ne!(host_a.launch_token().as_str(), host_b.launch_token().as_str());
+    let ws_url_b = format!("ws://{}/ws", host_b.local_addr());
+    let (mut ws, _) = tokio_tungstenite::connect_async(&ws_url_b).await.unwrap();
+    ws.send(Message::Text(format!(
+        r#"{{"jsonrpc":"2.0","id":9,"method":"gui/authenticate","params":{{"token":"{}"}}}}"#,
+        host_a.launch_token().as_str()
+    ))).await.unwrap();
+    assert!(ws.next().await.unwrap().unwrap().is_close());
+    host_a.shutdown().await;
+    host_b.shutdown().await;
+}
 ```
 Add to `codex-rs/app-server/tests/suite/v2/mod.rs`:
 ```rust
@@ -1277,19 +2103,17 @@ mod gui_host;
 - [ ] **Step 2: Run the test to confirm FAIL**
 Run from `codex-rs`:
 ```bash
-cargo test -p codex-app-server gui_host_allows_multiple_tabs_with_same_token
+cargo test -p codex-app-server gui_host_allows_multiple_tabs_with_same_token gui_host_isolates_multiple_sessions
 ```
 Expected error output:
 ```text
-error[E0603]: module `gui_host` is private
+error[E0432]: unresolved import `codex_app_server::gui_host`
 ```
 - [ ] **Step 3: Write minimal implementation to make test pass**
-Expose test support:
+Do not add a conditional public gate here. Task 1 already made `gui_host` `#[doc(hidden)] pub mod gui_host;` because TUI production code imports it cross-crate; keep that visibility unchanged and only add the integration tests and e2e coverage.
 ```rust
-#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
 pub mod gui_host;
-#[cfg(not(any(test, feature = "test-support")))]
-pub(crate) mod gui_host;
 ```
 Add Playwright coverage to `codex-gui/e2e/app.spec.ts`:
 ```typescript
@@ -1305,11 +2129,13 @@ Connection close cleanup must use the same app-server `ConnectionClosed` path re
 Run from `codex-rs` and repo root:
 ```bash
 cargo test -p codex-app-server gui_host_allows_multiple_tabs_with_same_token
+cargo test -p codex-app-server gui_host_isolates_multiple_sessions
 pnpm -C ../codex-gui run test:e2e -- e2e/app.spec.ts
 ```
 Expected output:
 ```text
 test gui_host::gui_host_allows_multiple_tabs_with_same_token ... ok
+test gui_host::gui_host_isolates_multiple_sessions ... ok
 1 passed
 ```
 - [ ] **Step 5: Commit**
@@ -1317,7 +2143,7 @@ test gui_host::gui_host_allows_multiple_tabs_with_same_token ... ok
 git add codex-rs/app-server/tests/suite/v2/gui_host.rs codex-rs/app-server/tests/suite/v2/mod.rs codex-gui/e2e/app.spec.ts codex-rs/app-server/src/lib.rs
 git commit -m "test(gui): add GUI host integration acceptance"
 ```
-### Task 18: Final formatting and focused verification
+### Task 19: Final formatting and focused verification
 **Files:**
 - Modify: all changed Rust, TypeScript, JavaScript, and Python files from previous tasks.
 - [ ] **Step 1: Write a failing verification gate**
