@@ -48,7 +48,7 @@ TUI
   ├─ handles /gui
   ├─ lazy-starts GuiHost on first /gui
   ├─ passes primary_thread_id into launch URL
-  └─ opens browser URL
+  └─ opens browser URL via platform default opener
 
 GuiHost
   ├─ binds 127.0.0.1:0
@@ -95,9 +95,13 @@ TUI 打开的 URL 形如：
 http://127.0.0.1:<port>/?threadId=<primary-thread-id>#token=<launch-token>
 ```
 
-`threadId` 可以放在 query 中，因为它不是认证 secret。`launch-token` 放在 fragment 中，避免随着普通 HTTP 静态资源请求发送到 server 或进入常规 HTTP access log。
+`threadId` 可以放在 query 中，因为它不是认证 secret。首版前端读取该 query，并把它作为 `thread/projection/attach` 的目标 thread。TUI 生成的 `/gui` URL 始终填入 `primary_thread_id`，但 `GuiHost` 不额外强制 attach 目标必须等于 primary；拿到 launch token 的本机调用方可以请求 attach 任意 app-server 认可的 thread。这个能力仍受本机 loopback、token 和 JSON-RPC method whitelist 边界约束。
+
+`launch-token` 放在 fragment 中，避免随着普通 HTTP 静态资源请求发送到 server 或进入常规 HTTP access log。前端读取 token 后，应立即调用 `history.replaceState(..., "", location.pathname + location.search)` 从地址栏移除 fragment，减少 token 进入浏览器历史、复制粘贴内容或非恶意扩展可见范围的机会。
 
 如果 `primary_thread_id` 尚不可用，`/gui` 应直接在 TUI 中提示当前 session 尚未准备好打开 GUI，而不是启动空 host。
+
+TUI 使用平台默认打开方式打开 URL：macOS 使用 `open`，Linux 使用 `xdg-open`，Windows 使用 `start` 或等价 shell 入口。打开失败时，TUI 在终端打印完整 URL，供用户手动复制到浏览器。
 
 ## WebSocket 认证
 
@@ -116,7 +120,21 @@ ws://127.0.0.1:<port>/ws
 5. `/ws` 建立后，前端发送第一条认证消息，携带 launch token。
 6. `GuiHost` 验证成功后才接受后续 JSON-RPC 消息。
 
-认证消息属于 `GuiHost` transport 前置协议，不进入 app-server JSON-RPC processor。认证失败时，`GuiHost` 关闭 `/ws`，不创建 app-server connection 或在创建后立即清理。
+认证消息使用 JSON-RPC 2.0 request 格式，但属于 `GuiHost` transport 前置协议，不进入 app-server JSON-RPC processor。第一条 WebSocket text frame 必须是：
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"gui/authenticate","params":{"token":"<launch-token>"}}
+```
+
+`id` 可以是任意 JSON-RPC request id。认证成功时，`GuiHost` 返回同一 `id` 的 JSON-RPC response：
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"authenticated":true}}
+```
+
+认证成功后，该 WebSocket 进入 app-server JSON-RPC 转发状态，后续消息只能使用白名单方法。认证失败、首帧不是 `gui/authenticate`、payload 格式错误或 token 缺失时，`GuiHost` 可以先返回同一 `id` 的 JSON-RPC error，然后以 WebSocket close code `1008` 关闭连接；如果首帧无法解析出 request id，则直接以 `1008` 关闭。失败路径不得创建 app-server connection；如果实现为复用底层连接对象而已创建，则必须立即执行 connection cleanup，且不得放行任何业务 JSON-RPC。
+
+launch token 使用系统 CSPRNG 生成，至少包含 128 位熵，使用 base64url 或 hex 编码。token 对 server 是 opaque 字符串，只做直接匹配，不解析结构或嵌入可预测信息。
 
 launch token 在同一 TUI session 内可复用，支持刷新页面、多次 `/gui` 和多个本机 browser tab。token 随 `GuiHost` / TUI 进程退出失效。第一版不要求 token 单次使用。
 
@@ -128,7 +146,9 @@ launch token 在同一 TUI session 内可复用，支持刷新页面、多次 `/
 loopback bind + short-lived launch token + Host/Origin check + method whitelist
 ```
 
-`GuiHost` 只绑定 `127.0.0.1:0`。它必须校验 HTTP `Host` 和 WebSocket `Origin`，只接受当前 host 自己签发的 loopback origin。浏览器页面与 `/ws` 同源，因此正常路径下 Origin 应匹配 `http://127.0.0.1:<port>`。
+`GuiHost` 只绑定 `127.0.0.1:0`。它必须对所有 HTTP 请求和 WebSocket upgrade 校验 `Host`，只接受严格等于 `127.0.0.1:<port>` 的值。默认不接受 `localhost:<port>`、其他 loopback 名称、缺失 Host 或任意可解析到 loopback 的 DNS 名称；这样可以降低 DNS rebinding 页面以 `evil.example:<port>` 访问本机服务的风险。
+
+WebSocket `Origin` 也必须严格等于 `http://127.0.0.1:<port>`。浏览器页面与 `/ws` 同源，因此正常路径下 Origin 应匹配该值；缺失或不匹配的 Origin 默认拒绝。未来如果支持非浏览器客户端或局域网访问，必须通过显式配置扩展 allowlist，而不是放宽第一版默认策略。
 
 method whitelist 在 `GuiHost` transport 入口实现。非白名单 JSON-RPC 请求不进入 app-server processor。server-to-browser notification 也只允许首版白名单通知。
 
@@ -149,6 +169,8 @@ thread/projection/detach
 ```text
 thread/projection/event
 ```
+
+白名单 request 对应的 JSON-RPC response 和 error 必须正常放行，因为它们是已允许 request 的结果。server-initiated notification 只允许 `thread/projection/event`。
 
 `GuiHost` 不是完整 app-server v2 gateway。任何不在白名单中的 request 都应在 `GuiHost` transport 入口被拒绝。拒绝可以返回 JSON-RPC error，也可以在明显越权时关闭连接；实现计划阶段再确定错误码和用户可见文案。
 
@@ -177,6 +199,8 @@ http://127.0.0.1:5173
 
 浏览器仍然打开 `GuiHost` URL，而不是 Vite URL。`GuiHost` 反向代理 Vite 页面资源，使页面和 `/ws` 保持同源。这样 Vite 不需要知道 `GuiHost` 的随机端口，也不需要为 `/ws` 配置反向代理。
 
+Vite HMR 首版不经 `GuiHost /ws`，避免与 projection WebSocket 混用。dev 前端配置应把 HMR WebSocket 显式指向 Vite dev server，例如 `ws://127.0.0.1:5173` 或环境变量覆盖后的 Vite 地址。这样只有开发模式下 HMR WebSocket 直连 Vite 端口，页面资源和 projection `/ws` 仍从 `GuiHost` 同源加载。若 Vite HMR 配置缺失或不可用，不要求 `GuiHost` 自动代理 HMR；开发者可以手动刷新页面。
+
 ### prod
 
 prod 模式只按 npm 包目录结构相对路径读取 GUI 构建产物。npm package root 由 Node CLI wrapper 启动 Rust binary 时通过内部环境变量传递：
@@ -202,6 +226,7 @@ prod 模式不依赖 cwd，不优先依赖 executable path，也不 fallback 到
 - TUI 启动时不启动 `GuiHost`。
 - 第一次 `/gui` 懒启动。
 - 同一 TUI session 复用同一个 `GuiHost` 和同一个 launch token。
+- 每个 TUI session 拥有独立的 `GuiHost`、随机端口和 launch token；多个并发 TUI session 互不共享 host，也不是全局单例。
 - 多个本机 tab 可以同时连接同一个 `GuiHost`。
 - TUI 进程退出时 `GuiHost` 退出，token 失效，所有 `/ws` connection 经 app-server connection cleanup 清理。
 
@@ -213,10 +238,11 @@ prod 模式不依赖 cwd，不优先依赖 executable path，也不 fallback 到
 
 1. 页面从 `GuiHost` 加载成功。
 2. 页面从 fragment 读取 launch token。
-3. 页面连接同源 `/ws`。
-4. 页面发送认证消息。
-5. 认证成功后发送 `initialize`。
-6. 页面可以 attach 默认 `threadId`，但不要求渲染 snapshot 或事件。
+3. 页面通过 `history.replaceState` 清除 URL fragment。
+4. 页面连接同源 `/ws`。
+5. 页面发送 `gui/authenticate` 认证 request。
+6. 认证成功后发送 `initialize`。
+7. 页面读取 query 中的 `threadId` 并 attach 默认 thread，但不要求渲染 snapshot 或事件。
 
 验收标准是浏览器开发者工具中能看到 `/ws` 连接。UI、timeline、snapshot 展示、projection event 展示都不在本次范围内。
 
@@ -236,7 +262,9 @@ prod 模式不依赖 cwd，不优先依赖 executable path，也不 fallback 到
 
 ## 实现边界
 
-`GuiHost` 代码应放在 app-server transport 附近，因为它需要：
+`GuiHost` 首版作为 `codex-app-server` crate 内部模块实现，例如 `codex-rs/app-server/src/gui_host.rs` 及必要的子模块，而不是新增独立 crate。它应复用 `codex-app-server-transport` 和 app-server 现有 connection 管线，但 browser 页面服务、launch token、Host/Origin 校验和白名单逻辑由 `codex-app-server` 内部拥有。这样首版可以减少 workspace / Bazel 单元和 API 暴露面；未来如果 GUI host 需要独立发布或被其他 binary 复用，再抽成 `codex-gui-host` crate。
+
+该模块放在 app-server transport 边界附近，因为它需要：
 
 - 创建 browser-safe WebSocket transport。
 - 生成 app-server connection。
