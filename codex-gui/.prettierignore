@@ -1,1 +1,6 @@
-src/features/projection/__fixtures__/
+# Ignore artifacts:
+build
+coverage
+
+# Ignore lockfiles:
+pnpm-lock.yaml
