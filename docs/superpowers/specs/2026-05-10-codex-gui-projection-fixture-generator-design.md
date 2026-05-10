@@ -430,11 +430,22 @@ else:
 - 使用固定 UUID / thread id / subscription id / commit id。
 - 使用固定 timestamp。
 - 使用固定 cwd。
-- Windows 上如果必须构造绝对路径，序列化后归一化为 `/tmp/codex-gui-projection-fixtures`。
 - 所有 path-shaped fixture 字段都必须输出正斜杠路径；不要通过 `Path::display()` 把 Windows `\` 写入 fixture。
 - 使用 `serde_json::to_string_pretty`，末尾追加 `\n`。
 
 不要在 fixture 中使用 `Uuid::now_v7()`、当前时间或临时目录路径。
+
+### 平台与 path 字段
+
+这个 generator 只在 unix-like 平台运行。
+
+- `#[cfg(not(unix))]` 下不编译 generator binary 和 golden 测试，或者直接 `compile_error!`。
+- `write_gui_projection_fixtures` 的 CI 只在 unix runner 上执行。
+- `Thread.cwd` 必须用 `AbsolutePathBuf::from_absolute_path("/tmp/codex-gui-projection-fixtures")` 构造。
+- `Thread.path` 在所有 fixture 中固定为 `None`。
+- 其他 path-shaped 字段如果无法稳定保证正斜杠和平台一致性，也应优先设为 `None` 或空集合，而不是让 generator 试图跨平台序列化 `PathBuf`。
+
+这样可以避免 Windows 上 `AbsolutePathBuf` 构造失败，也避免 `PathBuf` 默认序列化把反斜杠写进 committed fixture。
 
 ## Prettier 边界
 
@@ -491,6 +502,8 @@ re-run cargo run -p codex-app-server --bin write_gui_projection_fixtures and com
 
 这个测试让 generator 漂移在 Rust 测试阶段暴露，而不是等到前端测试或 code review 才发现 fixture 过时。
 
+首次落地 `generated_fixtures_match_committed_files` 时，需要先运行 `cargo run -p codex-app-server --bin write_gui_projection_fixtures` 写入 fixture 并提交，然后 `cargo test` 才能通过。后续如果 generator 输出变化，也使用同样流程：先运行 binary 重写 fixture，再提交 fixture 更新，再运行测试。
+
 ## GUI 测试
 
 `projectionFixtures.test.ts` 应改为验证当前协议 shape：
@@ -545,7 +558,7 @@ just fmt
 cargo test -p codex-app-server thread_projection_fixtures --no-fail-fast
 cargo test -p codex-app-server-protocol thread_projection --no-fail-fast
 cargo run -p codex-app-server --bin write_gui_projection_fixtures
-git status --short -- ../codex-gui/src/features/projection/__fixtures__
+git -C .. status --short -- codex-gui/src/features/projection/__fixtures__
 ```
 
 `write_gui_projection_fixtures` 必须是幂等的。在干净 working tree 上运行后，`git status` 不应该出现 fixture 改动；如果出现改动，说明 generator 输出不稳定，或者已提交 fixture 过时，需要重新生成并提交。
