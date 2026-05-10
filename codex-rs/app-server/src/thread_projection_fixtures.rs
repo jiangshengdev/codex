@@ -228,6 +228,7 @@ fn plan_item(id: &str, text: &str) -> ThreadItem {
 
 fn event_turn_started() -> ThreadProjectionEventNotification {
     projection_event(
+        SUBSCRIPTION_ID,
         TURN_STARTED_COMMIT_ID,
         None,
         ThreadProjectionEvent::TurnStarted {
@@ -241,6 +242,7 @@ fn event_turn_started() -> ThreadProjectionEventNotification {
 
 fn event_item_started() -> ThreadProjectionEventNotification {
     projection_event(
+        SUBSCRIPTION_ID,
         ITEM_STARTED_COMMIT_ID,
         Some(TURN_STARTED_COMMIT_ID),
         ThreadProjectionEvent::ItemStarted {
@@ -256,6 +258,7 @@ fn event_item_started() -> ThreadProjectionEventNotification {
 
 fn event_item_completed() -> ThreadProjectionEventNotification {
     projection_event(
+        SUBSCRIPTION_ID,
         ITEM_COMPLETED_COMMIT_ID,
         Some(ITEM_STARTED_COMMIT_ID),
         ThreadProjectionEvent::ItemCompleted {
@@ -271,6 +274,7 @@ fn event_item_completed() -> ThreadProjectionEventNotification {
 
 fn event_turn_completed() -> ThreadProjectionEventNotification {
     projection_event(
+        SUBSCRIPTION_ID,
         TURN_COMPLETED_COMMIT_ID,
         Some(ITEM_COMPLETED_COMMIT_ID),
         ThreadProjectionEvent::TurnCompleted {
@@ -283,28 +287,28 @@ fn event_turn_completed() -> ThreadProjectionEventNotification {
 }
 
 fn event_subscription_replacement() -> ThreadProjectionEventNotification {
-    ThreadProjectionEventNotification {
-        thread_id: THREAD_ID.to_string(),
-        subscription_id: REPLACEMENT_SUBSCRIPTION_ID.to_string(),
-        commit_id: "commit-replacement-next".to_string(),
-        parent_commit_id: Some(REPLACEMENT_HEAD_COMMIT_ID.to_string()),
-        event: ThreadProjectionEvent::TurnStarted {
+    projection_event(
+        REPLACEMENT_SUBSCRIPTION_ID,
+        "commit-replacement-next",
+        Some(REPLACEMENT_HEAD_COMMIT_ID),
+        ThreadProjectionEvent::TurnStarted {
             notification: TurnStartedNotification {
                 thread_id: THREAD_ID.to_string(),
                 turn: replacement_turn(),
             },
         },
-    }
+    )
 }
 
 fn projection_event(
+    subscription_id: &str,
     commit_id: &str,
     parent_commit_id: Option<&str>,
     event: ThreadProjectionEvent,
 ) -> ThreadProjectionEventNotification {
     ThreadProjectionEventNotification {
         thread_id: THREAD_ID.to_string(),
-        subscription_id: SUBSCRIPTION_ID.to_string(),
+        subscription_id: subscription_id.to_string(),
         commit_id: commit_id.to_string(),
         parent_commit_id: parent_commit_id.map(str::to_string),
         event,
@@ -421,11 +425,17 @@ mod tests {
 
     #[test]
     fn generated_event_commit_chain_is_stable() -> Result<()> {
-        let turn_started = event_turn_started();
-        let item_started = event_item_started();
-        let item_completed = event_item_completed();
-        let turn_completed = event_turn_completed();
-        let replacement = event_subscription_replacement();
+        let fixtures = generate_fixture_files()?;
+        let turn_started: ThreadProjectionEventNotification =
+            deserialize_fixture(&fixtures["event-turn-started.json"])?;
+        let item_started: ThreadProjectionEventNotification =
+            deserialize_fixture(&fixtures["event-item-started.json"])?;
+        let item_completed: ThreadProjectionEventNotification =
+            deserialize_fixture(&fixtures["event-item-completed.json"])?;
+        let turn_completed: ThreadProjectionEventNotification =
+            deserialize_fixture(&fixtures["event-turn-completed.json"])?;
+        let replacement: ThreadProjectionEventNotification =
+            deserialize_fixture(&fixtures["event-subscription-replacement.json"])?;
 
         assert_eq!(
             vec![
