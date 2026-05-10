@@ -92,7 +92,7 @@ write fixture files
 
 当前协议没有 `latestSequence` / `sequence`，也不需要 BigInt fixture。
 
-旧的 `event-large-sequence.json` 应删除或替换为 commit-chain fixture。前端 reducer 应通过 `parentCommitId == local.headCommitId` 判断连续性，而不是用数字 sequence 判断 gap。
+旧的 `event-large-sequence.json` 应删除。前端 reducer 应通过 commit id 判断连续性，而不是用数字 sequence 判断 gap。
 
 ### 不生成当前协议不存在的 event
 
@@ -100,6 +100,7 @@ write fixture files
 
 旧 fixture：
 
+- `event-large-sequence.json`
 - `event-projection-reset.json`
 - `event-thread-metadata-updated-null.json`
 
@@ -133,6 +134,20 @@ codex-rs/app-server-protocol/src/protocol/v2/projection.rs
 
 原因：当前分支已经用 `thread_projection` 系列文件替代旧 `projection` 模块。
 
+## 前端工程边界
+
+历史分支把前端按 repo-level monorepo 工作方式处理，容易让 GUI 依赖安装或脚本执行修改根 `pnpm-lock.yaml`。
+
+当前分支的 `codex-gui` 应作为 repo 内独立前端工程处理：
+
+- 不把 `codex-gui` 加入根 `pnpm-workspace.yaml`。
+- 不因 GUI 依赖安装或测试修改根 `pnpm-lock.yaml`。
+- GUI 依赖锁定应落在 `codex-gui` 自己的 lockfile。如果当前没有 `codex-gui/pnpm-lock.yaml`，第一次安装 GUI 依赖时应在 `codex-gui` 目录内生成并提交它。
+- 前端命令默认在 `codex-gui` 目录内执行，而不是从 repo root 通过 workspace filter 执行。
+- 如果使用 `pnpm -C codex-gui ...`，需要确保不会把安装解析回根 workspace；安装依赖时优先用 `cd codex-gui && pnpm install --ignore-workspace`。
+
+这条边界和 Rust fixture generator 无关，但会影响实现时的验证命令和锁文件改动范围。
+
 ## Rust API
 
 `codex-rs/app-server/src/lib.rs` 暴露一个隐藏测试工具入口：
@@ -144,6 +159,8 @@ pub fn write_gui_projection_fixtures(out_dir: &std::path::Path) -> anyhow::Resul
 }
 ```
 
+这层 re-export 不是协议 API。保留它的理由是维持历史 binary 调用形状，让 `src/bin/write_gui_projection_fixtures.rs` 可以继续通过 `codex_app_server::write_gui_projection_fixtures` 调用 crate 内实现。除该 binary 和测试外，不应把它当作外部稳定接口使用。
+
 binary 维持历史命令形状：
 
 ```bash
@@ -154,8 +171,10 @@ cargo run -p codex-app-server --bin write_gui_projection_fixtures -- \
 默认 `out_dir`：
 
 ```text
-<codex-rs/app-server>/../../codex-gui/src/features/projection/__fixtures__
+CARGO_MANIFEST_DIR/../../codex-gui/src/features/projection/__fixtures__
 ```
+
+这里必须以 `env!("CARGO_MANIFEST_DIR")` 为基准，而不是 current working directory。这样无论命令从 repo root、`codex-rs` 还是 `codex-rs/app-server` 运行，默认输出目录都一致。
 
 ## Fixture 集合
 
@@ -168,8 +187,15 @@ event-turn-started.json
 event-item-started.json
 event-item-completed.json
 event-turn-completed.json
-event-commit-chain-second.json
 event-subscription-replacement.json
+```
+
+不生成旧文件：
+
+```text
+event-large-sequence.json
+event-projection-reset.json
+event-thread-metadata-updated-null.json
 ```
 
 ### `attach-baseline.json`
@@ -208,7 +234,7 @@ parentCommitId = null
 event.type = "turnStarted"
 ```
 
-`event.notification.turn` 使用真实 `TurnStartedNotification` 的 `turn` 字段结构，而不是旧的 projection payload。
+`event.notification` 必须是完整 `TurnStartedNotification`，即包含 `threadId` 和 `turn`。生成器应直接构造 Rust 协议结构体，不手写局部 JSON，也不只生成 `turn` 字段。
 
 ### `event-item-started.json`
 
@@ -222,7 +248,7 @@ parentCommitId = "commit-turn-started"
 event.type = "itemStarted"
 ```
 
-用于验证前端在 parent commit 连续时把 item 写入已有 turn。
+`event.notification` 必须是完整 `ItemStartedNotification`，即包含 `threadId`、`turnId`、`item`、`startedAtMs`。用于验证前端在 parent commit 连续时把 item 写入已有 turn。
 
 ### `event-item-completed.json`
 
@@ -236,7 +262,7 @@ parentCommitId = "commit-item-started"
 event.type = "itemCompleted"
 ```
 
-用于验证前端按 item id 替换 in-progress item。
+`event.notification` 必须是完整 `ItemCompletedNotification`，即包含 `threadId`、`turnId`、`item`、`completedAtMs`。用于验证前端按 item id 替换 in-progress item。
 
 ### `event-turn-completed.json`
 
@@ -250,20 +276,7 @@ parentCommitId = "commit-item-completed"
 event.type = "turnCompleted"
 ```
 
-用于验证前端把 turn 更新为 completed。
-
-### `event-commit-chain-second.json`
-
-类型：`ThreadProjectionEventNotification`
-
-内容：
-
-- 可以复用 item 或 turn notification。
-- `parentCommitId` 指向另一个 fixture 的 `commitId`。
-
-用途是让前端测试能显式覆盖 commit chain 连续应用，而不是只覆盖单事件。
-
-如果 `event-item-started` / `event-item-completed` 已经覆盖连续链，这个 fixture 可以不单独新增，避免冗余。
+`event.notification` 必须是完整 `TurnCompletedNotification`，即包含 `threadId` 和 `turn`。用于验证前端把 turn 更新为 completed。
 
 ### `event-subscription-replacement.json`
 
@@ -276,6 +289,53 @@ event.type = "turnCompleted"
 - `commitId = "commit-replacement-next"`
 
 用于验证前端 reattach 后只接受新 subscription 的事件。
+
+## Commit Chain 拓扑
+
+第一版 fixture 使用两条明确的链。
+
+baseline 链：
+
+```text
+attach-baseline
+  snapshot.headCommitId = null
+  subscriptionId = "projection-fixture-subscription"
+  |
+  v
+event-turn-started
+  parentCommitId = null
+  commitId = "commit-turn-started"
+  |
+  v
+event-item-started
+  parentCommitId = "commit-turn-started"
+  commitId = "commit-item-started"
+  |
+  v
+event-item-completed
+  parentCommitId = "commit-item-started"
+  commitId = "commit-item-completed"
+  |
+  v
+event-turn-completed
+  parentCommitId = "commit-item-completed"
+  commitId = "commit-turn-completed"
+```
+
+replacement 链：
+
+```text
+attach-replacement
+  snapshot.headCommitId = "commit-replacement-head"
+  subscriptionId = "projection-fixture-replacement-subscription"
+  |
+  v
+event-subscription-replacement
+  parentCommitId = "commit-replacement-head"
+  commitId = "commit-replacement-next"
+```
+
+不新增 `event-commit-chain-second.json`。`event-item-started`、`event-item-completed`、`event-turn-completed` 已经覆盖连续 commit chain，额外 fixture 只会增加维护面。
 
 ## Frontend 适配
 
@@ -326,12 +386,18 @@ event 处理：
 ```text
 if event.subscriptionId != local.subscriptionId:
   ignore
+else if event.commitId == local.headCommitId:
+  ignore duplicate
 else if event.parentCommitId != local.headCommitId:
   mark reattach("commitChainMismatch")
 else:
   apply event.event.notification
   local.headCommitId = event.commitId
 ```
+
+这里的 duplicate 分支是必须的。server 或 transport 层如果重放了本地已经应用过的最新 commit，前端不能把它当成断链，否则会产生 reattach 循环。
+
+第一版前端只保存 `headCommitId`，不保存完整祖先集合。因此可识别的重复事件只有 `event.commitId == local.headCommitId`。如果未来前端保存短窗口 commit history，可以把“可识别祖先 commit”也作为 duplicate ignore；第一版不为此额外建索引。
 
 事件应用应保持幂等：
 
@@ -372,6 +438,7 @@ else:
 ```text
 generated_fixture_set_is_stable
 generated_fixtures_match_current_projection_shape
+generated_fixtures_round_trip_through_protocol_types
 generated_commit_chain_is_contiguous
 write_preserves_unrelated_files
 ```
@@ -383,6 +450,9 @@ write_preserves_unrelated_files
 - event fixture 顶层是 `threadId` + `subscriptionId` + `commitId` + `parentCommitId` + `event`。
 - 不出现旧字段：`projectionInstanceId`、`latestSequence`、`sequence`、`eventId`、`payload`。
 - commit chain fixture 的 `parentCommitId` 严格指向前一个 fixture 的 `commitId`。
+- 每个 attach fixture 都能 `serde_json::from_str::<ThreadProjectionAttachResponse>`。
+- 每个 event fixture 都能 `serde_json::from_str::<ThreadProjectionEventNotification>`。
+- 反序列化后的结构体再次 pretty serialize，应与原 fixture 内容一致。
 - writer 不删除 unrelated file。
 
 ## GUI 测试
@@ -401,6 +471,7 @@ write_preserves_unrelated_files
 - attach stores `subscriptionId`、`thread`、`headCommitId`。
 - unknown thread event ignored。
 - stale subscription event ignored。
+- duplicate latest commit ignored。
 - `parentCommitId` mismatch marks reattach。
 - matching `parentCommitId` applies event and advances `headCommitId`。
 - reattach replaces thread store and subscription id。
@@ -440,12 +511,27 @@ cargo test -p codex-app-server-protocol thread_projection --no-fail-fast
 cargo run -p codex-app-server --bin write_gui_projection_fixtures
 ```
 
-然后在 repo root 或 `codex-gui` 运行前端测试。具体命令以 `codex-gui/package.json` scripts 为准，预期至少覆盖：
+然后在 `codex-gui` 目录内运行前端测试。具体命令以 `codex-gui/package.json` scripts 为准，预期至少覆盖：
 
 ```bash
-pnpm --dir codex-gui test
-pnpm --dir codex-gui type-check
+cd codex-gui
+pnpm test
+pnpm type-check
 ```
+
+当前 `codex-gui/package.json` 的 scripts 已包含 `test` 和 `type-check`，并且 `ci` 脚本通过 `pnpm` 串起 format、lint、type-check、test。实现时如 package manager 或 scripts 变化，以当时的 `codex-gui/package.json` 为准。
+
+如果实现过程中需要安装或更新 GUI 依赖，命令应在 `codex-gui` 内执行，并避免修改 repo root `pnpm-lock.yaml`：
+
+```bash
+cd codex-gui
+pnpm install --ignore-workspace
+```
+
+预期锁文件结果：
+
+- 可以新增或更新 `codex-gui/pnpm-lock.yaml`。
+- 不应修改 repo root `pnpm-lock.yaml`，除非用户明确要求把 `codex-gui` 纳入根 workspace。
 
 如果修改了 Rust protocol 类型或 schema，不属于单纯 fixture generator 迁移，应另行运行：
 
