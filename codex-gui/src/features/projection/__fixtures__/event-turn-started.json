@@ -1,0 +1,18 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "projectionInstanceId": "projection-fixture-instance",
+  "sequence": "1",
+  "eventId": "projection-fixture-instance:1",
+  "payload": {
+    "type": "turnStarted",
+    "turn": {
+      "id": "turn-event",
+      "items": [],
+      "status": "inProgress",
+      "error": null,
+      "startedAt": 300,
+      "completedAt": null,
+      "durationMs": null
+    }
+  }
+}

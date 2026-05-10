@@ -1,0 +1,10 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "projectionInstanceId": "projection-fixture-instance",
+  "sequence": "9007199254740993",
+  "eventId": "projection-fixture-instance:9007199254740993",
+  "payload": {
+    "type": "projectionReset",
+    "reason": "rollback"
+  }
+}

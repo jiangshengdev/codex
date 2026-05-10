@@ -1,0 +1,11 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "projectionInstanceId": "projection-fixture-instance",
+  "sequence": "4",
+  "eventId": "projection-fixture-instance:4",
+  "payload": {
+    "type": "turnCompleted",
+    "turnId": "turn-event",
+    "status": "completed"
+  }
+}

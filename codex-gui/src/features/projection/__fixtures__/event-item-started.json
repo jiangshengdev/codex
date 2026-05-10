@@ -1,0 +1,15 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "projectionInstanceId": "projection-fixture-instance",
+  "sequence": "2",
+  "eventId": "projection-fixture-instance:2",
+  "payload": {
+    "type": "itemStarted",
+    "turnId": "turn-event",
+    "item": {
+      "type": "plan",
+      "id": "plan-item",
+      "text": "Draft implementation plan"
+    }
+  }
+}

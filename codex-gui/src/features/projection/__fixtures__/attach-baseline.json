@@ -1,0 +1,45 @@
+{
+  "thread": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "forkedFromId": null,
+    "preview": "Projection fixture preview",
+    "ephemeral": false,
+    "modelProvider": "mock_provider",
+    "createdAt": 1700000000,
+    "updatedAt": 1700000060,
+    "status": {
+      "type": "idle"
+    },
+    "path": null,
+    "cwd": "/tmp/codex-gui-projection-fixtures",
+    "cliVersion": "test-fixture",
+    "source": "appServer",
+    "agentNickname": null,
+    "agentRole": null,
+    "gitInfo": null,
+    "name": "Projection fixture",
+    "turns": [
+      {
+        "id": "baseline-turn",
+        "items": [
+          {
+            "type": "plan",
+            "id": "baseline-plan",
+            "text": "Projection state inspected"
+          }
+        ],
+        "status": "inProgress",
+        "error": null,
+        "startedAt": 100,
+        "completedAt": null,
+        "durationMs": null
+      }
+    ]
+  },
+  "pendingRequests": [],
+  "runtimeStatus": {
+    "type": "idle"
+  },
+  "projectionInstanceId": "projection-fixture-instance",
+  "latestSequence": "0"
+}
