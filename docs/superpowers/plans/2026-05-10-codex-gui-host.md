@@ -694,6 +694,17 @@ async fn authenticated_allowed_request_reaches_router() {
     assert!(!forward_authenticated_message(&router, blocked.to_string()).await.unwrap());
     assert_eq!(router.messages().await, vec![allowed.to_string()]);
 }
+
+#[tokio::test]
+async fn gui_host_router_drops_disallowed_method() {
+    let router = AppServerConnectionRouter::new_for_test();
+    let before = router.observed_request_count();
+    router
+        .process_jsonrpc_text(r#"{"jsonrpc":"2.0","id":12,"method":"thread/list","params":{}}"#.to_string())
+        .await
+        .unwrap();
+    assert_eq!(router.observed_request_count(), before);
+}
 ```
 - [ ] **Step 2: Run the test to confirm FAIL**
 Run from `codex-rs`:
@@ -704,6 +715,7 @@ Expected error output:
 ```text
 error[E0433]: failed to resolve: use of undeclared type `TestGuiConnectionRouter`
 error[E0425]: cannot find function `forward_authenticated_message` in this scope
+error[E0433]: failed to resolve: use of undeclared type `AppServerConnectionRouter`
 ```
 - [ ] **Step 3: Write minimal implementation to make test pass**
 ```rust
@@ -732,9 +744,7 @@ impl TestGuiConnectionRouter {
 ```
 In `lib.rs`, extract a production router that calls the same `MessageProcessor::process_request`, `process_response`, `process_error`, `process_notification`, and `connection_closed` paths used by the current websocket `TransportEvent::IncomingMessage` loop. The real message enum is `codex_app_server_protocol::JSONRPCMessage` (re-exported from `jsonrpc_lite.rs`), not `protocol::ClientMessage`; its variants are `Request`, `Notification`, `Response`, and `Error`. The real processor signatures include `ConnectionId`, `AppServerTransport`, and `Arc<ConnectionSessionState>`.
 ```rust
-use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 
 use codex_app_server_protocol::JSONRPCMessage;
 
@@ -743,14 +753,15 @@ pub(crate) struct AppServerConnectionRouter {
     processor: Arc<MessageProcessor>,
     transport: AppServerTransport,
     session: Arc<ConnectionSessionState>,
-    outbound_initialized: Arc<AtomicBool>,
-    outbound_experimental_api_enabled: Arc<AtomicBool>,
-    outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
 }
 impl AppServerConnectionRouter {
     pub(crate) async fn process_jsonrpc_text(&self, text: String) -> anyhow::Result<()> {
         match serde_json::from_str::<JSONRPCMessage>(&text) {
             Ok(JSONRPCMessage::Request(request)) => {
+                if !GuiHost::is_allowed_client_request_method(request.method.as_str()) {
+                    tracing::warn!("GUI client attempted disallowed method: {}", request.method);
+                    return Ok(());
+                }
                 let was_initialized = self.session.initialized();
                 self.processor
                     .process_request(
@@ -760,21 +771,11 @@ impl AppServerConnectionRouter {
                         Arc::clone(&self.session),
                     )
                     .await;
-                if let Ok(mut opted_out) = self.outbound_opted_out_notification_methods.write() {
-                    *opted_out = self.session.opted_out_notification_methods();
-                } else {
-                    tracing::warn!("failed to update GUI outbound opted-out notifications");
-                }
-                self.outbound_experimental_api_enabled.store(
-                    self.session.experimental_api_enabled(),
-                    std::sync::atomic::Ordering::Release,
-                );
                 if !was_initialized && self.session.initialized() {
                     self.processor
                         .send_initialize_notifications_to_connection(self.connection_id)
                         .await;
                     self.processor.connection_initialized(self.connection_id).await;
-                    self.outbound_initialized.store(true, std::sync::atomic::Ordering::Release);
                 }
             }
             Ok(JSONRPCMessage::Response(response)) => {
@@ -797,6 +798,10 @@ impl crate::gui_host::GuiConnectionRouter for AppServerConnectionRouter {
     }
 }
 ```
+The `forward_authenticated_message` helper in the in-memory test router already gates with `gui_host_allows_incoming_text`; the production `AppServerConnectionRouter::process_jsonrpc_text` request branch must mirror that gate before calling `processor.process_request`. Disallowed GUI browser methods are silently dropped in the first version, with a warning log and no JSON-RPC error response.
+
+If `MessageProcessor` is hard to mock in the unit test, move the disallowed-method coverage to Task 18 as `gui_host_rejects_disallowed_methods_after_authentication`: run the full GUI host handshake, send `thread/list`, and assert the server sends no response within a 2-second timeout (`ws.next()` remains pending).
+
 When a GUI websocket closes, call `processor.connection_closed(connection_id, &session).await` from the GUI websocket task after the read/write loop ends, matching the app-server connection cleanup path rather than adding TUI-side cleanup.
 - [ ] **Step 4: Run test to confirm PASS**
 Run from `codex-rs`:
@@ -806,6 +811,7 @@ cargo test -p codex-app-server gui_host::tests::authenticated_allowed_request_re
 Expected output:
 ```text
 test gui_host::tests::authenticated_allowed_request_reaches_router ... ok
+test gui_host::tests::gui_host_router_drops_disallowed_method ... ok
 ```
 - [ ] **Step 5: Commit**
 ```bash
@@ -1861,13 +1867,12 @@ Keep `server_task` private. Put the websocket failure assertion in TUI and the `
 ```rust
 #[tokio::test]
 async fn shutdown_completes_server_task_and_rejects_later_ws() {
-    let handle = GuiHost::start(GuiHostConfig {
+    let mut handle = GuiHost::start(GuiHostConfig {
         mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
     })
     .await
     .unwrap();
     let addr = handle.local_addr();
-    let mut handle = handle;
     if let Some(tx) = handle.shutdown_tx.take() { let _ = tx.send(()); }
     if let Some(server_task) = handle.server_task.take() {
         server_task.await.unwrap();
@@ -2201,6 +2206,7 @@ git commit -m "chore(gui): verify GUI host implementation"
 ```
 ## 风险与未决事项
 - 设计文档 `测试策略` 列出 10 个测试点；实现和评审按 10 个测试点覆盖。
+- GUI browser 发越权 method 首版静默丢弃并记日志；如需返回 JSON-RPC `-32601` 以便前端排障，另行决策。
 - JSON-RPC 白名单拒绝错误码未在设计中固定。实现 PR 需要在测试中固定返回 JSON-RPC error 还是关闭连接；认证阶段失败使用 WebSocket close code `1008`。
 - 首帧 `gui/authenticate` 格式错误但能解析出 `id` 时的 error payload 形状未完全指定。首版可以直接关闭连接，避免创建 app-server connection。
 - 前端 URL 缺失 `threadId` 时首版显示连接错误并且不发送 `thread/projection/attach`。
