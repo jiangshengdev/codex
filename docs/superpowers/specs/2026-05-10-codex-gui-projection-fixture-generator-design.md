@@ -369,6 +369,10 @@ commit chain mismatch
 建议的前端状态：
 
 ```ts
+export type ReattachRequest = {
+  reason: "commitChainMismatch" | "missingTurn";
+};
+
 export type ThreadProjection = {
   subscriptionId: string;
   thread: Thread;
@@ -380,6 +384,7 @@ export type ThreadProjection = {
 attach 处理：
 
 ```text
+threadId = response.snapshot.thread.id
 state[threadId] = {
   subscriptionId: response.subscriptionId,
   thread: response.snapshot.thread,
@@ -388,10 +393,19 @@ state[threadId] = {
 }
 ```
 
+`projectionAttached` action 不应再要求调用方额外传入 `threadId`。当前 attach response 已经包含
+`snapshot.thread.id`，让 reducer 从协议 payload 中取 key 可以避免测试或 client 传入不一致的
+thread id。
+
 event 处理：
 
 ```text
-if event.subscriptionId != local.subscriptionId:
+local = state[event.threadId]
+if local does not exist:
+  ignore
+else if local.reattach exists:
+  ignore until next attach
+else if event.subscriptionId != local.subscriptionId:
   ignore
 else if event.commitId == local.headCommitId:
   ignore duplicate
@@ -413,7 +427,21 @@ else:
 - `itemCompleted`：同上。
 - `turnCompleted`：notification 包含完整 turn，按 turn id replace-or-append。
 
-如果 item/turn parent 缺失，前端应标记 reattach，而不是尝试猜测恢复。
+`turnCompleted` 必须使用 `TurnCompletedNotification.turn` 整体替换或追加 turn，不应沿用旧
+`ProjectionEventPayload` 的 `{ turnId, status }` 局部更新模型。
+
+如果 item parent turn 缺失，前端应标记 `reattach("missingTurn")`，而不是尝试猜测恢复。
+`turnStarted` 和 `turnCompleted` 都携带完整 turn，因此缺少同 id turn 时可以 append；这不是
+missing parent。
+
+selectors 第一版保持最小：
+
+```text
+selectProjectionByThreadId
+selectProjectionReattachByThreadId
+```
+
+不在本次 fixture/frontend 迁移中新增 timeline/view-model selector。
 
 ## 写文件行为
 
@@ -421,10 +449,14 @@ else:
 
 - 创建输出目录。
 - 只覆盖本生成器负责的 fixture 文件。
+- 删除已知的历史 generated stale fixture 文件：
+  - `event-large-sequence.json`
+  - `event-projection-reset.json`
+  - `event-thread-metadata-updated-null.json`
 - 不清空整个目录。
 - 不删除目录里的无关文件。
 
-这能避免误删前端临时 fixture 或后续非 projection fixture。
+这样可以移除会误导前端测试的旧协议 fixture，同时避免误删前端临时 fixture 或后续非 projection fixture。
 
 ## Byte Stability
 
