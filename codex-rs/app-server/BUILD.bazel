@@ -17,5 +17,8 @@ codex_rust_crate(
     extra_binaries = [
         "//codex-rs/bwrap:bwrap",
     ],
+    test_data_extra = [
+        "//:codex-gui-projection-fixtures",
+    ],
     test_tags = ["no-sandbox"],
 )

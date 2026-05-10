@@ -348,6 +348,34 @@ mod tests {
     }
 
     #[test]
+    fn generated_fixtures_match_committed_files() -> Result<()> {
+        let fixtures = generate_fixture_files()?;
+        let committed_dir = codex_utils_cargo_bin::find_resource!(
+            "../../codex-gui/src/features/projection/__fixtures__/attach-baseline.json"
+        )?
+        .parent()
+        .context("committed fixture path should have a parent directory")?
+        .to_path_buf();
+
+        for (name, generated_contents) in fixtures {
+            let committed_path = committed_dir.join(name);
+            let committed_contents = fs::read_to_string(&committed_path).with_context(|| {
+                format!(
+                    "failed to read committed fixture {}; re-run cargo run -p codex-app-server --bin write_gui_projection_fixtures and commit the fixture changes",
+                    committed_path.display()
+                )
+            })?;
+
+            assert_eq!(
+                committed_contents, generated_contents,
+                "committed fixture {name} is stale; re-run cargo run -p codex-app-server --bin write_gui_projection_fixtures and commit the fixture changes"
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn generated_fixtures_match_current_projection_shape() -> Result<()> {
         let fixtures = generate_fixture_files()?;
         let attach: Value = deserialize_fixture(&fixtures["attach-baseline.json"])?;
