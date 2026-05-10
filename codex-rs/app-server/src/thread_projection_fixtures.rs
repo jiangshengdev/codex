@@ -350,6 +350,8 @@ mod tests {
     #[test]
     fn generated_fixtures_match_committed_files() -> Result<()> {
         let fixtures = generate_fixture_files()?;
+        // find_resource! resolves files declared in Bazel runfiles, not directories.
+        // Pick any always-emitted fixture file and take its parent.
         let committed_dir = codex_utils_cargo_bin::find_resource!(
             "../../codex-gui/src/features/projection/__fixtures__/attach-baseline.json"
         )?
