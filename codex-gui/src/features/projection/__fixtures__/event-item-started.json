@@ -1,15 +1,19 @@
 {
   "threadId": "00000000-0000-0000-0000-000000000001",
-  "projectionInstanceId": "projection-fixture-instance",
-  "sequence": "2",
-  "eventId": "projection-fixture-instance:2",
-  "payload": {
+  "subscriptionId": "projection-fixture-subscription",
+  "commitId": "commit-item-started",
+  "parentCommitId": "commit-turn-started",
+  "event": {
     "type": "itemStarted",
-    "turnId": "turn-event",
-    "item": {
-      "type": "plan",
-      "id": "plan-item",
-      "text": "Draft implementation plan"
+    "notification": {
+      "item": {
+        "type": "plan",
+        "id": "event-plan",
+        "text": "Stream projection event updates"
+      },
+      "threadId": "00000000-0000-0000-0000-000000000001",
+      "turnId": "turn-in-progress",
+      "startedAtMs": 1700000011000
     }
   }
 }

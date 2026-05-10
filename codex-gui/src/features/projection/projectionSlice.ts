@@ -1,36 +1,27 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import { createAppSlice } from "@/app/createAppSlice";
-import type { ServerRequest } from "@codex-protocol";
 import type {
-  ProjectionEventPayload,
-  ProjectionEventNotification,
   Thread,
   ThreadItem,
   ThreadProjectionAttachResponse,
-  ThreadStatus,
+  ThreadProjectionEvent,
+  ThreadProjectionEventNotification,
   Turn,
 } from "@codex-protocol/v2";
 
 export type ReattachRequest = {
-  reason: "sequenceGap" | "projectionInstanceMismatch" | "projectionReset" | "missingTurn";
+  reason: "commitChainMismatch" | "missingTurn";
 };
 
 export type ThreadProjection = {
+  subscriptionId: string;
   thread: Thread;
-  pendingRequests: ServerRequest[];
-  runtimeStatus: ThreadStatus;
-  projectionInstanceId: string;
-  latestSequence: string;
+  headCommitId: string | null;
   reattach: ReattachRequest | null;
 };
 
 export type ProjectionSliceState = {
   projectionsByThreadId: Record<string, ThreadProjection>;
-};
-
-export type ProjectionAttachedPayload = {
-  threadId: string;
-  snapshot: ThreadProjectionAttachResponse;
 };
 
 const initialState: ProjectionSliceState = {
@@ -66,49 +57,35 @@ const replaceOrAppendItem = (turn: Turn, item: ThreadItem) => {
   turn.items[existingIndex] = item;
 };
 
-const applyProjectionPayload = (
+const applyItemEvent = (
   projection: ThreadProjection,
-  payload: ProjectionEventPayload,
+  turnId: string,
+  item: ThreadItem,
 ): boolean => {
-  switch (payload.type) {
+  const turn = findTurn(projection, turnId);
+  if (turn == null) {
+    markReattach(projection, "missingTurn");
+    return false;
+  }
+
+  replaceOrAppendItem(turn, item);
+  return true;
+};
+
+const applyProjectionEvent = (
+  projection: ThreadProjection,
+  event: ThreadProjectionEvent,
+): boolean => {
+  switch (event.type) {
     case "turnStarted":
-      replaceOrAppendTurn(projection.thread.turns, payload.turn);
+      replaceOrAppendTurn(projection.thread.turns, event.notification.turn);
       return true;
-    case "itemStarted": {
-      const turn = findTurn(projection, payload.turnId);
-      if (turn == null) {
-        markReattach(projection, "missingTurn");
-        return false;
-      }
-
-      replaceOrAppendItem(turn, payload.item);
-      return true;
-    }
-    case "itemCompleted": {
-      const turn = findTurn(projection, payload.turnId);
-      if (turn == null) {
-        markReattach(projection, "missingTurn");
-        return false;
-      }
-
-      replaceOrAppendItem(turn, payload.item);
-      return true;
-    }
-    case "turnCompleted": {
-      const turn = findTurn(projection, payload.turnId);
-      if (turn == null) {
-        markReattach(projection, "missingTurn");
-        return false;
-      }
-
-      turn.status = payload.status;
-      return true;
-    }
-    case "threadMetadataUpdated":
-      projection.thread.name = payload.name;
-      return true;
-    case "projectionReset":
-      markReattach(projection, "projectionReset");
+    case "itemStarted":
+      return applyItemEvent(projection, event.notification.turnId, event.notification.item);
+    case "itemCompleted":
+      return applyItemEvent(projection, event.notification.turnId, event.notification.item);
+    case "turnCompleted":
+      replaceOrAppendTurn(projection.thread.turns, event.notification.turn);
       return true;
   }
 };
@@ -118,17 +95,20 @@ export const projectionSlice = createAppSlice({
   initialState,
   reducers: (create) => ({
     projectionAttached: create.reducer(
-      (state, action: PayloadAction<ProjectionAttachedPayload>) => {
-        const { threadId, snapshot } = action.payload;
+      (state, action: PayloadAction<ThreadProjectionAttachResponse>) => {
+        const response = action.payload;
+        const thread = response.snapshot.thread;
 
-        state.projectionsByThreadId[threadId] = {
-          ...snapshot,
+        state.projectionsByThreadId[thread.id] = {
+          subscriptionId: response.subscriptionId,
+          thread,
+          headCommitId: response.snapshot.headCommitId,
           reattach: null,
         };
       },
     ),
     projectionEventReceived: create.reducer(
-      (state, action: PayloadAction<ProjectionEventNotification>) => {
+      (state, action: PayloadAction<ThreadProjectionEventNotification>) => {
         const event = action.payload;
         const projection = state.projectionsByThreadId[event.threadId];
 
@@ -136,25 +116,21 @@ export const projectionSlice = createAppSlice({
           return;
         }
 
-        if (projection.projectionInstanceId !== event.projectionInstanceId) {
-          projection.reattach = { reason: "projectionInstanceMismatch" };
+        if (event.subscriptionId !== projection.subscriptionId) {
           return;
         }
 
-        const expectedSequence = BigInt(projection.latestSequence) + 1n;
-        const actualSequence = BigInt(event.sequence);
-
-        if (actualSequence < expectedSequence) {
+        if (event.commitId === projection.headCommitId) {
           return;
         }
 
-        if (actualSequence > expectedSequence) {
-          projection.reattach = { reason: "sequenceGap" };
+        if (event.parentCommitId !== projection.headCommitId) {
+          markReattach(projection, "commitChainMismatch");
           return;
         }
 
-        if (applyProjectionPayload(projection, event.payload)) {
-          projection.latestSequence = event.sequence;
+        if (applyProjectionEvent(projection, event.event)) {
+          projection.headCommitId = event.commitId;
         }
       },
     ),

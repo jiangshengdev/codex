@@ -1,19 +1,19 @@
 {
   "threadId": "00000000-0000-0000-0000-000000000001",
-  "subscriptionId": "projection-fixture-subscription",
-  "commitId": "commit-turn-started",
-  "parentCommitId": null,
+  "subscriptionId": "projection-fixture-replacement-subscription",
+  "commitId": "commit-replacement-next",
+  "parentCommitId": "commit-replacement-head",
   "event": {
     "type": "turnStarted",
     "notification": {
       "threadId": "00000000-0000-0000-0000-000000000001",
       "turn": {
-        "id": "turn-in-progress",
+        "id": "replacement-turn",
         "items": [],
         "itemsView": "full",
         "status": "inProgress",
         "error": null,
-        "startedAt": 1700000010,
+        "startedAt": 1700000020,
         "completedAt": null,
         "durationMs": null
       }
