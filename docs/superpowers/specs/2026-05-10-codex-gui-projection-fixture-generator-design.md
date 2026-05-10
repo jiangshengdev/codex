@@ -154,11 +154,14 @@ codex-rs/app-server-protocol/src/protocol/v2/projection.rs
 `codex-rs/app-server/src/lib.rs` 暴露一个隐藏测试工具入口：
 
 ```rust
+#[cfg(unix)]
 #[doc(hidden)]
 pub fn write_gui_projection_fixtures(out_dir: &std::path::Path) -> anyhow::Result<()> {
     thread_projection_fixtures::write(out_dir)
 }
 ```
+
+该 re-export、`thread_projection_fixtures` 模块、`write_gui_projection_fixtures` binary 入口均在 `#[cfg(unix)]` 下定义。非 unix 平台的 `codex-app-server` crate 其他部分应正常编译，不能因为一个 fixture 生成辅助工具而让 Windows 上的 `cargo check` / rust-analyzer 爆红。
 
 这层 re-export 不是协议 API。保留它的理由是维持历史 binary 调用形状，让 `src/bin/write_gui_projection_fixtures.rs` 可以继续通过 `codex_app_server::write_gui_projection_fixtures` 调用 crate 内实现。除该 binary 和测试外，不应把它当作外部稳定接口使用。
 
@@ -408,7 +411,7 @@ else:
 - `turnStarted`：按 turn id replace-or-append。
 - `itemStarted`：按 turn id 找 parent turn，再按 item id replace-or-append。
 - `itemCompleted`：同上。
-- `turnCompleted`：按 turn id replace-or-append 或更新完整 turn，取决于 current notification payload 形状。
+- `turnCompleted`：notification 包含完整 turn，按 turn id replace-or-append。
 
 如果 item/turn parent 缺失，前端应标记 reattach，而不是尝试猜测恢复。
 
@@ -439,7 +442,7 @@ else:
 
 这个 generator 只在 unix-like 平台运行。
 
-- `#[cfg(not(unix))]` 下不编译 generator binary 和 golden 测试，或者直接 `compile_error!`。
+- `thread_projection_fixtures` 模块、lib re-export、binary 入口、golden 测试都必须通过 `#[cfg(unix)]` 隔离。
 - `write_gui_projection_fixtures` 的 CI 只在 unix runner 上执行。
 - `Thread.cwd` 必须用 `AbsolutePathBuf::from_absolute_path("/tmp/codex-gui-projection-fixtures")` 构造。
 - `Thread.path` 在所有 fixture 中固定为 `None`。
