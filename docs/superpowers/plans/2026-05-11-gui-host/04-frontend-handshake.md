@@ -2,15 +2,27 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement the browser launch-token recovery, WebSocket handshake, projection attach sequence, and simple transport status UI.
+**Goal:** Implement the browser-side recovery of app-server launch URL parameters, WebSocket handshake, projection attach sequence, and simple transport status UI.
 
-**Architecture:** The frontend verifies transport only and does not write projection data into Redux/store. It displays only connection status, attached state, received event count, and last event type.
+**Architecture:** The frontend consumes the launch URL returned by app-server and printed by TUI; it does not know which process owns `GuiHost`. Browser code reads `threadId` from query, reads the launch token from fragment or `sessionStorage`, clears the fragment, connects to same-origin `/ws`, then performs `gui/authenticate -> initialize -> thread/projection/attach`. The frontend verifies transport only and does not write projection data into Redux/store; it displays only connection status, attached state, received event count, and last event type.
 
 **Tech Stack:** React, TypeScript, Vite, Vitest, browser WebSocket.
 
 ---
 
 Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
+
+## Scope Notes
+
+- Keep this plan focused on browser handshake and status UI.
+- Do not add frontend assumptions about whether TUI, app-server, or another caller owns GUI host lifecycle.
+- The launch URL shape is produced by app-server and displayed by TUI:
+
+```text
+http://127.0.0.1:<port>/?threadId=<primary-thread-id>#token=<launch-token>
+```
+
+- Frontend behavior remains unchanged by the ownership redesign: read launch params, clear fragment, connect `/ws`, authenticate, initialize, attach, and count `thread/projection/event` notifications.
 
 ### Task 10: Add frontend GUI host client and status UI
 
@@ -50,7 +62,7 @@ class RecordingWebSocket {
 }
 
 describe("guiHostClient", () => {
-  it("stores fragment token and restores it after refresh", () => {
+  it("stores app-server launch URL fragment token and restores it after refresh", () => {
     const storage = new MemoryStorage();
     expect(
       readLaunchParams(
