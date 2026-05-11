@@ -263,6 +263,30 @@ async fn complete_gui_connection(
     let _ = gui_connection.done_tx.send(completion);
 }
 
+fn try_enqueue_gui_opened(
+    processor_tx: &mpsc::Sender<ProcessorCommand>,
+    connection_id: ConnectionId,
+    initialized: Arc<AtomicBool>,
+    experimental_api_enabled: Arc<AtomicBool>,
+    opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
+) -> anyhow::Result<()> {
+    processor_tx
+        .try_send(ProcessorCommand::GuiOpened {
+            connection_id,
+            initialized,
+            experimental_api_enabled,
+            opted_out_notification_methods,
+        })
+        .map_err(|err| match err {
+            mpsc::error::TrySendError::Full(_) => {
+                anyhow::anyhow!("in-process app-server request processor queue is full")
+            }
+            mpsc::error::TrySendError::Closed(_) => {
+                anyhow::anyhow!("in-process app-server request processor is closed")
+            }
+        })
+}
+
 fn enqueue_gui_incoming_message(
     processor_tx: &mpsc::Sender<ProcessorCommand>,
     writer_tx: &mpsc::Sender<QueuedOutgoingMessage>,
@@ -295,7 +319,7 @@ fn enqueue_gui_incoming_message(
                         "dropping overload response for GUI connection {:?}: outbound queue is full",
                         connection_id
                     );
-                    true
+                    false
                 }
             }
         }
@@ -938,8 +962,21 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             let outbound_opted_out_notification_methods =
                                 Arc::new(RwLock::new(HashSet::new()));
 
-                            if outbound_control_tx
-                                .send(InProcessOutboundControlEvent::Opened {
+                            if let Err(err) = try_enqueue_gui_opened(
+                                &processor_tx,
+                                connection_id,
+                                Arc::clone(&outbound_initialized),
+                                Arc::clone(&outbound_experimental_api_enabled),
+                                Arc::clone(&outbound_opted_out_notification_methods),
+                            )
+                            {
+                                disconnect_token.cancel();
+                                let _ = done_tx.send(Err(err));
+                                continue;
+                            }
+
+                            match outbound_control_tx.try_send(
+                                InProcessOutboundControlEvent::Opened {
                                     connection_id,
                                     writer: gui_writer_tx.clone(),
                                     initialized: Arc::clone(&outbound_initialized),
@@ -950,37 +987,25 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                         &outbound_opted_out_notification_methods,
                                     ),
                                     disconnect_sender: Some(disconnect_token.clone()),
-                                })
-                                .await
-                                .is_err()
-                            {
-                                let _ = done_tx.send(Err(anyhow::anyhow!(
-                                    "in-process app-server outbound router is closed"
-                                )));
-                                continue;
-                            }
-
-                            if processor_tx
-                                .send(ProcessorCommand::GuiOpened {
-                                    connection_id,
-                                    initialized: Arc::clone(&outbound_initialized),
-                                    experimental_api_enabled: Arc::clone(
-                                        &outbound_experimental_api_enabled,
-                                    ),
-                                    opted_out_notification_methods: Arc::clone(
-                                        &outbound_opted_out_notification_methods,
-                                    ),
-                                })
-                                .await
-                                .is_err()
-                            {
-                                let _ = outbound_control_tx
-                                    .send(InProcessOutboundControlEvent::Closed { connection_id })
-                                    .await;
-                                let _ = done_tx.send(Err(anyhow::anyhow!(
-                                    "in-process app-server request processor is closed"
-                                )));
-                                continue;
+                                },
+                            ) {
+                                Ok(()) => {}
+                                Err(mpsc::error::TrySendError::Full(_)) => {
+                                    disconnect_token.cancel();
+                                    let _ = gui_close_tx.send(connection_id);
+                                    let _ = done_tx.send(Err(anyhow::anyhow!(
+                                        "in-process app-server outbound router queue is full"
+                                    )));
+                                    continue;
+                                }
+                                Err(mpsc::error::TrySendError::Closed(_)) => {
+                                    disconnect_token.cancel();
+                                    let _ = gui_close_tx.send(connection_id);
+                                    let _ = done_tx.send(Err(anyhow::anyhow!(
+                                        "in-process app-server outbound router is closed"
+                                    )));
+                                    continue;
+                                }
                             }
 
                             let AuthenticatedGuiConnection {
@@ -1466,6 +1491,90 @@ mod tests {
             connection_id,
             notification,
         ));
+    }
+
+    #[tokio::test]
+    async fn gui_incoming_request_closes_when_overload_response_queue_is_full() {
+        let connection_id = ConnectionId(7);
+        let (processor_tx, _processor_rx) = mpsc::channel(1);
+        let (writer_tx, mut writer_rx) = mpsc::channel(1);
+
+        processor_tx
+            .send(ProcessorCommand::Notification(
+                ClientNotification::Initialized,
+            ))
+            .await
+            .expect("processor queue should accept first message");
+        writer_tx
+            .send(QueuedOutgoingMessage::new(
+                OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
+                    ConfigWarningNotification {
+                        summary: "queued".to_string(),
+                        details: None,
+                        path: None,
+                        range: None,
+                    },
+                )),
+            ))
+            .await
+            .expect("writer queue should accept first message");
+
+        let request = JSONRPCMessage::Request(JSONRPCRequest {
+            id: RequestId::Integer(99),
+            method: "config/requirements/read".to_string(),
+            params: None,
+            trace: None,
+        });
+
+        assert!(!enqueue_gui_incoming_message(
+            &processor_tx,
+            &writer_tx,
+            connection_id,
+            request,
+        ));
+
+        let queued_message = writer_rx
+            .recv()
+            .await
+            .expect("original queued message should remain");
+        let queued_json =
+            serde_json::to_value(queued_message.message).expect("serialize queued message");
+        assert_eq!(
+            queued_json,
+            json!({
+                "method": "configWarning",
+                "params": {
+                    "summary": "queued",
+                    "details": null,
+                },
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn gui_open_enqueue_fails_when_processor_queue_is_full() {
+        let connection_id = ConnectionId(7);
+        let (processor_tx, _processor_rx) = mpsc::channel(1);
+        let initialized = Arc::new(AtomicBool::new(false));
+        let experimental_api_enabled = Arc::new(AtomicBool::new(false));
+        let opted_out_notification_methods = Arc::new(RwLock::new(HashSet::new()));
+
+        processor_tx
+            .send(ProcessorCommand::Notification(
+                ClientNotification::Initialized,
+            ))
+            .await
+            .expect("processor queue should accept first message");
+
+        let result = try_enqueue_gui_opened(
+            &processor_tx,
+            connection_id,
+            Arc::clone(&initialized),
+            Arc::clone(&experimental_api_enabled),
+            Arc::clone(&opted_out_notification_methods),
+        );
+
+        assert!(result.is_err());
     }
 
     #[tokio::test]
