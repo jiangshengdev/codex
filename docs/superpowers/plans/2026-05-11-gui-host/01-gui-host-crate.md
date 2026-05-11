@@ -32,7 +32,10 @@ mod tests {
 
     #[test]
     fn crate_exports_gui_host_mode() {
-        let mode = GuiHostMode::default_for_profile();
+        unsafe {
+            std::env::set_var("CODEX_GUI_HOST_MODE", "dev");
+        }
+        let mode = GuiHostMode::default_for_profile().expect("mode should resolve");
         assert!(matches!(mode, GuiHostMode::Dev(_) | GuiHostMode::Prod(_)));
     }
 }
@@ -163,11 +166,11 @@ pub enum GuiHostMode {
 }
 
 impl GuiHostMode {
-    pub fn default_for_profile() -> Self {
+    pub fn default_for_profile() -> anyhow::Result<Self> {
         if cfg!(debug_assertions) {
-            Self::Dev(DevAssetProxyConfig::default())
+            Ok(Self::Dev(DevAssetProxyConfig::default()))
         } else {
-            Self::Prod(ProdAssetConfig::from_env())
+            Ok(Self::Prod(ProdAssetConfig::from_env()?))
         }
     }
 }
@@ -191,12 +194,13 @@ pub struct ProdAssetConfig {
 }
 
 impl ProdAssetConfig {
-    pub fn from_env() -> Self {
-        Self {
-            package_root: std::env::var_os("CODEX_GUI_PACKAGE_ROOT")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_default(),
-        }
+    pub fn from_env() -> anyhow::Result<Self> {
+        let Some(package_root) = std::env::var_os("CODEX_GUI_PACKAGE_ROOT") else {
+            anyhow::bail!("CODEX_GUI_PACKAGE_ROOT is not set");
+        };
+        Ok(Self {
+            package_root: std::path::PathBuf::from(package_root),
+        })
     }
 }
 
@@ -206,7 +210,10 @@ mod tests {
 
     #[test]
     fn crate_exports_gui_host_mode() {
-        let mode = GuiHostMode::default_for_profile();
+        unsafe {
+            std::env::set_var("CODEX_GUI_HOST_MODE", "dev");
+        }
+        let mode = GuiHostMode::default_for_profile().expect("mode should resolve");
         assert!(matches!(mode, GuiHostMode::Dev(_) | GuiHostMode::Prod(_)));
     }
 }
@@ -317,6 +324,9 @@ mod tests {
 
     #[test]
     fn dev_config_uses_default_vite_origin() {
+        unsafe {
+            std::env::remove_var("CODEX_GUI_VITE_URL");
+        }
         assert_eq!(
             DevAssetProxyConfig::default().vite_origin,
             "http://127.0.0.1:5173"
@@ -429,6 +439,9 @@ mod tests {
 
     #[test]
     fn dev_config_uses_default_vite_origin() {
+        unsafe {
+            std::env::remove_var("CODEX_GUI_VITE_URL");
+        }
         assert_eq!(
             DevAssetProxyConfig::default().vite_origin,
             "http://127.0.0.1:5173"
@@ -611,7 +624,7 @@ mod tests {
 
     #[test]
     fn authenticated_connection_channels_round_trip_text() {
-        let (connection, mut inbound_tx, mut outbound_rx) =
+        let (mut connection, inbound_tx, mut outbound_rx) =
             AuthenticatedGuiConnection::new_for_test();
 
         inbound_tx.try_send("{\"jsonrpc\":\"2.0\"}".to_string()).unwrap();
@@ -920,6 +933,34 @@ pub(crate) mod test_support {
             Ok(())
         }
     }
+
+    #[derive(Clone, Default)]
+    pub(crate) struct RecordingBackend {
+        received: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl RecordingBackend {
+        pub(crate) fn new() -> Self {
+            Self::default()
+        }
+
+        pub(crate) fn received(&self) -> Vec<String> {
+            self.received.lock().unwrap().clone()
+        }
+    }
+
+    impl GuiBackend for RecordingBackend {
+        async fn connect(&self, mut connection: AuthenticatedGuiConnection) -> anyhow::Result<()> {
+            while let Some(text) = connection.inbound_rx.recv().await {
+                let method = serde_json::from_str::<serde_json::Value>(&text)
+                    .ok()
+                    .and_then(|value| value["method"].as_str().map(str::to_owned))
+                    .unwrap_or(text);
+                self.received.lock().unwrap().push(method);
+            }
+            Ok(())
+        }
+    }
 }
 ```
 
@@ -959,6 +1000,8 @@ urlencoding = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 ```
+
+`reqwest` is used only for the dev Vite reverse proxy in this first pass. This is acceptable for v1, but keep the proxy isolated in `assets.rs` so a later optimization can replace it with a lighter HTTP client without touching host lifecycle or WebSocket code.
 
 Create `codex-rs/gui-host/src/assets.rs`:
 
@@ -1334,6 +1377,135 @@ async fn websocket_accepts_valid_authenticate_first_frame() {
     );
     handle.shutdown().await;
 }
+
+#[tokio::test]
+async fn websocket_closes_1008_for_invalid_first_frame() {
+    use futures::SinkExt;
+    use futures::StreamExt;
+    use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+    let backend = crate::test_support::NoopBackend;
+    let handle = GuiHost::start(
+        GuiHostConfig {
+            mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
+        },
+        backend,
+    )
+    .await
+    .unwrap();
+    let mut request = format!("ws://{}/ws", handle.local_addr())
+        .into_client_request()
+        .unwrap();
+    request.headers_mut().insert(
+        "origin",
+        format!("http://{}", handle.local_addr()).parse().unwrap(),
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+    ws.send(TungsteniteMessage::Text(
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#.into(),
+    ))
+    .await
+    .unwrap();
+    let close = ws.next().await.unwrap().unwrap();
+    let close = close.into_close().expect("close frame");
+    assert_eq!(close.code, 1008);
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn websocket_does_not_forward_rejected_client_method() {
+    use futures::SinkExt;
+    use futures::StreamExt;
+    use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+    let backend = crate::test_support::RecordingBackend::new();
+    let recorder = backend.clone();
+    let handle = GuiHost::start(
+        GuiHostConfig {
+            mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
+        },
+        backend,
+    )
+    .await
+    .unwrap();
+    let mut request = format!("ws://{}/ws", handle.local_addr())
+        .into_client_request()
+        .unwrap();
+    request.headers_mut().insert(
+        "origin",
+        format!("http://{}", handle.local_addr()).parse().unwrap(),
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+    ws.send(TungsteniteMessage::Text(
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "gui/authenticate",
+            "params": { "token": handle.launch_token().as_str() },
+        })
+        .to_string()
+        .into(),
+    ))
+    .await
+    .unwrap();
+    let _ = ws.next().await.unwrap().unwrap();
+    ws.send(TungsteniteMessage::Text(
+        r#"{"jsonrpc":"2.0","id":2,"method":"thread/list","params":{}}"#.into(),
+    ))
+    .await
+    .unwrap();
+    let _ = ws.next().await;
+    assert!(recorder.received().is_empty());
+    handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn two_browser_tabs_can_reuse_the_same_launch_token() {
+    use futures::SinkExt;
+    use futures::StreamExt;
+    use tokio_tungstenite::tungstenite::Message as TungsteniteMessage;
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+
+    let backend = crate::test_support::NoopBackend;
+    let handle = GuiHost::start(
+        GuiHostConfig {
+            mode: GuiHostMode::Dev(DevAssetProxyConfig::default()),
+        },
+        backend,
+    )
+    .await
+    .unwrap();
+
+    for _ in 0..2 {
+        let mut request = format!("ws://{}/ws", handle.local_addr())
+            .into_client_request()
+            .unwrap();
+        request.headers_mut().insert(
+            "origin",
+            format!("http://{}", handle.local_addr()).parse().unwrap(),
+        );
+        let (mut ws, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+        ws.send(TungsteniteMessage::Text(
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "gui/authenticate",
+                "params": { "token": handle.launch_token().as_str() },
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .unwrap();
+        assert_eq!(
+            ws.next().await.unwrap().unwrap().into_text().unwrap(),
+            r#"{"id":1,"jsonrpc":"2.0","result":{"authenticated":true}}"#
+        );
+    }
+    handle.shutdown().await;
+}
 ```
 
 - [ ] **Step 2: Run tests to verify FAIL**
@@ -1341,10 +1513,10 @@ async fn websocket_accepts_valid_authenticate_first_frame() {
 Run:
 
 ```bash
-cargo test -p codex-gui-host ws::tests::validates_exact_host_and_origin ws::tests::parses_valid_authenticate_request host::tests::websocket_accepts_valid_authenticate_first_frame
+cargo test -p codex-gui-host ws::tests::validates_exact_host_and_origin ws::tests::parses_valid_authenticate_request host::tests::websocket_accepts_valid_authenticate_first_frame host::tests::websocket_closes_1008_for_invalid_first_frame host::tests::websocket_does_not_forward_rejected_client_method host::tests::two_browser_tabs_can_reuse_the_same_launch_token
 ```
 
-Expected failures include unresolved `validate_host_header`, `parse_authenticate_request`, and missing `/ws` route.
+Expected failures include unresolved `validate_host_header`, `parse_authenticate_request`, missing `/ws` route, and missing recording backend test support.
 
 - [ ] **Step 3: Implement auth and pump**
 
@@ -1542,6 +1714,7 @@ where
 }
 
 async fn close_policy_violation(socket: &mut WebSocket) {
+    // Sending a Close frame and returning lets axum finish closing the socket.
     let _ = socket
         .send(Message::Close(Some(CloseFrame {
             code: close_code::POLICY,
@@ -1626,7 +1799,7 @@ GuiHostMode::Prod(config) => Router::new()
 Run:
 
 ```bash
-cargo test -p codex-gui-host ws::tests::validates_exact_host_and_origin ws::tests::parses_valid_authenticate_request host::tests::websocket_accepts_valid_authenticate_first_frame
+cargo test -p codex-gui-host ws::tests::validates_exact_host_and_origin ws::tests::parses_valid_authenticate_request host::tests::websocket_accepts_valid_authenticate_first_frame host::tests::websocket_closes_1008_for_invalid_first_frame host::tests::websocket_does_not_forward_rejected_client_method host::tests::two_browser_tabs_can_reuse_the_same_launch_token
 ```
 
 Expected:
@@ -1635,6 +1808,9 @@ Expected:
 test ws::tests::validates_exact_host_and_origin ... ok
 test ws::tests::parses_valid_authenticate_request ... ok
 test host::tests::websocket_accepts_valid_authenticate_first_frame ... ok
+test host::tests::websocket_closes_1008_for_invalid_first_frame ... ok
+test host::tests::websocket_does_not_forward_rejected_client_method ... ok
+test host::tests::two_browser_tabs_can_reuse_the_same_launch_token ... ok
 ```
 
 - [ ] **Step 5: Commit**

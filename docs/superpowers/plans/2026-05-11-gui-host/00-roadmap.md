@@ -26,7 +26,8 @@ Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md
 - Do not copy the current `port/gui-host` implementation wholesale. Use it only as a behavior reference.
 - Do not add GUI code to `codex-core`.
 - Do not add or modify code related to `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR` or `CODEX_SANDBOX_ENV_VAR`.
-- If `Cargo.toml` or `Cargo.lock` changes, run `just bazel-lock-update` and `just bazel-lock-check` from `codex-rs`.
+- e2e 验证留到后续迭代；本批计划只做 unit/integration 覆盖，不修改 `codex-gui/e2e/app.spec.ts`。
+- If `Cargo.toml` or `Cargo.lock` changes, the intermediate task commits may leave Bazel lockfiles temporarily stale. Task 12 is the required final alignment point: run `just bazel-lock-update` and `just bazel-lock-check` from `codex-rs`, then commit `MODULE.bazel.lock` with the final lockfile update.
 - After Rust changes, run `just fmt` from `codex-rs`.
 - Before finalizing Rust crate changes, run `just fix -p <project>` for changed projects. For this plan, prefer `codex-gui-host`, `codex-app-server`, and `codex-tui` scoped runs.
 
@@ -96,8 +97,6 @@ Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md
   - Shows simple GUI host connection state.
 - Modify: `codex-gui/vite.config.ts`
   - Pins dev host/port/HMR to Vite.
-- Modify: `codex-gui/e2e/app.spec.ts`
-  - Browser smoke coverage for token clearing and status.
 - Create: `codex-rs/app-server/tests/suite/v2/gui_host_bridge.rs`
   - End-to-end browser-style projection transport tests.
 - Modify: `codex-rs/app-server/tests/suite/v2/mod.rs`

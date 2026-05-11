@@ -126,6 +126,10 @@ gui_host: Option<codex_gui_host::GuiHostHandle>,
 gui_backend: Option<codex_app_server_client::GuiBackendHandle>,
 ```
 
+`GuiBackendHandle` is introduced and re-exported by `codex-rs/app-server-client/src/lib.rs` in
+Task 7. `codex-tui` must use that app-server-client type and must not add a direct
+`codex-app-server` dependency.
+
 Initialize both fields in all `App` constructors/test helpers:
 
 ```rust

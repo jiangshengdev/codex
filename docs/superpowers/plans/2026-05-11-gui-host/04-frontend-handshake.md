@@ -6,7 +6,7 @@
 
 **Architecture:** This plan is copied from original Task 10. The frontend verifies transport only and does not write projection data into Redux/store.
 
-**Tech Stack:** React, TypeScript, Vite, Vitest, Playwright, browser WebSocket.
+**Tech Stack:** React, TypeScript, Vite, Vitest, browser WebSocket.
 
 ---
 
