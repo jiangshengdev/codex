@@ -169,6 +169,7 @@ pub enum ConnectionOrigin {
     InProcess,
     WebSocket,
     RemoteControl,
+    GuiHost,
 }
 
 static CONNECTION_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -272,6 +273,13 @@ mod tests {
             AppServerTransport::from_listen_url("off"),
             Ok(AppServerTransport::Off)
         );
+    }
+
+    #[test]
+    fn connection_origin_has_distinct_gui_host_variant() {
+        assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::InProcess);
+        assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::WebSocket);
+        assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::RemoteControl);
     }
 
     #[tokio::test]
