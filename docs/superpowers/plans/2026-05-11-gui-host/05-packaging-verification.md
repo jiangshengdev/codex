@@ -4,13 +4,24 @@
 
 **Goal:** Package GUI dist for prod mode and run final verification for the GUI host projection transport MVP.
 
-**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, and lockfile checks. Prod static caching details remain outside the transport MVP acceptance criteria and can be finalized during packaging implementation.
+**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, dependency boundary checks, and lockfile checks. Verification follows the方案 B ownership split: app-server owns GUI host lifecycle and emits transport events; TUI requests only an app-server-client launch URL and never starts `GuiHost` directly. Prod static caching details remain outside the transport MVP acceptance criteria and can be finalized during packaging implementation.
 
 **Tech Stack:** Node CLI wrapper, Python packaging script, Vite build, Rust verification, Playwright.
 
 ---
 
 Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
+Roadmap: `docs/superpowers/plans/2026-05-11-gui-host/00-roadmap.md`.
+Bridge plan: `docs/superpowers/plans/2026-05-11-gui-host/02-app-server-bridge.md`.
+TUI plan: `docs/superpowers/plans/2026-05-11-gui-host/03-tui-entry.md`.
+
+## Verification Scope
+
+- Do not verify or preserve the obsolete `in_process::tests::gui_backend` route.
+- Do not add or require TUI direct dependencies on `codex-gui-host` or `codex-app-server`.
+- Do not verify TUI direct `GuiHost::start` behavior; TUI verification must go through app-server-client launch URL access.
+- Verify app-server bridge behavior through `gui_transport` and `gui_host` focused tests.
+- Verify app-server-client launch API shape through `gui_launch` focused tests.
 
 ### Task 11: Add prod packaging and Vite config
 
@@ -150,13 +161,31 @@ Run:
 ```bash
 cd codex-rs
 cargo test -p codex-gui-host
-cargo test -p codex-app-server in_process::tests::gui_backend
-cargo test -p codex-tui gui
+cargo test -p codex-app-server gui_transport
+cargo test -p codex-app-server gui_host
+cargo test -p codex-app-server-client gui_launch
+cargo test -p codex-tui gui_command_is_visible_and_available gui_command_emits_open_gui_event launch_url_result_renders_url_message launch_url_result_renders_unsupported_message launch_url_result_renders_transport_error
 ```
 
 Expected: all commands exit 0.
 
-- [ ] **Step 3: Run frontend tests**
+- [ ] **Step 3: Verify dependency boundaries**
+
+Run from repo root:
+
+```bash
+! rg -n "codex-gui-host|codex_gui_host|GuiHost|GuiHostHandle|GuiBackendHandle|codex-app-server\\s*=|codex_app_server::" codex-rs/tui
+! rg -n "GuiHost::start|gui_backend\\(" codex-rs/tui
+! rg -n "cargo test -p codex-app-server [i]n_process::tests::gui_backend" docs/superpowers/plans/2026-05-11-gui-host/05-packaging-verification.md
+```
+
+Expected:
+
+```text
+all three commands exit 0 with no matches
+```
+
+- [ ] **Step 4: Run frontend tests**
 
 Run:
 
@@ -168,7 +197,7 @@ pnpm run type-check
 
 Expected: all commands exit 0.
 
-- [ ] **Step 4: Update Bazel lock after dependency changes**
+- [ ] **Step 5: Update Bazel lock after dependency changes**
 
 Run:
 
@@ -180,20 +209,22 @@ just bazel-lock-check
 
 Expected: both commands exit 0.
 
-- [ ] **Step 5: Run scoped fixes**
+- [ ] **Step 6: Run scoped fixes**
 
 Run:
 
 ```bash
 cd codex-rs
 just fix -p codex-gui-host
+just fix -p codex-app-server-transport
 just fix -p codex-app-server
+just fix -p codex-app-server-client
 just fix -p codex-tui
 ```
 
 Expected: commands exit 0. Do not rerun tests after `fix` or `fmt` unless the command fails and you edit code again.
 
-- [ ] **Step 6: Commit verification updates**
+- [ ] **Step 7: Commit verification updates**
 
 ```bash
 git add codex-rs/Cargo.lock codex-rs/MODULE.bazel.lock
@@ -201,3 +232,17 @@ git commit -m "chore(gui): update Rust locks for GUI host"
 ```
 
 ---
+
+## Acceptance Gates
+
+- Packaged CLI sets `CODEX_GUI_PACKAGE_ROOT` for prod GUI assets.
+- Platform package copies `codex-gui/dist` into `vendor/codex-gui/dist`.
+- Vite dev server host/HMR settings remain configurable for GUI host dev proxy.
+- `codex-gui-host` focused tests pass.
+- `codex-app-server` `gui_transport` tests pass.
+- `codex-app-server` `gui_host` tests pass.
+- `codex-app-server-client` `gui_launch` tests pass.
+- `codex-tui` `/gui` tests prove launch URL request/display behavior, not direct host ownership.
+- `codex-tui` has no direct `codex-app-server` dependency.
+- `codex-tui` has no `codex-gui-host` dependency.
+- Final verification commands do not run `in_process::tests::gui_backend`.
