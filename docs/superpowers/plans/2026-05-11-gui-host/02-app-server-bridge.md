@@ -471,13 +471,16 @@ fn spawn_extra_connection(
                         break;
                     };
                     let serialized = serde_json::to_string(&queued_message.message);
-                    if let Ok(text) = serialized
-                        && outgoing_text_tx.send(text).await.is_err()
-                    {
-                        let _ = queued_message.write_complete_tx.send(());
+                    let mut send_failed = false;
+                    if let Ok(text) = serialized {
+                        send_failed = outgoing_text_tx.send(text).await.is_err();
+                    }
+                    if let Some(write_complete_tx) = queued_message.write_complete_tx {
+                        let _ = write_complete_tx.send(());
+                    }
+                    if send_failed {
                         break;
                     }
-                    let _ = queued_message.write_complete_tx.send(());
                 }
             }
         }
@@ -956,7 +959,8 @@ async fn start_thread_for_test(client: &in_process::InProcessClientHandle) -> Re
                 ..Default::default()
             },
         })
-        .await??;
+        .await?
+        .map_err(|err| anyhow::anyhow!("thread/start failed: {}", err.message))?;
     let response: ThreadStartResponse = serde_json::from_value(result)?;
     Ok(ThreadId::from_string(&response.thread.id)?)
 }
@@ -980,7 +984,8 @@ async fn append_test_thread_item(
                 })?],
             },
         })
-        .await??;
+        .await?
+        .map_err(|err| anyhow::anyhow!("thread/inject_items failed: {}", err.message))?;
     let _: ThreadInjectItemsResponse = serde_json::from_value(result)?;
     Ok(())
 }
