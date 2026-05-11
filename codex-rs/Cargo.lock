@@ -2895,6 +2895,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-gui-host"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "pretty_assertions",
+]
+
+[[package]]
 name = "codex-hooks"
 version = "0.0.0"
 dependencies = [
