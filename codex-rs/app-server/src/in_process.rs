@@ -1061,9 +1061,26 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                             let Some(queued_message) = queued_message else {
                                                 break;
                                             };
-                                            let json = match serde_json::to_string(
+                                            let mut value = match serde_json::to_value(
                                                 &queued_message.message,
                                             ) {
+                                                Ok(serde_json::Value::Object(value)) => value,
+                                                Ok(_) => {
+                                                    warn!("GUI outbound message should serialize to an object");
+                                                    continue;
+                                                }
+                                                Err(err) => {
+                                                    warn!(
+                                                        "failed to convert GUI outbound message to JSON value: {err}"
+                                                    );
+                                                    continue;
+                                                }
+                                            };
+                                            value.insert(
+                                                "jsonrpc".to_string(),
+                                                serde_json::Value::String("2.0".to_string()),
+                                            );
+                                            let json = match serde_json::to_string(&value) {
                                                 Ok(json) => json,
                                                 Err(err) => {
                                                     warn!(
@@ -1402,6 +1419,7 @@ mod tests {
         .await;
 
         let response = recv_gui_json(&mut outbound_rx).await;
+        assert_eq!(response["jsonrpc"], "2.0");
         assert_eq!(response["id"], 1);
         assert!(response.get("result").is_some());
 
