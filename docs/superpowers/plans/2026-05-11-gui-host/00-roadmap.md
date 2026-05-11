@@ -4,7 +4,7 @@
 
 **Goal:** Track the GUI host local projection transport MVP split across focused plan files.
 
-**Architecture:** `codex-gui-host` remains the browser-safe GUI shell. The app-server bridge is redesigned around app-server transport lifecycle semantics (`ConnectionOpened`, `IncomingMessage`, `ConnectionClosed`) instead of the obsolete extra in-process JSON-RPC connection API. Projection scope is intentionally small: authenticate, initialize, attach the primary thread, and prove real `thread/projection/event` delivery.
+**Architecture:** `codex-gui-host` remains the browser-safe GUI shell. The app-server bridge is an app-server-runtime-owned dynamic transport acceptor that converts authenticated GUI WebSockets into `TransportEvent::{ConnectionOpened, IncomingMessage, ConnectionClosed}`. TUI only asks `codex-app-server-client` for a launch URL and prints it; it does not own `GuiHost`, hold a backend handle, or forward projection traffic. Projection scope is intentionally small: authenticate, initialize, attach the primary thread, and prove real `thread/projection/event` delivery.
 
 **Tech Stack:** Rust 2024, axum, tokio, app-server JSON-RPC, app-server transport lifecycle, Vite/React/Vitest.
 
@@ -19,12 +19,13 @@ Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 - Tag `01-gui-host-crate` completed the `codex-gui-host` crate shell.
 - The completed `01-gui-host-crate` code remains valid and should not be reverted.
 - The old `02-app-server-bridge.md` route using `open_extra_jsonrpc_connection`, `ExtraJsonRpcConnectionFactory`, and `app-server/src/in_process.rs` extra JSON-RPC connections is obsolete.
+- The current branch contains an over-invasive `in_process.rs` multi-connection implementation. Rewrite work must remove that route and replace it with an app-server runtime transport acceptor.
 
 ## Split Map
 
 - `01-gui-host-crate.md`: completed host shell tasks. Keep as historical execution record and behavior reference.
-- `02-app-server-bridge.md`: new required bridge plan. Implements GUI connection lifecycle on top of app-server transport semantics.
-- `03-tui-entry.md`: thin `/gui` TUI entry. Must consume the backend handle exposed by `codex-app-server-client`.
+- `02-app-server-bridge.md`: new required bridge plan. Implements GUI host lifecycle and GUI connection lifecycle as app-server runtime transport plumbing.
+- `03-tui-entry.md`: thin `/gui` TUI entry. Must request a launch URL through `codex-app-server-client`; it must not create or hold `GuiHost`.
 - `04-frontend-handshake.md`: browser token recovery, WebSocket handshake, `initialize`, `thread/projection/attach`, and minimal status UI.
 - `05-packaging-verification.md`: prod asset wiring and final verification.
 
@@ -34,9 +35,11 @@ Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 - Do not add or modify code related to `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR` or `CODEX_SANDBOX_ENV_VAR`.
 - Do not implement LAN, mobile browser access, public relay, browser control, user turns, approval, interrupt, subagent switching, or full projection UI in this batch.
 - Do not expose a general-purpose extra JSON-RPC connection API from `InProcessClientHandle`.
+- Do not extend `codex-rs/app-server/src/in_process.rs` into a multi-connection transport loop.
+- Do not copy `run_main_with_transport_options` connection maps, outbound routing, or close cleanup into another runtime.
 - `codex-gui-host` may define the browser-side `GuiBackend` trait, but it must not depend on `codex-app-server`.
-- `codex-app-server` implements the backend and owns app-server semantics.
-- `codex-tui` must not directly depend on `codex-app-server`; it receives backend access through `codex-app-server-client`.
+- `codex-app-server` implements the backend, owns GUI host lifecycle, owns app-server semantics, and emits real `TransportEvent` values into the existing app-server transport pipeline.
+- `codex-tui` must not directly depend on `codex-app-server`; it receives only launch URL access through `codex-app-server-client`.
 - After Rust changes, run `just fmt` from `codex-rs`.
 - Before finalizing Rust crate changes, run scoped `just fix -p <project>` for changed projects.
 - If Rust dependencies change, run `just bazel-lock-update` and `just bazel-lock-check` from `codex-rs`.
@@ -61,22 +64,28 @@ Bridge and runtime changes:
 
 - Modify: `codex-rs/app-server-transport/src/transport/mod.rs`
   - Add `ConnectionOrigin::GuiHost`.
-- Modify: `codex-rs/app-server/src/in_process.rs`
-  - Add an embedded GUI backend handle.
-  - Add per-GUI-connection runtime state.
-  - Route GUI JSON-RPC text through app-server request processor semantics.
-  - Ensure every opened GUI connection closes exactly once.
 - Modify: `codex-rs/app-server/Cargo.toml`
   - Add `codex-gui-host` dependency.
 - Modify: `codex-rs/app-server/BUILD.bazel`
   - Add generated/declared dependency on `codex-gui-host` when needed.
+- Create: `codex-rs/app-server/src/gui_transport.rs`
+  - Implement `codex_gui_host::GuiBackend` as a `TransportEvent` producer.
+  - Convert authenticated GUI inbound text to `TransportEvent::IncomingMessage`.
+  - Convert app-server outbound `QueuedOutgoingMessage` to GUI outbound JSON text.
+  - Guarantee one `ConnectionClosed` per opened GUI connection.
+- Create: `codex-rs/app-server/src/gui_host.rs`
+  - Own lazy-start/reuse of `codex_gui_host::GuiHost` inside the active app-server runtime.
+  - Build launch URLs for requested primary thread IDs.
+  - Keep launch token and host lifecycle scoped to the app-server session.
+- Modify: `codex-rs/app-server/src/lib.rs`
+  - Wire GUI host lifecycle into the runtime scope that owns `transport_event_tx`.
+  - Avoid adding GUI connection processing branches to the main processor loop beyond the existing `TransportEvent` path.
 - Modify: `codex-rs/app-server-client/src/lib.rs`
-  - Re-export the embedded GUI backend handle.
-  - Return `Some(handle)` for in-process sessions and `None` for remote sessions.
+  - Expose a launch URL request API for local embedded app-server sessions.
+  - Return an unsupported result for remote sessions.
 
 TUI entry changes:
 
-- Modify: `codex-rs/tui/Cargo.toml`
 - Modify: `codex-rs/tui/src/app_event.rs`
 - Modify: `codex-rs/tui/src/slash_command.rs`
 - Modify: `codex-rs/tui/src/chatwidget/slash_dispatch.rs`
@@ -108,14 +117,18 @@ Frontend and packaging changes:
 - Non-allowlisted server notification is not sent to browser.
 - Browser close or refresh closes the GUI app-server connection and cleans projection subscriptions.
 - `codex-tui` has no direct `codex-app-server` dependency.
+- `codex-tui` does not directly depend on `codex-gui-host` for runtime ownership.
+- `codex-rs/app-server/src/in_process.rs` is not expanded into a GUI multi-connection runtime.
 
 ## Self-Review Checklist
 
 - `01-gui-host-crate.md` remains completed and valid.
 - `02-app-server-bridge.md` marks `open_extra_jsonrpc_connection` as obsolete and does not implement it.
+- `02-app-server-bridge.md` explicitly removes the current `in_process.rs` multi-connection direction.
 - `02-app-server-bridge.md` adds `ConnectionOrigin::GuiHost`.
+- `02-app-server-bridge.md` implements GUI bridge as an app-server runtime `TransportEvent` producer.
 - `02-app-server-bridge.md` guarantees one `ConnectionClosed` per opened GUI connection.
-- `03-tui-entry.md` consumes an optional backend handle from `codex-app-server-client`.
+- `03-tui-entry.md` requests a launch URL from `codex-app-server-client` and does not consume a backend handle.
 - `04-frontend-handshake.md` keeps projection UI to transport status only.
 - No plan step adds code to `codex-core`.
 - No plan step changes sandbox environment variable code.
