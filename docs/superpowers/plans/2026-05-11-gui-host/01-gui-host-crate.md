@@ -1298,7 +1298,7 @@ git commit -m "feat(gui-host): add host lifecycle and assets"
 - Test: `codex-rs/gui-host/src/ws.rs`
 - Test: `codex-rs/gui-host/src/host.rs`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `codex-rs/gui-host/src/ws.rs`:
 
@@ -1508,7 +1508,7 @@ async fn two_browser_tabs_can_reuse_the_same_launch_token() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify FAIL**
+- [x] **Step 2: Run tests to verify FAIL**
 
 Run:
 
@@ -1518,7 +1518,7 @@ cargo test -p codex-gui-host ws::tests::validates_exact_host_and_origin ws::test
 
 Expected failures include unresolved `validate_host_header`, `parse_authenticate_request`, missing `/ws` route, and missing recording backend test support.
 
-- [ ] **Step 3: Implement auth and pump**
+- [x] **Step 3: Implement auth and pump**
 
 Modify `codex-rs/gui-host/Cargo.toml`:
 
@@ -1794,7 +1794,7 @@ GuiHostMode::Prod(config) => Router::new()
     .with_state(state),
 ```
 
-- [ ] **Step 4: Run tests to verify PASS**
+- [x] **Step 4: Run tests to verify PASS**
 
 Run:
 
@@ -1813,7 +1813,7 @@ test host::tests::websocket_does_not_forward_rejected_client_method ... ok
 test host::tests::two_browser_tabs_can_reuse_the_same_launch_token ... ok
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-rs/gui-host codex-rs/Cargo.toml codex-rs/Cargo.lock
