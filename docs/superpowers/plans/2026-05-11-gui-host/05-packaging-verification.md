@@ -150,7 +150,7 @@ Run:
 ```bash
 cd codex-rs
 cargo test -p codex-gui-host
-cargo test -p codex-app-server gui_host_bridge
+cargo test -p codex-app-server in_process::tests::gui_backend
 cargo test -p codex-tui gui
 ```
 

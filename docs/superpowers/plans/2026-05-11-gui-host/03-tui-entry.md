@@ -133,6 +133,11 @@ gui_backend: Option<codex_app_server_client::GuiBackendHandle>,
 
 Initialize both fields in all `App` constructors/test helpers:
 
+- `codex-rs/tui/src/app.rs:864-912` (primary `App::new` constructor)
+- `codex-rs/tui/src/app/test_support.rs:10-17` (`make_test_app`)
+- `codex-rs/tui/src/app/tests.rs:3859` — `tests.rs` 内 `make_test_app`
+- `codex-rs/tui/src/app/tests.rs:3922` — `tests.rs` 内第二处 `App { ... }` 字面量
+
 ```rust
 gui_host: None,
 gui_backend: None,
@@ -209,31 +214,20 @@ AppEvent::OpenGui => {
 }
 ```
 
-In `codex-rs/tui/src/lib.rs`, after starting `AppServerSession`, set GUI backend for embedded sessions:
+In `codex-rs/tui/src/lib.rs`, after starting `AppServerSession`, obtain the backend handle and pass it into `App::new`:
 
 ```rust
 let gui_backend = app_server.gui_backend();
+let mut app = App::new(/* existing args */, gui_backend);
 ```
 
-Pass that optional backend into `App::run` or set it on `App` immediately after construction:
+Add `gui_backend: Option<codex_app_server_client::GuiBackendHandle>` as a new parameter to `App::new` (defined in `codex-rs/tui/src/app.rs`). Assign it directly in the constructor body:
 
 ```rust
-let mut app = App::new(/* existing args */);
-app.set_gui_backend(gui_backend);
+gui_backend,
 ```
 
-If the existing constructor shape makes a setter cleaner, add:
-
-```rust
-impl App {
-    pub(crate) fn set_gui_backend(
-        &mut self,
-        gui_backend: Option<codex_app_server_client::GuiBackendHandle>,
-    ) {
-        self.gui_backend = gui_backend;
-    }
-}
-```
+Remote app-server sessions pass `None` from `codex-rs/tui/src/lib.rs`. The four constructor sites listed above must all be updated to supply the new parameter (pass `None` for test helpers and inline test constructors).
 
 Remote app-server sessions must return `None`, so `/gui` prints:
 

@@ -99,6 +99,7 @@ Frontend and packaging changes:
 - `/gui` prints a local URL.
 - Browser opens GUI host URL and connects to same-origin `/ws`.
 - `gui/authenticate` succeeds before any app-server connection is opened.
+- `gui/authenticate` failure closes `/ws` with code `1008` and never emits `TransportEvent::ConnectionOpened`.
 - Invalid auth never opens an app-server connection.
 - Browser sends `initialize` and receives a real app-server response.
 - Browser sends `thread/projection/attach` and receives a real app-server response.

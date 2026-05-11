@@ -21,6 +21,8 @@ Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 - `codex-gui-host` remains independent from `codex-app-server`.
 - The embedded runtime in `codex-rs/app-server/src/in_process.rs` must support multiple connection states: the existing TUI in-process connection plus zero or more GUI observer connections.
 - The embedded runtime should mirror the transport lifecycle already used in `codex-rs/app-server/src/lib.rs`: opened connection state, incoming JSON-RPC processing, outbound routing via `QueuedOutgoingMessage`, and closed connection cleanup.
+- **Invariant (ConnectionOrigin):** `ConnectionOrigin::GuiHost` is used only as a transport-layer marker. `ConnectionState::new`'s `_origin` parameter is not stored; the processor does not branch on origin. GUI allowlist enforcement is the responsibility of the `codex-gui-host` layer. If future work requires the processor to branch on origin, that requires a separate design and an update to `ConnectionState`.
+- **Invariant (GuiBackendHandle::connect lifecycle):** Before `GuiBackendHandle::connect` returns (whether `Ok` or `Err`), the backend must guarantee it will no longer send messages on `outbound_tx` and must have already emitted `RuntimeEvent::GuiClosed` or an equivalent close signal. The caller (`codex-gui-host`) relies on this guarantee to clean up the WebSocket pump and associated resources.
 
 ### Task 6a: Add `ConnectionOrigin::GuiHost`
 
@@ -376,7 +378,7 @@ let (outbound_control_tx, mut outbound_control_rx) =
     mpsc::channel::<InProcessOutboundControlEvent>(channel_capacity);
 ```
 
-Replace the current `outbound_connections.insert(...)` plus `outbound_handle` setup with:
+Extend the existing `outbound_handle` in `in_process.rs:385-403` (currently using `HashMap<ConnectionId, OutboundConnectionState>` but only registering `IN_PROCESS_CONNECTION_ID`, driven by a single `writer_tx/writer_rx`) by adding an `outbound_control_rx.recv()` branch to its `select!` loop; keep the existing `IN_PROCESS_CONNECTION_ID` insertion path intact:
 
 ```rust
 let mut outbound_connections = HashMap::<ConnectionId, OutboundConnectionState>::new();
