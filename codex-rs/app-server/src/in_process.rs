@@ -84,6 +84,8 @@ use codex_core::config::Config;
 use codex_core::resolve_installation_id;
 use codex_exec_server::EnvironmentManager;
 use codex_feedback::CodexFeedback;
+use codex_gui_host::AuthenticatedGuiConnection;
+use codex_gui_host::GuiBackend;
 use codex_login::AuthManager;
 use codex_protocol::protocol::SessionSource;
 pub use codex_rollout::StateDbHandle;
@@ -258,7 +260,25 @@ pub struct InProcessClientHandle {
     _test_codex_home: Option<tempfile::TempDir>,
 }
 
+#[derive(Clone)]
+pub struct GuiBackendHandle {
+    command_tx: mpsc::Sender<InProcessClientMessage>,
+}
+
+impl GuiBackend for GuiBackendHandle {
+    async fn connect(&self, _connection: AuthenticatedGuiConnection) -> anyhow::Result<()> {
+        let _ = &self.command_tx;
+        anyhow::bail!("GUI backend connection runtime is not wired yet")
+    }
+}
+
 impl InProcessClientHandle {
+    pub fn gui_backend(&self) -> GuiBackendHandle {
+        GuiBackendHandle {
+            command_tx: self.client.client_tx.clone(),
+        }
+    }
+
     /// Sends a typed client request into the in-process runtime.
     ///
     /// The returned value is a transport-level `IoResult` containing either a
@@ -791,6 +811,13 @@ mod tests {
 
     async fn start_test_client(session_source: SessionSource) -> InProcessClientHandle {
         start_test_client_with_capacity(session_source, DEFAULT_IN_PROCESS_CHANNEL_CAPACITY).await
+    }
+
+    #[tokio::test]
+    async fn gui_backend_handle_is_available_for_embedded_runtime() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let _backend = client.gui_backend();
+        client.shutdown().await.expect("shutdown");
     }
 
     #[tokio::test]
