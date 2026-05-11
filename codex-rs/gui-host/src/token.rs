@@ -1,4 +1,3 @@
-use anyhow::Context;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use rand::TryRngCore;
@@ -8,11 +7,11 @@ use rand::rngs::OsRng;
 pub struct LaunchToken(String);
 
 impl LaunchToken {
-    pub fn generate() -> anyhow::Result<Self> {
+    pub fn generate() -> std::io::Result<Self> {
         let mut bytes = [0_u8; 32];
         OsRng
             .try_fill_bytes(&mut bytes)
-            .context("failed to generate launch token")?;
+            .map_err(std::io::Error::other)?;
         Ok(Self(URL_SAFE_NO_PAD.encode(bytes)))
     }
 
@@ -30,6 +29,8 @@ impl LaunchToken {
 mod tests {
     use super::*;
 
+    fn requires_io_result(_: std::io::Result<LaunchToken>) {}
+
     #[test]
     fn generated_token_is_url_safe_and_has_entropy_length() {
         let token = LaunchToken::generate().expect("token should generate");
@@ -41,5 +42,10 @@ mod tests {
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
         );
+    }
+
+    #[test]
+    fn generate_returns_io_result() {
+        requires_io_result(LaunchToken::generate());
     }
 }

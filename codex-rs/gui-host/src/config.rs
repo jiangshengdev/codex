@@ -17,21 +17,22 @@ pub enum GuiHostMode {
 
 impl GuiHostMode {
     pub fn default_for_profile() -> anyhow::Result<Self> {
-        match std::env::var("CODEX_GUI_HOST_MODE").as_deref() {
-            Ok("dev") => Ok(Self::Dev(DevAssetProxyConfig::from_env())),
-            Ok("prod") => Ok(Self::Prod(ProdAssetConfig::from_env()?)),
-            Ok(mode) => anyhow::bail!(
+        Self::for_profile_with_mode(std::env::var("CODEX_GUI_HOST_MODE").ok())
+    }
+
+    fn for_profile_with_mode(mode: Option<String>) -> anyhow::Result<Self> {
+        match mode.as_deref() {
+            Some("dev") => Ok(Self::Dev(DevAssetProxyConfig::from_env())),
+            Some("prod") => Ok(Self::Prod(ProdAssetConfig::from_env()?)),
+            Some(mode) => anyhow::bail!(
                 "invalid CODEX_GUI_HOST_MODE value {mode:?}; expected \"dev\" or \"prod\""
             ),
-            Err(std::env::VarError::NotPresent) => {
+            None => {
                 if cfg!(debug_assertions) {
                     Ok(Self::Dev(DevAssetProxyConfig::from_env()))
                 } else {
                     Ok(Self::Prod(ProdAssetConfig::from_env()?))
                 }
-            }
-            Err(std::env::VarError::NotUnicode(_)) => {
-                anyhow::bail!("CODEX_GUI_HOST_MODE is not valid Unicode")
             }
         }
     }
@@ -102,5 +103,12 @@ mod tests {
         });
 
         assert_eq!(GuiHostConfig { mode: mode.clone() }.mode, mode);
+    }
+
+    #[test]
+    fn non_unicode_mode_is_treated_like_unset() {
+        let mode = GuiHostMode::for_profile_with_mode(/*mode*/ None).expect("mode should resolve");
+
+        assert!(matches!(mode, GuiHostMode::Dev(_) | GuiHostMode::Prod(_)));
     }
 }
