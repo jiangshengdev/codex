@@ -229,6 +229,42 @@ enum RuntimeEvent {
     GuiClosed { connection_id: ConnectionId },
 }
 
+struct GuiConnectionRuntime {
+    done_tx: oneshot::Sender<anyhow::Result<()>>,
+    disconnect_token: CancellationToken,
+    outbound_handle: tokio::task::JoinHandle<()>,
+}
+
+async fn complete_gui_connection(
+    connection_id: ConnectionId,
+    gui_connections: &mut HashMap<ConnectionId, GuiConnectionRuntime>,
+    outbound_control_tx: Option<&mpsc::Sender<InProcessOutboundControlEvent>>,
+    mut completion: anyhow::Result<()>,
+) {
+    let Some(gui_connection) = gui_connections.remove(&connection_id) else {
+        return;
+    };
+
+    gui_connection.disconnect_token.cancel();
+    if let Some(outbound_control_tx) = outbound_control_tx
+        && outbound_control_tx
+            .send(InProcessOutboundControlEvent::Closed { connection_id })
+            .await
+            .is_err()
+    {
+        warn!("failed to remove closed GUI outbound connection");
+    }
+
+    if let Err(err) = gui_connection.outbound_handle.await {
+        warn!("GUI outbound writer task failed: {err}");
+        if completion.is_ok() {
+            completion = Err(anyhow::anyhow!("GUI outbound writer task failed: {err}"));
+        }
+    }
+
+    let _ = gui_connection.done_tx.send(completion);
+}
+
 #[derive(Clone)]
 pub struct InProcessClientSender {
     client_tx: mpsc::Sender<InProcessClientMessage>,
@@ -763,7 +799,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         let mut pending_request_responses =
             HashMap::<RequestId, oneshot::Sender<PendingClientRequestResponse>>::new();
         let mut next_gui_connection_id = 1_u64;
-        let mut gui_done_txs = HashMap::<ConnectionId, oneshot::Sender<anyhow::Result<()>>>::new();
+        let mut gui_connections = HashMap::<ConnectionId, GuiConnectionRuntime>::new();
         let mut shutdown_ack = None;
 
         loop {
@@ -896,7 +932,6 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 mut inbound_rx,
                                 outbound_tx,
                             } = connection;
-                            gui_done_txs.insert(connection_id, done_tx);
 
                             let inbound_processor_tx = processor_tx.clone();
                             let inbound_disconnect_token = disconnect_token.clone();
@@ -938,7 +973,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             });
 
                             let outbound_disconnect_token = disconnect_token.clone();
-                            tokio::spawn(async move {
+                            let outbound_handle = tokio::spawn(async move {
                                 loop {
                                     tokio::select! {
                                         _ = outbound_disconnect_token.cancelled() => {
@@ -959,8 +994,15 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                                     continue;
                                                 }
                                             };
-                                            if outbound_tx.send(json).await.is_err() {
-                                                break;
+                                            tokio::select! {
+                                                _ = outbound_disconnect_token.cancelled() => {
+                                                    break;
+                                                }
+                                                send_result = outbound_tx.send(json) => {
+                                                    if send_result.is_err() {
+                                                        break;
+                                                    }
+                                                }
                                             }
                                             if let Some(write_complete_tx) =
                                                 queued_message.write_complete_tx
@@ -972,6 +1014,15 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 }
                                 outbound_disconnect_token.cancel();
                             });
+
+                            gui_connections.insert(
+                                connection_id,
+                                GuiConnectionRuntime {
+                                    done_tx,
+                                    disconnect_token,
+                                    outbound_handle,
+                                },
+                            );
                         }
                         Some(InProcessClientMessage::Shutdown { done_tx }) => {
                             shutdown_ack = Some(done_tx);
@@ -985,16 +1036,13 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 runtime_event = runtime_event_rx.recv() => {
                     match runtime_event {
                         Some(RuntimeEvent::GuiClosed { connection_id }) => {
-                            if outbound_control_tx
-                                .send(InProcessOutboundControlEvent::Closed { connection_id })
-                                .await
-                                .is_err()
-                            {
-                                warn!("failed to remove closed GUI outbound connection");
-                            }
-                            if let Some(done_tx) = gui_done_txs.remove(&connection_id) {
-                                let _ = done_tx.send(Ok(()));
-                            }
+                            complete_gui_connection(
+                                connection_id,
+                                &mut gui_connections,
+                                Some(&outbound_control_tx),
+                                Ok(()),
+                            )
+                            .await;
                         }
                         None => {
                             break;
@@ -1090,6 +1138,21 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         }
 
         drop(writer_rx);
+        let gui_connection_ids = gui_connections.keys().copied().collect::<Vec<_>>();
+        for connection_id in &gui_connection_ids {
+            if let Some(gui_connection) = gui_connections.get(connection_id) {
+                gui_connection.disconnect_token.cancel();
+            }
+            if outbound_control_tx
+                .send(InProcessOutboundControlEvent::Closed {
+                    connection_id: *connection_id,
+                })
+                .await
+                .is_err()
+            {
+                warn!("failed to remove closed GUI outbound connection");
+            }
+        }
         drop(processor_tx);
         drop(runtime_event_rx);
         drop(outbound_control_tx);
@@ -1106,11 +1169,6 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 "in-process app-server runtime is shutting down",
             )));
         }
-        for (_, done_tx) in gui_done_txs {
-            let _ = done_tx.send(Err(anyhow::anyhow!(
-                "in-process app-server runtime is shutting down"
-            )));
-        }
 
         if let Err(_elapsed) = timeout(SHUTDOWN_TIMEOUT, &mut processor_handle).await {
             processor_handle.abort();
@@ -1119,6 +1177,17 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         if let Err(_elapsed) = timeout(SHUTDOWN_TIMEOUT, &mut outbound_handle).await {
             outbound_handle.abort();
             let _ = outbound_handle.await;
+        }
+        for connection_id in gui_connection_ids {
+            complete_gui_connection(
+                connection_id,
+                &mut gui_connections,
+                None,
+                Err(anyhow::anyhow!(
+                    "in-process app-server runtime is shutting down"
+                )),
+            )
+            .await;
         }
 
         if let Some(done_tx) = shutdown_ack {
