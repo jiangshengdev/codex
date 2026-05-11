@@ -2,56 +2,80 @@
 
 日期：2026-05-11
 
-状态：设计草案。本文替代 `2026-05-10-codex-gui-host-design.md` 作为长期方案的规范来源。
+状态：设计草案。本文替代 `2026-05-10-codex-gui-host-design.md` 作为当前 GUI host 方案的规范来源。
 
 ## 背景
 
-GUI 仍然定位为从 TUI 启动的 companion surface：TUI 负责终端交互、输入、approval 和复杂控制，GUI 负责浏览器中更适合图形界面的观察能力。
+GUI 的长期定位是 Codex 的浏览器界面。它可以先服务本机浏览器，后续再扩展到局域网、手机浏览器、PC 浏览器和控制能力。`codex-gui-host` 这个命名保留：它就是负责承载 GUI 的 host。
 
-旧方案把 `GuiHost` 放在 `codex-app-server` 内部，并让 `codex-tui` 直接依赖 `codex-app-server`。这个原型验证了本机 host、静态资源、dev proxy、launch token 和 browser-safe `/ws` 认证，但还没有把认证后的 WebSocket 接入 app-server JSON-RPC / projection pipeline。认证成功后的允许消息只被白名单检查，并没有产生真正的 `initialize` response、`thread/projection/attach` response 或 `thread/projection/event` notification。
+当前分支已经完成 `codex-gui-host` crate 的第一阶段代码，包括本机 host shell、launch token、Host / Origin 校验、`/ws` 首帧认证、JSON-RPC allowlist、dev proxy 和 prod static 的基础结构。这部分仍然有意义。
 
-上游 tag 更新频繁，长期维护需要把冲突面控制在少数薄入口。新版设计从一开始采用独立 `codex-gui-host` crate，将 browser-safe host shell 与 app-server projection 业务分离。
+需要重新设计的是 app-server bridge。原计划在 `codex-app-server` / `in_process.rs` 中增加 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 等额外 JSON-RPC 连接 API。这个方向和 `rust-v0.130.0` 上游已有 `remote-control` 的实现发生了重复设计。
+
+`remote-control` 已经证明 app-server 可以通过 transport lifecycle 接入虚拟连接：
+
+```text
+TransportEvent::ConnectionOpened
+TransportEvent::IncomingMessage
+TransportEvent::ConnectionClosed
+QueuedOutgoingMessage writer
+disconnect_sender cleanup
+```
+
+GUI bridge 应复用或对齐这个生命周期，而不是新增一套 parallel in-process JSON-RPC connection API。
 
 ## 目标
 
-- 在 TUI 中通过 `/gui` 启动或复用本机 GUI host。
-- `/gui` 默认只在 TUI 中显示 URL，不自动打开浏览器。
+首版目标是验证 GUI host 可以把本机浏览器安全地接入 app-server projection pipeline。
+
+首版完成时应支持：
+
+- 在 TUI 中通过 `/gui` 启动或复用本机 `codex-gui-host`。
+- `/gui` 显示本机 URL，不自动打开浏览器。
 - 浏览器从 GUI host 同源加载页面资源，并连接同源 `/ws`。
-- `/ws` 使用 launch token 做 browser-safe 首帧认证。
-- 认证后的 WebSocket 通过 app-server bridge 接入现有 JSON-RPC / projection pipeline。
-- 首版必须能在浏览器 WebSocket frames 中看到真实数据传输：
-  - `gui/authenticate` response
-  - `initialize` response
-  - `thread/projection/attach` response
-  - `thread/projection/event` notification
-- 前端首版只显示简单连接阶段状态，不把 projection snapshot/event 写入 store，不渲染 timeline/UI。
-- 新设计文档自包含，不依赖旧设计作为规范来源。
+- `/ws` 使用 launch token 做首帧 `gui/authenticate` 认证。
+- 认证后的 WebSocket 通过 app-server bridge 接入现有 app-server JSON-RPC pipeline。
+- 浏览器发送 `initialize` 和 `thread/projection/attach` 到 primary thread。
+- 浏览器接收真实的 `thread/projection/event` notification。
+- 前端只显示连接阶段、attach 状态和收到 event 的最小状态。
+
+首版 projection 目标是 transport MVP，不是完整 projection viewer。
 
 ## 非目标
 
 首版不实现：
 
-- 浏览器直连现有 app-server remote WebSocket。
+- 局域网访问。
+- 手机浏览器访问。
+- 公网 relay。
+- 直接使用上游闭源 remote-control 客户端。
+- 复用 remote-control 的 enrollment、relay、ack/replay、segment wire protocol。
+- 浏览器控制 Codex。
+- 发送 user turn。
+- approval、interrupt、exec、file write、MCP/tool 调用。
+- 子代理切换。
+- 多 thread projection。
+- projection snapshot 还原。
+- commit graph、timeline、diff UI。
+- projection 数据写入 Redux/store。
 - 完整 app-server v2 gateway。
-- GUI timeline、snapshot、event 详情渲染。
-- projection 数据接入 Redux/store。
 - `/gui --open`、`/gui --current`、`/gui <threadId>`。
 - 自动打开浏览器。
-- 局域网、手机访问、Tailscale 或非 loopback bind。
 - Vite 自动启动、端口扫描或 dev/prod 自动 fallback。
 - GUI host 独立 daemon 化。
-- 新增 projection protocol surface。首版复用现有 `initialize`、`thread/projection/attach`、`thread/projection/detach`、`thread/projection/event`。
+
+这些能力可以作为后续方向，但不进入首版 projection transport MVP。
 
 ## 架构
 
-新增 crate：
+新增并保留 crate：
 
 ```text
 codex-rs/gui-host
   crate name: codex-gui-host
 ```
 
-依赖方向：
+依赖方向保持：
 
 ```text
 codex-tui        -> codex-gui-host
@@ -59,7 +83,7 @@ codex-app-server -> codex-gui-host
 codex-gui-host   -> does not depend on codex-app-server
 ```
 
-`GuiBackend` trait 放在 `codex-gui-host` 是刻意的：host shell 定义它需要的最小后端接口，`codex-app-server` 只实现这个接口，不把 app-server 业务反向拉进 host crate。如果未来出现多个 host 或多个 backend 共享同一协议边界，可以再抽出更小的 `codex-gui-protocol` crate；首版不为单一接口增加额外 crate。
+`codex-gui-host` 定义 browser host shell 和最小 backend trait。`codex-app-server` 实现这个 backend，把认证后的 GUI WebSocket 适配为 app-server transport connection。
 
 运行结构：
 
@@ -82,7 +106,8 @@ codex-gui-host
 
 codex-app-server
   ├─ implements GuiBackend
-  ├─ adapts authenticated GUI traffic into existing app-server JSON-RPC pipeline
+  ├─ adapts authenticated GUI traffic into TransportEvent lifecycle
+  ├─ owns request processing
   ├─ owns thread/projection attach and detach
   ├─ owns projection notification fanout
   └─ owns connection cleanup semantics
@@ -92,15 +117,13 @@ Browser GUI
   ├─ reads launch token from URL fragment or sessionStorage
   ├─ authenticates on /ws
   ├─ sends initialize
-  ├─ sends thread/projection/attach
-  └─ displays simple connection status
+  ├─ sends thread/projection/attach for primary thread
+  └─ displays minimal transport/projection status
 ```
 
 TUI 不作为数据转发层。TUI 不解析 projection event，不参与 browser data forwarding。
 
-`codex-gui-host` 不处理 app-server 业务。它只负责 browser-safe HTTP/WebSocket shell、安全边界和 allowlist。`codex-app-server` 通过 bridge 把认证后的连接接入现有 app-server 处理链。
-
-运行时拓扑上，首版不引入 GUI daemon，也不通过子进程 IPC 连接 app-server。`codex` binary 是 composition root：它同时链接 `codex-tui`、`codex-gui-host` 和 `codex-app-server`，并把 `codex-app-server` 的 `GuiBackend` implementation 注入 TUI 启动的 `GuiHost`。`codex-tui` crate 仍然不直接依赖 `codex-app-server`。
+`codex-gui-host` 不处理 app-server 业务。它只负责 browser-safe HTTP/WebSocket shell、安全边界和 allowlist。业务语义必须来自 app-server 现有 pipeline。
 
 ## Crate 边界
 
@@ -132,12 +155,13 @@ TUI 不作为数据转发层。TUI 不解析 projection event，不参与 browse
 - projection fanout implementation
 - app-server protocol schema
 - TUI state
+- remote-control enrollment / relay protocol
 - npm packaging policy
 
 `codex-app-server` owns:
 
 - `GuiBackend` implementation
-- conversion between authenticated GUI connection and existing app-server JSON-RPC connection lifecycle
+- conversion between authenticated GUI connection and app-server transport lifecycle
 - projection subscription cleanup through existing close semantics
 
 `codex-tui` owns:
@@ -149,7 +173,7 @@ TUI 不作为数据转发层。TUI 不解析 projection event，不参与 browse
 
 ## Bridge 形态
 
-`codex-gui-host` 暴露一个通用 bridge trait。名称和具体 signature 可在实现计划中细化，但职责边界固定：
+`codex-gui-host` 暴露 generic backend trait。具体 signature 可在实现计划中细化，但职责边界固定：
 
 ```rust
 /// Backend that connects an authenticated GUI JSON-RPC stream to an application server.
@@ -161,26 +185,33 @@ pub trait GuiBackend: Send + Sync {
 }
 ```
 
-首版按 generic backend injection 设计，不要求 `GuiBackend` dyn-compatible。若实现计划需要 `Box<dyn GuiBackend>` 或运行时替换 backend，必须把 trait signature 改成 boxed future 等 dyn-compatible 形态，而不是直接使用上面的 RPITIT signature。
-
-概念数据流：
+`GuiBackend` 的 app-server 实现不应打开额外 in-process JSON-RPC connection。它应把 GUI connection 映射为 app-server transport lifecycle：
 
 ```text
-browser text frame
-  -> codex-gui-host auth/filter
-  -> AuthenticatedGuiConnection inbound
-  -> codex-app-server GuiBackend implementation
-  -> existing app-server JSON-RPC processor
+authenticated GUI websocket
+  -> TransportEvent::ConnectionOpened {
+       origin: GuiHost,
+       writer,
+       disconnect_sender
+     }
 
-app-server outgoing JSON-RPC
-  -> GuiBackend outbound
-  -> codex-gui-host response/notification filter
-  -> browser text frame
+browser text frame
+  -> JSONRPCMessage
+  -> TransportEvent::IncomingMessage { connection_id, message }
+
+app-server outgoing QueuedOutgoingMessage
+  -> serialize to JSON-RPC text
+  -> codex-gui-host server-side allowlist
+  -> browser WebSocket text frame
+
+browser close / refresh / host shutdown
+  -> TransportEvent::ConnectionClosed { connection_id }
+  -> existing app-server connection cleanup
 ```
 
-`codex-gui-host` 不把 `initialize`、`thread/projection/attach` 或 `thread/projection/detach` 实现为直接业务 API。它只转发允许的 JSON-RPC traffic。业务语义必须来自 app-server 现有 pipeline，避免出现第二套 projection processor。
+这与 `remote-control` 的关键架构一致：remote-control 通过虚拟连接接入 app-server transport，而不是绕过 processor 建第二套 request pipeline。GUI bridge 应复用这条思想。实现时可以抽取共享 adapter，也可以先实现 GUI 专用 adapter；无论哪种方式，语义必须对齐 `TransportEvent` lifecycle。
 
-`connect()` future 必须持有 authenticated connection，直到底层 WebSocket / inbound stream 关闭或 host 主动取消该 future。连接关闭或 future 被 drop 时，`GuiBackend` 必须触发现有 app-server connection cleanup，以清理 projection subscription。浏览器刷新或关闭 tab 不需要额外 server-side grace period。首版不增加单独的 `on_close` hook。
+首版不把 `remote-control` 的 envelope protocol 直接暴露给浏览器。GUI browser 仍发送普通 app-server JSON-RPC，`gui/authenticate` 是 GUI host local handshake，不进入 app-server processor。
 
 ## `/gui` 入口
 
@@ -204,7 +235,7 @@ http://127.0.0.1:<port>/?threadId=<primary-thread-id>#token=<launch-token>
 
 如果 `primary_thread_id` 尚不可用，`/gui` 直接在 TUI 中提示当前 session 尚未准备好打开 GUI，不启动空 host。
 
-首版 `/gui` 不自动打开浏览器。TUI transcript 显示完整 URL，并提示用户在本机浏览器中打开。这样用户可以先打开 DevTools，再访问 URL，便于生产环境调试。
+首版 `/gui` 不自动打开浏览器。TUI transcript 显示完整 URL，并提示用户在本机浏览器中打开。
 
 ## WebSocket 认证
 
@@ -213,8 +244,6 @@ http://127.0.0.1:<port>/?threadId=<primary-thread-id>#token=<launch-token>
 ```text
 ws://127.0.0.1:<port>/ws
 ```
-
-浏览器原生 WebSocket 无法设置 `Authorization` header，因此 GUI host `/ws` 不复用 remote WebSocket 的 bearer-header 认证。
 
 认证流程：
 
@@ -239,39 +268,13 @@ ws://127.0.0.1:<port>/ws
 {"jsonrpc":"2.0","id":1,"result":{"authenticated":true}}
 ```
 
-GUI host 只在 `gui/authenticate` 完成后才开始代理后续 JSON-RPC traffic 到 backend。因此认证 request 的 `id` 属于 host-local handshake，即使浏览器随后对 `initialize` 复用 `id:1`，两个 id 空间也不会重叠。
+认证失败、首帧不是 `gui/authenticate`、payload 格式错误或 token 缺失时，GUI host 以 WebSocket close code `1008` 关闭连接。失败路径不得创建 app-server connection。
 
-认证失败、首帧不是 `gui/authenticate`、payload 格式错误或 token 缺失时，GUI host 以 WebSocket close code `1008` 关闭连接。失败路径不得创建 app-server connection；如果实现中已创建底层资源，必须立即 cleanup，且不得放行任何业务 JSON-RPC。
-
-`/ws` upgrade 成功后，GUI host 必须对第一条 text frame 设置接收超时。首版建议 5 秒；超时按认证失败处理，使用 close code `1008`，且不得创建 app-server connection。
+`/ws` upgrade 成功后，GUI host 必须对第一条 text frame 设置接收超时。首版建议 5 秒；超时按认证失败处理。
 
 launch token 使用系统 CSPRNG 生成，至少 128 位熵，使用 base64url 或等价 URL-safe 编码。token 对 server 是 opaque 字符串，只做直接匹配。
 
 launch token 在同一 TUI session 内可复用，支持刷新页面、多次 `/gui` 和多个本机 browser tab。token 随 `GuiHost` / TUI 进程退出失效。首版不要求 token 单次使用。
-
-## Token 刷新策略
-
-前端使用 fragment 首次引导 + `sessionStorage` 同 tab 恢复：
-
-```text
-首次打开:
-  read #token
-  save to sessionStorage
-  clear fragment
-
-刷新:
-  no #token
-  read token from sessionStorage
-```
-
-这样 production 调试时，用户可以打开页面后再刷新以观察 Network / WebSocket frames，而不会因为 fragment 已清理导致 token 丢失。
-
-限制：
-
-- 复制清理后的 URL 到新 tab 会缺 token。
-- 跨浏览器或跨 tab 分享清理后的 URL 不保证可用。
-- 多 tab 复用 token 指每个 tab 都通过 TUI 显示的带 fragment URL 进入，或重新执行 `/gui` 取得同一个 session 的完整 URL。
-- 这是预期行为；token 不应长期保留在地址栏或 query 中。
 
 ## 本机安全边界
 
@@ -301,11 +304,11 @@ WebSocket `Origin` 必须严格等于：
 http://127.0.0.1:<port>
 ```
 
-缺失或不匹配的 Origin 默认拒绝。未来如果支持非浏览器客户端或局域网访问，必须通过显式配置扩展 allowlist，而不是放宽首版默认策略。
+缺失或不匹配的 Origin 默认拒绝。
 
-GUI host 控制的页面和静态资源响应应发送 `X-Frame-Options: DENY`，并通过 CSP `frame-ancestors 'none'` 禁止被其它页面 iframe。dev proxy 响应也应尽量追加这些 header，除非 Vite/HMR 的具体实现要求更窄的例外。
+GUI host 控制的页面和静态资源响应应发送 `X-Frame-Options: DENY`，并通过 CSP `frame-ancestors 'none'` 禁止被其它页面 iframe。
 
-## JSON-RPC allowlist
+## JSON-RPC Allowlist
 
 首版允许 browser-to-server request：
 
@@ -323,13 +326,57 @@ thread/projection/event
 
 JSON-RPC response 和 error 必须正常放行，因为它们是已允许 request 的结果。
 
-GUI host 不是完整 app-server v2 gateway。任何不在 allowlist 中的 browser-to-server request 都不得进入 app-server processor。拒绝策略可以是 JSON-RPC error 或 WebSocket close；具体错误码在实现计划中确定。
+GUI host 不是完整 app-server v2 gateway。任何不在 allowlist 中的 browser-to-server request 都不得进入 app-server processor。
 
 Browser-to-server JSON-RPC notification 首版默认全部拒绝，不进入 app-server processor。未来如果前端需要发送 notification，必须在 allowlist 中显式新增 method 和测试。
 
 Server-to-browser notification 只放行 `thread/projection/event`。其它 server notification 不发送到 browser。
 
-`thread/projection/attach`、`thread/projection/detach` 和 `thread/projection/event` 的 payload、`subscriptionId`、`headCommitId`、`commitId`、`parentCommitId` 语义沿用现有 projection protocol。本文不新增 projection schema。
+## Projection MVP
+
+首版 projection 只验证传输链路，不做完整 projection viewer。
+
+浏览器启动后按顺序执行：
+
+```text
+gui/authenticate
+initialize
+thread/projection/attach(primary_thread_id)
+wait for thread/projection/event
+```
+
+页面只显示最小状态：
+
+```text
+connecting
+authenticated
+initialized
+attached
+received event count
+last event type
+error
+```
+
+首版不做：
+
+- projection snapshot 还原。
+- commit chain 展示。
+- timeline UI。
+- diff UI。
+- 子代理树。
+- 多 thread projection。
+- Redux/store 持久化。
+- 复杂事件解释。
+
+验收以 WebSocket frames 和最小页面状态为准：
+
+```text
+gui/authenticate response is visible
+initialize response is visible
+thread/projection/attach response is visible
+at least one thread/projection/event is visible
+page reaches attached / received event state
+```
 
 ## 静态资源模式
 
@@ -340,9 +387,7 @@ debug build   -> dev
 release build -> prod
 ```
 
-可以用 `CODEX_GUI_HOST_MODE=dev|prod` 覆盖 build profile 默认值，供 release build 的 dev smoke test 或 CI 场景使用。该覆盖不做自动 fallback；非法值直接报错，production package 不应依赖它改变模式。
-
-不做自动 fallback。debug/dev 下 Vite 不可用时提示开发者启动 Vite；release/prod 下资源路径缺失时提示安装或发布包不完整。
+可以用 `CODEX_GUI_HOST_MODE=dev|prod` 覆盖 build profile 默认值。该覆盖不做自动 fallback；非法值直接报错。
 
 ### Dev
 
@@ -366,42 +411,13 @@ prod 模式只按 npm 包目录结构相对路径读取 GUI 构建产物。npm p
 CODEX_GUI_PACKAGE_ROOT
 ```
 
-该环境变量表示 GUI package root，不直接表示 `dist` 目录。prod 下 GUI dist 固定为：
+prod 下 GUI dist 固定为：
 
 ```text
 $CODEX_GUI_PACKAGE_ROOT/dist/
 ```
 
 prod 模式不依赖 cwd，不优先依赖 executable path，也不 fallback 到 Vite。`CODEX_GUI_PACKAGE_ROOT` 缺失或 `dist/` 不存在时，`/gui` 报错并提示当前安装缺少 GUI package root 或 GUI 构建产物。
-
-prod 静态资源应区分缓存策略：HTML entry 使用 no-cache 或等价短缓存，带 fingerprint 的 JS/CSS/assets 可以使用 long-cache immutable header。
-
-## 前端首版行为
-
-前端首版只做 transport verification：
-
-1. 页面从 GUI host 加载成功。
-2. 页面读取 `threadId` query。
-3. 页面从 fragment 或 `sessionStorage` 读取 launch token。
-4. 页面清理 fragment。
-5. 页面连接同源 `/ws`。
-6. 页面发送 `gui/authenticate`。
-7. 认证成功后发送 `initialize`。
-8. `initialize` 成功后发送 `thread/projection/attach`。
-9. 页面根据收到的 response / notification 显示简单状态。
-
-页面状态可以包括：
-
-```text
-connecting
-authenticated
-initialized
-attached
-received event
-error: ...
-```
-
-前端不把 projection snapshot/event 写入 Redux/store，不渲染 timeline、snapshot 或 event UI。
 
 ## 生命周期
 
@@ -441,25 +457,23 @@ GUI host 生命周期绑定 TUI session：
 - CSPRNG token 生成格式和最低熵约束。
 - Host/Origin strict validation。
 - `gui/authenticate` 成功和失败路径。
+- 认证失败不创建 backend connection。
 - client request allowlist。
 - server notification allowlist。
 - dev Vite proxy。
 - prod `$CODEX_GUI_PACKAGE_ROOT/dist` static serving。
-- 多 tab 复用同一个 token。
-- 不同 host token 隔离。
 - shutdown 后 server task 结束。
 
 ### `codex-app-server`
 
-覆盖 browser-style end-to-end projection transport：
+覆盖 GUI bridge 到 app-server transport lifecycle：
 
-- auth -> `initialize` -> `thread/projection/attach` 返回 response。
+- auth 成功后创建 `ConnectionOpened { origin: GuiHost }`。
+- `initialize` 返回真实 app-server response。
+- `thread/projection/attach` 返回真实 app-server response。
 - thread 产生 projection update 后，browser 收到 `thread/projection/event`。
 - 非 allowlist request 不进入 app-server processor。
-- server-to-browser 非 allowlist notification 不发送。
-- browser close / refresh 触发 projection subscription cleanup。
-
-这些测试应放在 app-server integration tests 或 focused bridge tests 中，不放在 TUI 层。
+- browser close / refresh 触发 `ConnectionClosed` 和 projection subscription cleanup。
 
 ### `codex-tui`
 
@@ -481,36 +495,33 @@ TUI 不测试 WebSocket 细节，不依赖 `tokio-tungstenite`。
 - fragment 清理。
 - refresh 后从 `sessionStorage` 恢复 token。
 - WebSocket message order：`gui/authenticate` -> `initialize` -> `thread/projection/attach`。
-- 页面状态更新。
+- 页面状态更新到 `attached` / `received event`。
 
-E2E 可验证页面进入 `attached` 或 `received event` 状态；不要求渲染 projection 内容。
+## 计划调整
 
-## 迁移策略
+当前 `01-gui-host-crate` tag 的代码成果保留，不回退。
 
-当前 `port/gui-host` 原型作为参考，不作为最终结构直接合并。
+计划文件调整：
 
-建议实施顺序：
+- `00-roadmap.md`：更新目标描述，明确 GUI host 首版是本机 browser projection transport MVP。
+- `01-gui-host-crate.md`：保持已完成状态；该任务提供有效的 browser host shell。
+- `02-app-server-bridge.md`：必须重写，删除 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 和 `in_process.rs` extra connection 路线，改为 GUI bridge 到 `TransportEvent` lifecycle。
+- `03-tui-entry.md`：保留 `/gui` primary thread URL 入口方向。
+- `04-frontend-handshake.md`：保留 handshake，但明确前端只显示最小 transport/projection 状态。
+- `05-packaging-verification.md`：基本保留。
 
-1. 新建 `codex-gui-host` crate 和 Bazel/Cargo wiring。
-2. 迁移 host shell：bind、assets、token、auth、allowlist、URL。
-3. 让 TUI 依赖 `codex-gui-host`，不依赖 `codex-app-server`。
-4. 实现 `/gui` 只显示 URL。
-5. 在 app-server 实现 `GuiBackend` bridge。
-6. 补 app-server browser-style projection transport tests。
-7. 更新 `codex-gui` handshake 和简单状态。
-8. 最后处理 npm packaging。
+## 未来方向
 
-提交应分层，便于后续 rebase：
+后续可以在同一 GUI host 架构上扩展：
 
-```text
-1. codex-gui-host crate skeleton
-2. host auth/assets/allowlist
-3. TUI thin /gui entry
-4. app-server bridge
-5. frontend handshake/status
-6. packaging
-7. integration/e2e tests
-```
+- 局域网访问。
+- 手机浏览器访问。
+- PC 浏览器远程访问。
+- 多 thread / 子代理切换。
+- 浏览器控制能力。
+- 与 remote-control / relay 模型更深复用。
+
+这些方向不属于首版 projection transport MVP。新增控制能力前必须单独设计控制权、权限边界和多客户端语义。
 
 ## 验收标准
 
