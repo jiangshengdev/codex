@@ -4,9 +4,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::State;
 use axum::http::Uri;
-use axum::response::Response;
+use axum::middleware;
 use axum::routing::get;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
@@ -100,38 +99,32 @@ where
     B: GuiBackend + Clone,
 {
     match &state.mode {
-        GuiHostMode::Dev(_) => Ok(Router::new()
-            .route("/ws", get(crate::ws::ws_handler::<B>))
-            .fallback(get(dev_fallback::<B>))
-            .with_state(state)),
-        GuiHostMode::Prod(config) => {
-            assets::prod_dist_dir(config)?;
+        GuiHostMode::Dev(config) => {
+            let config = config.clone();
             Ok(Router::new()
-                .route("/", get(prod_root::<B>))
                 .route("/ws", get(crate::ws::ws_handler::<B>))
-                .fallback_service(assets::prod_assets_service(config))
+                .fallback(get(move |uri: Uri| {
+                    let config = config.clone();
+                    async move { assets::proxy_vite(config, uri).await }
+                }))
                 .with_state(state))
         }
-    }
-}
-
-async fn dev_fallback<B>(State(state): State<Arc<GuiHostState<B>>>, uri: Uri) -> Response
-where
-    B: GuiBackend + Clone,
-{
-    match &state.mode {
-        GuiHostMode::Dev(config) => assets::proxy_vite(config.clone(), uri).await,
-        GuiHostMode::Prod(_) => unreachable!("dev_fallback is only registered in Dev mode"),
-    }
-}
-
-async fn prod_root<B>(State(state): State<Arc<GuiHostState<B>>>) -> Response
-where
-    B: GuiBackend + Clone,
-{
-    match &state.mode {
-        GuiHostMode::Dev(_) => unreachable!("prod_root is only registered in Prod mode"),
-        GuiHostMode::Prod(config) => assets::serve_prod_index(config.clone()).await,
+        GuiHostMode::Prod(config) => {
+            assets::prod_dist_dir(config)?;
+            let root_config = config.clone();
+            Ok(Router::new()
+                .route(
+                    "/",
+                    get(move || {
+                        let config = root_config.clone();
+                        async move { assets::serve_prod_index(config).await }
+                    }),
+                )
+                .route("/ws", get(crate::ws::ws_handler::<B>))
+                .fallback_service(assets::prod_assets_service(config))
+                .layer(middleware::map_response(assets::add_security_headers))
+                .with_state(state))
+        }
     }
 }
 
@@ -217,6 +210,52 @@ mod tests {
         );
         let body = response.text().await.expect("body should be readable");
         assert!(body.contains("<h1>prod-static-test</h1>"));
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn prod_static_index_serves_security_headers() {
+        let package_root = tempfile::tempdir().expect("tempdir should be created");
+        let dist_dir = package_root.path().join("dist");
+        tokio::fs::create_dir(&dist_dir)
+            .await
+            .expect("dist dir should be created");
+        tokio::fs::write(
+            dist_dir.join("index.html"),
+            "<html><body><h1>prod-static-test</h1></body></html>",
+        )
+        .await
+        .expect("index should be written");
+        let handle = GuiHost::start(
+            GuiHostConfig {
+                mode: GuiHostMode::Prod(ProdAssetConfig {
+                    package_root: package_root.path().to_path_buf(),
+                }),
+            },
+            NoopBackend,
+        )
+        .await
+        .expect("host should start");
+
+        let response = reqwest::get(format!("http://{}/index.html", handle.local_addr()))
+            .await
+            .expect("static request should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("x-frame-options")
+                .expect("x-frame-options header should be present"),
+            "DENY"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("content-security-policy")
+                .expect("content-security-policy header should be present"),
+            "frame-ancestors 'none'"
+        );
 
         handle.shutdown().await;
     }
@@ -373,7 +412,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn websocket_does_not_forward_rejected_client_method() {
+    async fn websocket_rejects_disallowed_client_request_without_closing() {
         let backend = RecordingBackend::new();
         let handle = start_host(backend.clone()).await;
         let (mut websocket, _response) = connect_websocket(&handle).await;
@@ -397,9 +436,85 @@ mod tests {
             ))
             .await
             .expect("rejected frame should send");
-        let _ = websocket.next().await;
+        let message = websocket
+            .next()
+            .await
+            .expect("method not found response should arrive")
+            .expect("method not found response should be valid");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(
+                &message.into_text().expect("error response should be text"),
+            )
+            .expect("error response should parse as JSON"),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "error": {
+                    "code": -32601,
+                    "message": "Method not found",
+                },
+            })
+        );
+        websocket
+            .send(Message::Text(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "initialize",
+                    "params": {},
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("allowed frame should send");
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
 
-        assert!(backend.received().is_empty());
+        assert_eq!(backend.received(), vec!["initialize"]);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_drops_disallowed_client_notification_without_closing() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .await
+            .expect("auth frame should send");
+        let _ = websocket.next().await.expect("auth response should arrive");
+
+        websocket
+            .send(Message::Text(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "method": "initialized",
+                    "params": {},
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("rejected notification should send");
+        websocket
+            .send(Message::Text(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "initialize",
+                    "params": {},
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("allowed frame should send");
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+
+        assert_eq!(backend.received(), vec!["initialize"]);
 
         handle.shutdown().await;
     }

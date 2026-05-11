@@ -96,6 +96,10 @@ pub fn with_security_headers(mut response: Response) -> Response {
     response
 }
 
+pub async fn add_security_headers(response: Response) -> Response {
+    with_security_headers(response)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ProdAssetConfig;

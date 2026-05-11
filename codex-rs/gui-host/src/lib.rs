@@ -81,7 +81,8 @@ mod tests {
 
     #[test]
     fn crate_exports_gui_host_mode() {
-        let mode = GuiHostMode::default_for_profile().expect("mode should resolve");
+        let mode = GuiHostMode::for_profile_with_mode(Some("dev".to_string()))
+            .expect("mode should resolve");
         assert!(matches!(mode, GuiHostMode::Dev(_) | GuiHostMode::Prod(_)));
     }
 }

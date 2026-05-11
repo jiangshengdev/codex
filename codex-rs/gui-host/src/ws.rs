@@ -27,8 +27,10 @@ use crate::is_allowed_client_notification_method;
 use crate::is_allowed_client_request_method;
 use crate::is_allowed_server_notification_method;
 
+/// Production authentication grace period for the first WebSocket frame.
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
 const POLICY_VIOLATION: u16 = axum::extract::ws::close_code::POLICY;
+const METHOD_NOT_FOUND: i64 = -32601;
 
 #[derive(Deserialize)]
 struct AuthenticateRequest {
@@ -49,6 +51,13 @@ struct JsonRpcEnvelope {
     method: Option<String>,
     #[serde(flatten)]
     fields: Map<String, Value>,
+}
+
+enum BrowserTextDisposition {
+    Forward,
+    RejectRequest(Value),
+    DropNotification,
+    Close,
 }
 
 pub(crate) async fn ws_handler<B>(
@@ -95,6 +104,7 @@ pub(crate) fn parse_authenticate_request(
     let request: AuthenticateRequest = serde_json::from_str(text).map_err(|_| ())?;
     if request.jsonrpc == "2.0"
         && request.method == "gui/authenticate"
+        // The launch token is loopback-only, high entropy, and matched directly as specified.
         && request.params.token == expected_token.as_str()
     {
         Ok(request.id)
@@ -157,17 +167,27 @@ async fn pump_authenticated_socket(
             message = browser_rx.next() => {
                 match message {
                     Some(Ok(Message::Text(text))) => {
-                        if !is_allowed_browser_text(text.as_str()) {
-                            let _ = browser_tx
-                                .send(Message::Close(Some(CloseFrame {
-                                    code: POLICY_VIOLATION,
-                                    reason: "".into(),
-                                })))
-                                .await;
-                            break;
-                        }
-                        if inbound_tx.send(text.to_string()).await.is_err() {
-                            break;
+                        match classify_browser_text(text.as_str()) {
+                            BrowserTextDisposition::Forward => {
+                                if inbound_tx.send(text.to_string()).await.is_err() {
+                                    break;
+                                }
+                            }
+                            BrowserTextDisposition::RejectRequest(id) => {
+                                if browser_tx.send(Message::Text(method_not_found_response(id).into())).await.is_err() {
+                                    break;
+                                }
+                            }
+                            BrowserTextDisposition::DropNotification => {}
+                            BrowserTextDisposition::Close => {
+                                let _ = browser_tx
+                                    .send(Message::Close(Some(CloseFrame {
+                                        code: POLICY_VIOLATION,
+                                        reason: "".into(),
+                                    })))
+                                    .await;
+                                break;
+                            }
                         }
                     }
                     Some(Ok(Message::Close(_))) | None => break,
@@ -205,27 +225,43 @@ fn authenticate_response(id: serde_json::Value) -> String {
 }
 
 fn is_allowed_browser_text(text: &str) -> bool {
+    matches!(classify_browser_text(text), BrowserTextDisposition::Forward)
+}
+
+fn classify_browser_text(text: &str) -> BrowserTextDisposition {
     let Ok(envelope) = serde_json::from_str::<JsonRpcEnvelope>(text) else {
-        return false;
+        return BrowserTextDisposition::Close;
     };
 
     if envelope.jsonrpc.as_deref() != Some("2.0") {
-        return false;
+        return BrowserTextDisposition::Close;
     }
 
     if envelope.fields.contains_key("result") || envelope.fields.contains_key("error") {
-        return false;
+        return BrowserTextDisposition::Close;
     }
 
     let Some(method) = envelope.method.as_deref() else {
-        return false;
+        return BrowserTextDisposition::Close;
     };
 
-    if !envelope.fields.contains_key("id") {
-        return is_allowed_client_notification_method(method);
+    let id = envelope.fields.get("id");
+    match id {
+        None => {
+            if is_allowed_client_notification_method(method) {
+                BrowserTextDisposition::Forward
+            } else {
+                BrowserTextDisposition::DropNotification
+            }
+        }
+        Some(id) => {
+            if is_allowed_client_request_method(method) {
+                BrowserTextDisposition::Forward
+            } else {
+                BrowserTextDisposition::RejectRequest(id.clone())
+            }
+        }
     }
-
-    is_allowed_client_request_method(method)
 }
 
 fn is_allowed_backend_text(text: &str) -> bool {
@@ -261,6 +297,18 @@ async fn close_policy_violation(socket: &mut WebSocket) {
             reason: "".into(),
         })))
         .await;
+}
+
+fn method_not_found_response(id: serde_json::Value) -> String {
+    serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": METHOD_NOT_FOUND,
+            "message": "Method not found",
+        },
+    })
+    .to_string()
 }
 
 fn auth_timeout() -> Duration {

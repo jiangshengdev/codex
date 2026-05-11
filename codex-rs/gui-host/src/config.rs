@@ -20,7 +20,7 @@ impl GuiHostMode {
         Self::for_profile_with_mode(std::env::var("CODEX_GUI_HOST_MODE").ok())
     }
 
-    fn for_profile_with_mode(mode: Option<String>) -> anyhow::Result<Self> {
+    pub(crate) fn for_profile_with_mode(mode: Option<String>) -> anyhow::Result<Self> {
         match mode.as_deref() {
             Some("dev") => Ok(Self::Dev(DevAssetProxyConfig::from_env())),
             Some("prod") => Ok(Self::Prod(ProdAssetConfig::from_env()?)),
@@ -57,7 +57,9 @@ impl DevAssetProxyConfig {
 
 impl Default for DevAssetProxyConfig {
     fn default() -> Self {
-        Self::from_env()
+        Self {
+            vite_origin: DEFAULT_VITE_ORIGIN.to_string(),
+        }
     }
 }
 
@@ -106,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn non_unicode_mode_is_treated_like_unset() {
+    fn unset_mode_resolves_for_build_profile() {
         let mode = GuiHostMode::for_profile_with_mode(/*mode*/ None).expect("mode should resolve");
 
         assert!(matches!(mode, GuiHostMode::Dev(_) | GuiHostMode::Prod(_)));
