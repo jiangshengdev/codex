@@ -4,13 +4,13 @@
 
 **Goal:** Implement the browser launch-token recovery, WebSocket handshake, projection attach sequence, and simple transport status UI.
 
-**Architecture:** This plan is copied from original Task 10. The frontend verifies transport only and does not write projection data into Redux/store.
+**Architecture:** The frontend verifies transport only and does not write projection data into Redux/store. It displays only connection status, attached state, received event count, and last event type.
 
 **Tech Stack:** React, TypeScript, Vite, Vitest, browser WebSocket.
 
 ---
 
-Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md`. The source file is deleted after this split because these files replace it.
+Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 
 ### Task 10: Add frontend GUI host client and status UI
 
@@ -63,15 +63,15 @@ describe("guiHostClient", () => {
     ).toEqual({ threadId: "thread-abc", token: "secret" });
   });
 
-  it("sends authenticate, initialize, and attach in order", async () => {
+  it("sends authenticate, initialize, attach, and records projection events", () => {
     const socket = new RecordingWebSocket();
     const statuses: string[] = [];
-    const connection = startGuiHostConnection({
+    startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
       replaceState: vi.fn(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
-      onStatus: (status) => statuses.push(status),
+      onStatus: (status) => statuses.push(status.label),
     });
 
     socket.onopen?.();
@@ -84,8 +84,13 @@ describe("guiHostClient", () => {
     socket.onmessage?.({
       data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: { subscriptionId: "sub-1" } }),
     });
-
-    await connection;
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/projection/event",
+        params: { type: "reset" },
+      }),
+    });
 
     expect(socket.sent.map((message) => JSON.parse(message).method)).toEqual([
       "gui/authenticate",
@@ -95,6 +100,7 @@ describe("guiHostClient", () => {
     expect(statuses).toContain("authenticated");
     expect(statuses).toContain("initialized");
     expect(statuses).toContain("attached");
+    expect(statuses).toContain("received event");
   });
 });
 ```
@@ -119,11 +125,12 @@ Create `codex-gui/src/features/guiHost/guiHostClient.ts`:
 
 ```ts
 export type GuiHostStatus =
-  | "connecting"
-  | "authenticated"
-  | "initialized"
-  | "attached"
-  | "received event";
+  | { label: "connecting"; eventCount: number; lastEventType: null }
+  | { label: "authenticated"; eventCount: number; lastEventType: null }
+  | { label: "initialized"; eventCount: number; lastEventType: null }
+  | { label: "attached"; eventCount: number; lastEventType: null }
+  | { label: "received event"; eventCount: number; lastEventType: string }
+  | { label: "error"; eventCount: number; lastEventType: null; message: string };
 
 export type LaunchParams = {
   threadId: string;
@@ -167,53 +174,63 @@ export function clearLaunchTokenFragment(
   replaceState(null, "", `${location.pathname}${location.search}`);
 }
 
-export async function startGuiHostConnection({
+export function startGuiHostConnection({
   location,
   replaceState,
   tokenStorage = globalThis.sessionStorage,
   createWebSocket = (url) => new WebSocket(url),
   onStatus,
-}: StartGuiHostConnectionOptions): Promise<void> {
+}: StartGuiHostConnectionOptions): void {
   const { threadId, token } = readLaunchParams(location, tokenStorage);
   clearLaunchTokenFragment(location, replaceState);
   const socket = createWebSocket(`${webSocketProtocol(location)}://${location.host}/ws`);
+  let eventCount = 0;
+  onStatus?.({ label: "connecting", eventCount, lastEventType: null });
 
-  await new Promise<void>((resolve, reject) => {
-    socket.onopen = () => {
-      sendRequest(socket, 1, "gui/authenticate", { token });
+  socket.onopen = () => {
+    sendRequest(socket, 1, "gui/authenticate", { token });
+  };
+  socket.onerror = () => {
+    onStatus?.({
+      label: "error",
+      eventCount,
+      lastEventType: null,
+      message: "GUI host WebSocket failed",
+    });
+  };
+  socket.onmessage = (event) => {
+    const message = JSON.parse(String(event.data)) as {
+      id?: unknown;
+      method?: string;
+      result?: { authenticated?: boolean };
+      params?: { type?: string };
     };
-    socket.onerror = () => {
-      reject(new Error("GUI host WebSocket failed"));
-    };
-    socket.onmessage = (event) => {
-      const message = JSON.parse(String(event.data)) as {
-        id?: unknown;
-        method?: string;
-        result?: { authenticated?: boolean };
-      };
-      if (message.id === 1 && message.result?.authenticated === true) {
-        onStatus?.("authenticated");
-        sendRequest(socket, 2, "initialize", {
-          clientInfo: { name: "codex-gui", version: "0.0.0" },
-          capabilities: {},
-        });
-        return;
-      }
-      if (message.id === 2) {
-        onStatus?.("initialized");
-        sendRequest(socket, 3, "thread/projection/attach", { threadId });
-        return;
-      }
-      if (message.id === 3) {
-        onStatus?.("attached");
-        resolve();
-        return;
-      }
-      if (message.method === "thread/projection/event") {
-        onStatus?.("received event");
-      }
-    };
-  });
+    if (message.id === 1 && message.result?.authenticated === true) {
+      onStatus?.({ label: "authenticated", eventCount, lastEventType: null });
+      sendRequest(socket, 2, "initialize", {
+        clientInfo: { name: "codex-gui", version: "0.0.0" },
+        capabilities: {},
+      });
+      return;
+    }
+    if (message.id === 2) {
+      onStatus?.({ label: "initialized", eventCount, lastEventType: null });
+      sendRequest(socket, 3, "thread/projection/attach", { threadId });
+      return;
+    }
+    if (message.id === 3) {
+      onStatus?.({ label: "attached", eventCount, lastEventType: null });
+      return;
+    }
+    if (message.method === "thread/projection/event") {
+      eventCount += 1;
+      onStatus?.({
+        label: "received event",
+        eventCount,
+        lastEventType: message.params?.type ?? "unknown",
+      });
+    }
+  };
 }
 
 function webSocketProtocol(location: URL): "ws" | "wss" {
@@ -234,10 +251,15 @@ Modify `codex-gui/src/App.tsx`:
 
 ```tsx
 import { useEffect, useRef, useState } from "react";
+import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
 
 function App() {
-  const [status, setStatus] = useState("connecting");
+  const [status, setStatus] = useState<GuiHostStatus>({
+    label: "connecting",
+    eventCount: 0,
+    lastEventType: null as string | null,
+  });
   const hasStartedConnection = useRef(false);
 
   useEffect(() => {
@@ -246,22 +268,33 @@ function App() {
     }
     hasStartedConnection.current = true;
 
-    startGuiHostConnection({
-      location: new URL(window.location.href),
-      replaceState: window.history.replaceState.bind(window.history),
-      onStatus: setStatus,
-    }).catch((error: unknown) => {
+    try {
+      startGuiHostConnection({
+        location: new URL(window.location.href),
+        replaceState: window.history.replaceState.bind(window.history),
+        onStatus: setStatus,
+      });
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(`error: ${message}`);
-    });
+      setStatus({
+        label: "error",
+        eventCount: 0,
+        lastEventType: null,
+        message,
+      });
+    }
   }, []);
 
   return (
     <main
       className="grid min-h-svh place-items-center bg-background px-6 py-10 text-foreground"
-      data-gui-host-status={status}
+      data-gui-host-status={status.label}
     >
-      <p aria-live="polite">{status}</p>
+      <p aria-live="polite">
+        {status.label === "error" ? `error: ${status.message}` : status.label}
+      </p>
+      <p>events: {status.eventCount}</p>
+      <p>last event: {status.lastEventType ?? "none"}</p>
     </main>
   );
 }

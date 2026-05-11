@@ -4,13 +4,13 @@
 
 **Goal:** Add the `/gui` slash command as a thin TUI entry that starts or reuses the local GUI host and prints a URL.
 
-**Architecture:** This plan is copied from original Task 8. TUI owns command dispatch and host lifecycle only; it must not parse or forward projection data.
+**Architecture:** TUI owns command dispatch and GUI host lifecycle only; it must not parse or forward projection data. The GUI backend is available only for embedded app-server sessions through `codex-app-server-client`; remote app-server sessions return `None` and `/gui` prints an explanatory message.
 
 **Tech Stack:** Rust 2024, codex-tui, codex-gui-host, codex-app-server-client.
 
 ---
 
-Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md`. The source file is deleted after this split because these files replace it.
+Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 
 ### Task 8: Wire `/gui` thin entry in TUI
 
@@ -23,6 +23,7 @@ Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md
 - Modify: `codex-rs/tui/src/app.rs`
 - Modify: `codex-rs/tui/src/app/event_dispatch.rs`
 - Modify: `codex-rs/tui/src/lib.rs`
+- Modify: `codex-rs/tui/src/app_server_session.rs`
 - Test: `codex-rs/tui/src/chatwidget/tests/slash_commands.rs`
 - Test: `codex-rs/tui/src/app/gui.rs`
 
@@ -62,12 +63,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn open_gui_prints_url_for_primary_thread() {
+    async fn open_gui_with_primary_thread_but_no_backend_prints_local_only_message() {
         let mut app = make_test_app().await;
         let thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000001").unwrap();
         app.primary_thread_id = Some(thread_id);
         app.open_gui().await.unwrap();
-        assert!(app.gui_host.is_some());
+        assert!(app.gui_host.is_none());
     }
 }
 ```
@@ -81,6 +82,8 @@ cargo test -p codex-tui gui_slash_command_is_registered gui_command_emits_open_g
 ```
 
 Expected failures include missing `SlashCommand::Gui`, `AppEvent::OpenGui`, `app/gui.rs`, and `gui_host` field.
+
+Do not add a production no-op backend just for TUI tests. The app-server-client bridge tests in `02-app-server-bridge.md` cover real backend connectivity.
 
 - [ ] **Step 3: Implement TUI thin entry**
 
@@ -126,9 +129,7 @@ gui_host: Option<codex_gui_host::GuiHostHandle>,
 gui_backend: Option<codex_app_server_client::GuiBackendHandle>,
 ```
 
-`GuiBackendHandle` is introduced and re-exported by `codex-rs/app-server-client/src/lib.rs` in
-Task 7. `codex-tui` must use that app-server-client type and must not add a direct
-`codex-app-server` dependency.
+`GuiBackendHandle` is introduced and re-exported by `codex-rs/app-server-client/src/lib.rs` in Task 7. `codex-tui` must use that app-server-client type and must not add a direct `codex-app-server` dependency.
 
 Initialize both fields in all `App` constructors/test helpers:
 
@@ -187,6 +188,16 @@ impl App {
 }
 ```
 
+Add a getter to `codex-rs/tui/src/app_server_session.rs`:
+
+```rust
+impl AppServerSession {
+    pub(crate) fn gui_backend(&self) -> Option<codex_app_server_client::GuiBackendHandle> {
+        self.client.gui_backend()
+    }
+}
+```
+
 Handle event in `codex-rs/tui/src/app/event_dispatch.rs`:
 
 ```rust
@@ -204,14 +215,38 @@ In `codex-rs/tui/src/lib.rs`, after starting `AppServerSession`, set GUI backend
 let gui_backend = app_server.gui_backend();
 ```
 
-Pass that optional backend into `App::run` or set it on `App` immediately after construction. Remote app-server sessions must return `None`.
+Pass that optional backend into `App::run` or set it on `App` immediately after construction:
+
+```rust
+let mut app = App::new(/* existing args */);
+app.set_gui_backend(gui_backend);
+```
+
+If the existing constructor shape makes a setter cleaner, add:
+
+```rust
+impl App {
+    pub(crate) fn set_gui_backend(
+        &mut self,
+        gui_backend: Option<codex_app_server_client::GuiBackendHandle>,
+    ) {
+        self.gui_backend = gui_backend;
+    }
+}
+```
+
+Remote app-server sessions must return `None`, so `/gui` prints:
+
+```text
+GUI is available only for local embedded app-server sessions.
+```
 
 - [ ] **Step 4: Run tests to verify PASS**
 
 Run:
 
 ```bash
-cargo test -p codex-tui gui_slash_command_is_registered gui_command_emits_open_gui_event open_gui_without_primary_thread_prints_not_ready
+cargo test -p codex-tui gui_slash_command_is_registered gui_command_emits_open_gui_event open_gui_without_primary_thread_prints_not_ready open_gui_with_primary_thread_but_no_backend_prints_local_only_message
 ```
 
 Expected:
@@ -220,6 +255,7 @@ Expected:
 test gui_slash_command_is_registered ... ok
 test gui_command_emits_open_gui_event ... ok
 test app::gui::tests::open_gui_without_primary_thread_prints_not_ready ... ok
+test app::gui::tests::open_gui_with_primary_thread_but_no_backend_prints_local_only_message ... ok
 ```
 
 - [ ] **Step 5: Commit**

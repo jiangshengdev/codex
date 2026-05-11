@@ -2,15 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Package GUI dist for prod mode and run final verification for the full GUI host redesign.
+**Goal:** Package GUI dist for prod mode and run final verification for the GUI host projection transport MVP.
 
-**Architecture:** This plan is copied from original Tasks 11-12. It owns package root wiring, Vite config, final Rust/frontend verification, and lockfile checks.
+**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, and lockfile checks. Prod static caching details remain outside the transport MVP acceptance criteria and can be finalized during packaging implementation.
 
 **Tech Stack:** Node CLI wrapper, Python packaging script, Vite build, Rust verification, Playwright.
 
 ---
 
-Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md`. The source file is deleted after this split because these files replace it.
+Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 
 ### Task 11: Add prod packaging and Vite config
 

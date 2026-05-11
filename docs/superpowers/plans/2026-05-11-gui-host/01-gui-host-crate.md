@@ -4,13 +4,13 @@
 
 **Goal:** Build the new `codex-gui-host` crate with token, config, assets, auth, allowlists, lifecycle, and bridge contract.
 
-**Architecture:** This plan is copied from original Tasks 1-5. It owns the host shell and must not depend on `codex-app-server` or implement projection business logic.
+**Architecture:** This plan is the completed record for original Tasks 1-5. It owns the host shell and must not depend on `codex-app-server` or implement projection business logic.
 
 **Tech Stack:** Rust 2024, axum, tokio, tokio-tungstenite, tower-http, reqwest, serde_json, base64/rand.
 
 ---
 
-Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md`. The source file is deleted after this split because these files replace it.
+Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`. This task set is already completed at tag `01-gui-host-crate`; keep it as execution history unless a later implementation task explicitly revises the host shell.
 
 ### Task 1: Add `codex-gui-host` crate skeleton
 
