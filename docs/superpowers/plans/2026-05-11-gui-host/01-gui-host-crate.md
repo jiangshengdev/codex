@@ -21,7 +21,7 @@ Source: split from `docs/superpowers/plans/2026-05-11-codex-gui-host-redesign.md
 - Create: `codex-rs/gui-host/src/lib.rs`
 - Test: `codex-rs/gui-host/src/lib.rs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `codex-rs/gui-host/src/lib.rs` with only the crate-level test first:
 
@@ -41,7 +41,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run the test to confirm FAIL**
+- [x] **Step 2: Run the test to confirm FAIL**
 
 Run from `codex-rs`:
 
@@ -55,7 +55,7 @@ Expected failure:
 error: package ID specification `codex-gui-host` did not match any packages
 ```
 
-- [ ] **Step 3: Add workspace member and crate files**
+- [x] **Step 3: Add workspace member and crate files**
 
 Modify `codex-rs/Cargo.toml`:
 
@@ -219,7 +219,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Run the test to confirm PASS**
+- [x] **Step 4: Run the test to confirm PASS**
 
 Run from `codex-rs`:
 
@@ -233,7 +233,7 @@ Expected:
 test tests::crate_exports_gui_host_mode ... ok
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-rs/Cargo.toml codex-rs/gui-host
