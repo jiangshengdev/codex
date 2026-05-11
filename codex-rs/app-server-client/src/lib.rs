@@ -459,7 +459,7 @@ pub struct InProcessAppServerClient {
     command_tx: mpsc::Sender<ClientCommand>,
     event_rx: mpsc::Receiver<InProcessServerEvent>,
     worker_handle: tokio::task::JoinHandle<()>,
-    gui_backend: Option<GuiBackendHandle>,
+    gui_backend: GuiBackendHandle,
 }
 
 #[derive(Clone)]
@@ -601,11 +601,11 @@ impl InProcessAppServerClient {
             command_tx,
             event_rx,
             worker_handle,
-            gui_backend: Some(gui_backend),
+            gui_backend,
         })
     }
 
-    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
+    pub fn gui_backend(&self) -> GuiBackendHandle {
         self.gui_backend.clone()
     }
 
@@ -874,7 +874,7 @@ impl AppServerRequestHandle {
 impl AppServerClient {
     pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
         match self {
-            Self::InProcess(client) => client.gui_backend(),
+            Self::InProcess(client) => Some(client.gui_backend()),
             Self::Remote(_) => None,
         }
     }
@@ -1265,7 +1265,7 @@ mod tests {
     #[tokio::test]
     async fn in_process_client_exposes_gui_backend() {
         let client = start_test_client(SessionSource::Cli).await;
-        assert!(client.gui_backend().is_some());
+        let _gui_backend: GuiBackendHandle = client.gui_backend();
         client.shutdown().await.expect("shutdown");
     }
 
@@ -2037,7 +2037,14 @@ mod tests {
 
     #[tokio::test]
     async fn next_event_surfaces_lagged_markers() {
-        let (command_tx, _command_rx) = mpsc::channel(1);
+        let gui_backend_client = start_test_client(SessionSource::Cli).await;
+        let gui_backend = gui_backend_client.gui_backend();
+        gui_backend_client
+            .shutdown()
+            .await
+            .expect("shutdown should complete");
+
+        let (command_tx, command_rx) = mpsc::channel(1);
         let (event_tx, event_rx) = mpsc::channel(1);
         let worker_handle = tokio::spawn(async {});
         event_tx
@@ -2045,12 +2052,13 @@ mod tests {
             .await
             .expect("lagged marker should enqueue");
         drop(event_tx);
+        drop(command_rx);
 
         let mut client = InProcessAppServerClient {
             command_tx,
             event_rx,
             worker_handle,
-            gui_backend: None,
+            gui_backend,
         };
 
         let event = timeout(Duration::from_secs(2), client.next_event())
