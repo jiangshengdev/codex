@@ -790,6 +790,19 @@ impl InProcessAppServerClient {
 }
 ```
 
+Also expose an enum-level helper for TUI callers that may be connected to a remote app-server:
+
+```rust
+impl AppServerClient {
+    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
+        match self {
+            AppServerClient::InProcess(client) => Some(client.gui_backend()),
+            _ => None,
+        }
+    }
+}
+```
+
 `InProcessClientHandle` does not expose a `raw_handle()` API. Add a cloneable
 `extra_jsonrpc_connection_factory: codex_app_server::in_process::ExtraJsonRpcConnectionFactory`
 field to `InProcessAppServerClient` when it is constructed from the in-process handle, and return
