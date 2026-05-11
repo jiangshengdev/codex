@@ -30,7 +30,7 @@ GUI bridge 应复用或对齐这个生命周期，而不是新增一套 parallel
 
 首版完成时应支持：
 
-- 在 TUI 中通过 `/gui` 启动或复用本机 `codex-gui-host`。
+- 在 TUI 中通过 `/gui` 请求 app-server session 启动或复用本机 `codex-gui-host`。
 - `/gui` 显示本机 URL，不自动打开浏览器。
 - 浏览器从 GUI host 同源加载页面资源，并连接同源 `/ws`。
 - `/ws` 使用 launch token 做首帧 `gui/authenticate` 认证。
@@ -78,20 +78,20 @@ codex-rs/gui-host
 依赖方向保持：
 
 ```text
-codex-tui        -> codex-gui-host
+codex-tui        -> codex-app-server-client
 codex-app-server -> codex-gui-host
 codex-gui-host   -> does not depend on codex-app-server
 ```
 
-`codex-gui-host` 定义 browser host shell 和最小 backend trait。`codex-app-server` 实现这个 backend，把认证后的 GUI WebSocket 适配为 app-server transport connection。
+`codex-gui-host` 定义 browser host shell 和最小 backend trait。`codex-app-server` 拥有 GUI host 生命周期，实现这个 backend，并把认证后的 GUI WebSocket 适配为 app-server transport connection。
 
 运行结构：
 
 ```text
 TUI
   ├─ handles /gui
-  ├─ lazy-starts/reuses GuiHost
-  ├─ passes primary_thread_id into launch URL
+  ├─ asks app-server session to lazy-start/reuse GuiHost
+  ├─ passes primary_thread_id to app-server-client
   └─ prints URL in transcript
 
 codex-gui-host
@@ -105,6 +105,7 @@ codex-gui-host
   └─ delegates authenticated traffic to a GuiBackend bridge
 
 codex-app-server
+  ├─ lazy-starts/reuses GuiHost inside the active app-server runtime
   ├─ implements GuiBackend
   ├─ adapts authenticated GUI traffic into TransportEvent lifecycle
   ├─ owns request processing
@@ -160,6 +161,7 @@ TUI 不作为数据转发层。TUI 不解析 projection event，不参与 browse
 
 `codex-app-server` owns:
 
+- GUI host lifecycle within the active app-server session
 - `GuiBackend` implementation
 - conversion between authenticated GUI connection and app-server transport lifecycle
 - projection subscription cleanup through existing close semantics
@@ -168,8 +170,8 @@ TUI 不作为数据转发层。TUI 不解析 projection event，不参与 browse
 
 - `/gui` slash command surface
 - primary thread selection
-- host lifecycle within one TUI session
-- transcript message containing the launch URL
+- requesting a launch URL from `codex-app-server-client`
+- transcript message containing the returned launch URL
 
 ## Bridge 形态
 
@@ -185,7 +187,7 @@ pub trait GuiBackend: Send + Sync {
 }
 ```
 
-`GuiBackend` 的 app-server 实现不应打开额外 in-process JSON-RPC connection。它应把 GUI connection 映射为 app-server transport lifecycle：
+`GuiBackend` 的 app-server 实现不应打开额外 in-process JSON-RPC connection，也不应把 `codex-rs/app-server/src/in_process.rs` 扩展成多连接 transport loop。它应作为 app-server runtime 内的动态 transport acceptor，把 GUI connection 映射为 app-server transport lifecycle：
 
 ```text
 authenticated GUI websocket
@@ -211,7 +213,7 @@ browser close / refresh / host shutdown
 
 **ConnectionOrigin::GuiHost**：`ConnectionOrigin`（当前 variant：`Stdio`、`InProcess`、`WebSocket`、`RemoteControl`）需要新增 `GuiHost` variant。GUI 连接与 `InProcess` 同进程但策略不同（有 allowlist、有 token 认证），与 `WebSocket` 同为 WebSocket 但来源不同；因此不复用现有 variant，而是新增 `ConnectionOrigin::GuiHost`。
 
-**TransportEvent channel 归属**：`codex-gui-host` 不拥有 `TransportEvent` channel。`transport_event_tx` 由 `codex-app-server` 的 `run_main_with_transport_options` 创建并持有。`GuiBackend` 的 app-server 实现接收认证后的连接，负责向该 channel 发送 `ConnectionOpened`、转发 `IncomingMessage`、并保证每个 `ConnectionOpened` 对应恰好一个 `ConnectionClosed`。
+**TransportEvent channel 归属**：`codex-gui-host` 不拥有 `TransportEvent` channel。`transport_event_tx` 由 `codex-app-server` 的 `run_main_with_transport_options` 创建并持有。GUI host 的 lazy-start 必须发生在能访问该 `transport_event_tx` 的 app-server runtime scope 内。`GuiBackend` 的 app-server 实现接收认证后的连接，负责向该 channel 发送 `ConnectionOpened`、转发 `IncomingMessage`、并保证每个 `ConnectionOpened` 对应恰好一个 `ConnectionClosed`。
 
 **Bridge 生命周期不变量**：
 
@@ -220,7 +222,7 @@ browser close / refresh / host shutdown
 - `ConnectionClosed` 发送之后，bridge 不得再为同一 `connection_id` 发送 `IncomingMessage`；发送 `ConnectionClosed` 之前，bridge 应停止从 browser 接收新 frame 并丢弃未决 outbound。`ConnectionClosed` 触发 app-server 现有 connection cleanup（见 `codex-rs/app-server/src/lib.rs:876-887`）。
 - bridge 必须监听 `disconnect_sender` 的取消信号；收到取消时主动关闭 WebSocket 并发送 `ConnectionClosed`。
 
-这与 `remote-control` 的关键架构一致：remote-control 通过虚拟连接接入 app-server transport，而不是绕过 processor 建第二套 request pipeline。GUI bridge 应复用这条思想。实现时可以抽取共享 adapter，也可以先实现 GUI 专用 adapter；无论哪种方式，语义必须对齐 `TransportEvent` lifecycle。
+这与 `remote-control` 的关键架构一致：remote-control 通过虚拟连接接入 app-server transport，而不是绕过 processor 建第二套 request pipeline。GUI bridge 应复用这条思想。实现时可以抽取共享 adapter，也可以先实现 GUI 专用 adapter；无论哪种方式，语义必须对齐 `TransportEvent` lifecycle，并避免在 `in_process.rs` 中复制 `run_main_with_transport_options` 的 connection map、outbound router 或 close cleanup 逻辑。
 
 首版不把 `remote-control` 的 envelope protocol 直接暴露给浏览器。GUI browser 仍发送普通 app-server JSON-RPC，`gui/authenticate` 是 GUI host local handshake，不进入 app-server processor。
 
@@ -234,7 +236,7 @@ threadId = primary_thread_id
 
 它不跟随当前 TUI 显示的子代理、side conversation 或临时视图。未来可以新增 `/gui --current` 或 `/gui <threadId>`，但不属于首版。
 
-第一次执行 `/gui` 时，TUI 懒启动 `GuiHost`。同一 TUI session 内后续 `/gui` 复用同一个 host、同一个随机端口和同一个 launch token。
+第一次执行 `/gui` 时，TUI 通过 `codex-app-server-client` 请求当前 app-server session 懒启动 `GuiHost`。同一 app-server session 内后续 `/gui` 复用同一个 host、同一个随机端口和同一个 launch token。
 
 TUI 显示的 URL 形如：
 
@@ -244,7 +246,7 @@ http://127.0.0.1:<port>/?threadId=<primary-thread-id>#token=<launch-token>
 
 `threadId` 放在 query 中，因为它不是认证 secret。写入 URL 前必须做 URL encoding。`launch-token` 放在 fragment 中，避免随着普通 HTTP 请求发送到 server 或进入常规 HTTP access log。
 
-如果 `primary_thread_id` 尚不可用，`/gui` 直接在 TUI 中提示当前 session 尚未准备好打开 GUI，不启动空 host。
+如果 `primary_thread_id` 尚不可用，`/gui` 直接在 TUI 中提示当前 session 尚未准备好打开 GUI，不向 app-server 请求启动空 host。
 
 首版 `/gui` 不自动打开浏览器。TUI transcript 显示完整 URL，并提示用户在本机浏览器中打开。
 
@@ -258,8 +260,8 @@ ws://127.0.0.1:<port>/ws
 
 认证流程：
 
-1. TUI 为当前 `GuiHost` 生成 launch token。
-2. TUI 显示带 `#token=...` 的 GUI URL。
+1. App-server session 为当前 `GuiHost` 生成或复用 launch token。
+2. TUI 显示 app-server 返回的、带 `#token=...` 的 GUI URL。
 3. 前端读取 `location.hash`。
 4. 前端把 token 写入 `sessionStorage`。
 5. 前端调用 `history.replaceState` 清除 URL fragment。
@@ -287,7 +289,7 @@ ws://127.0.0.1:<port>/ws
 
 launch token 使用系统 CSPRNG 生成，至少 128 位熵，使用 base64url 或等价 URL-safe 编码。token 对 server 是 opaque 字符串，只做直接匹配。
 
-launch token 在同一 TUI session 内可复用，支持刷新页面、多次 `/gui` 和多个本机 browser tab。token 随 `GuiHost` / TUI 进程退出失效。首版不要求 token 单次使用。
+launch token 在同一 app-server session 内可复用，支持刷新页面、多次 `/gui` 和多个本机 browser tab。token 随 `GuiHost` / app-server session 退出失效。首版不要求 token 单次使用。
 
 ## 本机安全边界
 
@@ -435,14 +437,14 @@ prod 静态资源缓存策略（HTML entry no-cache、带 fingerprint 的 JS/CSS
 
 ## 生命周期
 
-GUI host 生命周期绑定 TUI session：
+GUI host 生命周期绑定当前 app-server session，并由 app-server runtime 管理：
 
 - TUI 启动时不启动 GUI host。
-- 第一次 `/gui` 懒启动。
-- 同一 TUI session 复用同一个 GUI host 和同一个 launch token。
-- 每个 TUI session 拥有独立 host、随机端口和 launch token。
+- 第一次 `/gui` 通过 app-server-client 请求 app-server runtime 懒启动。
+- 同一 app-server session 复用同一个 GUI host 和同一个 launch token。
+- 每个 app-server session 拥有独立 host、随机端口和 launch token。
 - 多个本机 browser tab 可以同时连接同一个 host。
-- TUI 进程退出时 GUI host 退出，token 失效。
+- app-server session 退出时 GUI host 退出，token 失效。
 - 浏览器连接关闭时，app-server bridge 触发现有 connection cleanup，清理 projection subscription。
 
 ## 错误处理
@@ -482,6 +484,7 @@ GUI host 生命周期绑定 TUI session：
 
 覆盖 GUI bridge 到 app-server transport lifecycle：
 
+- lazy-start/reuse GUI host 为请求的 primary thread 返回 launch URL。
 - auth 成功后创建 `ConnectionOpened { origin: ConnectionOrigin::GuiHost }`。
 - `initialize` 返回真实 app-server response。
 - `thread/projection/attach` 返回真实 app-server response。
@@ -494,7 +497,7 @@ GUI host 生命周期绑定 TUI session：
 只覆盖薄入口：
 
 - `/gui` slash command 可见并 dispatch。
-- `AppEvent::OpenGui` 处理后启动或复用 host。
+- `AppEvent::OpenGui` 处理后向 app-server-client 请求 launch URL。
 - `primary_thread_id` 不存在时显示提示。
 - 有 primary thread 时 transcript 显示 launch URL。
 
@@ -519,7 +522,7 @@ TUI 不测试 WebSocket 细节，不依赖 `tokio-tungstenite`。
 
 - `00-roadmap.md`：更新目标描述，明确 GUI host 首版是本机 browser projection transport MVP。
 - `01-gui-host-crate.md`：保持已完成状态；该任务提供有效的 browser host shell。
-- `02-app-server-bridge.md`：必须重写，删除 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 和 `in_process.rs` extra connection 路线，改为 GUI bridge 到 `TransportEvent` lifecycle。
+- `02-app-server-bridge.md`：必须重写，删除 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 和 `in_process.rs` extra connection 路线，改为 app-server runtime 拥有的动态 GUI transport acceptor。计划必须优先回退当前 `in_process.rs` 多连接实现，并把 GUI bridge 实现为 `TransportEvent` producer。
 - `03-tui-entry.md`：保留 `/gui` primary thread URL 入口方向。
 - `04-frontend-handshake.md`：保留 handshake，但明确前端只显示最小 transport/projection 状态。
 - `05-packaging-verification.md`：基本保留。
@@ -555,4 +558,5 @@ TUI 不测试 WebSocket 细节，不依赖 `tokio-tungstenite`。
 - 非 allowlist server-to-browser notification 不发送到 browser。
 - browser close / refresh 清理 projection subscription。
 - `codex-tui` 不直接依赖 `codex-app-server`。
+- GUI host 生命周期由 app-server runtime 管理，TUI 不直接持有 `GuiHost`。
 - GUI host 主体代码位于 `codex-gui-host` crate。
