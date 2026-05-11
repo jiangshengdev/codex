@@ -277,6 +277,7 @@ mod tests {
 
     #[test]
     fn connection_origin_has_distinct_gui_host_variant() {
+        assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::Stdio);
         assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::InProcess);
         assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::WebSocket);
         assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::RemoteControl);
