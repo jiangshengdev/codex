@@ -16,6 +16,7 @@ workspace = true
 anyhow = { workspace = true }
 base64 = { workspace = true }
 rand = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 urlencoding = { workspace = true }
 
 [dev-dependencies]
