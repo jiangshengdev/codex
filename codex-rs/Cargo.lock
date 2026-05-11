@@ -2899,7 +2899,10 @@ name = "codex-gui-host"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "pretty_assertions",
+ "rand 0.9.3",
+ "urlencoding",
 ]
 
 [[package]]
