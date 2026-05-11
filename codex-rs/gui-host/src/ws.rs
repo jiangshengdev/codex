@@ -28,7 +28,7 @@ use crate::is_allowed_client_request_method;
 use crate::is_allowed_server_notification_method;
 
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
-const POLICY_VIOLATION: u16 = 1008;
+const POLICY_VIOLATION: u16 = axum::extract::ws::close_code::POLICY;
 
 #[derive(Deserialize)]
 struct AuthenticateRequest {

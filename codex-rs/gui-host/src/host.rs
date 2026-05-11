@@ -5,9 +5,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::State;
-use axum::http::StatusCode;
 use axum::http::Uri;
-use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::get;
 use tokio::net::TcpListener;
@@ -101,16 +99,11 @@ fn router_for_state<B>(state: Arc<GuiHostState<B>>) -> anyhow::Result<Router>
 where
     B: GuiBackend + Clone,
 {
-    let _ = (&state.local_addr, &state.launch_token, &state.backend);
-
     match &state.mode {
-        GuiHostMode::Dev(config) => {
-            let _ = config;
-            Ok(Router::new()
-                .route("/ws", get(crate::ws::ws_handler::<B>))
-                .fallback(get(dev_fallback::<B>))
-                .with_state(state))
-        }
+        GuiHostMode::Dev(_) => Ok(Router::new()
+            .route("/ws", get(crate::ws::ws_handler::<B>))
+            .fallback(get(dev_fallback::<B>))
+            .with_state(state)),
         GuiHostMode::Prod(config) => {
             assets::prod_dist_dir(config)?;
             Ok(Router::new()
@@ -128,7 +121,7 @@ where
 {
     match &state.mode {
         GuiHostMode::Dev(config) => assets::proxy_vite(config.clone(), uri).await,
-        GuiHostMode::Prod(_) => StatusCode::NOT_FOUND.into_response(),
+        GuiHostMode::Prod(_) => unreachable!("dev_fallback is only registered in Dev mode"),
     }
 }
 
@@ -137,7 +130,7 @@ where
     B: GuiBackend + Clone,
 {
     match &state.mode {
-        GuiHostMode::Dev(_) => StatusCode::NOT_FOUND.into_response(),
+        GuiHostMode::Dev(_) => unreachable!("prod_root is only registered in Prod mode"),
         GuiHostMode::Prod(config) => assets::serve_prod_index(config.clone()).await,
     }
 }
@@ -156,6 +149,7 @@ mod tests {
 
     use crate::GuiHostConfig;
     use crate::GuiHostMode;
+    use crate::ProdAssetConfig;
     use crate::host::GuiHost;
     use crate::test_support::NoopBackend;
     use crate::test_support::RecordingBackend;
@@ -175,6 +169,54 @@ mod tests {
 
         assert_eq!(handle.local_addr().ip(), std::net::Ipv4Addr::LOCALHOST);
         assert_ne!(handle.local_addr().port(), 0);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn prod_root_serves_index_with_security_headers() {
+        let package_root = tempfile::tempdir().expect("tempdir should be created");
+        let dist_dir = package_root.path().join("dist");
+        tokio::fs::create_dir(&dist_dir)
+            .await
+            .expect("dist dir should be created");
+        tokio::fs::write(
+            dist_dir.join("index.html"),
+            "<html><body><h1>prod-static-test</h1></body></html>",
+        )
+        .await
+        .expect("index should be written");
+        let handle = GuiHost::start(
+            GuiHostConfig {
+                mode: GuiHostMode::Prod(ProdAssetConfig {
+                    package_root: package_root.path().to_path_buf(),
+                }),
+            },
+            NoopBackend,
+        )
+        .await
+        .expect("host should start");
+
+        let response = reqwest::get(format!("http://{}/", handle.local_addr()))
+            .await
+            .expect("root request should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("x-frame-options")
+                .expect("x-frame-options header should be present"),
+            "DENY"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("content-security-policy")
+                .expect("content-security-policy header should be present"),
+            "frame-ancestors 'none'"
+        );
+        let body = response.text().await.expect("body should be readable");
+        assert!(body.contains("<h1>prod-static-test</h1>"));
 
         handle.shutdown().await;
     }
