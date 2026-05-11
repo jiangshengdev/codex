@@ -10,7 +10,7 @@ GUI 的长期定位是 Codex 的浏览器界面。它可以先服务本机浏览
 
 当前分支已经完成 `codex-gui-host` crate 的第一阶段代码，包括本机 host shell、launch token、Host / Origin 校验、`/ws` 首帧认证、JSON-RPC allowlist、dev proxy 和 prod static 的基础结构。这部分仍然有意义。
 
-需要重新设计的是 app-server bridge。原计划在 `codex-app-server` / `in_process.rs` 中增加 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 等额外 JSON-RPC 连接 API。这个方向和 `rust-v0.130.0` 上游已有 `remote-control` 的实现发生了重复设计。
+需要重新设计的是 app-server bridge。原计划在 `codex-app-server` / `in_process.rs` 中增加 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 等额外 JSON-RPC 连接 API。这个方向和 `rust-v0.130.0` 上游（具体 commit 未在本文 pin；读者可通过 git log 查找对应 tag）已有 `remote-control` 的实现发生了重复设计。
 
 `remote-control` 已经证明 app-server 可以通过 transport lifecycle 接入虚拟连接：
 
@@ -190,7 +190,7 @@ pub trait GuiBackend: Send + Sync {
 ```text
 authenticated GUI websocket
   -> TransportEvent::ConnectionOpened {
-       origin: GuiHost,
+       origin: ConnectionOrigin::GuiHost,  // 新增 variant，见下文
        writer,
        disconnect_sender
      }
@@ -208,6 +208,17 @@ browser close / refresh / host shutdown
   -> TransportEvent::ConnectionClosed { connection_id }
   -> existing app-server connection cleanup
 ```
+
+**ConnectionOrigin::GuiHost**：`ConnectionOrigin`（当前 variant：`Stdio`、`InProcess`、`WebSocket`、`RemoteControl`）需要新增 `GuiHost` variant。GUI 连接与 `InProcess` 同进程但策略不同（有 allowlist、有 token 认证），与 `WebSocket` 同为 WebSocket 但来源不同；因此不复用现有 variant，而是新增 `ConnectionOrigin::GuiHost`。
+
+**TransportEvent channel 归属**：`codex-gui-host` 不拥有 `TransportEvent` channel。`transport_event_tx` 由 `codex-app-server` 的 `run_main_with_transport_options` 创建并持有。`GuiBackend` 的 app-server 实现接收认证后的连接，负责向该 channel 发送 `ConnectionOpened`、转发 `IncomingMessage`、并保证每个 `ConnectionOpened` 对应恰好一个 `ConnectionClosed`。
+
+**Bridge 生命周期不变量**：
+
+- `ConnectionOpened` 当且仅当 `gui/authenticate` 成功后发送；认证失败不发送。
+- 每个 `ConnectionOpened` 对应恰好一个 `ConnectionClosed`，包括：browser 关闭/刷新、host shutdown、`GuiBackend::connect` 返回 `Err`、以及任何错误路径。
+- `ConnectionClosed` 发送之后，bridge 不得再为同一 `connection_id` 发送 `IncomingMessage`；发送 `ConnectionClosed` 之前，bridge 应停止从 browser 接收新 frame 并丢弃未决 outbound。`ConnectionClosed` 触发 app-server 现有 connection cleanup（见 `codex-rs/app-server/src/lib.rs:876-887`）。
+- bridge 必须监听 `disconnect_sender` 的取消信号；收到取消时主动关闭 WebSocket 并发送 `ConnectionClosed`。
 
 这与 `remote-control` 的关键架构一致：remote-control 通过虚拟连接接入 app-server transport，而不是绕过 processor 建第二套 request pipeline。GUI bridge 应复用这条思想。实现时可以抽取共享 adapter，也可以先实现 GUI 专用 adapter；无论哪种方式，语义必须对齐 `TransportEvent` lifecycle。
 
@@ -268,6 +279,8 @@ ws://127.0.0.1:<port>/ws
 {"jsonrpc":"2.0","id":1,"result":{"authenticated":true}}
 ```
 
+`gui/authenticate` 的 `id` 属于 GUI host 本地 handshake，不进入 app-server processor。因此认证 request 的 id 空间与 app-server id 空间不重叠：即使浏览器随后对 `initialize` 复用 `id:1`，两个 id 空间也不会冲突。合规测试必须验证此不重叠性。
+
 认证失败、首帧不是 `gui/authenticate`、payload 格式错误或 token 缺失时，GUI host 以 WebSocket close code `1008` 关闭连接。失败路径不得创建 app-server connection。
 
 `/ws` upgrade 成功后，GUI host 必须对第一条 text frame 设置接收超时。首版建议 5 秒；超时按认证失败处理。
@@ -306,31 +319,30 @@ http://127.0.0.1:<port>
 
 缺失或不匹配的 Origin 默认拒绝。
 
-GUI host 控制的页面和静态资源响应应发送 `X-Frame-Options: DENY`，并通过 CSP `frame-ancestors 'none'` 禁止被其它页面 iframe。
+GUI host 控制的页面和静态资源响应应发送 `X-Frame-Options: DENY`，并通过 CSP `frame-ancestors 'none'` 禁止被其它页面 iframe。dev 模式下 Vite 反向代理响应不要求追加这些 header；dev 环境不需要 clickjack 防护。
 
 ## JSON-RPC Allowlist
 
-首版允许 browser-to-server request：
+Allowlist 按方向分别定义：
 
-```text
-initialize
-thread/projection/attach
-thread/projection/detach
-```
+**Browser → server（入方向）：**
 
-首版允许 server-to-browser notification：
+- 只允许 method 在以下列表中的 request：
+  ```text
+  initialize
+  thread/projection/attach
+  thread/projection/detach
+  ```
+- browser-to-server notification 首版全部拒绝，不进入 app-server processor。未来如需发送 notification，必须在 allowlist 中显式新增 method 和测试。
+- browser-to-server response 和 error 不存在（browser 是 client，不发送 response/error）；如收到此类帧，直接丢弃。
 
-```text
-thread/projection/event
-```
+**Server → browser（出方向）：**
 
-JSON-RPC response 和 error 必须正常放行，因为它们是已允许 request 的结果。
+- 只允许 method 为 `thread/projection/event` 的 notification。其它 server notification 不发送到 browser。
+- 对已允许入方向 request 的 response 和 error 正常放行。
+- `gui/authenticate` 的 response 由 GUI host 本地生成，不经过 allowlist 机制；参见 §WebSocket 认证。
 
 GUI host 不是完整 app-server v2 gateway。任何不在 allowlist 中的 browser-to-server request 都不得进入 app-server processor。
-
-Browser-to-server JSON-RPC notification 首版默认全部拒绝，不进入 app-server processor。未来如果前端需要发送 notification，必须在 allowlist 中显式新增 method 和测试。
-
-Server-to-browser notification 只放行 `thread/projection/event`。其它 server notification 不发送到 browser。
 
 ## Projection MVP
 
@@ -419,6 +431,8 @@ $CODEX_GUI_PACKAGE_ROOT/dist/
 
 prod 模式不依赖 cwd，不优先依赖 executable path，也不 fallback 到 Vite。`CODEX_GUI_PACKAGE_ROOT` 缺失或 `dist/` 不存在时，`/gui` 报错并提示当前安装缺少 GUI package root 或 GUI 构建产物。
 
+prod 静态资源缓存策略（HTML entry no-cache、带 fingerprint 的 JS/CSS immutable long-cache 等）推迟到 Task 05 packaging 阶段确定，不属于首版 transport MVP 的验收范围。
+
 ## 生命周期
 
 GUI host 生命周期绑定 TUI session：
@@ -468,7 +482,7 @@ GUI host 生命周期绑定 TUI session：
 
 覆盖 GUI bridge 到 app-server transport lifecycle：
 
-- auth 成功后创建 `ConnectionOpened { origin: GuiHost }`。
+- auth 成功后创建 `ConnectionOpened { origin: ConnectionOrigin::GuiHost }`。
 - `initialize` 返回真实 app-server response。
 - `thread/projection/attach` 返回真实 app-server response。
 - thread 产生 projection update 后，browser 收到 `thread/projection/event`。
@@ -519,7 +533,7 @@ TUI 不测试 WebSocket 细节，不依赖 `tokio-tungstenite`。
 - PC 浏览器远程访问。
 - 多 thread / 子代理切换。
 - 浏览器控制能力。
-- 与 remote-control / relay 模型更深复用。
+- 与 remote-control / relay 模型更深复用（此处「复用」指提取共享 adapter 或对齐语义，不意味着直接复用 `ConnectionOrigin::RemoteControl` 给 GUI；`ConnectionOrigin` 是稳定的公共 surface，新增 variant 需要单独设计）。
 
 这些方向不属于首版 projection transport MVP。新增控制能力前必须单独设计控制权、权限边界和多客户端语义。
 
@@ -537,7 +551,8 @@ TUI 不测试 WebSocket 细节，不依赖 `tokio-tungstenite`。
   - `thread/projection/attach` response
   - 至少一个 `thread/projection/event` notification
 - 页面显示至少 `attached`，收到 event 后显示 `received event` 或等价状态。
-- 非 allowlist request 不进入 app-server processor。
+- 非 allowlist browser-to-server request 不进入 app-server processor。
+- 非 allowlist server-to-browser notification 不发送到 browser。
 - browser close / refresh 清理 projection subscription。
 - `codex-tui` 不直接依赖 `codex-app-server`。
 - GUI host 主体代码位于 `codex-gui-host` crate。
