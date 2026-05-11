@@ -254,7 +254,7 @@ git commit -m "feat(gui-host): add crate skeleton"
 - Test: `codex-rs/gui-host/src/url.rs`
 - Test: `codex-rs/gui-host/src/config.rs`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Replace `codex-rs/gui-host/src/lib.rs` with:
 
@@ -343,7 +343,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify FAIL**
+- [x] **Step 2: Run tests to verify FAIL**
 
 Run from `codex-rs`:
 
@@ -353,7 +353,7 @@ cargo test -p codex-gui-host token::tests::generated_token_is_url_safe_and_has_e
 
 Expected failures include unresolved types/functions such as `LaunchToken`, `GuiHostConfig`, and `launch_url_for_thread`.
 
-- [ ] **Step 3: Implement token/config/url**
+- [x] **Step 3: Implement token/config/url**
 
 Modify `codex-rs/gui-host/Cargo.toml`:
 
@@ -548,7 +548,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify PASS**
+- [x] **Step 4: Run tests to verify PASS**
 
 Run from `codex-rs`:
 
@@ -564,7 +564,7 @@ test url::tests::launch_url_uses_thread_query_and_fragment_token ... ok
 test config::tests::dev_config_uses_default_vite_origin ... ok
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-rs/gui-host codex-rs/Cargo.toml codex-rs/Cargo.lock
