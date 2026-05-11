@@ -840,7 +840,7 @@ git commit -m "feat(gui-host): add bridge API and allowlists"
 - Test: `codex-rs/gui-host/src/host.rs`
 - Test: `codex-rs/gui-host/src/assets.rs`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `codex-rs/gui-host/src/host.rs`:
 
@@ -964,7 +964,7 @@ pub(crate) mod test_support {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify FAIL**
+- [x] **Step 2: Run tests to verify FAIL**
 
 Run:
 
@@ -974,7 +974,7 @@ cargo test -p codex-gui-host host::tests::binds_loopback_ephemeral_port assets::
 
 Expected failures include unresolved `GuiHost`, `GuiHostHandle`, and `prod_dist_dir`.
 
-- [ ] **Step 3: Implement host lifecycle and asset helpers**
+- [x] **Step 3: Implement host lifecycle and asset helpers**
 
 Modify `codex-rs/Cargo.toml` if `tower-http` is not already in `[workspace.dependencies]`:
 
@@ -1264,7 +1264,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify PASS**
+- [x] **Step 4: Run tests to verify PASS**
 
 Run:
 
@@ -1279,7 +1279,7 @@ test host::tests::binds_loopback_ephemeral_port ... ok
 test assets::tests::prod_dist_dir_requires_existing_dist ... ok
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-rs/Cargo.toml codex-rs/Cargo.lock codex-rs/gui-host
