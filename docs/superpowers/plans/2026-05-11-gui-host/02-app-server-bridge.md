@@ -2,41 +2,170 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Connect authenticated GUI JSON-RPC traffic to the existing app-server projection pipeline using app-server transport lifecycle semantics.
+**Goal:** Rebuild the GUI app-server bridge as an app-server-runtime-owned dynamic transport acceptor that turns authenticated GUI WebSockets into existing app-server `TransportEvent` traffic.
 
-**Architecture:** GUI connections are not modeled as a new general-purpose extra JSON-RPC API. The embedded app-server runtime exposes a `GuiBackendHandle` that implements `codex_gui_host::GuiBackend`; each authenticated GUI WebSocket becomes a separate app-server connection with `ConnectionOrigin::GuiHost`, per-connection session state, outbound writer routing, disconnect cancellation, and exactly-once close cleanup.
+**Architecture:** `codex-gui-host` remains the browser-safe HTTP/WebSocket shell. `codex-app-server` owns GUI host lifecycle inside the runtime scope that owns `transport_event_tx`; the GUI backend emits `TransportEvent::{ConnectionOpened, IncomingMessage, ConnectionClosed}` just like `remote-control` does. `codex-rs/app-server/src/in_process.rs` must stay a single embedded TUI connection runtime and must not become a second multi-connection transport loop.
 
-**Tech Stack:** Rust 2024, codex-app-server, codex-app-server-client, codex-app-server-transport, codex-gui-host, codex-app-server-protocol, tokio.
+**Tech Stack:** Rust 2024, codex-app-server, codex-app-server-transport, codex-gui-host, codex-app-server-protocol, tokio.
 
 ---
 
 Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
+Roadmap: `docs/superpowers/plans/2026-05-11-gui-host/00-roadmap.md`.
 
-## Design Notes
+## Hard Constraints
 
 - Do not implement `open_extra_jsonrpc_connection`.
 - Do not add `ExtraJsonRpcConnectionFactory`.
 - Do not expose a generic extra JSON-RPC connection API from `InProcessClientHandle`.
-- The bridge exists only to satisfy `codex_gui_host::GuiBackend`.
-- `codex-gui-host` remains independent from `codex-app-server`.
-- The embedded runtime in `codex-rs/app-server/src/in_process.rs` must support multiple connection states: the existing TUI in-process connection plus zero or more GUI observer connections.
-- The embedded runtime should mirror the transport lifecycle already used in `codex-rs/app-server/src/lib.rs`: opened connection state, incoming JSON-RPC processing, outbound routing via `QueuedOutgoingMessage`, and closed connection cleanup.
-- **Invariant (ConnectionOrigin):** `ConnectionOrigin::GuiHost` is used only as a transport-layer marker. `ConnectionState::new`'s `_origin` parameter is not stored; the processor does not branch on origin. GUI allowlist enforcement is the responsibility of the `codex-gui-host` layer. If future work requires the processor to branch on origin, that requires a separate design and an update to `ConnectionState`.
-- **Invariant (GuiBackendHandle::connect lifecycle):** Before `GuiBackendHandle::connect` returns (whether `Ok` or `Err`), the backend must guarantee it will no longer send messages on `outbound_tx` and must have already emitted `RuntimeEvent::GuiClosed` or an equivalent close signal. The caller (`codex-gui-host`) relies on this guarantee to clean up the WebSocket pump and associated resources.
+- Do not extend `codex-rs/app-server/src/in_process.rs` into a multi-connection transport runtime.
+- Do not copy `run_main_with_transport_options` connection maps, outbound routing, or close cleanup into `in_process.rs` or another parallel processor loop.
+- Keep GUI-specific lifecycle code in focused app-server modules, not in central orchestration files.
+- `codex-gui-host` must not depend on `codex-app-server`.
+- TUI must eventually request a launch URL; it must not own `GuiHost` or a raw backend handle.
 
-### Task 6a: Add `ConnectionOrigin::GuiHost`
+## File Structure
+
+- Modify: `codex-rs/app-server-transport/src/transport/mod.rs`
+  - Add `ConnectionOrigin::GuiHost`.
+- Modify: `codex-rs/app-server/Cargo.toml`
+  - Add `codex-gui-host = { workspace = true }` if not already present.
+- Modify: `codex-rs/app-server/BUILD.bazel`
+  - Add the local dependency label for `codex-gui-host` if dependencies are listed explicitly.
+- Create: `codex-rs/app-server/src/gui_transport.rs`
+  - Implement `GuiTransportBackend`.
+  - Convert `AuthenticatedGuiConnection` to real `TransportEvent` values.
+  - Own GUI connection IDs and per-connection writer tasks.
+- Create: `codex-rs/app-server/src/gui_host.rs`
+  - Own lazy-start/reuse of `codex_gui_host::GuiHost`.
+  - Return launch URLs for primary thread IDs.
+  - Keep host/token lifetime scoped to app-server runtime lifetime.
+- Modify: `codex-rs/app-server/src/lib.rs`
+  - Declare the new modules.
+  - Wire `GuiHostManager` into the runtime scope where `transport_event_tx` exists.
+  - Keep the existing `TransportEvent` processor path as the only app-server request-processing path for GUI traffic.
+- Modify: `codex-rs/app-server/src/in_process.rs`
+  - Remove the current obsolete GUI backend/multi-connection implementation from this branch.
+  - Do not add replacement GUI transport behavior here.
+- Modify: `codex-rs/app-server-client/src/lib.rs`
+  - Remove obsolete raw `GuiBackendHandle` exposure from this branch.
+  - Do not expose raw backend handles; `03-tui-entry.md` must consume launch URL access only.
+
+## Task 0: Remove the Obsolete `in_process.rs` Bridge Route
+
+**Files:**
+- Modify: `codex-rs/app-server/src/in_process.rs`
+- Modify: `codex-rs/app-server-client/src/lib.rs`
+- Modify: `codex-rs/app-server/Cargo.toml`
+- Modify: `codex-rs/Cargo.lock`
+
+- [ ] **Step 1: Inspect the obsolete branch-only changes**
+
+Run from repo root:
+
+```bash
+git diff --stat 01-gui-host-crate..HEAD -- \
+  codex-rs/app-server/src/in_process.rs \
+  codex-rs/app-server-client/src/lib.rs \
+  codex-rs/app-server/Cargo.toml \
+  codex-rs/Cargo.lock
+```
+
+Expected: `in_process.rs` shows a large GUI-related diff. That diff is the implementation route this plan replaces.
+
+- [ ] **Step 2: Remove obsolete in-process GUI runtime symbols**
+
+In `codex-rs/app-server/src/in_process.rs`, remove the GUI-specific additions from the previous route:
+
+```rust
+use codex_gui_host::AuthenticatedGuiConnection;
+use codex_gui_host::GuiBackend;
+use tokio_util::sync::CancellationToken;
+```
+
+Remove these obsolete runtime elements if present:
+
+```rust
+OpenGuiConnection { .. }
+GuiOpened { .. }
+GuiIncoming { .. }
+InProcessOutboundControlEvent
+RuntimeEvent
+GuiConnectionRuntime
+GuiBackendHandle
+complete_gui_connection
+try_enqueue_gui_opened
+enqueue_gui_incoming_message
+InProcessClientHandle::gui_backend
+```
+
+Restore the embedded runtime shape to one in-process connection:
+
+```rust
+const IN_PROCESS_CONNECTION_ID: ConnectionId = ConnectionId(0);
+```
+
+The only `ProcessorCommand` variants should be the embedded client request/notification variants:
+
+```rust
+enum ProcessorCommand {
+    Request(Box<ClientRequest>),
+    Notification(ClientNotification),
+}
+```
+
+- [ ] **Step 3: Remove raw backend exposure from app-server-client**
+
+In `codex-rs/app-server-client/src/lib.rs`, remove obsolete imports, fields, and methods related to raw GUI backend handles:
+
+```rust
+pub use codex_app_server::in_process::GuiBackendHandle;
+gui_backend: GuiBackendHandle,
+pub fn gui_backend(&self) -> GuiBackendHandle
+pub fn gui_backend(&self) -> Option<GuiBackendHandle>
+```
+
+`InProcessAppServerClient` should return to this ownership shape:
+
+```rust
+pub struct InProcessAppServerClient {
+    command_tx: mpsc::Sender<ClientCommand>,
+    event_rx: mpsc::Receiver<InProcessServerEvent>,
+    worker_handle: tokio::task::JoinHandle<()>,
+}
+```
+
+- [ ] **Step 4: Run compile-focused checks**
+
+Run from `codex-rs`:
+
+```bash
+cargo check -p codex-app-server
+cargo check -p codex-app-server-client
+```
+
+Expected: both crates compile after the obsolete raw backend route is removed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add codex-rs/app-server/src/in_process.rs codex-rs/app-server-client/src/lib.rs codex-rs/app-server/Cargo.toml codex-rs/Cargo.lock
+git commit -m "refactor(gui): remove obsolete in-process GUI bridge route"
+```
+
+## Task 1: Add `ConnectionOrigin::GuiHost`
 
 **Files:**
 - Modify: `codex-rs/app-server-transport/src/transport/mod.rs`
-- Test: `codex-rs/app-server-transport/src/transport/mod.rs`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Add the failing test**
 
 Add this test inside the existing `#[cfg(test)] mod tests` in `codex-rs/app-server-transport/src/transport/mod.rs`:
 
 ```rust
 #[test]
 fn connection_origin_has_distinct_gui_host_variant() {
+    assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::Stdio);
     assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::InProcess);
     assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::WebSocket);
     assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::RemoteControl);
@@ -54,12 +183,12 @@ cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host
 Expected failure:
 
 ```text
-error[E0599]: no variant or associated item named `GuiHost` found for enum `ConnectionOrigin`
+no variant or associated item named `GuiHost` found for enum `ConnectionOrigin`
 ```
 
 - [ ] **Step 3: Add the variant**
 
-Modify `ConnectionOrigin` in `codex-rs/app-server-transport/src/transport/mod.rs`:
+Modify `ConnectionOrigin`:
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,11 +209,7 @@ Run from `codex-rs`:
 cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host_variant
 ```
 
-Expected:
-
-```text
-test transport::tests::connection_origin_has_distinct_gui_host_variant ... ok
-```
+Expected: the new test passes.
 
 - [ ] **Step 5: Commit**
 
@@ -93,952 +218,612 @@ git add codex-rs/app-server-transport/src/transport/mod.rs
 git commit -m "feat(app-server-transport): add GUI host connection origin"
 ```
 
----
-
-### Task 6b: Add embedded GUI backend handle skeleton
+## Task 2: Implement GUI Transport Backend
 
 **Files:**
+- Create: `codex-rs/app-server/src/gui_transport.rs`
+- Modify: `codex-rs/app-server/src/lib.rs`
 - Modify: `codex-rs/app-server/Cargo.toml`
 - Modify: `codex-rs/app-server/BUILD.bazel`
-- Modify: `codex-rs/app-server/src/in_process.rs`
-- Test: `codex-rs/app-server/src/in_process.rs`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Add dependencies and module declaration**
 
-Add this test inside `codex-rs/app-server/src/in_process.rs` tests:
-
-```rust
-#[tokio::test]
-async fn gui_backend_handle_is_available_for_embedded_runtime() {
-    let client = start_test_client(SessionSource::Cli).await;
-    let _backend = client.gui_backend();
-    client.shutdown().await.expect("shutdown");
-}
-```
-
-- [ ] **Step 2: Run the test to confirm FAIL**
-
-Run from `codex-rs`:
-
-```bash
-cargo test -p codex-app-server in_process::tests::gui_backend_handle_is_available_for_embedded_runtime
-```
-
-Expected failure:
-
-```text
-error[E0599]: no method named `gui_backend` found for struct `InProcessClientHandle`
-```
-
-- [ ] **Step 3: Add dependencies and public handle skeleton**
-
-Modify `codex-rs/app-server/Cargo.toml`:
+In `codex-rs/app-server/Cargo.toml`, ensure:
 
 ```toml
-[dependencies]
 codex-gui-host = { workspace = true }
 ```
 
-If `codex-rs/app-server/BUILD.bazel` explicitly lists dependencies, add the generated label for `codex-gui-host` following file-local dependency style.
-
-Add imports to `codex-rs/app-server/src/in_process.rs`:
+In `codex-rs/app-server/src/lib.rs`, add:
 
 ```rust
+mod gui_transport;
+```
+
+If `codex-rs/app-server/BUILD.bazel` lists crate dependencies explicitly, add the generated `codex-gui-host` dependency using the file-local style.
+
+- [ ] **Step 2: Add backend lifecycle tests**
+
+Create `codex-rs/app-server/src/gui_transport.rs` with tests first. Start with concrete helpers and assertions shaped like this:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use codex_app_server_protocol::JSONRPCRequest;
+    use codex_app_server_protocol::RequestId;
+    use codex_app_server_transport::OutgoingResponse;
+    use crate::transport::OutgoingMessage;
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+    use tokio::time::Duration;
+    use tokio::time::timeout;
+
+    async fn recv_event(rx: &mut mpsc::Receiver<TransportEvent>) -> TransportEvent {
+        timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("transport event should arrive")
+            .expect("transport event channel should remain open")
+    }
+
+    fn initialize_text() -> String {
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "clientInfo": { "name": "gui-test", "version": "0.0.0" },
+                "capabilities": {}
+            }
+        })
+        .to_string()
+    }
+
+    fn initialize_message() -> JSONRPCMessage {
+        JSONRPCMessage::Request(JSONRPCRequest {
+            id: RequestId::Integer(1),
+            method: "initialize".to_string(),
+            params: Some(json!({
+                "clientInfo": { "name": "gui-test", "version": "0.0.0" },
+                "capabilities": {}
+            })),
+            trace: None,
+        })
+    }
+
+#[tokio::test]
+async fn connect_emits_open_incoming_and_close_transport_events() {
+    let (transport_event_tx, mut transport_event_rx) = mpsc::channel(8);
+    let backend = GuiTransportBackend::new(transport_event_tx);
+    let (connection, inbound_tx, _outbound_rx) = AuthenticatedGuiConnection::new();
+    let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+
+    inbound_tx.send(initialize_text()).await.expect("send inbound");
+
+    let connection_id = match recv_event(&mut transport_event_rx).await {
+        TransportEvent::ConnectionOpened { connection_id, origin, .. } => {
+            assert_eq!(origin, ConnectionOrigin::GuiHost);
+            connection_id
+        }
+        other => panic!("expected ConnectionOpened, got {other:?}"),
+    };
+    match recv_event(&mut transport_event_rx).await {
+        TransportEvent::IncomingMessage {
+            connection_id: incoming_connection_id,
+            message,
+        } => {
+            assert_eq!(incoming_connection_id, connection_id);
+            assert_eq!(message, initialize_message());
+        }
+        other => panic!("expected IncomingMessage, got {other:?}"),
+    }
+
+    drop(inbound_tx);
+    match recv_event(&mut transport_event_rx).await {
+        TransportEvent::ConnectionClosed { connection_id: closed_connection_id } => {
+            assert_eq!(closed_connection_id, connection_id);
+        }
+        other => panic!("expected ConnectionClosed, got {other:?}"),
+    }
+    connect_task.await.expect("connect task should join").expect("connect should finish");
+}
+
+#[tokio::test]
+async fn outgoing_writer_serializes_jsonrpc_text_to_gui_outbound() {
+    let (transport_event_tx, mut transport_event_rx) = mpsc::channel(8);
+    let backend = GuiTransportBackend::new(transport_event_tx);
+    let (connection, inbound_tx, mut outbound_rx) = AuthenticatedGuiConnection::new();
+    let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+
+    let writer = match recv_event(&mut transport_event_rx).await {
+        TransportEvent::ConnectionOpened { writer, .. } => writer,
+        other => panic!("expected ConnectionOpened, got {other:?}"),
+    };
+    writer
+        .send(QueuedOutgoingMessage::new(OutgoingMessage::Response(OutgoingResponse {
+            id: RequestId::Integer(7),
+            result: json!({}),
+        })))
+        .await
+        .expect("writer should accept response");
+
+    let text = timeout(Duration::from_secs(1), outbound_rx.recv())
+        .await
+        .expect("outbound text should arrive")
+        .expect("outbound channel should stay open");
+    let value: serde_json::Value = serde_json::from_str(&text).expect("outbound should be JSON");
+    assert_eq!(value["jsonrpc"], "2.0");
+    assert_eq!(value["id"], 7);
+
+    drop(inbound_tx);
+    connect_task.await.expect("connect task should join").expect("connect should finish");
+}
+
+#[tokio::test]
+async fn invalid_inbound_json_is_dropped_without_closing_connection() {
+    let (transport_event_tx, mut transport_event_rx) = mpsc::channel(8);
+    let backend = GuiTransportBackend::new(transport_event_tx);
+    let (connection, inbound_tx, _outbound_rx) = AuthenticatedGuiConnection::new();
+    let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+
+    let connection_id = match recv_event(&mut transport_event_rx).await {
+        TransportEvent::ConnectionOpened { connection_id, .. } => connection_id,
+        other => panic!("expected ConnectionOpened, got {other:?}"),
+    };
+    inbound_tx.send("not json".to_string()).await.expect("send invalid");
+    inbound_tx.send(initialize_text()).await.expect("send valid");
+    match recv_event(&mut transport_event_rx).await {
+        TransportEvent::IncomingMessage {
+            connection_id: incoming_connection_id,
+            message,
+        } => {
+            assert_eq!(incoming_connection_id, connection_id);
+            assert_eq!(message, initialize_message());
+        }
+        other => panic!("expected IncomingMessage, got {other:?}"),
+    }
+
+    drop(inbound_tx);
+    connect_task.await.expect("connect task should join").expect("connect should finish");
+}
+
+#[tokio::test]
+async fn disconnect_token_closes_connection() {
+    let (transport_event_tx, mut transport_event_rx) = mpsc::channel(8);
+    let backend = GuiTransportBackend::new(transport_event_tx);
+    let (connection, _inbound_tx, _outbound_rx) = AuthenticatedGuiConnection::new();
+    let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+
+    let (connection_id, disconnect_sender) = match recv_event(&mut transport_event_rx).await {
+        TransportEvent::ConnectionOpened {
+            connection_id,
+            disconnect_sender: Some(disconnect_sender),
+            ..
+        } => (connection_id, disconnect_sender),
+        other => panic!("expected ConnectionOpened with disconnect sender, got {other:?}"),
+    };
+    disconnect_sender.cancel();
+    match recv_event(&mut transport_event_rx).await {
+        TransportEvent::ConnectionClosed { connection_id: closed_connection_id } => {
+            assert_eq!(closed_connection_id, connection_id);
+        }
+        other => panic!("expected ConnectionClosed, got {other:?}"),
+    }
+    connect_task.await.expect("connect task should join").expect("connect should finish");
+}
+}
+```
+
+- [ ] **Step 3: Implement `GuiTransportBackend`**
+
+Implement the module around this shape:
+
+```rust
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
 use codex_app_server_protocol::JSONRPCMessage;
 use codex_gui_host::AuthenticatedGuiConnection;
 use codex_gui_host::GuiBackend;
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-```
+use tracing::warn;
 
-Add this type near `InProcessClientHandle`:
+use crate::transport::ConnectionId;
+use crate::transport::ConnectionOrigin;
+use crate::transport::OutgoingMessage;
+use crate::transport::QueuedOutgoingMessage;
+use crate::transport::TransportEvent;
 
-```rust
 #[derive(Clone)]
-pub struct GuiBackendHandle {
-    command_tx: mpsc::Sender<InProcessClientMessage>,
+pub(crate) struct GuiTransportBackend {
+    transport_event_tx: mpsc::Sender<TransportEvent>,
+    next_connection_id: Arc<AtomicU64>,
 }
 
-impl GuiBackend for GuiBackendHandle {
-    async fn connect(&self, _connection: AuthenticatedGuiConnection) -> anyhow::Result<()> {
-        anyhow::bail!("GUI backend connection runtime is not wired yet")
-    }
-}
-```
-
-Add the method to `InProcessClientHandle`:
-
-```rust
-impl InProcessClientHandle {
-    pub fn gui_backend(&self) -> GuiBackendHandle {
-        GuiBackendHandle {
-            command_tx: self.client.client_tx.clone(),
+impl GuiTransportBackend {
+    pub(crate) fn new(transport_event_tx: mpsc::Sender<TransportEvent>) -> Self {
+        Self {
+            transport_event_tx,
+            next_connection_id: Arc::new(AtomicU64::new(1)),
         }
     }
+
+    fn next_connection_id(&self) -> ConnectionId {
+        ConnectionId(self.next_connection_id.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+impl GuiBackend for GuiTransportBackend {
+    async fn connect(&self, connection: AuthenticatedGuiConnection) -> anyhow::Result<()> {
+        run_gui_transport_connection(
+            self.transport_event_tx.clone(),
+            self.next_connection_id(),
+            connection,
+        )
+        .await
+    }
 }
 ```
 
-The field access is inside the same module, so `self.client.client_tx` is available.
+Implement `run_gui_transport_connection` with this lifecycle:
 
-- [ ] **Step 4: Run the test to confirm PASS**
+```rust
+async fn run_gui_transport_connection(
+    transport_event_tx: mpsc::Sender<TransportEvent>,
+    connection_id: ConnectionId,
+    connection: AuthenticatedGuiConnection,
+) -> anyhow::Result<()> {
+    let (writer_tx, writer_rx) = mpsc::channel::<QueuedOutgoingMessage>(codex_gui_host::GUI_CONNECTION_CHANNEL_CAPACITY);
+    let disconnect_token = CancellationToken::new();
+
+    transport_event_tx
+        .send(TransportEvent::ConnectionOpened {
+            connection_id,
+            origin: ConnectionOrigin::GuiHost,
+            writer: writer_tx,
+            disconnect_sender: Some(disconnect_token.clone()),
+        })
+        .await?;
+
+    let close_result = pump_gui_transport(
+        transport_event_tx.clone(),
+        connection_id,
+        connection,
+        writer_rx,
+        disconnect_token.clone(),
+    )
+    .await;
+    disconnect_token.cancel();
+    let _ = transport_event_tx
+        .send(TransportEvent::ConnectionClosed { connection_id })
+        .await;
+    close_result?;
+    Ok(())
+}
+```
+
+`pump_gui_transport` should use a `tokio::select!` over `connection.inbound_rx.recv()`, `writer_rx.recv()`, and `disconnect_token.cancelled()`. Inbound invalid JSON is logged and dropped. Outbound serialization must emit standard JSON-RPC text. If `OutgoingMessage` serializes without the `jsonrpc` field, insert `"jsonrpc":"2.0"` before sending to the GUI outbound channel.
+
+- [ ] **Step 4: Run backend tests**
 
 Run from `codex-rs`:
 
 ```bash
-cargo test -p codex-app-server in_process::tests::gui_backend_handle_is_available_for_embedded_runtime
+cargo test -p codex-app-server gui_transport
 ```
 
-Expected:
-
-```text
-test in_process::tests::gui_backend_handle_is_available_for_embedded_runtime ... ok
-```
+Expected: all `gui_transport` tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add codex-rs/app-server/Cargo.toml codex-rs/app-server/BUILD.bazel codex-rs/app-server/src/in_process.rs codex-rs/Cargo.lock
-git commit -m "feat(app-server): expose embedded GUI backend handle"
+git add codex-rs/app-server/src/gui_transport.rs codex-rs/app-server/src/lib.rs codex-rs/app-server/Cargo.toml codex-rs/app-server/BUILD.bazel codex-rs/Cargo.lock
+git commit -m "feat(app-server): add GUI transport backend"
 ```
 
----
-
-### Task 6c: Add multi-connection runtime plumbing
+## Task 3: Add App-Server-Owned GUI Host Manager
 
 **Files:**
-- Modify: `codex-rs/app-server/src/in_process.rs`
-- Test: `codex-rs/app-server/src/in_process.rs`
+- Create: `codex-rs/app-server/src/gui_host.rs`
+- Modify: `codex-rs/app-server/src/lib.rs`
 
-- [ ] **Step 1: Write the failing initialize test**
+- [ ] **Step 1: Add manager tests**
 
-Add these helpers and test inside `codex-rs/app-server/src/in_process.rs` tests:
+Create tests in `codex-rs/app-server/src/gui_host.rs`:
 
 ```rust
-async fn send_gui_text(tx: &mpsc::Sender<String>, text: impl Into<String>) {
-    tx.send(text.into()).await.expect("GUI inbound should send");
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui_transport::GuiTransportBackend;
+    use tokio::sync::mpsc;
 
-async fn recv_gui_json(rx: &mut mpsc::Receiver<String>) -> serde_json::Value {
-    let text = tokio::time::timeout(Duration::from_secs(1), rx.recv())
+#[tokio::test]
+async fn launch_url_starts_host_once_and_reuses_it() {
+    let (transport_event_tx, _transport_event_rx) = mpsc::channel(8);
+    let backend = GuiTransportBackend::new(transport_event_tx);
+    let manager = GuiHostManager::new(backend);
+
+    let first = manager
+        .launch_url_for_thread("thread-a")
         .await
-        .expect("GUI response should arrive before timeout")
-        .expect("GUI response channel should stay open");
-    serde_json::from_str(&text).expect("GUI outbound should be JSON")
-}
+        .expect("first launch URL should be created");
+    let second = manager
+        .launch_url_for_thread("thread-b")
+        .await
+        .expect("second launch URL should reuse host");
 
-fn new_gui_test_connection() -> (
-    AuthenticatedGuiConnection,
-    mpsc::Sender<String>,
-    mpsc::Receiver<String>,
-) {
-    let (inbound_tx, inbound_rx) =
-        mpsc::channel(codex_gui_host::GUI_CONNECTION_CHANNEL_CAPACITY);
-    let (outbound_tx, outbound_rx) =
-        mpsc::channel(codex_gui_host::GUI_CONNECTION_CHANNEL_CAPACITY);
-    (
-        AuthenticatedGuiConnection {
-            inbound_rx,
-            outbound_tx,
-        },
-        inbound_tx,
-        outbound_rx,
-    )
+    let first_url = url::Url::parse(&first).expect("first URL should parse");
+    let second_url = url::Url::parse(&second).expect("second URL should parse");
+    assert_eq!(first_url.origin(), second_url.origin());
+    assert_eq!(first_url.fragment(), second_url.fragment());
+    assert_ne!(first_url.query(), second_url.query());
+
+    manager.shutdown().await;
 }
 
 #[tokio::test]
-async fn gui_backend_handles_initialize_request() {
-    let client = start_test_client(SessionSource::Cli).await;
-    let backend = client.gui_backend();
-    let (connection, inbound_tx, mut outbound_rx) = new_gui_test_connection();
-    let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+async fn shutdown_stops_started_host() {
+    let (transport_event_tx, _transport_event_rx) = mpsc::channel(8);
+    let backend = GuiTransportBackend::new(transport_event_tx);
+    let manager = GuiHostManager::new(backend);
 
-    send_gui_text(
-        &inbound_tx,
-        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"gui-test","version":"0.0.0"},"capabilities":{}}}"#,
-    )
-    .await;
-
-    let response = recv_gui_json(&mut outbound_rx).await;
-    assert_eq!(response["id"], 1);
-    assert!(response.get("result").is_some());
-
-    drop(inbound_tx);
-    connect_task
+    let _url = manager
+        .launch_url_for_thread("thread-a")
         .await
-        .expect("connect task should join")
-        .expect("connect should finish cleanly");
-    client.shutdown().await.expect("shutdown");
+        .expect("launch URL should be created");
+    manager.shutdown().await;
+    manager.shutdown().await;
+}
 }
 ```
 
-- [ ] **Step 2: Run the test to confirm FAIL**
+- [ ] **Step 2: Implement manager types**
+
+Implement around this shape:
+
+```rust
+use std::sync::Arc;
+
+use codex_gui_host::GuiHost;
+use codex_gui_host::GuiHostConfig;
+use codex_gui_host::GuiHostHandle;
+use codex_gui_host::GuiHostMode;
+use tokio::sync::Mutex;
+
+use crate::gui_transport::GuiTransportBackend;
+
+#[derive(Clone)]
+pub(crate) struct GuiHostManager {
+    inner: Arc<Mutex<GuiHostManagerState>>,
+    backend: GuiTransportBackend,
+}
+
+struct GuiHostManagerState {
+    handle: Option<GuiHostHandle>,
+}
+
+impl GuiHostManager {
+    pub(crate) fn new(backend: GuiTransportBackend) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(GuiHostManagerState { handle: None })),
+            backend,
+        }
+    }
+
+    pub(crate) async fn launch_url_for_thread(
+        &self,
+        thread_id: impl std::fmt::Display,
+    ) -> anyhow::Result<String> {
+        let mut state = self.inner.lock().await;
+        if state.handle.is_none() {
+            let mode = GuiHostMode::default_for_profile()?;
+            let handle = GuiHost::start(GuiHostConfig { mode }, self.backend.clone()).await?;
+            state.handle = Some(handle);
+        }
+        let handle = state.handle.as_ref().expect("handle should be initialized");
+        Ok(handle.launch_url_for_thread(thread_id))
+    }
+
+    pub(crate) async fn shutdown(&self) {
+        let mut state = self.inner.lock().await;
+        if let Some(handle) = state.handle.take() {
+            handle.shutdown().await;
+        }
+    }
+}
+```
+
+- [ ] **Step 3: Declare module**
+
+In `codex-rs/app-server/src/lib.rs`, add:
+
+```rust
+mod gui_host;
+```
+
+- [ ] **Step 4: Run manager tests**
 
 Run from `codex-rs`:
 
 ```bash
-cargo test -p codex-app-server in_process::tests::gui_backend_handles_initialize_request
+cargo test -p codex-app-server gui_host
 ```
 
-Expected failure:
+Expected: all `gui_host` tests pass.
 
-```text
-GUI backend connection runtime is not wired yet
-```
-
-- [ ] **Step 3: Add runtime event types**
-
-Add imports:
-
-```rust
-use crate::transport::AppServerTransport;
-use crate::transport::ConnectionOrigin;
-use crate::transport::ConnectionState;
-```
-
-Extend `InProcessClientMessage`:
-
-```rust
-enum InProcessClientMessage {
-    Request {
-        request: Box<ClientRequest>,
-        response_tx: oneshot::Sender<PendingClientRequestResponse>,
-    },
-    Notification {
-        notification: ClientNotification,
-    },
-    ServerRequestResponse {
-        request_id: RequestId,
-        result: Result,
-    },
-    ServerRequestError {
-        request_id: RequestId,
-        error: JSONRPCErrorError,
-    },
-    OpenGuiConnection {
-        connection: AuthenticatedGuiConnection,
-        done_tx: oneshot::Sender<anyhow::Result<()>>,
-    },
-    Shutdown {
-        done_tx: oneshot::Sender<()>,
-    },
-}
-```
-
-Replace `ProcessorCommand` with:
-
-```rust
-enum ProcessorCommand {
-    Request(Box<ClientRequest>),
-    Notification(ClientNotification),
-    GuiOpened {
-        connection_id: ConnectionId,
-        initialized: Arc<AtomicBool>,
-        experimental_api_enabled: Arc<AtomicBool>,
-        opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-    },
-    GuiIncoming {
-        connection_id: ConnectionId,
-        message: JSONRPCMessage,
-    },
-    GuiClosed {
-        connection_id: ConnectionId,
-    },
-}
-```
-
-Add outbound and runtime control events:
-
-```rust
-enum InProcessOutboundControlEvent {
-    Opened {
-        connection_id: ConnectionId,
-        writer: mpsc::Sender<QueuedOutgoingMessage>,
-        initialized: Arc<AtomicBool>,
-        experimental_api_enabled: Arc<AtomicBool>,
-        opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-        disconnect_sender: Option<CancellationToken>,
-    },
-    Closed {
-        connection_id: ConnectionId,
-    },
-}
-
-enum RuntimeEvent {
-    GuiClosed {
-        connection_id: ConnectionId,
-    },
-}
-```
-
-- [ ] **Step 4: Convert the in-process outbound router to use control events**
-
-Inside `start_uninitialized`, after creating `outgoing_tx`, create:
-
-```rust
-let (outbound_control_tx, mut outbound_control_rx) =
-    mpsc::channel::<InProcessOutboundControlEvent>(channel_capacity);
-```
-
-Extend the existing `outbound_handle` in `in_process.rs:385-403` (currently using `HashMap<ConnectionId, OutboundConnectionState>` but only registering `IN_PROCESS_CONNECTION_ID`, driven by a single `writer_tx/writer_rx`) by adding an `outbound_control_rx.recv()` branch to its `select!` loop; keep the existing `IN_PROCESS_CONNECTION_ID` insertion path intact:
-
-```rust
-let mut outbound_connections = HashMap::<ConnectionId, OutboundConnectionState>::new();
-outbound_connections.insert(
-    IN_PROCESS_CONNECTION_ID,
-    OutboundConnectionState::new(
-        writer_tx,
-        Arc::clone(&outbound_initialized),
-        Arc::clone(&outbound_experimental_api_enabled),
-        Arc::clone(&outbound_opted_out_notification_methods),
-        /*disconnect_sender*/ None,
-    ),
-);
-
-let mut outbound_handle = tokio::spawn(async move {
-    loop {
-        tokio::select! {
-            control = outbound_control_rx.recv() => {
-                let Some(control) = control else {
-                    break;
-                };
-                match control {
-                    InProcessOutboundControlEvent::Opened {
-                        connection_id,
-                        writer,
-                        initialized,
-                        experimental_api_enabled,
-                        opted_out_notification_methods,
-                        disconnect_sender,
-                    } => {
-                        outbound_connections.insert(
-                            connection_id,
-                            OutboundConnectionState::new(
-                                writer,
-                                initialized,
-                                experimental_api_enabled,
-                                opted_out_notification_methods,
-                                disconnect_sender,
-                            ),
-                        );
-                    }
-                    InProcessOutboundControlEvent::Closed { connection_id } => {
-                        outbound_connections.remove(&connection_id);
-                    }
-                }
-            }
-            envelope = outgoing_rx.recv() => {
-                let Some(envelope) = envelope else {
-                    break;
-                };
-                route_outgoing_envelope(&mut outbound_connections, envelope).await;
-            }
-        }
-    }
-});
-```
-
-- [ ] **Step 5: Convert processor state to a connection map**
-
-Before spawning the processor task, create:
-
-```rust
-let (runtime_event_tx, mut runtime_event_rx) = mpsc::channel::<RuntimeEvent>(channel_capacity);
-```
-
-Inside the processor task, replace the single `session` variable with:
-
-```rust
-let mut connections = HashMap::<ConnectionId, ConnectionState>::new();
-connections.insert(
-    IN_PROCESS_CONNECTION_ID,
-    ConnectionState::new(
-        ConnectionOrigin::InProcess,
-        Arc::clone(&outbound_initialized),
-        Arc::clone(&outbound_experimental_api_enabled),
-        Arc::clone(&outbound_opted_out_notification_methods),
-    ),
-);
-```
-
-Update the existing `ProcessorCommand::Request` path to use the in-process connection state:
-
-```rust
-Some(ProcessorCommand::Request(request)) => {
-    let connection_state = connections
-        .get_mut(&IN_PROCESS_CONNECTION_ID)
-        .expect("in-process connection should exist");
-    let was_initialized = connection_state.session.initialized();
-    processor
-        .process_client_request(
-            IN_PROCESS_CONNECTION_ID,
-            *request,
-            Arc::clone(&connection_state.session),
-            &connection_state.outbound_initialized,
-        )
-        .await;
-    let opted_out_notification_methods_snapshot =
-        connection_state.session.opted_out_notification_methods();
-    let experimental_api_enabled =
-        connection_state.session.experimental_api_enabled();
-    if let Ok(mut opted_out_notification_methods) =
-        connection_state.outbound_opted_out_notification_methods.write()
-    {
-        *opted_out_notification_methods = opted_out_notification_methods_snapshot;
-    } else {
-        warn!("failed to update outbound opted-out notifications");
-    }
-    connection_state
-        .outbound_experimental_api_enabled
-        .store(experimental_api_enabled, Ordering::Release);
-    if !was_initialized && connection_state.session.initialized() {
-        processor.send_initialize_notifications().await;
-    }
-}
-```
-
-Update the thread-created listener handling:
-
-```rust
-let connection_ids = connections
-    .iter()
-    .filter_map(|(connection_id, connection_state)| {
-        connection_state.session.initialized().then_some(*connection_id)
-    })
-    .collect::<Vec<_>>();
-processor
-    .try_attach_thread_listener(thread_id, connection_ids)
-    .await;
-```
-
-At processor shutdown, preserve the existing shutdown sequence and close every remaining connection:
-
-```rust
-processor.clear_runtime_references();
-processor.cancel_active_login().await;
-for (connection_id, connection_state) in connections.drain() {
-    processor
-        .connection_closed(connection_id, &connection_state.session)
-        .await;
-}
-processor.clear_all_thread_listeners().await;
-processor.drain_background_tasks().await;
-processor.shutdown_threads().await;
-```
-
-- [ ] **Step 6: Handle GUI opened and incoming messages in the processor**
-
-Add these match arms to the processor task:
-
-```rust
-Some(ProcessorCommand::GuiOpened {
-    connection_id,
-    initialized,
-    experimental_api_enabled,
-    opted_out_notification_methods,
-}) => {
-    connections.insert(
-        connection_id,
-        ConnectionState::new(
-            ConnectionOrigin::GuiHost,
-            initialized,
-            experimental_api_enabled,
-            opted_out_notification_methods,
-        ),
-    );
-}
-Some(ProcessorCommand::GuiIncoming { connection_id, message }) => {
-    match message {
-        JSONRPCMessage::Request(request) => {
-            let Some(connection_state) = connections.get_mut(&connection_id) else {
-                warn!("dropping GUI request from unknown connection: {connection_id:?}");
-                continue;
-            };
-            let was_initialized = connection_state.session.initialized();
-            processor
-                .process_request(
-                    connection_id,
-                    request,
-                    &AppServerTransport::Off,
-                    Arc::clone(&connection_state.session),
-                )
-                .await;
-            let opted_out_notification_methods_snapshot =
-                connection_state.session.opted_out_notification_methods();
-            let experimental_api_enabled =
-                connection_state.session.experimental_api_enabled();
-            let is_initialized = connection_state.session.initialized();
-            if let Ok(mut opted_out_notification_methods) =
-                connection_state.outbound_opted_out_notification_methods.write()
-            {
-                *opted_out_notification_methods = opted_out_notification_methods_snapshot;
-            } else {
-                warn!("failed to update GUI outbound opted-out notifications");
-            }
-            connection_state
-                .outbound_experimental_api_enabled
-                .store(experimental_api_enabled, Ordering::Release);
-            if !was_initialized && is_initialized {
-                processor
-                    .send_initialize_notifications_to_connection(connection_id)
-                    .await;
-                processor.connection_initialized(connection_id).await;
-                connection_state
-                    .outbound_initialized
-                    .store(true, Ordering::Release);
-            }
-        }
-        JSONRPCMessage::Notification(notification) => {
-            if connections.contains_key(&connection_id) {
-                processor.process_notification(notification).await;
-            }
-        }
-        JSONRPCMessage::Response(response) => {
-            if connections.contains_key(&connection_id) {
-                processor.process_response(response).await;
-            }
-        }
-        JSONRPCMessage::Error(err) => {
-            if connections.contains_key(&connection_id) {
-                processor.process_error(err).await;
-            }
-        }
-    }
-}
-```
-
-- [ ] **Step 7: Handle GUI closed exactly once**
-
-Add this processor task match arm:
-
-```rust
-Some(ProcessorCommand::GuiClosed { connection_id }) => {
-    let Some(connection_state) = connections.remove(&connection_id) else {
-        continue;
-    };
-    processor
-        .connection_closed(connection_id, &connection_state.session)
-        .await;
-    let _ = runtime_event_tx
-        .send(RuntimeEvent::GuiClosed { connection_id })
-        .await;
-}
-```
-
-In the outer runtime loop, create:
-
-```rust
-let mut next_gui_connection_id = 1_u64;
-let mut gui_done_txs = HashMap::<ConnectionId, oneshot::Sender<anyhow::Result<()>>>::new();
-```
-
-Add a `runtime_event_rx.recv()` branch:
-
-```rust
-runtime_event = runtime_event_rx.recv() => {
-    match runtime_event {
-        Some(RuntimeEvent::GuiClosed { connection_id }) => {
-            let _ = outbound_control_tx
-                .send(InProcessOutboundControlEvent::Closed { connection_id })
-                .await;
-            if let Some(done_tx) = gui_done_txs.remove(&connection_id) {
-                let _ = done_tx.send(Ok(()));
-            }
-        }
-        None => break,
-    }
-}
-```
-
-- [ ] **Step 8: Handle `OpenGuiConnection` in the outer runtime**
-
-Add this match arm in the outer runtime loop:
-
-```rust
-Some(InProcessClientMessage::OpenGuiConnection { connection, done_tx }) => {
-    let connection_id = ConnectionId(next_gui_connection_id);
-    next_gui_connection_id = next_gui_connection_id.saturating_add(1);
-
-    let (writer_tx, mut writer_rx) = mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
-    let disconnect_token = CancellationToken::new();
-    let mut inbound_rx = connection.inbound_rx;
-    let gui_outbound_tx = connection.outbound_tx.clone();
-
-    let initialized = Arc::new(AtomicBool::new(false));
-    let experimental_api_enabled = Arc::new(AtomicBool::new(false));
-    let opted_out_notification_methods = Arc::new(RwLock::new(HashSet::new()));
-
-    gui_done_txs.insert(connection_id, done_tx);
-
-    if outbound_control_tx
-        .send(InProcessOutboundControlEvent::Opened {
-            connection_id,
-            writer: writer_tx,
-            initialized: Arc::clone(&initialized),
-            experimental_api_enabled: Arc::clone(&experimental_api_enabled),
-            opted_out_notification_methods: Arc::clone(&opted_out_notification_methods),
-            disconnect_sender: Some(disconnect_token.clone()),
-        })
-        .await
-        .is_err()
-    {
-        if let Some(done_tx) = gui_done_txs.remove(&connection_id) {
-            let _ = done_tx.send(Err(anyhow::anyhow!("outbound router is closed")));
-        }
-        continue;
-    }
-
-    if processor_tx
-        .send(ProcessorCommand::GuiOpened {
-            connection_id,
-            initialized,
-            experimental_api_enabled,
-            opted_out_notification_methods,
-        })
-        .await
-        .is_err()
-    {
-        let _ = outbound_control_tx
-            .send(InProcessOutboundControlEvent::Closed { connection_id })
-            .await;
-        if let Some(done_tx) = gui_done_txs.remove(&connection_id) {
-            let _ = done_tx.send(Err(anyhow::anyhow!("request processor is closed")));
-        }
-        continue;
-    }
-
-    let processor_tx_for_inbound = processor_tx.clone();
-    let disconnect_token_for_inbound = disconnect_token.clone();
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = disconnect_token_for_inbound.cancelled() => break,
-                inbound = inbound_rx.recv() => {
-                    let Some(text) = inbound else {
-                        break;
-                    };
-                    match serde_json::from_str::<JSONRPCMessage>(&text) {
-                        Ok(message) => {
-                            if processor_tx_for_inbound
-                                .send(ProcessorCommand::GuiIncoming { connection_id, message })
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
-                        Err(err) => {
-                            tracing::warn!(%err, "dropping invalid GUI JSON-RPC message");
-                        }
-                    }
-                }
-            }
-        }
-        let _ = processor_tx_for_inbound
-            .send(ProcessorCommand::GuiClosed { connection_id })
-            .await;
-    });
-
-    let disconnect_token_for_outbound = disconnect_token.clone();
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = disconnect_token_for_outbound.cancelled() => break,
-                queued = writer_rx.recv() => {
-                    let Some(queued) = queued else {
-                        break;
-                    };
-                    let text = match serde_json::to_string(&queued.message) {
-                        Ok(text) => text,
-                        Err(err) => {
-                            tracing::warn!(%err, "failed to serialize GUI outbound message");
-                            continue;
-                        }
-                    };
-                    if gui_outbound_tx.send(text).await.is_err() {
-                        break;
-                    }
-                    if let Some(write_complete_tx) = queued.write_complete_tx {
-                        let _ = write_complete_tx.send(());
-                    }
-                }
-            }
-        }
-        disconnect_token_for_outbound.cancel();
-    });
-}
-```
-
-- [ ] **Step 9: Implement `GuiBackendHandle::connect`**
-
-Replace the skeleton implementation:
-
-```rust
-impl GuiBackend for GuiBackendHandle {
-    async fn connect(&self, connection: AuthenticatedGuiConnection) -> anyhow::Result<()> {
-        let (done_tx, done_rx) = oneshot::channel();
-        self.command_tx
-            .send(InProcessClientMessage::OpenGuiConnection { connection, done_tx })
-            .await
-            .map_err(|_| anyhow::anyhow!("in-process app-server runtime is closed"))?;
-        done_rx
-            .await
-            .map_err(|err| anyhow::anyhow!("GUI connection completion channel closed: {err}"))?
-    }
-}
-```
-
-- [ ] **Step 10: Run the initialize test to confirm PASS**
-
-Run from `codex-rs`:
+- [ ] **Step 5: Commit**
 
 ```bash
-cargo test -p codex-app-server in_process::tests::gui_backend_handles_initialize_request
+git add codex-rs/app-server/src/gui_host.rs codex-rs/app-server/src/lib.rs
+git commit -m "feat(app-server): add GUI host manager"
 ```
 
-Expected:
-
-```text
-test in_process::tests::gui_backend_handles_initialize_request ... ok
-```
-
-- [ ] **Step 11: Commit**
-
-```bash
-git add codex-rs/app-server/src/in_process.rs
-git commit -m "feat(app-server): route GUI backend through embedded runtime"
-```
-
----
-
-### Task 6d: Add bridge cleanup tests
+## Task 4: Wire GUI Host Manager Into App-Server Runtime
 
 **Files:**
-- Modify: `codex-rs/app-server/src/in_process.rs`
-- Test: `codex-rs/app-server/src/in_process.rs`
+- Modify: `codex-rs/app-server/src/lib.rs`
+- Test: `codex-rs/app-server/src/lib.rs` or a focused new test module if file-local test organization requires it
 
-- [ ] **Step 1: Write cleanup and invalid JSON tests**
+- [ ] **Step 1: Create manager in the runtime scope**
 
-Add these tests inside `codex-rs/app-server/src/in_process.rs` tests:
+In `run_main_with_transport_options`, after `transport_event_tx` is created, construct:
 
 ```rust
-#[tokio::test]
-async fn gui_backend_connect_finishes_when_browser_closes() {
-    let client = start_test_client(SessionSource::Cli).await;
-    let backend = client.gui_backend();
-    let (connection, inbound_tx, _outbound_rx) = new_gui_test_connection();
-    let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+let gui_transport_backend = gui_transport::GuiTransportBackend::new(transport_event_tx.clone());
+let gui_host_manager = gui_host::GuiHostManager::new(gui_transport_backend);
+```
 
-    drop(inbound_tx);
+Keep this manager in the runtime scope that also owns `transport_shutdown_token`.
 
-    tokio::time::timeout(Duration::from_secs(1), connect_task)
-        .await
-        .expect("connect should finish after GUI inbound closes")
-        .expect("connect task should join")
-        .expect("connect should finish cleanly");
-    client.shutdown().await.expect("shutdown");
-}
+- [ ] **Step 2: Ensure runtime shutdown stops GUI host**
 
-#[tokio::test]
-async fn gui_backend_drops_invalid_json_without_closing_connection() {
-    let client = start_test_client(SessionSource::Cli).await;
-    let backend = client.gui_backend();
-    let (connection, inbound_tx, mut outbound_rx) = new_gui_test_connection();
-    let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+At the end of `run_main_with_transport_options`, before returning, call:
 
-    send_gui_text(&inbound_tx, "not json").await;
-    send_gui_text(
-        &inbound_tx,
-        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"gui-test","version":"0.0.0"},"capabilities":{}}}"#,
-    )
-    .await;
+```rust
+gui_host_manager.shutdown().await;
+```
 
-    let response = recv_gui_json(&mut outbound_rx).await;
-    assert_eq!(response["id"], 1);
+This must run on normal shutdown and after processor/outbound tasks are drained or aborted.
 
-    drop(inbound_tx);
-    connect_task
-        .await
-        .expect("connect task should join")
-        .expect("connect should finish cleanly");
-    client.shutdown().await.expect("shutdown");
+- [ ] **Step 3: Do not add GUI processing branches**
+
+Do not add a separate GUI request-processing path to the app-server processor loop. GUI traffic must enter through the existing branch:
+
+```rust
+TransportEvent::IncomingMessage { connection_id, message } => {
+    // existing request/response/notification/error handling
 }
 ```
 
-- [ ] **Step 2: Run tests to verify PASS**
+- [ ] **Step 4: Add runtime wiring test**
+
+Add a focused test in `gui_transport.rs` that verifies a `GuiTransportBackend` created with the same `transport_event_tx` produces the exact `TransportEvent` variants consumed by the existing runtime loop. Do not add a broad runtime harness in this bridge task.
 
 Run from `codex-rs`:
 
 ```bash
-cargo test -p codex-app-server in_process::tests::gui_backend
+cargo test -p codex-app-server gui_transport
 ```
 
-Expected output includes:
+Expected: GUI transport tests still pass.
 
-```text
-test in_process::tests::gui_backend_handles_initialize_request ... ok
-test in_process::tests::gui_backend_connect_finishes_when_browser_closes ... ok
-test in_process::tests::gui_backend_drops_invalid_json_without_closing_connection ... ok
-```
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add codex-rs/app-server/src/in_process.rs
-git commit -m "test(app-server): cover GUI backend connection cleanup"
+git add codex-rs/app-server/src/lib.rs codex-rs/app-server/src/gui_host.rs codex-rs/app-server/src/gui_transport.rs
+git commit -m "feat(app-server): wire GUI host into transport runtime"
 ```
 
----
-
-### Task 7: Expose GUI backend through `codex-app-server-client`
+## Task 5: Keep App-Server-Client API Launch-URL Oriented
 
 **Files:**
 - Modify: `codex-rs/app-server-client/src/lib.rs`
-- Test: `codex-rs/app-server-client/src/lib.rs`
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Remove raw backend tests from the obsolete route**
 
-Add these tests inside `codex-rs/app-server-client/src/lib.rs` tests:
+Delete obsolete tests named like:
 
 ```rust
-#[tokio::test]
-async fn in_process_client_exposes_gui_backend() {
-    let client = start_test_client(SessionSource::Cli).await;
-    assert!(client.gui_backend().is_some());
-    client.shutdown().await.expect("shutdown");
+in_process_client_exposes_gui_backend
+request_handle_does_not_expose_gui_backend
+```
+
+- [ ] **Step 2: Add API shape for launch URL access**
+
+Add a launch-oriented result type, but do not expose `GuiBackendHandle`:
+
+```rust
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuiLaunchUrl {
+    pub url: String,
 }
 
-#[tokio::test]
-async fn request_handle_does_not_expose_gui_backend() {
-    let client = start_test_client(SessionSource::Cli).await;
-    let handle = client.request_handle();
-    assert!(handle.gui_backend().is_none());
-    client.shutdown().await.expect("shutdown");
+#[derive(Debug)]
+pub enum GuiLaunchError {
+    Unsupported,
+    Transport(std::io::Error),
 }
 ```
 
-- [ ] **Step 2: Run tests to verify FAIL**
-
-Run from `codex-rs`:
-
-```bash
-cargo test -p codex-app-server-client gui_backend
-```
-
-Expected failure:
-
-```text
-error[E0599]: no method named `gui_backend` found
-```
-
-- [ ] **Step 3: Re-export the handle and add accessors**
-
-Add near the existing in-process re-exports:
+Add methods on public client facades:
 
 ```rust
-pub use codex_app_server::in_process::GuiBackendHandle;
-```
-
-Add a field to `InProcessAppServerClient`:
-
-```rust
-gui_backend: GuiBackendHandle,
-```
-
-In `InProcessAppServerClient::start`, after `let request_sender = handle.sender();`, capture:
-
-```rust
-let gui_backend = handle.gui_backend();
-```
-
-Include it in the returned struct:
-
-```rust
-Ok(Self {
-    command_tx,
-    event_rx,
-    worker_handle,
-    gui_backend,
-})
-```
-
-Add methods:
-
-```rust
-impl InProcessAppServerClient {
-    pub fn gui_backend(&self) -> GuiBackendHandle {
-        self.gui_backend.clone()
-    }
-}
-
-impl InProcessAppServerRequestHandle {
-    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
-        None
-    }
-}
-
 impl AppServerClient {
-    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
+    pub async fn gui_launch_url(
+        &self,
+        primary_thread_id: &str,
+    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
         match self {
-            Self::InProcess(client) => Some(client.gui_backend()),
-            Self::Remote(_) => None,
-        }
-    }
-}
-
-impl AppServerRequestHandle {
-    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
-        match self {
-            Self::InProcess(_) | Self::Remote(_) => None,
+            Self::InProcess(client) => client.gui_launch_url(primary_thread_id).await,
+            Self::Remote(_) => Err(GuiLaunchError::Unsupported),
         }
     }
 }
 ```
 
-Request handles intentionally do not expose GUI backend access because they do not own the embedded runtime handle.
+For this bridge plan, the in-process implementation returns `GuiLaunchError::Unsupported`. This prevents accidental raw backend exposure and keeps `03-tui-entry.md` focused on launch URL access instead of backend access.
 
-- [ ] **Step 4: Run tests to verify PASS**
+- [ ] **Step 3: Add unsupported tests**
+
+Add tests:
+
+```rust
+#[tokio::test]
+async fn gui_launch_url_does_not_expose_raw_backend_for_in_process_client() {
+    let client = start_test_client(SessionSource::Cli).await;
+    let err = client
+        .gui_launch_url("thread-test")
+        .await
+        .expect_err("bridge plan should not expose raw backend through in-process client");
+    assert!(matches!(err, GuiLaunchError::Unsupported));
+    client.shutdown().await.expect("shutdown");
+}
+```
+
+- [ ] **Step 4: Run client tests**
 
 Run from `codex-rs`:
 
 ```bash
-cargo test -p codex-app-server-client gui_backend
+cargo test -p codex-app-server-client gui_launch
 ```
 
-Expected output includes:
-
-```text
-test tests::in_process_client_exposes_gui_backend ... ok
-test tests::request_handle_does_not_expose_gui_backend ... ok
-```
+Expected: launch API shape tests pass and no raw backend handle is exported.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add codex-rs/app-server-client/src/lib.rs
-git commit -m "feat(app-server-client): expose GUI backend for embedded sessions"
+git commit -m "refactor(app-server-client): keep GUI API launch-url oriented"
 ```
 
----
-
-### Task 9: Bridge verification sweep
+## Task 6: Focused Verification
 
 **Files:**
 - Verify: `codex-rs/app-server-transport/src/transport/mod.rs`
+- Verify: `codex-rs/app-server/src/gui_transport.rs`
+- Verify: `codex-rs/app-server/src/gui_host.rs`
+- Verify: `codex-rs/app-server/src/lib.rs`
 - Verify: `codex-rs/app-server/src/in_process.rs`
 - Verify: `codex-rs/app-server-client/src/lib.rs`
 
-- [ ] **Step 1: Run focused bridge tests**
+- [ ] **Step 1: Run focused tests**
 
 Run from `codex-rs`:
 
 ```bash
 cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host_variant
-cargo test -p codex-app-server in_process::tests::gui_backend
-cargo test -p codex-app-server-client gui_backend
+cargo test -p codex-app-server gui_transport
+cargo test -p codex-app-server gui_host
+cargo test -p codex-app-server-client gui_launch
 ```
 
-Expected: all commands exit 0.
+Expected: all focused tests pass.
 
-- [ ] **Step 2: Format Rust**
+- [ ] **Step 2: Run formatter**
 
 Run from `codex-rs`:
 
@@ -1046,9 +831,9 @@ Run from `codex-rs`:
 just fmt
 ```
 
-Expected: command exits 0.
+Expected: formatting completes successfully.
 
-- [ ] **Step 3: Run scoped fix**
+- [ ] **Step 3: Run scoped lints**
 
 Run from `codex-rs`:
 
@@ -1058,15 +843,30 @@ just fix -p codex-app-server
 just fix -p codex-app-server-client
 ```
 
-Expected: commands exit 0. Do not rerun tests after `fix` or `fmt` unless you edit code again.
+Expected: no remaining lint failures.
 
-- [ ] **Step 4: Commit any formatting or lint updates**
+- [ ] **Step 4: Inspect remaining `in_process.rs` diff**
 
-If `just fmt` or `just fix` modified files, commit them:
+Run from repo root:
 
 ```bash
-git add codex-rs/app-server-transport/src/transport/mod.rs codex-rs/app-server/src/in_process.rs codex-rs/app-server-client/src/lib.rs
-git commit -m "chore(gui): format GUI bridge runtime changes"
+git diff --stat 01-gui-host-crate..HEAD -- codex-rs/app-server/src/in_process.rs
+git diff 01-gui-host-crate..HEAD -- codex-rs/app-server/src/in_process.rs
 ```
 
-If there are no changes after `just fmt` and `just fix`, record that in the execution notes and skip this commit.
+Expected: no GUI multi-connection runtime remains in `in_process.rs`. Any remaining diff must be unrelated to GUI bridge lifecycle.
+
+- [ ] **Step 5: Commit verification cleanup**
+
+If `fmt` or `fix` changed files:
+
+```bash
+git add codex-rs/app-server-transport/src/transport/mod.rs codex-rs/app-server/src/gui_transport.rs codex-rs/app-server/src/gui_host.rs codex-rs/app-server/src/lib.rs codex-rs/app-server-client/src/lib.rs
+git commit -m "chore(gui): format GUI transport bridge"
+```
+
+## Handoff Notes
+
+- `03-tui-entry.md` must be rewritten after this plan. It should request a launch URL and must not instantiate `GuiHost` in TUI.
+- If the current embedded TUI app-server path cannot provide a supported launch URL without reintroducing `in_process.rs` multi-connection logic, keep `/gui` unsupported for that path until a transport-runtime-backed session is available.
+- Do not weaken the transport MVP by routing browser requests through ad hoc app-server-client request calls; browser traffic must reach app-server as `TransportEvent` traffic.
