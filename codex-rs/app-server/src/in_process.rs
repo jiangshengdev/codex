@@ -59,6 +59,7 @@ use crate::message_processor::MessageProcessor;
 use crate::message_processor::MessageProcessorArgs;
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::OutgoingEnvelope;
+use crate::outgoing_message::OutgoingError;
 use crate::outgoing_message::OutgoingMessage;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::outgoing_message::QueuedOutgoingMessage;
@@ -206,9 +207,6 @@ enum ProcessorCommand {
         connection_id: ConnectionId,
         message: JSONRPCMessage,
     },
-    GuiClosed {
-        connection_id: ConnectionId,
-    },
 }
 
 enum InProcessOutboundControlEvent {
@@ -263,6 +261,49 @@ async fn complete_gui_connection(
     }
 
     let _ = gui_connection.done_tx.send(completion);
+}
+
+fn enqueue_gui_incoming_message(
+    processor_tx: &mpsc::Sender<ProcessorCommand>,
+    writer_tx: &mpsc::Sender<QueuedOutgoingMessage>,
+    connection_id: ConnectionId,
+    message: JSONRPCMessage,
+) -> bool {
+    match processor_tx.try_send(ProcessorCommand::GuiIncoming {
+        connection_id,
+        message,
+    }) {
+        Ok(()) => true,
+        Err(mpsc::error::TrySendError::Closed(_)) => false,
+        Err(mpsc::error::TrySendError::Full(ProcessorCommand::GuiIncoming {
+            message: JSONRPCMessage::Request(request),
+            ..
+        })) => {
+            let overload_error = OutgoingMessage::Error(OutgoingError {
+                id: request.id,
+                error: JSONRPCErrorError {
+                    code: OVERLOADED_ERROR_CODE,
+                    message: "Server overloaded; retry later.".to_string(),
+                    data: None,
+                },
+            });
+            match writer_tx.try_send(QueuedOutgoingMessage::new(overload_error)) {
+                Ok(()) => true,
+                Err(mpsc::error::TrySendError::Closed(_)) => false,
+                Err(mpsc::error::TrySendError::Full(_)) => {
+                    warn!(
+                        "dropping overload response for GUI connection {:?}: outbound queue is full",
+                        connection_id
+                    );
+                    true
+                }
+            }
+        }
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            warn!("closing GUI connection after processor queue filled: {connection_id:?}");
+            false
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -564,6 +605,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         let (processor_tx, mut processor_rx) = mpsc::channel::<ProcessorCommand>(channel_capacity);
         let (runtime_event_tx, mut runtime_event_rx) =
             mpsc::channel::<RuntimeEvent>(channel_capacity);
+        let (gui_close_tx, mut gui_close_rx) = mpsc::unbounded_channel::<ConnectionId>();
         let mut processor_handle = tokio::spawn(async move {
             let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
                 outgoing: Arc::clone(&processor_outgoing),
@@ -595,6 +637,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 ),
             );
             let mut listen_for_threads = true;
+            let mut listen_for_gui_closes = true;
+            let mut closed_gui_connections = HashSet::<ConnectionId>::new();
 
             loop {
                 tokio::select! {
@@ -645,6 +689,9 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 experimental_api_enabled,
                                 opted_out_notification_methods,
                             }) => {
+                                if closed_gui_connections.contains(&connection_id) {
+                                    continue;
+                                }
                                 connections.insert(
                                     connection_id,
                                     ConnectionState::new(
@@ -744,20 +791,28 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     }
                                 }
                             }
-                            Some(ProcessorCommand::GuiClosed { connection_id }) => {
-                                let Some(connection_state) = connections.remove(&connection_id)
-                                else {
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                    gui_closed = gui_close_rx.recv(), if listen_for_gui_closes => {
+                        match gui_closed {
+                            Some(connection_id) => {
+                                if !closed_gui_connections.insert(connection_id) {
                                     continue;
-                                };
-                                processor
-                                    .connection_closed(connection_id, &connection_state.session)
-                                    .await;
+                                }
+                                if let Some(connection_state) = connections.remove(&connection_id) {
+                                    processor
+                                        .connection_closed(connection_id, &connection_state.session)
+                                        .await;
+                                }
                                 let _ = runtime_event_tx
                                     .send(RuntimeEvent::GuiClosed { connection_id })
                                     .await;
                             }
                             None => {
-                                break;
+                                listen_for_gui_closes = false;
                             }
                         }
                     }
@@ -886,7 +941,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             if outbound_control_tx
                                 .send(InProcessOutboundControlEvent::Opened {
                                     connection_id,
-                                    writer: gui_writer_tx,
+                                    writer: gui_writer_tx.clone(),
                                     initialized: Arc::clone(&outbound_initialized),
                                     experimental_api_enabled: Arc::clone(
                                         &outbound_experimental_api_enabled,
@@ -935,6 +990,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
 
                             let inbound_processor_tx = processor_tx.clone();
                             let inbound_disconnect_token = disconnect_token.clone();
+                            let inbound_writer_tx = gui_writer_tx.clone();
+                            let inbound_gui_close_tx = gui_close_tx.clone();
                             tokio::spawn(async move {
                                 loop {
                                     tokio::select! {
@@ -954,22 +1011,18 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                                     continue;
                                                 }
                                             };
-                                            if inbound_processor_tx
-                                                .send(ProcessorCommand::GuiIncoming {
-                                                    connection_id,
-                                                    message,
-                                                })
-                                                .await
-                                                .is_err()
-                                            {
+                                            if !enqueue_gui_incoming_message(
+                                                &inbound_processor_tx,
+                                                &inbound_writer_tx,
+                                                connection_id,
+                                                message,
+                                            ) {
                                                 break;
                                             }
                                         }
                                     }
                                 }
-                                let _ = inbound_processor_tx
-                                    .send(ProcessorCommand::GuiClosed { connection_id })
-                                    .await;
+                                let _ = inbound_gui_close_tx.send(connection_id);
                             });
 
                             let outbound_disconnect_token = disconnect_token.clone();
@@ -1154,6 +1207,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             }
         }
         drop(processor_tx);
+        drop(gui_close_tx);
         drop(runtime_event_rx);
         drop(outbound_control_tx);
         outgoing_message_sender
@@ -1209,6 +1263,8 @@ mod tests {
     use super::*;
     use codex_app_server_protocol::ClientInfo;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
+    use codex_app_server_protocol::JSONRPCNotification;
+    use codex_app_server_protocol::JSONRPCRequest;
     use codex_app_server_protocol::SessionSource as ApiSessionSource;
     use codex_app_server_protocol::ThreadStartParams;
     use codex_app_server_protocol::ThreadStartResponse;
@@ -1218,6 +1274,7 @@ mod tests {
     use codex_app_server_protocol::TurnStatus;
     use codex_core::config::ConfigBuilder;
     use pretty_assertions::assert_eq;
+    use serde_json::json;
     use std::path::Path;
     use tempfile::TempDir;
 
@@ -1329,6 +1386,86 @@ mod tests {
             .expect("connect task should join")
             .expect("connect should finish cleanly");
         client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn gui_incoming_request_returns_overload_when_processor_queue_is_full() {
+        let connection_id = ConnectionId(7);
+        let (processor_tx, mut processor_rx) = mpsc::channel(1);
+        let (writer_tx, mut writer_rx) = mpsc::channel(1);
+
+        processor_tx
+            .send(ProcessorCommand::Notification(
+                ClientNotification::Initialized,
+            ))
+            .await
+            .expect("processor queue should accept first message");
+
+        let request = JSONRPCMessage::Request(JSONRPCRequest {
+            id: RequestId::Integer(99),
+            method: "config/requirements/read".to_string(),
+            params: None,
+            trace: None,
+        });
+
+        assert!(enqueue_gui_incoming_message(
+            &processor_tx,
+            &writer_tx,
+            connection_id,
+            request,
+        ));
+
+        let queued_command = processor_rx
+            .recv()
+            .await
+            .expect("first command should stay queued");
+        assert!(matches!(
+            queued_command,
+            ProcessorCommand::Notification(ClientNotification::Initialized)
+        ));
+
+        let overload = writer_rx
+            .recv()
+            .await
+            .expect("request should receive overload error");
+        let overload_json =
+            serde_json::to_value(overload.message).expect("serialize overload error");
+        assert_eq!(
+            overload_json,
+            json!({
+                "id": 99,
+                "error": {
+                    "code": OVERLOADED_ERROR_CODE,
+                    "message": "Server overloaded; retry later."
+                }
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn gui_incoming_non_request_closes_when_processor_queue_is_full() {
+        let connection_id = ConnectionId(7);
+        let (processor_tx, _processor_rx) = mpsc::channel(1);
+        let (writer_tx, _writer_rx) = mpsc::channel(1);
+
+        processor_tx
+            .send(ProcessorCommand::Notification(
+                ClientNotification::Initialized,
+            ))
+            .await
+            .expect("processor queue should accept first message");
+
+        let notification = JSONRPCMessage::Notification(JSONRPCNotification {
+            method: "initialized".to_string(),
+            params: None,
+        });
+
+        assert!(!enqueue_gui_incoming_message(
+            &processor_tx,
+            &writer_tx,
+            connection_id,
+            notification,
+        ));
     }
 
     #[tokio::test]
