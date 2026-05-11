@@ -1432,6 +1432,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn gui_backend_connect_finishes_when_browser_closes() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let backend = client.gui_backend();
+        let (connection, inbound_tx, _outbound_rx) = new_gui_test_connection();
+        let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+
+        drop(inbound_tx);
+
+        tokio::time::timeout(Duration::from_secs(1), connect_task)
+            .await
+            .expect("connect should finish after GUI inbound closes")
+            .expect("connect task should join")
+            .expect("connect should finish cleanly");
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn gui_backend_drops_invalid_json_without_closing_connection() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let backend = client.gui_backend();
+        let (connection, inbound_tx, mut outbound_rx) = new_gui_test_connection();
+        let connect_task = tokio::spawn(async move { backend.connect(connection).await });
+
+        send_gui_text(&inbound_tx, "not json").await;
+        send_gui_text(
+            &inbound_tx,
+            r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"gui-test","version":"0.0.0"},"capabilities":{}}}"#,
+        )
+        .await;
+
+        let response = recv_gui_json(&mut outbound_rx).await;
+        assert_eq!(response["id"], 1);
+
+        drop(inbound_tx);
+        connect_task
+            .await
+            .expect("connect task should join")
+            .expect("connect should finish cleanly");
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
     async fn gui_incoming_request_returns_overload_when_processor_queue_is_full() {
         let connection_id = ConnectionId(7);
         let (processor_tx, mut processor_rx) = mpsc::channel(1);
