@@ -107,14 +107,16 @@ where
         GuiHostMode::Dev(config) => {
             let _ = config;
             Ok(Router::new()
+                .route("/ws", get(crate::ws::ws_handler::<B>))
                 .fallback(get(dev_fallback::<B>))
                 .with_state(state))
         }
         GuiHostMode::Prod(config) => {
-            assets::prod_dist_dir(&config)?;
+            assets::prod_dist_dir(config)?;
             Ok(Router::new()
                 .route("/", get(prod_root::<B>))
-                .fallback_service(assets::prod_assets_service(&config))
+                .route("/ws", get(crate::ws::ws_handler::<B>))
+                .fallback_service(assets::prod_assets_service(config))
                 .with_state(state))
         }
     }
@@ -142,10 +144,21 @@ where
 
 #[cfg(test)]
 mod tests {
+    use axum::http::StatusCode;
+    use futures::SinkExt;
+    use futures::StreamExt;
+    use tokio_tungstenite::connect_async;
+    use tokio_tungstenite::tungstenite::Error as TungsteniteError;
+    use tokio_tungstenite::tungstenite::Message;
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+    use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+
     use crate::GuiHostConfig;
     use crate::GuiHostMode;
     use crate::host::GuiHost;
     use crate::test_support::NoopBackend;
+    use crate::test_support::RecordingBackend;
 
     #[tokio::test]
     async fn binds_loopback_ephemeral_port() {
@@ -164,5 +177,312 @@ mod tests {
         assert_ne!(handle.local_addr().port(), 0);
 
         handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_accepts_valid_authenticate_first_frame() {
+        let handle = start_host(NoopBackend).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .await
+            .expect("auth frame should send");
+
+        let message = websocket
+            .next()
+            .await
+            .expect("auth response should arrive")
+            .expect("auth response should be valid");
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(
+                &message.into_text().expect("auth response should be text"),
+            )
+            .expect("auth response should parse as JSON"),
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "authenticated": true,
+                },
+            })
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_disconnect_aborts_backend_connection() {
+        let (backend, mut aborted_rx) = AbortSignalBackend::new();
+        let handle = start_host(backend).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .await
+            .expect("auth frame should send");
+        let _ = websocket.next().await.expect("auth response should arrive");
+        websocket
+            .close(None)
+            .await
+            .expect("websocket close frame should send");
+
+        tokio::time::timeout(std::time::Duration::from_secs(1), aborted_rx.recv())
+            .await
+            .expect("backend should be aborted after browser disconnect")
+            .expect("backend should send abort signal");
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_closes_1008_for_invalid_first_frame() {
+        let handle = start_host(NoopBackend).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text("{\"jsonrpc\":\"2.0\",\"id\":1}".into()))
+            .await
+            .expect("invalid auth frame should send");
+
+        let message = websocket
+            .next()
+            .await
+            .expect("close frame should arrive")
+            .expect("close frame should be valid");
+        assert_eq!(
+            message,
+            Message::Close(Some(CloseFrame {
+                code: CloseCode::Policy,
+                reason: "".into(),
+            }))
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_closes_1008_when_authenticate_times_out() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        let message = websocket
+            .next()
+            .await
+            .expect("close frame should arrive")
+            .expect("close frame should be valid");
+        assert_eq!(
+            message,
+            Message::Close(Some(CloseFrame {
+                code: CloseCode::Policy,
+                reason: "".into(),
+            }))
+        );
+        assert!(backend.received().is_empty());
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_returns_403_when_origin_is_missing() {
+        let handle = start_host(NoopBackend).await;
+        let url = format!("ws://{}/ws", handle.local_addr());
+        let request = url.into_client_request().expect("request should build");
+
+        assert_forbidden_connection(connect_async(request).await);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_returns_403_when_host_does_not_match() {
+        let handle = start_host(NoopBackend).await;
+        let url = format!("ws://{}/ws", handle.local_addr());
+        let mut request = url.into_client_request().expect("request should build");
+        request.headers_mut().insert(
+            "Host",
+            format!("localhost:{}", handle.local_addr().port())
+                .parse()
+                .unwrap(),
+        );
+        request.headers_mut().insert(
+            "Origin",
+            format!("http://{}", handle.local_addr()).parse().unwrap(),
+        );
+
+        assert_forbidden_connection(connect_async(request).await);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_returns_403_when_origin_does_not_match() {
+        let handle = start_host(NoopBackend).await;
+        let url = format!("ws://{}/ws", handle.local_addr());
+        let mut request = url.into_client_request().expect("request should build");
+        request
+            .headers_mut()
+            .insert("Origin", "http://localhost:5173".parse().unwrap());
+
+        assert_forbidden_connection(connect_async(request).await);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn websocket_does_not_forward_rejected_client_method() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .await
+            .expect("auth frame should send");
+        let _ = websocket.next().await.expect("auth response should arrive");
+
+        websocket
+            .send(Message::Text(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "thread/list",
+                    "params": {},
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("rejected frame should send");
+        let _ = websocket.next().await;
+
+        assert!(backend.received().is_empty());
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn two_browser_tabs_can_reuse_the_same_launch_token() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+
+        for id in [1, 2] {
+            let (mut websocket, _response) = connect_websocket(&handle).await;
+            websocket
+                .send(Message::Text(authenticate_request(&handle, id).into()))
+                .await
+                .expect("auth frame should send");
+            let message = websocket
+                .next()
+                .await
+                .expect("auth response should arrive")
+                .expect("auth response should be valid");
+            assert!(message.is_text());
+        }
+
+        handle.shutdown().await;
+    }
+
+    async fn start_host<B>(backend: B) -> crate::host::GuiHostHandle
+    where
+        B: crate::GuiBackend + Clone,
+    {
+        GuiHost::start(
+            GuiHostConfig {
+                mode: GuiHostMode::Dev(crate::DevAssetProxyConfig {
+                    vite_origin: "http://127.0.0.1:5173".to_string(),
+                }),
+            },
+            backend,
+        )
+        .await
+        .expect("host should start")
+    }
+
+    async fn connect_websocket(
+        handle: &crate::host::GuiHostHandle,
+    ) -> (
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        tokio_tungstenite::tungstenite::handshake::client::Response,
+    ) {
+        let url = format!("ws://{}/ws", handle.local_addr());
+        let mut request = url.into_client_request().expect("request should build");
+        request.headers_mut().insert(
+            "Origin",
+            format!("http://{}", handle.local_addr()).parse().unwrap(),
+        );
+        connect_async(request)
+            .await
+            .expect("websocket should connect")
+    }
+
+    fn assert_forbidden_connection(
+        result: Result<
+            (
+                tokio_tungstenite::WebSocketStream<
+                    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+                >,
+                tokio_tungstenite::tungstenite::handshake::client::Response,
+            ),
+            TungsteniteError,
+        >,
+    ) {
+        match result {
+            Err(TungsteniteError::Http(response)) => {
+                assert_eq!(response.status(), StatusCode::FORBIDDEN);
+            }
+            Ok(_) => panic!("websocket should not connect"),
+            Err(error) => panic!("expected HTTP 403 error, got {error:?}"),
+        }
+    }
+
+    fn authenticate_request(handle: &crate::host::GuiHostHandle, id: i64) -> String {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "gui/authenticate",
+            "params": {
+                "token": handle.launch_token().as_str(),
+            },
+        })
+        .to_string()
+    }
+
+    #[derive(Clone)]
+    struct AbortSignalBackend {
+        aborted_tx: tokio::sync::mpsc::UnboundedSender<()>,
+    }
+
+    impl AbortSignalBackend {
+        fn new() -> (Self, tokio::sync::mpsc::UnboundedReceiver<()>) {
+            let (aborted_tx, aborted_rx) = tokio::sync::mpsc::unbounded_channel();
+            (Self { aborted_tx }, aborted_rx)
+        }
+    }
+
+    impl crate::GuiBackend for AbortSignalBackend {
+        async fn connect(
+            &self,
+            _connection: crate::AuthenticatedGuiConnection,
+        ) -> anyhow::Result<()> {
+            let _guard = AbortSignal {
+                aborted_tx: self.aborted_tx.clone(),
+            };
+            std::future::pending::<()>().await;
+            Ok(())
+        }
+    }
+
+    struct AbortSignal {
+        aborted_tx: tokio::sync::mpsc::UnboundedSender<()>,
+    }
+
+    impl Drop for AbortSignal {
+        fn drop(&mut self) {
+            let _ = self.aborted_tx.send(());
+        }
     }
 }

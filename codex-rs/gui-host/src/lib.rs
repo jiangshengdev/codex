@@ -5,6 +5,7 @@ mod filter;
 mod host;
 mod token;
 mod url;
+pub(crate) mod ws;
 
 pub use backend::AuthenticatedGuiConnection;
 pub use backend::GuiBackend;
