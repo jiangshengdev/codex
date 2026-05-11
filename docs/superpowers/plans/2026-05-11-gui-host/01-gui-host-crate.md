@@ -583,7 +583,7 @@ git commit -m "feat(gui-host): add launch config and token"
 - Test: `codex-rs/gui-host/src/filter.rs`
 - Test: `codex-rs/gui-host/src/backend.rs`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `codex-rs/gui-host/src/filter.rs`:
 
@@ -667,7 +667,7 @@ pub use token::LaunchToken;
 pub use url::launch_url_for_thread;
 ```
 
-- [ ] **Step 2: Run tests to verify FAIL**
+- [x] **Step 2: Run tests to verify FAIL**
 
 Run:
 
@@ -677,7 +677,7 @@ cargo test -p codex-gui-host filter::tests backend::tests
 
 Expected failures include unresolved allowlist functions and `AuthenticatedGuiConnection`.
 
-- [ ] **Step 3: Implement allowlists and bridge channel API**
+- [x] **Step 3: Implement allowlists and bridge channel API**
 
 Modify `codex-rs/gui-host/Cargo.toml`:
 
@@ -803,7 +803,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify PASS**
+- [x] **Step 4: Run tests to verify PASS**
 
 Run:
 
@@ -820,7 +820,7 @@ test filter::tests::client_notifications_are_rejected ... ok
 test backend::tests::authenticated_connection_channels_round_trip_text ... ok
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-rs/gui-host codex-rs/Cargo.toml codex-rs/Cargo.lock
