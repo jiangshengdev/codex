@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub use codex_app_server::in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
+pub use codex_app_server::in_process::GuiBackendHandle;
 pub use codex_app_server::in_process::InProcessServerEvent;
 use codex_app_server::in_process::InProcessStartArgs;
 use codex_app_server::in_process::LogDbLayer;
@@ -458,6 +459,7 @@ pub struct InProcessAppServerClient {
     command_tx: mpsc::Sender<ClientCommand>,
     event_rx: mpsc::Receiver<InProcessServerEvent>,
     worker_handle: tokio::task::JoinHandle<()>,
+    gui_backend: Option<GuiBackendHandle>,
 }
 
 #[derive(Clone)]
@@ -487,6 +489,7 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let request_sender = handle.sender();
+        let gui_backend = handle.gui_backend();
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
@@ -598,7 +601,12 @@ impl InProcessAppServerClient {
             command_tx,
             event_rx,
             worker_handle,
+            gui_backend: Some(gui_backend),
         })
+    }
+
+    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
+        self.gui_backend.clone()
     }
 
     pub fn request_handle(&self) -> InProcessAppServerRequestHandle {
@@ -759,6 +767,7 @@ impl InProcessAppServerClient {
             command_tx,
             event_rx,
             worker_handle,
+            gui_backend: _,
         } = self;
         let mut worker_handle = worker_handle;
         // Drop the caller-facing receiver before asking the worker to shut
@@ -790,6 +799,10 @@ impl InProcessAppServerClient {
 }
 
 impl InProcessAppServerRequestHandle {
+    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
+        None
+    }
+
     pub async fn request(&self, request: ClientRequest) -> IoResult<RequestResult> {
         let (response_tx, response_rx) = oneshot::channel();
         self.command_tx
@@ -834,6 +847,12 @@ impl InProcessAppServerRequestHandle {
 }
 
 impl AppServerRequestHandle {
+    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
+        match self {
+            Self::InProcess(_) | Self::Remote(_) => None,
+        }
+    }
+
     pub async fn request(&self, request: ClientRequest) -> IoResult<RequestResult> {
         match self {
             Self::InProcess(handle) => handle.request(request).await,
@@ -853,6 +872,13 @@ impl AppServerRequestHandle {
 }
 
 impl AppServerClient {
+    pub fn gui_backend(&self) -> Option<GuiBackendHandle> {
+        match self {
+            Self::InProcess(client) => client.gui_backend(),
+            Self::Remote(_) => None,
+        }
+    }
+
     pub async fn request(&self, request: ClientRequest) -> IoResult<RequestResult> {
         match self {
             Self::InProcess(client) => client.request(request).await,
@@ -1234,6 +1260,21 @@ mod tests {
             .await
             .expect("typed request should succeed");
         client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn in_process_client_exposes_gui_backend() {
+        let client = start_test_client(SessionSource::Cli).await;
+        assert!(client.gui_backend().is_some());
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn request_handle_does_not_expose_gui_backend() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let handle = client.request_handle();
+        assert!(handle.gui_backend().is_none());
+        client.shutdown().await.expect("shutdown");
     }
 
     #[tokio::test]
@@ -2009,6 +2050,7 @@ mod tests {
             command_tx,
             event_rx,
             worker_handle,
+            gui_backend: None,
         };
 
         let event = timeout(Duration::from_secs(2), client.next_event())
