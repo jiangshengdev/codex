@@ -224,6 +224,7 @@ fn authenticate_response(id: serde_json::Value) -> String {
     .to_string()
 }
 
+#[cfg(test)]
 fn is_allowed_browser_text(text: &str) -> bool {
     matches!(classify_browser_text(text), BrowserTextDisposition::Forward)
 }
