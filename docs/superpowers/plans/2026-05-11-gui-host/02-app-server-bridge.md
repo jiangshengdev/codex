@@ -44,7 +44,7 @@ Prerequisite plan: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui
 
 ## Task 0: Verify Plan 06 Prerequisites
 
-- [ ] **Step 1: Confirm plan 06 has landed**
+- [x] **Step 1: Confirm plan 06 has landed**
 
 Run:
 
@@ -56,7 +56,7 @@ cargo test -p codex-app-server-client -- gui_launch_error_variants_are_distinct
 
 Expected: all tests pass. If any test fails, stop — finish plan 06 before continuing.
 
-- [ ] **Step 2: Confirm `ConnectionOrigin::GuiHost` baseline**
+- [x] **Step 2: Confirm `ConnectionOrigin::GuiHost` baseline**
 
 ```bash
 cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host_variant
@@ -72,7 +72,7 @@ Task 2 Step 2 calls `handle.cancel_token()` and relies on a cloneable, sync-fira
 - Modify: `codex-rs/gui-host/Cargo.toml`
 - Modify: `codex-rs/gui-host/src/host.rs`
 
-- [ ] **Step 1: Add `tokio-util` to `codex-gui-host`**
+- [x] **Step 1: Add `tokio-util` to `codex-gui-host`**
 
 The `CancellationToken` type lives in `tokio_util::sync`. Workspace pin already exists (`codex-rs/Cargo.toml:390`: `tokio-util = "0.7.18"`). In `codex-rs/gui-host/Cargo.toml` under `[dependencies]`, add:
 
@@ -80,7 +80,7 @@ The `CancellationToken` type lives in `tokio_util::sync`. Workspace pin already 
 tokio-util = { workspace = true }
 ```
 
-- [ ] **Step 2: Add the field + accessor, wire server `select!`**
+- [x] **Step 2: Add the field + accessor, wire server `select!`**
 
 In `codex-rs/gui-host/src/host.rs`:
 
@@ -143,7 +143,7 @@ Expose the accessor on `impl GuiHostHandle`:
 
 Leave `shutdown(self)` as-is — it still fires `shutdown_tx` first, then awaits `server_task`; the server's `select!` exits on whichever signal arrives first.
 
-- [ ] **Step 3: Verify the crate compiles and existing tests still pass**
+- [x] **Step 3: Verify the crate compiles and existing tests still pass**
 
 ```bash
 cargo test -p codex-gui-host
@@ -151,7 +151,7 @@ cargo test -p codex-gui-host
 
 Expected: every existing test still passes. No new test is required here; `GuiHostManager::cancel_nonblocking` behavior is covered end-to-end by Task 3 Step 4 (`backend_round_trips_initialize` via manager teardown) and Task 4 Step 3b (`shutdown_drops_gui_host_manager_before_worker`).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add codex-rs/gui-host/Cargo.toml codex-rs/gui-host/src/host.rs
@@ -164,7 +164,7 @@ git commit -m "feat(gui-host): add cancel_token to GuiHostHandle"
 - Modify: `codex-rs/app-server/Cargo.toml`
 - Modify: `codex-rs/app-server/BUILD.bazel` (if the file declares dependencies explicitly)
 
-- [ ] **Step 1: Add the workspace dependency**
+- [x] **Step 1: Add the workspace dependency**
 
 In `codex-rs/app-server/Cargo.toml`, under `[dependencies]`, add (keep alphabetical with existing entries):
 
@@ -174,11 +174,11 @@ codex-gui-host = { workspace = true }
 
 No `async-trait` dependency is added. The `AppServerClientGuiExt` trait defined in plan 06 uses RPITIT (`impl Future<...> + Send`), not `#[async_trait]`.
 
-- [ ] **Step 2: Update Bazel deps if needed**
+- [x] **Step 2: Update Bazel deps if needed**
 
 Inspect `codex-rs/app-server/BUILD.bazel`. If it lists direct dependencies (e.g. in a `rust_library` `deps = [...]` block), add `"//gui-host:codex-gui-host"` in the same style.
 
-- [ ] **Step 3: Verify the crate still builds**
+- [x] **Step 3: Verify the crate still builds**
 
 ```bash
 cargo build -p codex-app-server
@@ -186,7 +186,7 @@ cargo build -p codex-app-server
 
 Expected: compiles cleanly.
 
-- [ ] **Step 4: Regenerate Bazel lockfile**
+- [x] **Step 4: Regenerate Bazel lockfile**
 
 From `codex-rs`:
 
@@ -197,7 +197,7 @@ just bazel-lock-check
 
 Expected: lockfile is up-to-date.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-rs/app-server/Cargo.toml codex-rs/app-server/BUILD.bazel codex-rs/Cargo.lock codex-rs/MODULE.bazel.lock
@@ -212,7 +212,7 @@ Drop any untouched files from `git add`.
 - Create: `codex-rs/app-server/src/gui_host.rs`
 - Modify: `codex-rs/app-server/src/lib.rs` (declare the new module)
 
-- [ ] **Step 1: Create placeholder module**
+- [x] **Step 1: Create placeholder module**
 
 Create `codex-rs/app-server/src/gui_host.rs` containing only a doc header so the module exists before Step 2 fills it. The behavior-level test that drives this module's TDD lives in Task 4 Step 1 (`gui_launch_url_returns_real_url_for_in_process`); wiring modules like this do not benefit from a local unit test.
 
@@ -235,7 +235,7 @@ cargo check -p codex-app-server
 
 Expected: FAIL — `gui_transport` module file does not yet exist. This is intentional: Task 3 Step 1 creates that file, so the build only goes green after Task 3 Step 1 lands.
 
-- [ ] **Step 2: Implement `GuiHostManager`**
+- [x] **Step 2: Implement `GuiHostManager`**
 
 Replace the test file content with:
 
@@ -432,7 +432,7 @@ mod tests {
 
 This keeps `codex-app-server` free of `codex-app-server-client` imports. `GuiTransportBackend` is declared by Task 3. Until that task runs, `cargo build` here will fail on that import; the test-first sequence in this task intentionally runs Task 3's stub next.
 
-- [ ] **Step 3: Do not compile yet**
+- [x] **Step 3: Do not compile yet**
 
 Do not run `cargo test` until Task 3 Step 2 lands the `GuiTransportBackend` stub. Proceed directly to Task 3.
 
@@ -441,7 +441,7 @@ Do not run `cargo test` until Task 3 Step 2 lands the `GuiTransportBackend` stub
 **Files:**
 - Create: `codex-rs/app-server/src/gui_transport.rs`
 
-- [ ] **Step 1: Write failing allowlist test**
+- [x] **Step 1: Write failing allowlist test**
 
 Create `codex-rs/app-server/src/gui_transport.rs`:
 
@@ -554,7 +554,7 @@ cargo test -p codex-app-server --lib gui_transport
 
 Expected: FAIL with `no function named \`classify_inbound\`` etc.
 
-- [ ] **Step 2: Implement `GuiTransportBackend`**
+- [x] **Step 2: Implement `GuiTransportBackend`**
 
 Replace the file contents of `codex-rs/app-server/src/gui_transport.rs` with:
 
@@ -896,7 +896,7 @@ async fn pump_outbound(
 }
 ```
 
-- [ ] **Step 3: Run the filter tests**
+- [x] **Step 3: Run the filter tests**
 
 ```bash
 cargo test -p codex-app-server --lib gui_transport
@@ -904,7 +904,7 @@ cargo test -p codex-app-server --lib gui_transport
 
 Expected: all six filter tests pass.
 
-- [ ] **Step 4: Run the lazy-start test too**
+- [x] **Step 4: Run the lazy-start test too**
 
 ```bash
 cargo test -p codex-app-server gui_launch_url_is_plain_http_loopback
@@ -912,7 +912,7 @@ cargo test -p codex-app-server gui_launch_url_is_plain_http_loopback
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit both modules**
+- [x] **Step 5: Commit both modules**
 
 ```bash
 git add codex-rs/app-server/src/gui_host.rs codex-rs/app-server/src/gui_transport.rs codex-rs/app-server/src/lib.rs
@@ -924,7 +924,7 @@ git commit -m "feat(app-server): add GUI host manager and transport bridge"
 **Files:**
 - Modify: `codex-rs/app-server-client/src/lib.rs`
 
-- [ ] **Step 1: Write failing integration test**
+- [x] **Step 1: Write failing integration test**
 
 Add to the existing `#[cfg(test)] mod tests` in `codex-rs/app-server-client/src/lib.rs`:
 
@@ -952,7 +952,7 @@ cargo test -p codex-app-server-client gui_launch_url_returns_real_url_for_in_pro
 
 Expected: FAIL — `InProcessAppServerClient` does not yet implement `AppServerClientGuiExt`.
 
-- [ ] **Step 2: Add `GuiHostManager` handle to `InProcessAppServerClient` (with `Option<T>` reshape)**
+- [x] **Step 2: Add `GuiHostManager` handle to `InProcessAppServerClient` (with `Option<T>` reshape)**
 
 `InProcessAppServerClient::shutdown` currently takes `self` and destructures the three owned fields (`command_tx`, `event_rx`, `worker_handle`) by move (see `codex-rs/app-server-client/src/lib.rs:757`). Adding `impl Drop for InProcessAppServerClient` is incompatible with that destructure: once the type implements `Drop`, Rust forbids destructuring it with a by-move pattern. Reshape every owned field as `Option<T>` and split the teardown into `pub async fn shutdown(mut self)` (owned, preserves the existing call shape) plus a private `shutdown_inner(&mut self)`, so `Drop::drop(&mut self)` can call the same helper via `Option::take()`.
 
@@ -1048,7 +1048,7 @@ impl crate::gui::AppServerClientGuiExt for InProcessAppServerClient {
 
 `launch_url_for_thread` returns a plain `String` (the `codex-app-server` crate cannot import `codex-app-server-client`, so the URL crosses the crate boundary as a raw string). The client-side facade wraps it in `GuiLaunchUrl` here.
 
-- [ ] **Step 3: Shutdown ordering**
+- [x] **Step 3: Shutdown ordering**
 
 Preserve the existing `pub async fn shutdown(self)` owned-receiver shape so the current call sites — including Step 1's `client.shutdown().await` and every other caller — keep working without a `mut` binding retrofit. The common work moves into a private `shutdown_inner(&mut self)` that both `shutdown(mut self)` and `Drop::drop(&mut self)` can call. Key changes vs the existing `shutdown(self)` at `codex-rs/app-server-client/src/lib.rs:757`:
 
@@ -1138,7 +1138,7 @@ impl Drop for InProcessAppServerClient {
 
 `GuiHostManager::cancel_nonblocking` is the sync method defined in Task 2 Step 2: (a) sets an internal `stopped` flag so `launch_url_for_thread` returns immediately afterward, (b) fires the fleet `cancel_token` so every live `GuiTransportBackend::connect` task wakes, and (c) pokes the host's `cancel_token` if the host was already lazy-started.
 
-- [ ] **Step 3b: Write failing test — manager shutdown orders before worker**
+- [x] **Step 3b: Write failing test — manager shutdown orders before worker**
 
 In `codex-rs/app-server-client/src/lib.rs` tests (or a new sibling test module), add:
 
@@ -1168,7 +1168,7 @@ async fn shutdown_drops_gui_host_manager_before_worker() {
 
 Expected: on initial run, FAIL (manager shutdown is not yet wired before worker). After Step 3, PASS.
 
-- [ ] **Step 4: Run the in-process integration test**
+- [x] **Step 4: Run the in-process integration test**
 
 ```bash
 cargo test -p codex-app-server-client gui_launch_url_returns_real_url_for_in_process
@@ -1176,7 +1176,7 @@ cargo test -p codex-app-server-client gui_launch_url_returns_real_url_for_in_pro
 
 Expected: PASS. URL matches `http://127.0.0.1:<port>/?threadId=thread-test#token=<url-safe-base64-no-pad>` (43 chars for 32 random bytes; see `codex-rs/gui-host/src/token.rs::LaunchToken::generate`). Assert url-safe token presence and minimum entropy length, not hex.
 
-- [ ] **Step 5: Re-run the existing remote test**
+- [x] **Step 5: Re-run the existing remote test**
 
 ```bash
 cargo test -p codex-app-server-client
@@ -1184,7 +1184,7 @@ cargo test -p codex-app-server-client
 
 Expected: all existing tests still pass and the new test passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add codex-rs/app-server-client/src/lib.rs
@@ -1197,7 +1197,7 @@ git commit -m "feat(app-server-client): wire gui launch through in-process clien
 - Verify: `codex-rs/app-server-transport/src/transport/mod.rs`
 - Modify: `codex-rs/app-server/src/gui_transport.rs` (add end-to-end test)
 
-- [ ] **Step 1: Add an end-to-end bridge test**
+- [x] **Step 1: Add an end-to-end bridge test**
 
 Append to `#[cfg(test)] mod tests` in `codex-rs/app-server/src/gui_transport.rs`:
 
@@ -1262,7 +1262,7 @@ Append to `#[cfg(test)] mod tests` in `codex-rs/app-server/src/gui_transport.rs`
 
 If `InProcessStartArgs` does not derive `Default`, replace `..Default::default()` with the explicit construction pattern used by `codex-rs/app-server-client/src/lib.rs:395` (`into_runtime_start_args`). The intent is: boot an in-process app-server runtime with the minimal args a test needs — **do not** invent a new `InProcessRuntimeStartArgs::for_test_cli` builder.
 
-- [ ] **Step 2: Run the end-to-end test**
+- [x] **Step 2: Run the end-to-end test**
 
 ```bash
 cargo test -p codex-app-server backend_round_trips_initialize
@@ -1270,7 +1270,7 @@ cargo test -p codex-app-server backend_round_trips_initialize
 
 Expected: PASS; the parsed outbound frame is the `initialize` response.
 
-- [ ] **Step 3: Re-run `ConnectionOrigin::GuiHost` baseline**
+- [x] **Step 3: Re-run `ConnectionOrigin::GuiHost` baseline**
 
 ```bash
 cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host_variant
@@ -1278,7 +1278,7 @@ cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host
 
 Expected: PASS. This confirms the future-reserved variant is still present; MVP path does not use it.
 
-- [ ] **Step 3b: Host-level allowlist enforcement (defense-in-depth)**
+- [x] **Step 3b: Host-level allowlist enforcement (defense-in-depth)**
 
 Spec §JSON-RPC Allowlist (spec §400) and §验收标准 (spec §610) place the authoritative allowlist rejection at `codex-gui-host`'s inbound filter (`codex-rs/gui-host/src/ws.rs:232`). `gui_transport::classify_inbound` is only a defense-in-depth duplicate. Prove the host rejects non-allowlisted frames before they reach the backend, so an implementation regression in the backend filter cannot open a bypass.
 
@@ -1298,7 +1298,7 @@ async fn browser_non_allowlisted_request_never_reaches_backend() {
 
 Keep `gui_transport::classify_inbound` and its unit tests as defense-in-depth — do not remove them.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add codex-rs/app-server/src/gui_transport.rs codex-rs/gui-host/tests
@@ -1307,20 +1307,20 @@ git commit -m "test(app-server): end-to-end GUI bridge initialize round-trip"
 
 ## Task 6: Format + Scoped Lint
 
-- [ ] **Step 1: Format**
+- [x] **Step 1: Format**
 
 ```bash
 just fmt
 ```
 
-- [ ] **Step 2: Scoped lint**
+- [x] **Step 2: Scoped lint**
 
 ```bash
 just fix -p codex-app-server
 just fix -p codex-app-server-client
 ```
 
-- [ ] **Step 3: Commit any auto-fixes**
+- [x] **Step 3: Commit any auto-fixes**
 
 ```bash
 git add codex-rs
