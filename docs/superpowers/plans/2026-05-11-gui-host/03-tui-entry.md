@@ -431,26 +431,7 @@ rg -n "codex-gui-host|codex_gui_host|GuiHost|GuiHostHandle|GuiBackendHandle|code
 
 预期：没有匹配。
 
-- [ ] **Step 2: 检查 `/gui` 只使用 launch URL API**
-
-在 repo root 运行：
-
-```bash
-rg -n "gui_launch_url|OpenGui|SlashCommand::Gui" codex-rs/tui/src
-```
-
-预期匹配：
-
-```text
-codex-rs/tui/src/app_event.rs
-codex-rs/tui/src/slash_command.rs
-codex-rs/tui/src/chatwidget/slash_dispatch.rs
-codex-rs/tui/src/app/gui.rs
-codex-rs/tui/src/app/event_dispatch.rs
-codex-rs/tui/src/app_server_session.rs
-```
-
-- [ ] **Step 3: 格式化并 lint**
+- [ ] **Step 2: 格式化并 lint**
 
 在 `codex-rs` 目录运行：
 

@@ -153,26 +153,14 @@ git add codex-rs/app-server/src/in_process.rs codex-rs/app-server-client/src/lib
 git commit -m "refactor(gui): remove obsolete in-process GUI bridge route"
 ```
 
-## Task 1: Add `ConnectionOrigin::GuiHost`
+## Task 1: Verify `ConnectionOrigin::GuiHost`
+
+> **Historical note:** `ConnectionOrigin::GuiHost` and its covering test were added by commit `5234462af` and are already present on this branch. This task is a verification step only — no code changes are required.
 
 **Files:**
-- Modify: `codex-rs/app-server-transport/src/transport/mod.rs`
+- Verify: `codex-rs/app-server-transport/src/transport/mod.rs`
 
-- [ ] **Step 1: Add the failing test**
-
-Add this test inside the existing `#[cfg(test)] mod tests` in `codex-rs/app-server-transport/src/transport/mod.rs`:
-
-```rust
-#[test]
-fn connection_origin_has_distinct_gui_host_variant() {
-    assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::Stdio);
-    assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::InProcess);
-    assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::WebSocket);
-    assert_ne!(ConnectionOrigin::GuiHost, ConnectionOrigin::RemoteControl);
-}
-```
-
-- [ ] **Step 2: Run the test to confirm FAIL**
+- [ ] **Step 1: Confirm variant and test exist**
 
 Run from `codex-rs`:
 
@@ -180,43 +168,13 @@ Run from `codex-rs`:
 cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host_variant
 ```
 
-Expected failure:
+Expected: the test passes immediately.
 
 ```text
-no variant or associated item named `GuiHost` found for enum `ConnectionOrigin`
+test transport::tests::connection_origin_has_distinct_gui_host_variant ... ok
 ```
 
-- [ ] **Step 3: Add the variant**
-
-Modify `ConnectionOrigin`:
-
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConnectionOrigin {
-    Stdio,
-    InProcess,
-    WebSocket,
-    RemoteControl,
-    GuiHost,
-}
-```
-
-- [ ] **Step 4: Run the test to confirm PASS**
-
-Run from `codex-rs`:
-
-```bash
-cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host_variant
-```
-
-Expected: the new test passes.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add codex-rs/app-server-transport/src/transport/mod.rs
-git commit -m "feat(app-server-transport): add GUI host connection origin"
-```
+If the test is missing or fails, add the variant and test following the pattern in `ConnectionOrigin`'s existing `#[cfg(test)] mod tests` block before proceeding to Task 2.
 
 ## Task 2: Implement GUI Transport Backend
 
@@ -868,5 +826,5 @@ git commit -m "chore(gui): format GUI transport bridge"
 ## Handoff Notes
 
 - `03-tui-entry.md` must be rewritten after this plan. It should request a launch URL and must not instantiate `GuiHost` in TUI.
-- If the current embedded TUI app-server path cannot provide a supported launch URL without reintroducing `in_process.rs` multi-connection logic, keep `/gui` unsupported for that path until a transport-runtime-backed session is available.
+- **Design boundary — in-process TUI path:** `GuiHostManager` is wired into `run_main_with_transport_options` (the external stdio/WebSocket runtime), which owns `transport_event_tx`. The spec (`docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`) requires GUI host lazy-start to happen in the scope that owns `transport_event_tx`, and forbids expanding `codex-rs/app-server/src/in_process.rs` into a multi-connection transport loop or copying `run_main_with_transport_options` connection maps / outbound routing / close cleanup into another runtime. The embedded TUI runtime in `in_process.rs` deliberately has no `transport_event_tx`; it uses a single-connection `ProcessorCommand` pipeline. Consequently, `InProcessAppServerClient::gui_launch_url` returns `GuiLaunchError::Unsupported`, and the TUI `/gui` command prints "GUI is not available for this app-server session yet." on the in-process path. This is the designed behavior, not a gap: `/gui` delivers a real URL only when TUI runs against an external app-server session (stdio or WebSocket). The 04-frontend-handshake and 05-packaging end-to-end acceptance gates apply to that external-session path.
 - Do not weaken the transport MVP by routing browser requests through ad hoc app-server-client request calls; browser traffic must reach app-server as `TransportEvent` traffic.

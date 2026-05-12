@@ -117,7 +117,7 @@ Frontend and packaging changes:
 - Non-allowlisted server notification is not sent to browser.
 - Browser close or refresh closes the GUI app-server connection and cleans projection subscriptions.
 - `codex-tui` has no direct `codex-app-server` dependency.
-- `codex-tui` does not directly depend on `codex-gui-host` for runtime ownership.
+- `codex-tui` has no `codex-gui-host` dependency.
 - `codex-rs/app-server/src/in_process.rs` is not expanded into a GUI multi-connection runtime.
 
 ## Self-Review Checklist
