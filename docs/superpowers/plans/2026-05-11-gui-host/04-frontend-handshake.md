@@ -41,7 +41,11 @@ Create `codex-gui/src/features/guiHost/guiHostClient.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { readLaunchParams, startGuiHostConnection } from "./guiHostClient";
+import {
+  clearLaunchTokenFragment,
+  readLaunchParams,
+  startGuiHostConnection,
+} from "./guiHostClient";
 
 class MemoryStorage {
   private readonly values = new Map<string, string>();
@@ -58,6 +62,7 @@ class RecordingWebSocket {
   onerror: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onopen: (() => void) | null = null;
+  onclose: ((event: CloseEvent) => void) | null = null;
 
   send(message: string): void {
     this.sent.push(message);
@@ -67,6 +72,7 @@ class RecordingWebSocket {
 describe("guiHostClient", () => {
   it("stores app-server launch URL fragment token and restores it after refresh", () => {
     const storage = new MemoryStorage();
+    const replaceState = vi.fn();
     expect(
       readLaunchParams(
         new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
@@ -76,6 +82,19 @@ describe("guiHostClient", () => {
     expect(
       readLaunchParams(new URL("http://127.0.0.1:4567/?threadId=thread-abc"), storage),
     ).toEqual({ threadId: "thread-abc", token: "secret" });
+    // Spec §WebSocket 认证 (spec §343): token must be scrubbed from the
+    // visible URL once the app has it. Verify clearLaunchTokenFragment calls
+    // replaceState with a URL that preserves path + query but drops the
+    // fragment.
+    clearLaunchTokenFragment(
+      new URL("http://127.0.0.1:4567/app?threadId=thread-abc#token=secret"),
+      replaceState,
+    );
+    expect(replaceState).toHaveBeenCalledTimes(1);
+    const [, , replacedUrl] = replaceState.mock.calls[0] as [unknown, unknown, string];
+    expect(replacedUrl).not.toContain("#token=");
+    expect(replacedUrl).toContain("/app");
+    expect(replacedUrl).toContain("threadId=thread-abc");
   });
 
   it("sends authenticate, initialize, attach, and records projection events", () => {
@@ -103,7 +122,13 @@ describe("guiHostClient", () => {
       data: JSON.stringify({
         jsonrpc: "2.0",
         method: "thread/projection/event",
-        params: { type: "reset" },
+        params: {
+          threadId: "thread-abc",
+          subscriptionId: "sub-1",
+          commitId: "c1",
+          parentCommitId: null,
+          event: { type: "turnStarted", notification: {} },
+        },
       }),
     });
 
@@ -116,6 +141,51 @@ describe("guiHostClient", () => {
     expect(statuses).toContain("initialized");
     expect(statuses).toContain("attached");
     expect(statuses).toContain("received event");
+  });
+
+  it("surfaces JSON-RPC errors on initialize/attach instead of advancing", () => {
+    const socket = new RecordingWebSocket();
+    const statuses: Array<{ label: string; message?: string }> = [];
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState: vi.fn(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: (status) => statuses.push({ label: status.label, message: status.message }),
+    });
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        error: { code: -32601, message: "method not found" },
+      }),
+    });
+    // Must NOT send thread/projection/attach after an initialize error.
+    expect(socket.sent.map((m) => JSON.parse(m).method)).toEqual([
+      "gui/authenticate",
+      "initialize",
+    ]);
+    expect(statuses.at(-1)?.label).toBe("error");
+  });
+
+  it("reports policy-close as error", () => {
+    const socket = new RecordingWebSocket();
+    const statuses: string[] = [];
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState: vi.fn(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: (status) => statuses.push(status.label),
+    });
+    socket.onopen?.();
+    // Auth reject close from codex-gui-host /ws path (policy violation).
+    socket.onclose?.({ code: 1008, reason: "invalid token" } as CloseEvent);
+    expect(statuses.at(-1)).toBe("error");
   });
 });
 ```
@@ -213,13 +283,46 @@ export function startGuiHostConnection({
       message: "GUI host WebSocket failed",
     });
   };
+  socket.onclose = (ev) => {
+    // Auth reject closes with policy violation (1008). Bridge-side shutdown
+    // or server abort also surfaces here. Only report an error if we have
+    // not yet reached 'attached' AND this is not a clean client-initiated
+    // close. If the caller never sets a custom close handler, any close is
+    // surfaced so the page does not silently stall.
+    if (ev.code === 1000) {
+      onStatus?.({
+        label: "closed",
+        eventCount,
+        lastEventType: null,
+      });
+      return;
+    }
+    onStatus?.({
+      label: "error",
+      eventCount,
+      lastEventType: null,
+      message: `GUI host WebSocket closed (code=${ev.code}${ev.reason ? ", reason=" + ev.reason : ""})`,
+    });
+  };
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data)) as {
       id?: unknown;
       method?: string;
       result?: { authenticated?: boolean };
-      params?: { type?: string };
+      error?: { code: number; message?: string };
+      params?: {
+        event?: { type?: string };
+      };
     };
+    if (message.error) {
+      onStatus?.({
+        label: "error",
+        eventCount,
+        lastEventType: null,
+        message: `JSON-RPC error (id=${message.id ?? "-"}, code=${message.error.code}): ${message.error.message ?? ""}`.trim(),
+      });
+      return;
+    }
     if (message.id === 1 && message.result?.authenticated === true) {
       onStatus?.({ label: "authenticated", eventCount, lastEventType: null });
       sendRequest(socket, 2, "initialize", {
@@ -229,11 +332,29 @@ export function startGuiHostConnection({
       return;
     }
     if (message.id === 2) {
+      if (!message.result) {
+        onStatus?.({
+          label: "error",
+          eventCount,
+          lastEventType: null,
+          message: "initialize returned no result payload",
+        });
+        return;
+      }
       onStatus?.({ label: "initialized", eventCount, lastEventType: null });
       sendRequest(socket, 3, "thread/projection/attach", { threadId });
       return;
     }
     if (message.id === 3) {
+      if (!message.result) {
+        onStatus?.({
+          label: "error",
+          eventCount,
+          lastEventType: null,
+          message: "thread/projection/attach returned no result payload",
+        });
+        return;
+      }
       onStatus?.({ label: "attached", eventCount, lastEventType: null });
       return;
     }
@@ -242,7 +363,7 @@ export function startGuiHostConnection({
       onStatus?.({
         label: "received event",
         eventCount,
-        lastEventType: message.params?.type ?? "unknown",
+        lastEventType: message.params?.event?.type ?? "unknown",
       });
     }
   };

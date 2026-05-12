@@ -4,7 +4,7 @@
 
 **Goal:** Extend the TUI's in-process app-server runtime (`codex-rs/app-server/src/in_process.rs`) with a minimal, GUI-agnostic extra-connection registration API so that plan 02's `gui_transport.rs` can attach authenticated GUI WebSockets to the existing `MessageProcessor` and `outbound_connections`. Expose launch-URL access through a new `codex-app-server-client::gui` extension trait.
 
-**Architecture:** The extension point is four new `ProcessorCommand::Extra*` variants plus an `ExtraConnectionHandle` returned by `InProcessClientSender::register_extra_connection`. The processor `match` loop calls the existing raw `MessageProcessor::process_request` (see `codex-rs/app-server/src/message_processor.rs:477-534`) for `ExtraRequest`, reuses `message_processor.process_client_notification` for `ExtraNotification`, and delegates `ExtraConnectionClosed` to the existing projection subscription cleanup path via `message_processor.connection_closed` + `outbound_connections` removal. The main TUI connection's external semantics stay byte-for-byte identical.
+**Architecture:** The extension point is four new `ProcessorCommand::Extra*` variants plus an `ExtraConnectionHandle` returned by `InProcessClientSender::register_extra_connection`. The processor `match` loop calls the existing raw `MessageProcessor::process_request` (see `codex-rs/app-server/src/message_processor.rs:477-534`) for `ExtraRequest`, calls `message_processor.process_notification` for `ExtraNotification` (the raw path at `codex-rs/app-server/src/lib.rs:959`; the typed main-connection arm that wraps `process_client_notification` at `codex-rs/app-server/src/in_process.rs:475` stays untouched), and delegates `ExtraConnectionClosed` to the existing projection subscription cleanup path via `message_processor.connection_closed` + `outbound_connections` removal. The main TUI connection's external semantics stay byte-for-byte identical.
 
 **Tech Stack:** Rust 2024, tokio, codex-app-server, codex-app-server-client, codex-app-server-protocol.
 
@@ -37,8 +37,8 @@ Roadmap: `docs/superpowers/plans/2026-05-11-gui-host/00-roadmap.md`.
   - `AppServerClientGuiExt` trait, `GuiLaunchUrl`, `GuiLaunchError`.
 - Modify: `codex-rs/app-server-client/src/lib.rs`
   - `pub mod gui;` + re-exports.
-  - `InProcessAppServerClient` carries `Option<Arc<GuiHostManager>>`; its `AppServerClientGuiExt` impl dispatches through the manager.
-  - `RemoteAppServerClient` impl returns `GuiLaunchError::Unsupported`.
+  - `RemoteAppServerClient` `AppServerClientGuiExt` impl returns `GuiLaunchError::Unsupported`.
+  - Plan 06 does **not** add any field on `InProcessAppServerClient`, does **not** depend on `codex-app-server::gui_host`, and does **not** implement `AppServerClientGuiExt` for `InProcessAppServerClient`. Plan 02 owns that wiring (it depends on the types this plan introduces; see roadmap §Dependencies-and-Cross-References).
 - Tests: `codex-rs/app-server/src/in_process.rs` (new `#[cfg(test)] mod extra_connection_tests`).
 - Tests: `codex-rs/app-server-client/src/gui.rs` (unit test for `Unsupported` wiring through the facade).
 
@@ -184,12 +184,40 @@ Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
     async fn dropping_extra_connection_handle_sends_closed_command() {
         let client = start_test_client(SessionSource::Cli).await;
         let sender = client.sender();
-        let handle = sender.register_extra_connection();
+        let handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
         let connection_id = handle.connection_id;
         drop(handle);
 
         client.shutdown().await.expect("shutdown");
         let _ = connection_id;
+    }
+
+    // Defense-in-depth for the Drop path: even if the processor channel is
+    // saturated when `Drop` runs, `ExtraConnectionClosed` must still be
+    // delivered before the runtime shuts down. The Drop impl falls back to a
+    // detached async `send(...).await` when `try_send` returns Full; this test
+    // exercises that fallback by filling the channel via a blocking sender
+    // before dropping the handle.
+    #[tokio::test]
+    async fn drop_under_backpressure_still_delivers_closed() {
+        // Intent: start a client whose processor channel headroom is
+        // bounded. Register an extra, then flood the processor channel with
+        // ExtraNotification sends so try_send from Drop sees Full. Drop the
+        // handle and verify (via a processor-side counter on extra_connections)
+        // that the connection eventually leaves the map. Timeout after 2s to
+        // avoid hangs if the fallback regresses.
+        //
+        // Implementation note: `start_test_client` exposes no explicit
+        // capacity knob today. A helper `start_test_client_with_channel_capacity`
+        // will land alongside this test so we can pin `channel_capacity` to a
+        // small value (e.g. 4) and reliably saturate it. If that helper is
+        // not feasible without deeper refactoring, hold this test at
+        // `#[ignore]` and file a follow-up; it is defense-in-depth, not the
+        // core Drop assertion.
+        // (See Task 2 Step 2 invariant note.)
     }
 ```
 
@@ -270,14 +298,34 @@ impl ExtraConnectionCommandSender {
 
 impl Drop for ExtraConnectionHandle {
     fn drop(&mut self) {
-        let _ = self.command_sender.inner.try_send(
-            InProcessClientMessage::ExtraConnectionClosed {
-                connection_id: self.connection_id,
-            },
-        );
+        // Close delivery must not depend on the processor queue having
+        // headroom — normal backpressure on a busy session can fill it. Try
+        // the fast path first, and on `Full` fall back to an async send on
+        // a detached task so the Close message reliably lands exactly once.
+        let close_msg = InProcessClientMessage::ExtraConnectionClosed {
+            connection_id: self.connection_id,
+        };
+        match self.command_sender.inner.try_send(close_msg) {
+            Ok(()) => 
+            Err(mpsc::error::TrySendError::Full(msg)) => {
+                // Detached async retry. The processor task owns the other
+                // end of `inner`, so `send(...).await` completes once the
+                // processor consumes a message. If the sender is Closed by
+                // then, the runtime is shutting down and the Drop is moot.
+                let sender = self.command_sender.inner.clone();
+                tokio::spawn(async move {
+                    let _ = sender.send(msg).await;
+                });
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                // Runtime already torn down; nothing to clean up.
+            }
+        }
     }
 }
 ```
+
+> **Invariant:** `ExtraConnectionHandle::Drop` delivers `ExtraConnectionClosed` under every live-runtime condition, including full backpressure on the processor channel. The `Closed` branch is the only silent one, and it only fires after the runtime has already shut down. This is exercised by `drop_under_backpressure_still_delivers_closed` in Task 2 Step 2.
 
 - [ ] **Step 3: Extend `InProcessClientMessage`**
 
@@ -289,6 +337,7 @@ enum InProcessClientMessage {
     ExtraConnectionOpened {
         connection_id: ConnectionId,
         outgoing_tx: mpsc::Sender<String>,
+        disconnect_token: CancellationToken,
     },
     ExtraRequest {
         connection_id: ConnectionId,
@@ -304,11 +353,11 @@ enum InProcessClientMessage {
 }
 ```
 
-`ExtraConnectionOpened::outgoing_tx` reaches the outer runtime task (not the processor) so the runtime can register a new entry in `outbound_connections` (Task 3) wired to the caller's `outgoing_tx`.
+`ExtraConnectionOpened::outgoing_tx` reaches the outer runtime task (not the processor) so the runtime can register a new entry in `outbound_connections` (Task 3) wired to the caller's `outgoing_tx`. `ExtraConnectionOpened::disconnect_token` is passed through to `OutboundConnectionState::new(..., Some(token))` so `route_outgoing_envelope` uses the non-blocking `try_send` fast path and disconnects slow extras via the token — instead of `writer.send(...).await` blocking the shared router on any other connection (see `codex-rs/app-server/src/transport.rs:145` vs `:158`).
 
 - [ ] **Step 4: Implement `register_extra_connection` on `InProcessClientSender`**
 
-Keep main connection reserved with `ConnectionId(0)`; extras start at `1`.
+Keep main connection reserved with `ConnectionId(0)`; extras start at `1`. **Registration must not silently succeed if `ExtraConnectionOpened` cannot be enqueued — a returned handle with no corresponding `outbound_connections` entry would desync the runtime.** Therefore the method is `async` and returns `IoResult<ExtraConnectionHandle>`, using `send(...).await` for the Opened message. On `SendError` the runtime is closed; no handle is returned.
 
 ```rust
 use std::sync::atomic::AtomicU64;
@@ -317,18 +366,28 @@ use std::sync::atomic::Ordering;
 static EXTRA_CONNECTION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 impl InProcessClientSender {
-    pub fn register_extra_connection(&self) -> ExtraConnectionHandle {
+    pub async fn register_extra_connection(&self) -> IoResult<ExtraConnectionHandle> {
         let connection_id =
             ConnectionId(EXTRA_CONNECTION_ID_COUNTER.fetch_add(1, Ordering::Relaxed));
         let (outgoing_tx, outgoing_rx) = mpsc::channel::<String>(CHANNEL_CAPACITY);
         let disconnect_token = CancellationToken::new();
 
-        let _ = self.client_tx.try_send(InProcessClientMessage::ExtraConnectionOpened {
-            connection_id,
-            outgoing_tx: outgoing_tx.clone(),
-        });
+        // Fail-visible. If this send errors, the runtime task is gone; the
+        // caller learns immediately instead of getting a half-registered
+        // handle that the processor never sees.
+        self.client_tx
+            .send(InProcessClientMessage::ExtraConnectionOpened {
+                connection_id,
+                outgoing_tx: outgoing_tx.clone(),
+                disconnect_token: disconnect_token.clone(),
+            })
+            .await
+            .map_err(|_| IoError::new(
+                ErrorKind::BrokenPipe,
+                "in-process app-server runtime is closed",
+            ))?;
 
-        ExtraConnectionHandle {
+        Ok(ExtraConnectionHandle {
             connection_id,
             command_sender: ExtraConnectionCommandSender {
                 inner: self.client_tx.clone(),
@@ -337,7 +396,7 @@ impl InProcessClientSender {
             outgoing_tx,
             outgoing_rx,
             disconnect_token,
-        }
+        })
     }
 }
 ```
@@ -487,7 +546,16 @@ with:
             mpsc::channel::<OutboundControl>(channel_capacity);
         let mut outbound_handle = tokio::spawn(async move {
             loop {
+                // `biased` keeps envelope routing at the head of the select
+                // so saturated control traffic (GUI connect/disconnect bursts
+                // registering/unregistering extras) cannot materially delay
+                // main-connection outgoing messages. Control handling is
+                // cheap (HashMap insert/remove); envelope handling is the
+                // hot path. This preserves the single-source drain shape
+                // present before this plan at
+                // `codex-rs/app-server/src/in_process.rs:401`.
                 tokio::select! {
+                    biased;
                     envelope = outgoing_rx.recv() => {
                         let Some(envelope) = envelope else { break };
                         route_outgoing_envelope(&mut outbound_connections, envelope).await;
@@ -500,6 +568,7 @@ with:
                                 initialized,
                                 experimental_api_enabled,
                                 opted_out_notification_methods,
+                                disconnect_sender,
                             }) => {
                                 outbound_connections.insert(
                                     connection_id,
@@ -508,7 +577,7 @@ with:
                                         initialized,
                                         experimental_api_enabled,
                                         opted_out_notification_methods,
-                                        None,
+                                        disconnect_sender,
                                     ),
                                 );
                             }
@@ -533,6 +602,11 @@ enum OutboundControl {
         initialized: Arc<AtomicBool>,
         experimental_api_enabled: Arc<AtomicBool>,
         opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
+        // Per-extra disconnect token. Forwarded to
+        // `OutboundConnectionState::new(.., Some(token))`; enables the
+        // non-blocking try_send + disconnect path in
+        // `route_outgoing_envelope` (transport.rs:145).
+        disconnect_sender: Option<tokio_util::sync::CancellationToken>,
     },
     Unregister {
         connection_id: ConnectionId,
@@ -622,6 +696,11 @@ Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv(
                                     opted_out_notification_methods: Arc::clone(
                                         &opted_out_notification_methods,
                                     ),
+                                    // Per-extra token. Makes route_outgoing_envelope
+                                    // use the non-blocking try_send + disconnect path
+                                    // (transport.rs:145), isolating slow extras from
+                                    // the shared outbound router.
+                                    disconnect_sender: Some(disconnect_token.clone()),
                                 })
                                 .await
                                 .is_err()
@@ -780,8 +859,27 @@ Then add these arms immediately after `Some(ProcessorCommand::Notification(notif
                                     session_state.experimental_api_enabled(),
                                     Ordering::Release,
                                 );
-                                outbound_initialized
-                                    .store(session_state.initialized(), Ordering::Release);
+                                let was_initialized = outbound_initialized
+                                    .swap(session_state.initialized(), Ordering::AcqRel);
+                                let is_initialized = session_state.initialized();
+                                if !was_initialized && is_initialized {
+                                    // Extra connections go through the raw
+                                    // `process_request` path with
+                                    // `outbound_initialized: None` (the
+                                    // caller — this arm — owns the mirror),
+                                    // so the typed main-connection branch
+                                    // in `message_processor.rs:711-725` does
+                                    // NOT run `connection_initialized` for
+                                    // this connection. Without this call,
+                                    // `thread/projection/attach` rejects the
+                                    // connection as not-live at
+                                    // `request_processors/thread_projection.rs:67`.
+                                    // Call it here exactly once on the
+                                    // false->true transition.
+                                    processor
+                                        .connection_initialized(connection_id)
+                                        .await;
+                                }
                                 // Extra connections intentionally do NOT
                                 // trigger `send_initialize_notifications`
                                 // on first initialize: that method broadcasts
@@ -1011,10 +1109,15 @@ Write `codex-rs/app-server-client/src/gui.rs`:
 ```rust
 //! GUI launch URL extension for the app-server client facade.
 //!
-//! The in-process implementation starts a `GuiHost` on first call and returns
-//! a real `http://127.0.0.1:PORT/?threadId=...#token=...` URL. The remote
-//! implementation returns [`GuiLaunchError::Unsupported`] — GUI launch across
-//! a remote app-server process is out of MVP scope.
+//! Plan 06 lands the trait, the public types, and the remote implementation
+//! (which returns [`GuiLaunchError::Unsupported`] because GUI launch across a
+//! remote app-server process is out of MVP scope).
+//!
+//! The in-process implementation is added by plan 02: plan 02 introduces
+//! `codex-app-server::gui_host::GuiHostManager`, stores an `Arc<GuiHostManager>`
+//! on `InProcessAppServerClient`, and writes the in-process
+//! `AppServerClientGuiExt` impl there. Plan 06 does not depend on
+//! `codex-app-server` and does not start a `GuiHost` itself.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuiLaunchUrl {
@@ -1123,11 +1226,11 @@ Expected: no errors; the tools may apply auto-fixes.
 - [ ] **Step 3: Commit any auto-fixes**
 
 ```bash
-git add codex-rs
+git add codex-rs/app-server/src codex-rs/app-server-client/src
 git commit -m "chore(app-server): format extra-connection plumbing"
 ```
 
-If no files were modified, do not create an empty commit.
+Narrow the `git add` scope to the crates this plan touches so unrelated workspace noise (other crates' formatting drift, Bazel files, fixtures) is not swept into this commit. If no files were modified, do not create an empty commit.
 
 ## Acceptance Gates
 

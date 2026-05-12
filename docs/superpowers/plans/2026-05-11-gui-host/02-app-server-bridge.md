@@ -21,7 +21,7 @@ Prerequisite plan: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui
 - Do not consume `ConnectionOrigin::GuiHost` in the MVP path; the variant stays reserved for the future external-process backend.
 - `codex-gui-host` must stay free of `codex-app-server` dependencies; the backend impl lives inside `codex-app-server`.
 - Parse JSON exactly once per inbound frame, inside `gui_transport.rs`. `in_process.rs` receives typed `JSONRPCRequest` / `JSONRPCNotification` values.
-- For every `register_extra_connection` call, exactly one corresponding `ExtraConnectionHandle::Drop` must run along every normal termination path (auth failure before `register_extra_connection`, successful close, inbound parse error, backend error, `disconnect_token` cancel).
+- For every `register_extra_connection` call, exactly one corresponding `ExtraConnectionHandle::Drop` must run along every normal termination path (successful close, inbound parse error, backend error, `disconnect_token` cancel). Authentication failure never calls `register_extra_connection`, so no handle exists on that path — see `AuthenticatedGuiConnection` construction and the `/ws` auth reject flow in `codex-rs/gui-host/src/ws.rs`.
 - Keep allowlist enforcement in `codex-gui-host` filters (request method, notification method, response/error drop). `gui_transport.rs` only bridges — no policy decisions beyond applying the existing filter helpers.
 
 ## File Structure
@@ -213,6 +213,24 @@ mod tests {
         assert!(fake.starts_with("http://127.0.0.1:"));
         assert!(fake.contains("#token="));
     }
+
+    #[tokio::test]
+    async fn launch_url_for_thread_reuses_single_host_and_token() {
+        // Spec §生命周期 §496-499: same TUI session reuses one GUI host and
+        // one launch token. Two successive launch_url_for_thread calls must
+        // therefore return URLs with the same host:port and the same token
+        // (threadId is free to differ).
+        let manager = GuiHostManager::new_for_test().await;
+        let url_a = manager.launch_url_for_thread("thread-a").await.expect("url a");
+        let url_b = manager.launch_url_for_thread("thread-b").await.expect("url b");
+        // Strip threadId query, compare host:port and token fragment.
+        let (authority_a, token_a) = split_host_port_and_token(&url_a);
+        let (authority_b, token_b) = split_host_port_and_token(&url_b);
+        assert_eq!(authority_a, authority_b, "same session must reuse host:port");
+        assert_eq!(token_a, token_b, "same session must reuse launch token");
+        assert!(url_a.contains("threadId=thread-a"));
+        assert!(url_b.contains("threadId=thread-b"));
+    }
 }
 ```
 
@@ -359,9 +377,9 @@ use codex_app_server_protocol::JSONRPCNotification;
 use codex_app_server_protocol::JSONRPCRequest;
 use codex_gui_host::AuthenticatedGuiConnection;
 use codex_gui_host::GuiBackend;
-use codex_gui_host::filter::is_allowed_client_notification_method;
-use codex_gui_host::filter::is_allowed_client_request_method;
-use codex_gui_host::filter::is_allowed_server_notification_method;
+use codex_gui_host::is_allowed_client_notification_method;
+use codex_gui_host::is_allowed_client_request_method;
+use codex_gui_host::is_allowed_server_notification_method;
 use tokio::sync::mpsc;
 
 #[derive(Clone)]
@@ -461,27 +479,68 @@ impl GuiBackend for GuiTransportBackend {
                 })
             };
 
-            // If either pump terminates (browser disconnect, parse-error
-            // write failure, backend disconnect token), cancel the other so
-            // `handle` drops exactly once and `ExtraConnectionClosed` fires.
-            let result = tokio::select! {
-                inbound = inbound_task => inbound.unwrap_or_else(|err| {
-                    Err(anyhow::anyhow!("inbound pump join error: {err}"))
-                }),
-                outbound = outbound_task => {
-                    outbound.unwrap_or_else(|err| {
-                        tracing::warn!("outbound pump join error: {err}");
-                    });
-                    Ok(())
+            // When the first pump terminates (browser disconnect, parse-error
+            // write failure, backend disconnect token), cancel the token and
+            // then await the other pump to quiesce before dropping the handle.
+            // This prevents the losing inbound task from continuing to hold
+            // `command_sender` and pushing more ExtraRequest/ExtraNotification
+            // after ExtraConnectionClosed has been queued.
+            let (inbound_result, outbound_result) = match tokio::select! {
+                inbound = &mut inbound_task => Winner::Inbound(inbound),
+                outbound = &mut outbound_task => Winner::Outbound(outbound),
+            } {
+                Winner::Inbound(inbound) => {
+                    disconnect_token.cancel();
+                    // Give the outbound pump a bounded window to drain, then
+                    // abort if it hasn't exited. Spec says "drain 1s is
+                    // best-effort, abort path is allowed."
+                    let outbound = match tokio::time::timeout(
+                        OUTBOUND_DRAIN_BUDGET,
+                        &mut outbound_task,
+                    )
+                    .await
+                    {
+                        Ok(joined) => joined,
+                        Err(_) => {
+                            outbound_task.abort();
+                            // Surface the abort join result but ignore the
+                            // cancelled variant.
+                            (&mut outbound_task).await
+                        }
+                    };
+                    (inbound, outbound)
+                }
+                Winner::Outbound(outbound) => {
+                    disconnect_token.cancel();
+                    let inbound = (&mut inbound_task).await;
+                    (inbound, outbound)
                 }
             };
-            disconnect_token.cancel();
 
+            // Both pumps are now quiesced. Drop the handle exactly once so
+            // ExtraConnectionClosed fires after all outbound traffic ceased.
             drop(handle);
-            result
+
+            // Choose the error to surface: inbound errors are more
+            // actionable (parse errors, send failures); outbound join errors
+            // are logged but not returned.
+            inbound_result.unwrap_or_else(|err| {
+                Err(anyhow::anyhow!("inbound pump join error: {err}"))
+            })?;
+            if let Err(err) = outbound_result {
+                tracing::warn!("outbound pump join error: {err}");
+            }
+            Ok(())
         }
     }
 }
+
+enum Winner<A, B> {
+    Inbound(A),
+    Outbound(B),
+}
+
+const OUTBOUND_DRAIN_BUDGET: std::time::Duration = std::time::Duration::from_secs(1);
 
 async fn pump_inbound(
     inbound_rx: &mut mpsc::Receiver<String>,
@@ -698,13 +757,48 @@ Extend `InProcessAppServerClient::shutdown` (or the drop path it delegates into)
 
 If `shutdown` is currently a different shape, preserve its existing return type and only prepend the manager shutdown call. Leave no dangling clones of `gui_host_manager` that keep the manager alive past this point.
 
+Additionally, because `InProcessAppServerClient::shutdown` currently consumes `self` and there is no `impl Drop` (see `codex-rs/app-server-client/src/lib.rs:757`), add a best-effort `Drop` that synchronously cancels the `GuiHostManager` (non-async teardown path) so the spec invariant "先 drop `GuiHostManager`，再等 worker task 结束" holds even on unwinding / mem::forget-free panic paths. Concretely:
+
+```rust
+impl Drop for InProcessAppServerClient {
+    fn drop(&mut self) {
+        // Best-effort: signal the manager to stop accepting new browser
+        // connections and cancel any live bridge tasks. Do NOT block on the
+        // async GuiHost::shutdown path here (no runtime guaranteed). The
+        // async happy path is `InProcessAppServerClient::shutdown().await`.
+        self.gui_host_manager.cancel_nonblocking();
+    }
+}
+```
+
+`GuiHostManager::cancel_nonblocking` is a new synchronous method that: (a) sets an internal `stopped` flag so `launch_url_for_thread` returns `GuiLaunchError::Unsupported` afterward, and (b) triggers `GuiHostHandle`'s shared cancellation token without awaiting the `GuiHost::shutdown` future.
+
+- [ ] **Step 3b: Write failing test — manager shutdown orders before worker**
+
+In `codex-rs/app-server-client/src/lib.rs` tests (or a new sibling test module), add:
+
+```rust
+#[tokio::test]
+async fn shutdown_drops_gui_host_manager_before_worker() {
+    use codex_app_server::gui_host::test_probe;
+    let client = InProcessAppServerClient::start_for_test_with_gui().await;
+    let probe = test_probe(&client); // returns Arc<AtomicU64> stamped when manager.shutdown() is entered
+    client.shutdown().await.expect("shutdown should complete");
+    let (manager_stamp, worker_stamp) = probe.snapshot();
+    assert!(manager_stamp > 0, "manager shutdown did not run");
+    assert!(manager_stamp <= worker_stamp, "manager must shut down at or before worker exit");
+}
+```
+
+Expected: on initial run, FAIL (manager shutdown is not yet wired before worker). After Step 3, PASS.
+
 - [ ] **Step 4: Run the in-process integration test**
 
 ```bash
 cargo test -p codex-app-server-client gui_launch_url_returns_real_url_for_in_process
 ```
 
-Expected: PASS. URL matches `http://127.0.0.1:<port>/?threadId=thread-test#token=<64-hex>`.
+Expected: PASS. URL matches `http://127.0.0.1:<port>/?threadId=thread-test#token=<url-safe-base64-no-pad>` (43 chars for 32 random bytes; see `codex-rs/gui-host/src/token.rs::LaunchToken::generate`). Assert url-safe token presence and minimum entropy length, not hex.
 
 - [ ] **Step 5: Re-run the existing remote test**
 
@@ -808,10 +902,30 @@ cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host
 
 Expected: PASS. This confirms the future-reserved variant is still present; MVP path does not use it.
 
+- [ ] **Step 3b: Host-level allowlist enforcement (defense-in-depth)**
+
+Spec §JSON-RPC Allowlist (spec §400) and §验收标准 (spec §610) place the authoritative allowlist rejection at `codex-gui-host`'s inbound filter (`codex-rs/gui-host/src/ws.rs:232`). `gui_transport::classify_inbound` is only a defense-in-depth duplicate. Prove the host rejects non-allowlisted frames before they reach the backend, so an implementation regression in the backend filter cannot open a bypass.
+
+Add to `codex-rs/gui-host/tests/`:
+
+```rust
+#[tokio::test]
+async fn browser_non_allowlisted_request_never_reaches_backend() {
+    // Boot a GuiHost with a recording GuiBackend that fails the test if it
+    // sees a non-allowlisted frame (e.g. method = "fs/readFile").
+    // Drive a real /ws handshake, send the disallowed request, assert the
+    // browser receives a JSON-RPC error (or WebSocket close) AND the
+    // recording backend observed zero forwarded messages for that frame.
+    // ...
+}
+```
+
+Keep `gui_transport::classify_inbound` and its unit tests as defense-in-depth — do not remove them.
+
 - [ ] **Step 4: Commit**
 
 ```bash
-git add codex-rs/app-server/src/gui_transport.rs
+git add codex-rs/app-server/src/gui_transport.rs codex-rs/gui-host/tests
 git commit -m "test(app-server): end-to-end GUI bridge initialize round-trip"
 ```
 
