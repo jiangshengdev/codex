@@ -58,7 +58,7 @@ Prerequisite plans: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gu
 - Test: `codex-rs/tui/src/slash_command.rs`
 - Test: `codex-rs/tui/src/chatwidget/tests/slash_commands.rs`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 添加到 `codex-rs/tui/src/slash_command.rs` 现有 `#[cfg(test)] mod tests`：
 
@@ -92,7 +92,7 @@ async fn gui_command_emits_open_gui_event() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 在 `codex-rs` 目录运行：
 
@@ -107,7 +107,7 @@ no variant or associated item named `Gui` found for enum `SlashCommand`
 no variant or associated item named `OpenGui` found for enum `AppEvent`
 ```
 
-- [ ] **Step 3: 添加 `AppEvent::OpenGui`**
+- [x] **Step 3: 添加 `AppEvent::OpenGui`**
 
 在 `codex-rs/tui/src/app_event.rs` 中，放在其他 app-level open action 附近：
 
@@ -116,7 +116,7 @@ no variant or associated item named `OpenGui` found for enum `AppEvent`
     OpenGui,
 ```
 
-- [ ] **Step 4: 添加 slash-command metadata**
+- [x] **Step 4: 添加 slash-command metadata**
 
 在 `codex-rs/tui/src/slash_command.rs` 中，把 `Gui` 加到 `SlashCommand`，放在其他用户可见 navigation/status 命令附近：
 
@@ -144,7 +144,7 @@ no variant or associated item named `OpenGui` found for enum `AppEvent`
 
 不要把 `SlashCommand::Gui` 加入 `supports_inline_args`；`/gui` 不接受 inline args。
 
-- [ ] **Step 5: 从 `ChatWidget` dispatch `/gui`**
+- [x] **Step 5: 从 `ChatWidget` dispatch `/gui`**
 
 在 `codex-rs/tui/src/chatwidget/slash_dispatch.rs` 中添加 match arm：
 
@@ -154,7 +154,7 @@ no variant or associated item named `OpenGui` found for enum `AppEvent`
             }
 ```
 
-- [ ] **Step 6: 运行测试确认通过**
+- [x] **Step 6: 运行测试确认通过**
 
 在 `codex-rs` 目录运行：
 
@@ -169,7 +169,7 @@ test slash_command::tests::gui_command_is_visible_and_available ... ok
 test chatwidget::tests::slash_commands::gui_command_emits_open_gui_event ... ok
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add codex-rs/tui/src/app_event.rs codex-rs/tui/src/slash_command.rs codex-rs/tui/src/chatwidget/slash_dispatch.rs codex-rs/tui/src/chatwidget/tests/slash_commands.rs
@@ -185,7 +185,7 @@ git commit -m "feat(tui): register GUI slash command"
 - Modify: `codex-rs/tui/src/app_server_session.rs`
 - Test: `codex-rs/tui/src/app/gui.rs`
 
-- [ ] **Step 1: 写 focused presentation tests**
+- [x] **Step 1: 写 focused presentation tests**
 
 先创建 `codex-rs/tui/src/app/gui.rs`，只放测试：
 
@@ -239,7 +239,7 @@ mod tests {
 
 这些测试只覆盖 TUI 如何渲染 app-server-client 的结果。具体 session 是否能产生 URL，或返回 `Unsupported`，由 `02-app-server-bridge.md` 的 app-server-client 测试负责。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 在 `codex-rs` 目录运行：
 
@@ -249,7 +249,7 @@ cargo test -p codex-tui -- launch_url_result_
 
 预期失败包含缺少 `GuiLaunchUrl`、`GuiLaunchError`、`GuiLaunchMessage` 和 `launch_result_message`。其中 `GuiLaunchUrl` / `GuiLaunchError` 需要先由 `06-in-process-gui-launch.md` Task 5 提供。
 
-- [ ] **Step 3: 添加 app-server session wrapper**
+- [x] **Step 3: 添加 app-server session wrapper**
 
 在 `codex-rs/tui/src/app_server_session.rs` 中 import launch types 和 extension trait：
 
@@ -282,7 +282,7 @@ Matching on `&self.client` follows the existing `thread_params_mode` pattern at 
 
 这是 TUI 面向 GUI 的唯一 app-server-client API。不要添加暴露 raw backend handle 的方法。
 
-- [ ] **Step 4: 实现 `app/gui.rs`**
+- [x] **Step 4: 实现 `app/gui.rs`**
 
 把 `codex-rs/tui/src/app/gui.rs` 的 test-only 内容替换为：
 
@@ -437,7 +437,7 @@ mod tests {
 
 `launch_result_message` 是刻意保留的小型 presentation boundary：这样 TUI messaging 可以用纯 unit test 覆盖，而不需要在 `codex-tui` 测试里启动 app-server。不要把 `GuiLaunchUrl` 存到 `App`；每次 `/gui` 都重新向 app-server-client 请求当前 launch URL。
 
-- [ ] **Step 4b: `open_gui` dispatch 行为测试**
+- [x] **Step 4b: `open_gui` dispatch 行为测试**
 
 spec §`/gui` 入口（spec §548-555）要求：`/gui` 在没有 primary thread 时给出"未就绪"提示；在存在 primary thread 时请求 launch URL 并把 URL 写回 transcript。纯 `launch_result_message` presentation 测试不覆盖 `open_gui_inner` 的两个分支选择、对 primary_thread_id 的检查、以及对 launcher 的调用。加两个 focused behavioral 测试，把 `open_gui_inner` 行为约束锁死；launcher 和 sink 都用最小 stub，不在这里引入任何 GUI host/backend handle ownership，也不构造真实 `ChatWidget`（因为 `ChatWidget` 无公共 history iterator，只能通过 sink 记录器观察）。
 
@@ -526,7 +526,7 @@ spec §`/gui` 入口（spec §548-555）要求：`/gui` 在没有 primary thread
 
 Step 3/4 已经抽出 `open_gui_inner<L, S>` 并为 `AppServerSession` / `ChatWidget` 提供了 trait impl；`App::open_gui` 就是一行 wrapper。这样既能测 dispatch，又不让 `App` 取得任何 GUI host ownership。
 
-- [ ] **Step 5: 声明 module**
+- [x] **Step 5: 声明 module**
 
 在 `codex-rs/tui/src/app.rs` 的其他 `mod` 附近添加：
 
@@ -534,7 +534,7 @@ Step 3/4 已经抽出 `open_gui_inner<L, S>` 并为 `AppServerSession` / `ChatWi
 mod gui;
 ```
 
-- [ ] **Step 6: 处理 `AppEvent::OpenGui`**
+- [x] **Step 6: 处理 `AppEvent::OpenGui`**
 
 在 `codex-rs/tui/src/app/event_dispatch.rs` 中添加 event arm：
 
@@ -546,7 +546,7 @@ mod gui;
 
 这个 event handler 必须使用现有 app event dispatch 中已经传入的 `app_server: &mut AppServerSession`。不要通过 `AppEvent` 传递 GUI backend handle。
 
-- [ ] **Step 7: 运行 focused tests**
+- [x] **Step 7: 运行 focused tests**
 
 在 `codex-rs` 目录分别运行两条命令——libtest 每次只接受一个 substring filter，`open_gui_` 和 `launch_url_result_` 分别跑：
 
@@ -570,7 +570,7 @@ test app::gui::tests::open_gui_without_primary_thread_shows_not_ready_info ... o
 test app::gui::tests::open_gui_with_primary_thread_calls_launcher_and_renders_url ... ok
 ```
 
-- [ ] **Step 8: 运行 command path tests**
+- [x] **Step 8: 运行 command path tests**
 
 在 `codex-rs` 目录运行：
 
@@ -580,7 +580,7 @@ cargo test -p codex-tui -- gui_command_
 
 预期：两个测试都通过。
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add codex-rs/tui/src/app/gui.rs codex-rs/tui/src/app.rs codex-rs/tui/src/app/event_dispatch.rs codex-rs/tui/src/app_server_session.rs
@@ -594,7 +594,7 @@ git commit -m "feat(tui): request GUI launch URL from app server"
 - Verify: `codex-rs/tui/BUILD.bazel`
 - Verify: `codex-rs/tui/src`
 
-- [ ] **Step 1: 检查 TUI 不依赖 GUI host 或 app-server**
+- [x] **Step 1: 检查 TUI 不依赖 GUI host 或 app-server**
 
 在 repo root 运行：
 
@@ -604,7 +604,7 @@ rg -n "codex-gui-host|codex_gui_host|\\bGuiHost\\b|GuiHostHandle|GuiBackendHandl
 
 预期：没有匹配。命名空间 `codex_app_server_client::` 是合法的（现有依赖），所以用 `\bcodex_app_server::` 精确排除根 crate 的路径。
 
-- [ ] **Step 2: 格式化并 lint**
+- [x] **Step 2: 格式化并 lint**
 
 在 `codex-rs` 目录运行：
 
@@ -615,7 +615,7 @@ just fix -p codex-tui
 
 预期：格式化完成，scoped lint fixes 被应用，或没有需要修改的内容。
 
-- [ ] **Step 3: 运行 TUI tests**
+- [x] **Step 3: 运行 TUI tests**
 
 在 `codex-rs` 目录运行（每个 `cargo test` 只传一个 filter，避免依赖 libtest 的多 filter OR 行为）：
 
@@ -627,7 +627,7 @@ cargo test -p codex-tui -- open_gui_
 
 预期：三个命令都退出 0；所有 `/gui` focused tests 通过。
 
-- [ ] **Step 4: Commit verification fixes**
+- [x] **Step 4: Commit verification fixes**
 
 如果 `just fmt` 或 `just fix -p codex-tui` 修改了文件，提交：
 
