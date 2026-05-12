@@ -14,6 +14,7 @@ CODEX_CLI_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = CODEX_CLI_ROOT.parent
 RESPONSES_API_PROXY_NPM_ROOT = REPO_ROOT / "codex-rs" / "responses-api-proxy" / "npm"
 CODEX_SDK_ROOT = REPO_ROOT / "sdk" / "typescript"
+CODEX_GUI_ROOT = REPO_ROOT / "codex-gui"
 CODEX_NPM_NAME = "@openai/codex"
 
 # `npm_name` is the local optional-dependency alias consumed by `bin/codex.js`.
@@ -190,6 +191,9 @@ def main() -> int:
                 target_filter={target_filter} if target_filter else None,
                 allow_missing_components=set(args.allow_missing_native_components),
             )
+
+        if package in CODEX_PLATFORM_PACKAGES:
+            copy_gui_dist(staging_dir)
 
         if release_version:
             staging_dir_str = str(staging_dir)
@@ -370,6 +374,31 @@ def stage_codex_sdk_sources(staging_dir: Path) -> None:
     license_src = REPO_ROOT / "LICENSE"
     if license_src.exists():
         shutil.copy2(license_src, staging_dir / "LICENSE")
+
+
+def copy_gui_dist(staging_dir: Path) -> None:
+    gui_dist_src = ensure_gui_dist()
+
+    gui_package_root = staging_dir / "vendor" / "codex-gui"
+    gui_dist_dest = gui_package_root / "dist"
+    if gui_dist_dest.exists():
+        shutil.rmtree(gui_dist_dest)
+    gui_package_root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(gui_dist_src, gui_dist_dest)
+
+
+def ensure_gui_dist() -> Path:
+    gui_dist_src = CODEX_GUI_ROOT / "dist"
+    if not (gui_dist_src / "index.html").exists():
+        run_command(["pnpm", "install", "--frozen-lockfile"], cwd=CODEX_GUI_ROOT)
+        run_command(["pnpm", "run", "build"], cwd=CODEX_GUI_ROOT)
+
+    if not (gui_dist_src / "index.html").exists():
+        raise RuntimeError(
+            f"codex-gui build did not produce an index.html file in: {gui_dist_src}"
+        )
+
+    return gui_dist_src
 
 
 def copy_native_binaries(

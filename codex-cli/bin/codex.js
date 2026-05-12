@@ -164,8 +164,13 @@ if (existsSync(pathDir)) {
   additionalDirs.push(pathDir);
 }
 const updatedPath = getUpdatedPath(additionalDirs);
+const guiPackageRoot = path.join(vendorRoot, "codex-gui");
 
-const env = { ...process.env, PATH: updatedPath };
+const env = {
+  ...process.env,
+  PATH: updatedPath,
+  CODEX_GUI_PACKAGE_ROOT: guiPackageRoot,
+};
 const packageManagerEnvVar =
   detectPackageManager() === "bun"
     ? "CODEX_MANAGED_BY_BUN"

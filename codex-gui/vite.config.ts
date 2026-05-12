@@ -5,6 +5,11 @@ import tailwindcss from "@tailwindcss/vite";
 import { lingui, linguiTransformerBabelPreset } from "@lingui/vite-plugin";
 import babel from "@rolldown/plugin-babel";
 
+const viteHost = process.env.CODEX_GUI_VITE_HOST ?? "127.0.0.1";
+const vitePort = Number(process.env.CODEX_GUI_VITE_PORT ?? "5173");
+const viteHmrHost = process.env.CODEX_GUI_VITE_HMR_HOST ?? viteHost;
+const viteHmrPort = Number(process.env.CODEX_GUI_VITE_HMR_PORT ?? vitePort);
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -21,6 +26,15 @@ export default defineConfig({
       "@codex-protocol": fileURLToPath(
         new URL("../codex-rs/app-server-protocol/schema/typescript", import.meta.url),
       ),
+    },
+  },
+  server: {
+    host: viteHost,
+    port: vitePort,
+    hmr: {
+      host: viteHmrHost,
+      port: viteHmrPort,
+      clientPort: viteHmrPort,
     },
   },
 });
