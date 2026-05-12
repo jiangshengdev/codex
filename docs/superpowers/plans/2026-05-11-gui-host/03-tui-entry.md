@@ -94,7 +94,7 @@ async fn gui_command_emits_open_gui_event() {
 在 `codex-rs` 目录运行：
 
 ```bash
-cargo test -p codex-tui gui_command_is_visible_and_available gui_command_emits_open_gui_event
+cargo test -p codex-tui -- gui_command_
 ```
 
 预期失败包含：
@@ -150,7 +150,7 @@ no variant or associated item named `OpenGui` found for enum `AppEvent`
 在 `codex-rs` 目录运行：
 
 ```bash
-cargo test -p codex-tui gui_command_is_visible_and_available gui_command_emits_open_gui_event
+cargo test -p codex-tui -- gui_command_
 ```
 
 预期：
@@ -235,7 +235,7 @@ mod tests {
 在 `codex-rs` 目录运行：
 
 ```bash
-cargo test -p codex-tui launch_url_result_renders_url_message launch_url_result_renders_unsupported_message launch_url_result_renders_transport_error
+cargo test -p codex-tui -- launch_url_result_
 ```
 
 预期失败包含缺少 `GuiLaunchUrl`、`GuiLaunchError`、`GuiLaunchMessage` 和 `launch_result_message`。其中 `GuiLaunchUrl` / `GuiLaunchError` 需要先由 `02-app-server-bridge.md` Task 5 提供。
@@ -397,7 +397,7 @@ mod gui;
 在 `codex-rs` 目录运行：
 
 ```bash
-cargo test -p codex-tui launch_url_result_renders_url_message launch_url_result_renders_unsupported_message launch_url_result_renders_transport_error
+cargo test -p codex-tui -- launch_url_result_
 ```
 
 预期：
@@ -413,7 +413,7 @@ test app::gui::tests::launch_url_result_renders_transport_error ... ok
 在 `codex-rs` 目录运行：
 
 ```bash
-cargo test -p codex-tui gui_command_is_visible_and_available gui_command_emits_open_gui_event
+cargo test -p codex-tui -- gui_command_
 ```
 
 预期：两个测试都通过。
@@ -455,13 +455,14 @@ just fix -p codex-tui
 
 - [ ] **Step 3: 运行 TUI tests**
 
-在 `codex-rs` 目录运行：
+在 `codex-rs` 目录运行（每个 `cargo test` 只传一个 filter，避免依赖 libtest 的多 filter OR 行为）：
 
 ```bash
-cargo test -p codex-tui gui_command_is_visible_and_available gui_command_emits_open_gui_event launch_url_result_renders_url_message launch_url_result_renders_unsupported_message launch_url_result_renders_transport_error
+cargo test -p codex-tui -- gui_command_
+cargo test -p codex-tui -- launch_url_result_
 ```
 
-预期：所有 focused `/gui` tests 通过。
+预期：两个命令都退出 0；所有 `/gui` focused tests 通过。
 
 - [ ] **Step 4: Commit verification fixes**
 

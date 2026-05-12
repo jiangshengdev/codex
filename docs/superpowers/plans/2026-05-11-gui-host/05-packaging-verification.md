@@ -156,22 +156,32 @@ Expected: command exits 0.
 
 - [ ] **Step 2: Run focused Rust tests**
 
-Run:
+`cargo test <filter>` accepts a single positional substring filter. To run each scoped set, group the tests under a shared name prefix and use one filter per command:
 
 ```bash
 cd codex-rs
 cargo test -p codex-gui-host
-cargo test -p codex-app-server extra_connection_request_reaches_message_processor extra_connection_notification_is_accepted dropping_extra_handle_triggers_connection_closed register_extra_connection_allocates_ids_starting_above_main processor_command_has_extra_variants
-cargo test -p codex-app-server gui_transport
-cargo test -p codex-app-server gui_host
-cargo test -p codex-app-server backend_round_trips_initialize
-cargo test -p codex-app-server-client gui_launch_error_variants_are_distinct gui_launch_url_returns_real_url_for_in_process
-cargo test -p codex-app-server in_process_start_initializes_and_handles_typed_v2_request
-cargo test -p codex-app-server-transport connection_origin_has_distinct_gui_host_variant
-cargo test -p codex-tui gui_command_is_visible_and_available gui_command_emits_open_gui_event launch_url_result_renders_url_message launch_url_result_renders_unsupported_message launch_url_result_renders_transport_error
+# Plan 06 in_process extra-connection surface (all names begin with "extra_connection_" or "register_extra_connection_" or "dropping_extra_").
+cargo test -p codex-app-server -- extra_connection_
+cargo test -p codex-app-server -- register_extra_connection_
+cargo test -p codex-app-server -- dropping_extra_
+cargo test -p codex-app-server -- processor_command_has_extra_variants
+# Plan 02 GUI bridge modules.
+cargo test -p codex-app-server -- gui_transport
+cargo test -p codex-app-server -- gui_host
+cargo test -p codex-app-server -- backend_round_trips_initialize
+# App-server-client GUI extension.
+cargo test -p codex-app-server-client -- gui_launch_error_variants_are_distinct
+cargo test -p codex-app-server-client -- gui_launch_url_returns_real_url_for_in_process
+# Invariants.
+cargo test -p codex-app-server -- in_process_start_initializes_and_handles_typed_v2_request
+cargo test -p codex-app-server-transport -- connection_origin_has_distinct_gui_host_variant
+# TUI /gui focused tests.
+cargo test -p codex-tui -- gui_command_
+cargo test -p codex-tui -- launch_url_result_
 ```
 
-Expected: all commands exit 0.
+Expected: every command exits 0. The `--` separator makes the intent explicit: everything after `--` is a libtest filter. Using one filter per command avoids relying on libtest's multi-filter OR behavior, which is not part of the documented `cargo test <TESTNAME>` contract.
 
 - [ ] **Step 3: Verify dependency boundaries**
 
@@ -190,17 +200,27 @@ both commands exit 0 with no matches
 
 The grep uses `\bcodex_app_server::` to allow `codex_app_server_client::` (which is the crate TUI is allowed to import) while rejecting the root `codex-app-server` crate path.
 
-- [ ] **Step 3b: End-to-end in-process launch check**
+- [ ] **Step 3b: End-to-end in-process launch check (manual)**
 
-From `codex-rs`:
+Start a real TUI session:
 
 ```bash
-cargo run -p codex-tui --bin codex -- --listen stdio:// --gui-e2e-one-shot
+cd codex-rs
+cargo run -p codex-tui --bin codex
 ```
 
-(If no `--gui-e2e-one-shot` flag exists, run a real interactive TUI session, execute `/gui`, and paste the printed URL into a browser.)
+In the TUI, run `/gui`. Expected transcript output matches the pattern:
 
-Expected: TUI prints a line matching `http://127.0.0.1:\d+/\?threadId=[^#]+#token=[0-9a-f]+`. Opening that URL in a local browser reaches the GUI host, returns HTTP 200 for `/`, and the WebSocket at `/ws` successfully completes `gui/authenticate -> initialize -> thread/projection/attach`. This manual check corroborates the Rust unit/integration tests above and proves the default in-process path is end-to-end functional.
+```text
+http://127.0.0.1:<port>/?threadId=<thread-id>#token=<64-hex>
+```
+
+Open that URL in a local browser. Expected behavior:
+- The GUI host serves HTTP 200 at `/`.
+- The WebSocket at `/ws` completes `gui/authenticate -> initialize -> thread/projection/attach` without errors (check browser devtools WebSocket frames).
+- At least one `thread/projection/event` frame arrives after attach.
+
+This manual check corroborates the Rust unit/integration tests above and proves the default in-process path is end-to-end functional.
 
 - [ ] **Step 4: Run frontend tests**
 

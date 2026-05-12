@@ -190,7 +190,8 @@ Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
 Run:
 
 ```bash
-cargo test -p codex-app-server register_extra_connection_allocates_ids_starting_above_main dropping_extra_connection_handle_sends_closed_command
+cargo test -p codex-app-server -- register_extra_connection_
+cargo test -p codex-app-server -- dropping_extra_connection_handle_
 ```
 
 Expected: FAIL with `no method named \`register_extra_connection\``.
@@ -340,7 +341,8 @@ The local `AtomicU64` avoids sharing ID space with `codex-app-server-transport`'
 - [ ] **Step 5: Run tests**
 
 ```bash
-cargo test -p codex-app-server register_extra_connection_allocates_ids_starting_above_main dropping_extra_connection_handle_sends_closed_command
+cargo test -p codex-app-server -- register_extra_connection_
+cargo test -p codex-app-server -- dropping_extra_connection_handle_
 ```
 
 Expected: both tests pass. `dropping_extra_connection_handle_sends_closed_command` does not yet observe `ExtraConnectionClosed` processing — it only proves the sender survives a `drop` without panicking; Task 3 verifies the loop actually consumes it.
@@ -424,7 +426,8 @@ Add to `#[cfg(test)] mod tests` (reuse the existing test helpers):
 Run:
 
 ```bash
-cargo test -p codex-app-server extra_connection_request_reaches_message_processor extra_connection_notification_is_accepted
+cargo test -p codex-app-server -- extra_connection_request_reaches_message_processor
+cargo test -p codex-app-server -- extra_connection_notification_is_accepted
 ```
 
 Expected: FAIL because the processor loop does not yet have arms for the new commands; `outgoing_rx.recv()` times out.
@@ -469,14 +472,10 @@ with:
             ),
         );
         // Control channel used by the client-message task to register/unregister
-        // extra connection writer entries without blocking the processor.
+        // extra connection writer entries and mirror session state without
+        // blocking the processor.
         let (outbound_control_tx, mut outbound_control_rx) =
             mpsc::channel::<OutboundControl>(channel_capacity);
-        let outbound_initialized_for_router = Arc::clone(&outbound_initialized);
-        let outbound_experimental_api_enabled_for_router =
-            Arc::clone(&outbound_experimental_api_enabled);
-        let outbound_opted_out_notification_methods_for_router =
-            Arc::clone(&outbound_opted_out_notification_methods);
         let mut outbound_handle = tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -489,17 +488,38 @@ with:
                             Some(OutboundControl::Register {
                                 connection_id,
                                 writer,
+                                initialized,
+                                experimental_api_enabled,
+                                opted_out_notification_methods,
                             }) => {
                                 outbound_connections.insert(
                                     connection_id,
                                     OutboundConnectionState::new(
                                         writer,
-                                        Arc::clone(&outbound_initialized_for_router),
-                                        Arc::clone(&outbound_experimental_api_enabled_for_router),
-                                        Arc::clone(&outbound_opted_out_notification_methods_for_router),
+                                        initialized,
+                                        experimental_api_enabled,
+                                        opted_out_notification_methods,
                                         None,
                                     ),
                                 );
+                            }
+                            Some(OutboundControl::MirrorSessionState {
+                                connection_id,
+                                initialized,
+                                experimental_api_enabled,
+                                opted_out_notification_methods,
+                            }) => {
+                                if let Some(entry) = outbound_connections.get(&connection_id) {
+                                    entry.initialized.store(initialized, Ordering::Release);
+                                    entry
+                                        .experimental_api_enabled
+                                        .store(experimental_api_enabled, Ordering::Release);
+                                    if let Ok(mut opted_out) =
+                                        entry.opted_out_notification_methods.write()
+                                    {
+                                        *opted_out = opted_out_notification_methods;
+                                    }
+                                }
                             }
                             Some(OutboundControl::Unregister { connection_id }) => {
                                 outbound_connections.remove(&connection_id);
@@ -519,6 +539,15 @@ enum OutboundControl {
     Register {
         connection_id: ConnectionId,
         writer: mpsc::Sender<QueuedOutgoingMessage>,
+        initialized: Arc<AtomicBool>,
+        experimental_api_enabled: Arc<AtomicBool>,
+        opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
+    },
+    MirrorSessionState {
+        connection_id: ConnectionId,
+        initialized: bool,
+        experimental_api_enabled: bool,
+        opted_out_notification_methods: HashSet<String>,
     },
     Unregister {
         connection_id: ConnectionId,
@@ -526,10 +555,13 @@ enum OutboundControl {
 }
 ```
 
+Each extra connection gets its own `Arc<AtomicBool>` for `initialized` and `experimental_api_enabled`, and its own `Arc<RwLock<HashSet<String>>>` for opted-out notification methods. The main connection's existing Arcs (`outbound_initialized`, etc.) stay reserved for `IN_PROCESS_CONNECTION_ID` and are never shared with extras.
+
 **Invariants after this change:**
 - `outgoing_rx.recv()` is still the primary source of outgoing traffic; main-connection throughput and ordering are unchanged.
 - `OutboundControl::Register` is only reachable via `ExtraConnectionOpened` handling (Step 4), so the main connection's writer slot is never overwritten.
 - `OutboundControl::Unregister` is only reachable via `ExtraConnectionClosed` handling (Step 4); `IN_PROCESS_CONNECTION_ID` is never passed in.
+- `OutboundControl::MirrorSessionState` is only reachable from the processor arm after `process_request` returns for an extra connection (Step 5); it mirrors the extra connection's own `ConnectionSessionState` into its own outbound Arcs — it never touches the main connection's Arcs.
 
 - [ ] **Step 3: Bridge `writer_rx` payloads into `ExtraConnectionHandle::outgoing_rx`**
 
@@ -538,7 +570,8 @@ Extra connection writer channels live in `outbound_connections`, so their `Queue
 To do this, add a helper that owns the per-extra serializer bridge. In `start_uninitialized`, declare a bridge-spawn helper and use it from the `ExtraConnectionOpened` arm:
 
 ```rust
-use crate::transport::OutgoingMessage;
+use crate::outgoing_message::OutgoingMessage;
+use crate::outgoing_message::QueuedOutgoingMessage;
 
 fn spawn_extra_writer_bridge(
     connection_id: ConnectionId,
@@ -589,10 +622,17 @@ Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv(
                             let (writer_tx, writer_rx) =
                                 mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
                             spawn_extra_writer_bridge(connection_id, outgoing_tx, writer_rx);
+                            let initialized = Arc::new(AtomicBool::new(false));
+                            let experimental_api_enabled = Arc::new(AtomicBool::new(false));
+                            let opted_out_notification_methods =
+                                Arc::new(RwLock::new(HashSet::new()));
                             if outbound_control_tx
                                 .send(OutboundControl::Register {
                                     connection_id,
                                     writer: writer_tx,
+                                    initialized,
+                                    experimental_api_enabled,
+                                    opted_out_notification_methods,
                                 })
                                 .await
                                 .is_err()
@@ -655,11 +695,12 @@ Use `send().await` instead of `try_send`: extra-connection registration and tear
 
 - [ ] **Step 5: Add processor-side arms**
 
-Inside the processor task `tokio::select!`, extend the `match command { ... }` inside `Some(ProcessorCommand::...)` with four new arms. Track per-connection session state in a new map declared alongside the existing `session` binding:
+Inside the processor task `tokio::select!`, extend the `match command { ... }` inside `Some(ProcessorCommand::...)` with four new arms. Track per-connection session state in a new map declared alongside the existing `session` binding. Also clone `outbound_control_tx` into the processor spawn so `ExtraRequest` can mirror session state after each turn:
 
 ```rust
             let mut extra_session_states: HashMap<ConnectionId, Arc<ConnectionSessionState>> =
                 HashMap::new();
+            let outbound_control_tx_for_processor = outbound_control_tx.clone();
 ```
 
 Then add these arms immediately after `Some(ProcessorCommand::Notification(notification))`:
@@ -684,14 +725,45 @@ Then add these arms immediately after `Some(ProcessorCommand::Notification(notif
                                     );
                                     continue;
                                 };
+                                let was_initialized = session_state.initialized();
                                 processor
                                     .process_request(
                                         connection_id,
                                         *request,
                                         &crate::transport::AppServerTransport::Off,
-                                        session_state,
+                                        Arc::clone(&session_state),
                                     )
                                     .await;
+                                // Mirror the extra connection's session state
+                                // into its own outbound Arcs. Main connection's
+                                // Arcs are not touched. This matches the shape
+                                // used by the main-connection `Request` arm;
+                                // `process_request` passes `None` for outbound
+                                // initialized and defers the mirror to the
+                                // caller on purpose (see
+                                // `message_processor.rs:511-524`).
+                                let initialized = session_state.initialized();
+                                let experimental_api_enabled =
+                                    session_state.experimental_api_enabled();
+                                let opted_out_notification_methods =
+                                    session_state.opted_out_notification_methods();
+                                let _ = outbound_control_tx_for_processor
+                                    .send(OutboundControl::MirrorSessionState {
+                                        connection_id,
+                                        initialized,
+                                        experimental_api_enabled,
+                                        opted_out_notification_methods,
+                                    })
+                                    .await;
+                                // Extra connections intentionally do NOT
+                                // trigger `send_initialize_notifications`
+                                // on first initialize: that method broadcasts
+                                // one-time startup notifications that only
+                                // make sense for the main connection. Extra
+                                // connections rely on the `thread_created_rx`
+                                // fan-out (Step 6) and on responses to the
+                                // requests they themselves issued.
+                                let _ = was_initialized;
                             }
                             Some(ProcessorCommand::ExtraNotification {
                                 connection_id,
@@ -759,7 +831,8 @@ This makes projection event fan-out follow the allowlisted browser connections o
 - [ ] **Step 7: Run the Task 3 failing tests**
 
 ```bash
-cargo test -p codex-app-server extra_connection_request_reaches_message_processor extra_connection_notification_is_accepted
+cargo test -p codex-app-server -- extra_connection_request_reaches_message_processor
+cargo test -p codex-app-server -- extra_connection_notification_is_accepted
 ```
 
 Expected: both tests pass.
@@ -767,7 +840,10 @@ Expected: both tests pass.
 - [ ] **Step 8: Re-run the main-connection invariant tests**
 
 ```bash
-cargo test -p codex-app-server in_process_start_initializes_and_handles_typed_v2_request in_process_start_uses_requested_session_source_for_thread_start in_process_start_clamps_zero_channel_capacity guaranteed_delivery_helpers_cover_terminal_server_notifications
+cargo test -p codex-app-server -- in_process_start_initializes_and_handles_typed_v2_request
+cargo test -p codex-app-server -- in_process_start_uses_requested_session_source_for_thread_start
+cargo test -p codex-app-server -- in_process_start_clamps_zero_channel_capacity
+cargo test -p codex-app-server -- guaranteed_delivery_helpers_cover_terminal_server_notifications
 ```
 
 Expected: all four tests still pass.
@@ -793,10 +869,11 @@ Add to `#[cfg(test)] mod tests`:
     async fn dropping_extra_handle_triggers_connection_closed() {
         let client = start_test_client(SessionSource::Cli).await;
         let sender = client.sender();
-        let handle = sender.register_extra_connection();
+        let mut handle = sender.register_extra_connection();
         let connection_id = handle.connection_id;
 
-        // Send a request first so the connection is definitely registered.
+        // Send a request so the connection is definitely registered and the
+        // writer pipeline has flowed once.
         handle
             .command_sender
             .send_request(JSONRPCRequest {
@@ -807,20 +884,25 @@ Add to `#[cfg(test)] mod tests`:
             })
             .expect("send request");
 
-        // Drain the response so the processor has finished this call.
-        let mut outgoing_rx = {
-            let mut handle = handle;
-            let rx = std::mem::replace(&mut handle.outgoing_rx, mpsc::channel(1).1);
-            let _ = timeout(Duration::from_secs(2), async {
-                // ensure request handled
-            })
-            .await;
-            drop(handle);
-            rx
-        };
+        // Drain the response so we know the processor finished this call
+        // *before* we drop the handle. Without this wait, the drop may race
+        // the request, and `ExtraConnectionClosed` could be processed before
+        // `ExtraRequest`.
+        let _response = timeout(Duration::from_secs(2), handle.outgoing_rx.recv())
+            .await
+            .expect("outgoing response within timeout")
+            .expect("outgoing channel still open for response");
 
-        // After drop, `outgoing_rx` should close because the writer bridge
-        // task exits once its writer channel is removed from outbound_connections.
+        // Move the receiver out of `handle` so we can still observe the
+        // channel after `Drop` fires. Replacing with a dummy receiver is
+        // necessary because `ExtraConnectionHandle` itself implements `Drop`.
+        let (_noop_tx, noop_rx) = mpsc::channel::<String>(1);
+        let mut outgoing_rx = std::mem::replace(&mut handle.outgoing_rx, noop_rx);
+        drop(handle);
+
+        // After drop, `outgoing_rx` must close because the writer bridge
+        // task exits once its writer channel is removed from
+        // `outbound_connections`.
         let result = timeout(Duration::from_secs(2), outgoing_rx.recv()).await;
         assert!(
             matches!(result, Ok(None) | Err(_)),
@@ -911,8 +993,6 @@ Write `codex-rs/app-server-client/src/gui.rs`:
 //! implementation returns [`GuiLaunchError::Unsupported`] — GUI launch across
 //! a remote app-server process is out of MVP scope.
 
-use async_trait::async_trait;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuiLaunchUrl {
     pub url: String,
@@ -935,12 +1015,11 @@ impl std::fmt::Display for GuiLaunchError {
 
 impl std::error::Error for GuiLaunchError {}
 
-#[async_trait]
 pub trait AppServerClientGuiExt {
-    async fn gui_launch_url(
+    fn gui_launch_url(
         &self,
         primary_thread_id: &str,
-    ) -> Result<GuiLaunchUrl, GuiLaunchError>;
+    ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send;
 }
 ```
 
@@ -956,30 +1035,21 @@ pub use crate::gui::GuiLaunchUrl;
 And add the `Unsupported` remote implementation at the end of the file:
 
 ```rust
-#[async_trait::async_trait]
 impl crate::gui::AppServerClientGuiExt for crate::remote::RemoteAppServerClient {
-    async fn gui_launch_url(
+    fn gui_launch_url(
         &self,
         _primary_thread_id: &str,
-    ) -> Result<crate::gui::GuiLaunchUrl, crate::gui::GuiLaunchError> {
-        Err(crate::gui::GuiLaunchError::Unsupported)
+    ) -> impl std::future::Future<
+        Output = Result<crate::gui::GuiLaunchUrl, crate::gui::GuiLaunchError>,
+    > + Send {
+        std::future::ready(Err(crate::gui::GuiLaunchError::Unsupported))
     }
 }
 ```
 
 The `InProcessAppServerClient` implementation lands in plan 02 once `GuiHostManager` exists. Plan 06 intentionally stops at the remote-side stub so 02 can wire the in-process side.
 
-If `async_trait` is not already a direct dependency of `codex-app-server-client`, add it to `codex-rs/app-server-client/Cargo.toml`:
-
-```toml
-async-trait = { workspace = true }
-```
-
-Then run from `codex-rs`:
-
-```bash
-just bazel-lock-update && just bazel-lock-check
-```
+RPITIT (`impl Future<...> + Send` return type in a trait method) is used here to match the style of `codex_gui_host::GuiBackend::connect` and avoid introducing an `async-trait` dependency. No `Cargo.toml` or Bazel lockfile change is required.
 
 - [ ] **Step 3: Run the new test**
 
@@ -1000,11 +1070,9 @@ Expected: all existing tests still pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add codex-rs/app-server-client/src/gui.rs codex-rs/app-server-client/src/lib.rs codex-rs/app-server-client/Cargo.toml codex-rs/Cargo.lock codex-rs/Cargo.Bazel.lock
+git add codex-rs/app-server-client/src/gui.rs codex-rs/app-server-client/src/lib.rs
 git commit -m "feat(app-server-client): add gui launch extension trait"
 ```
-
-If dependency changes did not touch the Bazel lockfile, drop the last two files from `git add`.
 
 ## Task 6: Format + Scoped Lint
 
