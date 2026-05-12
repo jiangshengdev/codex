@@ -211,7 +211,7 @@ browser close / refresh / host shutdown
   -> existing app-server connection cleanup
 ```
 
-**ConnectionOrigin::GuiHost**：`ConnectionOrigin`（当前 variant：`Stdio`、`InProcess`、`WebSocket`、`RemoteControl`）需要新增 `GuiHost` variant。GUI 连接与 `InProcess` 同进程但策略不同（有 allowlist、有 token 认证），与 `WebSocket` 同为 WebSocket 但来源不同；因此不复用现有 variant，而是新增 `ConnectionOrigin::GuiHost`。
+**ConnectionOrigin::GuiHost**：`ConnectionOrigin` 已经包含 `Stdio`、`InProcess`、`WebSocket`、`RemoteControl`、`GuiHost` 五个 variant（见 `codex-rs/app-server-transport/src/transport/mod.rs` 中 `pub enum ConnectionOrigin`）。GUI 连接与 `InProcess` 同进程但策略不同（有 allowlist、有 token 认证），与 `WebSocket` 同为 WebSocket 但来源不同；这也是当初选择新增 `ConnectionOrigin::GuiHost` 而不复用现有 variant 的原因。
 
 **TransportEvent channel 归属**：`codex-gui-host` 不拥有 `TransportEvent` channel。`transport_event_tx` 由 `codex-app-server` 的 `run_main_with_transport_options` 创建并持有。GUI host 的 lazy-start 必须发生在能访问该 `transport_event_tx` 的 app-server runtime scope 内。`GuiBackend` 的 app-server 实现接收认证后的连接，负责向该 channel 发送 `ConnectionOpened`、转发 `IncomingMessage`、并保证每个 `ConnectionOpened` 对应恰好一个 `ConnectionClosed`。
 
@@ -219,7 +219,7 @@ browser close / refresh / host shutdown
 
 - `ConnectionOpened` 当且仅当 `gui/authenticate` 成功后发送；认证失败不发送。
 - 每个 `ConnectionOpened` 对应恰好一个 `ConnectionClosed`，包括：browser 关闭/刷新、host shutdown、`GuiBackend::connect` 返回 `Err`、以及任何错误路径。
-- `ConnectionClosed` 发送之后，bridge 不得再为同一 `connection_id` 发送 `IncomingMessage`；发送 `ConnectionClosed` 之前，bridge 应停止从 browser 接收新 frame 并丢弃未决 outbound。`ConnectionClosed` 触发 app-server 现有 connection cleanup（见 `codex-rs/app-server/src/lib.rs:876-887`）。
+- `ConnectionClosed` 发送之后，bridge 不得再为同一 `connection_id` 发送 `IncomingMessage`；发送 `ConnectionClosed` 之前，bridge 应停止从 browser 接收新 frame 并丢弃未决 outbound。`ConnectionClosed` 触发 app-server 现有 connection cleanup（见 `codex-rs/app-server/src/lib.rs` 中 `run_main_with_transport_options` 的 `TransportEvent::ConnectionClosed` 处理臂）。
 - bridge 必须监听 `disconnect_sender` 的取消信号；收到取消时主动关闭 WebSocket 并发送 `ConnectionClosed`。
 
 这与 `remote-control` 的关键架构一致：remote-control 通过虚拟连接接入 app-server transport，而不是绕过 processor 建第二套 request pipeline。GUI bridge 应复用这条思想。实现时可以抽取共享 adapter，也可以先实现 GUI 专用 adapter；无论哪种方式，语义必须对齐 `TransportEvent` lifecycle，并避免在 `in_process.rs` 中复制 `run_main_with_transport_options` 的 connection map、outbound router 或 close cleanup 逻辑。
@@ -522,7 +522,7 @@ TUI 不测试 WebSocket 细节，不依赖 `tokio-tungstenite`。
 
 - `00-roadmap.md`：更新目标描述，明确 GUI host 首版是本机 browser projection transport MVP。
 - `01-gui-host-crate.md`：保持已完成状态；该任务提供有效的 browser host shell。
-- `02-app-server-bridge.md`：必须重写，删除 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 和 `in_process.rs` extra connection 路线，改为 app-server runtime 拥有的动态 GUI transport acceptor。计划必须优先回退当前 `in_process.rs` 多连接实现，并把 GUI bridge 实现为 `TransportEvent` producer。
+- `02-app-server-bridge.md`：必须重写，删除 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory` 和 `in_process.rs` extra connection 路线，改为 app-server runtime 拥有的动态 GUI transport acceptor。`in_process.rs` 多连接实现已通过 refactor 提交回退（见 `git log --grep "remove obsolete in-process bridge"`），02 计划以此为起点实现 GUI bridge 作为 `TransportEvent` producer。
 - `03-tui-entry.md`：保留 `/gui` primary thread URL 入口方向。
 - `04-frontend-handshake.md`：保留 handshake，但明确前端只显示最小 transport/projection 状态。
 - `05-packaging-verification.md`：基本保留。
