@@ -1,41 +1,74 @@
-import { expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import App from "@/App";
+import type {
+  GuiHostStatus,
+  StartGuiHostConnectionOptions,
+} from "@/features/guiHost/guiHostClient";
 import { renderWithProviders } from "@/utils/test-utils";
 
-test("App should have correct initial render", async () => {
+const guiHostClientMock = vi.hoisted(() => ({
+  startGuiHostConnection: vi.fn(),
+}));
+
+vi.mock("@/features/guiHost/guiHostClient", () => ({
+  startGuiHostConnection: guiHostClientMock.startGuiHostConnection,
+}));
+
+type StartGuiHostConnectionMock = {
+  mockImplementation: (
+    implementation: (options: StartGuiHostConnectionOptions) => () => void,
+  ) => void;
+  mockReset: () => void;
+};
+
+const startGuiHostConnectionMock =
+  guiHostClientMock.startGuiHostConnection as StartGuiHostConnectionMock;
+
+let emitStatus: ((status: GuiHostStatus) => void) | undefined;
+let cleanupConnectionCallCount: number;
+
+beforeEach(() => {
+  emitStatus = undefined;
+  cleanupConnectionCallCount = 0;
+  startGuiHostConnectionMock.mockReset();
+  startGuiHostConnectionMock.mockImplementation((options) => {
+    emitStatus = options.onStatus;
+    return () => {
+      cleanupConnectionCallCount += 1;
+    };
+  });
+});
+
+test("App renders the GUI host status panel without opening a real WebSocket", async () => {
   const screen = await renderWithProviders(<App />);
 
-  const countLabel = screen.getByLabelText("Count");
-  const incrementValueInput = screen.getByRole("textbox", {
-    name: "Set increment amount",
+  await expect.element(screen.getByRole("heading", { name: "GUI host" })).toBeVisible();
+  await expect.element(screen.getByText("connecting")).toBeVisible();
+  await expect.element(screen.getByText(/^no$/)).toBeVisible();
+  await expect.element(screen.getByText(/^0$/)).toBeVisible();
+  await expect.element(screen.getByText(/^none$/)).toBeVisible();
+  expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
+});
+
+test("App reflects GUI host status callback updates", async () => {
+  const screen = await renderWithProviders(<App />);
+
+  emitStatus?.({
+    label: "received event",
+    eventCount: 2,
+    lastEventType: "turnStarted",
   });
 
-  await expect.element(countLabel).toHaveTextContent("0");
-  await expect.element(incrementValueInput).toHaveValue("2");
+  await expect.element(screen.getByText("received event")).toBeVisible();
+  await expect.element(screen.getByText(/^yes$/)).toBeVisible();
+  await expect.element(screen.getByText(/^2$/)).toBeVisible();
+  await expect.element(screen.getByText("turnStarted")).toBeVisible();
 });
 
-test("Increment value and Decrement value should work as expected", async () => {
+test("App closes the GUI host connection when unmounted", async () => {
   const screen = await renderWithProviders(<App />);
 
-  const countLabel = screen.getByLabelText("Count");
-  const incrementValueButton = screen.getByLabelText("Increment value");
-  const decrementValueButton = screen.getByLabelText("Decrement value");
+  await screen.unmount();
 
-  await incrementValueButton.click();
-  await expect.element(countLabel).toHaveTextContent("1");
-
-  await decrementValueButton.click();
-  await expect.element(countLabel).toHaveTextContent("0");
-});
-
-test("Language switcher changes the active catalog", async () => {
-  const screen = await renderWithProviders(<App />);
-
-  await expect.element(screen.getByText("Red")).toBeVisible();
-
-  await screen.getByLabelText("Language").click();
-  await screen.getByRole("option", { name: "简体中文" }).click();
-
-  await expect.element(screen.getByText("红色")).toBeVisible();
-  await expect.element(screen.getByTitle("点击此按钮测试复数形式")).toBeVisible();
+  expect(cleanupConnectionCallCount).toBe(1);
 });
