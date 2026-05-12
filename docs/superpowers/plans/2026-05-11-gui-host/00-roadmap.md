@@ -4,7 +4,7 @@
 
 **Goal:** Deliver the TUI in-process GUI host local projection transport MVP split across focused plan files.
 
-**Architecture:** `codex-gui-host` remains the browser-safe GUI shell. `codex-app-server` owns GUI host lifecycle **inside** the TUI's in-process app-server runtime (`codex-rs/app-server/src/in_process.rs`). Each authenticated GUI WebSocket is registered via `InProcessClientSender::register_extra_connection`, producing new `ProcessorCommand::Extra*` commands that are driven by the existing `MessageProcessor` and existing `outbound_connections` HashMap. TUI only asks `codex-app-server-client` for a launch URL and prints it. Projection scope stays small: authenticate, initialize, attach the primary thread, and prove real `thread/projection/event` delivery.
+**Architecture:** `codex-gui-host` remains the browser-safe GUI shell. `codex-app-server` owns GUI host lifecycle **in the TUI's in-process app-server session**; the lifecycle surface lives in `codex-rs/app-server/src/gui_host.rs` and `codex-rs/app-server/src/gui_transport.rs`, while `codex-rs/app-server/src/in_process.rs` stays GUI-agnostic and only exposes the neutral extra-connection API. Each authenticated GUI WebSocket is registered via `InProcessClientSender::register_extra_connection`, producing new `ProcessorCommand::Extra*` commands that are driven by the existing `MessageProcessor` and existing `outbound_connections` HashMap. TUI only asks `codex-app-server-client` for a launch URL and prints it. Projection scope stays small: authenticate, initialize, attach the primary thread, and prove real `thread/projection/event` delivery.
 
 **Tech Stack:** Rust 2024, axum, tokio, app-server JSON-RPC, Vite/React/Vitest.
 
@@ -82,20 +82,21 @@ In-process foundation (plan 06):
   - Add `extra_connections: HashMap<ConnectionId, ExtraConnectionEntry>` next to `outbound_connections`. Each entry owns that connection's `ConnectionSessionState` plus clones of the outbound-gating Arcs shared with the router.
   - Keep all naming in `in_process.rs` GUI-agnostic (no `gui`, `websocket`, `allowlist` symbols).
 - Create: `codex-rs/app-server-client/src/gui.rs`
-  - `pub trait AppServerClientGuiExt { async fn gui_launch_url(&self, primary_thread_id: &str) -> Result<GuiLaunchUrl, GuiLaunchError>; }`.
+  - `pub trait AppServerClientGuiExt { fn gui_launch_url(&self, primary_thread_id: &str) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send; }`.
   - `pub struct GuiLaunchUrl { pub url: String }`.
   - `pub enum GuiLaunchError { Unsupported, Transport(std::io::Error) }`.
 - Modify: `codex-rs/app-server-client/src/lib.rs`
   - `pub mod gui;` + re-export the extension trait and types.
-  - `InProcessAppServerClient` carries an `Arc<GuiHostManager>`; its implementation calls `GuiHostManager::launch_url_for_thread` and returns `GuiLaunchUrl`. Remote client impl returns `GuiLaunchError::Unsupported`.
+  - Plan 06 only lands the remote-side `AppServerClientGuiExt` impl returning `GuiLaunchError::Unsupported`. The in-process impl (holding `Arc<GuiHostManager>`) is wired by plan 02 once `GuiHostManager` exists; see plan 06 Task 5 notes.
 
 Bridge (plan 02):
 
 - Modify: `codex-rs/app-server/Cargo.toml` — add `codex-gui-host = { workspace = true }`.
 - Modify: `codex-rs/app-server/BUILD.bazel` — add the `codex-gui-host` dependency if dependencies are listed explicitly.
-- Create: `codex-rs/app-server/src/gui_host.rs` — `GuiHostManager { inner: Mutex<Option<GuiHostHandle>>, sender: InProcessClientSender }` with `launch_url_for_thread(primary_thread_id) -> anyhow::Result<GuiLaunchUrl>` and `shutdown()`. Starts a single `GuiHost` on first call and reuses it thereafter.
+- Create: `codex-rs/app-server/src/gui_host.rs` — `GuiHostManager { inner: Mutex<Option<GuiHostHandle>>, sender: InProcessClientSender }` with `launch_url_for_thread(primary_thread_id) -> anyhow::Result<String>` (raw URL; the `codex-app-server-client` boundary wraps it into `GuiLaunchUrl`, because `codex-app-server` cannot depend on `codex-app-server-client`) and `shutdown()`. Starts a single `GuiHost` on first call and reuses it thereafter.
 - Create: `codex-rs/app-server/src/gui_transport.rs` — implements `codex_gui_host::GuiBackend`. For each authenticated `AuthenticatedGuiConnection`: calls `register_extra_connection`, spawns inbound and outbound bridge tasks, respects `disconnect_token`, triggers `ExtraConnectionHandle` drop on termination.
-- Modify: `codex-rs/app-server/src/lib.rs` — declares the new modules. Plan 02 does not wire anything into `run_main_with_transport_options`; the GUI host manager lives on the in-process client side (plan 06).
+- Modify: `codex-rs/app-server/src/lib.rs` — declares the new modules.
+- Modify: `codex-rs/app-server-client/src/lib.rs` — plan 02 adds the `Arc<GuiHostManager>` field on `InProcessAppServerClient` and the in-process `AppServerClientGuiExt` impl that wraps the raw URL into `GuiLaunchUrl`. Plan 02 does not wire anything into `run_main_with_transport_options`; the GUI host manager lives on the in-process client side.
 
 TUI entry changes (plan 03):
 
@@ -140,7 +141,7 @@ Frontend and packaging changes (plans 04, 05):
 - `02-app-server-bridge.md` only verifies `ConnectionOrigin::GuiHost` still compiles and its existing unit test passes; MVP path does not consume it.
 - `03-tui-entry.md` uses the `AppServerClientGuiExt::gui_launch_url` extension trait and asserts the happy path returns a real URL (not `Unsupported`).
 - `04-frontend-handshake.md` keeps projection UI to transport status only.
-- `05-packaging-verification.md` runs the in-process-path acceptance tests added by plan 06.
+- `05-packaging-verification.md` runs the full in-process-path acceptance suite: plan 06 `extra_connection_*` invariants, plan 02 `gui_host` / `gui_transport` behavior, plan 04 frontend handshake checks, and the plan 05 packaging + end-to-end browser verification.
 - `06-in-process-gui-launch.md` keeps `in_process.rs` naming GUI-agnostic and documents the outbound router loop invariants with behavior-equivalent tests.
 - No plan step adds code to `codex-core`.
 - No plan step changes sandbox environment variable code.

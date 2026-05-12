@@ -4,7 +4,7 @@
 
 **Goal:** Package GUI dist for prod mode and run final verification for the GUI host projection transport MVP.
 
-**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, dependency boundary checks, and lockfile checks. Verification follows the方案 B ownership split: app-server owns GUI host lifecycle and routes GUI JSON-RPC traffic through its own in-process extra-connection machinery (no new `TransportEvent` producer); TUI requests only an app-server-client launch URL and never starts `GuiHost` directly. Prod static caching details remain outside the transport MVP acceptance criteria and can be finalized during packaging implementation.
+**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, dependency boundary checks, and lockfile checks. Verification follows the方案 B ownership split: app-server owns GUI host lifecycle and routes GUI JSON-RPC traffic through its own in-process extra-connection machinery (no new `TransportEvent` producer); TUI requests only an app-server-client launch URL and never starts `GuiHost` directly. Prod static caching (HTML no-cache vs. fingerprinted-asset immutable cache) is **out of scope** for this MVP plan — it is explicitly deferred; see Task 11 Step 5. The reserved `ConnectionOrigin::GuiHost` variant is likewise out of MVP acceptance scope per spec §JSON-RPC Allowlist; we keep it compiling but do not gate release on a distinct-variant regression test.
 
 **Tech Stack:** Node CLI wrapper, Python packaging script, Vite build, Rust verification, Playwright.
 
@@ -127,12 +127,44 @@ vite build
 
 and `codex-gui/dist/index.html` exists.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Verify platform package staging layout**
+
+`codex-gui/dist` is in `codex-gui/.gitignore`, so it must not be committed. Instead, assert that the packaging script actually lays out the dist under the staging package root and that the CLI wrapper points `CODEX_GUI_PACKAGE_ROOT` at that root.
+
+Run from repo root:
 
 ```bash
-git add codex-cli/bin/codex.js codex-cli/scripts/build_npm_package.py codex-gui/vite.config.ts codex-gui/dist
+rm -rf /tmp/codex-gui-stage
+python3 codex-cli/scripts/build_npm_package.py \
+  --package codex-darwin-arm64 \
+  --version 0.0.0-test \
+  --staging-dir /tmp/codex-gui-stage \
+  --vendor-src <vendor-source-that-exists>
+test -f /tmp/codex-gui-stage/vendor/codex-gui/dist/index.html
+```
+
+Expected: the `test -f` command exits 0. The prior Step 1 failure case (`RuntimeError: Vendor source directory not found`) is the negative side of this assertion.
+
+Sanity-check that `codex-cli/bin/codex.js` passes `CODEX_GUI_PACKAGE_ROOT = <staging-dir>/vendor/codex-gui` when it spawns the codex binary from the staging layout. A grep is sufficient:
+
+```bash
+rg -n "CODEX_GUI_PACKAGE_ROOT" codex-cli/bin/codex.js
+```
+
+Expected: one match pointing at `path.join(vendorRoot, "codex-gui")`.
+
+- [ ] **Step 5: Defer prod static cache decision (out of scope)**
+
+Prod HTML no-cache vs fingerprinted-asset `immutable` caching is **not** part of this MVP's acceptance gates. Confirm only that the prod handler serves `dist/index.html` and hashed asset files — do not change cache headers or add a cache-header test here. Capture the follow-up decision (cache policy owner + deadline) in a non-blocking note on the MVP ship PR; it lands in a later plan.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add codex-cli/bin/codex.js codex-cli/scripts/build_npm_package.py codex-gui/vite.config.ts
 git commit -m "feat(gui): package built GUI assets"
 ```
+
+`codex-gui/dist` is gitignored; do not `git add` it.
 
 ---
 
@@ -175,7 +207,9 @@ cargo test -p codex-app-server-client -- gui_launch_error_variants_are_distinct
 cargo test -p codex-app-server-client -- gui_launch_url_returns_real_url_for_in_process
 # Invariants.
 cargo test -p codex-app-server -- in_process_start_initializes_and_handles_typed_v2_request
-cargo test -p codex-app-server-transport -- connection_origin_has_distinct_gui_host_variant
+# Non-gating sanity: ConnectionOrigin::GuiHost is reserved for future work (spec §JSON-RPC Allowlist).
+# Running this test guards against accidental removal but a failure here alone does not block the MVP.
+cargo test -p codex-app-server-transport -- connection_origin_has_distinct_gui_host_variant || echo "NOTE: reserved-variant sanity check failed; treat as follow-up, not an MVP blocker"
 # TUI /gui focused tests.
 cargo test -p codex-tui -- gui_command_
 cargo test -p codex-tui -- launch_url_result_
@@ -280,10 +314,10 @@ git commit -m "chore(gui): update Rust locks for GUI host"
 - `codex-app-server` `gui_transport` tests pass (including `backend_round_trips_initialize`).
 - `codex-app-server` `gui_host` tests pass.
 - `codex-app-server-client` `gui_launch_error_variants_are_distinct` and `gui_launch_url_returns_real_url_for_in_process` pass.
-- `codex-app-server-transport` `connection_origin_has_distinct_gui_host_variant` passes (reserved variant intact).
+- `codex-app-server-transport` `connection_origin_has_distinct_gui_host_variant` is run as a non-gating sanity check only (reserved variant; spec §JSON-RPC Allowlist marks `GuiHost` out of MVP acceptance).
 - `codex-app-server` `in_process_start_initializes_and_handles_typed_v2_request` still passes (main TUI connection invariant).
 - `codex-tui` `/gui` tests prove launch URL request/display behavior, not direct host ownership.
-- The manual in-process e2e check (Step 3b) produces a real `http://127.0.0.1:<port>/?threadId=...#token=...` URL; the browser reaches the GUI host and completes `gui/authenticate -> initialize -> thread/projection/attach`.
+- The manual in-process e2e check (Step 3b) produces a real `http://127.0.0.1:<port>/?threadId=...#token=...` URL; the browser reaches the GUI host and completes `gui/authenticate -> initialize -> thread/projection/attach -> thread/projection/event` (at least one real event notification).
 - `codex-tui` has no direct `codex-app-server` dependency.
 - `codex-tui` has no `codex-gui-host` dependency.
 - Final verification commands do not run `in_process::tests::gui_backend`.

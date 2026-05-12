@@ -12,7 +12,7 @@
 
 Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 Bridge plan: `docs/superpowers/plans/2026-05-11-gui-host/02-app-server-bridge.md`.
-Prerequisite plan: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui-launch.md` (must be merged so `AppServerClientGuiExt` is available).
+Prerequisite plans: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui-launch.md` (lands `AppServerClientGuiExt` trait/types plus the remote `Unsupported` impl) **and** `docs/superpowers/plans/2026-05-11-gui-host/02-app-server-bridge.md` (lands the `InProcessAppServerClient` in-process `gui_launch_url` impl that this plan calls). Both must be merged before Task 9.
 
 ## 硬约束
 
@@ -42,7 +42,7 @@ Prerequisite plan: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui
 - Modify: `codex-rs/tui/src/app/event_dispatch.rs`
   - 处理 `AppEvent::OpenGui`，调用 `self.open_gui(app_server).await`。
 - Modify: `codex-rs/tui/src/app_server_session.rs`
-  - 为 `codex_app_server_client::AppServerClient::gui_launch_url` 添加小 wrapper。
+  - 添加 `AppServerSession::gui_launch_url` 小 wrapper：在 session 作用域导入 `codex_app_server_client::AppServerClientGuiExt`，通过 `match &self.client` 把 `AppServerClient::InProcess` / `Remote` 分发到 trait method。
 - Test: `codex-rs/tui/src/slash_command.rs`
 - Test: `codex-rs/tui/src/chatwidget/tests/slash_commands.rs`
 - Test: `codex-rs/tui/src/app/gui.rs`
@@ -72,9 +72,12 @@ fn gui_command_is_visible_and_available() {
         "open GUI for the primary thread"
     );
     assert!(SlashCommand::Gui.available_during_task());
+    assert!(SlashCommand::Gui.available_in_side_conversation());
     assert!(!SlashCommand::Gui.supports_inline_args());
 }
 ```
+
+`available_in_side_conversation` 返回 `true` 的理由：spec §`/gui` 入口 规定 `/gui` 首版始终打开 primary thread——即 thread 选择**不跟随**当前 side conversation，而不是"禁用 side conversation 下的触发"。因此在 `active_side_conversation = true` 时仍需允许 dispatch（否则 `ChatWidget::ensure_slash_command_allowed_in_side_conversation` 会把 `/gui` 挡下）。
 
 添加到 `codex-rs/tui/src/chatwidget/tests/slash_commands.rs`：
 
@@ -131,6 +134,12 @@ no variant or associated item named `OpenGui` found for enum `AppEvent`
 
 ```rust
             | SlashCommand::Gui
+```
+
+让 `/gui` 在 side conversation 中也能触发（仍然作用于 primary thread），把它加入 `available_in_side_conversation` 的 matches!：
+
+```rust
+                | SlashCommand::Gui
 ```
 
 不要把 `SlashCommand::Gui` 加入 `supports_inline_args`；`/gui` 不接受 inline args。
@@ -478,6 +487,7 @@ git commit -m "chore(tui): format GUI launch entry"
 ## Acceptance Gates
 
 - `/gui` 已注册、可见，并且在 task running 时可用。
+- `/gui` 在 active side conversation 下仍可 dispatch（`available_in_side_conversation` 返回 `true`），触发后仍请求 primary thread 的 launch URL。
 - `/gui` 发出 `AppEvent::OpenGui`。
 - `AppEvent::OpenGui` 使用 primary thread ID 向 `AppServerSession` 请求 launch URL。
 - 如果没有 primary thread，TUI 打印：`Current session is not ready to open GUI.`
