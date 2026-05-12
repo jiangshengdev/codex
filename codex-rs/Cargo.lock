@@ -1901,7 +1901,6 @@ dependencies = [
  "codex-feedback",
  "codex-file-search",
  "codex-git-utils",
- "codex-gui-host",
  "codex-hooks",
  "codex-login",
  "codex-mcp",

@@ -55,18 +55,15 @@ use crate::config_manager::ConfigManager;
 use crate::error_code::OVERLOADED_ERROR_CODE;
 use crate::error_code::internal_error;
 use crate::error_code::invalid_request;
+use crate::message_processor::ConnectionSessionState;
 use crate::message_processor::MessageProcessor;
 use crate::message_processor::MessageProcessorArgs;
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::OutgoingEnvelope;
-use crate::outgoing_message::OutgoingError;
 use crate::outgoing_message::OutgoingMessage;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::outgoing_message::QueuedOutgoingMessage;
-use crate::transport::AppServerTransport;
 use crate::transport::CHANNEL_CAPACITY;
-use crate::transport::ConnectionOrigin;
-use crate::transport::ConnectionState;
 use crate::transport::OutboundConnectionState;
 use crate::transport::route_outgoing_envelope;
 use codex_analytics::AppServerRpcTransport;
@@ -75,7 +72,6 @@ use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::ConfigWarningNotification;
 use codex_app_server_protocol::InitializeParams;
 use codex_app_server_protocol::JSONRPCErrorError;
-use codex_app_server_protocol::JSONRPCMessage;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::Result;
 use codex_app_server_protocol::ServerNotification;
@@ -88,8 +84,6 @@ use codex_core::config::Config;
 use codex_core::resolve_installation_id;
 use codex_exec_server::EnvironmentManager;
 use codex_feedback::CodexFeedback;
-use codex_gui_host::AuthenticatedGuiConnection;
-use codex_gui_host::GuiBackend;
 use codex_login::AuthManager;
 use codex_protocol::protocol::SessionSource;
 pub use codex_rollout::StateDbHandle;
@@ -97,7 +91,6 @@ pub use codex_state::log_db::LogDbLayer;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::time::timeout;
-use tokio_util::sync::CancellationToken;
 use toml::Value as TomlValue;
 use tracing::warn;
 
@@ -185,10 +178,6 @@ enum InProcessClientMessage {
         request_id: RequestId,
         error: JSONRPCErrorError,
     },
-    OpenGuiConnection {
-        connection: AuthenticatedGuiConnection,
-        done_tx: oneshot::Sender<anyhow::Result<()>>,
-    },
     Shutdown {
         done_tx: oneshot::Sender<()>,
     },
@@ -197,137 +186,6 @@ enum InProcessClientMessage {
 enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
-    GuiOpened {
-        connection_id: ConnectionId,
-        initialized: Arc<AtomicBool>,
-        experimental_api_enabled: Arc<AtomicBool>,
-        opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-    },
-    GuiIncoming {
-        connection_id: ConnectionId,
-        message: JSONRPCMessage,
-    },
-}
-
-enum InProcessOutboundControlEvent {
-    Opened {
-        connection_id: ConnectionId,
-        writer: mpsc::Sender<QueuedOutgoingMessage>,
-        initialized: Arc<AtomicBool>,
-        experimental_api_enabled: Arc<AtomicBool>,
-        opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-        disconnect_sender: Option<CancellationToken>,
-    },
-    Closed {
-        connection_id: ConnectionId,
-    },
-}
-
-enum RuntimeEvent {
-    GuiClosed { connection_id: ConnectionId },
-}
-
-struct GuiConnectionRuntime {
-    done_tx: oneshot::Sender<anyhow::Result<()>>,
-    disconnect_token: CancellationToken,
-    outbound_handle: tokio::task::JoinHandle<()>,
-}
-
-async fn complete_gui_connection(
-    connection_id: ConnectionId,
-    gui_connections: &mut HashMap<ConnectionId, GuiConnectionRuntime>,
-    outbound_control_tx: Option<&mpsc::Sender<InProcessOutboundControlEvent>>,
-    mut completion: anyhow::Result<()>,
-) {
-    let Some(gui_connection) = gui_connections.remove(&connection_id) else {
-        return;
-    };
-
-    gui_connection.disconnect_token.cancel();
-    if let Some(outbound_control_tx) = outbound_control_tx
-        && outbound_control_tx
-            .send(InProcessOutboundControlEvent::Closed { connection_id })
-            .await
-            .is_err()
-    {
-        warn!("failed to remove closed GUI outbound connection");
-    }
-
-    if let Err(err) = gui_connection.outbound_handle.await {
-        warn!("GUI outbound writer task failed: {err}");
-        if completion.is_ok() {
-            completion = Err(anyhow::anyhow!("GUI outbound writer task failed: {err}"));
-        }
-    }
-
-    let _ = gui_connection.done_tx.send(completion);
-}
-
-fn try_enqueue_gui_opened(
-    processor_tx: &mpsc::Sender<ProcessorCommand>,
-    connection_id: ConnectionId,
-    initialized: Arc<AtomicBool>,
-    experimental_api_enabled: Arc<AtomicBool>,
-    opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-) -> anyhow::Result<()> {
-    processor_tx
-        .try_send(ProcessorCommand::GuiOpened {
-            connection_id,
-            initialized,
-            experimental_api_enabled,
-            opted_out_notification_methods,
-        })
-        .map_err(|err| match err {
-            mpsc::error::TrySendError::Full(_) => {
-                anyhow::anyhow!("in-process app-server request processor queue is full")
-            }
-            mpsc::error::TrySendError::Closed(_) => {
-                anyhow::anyhow!("in-process app-server request processor is closed")
-            }
-        })
-}
-
-fn enqueue_gui_incoming_message(
-    processor_tx: &mpsc::Sender<ProcessorCommand>,
-    writer_tx: &mpsc::Sender<QueuedOutgoingMessage>,
-    connection_id: ConnectionId,
-    message: JSONRPCMessage,
-) -> bool {
-    match processor_tx.try_send(ProcessorCommand::GuiIncoming {
-        connection_id,
-        message,
-    }) {
-        Ok(()) => true,
-        Err(mpsc::error::TrySendError::Closed(_)) => false,
-        Err(mpsc::error::TrySendError::Full(ProcessorCommand::GuiIncoming {
-            message: JSONRPCMessage::Request(request),
-            ..
-        })) => {
-            let overload_error = OutgoingMessage::Error(OutgoingError {
-                id: request.id,
-                error: JSONRPCErrorError {
-                    code: OVERLOADED_ERROR_CODE,
-                    message: "Server overloaded; retry later.".to_string(),
-                    data: None,
-                },
-            });
-            match writer_tx.try_send(QueuedOutgoingMessage::new(overload_error)) {
-                Ok(()) => true,
-                Err(mpsc::error::TrySendError::Closed(_)) => false,
-                Err(mpsc::error::TrySendError::Full(_)) => {
-                    warn!(
-                        "dropping overload response for GUI connection {:?}: outbound queue is full",
-                        connection_id
-                    );
-                    false
-                }
-            }
-        }
-        Err(mpsc::error::TrySendError::Full(_)) => {
-            warn!("closing GUI connection after processor queue filled: {connection_id:?}");
-            false
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -400,34 +258,7 @@ pub struct InProcessClientHandle {
     _test_codex_home: Option<tempfile::TempDir>,
 }
 
-#[derive(Clone)]
-pub struct GuiBackendHandle {
-    command_tx: mpsc::Sender<InProcessClientMessage>,
-}
-
-impl GuiBackend for GuiBackendHandle {
-    async fn connect(&self, connection: AuthenticatedGuiConnection) -> anyhow::Result<()> {
-        let (done_tx, done_rx) = oneshot::channel();
-        self.command_tx
-            .send(InProcessClientMessage::OpenGuiConnection {
-                connection,
-                done_tx,
-            })
-            .await
-            .map_err(|_| anyhow::anyhow!("in-process app-server runtime is closed"))?;
-        done_rx
-            .await
-            .map_err(|err| anyhow::anyhow!("GUI connection completion channel closed: {err}"))?
-    }
-}
-
 impl InProcessClientHandle {
-    pub fn gui_backend(&self) -> GuiBackendHandle {
-        GuiBackendHandle {
-            command_tx: self.client.client_tx.clone(),
-        }
-    }
-
     /// Sends a typed client request into the in-process runtime.
     ///
     /// The returned value is a transport-level `IoResult` containing either a
@@ -541,8 +372,6 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
 
     let runtime_handle = tokio::spawn(async move {
         let (outgoing_tx, mut outgoing_rx) = mpsc::channel::<OutgoingEnvelope>(channel_capacity);
-        let (outbound_control_tx, mut outbound_control_rx) =
-            mpsc::channel::<InProcessOutboundControlEvent>(channel_capacity);
         let auth_manager =
             AuthManager::shared_from_config(args.config.as_ref(), args.enable_codex_api_key_env)
                 .await;
@@ -557,63 +386,21 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         let outbound_initialized = Arc::new(AtomicBool::new(false));
         let outbound_experimental_api_enabled = Arc::new(AtomicBool::new(false));
         let outbound_opted_out_notification_methods = Arc::new(RwLock::new(HashSet::new()));
-        let in_process_outbound_initialized = Arc::clone(&outbound_initialized);
-        let in_process_outbound_experimental_api_enabled =
-            Arc::clone(&outbound_experimental_api_enabled);
-        let in_process_outbound_opted_out_notification_methods =
-            Arc::clone(&outbound_opted_out_notification_methods);
 
+        let mut outbound_connections = HashMap::<ConnectionId, OutboundConnectionState>::new();
+        outbound_connections.insert(
+            IN_PROCESS_CONNECTION_ID,
+            OutboundConnectionState::new(
+                writer_tx,
+                Arc::clone(&outbound_initialized),
+                Arc::clone(&outbound_experimental_api_enabled),
+                Arc::clone(&outbound_opted_out_notification_methods),
+                /*disconnect_sender*/ None,
+            ),
+        );
         let mut outbound_handle = tokio::spawn(async move {
-            let mut outbound_connections = HashMap::<ConnectionId, OutboundConnectionState>::new();
-            outbound_connections.insert(
-                IN_PROCESS_CONNECTION_ID,
-                OutboundConnectionState::new(
-                    writer_tx,
-                    in_process_outbound_initialized,
-                    in_process_outbound_experimental_api_enabled,
-                    in_process_outbound_opted_out_notification_methods,
-                    /*disconnect_sender*/ None,
-                ),
-            );
-            loop {
-                tokio::select! {
-                    biased;
-                    event = outbound_control_rx.recv() => {
-                        let Some(event) = event else {
-                            break;
-                        };
-                        match event {
-                            InProcessOutboundControlEvent::Opened {
-                                connection_id,
-                                writer,
-                                initialized,
-                                experimental_api_enabled,
-                                opted_out_notification_methods,
-                                disconnect_sender,
-                            } => {
-                                outbound_connections.insert(
-                                    connection_id,
-                                    OutboundConnectionState::new(
-                                        writer,
-                                        initialized,
-                                        experimental_api_enabled,
-                                        opted_out_notification_methods,
-                                        disconnect_sender,
-                                    ),
-                                );
-                            }
-                            InProcessOutboundControlEvent::Closed { connection_id } => {
-                                outbound_connections.remove(&connection_id);
-                            }
-                        }
-                    }
-                    envelope = outgoing_rx.recv() => {
-                        let Some(envelope) = envelope else {
-                            break;
-                        };
-                        route_outgoing_envelope(&mut outbound_connections, envelope).await;
-                    }
-                }
+            while let Some(envelope) = outgoing_rx.recv().await {
+                route_outgoing_envelope(&mut outbound_connections, envelope).await;
             }
         });
 
@@ -627,9 +414,6 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             args.thread_config_loader,
         );
         let (processor_tx, mut processor_rx) = mpsc::channel::<ProcessorCommand>(channel_capacity);
-        let (runtime_event_tx, mut runtime_event_rx) =
-            mpsc::channel::<RuntimeEvent>(channel_capacity);
-        let (gui_close_tx, mut gui_close_rx) = mpsc::unbounded_channel::<ConnectionId>();
         let mut processor_handle = tokio::spawn(async move {
             let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
                 outgoing: Arc::clone(&processor_outgoing),
@@ -650,56 +434,40 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 plugin_startup_tasks: crate::PluginStartupTasks::Start,
             }));
             let mut thread_created_rx = processor.thread_created_receiver();
-            let mut connections = HashMap::<ConnectionId, ConnectionState>::new();
-            connections.insert(
-                IN_PROCESS_CONNECTION_ID,
-                ConnectionState::new(
-                    ConnectionOrigin::InProcess,
-                    Arc::clone(&outbound_initialized),
-                    Arc::clone(&outbound_experimental_api_enabled),
-                    Arc::clone(&outbound_opted_out_notification_methods),
-                ),
-            );
+            let session = Arc::new(ConnectionSessionState::new());
             let mut listen_for_threads = true;
-            let mut listen_for_gui_closes = true;
-            let mut closed_gui_connections = HashSet::<ConnectionId>::new();
 
             loop {
                 tokio::select! {
                     command = processor_rx.recv() => {
                         match command {
                             Some(ProcessorCommand::Request(request)) => {
-                                let Some(connection_state) =
-                                    connections.get_mut(&IN_PROCESS_CONNECTION_ID)
-                                else {
-                                    warn!("dropping in-process request after connection closed");
-                                    continue;
-                                };
-                                let was_initialized = connection_state.session.initialized();
+                                let was_initialized = session.initialized();
                                 processor
                                     .process_client_request(
                                         IN_PROCESS_CONNECTION_ID,
                                         *request,
-                                        Arc::clone(&connection_state.session),
-                                        &connection_state.outbound_initialized,
+                                        Arc::clone(&session),
+                                        &outbound_initialized,
                                     )
                                     .await;
                                 let opted_out_notification_methods_snapshot =
-                                    connection_state.session.opted_out_notification_methods();
+                                    session.opted_out_notification_methods();
                                 let experimental_api_enabled =
-                                    connection_state.session.experimental_api_enabled();
-                                let is_initialized = connection_state.session.initialized();
+                                    session.experimental_api_enabled();
+                                let is_initialized = session.initialized();
                                 if let Ok(mut opted_out_notification_methods) =
-                                    connection_state.outbound_opted_out_notification_methods.write()
+                                    outbound_opted_out_notification_methods.write()
                                 {
                                     *opted_out_notification_methods =
                                         opted_out_notification_methods_snapshot;
                                 } else {
                                     warn!("failed to update outbound opted-out notifications");
                                 }
-                                connection_state
-                                    .outbound_experimental_api_enabled
-                                    .store(experimental_api_enabled, Ordering::Release);
+                                outbound_experimental_api_enabled.store(
+                                    experimental_api_enabled,
+                                    Ordering::Release,
+                                );
                                 if !was_initialized && is_initialized {
                                     processor.send_initialize_notifications().await;
                                 }
@@ -707,148 +475,19 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             Some(ProcessorCommand::Notification(notification)) => {
                                 processor.process_client_notification(notification).await;
                             }
-                            Some(ProcessorCommand::GuiOpened {
-                                connection_id,
-                                initialized,
-                                experimental_api_enabled,
-                                opted_out_notification_methods,
-                            }) => {
-                                if closed_gui_connections.contains(&connection_id) {
-                                    continue;
-                                }
-                                connections.insert(
-                                    connection_id,
-                                    ConnectionState::new(
-                                        ConnectionOrigin::GuiHost,
-                                        initialized,
-                                        experimental_api_enabled,
-                                        opted_out_notification_methods,
-                                    ),
-                                );
-                            }
-                            Some(ProcessorCommand::GuiIncoming {
-                                connection_id,
-                                message,
-                            }) => {
-                                match message {
-                                    JSONRPCMessage::Request(request) => {
-                                        let Some(connection_state) =
-                                            connections.get_mut(&connection_id)
-                                        else {
-                                            warn!(
-                                                "dropping GUI request from unknown connection: {connection_id:?}"
-                                            );
-                                            continue;
-                                        };
-                                        let was_initialized =
-                                            connection_state.session.initialized();
-                                        processor
-                                            .process_request(
-                                                connection_id,
-                                                request,
-                                                &AppServerTransport::Off,
-                                                Arc::clone(&connection_state.session),
-                                            )
-                                            .await;
-                                        let opted_out_notification_methods_snapshot =
-                                            connection_state
-                                                .session
-                                                .opted_out_notification_methods();
-                                        let experimental_api_enabled = connection_state
-                                            .session
-                                            .experimental_api_enabled();
-                                        let is_initialized =
-                                            connection_state.session.initialized();
-                                        if let Ok(mut opted_out_notification_methods) =
-                                            connection_state
-                                                .outbound_opted_out_notification_methods
-                                                .write()
-                                        {
-                                            *opted_out_notification_methods =
-                                                opted_out_notification_methods_snapshot;
-                                        } else {
-                                            warn!(
-                                                "failed to update outbound opted-out notifications"
-                                            );
-                                        }
-                                        connection_state
-                                            .outbound_experimental_api_enabled
-                                            .store(experimental_api_enabled, Ordering::Release);
-                                        if !was_initialized && is_initialized {
-                                            processor
-                                                .send_initialize_notifications_to_connection(
-                                                    connection_id,
-                                                )
-                                                .await;
-                                            processor.connection_initialized(connection_id).await;
-                                            connection_state
-                                                .outbound_initialized
-                                                .store(true, Ordering::Release);
-                                        }
-                                    }
-                                    JSONRPCMessage::Response(response) => {
-                                        if !connections.contains_key(&connection_id) {
-                                            warn!(
-                                                "dropping GUI response from unknown connection: {connection_id:?}"
-                                            );
-                                            continue;
-                                        }
-                                        processor.process_response(response).await;
-                                    }
-                                    JSONRPCMessage::Notification(notification) => {
-                                        if !connections.contains_key(&connection_id) {
-                                            warn!(
-                                                "dropping GUI notification from unknown connection: {connection_id:?}"
-                                            );
-                                            continue;
-                                        }
-                                        processor.process_notification(notification).await;
-                                    }
-                                    JSONRPCMessage::Error(error) => {
-                                        if !connections.contains_key(&connection_id) {
-                                            warn!(
-                                                "dropping GUI error from unknown connection: {connection_id:?}"
-                                            );
-                                            continue;
-                                        }
-                                        processor.process_error(error).await;
-                                    }
-                                }
-                            }
                             None => {
                                 break;
-                            }
-                        }
-                    }
-                    gui_closed = gui_close_rx.recv(), if listen_for_gui_closes => {
-                        match gui_closed {
-                            Some(connection_id) => {
-                                if !closed_gui_connections.insert(connection_id) {
-                                    continue;
-                                }
-                                if let Some(connection_state) = connections.remove(&connection_id) {
-                                    processor
-                                        .connection_closed(connection_id, &connection_state.session)
-                                        .await;
-                                }
-                                let _ = runtime_event_tx
-                                    .send(RuntimeEvent::GuiClosed { connection_id })
-                                    .await;
-                            }
-                            None => {
-                                listen_for_gui_closes = false;
                             }
                         }
                     }
                     created = thread_created_rx.recv(), if listen_for_threads => {
                         match created {
                             Ok(thread_id) => {
-                                let mut connection_ids = Vec::new();
-                                for (connection_id, connection_state) in &connections {
-                                    if connection_state.session.initialized() {
-                                        connection_ids.push(*connection_id);
-                                    }
-                                }
+                                let connection_ids = if session.initialized() {
+                                    vec![IN_PROCESS_CONNECTION_ID]
+                                } else {
+                                    Vec::<ConnectionId>::new()
+                                };
                                 processor
                                     .try_attach_thread_listener(thread_id, connection_ids)
                                     .await;
@@ -866,19 +505,15 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
 
             processor.clear_runtime_references();
             processor.cancel_active_login().await;
-            for (connection_id, connection_state) in connections {
-                processor
-                    .connection_closed(connection_id, &connection_state.session)
-                    .await;
-            }
+            processor
+                .connection_closed(IN_PROCESS_CONNECTION_ID, &session)
+                .await;
             processor.clear_all_thread_listeners().await;
             processor.drain_background_tasks().await;
             processor.shutdown_threads().await;
         });
         let mut pending_request_responses =
             HashMap::<RequestId, oneshot::Sender<PendingClientRequestResponse>>::new();
-        let mut next_gui_connection_id = 1_u64;
-        let mut gui_connections = HashMap::<ConnectionId, GuiConnectionRuntime>::new();
         let mut shutdown_ack = None;
 
         loop {
@@ -947,197 +582,9 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 .notify_client_error(request_id, error)
                                 .await;
                         }
-                        Some(InProcessClientMessage::OpenGuiConnection {
-                            connection,
-                            done_tx,
-                        }) => {
-                            let connection_id = ConnectionId(next_gui_connection_id);
-                            next_gui_connection_id = next_gui_connection_id.saturating_add(1);
-                            let (gui_writer_tx, mut gui_writer_rx) =
-                                mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
-                            let disconnect_token = CancellationToken::new();
-                            let outbound_initialized = Arc::new(AtomicBool::new(false));
-                            let outbound_experimental_api_enabled =
-                                Arc::new(AtomicBool::new(false));
-                            let outbound_opted_out_notification_methods =
-                                Arc::new(RwLock::new(HashSet::new()));
-
-                            if let Err(err) = try_enqueue_gui_opened(
-                                &processor_tx,
-                                connection_id,
-                                Arc::clone(&outbound_initialized),
-                                Arc::clone(&outbound_experimental_api_enabled),
-                                Arc::clone(&outbound_opted_out_notification_methods),
-                            )
-                            {
-                                disconnect_token.cancel();
-                                let _ = done_tx.send(Err(err));
-                                continue;
-                            }
-
-                            match outbound_control_tx.try_send(
-                                InProcessOutboundControlEvent::Opened {
-                                    connection_id,
-                                    writer: gui_writer_tx.clone(),
-                                    initialized: Arc::clone(&outbound_initialized),
-                                    experimental_api_enabled: Arc::clone(
-                                        &outbound_experimental_api_enabled,
-                                    ),
-                                    opted_out_notification_methods: Arc::clone(
-                                        &outbound_opted_out_notification_methods,
-                                    ),
-                                    disconnect_sender: Some(disconnect_token.clone()),
-                                },
-                            ) {
-                                Ok(()) => {}
-                                Err(mpsc::error::TrySendError::Full(_)) => {
-                                    disconnect_token.cancel();
-                                    let _ = gui_close_tx.send(connection_id);
-                                    let _ = done_tx.send(Err(anyhow::anyhow!(
-                                        "in-process app-server outbound router queue is full"
-                                    )));
-                                    continue;
-                                }
-                                Err(mpsc::error::TrySendError::Closed(_)) => {
-                                    disconnect_token.cancel();
-                                    let _ = gui_close_tx.send(connection_id);
-                                    let _ = done_tx.send(Err(anyhow::anyhow!(
-                                        "in-process app-server outbound router is closed"
-                                    )));
-                                    continue;
-                                }
-                            }
-
-                            let AuthenticatedGuiConnection {
-                                mut inbound_rx,
-                                outbound_tx,
-                            } = connection;
-
-                            let inbound_processor_tx = processor_tx.clone();
-                            let inbound_disconnect_token = disconnect_token.clone();
-                            let inbound_writer_tx = gui_writer_tx.clone();
-                            let inbound_gui_close_tx = gui_close_tx.clone();
-                            tokio::spawn(async move {
-                                loop {
-                                    tokio::select! {
-                                        _ = inbound_disconnect_token.cancelled() => {
-                                            break;
-                                        }
-                                        text = inbound_rx.recv() => {
-                                            let Some(text) = text else {
-                                                break;
-                                            };
-                                            let message =
-                                                match serde_json::from_str::<JSONRPCMessage>(&text)
-                                            {
-                                                Ok(message) => message,
-                                                Err(err) => {
-                                                    warn!("dropping invalid GUI JSON-RPC message: {err}");
-                                                    continue;
-                                                }
-                                            };
-                                            if !enqueue_gui_incoming_message(
-                                                &inbound_processor_tx,
-                                                &inbound_writer_tx,
-                                                connection_id,
-                                                message,
-                                            ) {
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                                let _ = inbound_gui_close_tx.send(connection_id);
-                            });
-
-                            let outbound_disconnect_token = disconnect_token.clone();
-                            let outbound_handle = tokio::spawn(async move {
-                                loop {
-                                    tokio::select! {
-                                        _ = outbound_disconnect_token.cancelled() => {
-                                            break;
-                                        }
-                                        queued_message = gui_writer_rx.recv() => {
-                                            let Some(queued_message) = queued_message else {
-                                                break;
-                                            };
-                                            let mut value = match serde_json::to_value(
-                                                &queued_message.message,
-                                            ) {
-                                                Ok(serde_json::Value::Object(value)) => value,
-                                                Ok(_) => {
-                                                    warn!("GUI outbound message should serialize to an object");
-                                                    continue;
-                                                }
-                                                Err(err) => {
-                                                    warn!(
-                                                        "failed to convert GUI outbound message to JSON value: {err}"
-                                                    );
-                                                    continue;
-                                                }
-                                            };
-                                            value.insert(
-                                                "jsonrpc".to_string(),
-                                                serde_json::Value::String("2.0".to_string()),
-                                            );
-                                            let json = match serde_json::to_string(&value) {
-                                                Ok(json) => json,
-                                                Err(err) => {
-                                                    warn!(
-                                                        "failed to serialize GUI outbound message: {err}"
-                                                    );
-                                                    continue;
-                                                }
-                                            };
-                                            tokio::select! {
-                                                _ = outbound_disconnect_token.cancelled() => {
-                                                    break;
-                                                }
-                                                send_result = outbound_tx.send(json) => {
-                                                    if send_result.is_err() {
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            if let Some(write_complete_tx) =
-                                                queued_message.write_complete_tx
-                                            {
-                                                let _ = write_complete_tx.send(());
-                                            }
-                                        }
-                                    }
-                                }
-                                outbound_disconnect_token.cancel();
-                            });
-
-                            gui_connections.insert(
-                                connection_id,
-                                GuiConnectionRuntime {
-                                    done_tx,
-                                    disconnect_token,
-                                    outbound_handle,
-                                },
-                            );
-                        }
                         Some(InProcessClientMessage::Shutdown { done_tx }) => {
                             shutdown_ack = Some(done_tx);
                             break;
-                        }
-                        None => {
-                            break;
-                        }
-                    }
-                }
-                runtime_event = runtime_event_rx.recv() => {
-                    match runtime_event {
-                        Some(RuntimeEvent::GuiClosed { connection_id }) => {
-                            complete_gui_connection(
-                                connection_id,
-                                &mut gui_connections,
-                                Some(&outbound_control_tx),
-                                Ok(()),
-                            )
-                            .await;
                         }
                         None => {
                             break;
@@ -1233,25 +680,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         }
 
         drop(writer_rx);
-        let gui_connection_ids = gui_connections.keys().copied().collect::<Vec<_>>();
-        for connection_id in &gui_connection_ids {
-            if let Some(gui_connection) = gui_connections.get(connection_id) {
-                gui_connection.disconnect_token.cancel();
-            }
-            if outbound_control_tx
-                .send(InProcessOutboundControlEvent::Closed {
-                    connection_id: *connection_id,
-                })
-                .await
-                .is_err()
-            {
-                warn!("failed to remove closed GUI outbound connection");
-            }
-        }
         drop(processor_tx);
-        drop(gui_close_tx);
-        drop(runtime_event_rx);
-        drop(outbound_control_tx);
         outgoing_message_sender
             .cancel_all_requests(Some(internal_error(
                 "in-process app-server runtime is shutting down",
@@ -1274,17 +703,6 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             outbound_handle.abort();
             let _ = outbound_handle.await;
         }
-        for connection_id in gui_connection_ids {
-            complete_gui_connection(
-                connection_id,
-                &mut gui_connections,
-                None,
-                Err(anyhow::anyhow!(
-                    "in-process app-server runtime is shutting down"
-                )),
-            )
-            .await;
-        }
 
         if let Some(done_tx) = shutdown_ack {
             let _ = done_tx.send(());
@@ -1305,8 +723,6 @@ mod tests {
     use super::*;
     use codex_app_server_protocol::ClientInfo;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
-    use codex_app_server_protocol::JSONRPCNotification;
-    use codex_app_server_protocol::JSONRPCRequest;
     use codex_app_server_protocol::SessionSource as ApiSessionSource;
     use codex_app_server_protocol::ThreadStartParams;
     use codex_app_server_protocol::ThreadStartResponse;
@@ -1316,7 +732,6 @@ mod tests {
     use codex_app_server_protocol::TurnStatus;
     use codex_core::config::ConfigBuilder;
     use pretty_assertions::assert_eq;
-    use serde_json::json;
     use std::path::Path;
     use tempfile::TempDir;
 
@@ -1376,265 +791,6 @@ mod tests {
 
     async fn start_test_client(session_source: SessionSource) -> InProcessClientHandle {
         start_test_client_with_capacity(session_source, DEFAULT_IN_PROCESS_CHANNEL_CAPACITY).await
-    }
-
-    async fn send_gui_text(tx: &mpsc::Sender<String>, text: impl Into<String>) {
-        tx.send(text.into()).await.expect("GUI inbound should send");
-    }
-
-    async fn recv_gui_json(rx: &mut mpsc::Receiver<String>) -> serde_json::Value {
-        let text = tokio::time::timeout(Duration::from_secs(1), rx.recv())
-            .await
-            .expect("GUI response should arrive before timeout")
-            .expect("GUI response channel should stay open");
-        serde_json::from_str(&text).expect("GUI outbound should be JSON")
-    }
-
-    fn new_gui_test_connection() -> (
-        AuthenticatedGuiConnection,
-        mpsc::Sender<String>,
-        mpsc::Receiver<String>,
-    ) {
-        AuthenticatedGuiConnection::new()
-    }
-
-    #[tokio::test]
-    async fn gui_backend_handle_is_available_for_embedded_runtime() {
-        let client = start_test_client(SessionSource::Cli).await;
-        let _backend = client.gui_backend();
-        client.shutdown().await.expect("shutdown");
-    }
-
-    #[tokio::test]
-    async fn gui_backend_handles_initialize_request() {
-        let client = start_test_client(SessionSource::Cli).await;
-        let backend = client.gui_backend();
-        let (connection, inbound_tx, mut outbound_rx) = new_gui_test_connection();
-        let connect_task = tokio::spawn(async move { backend.connect(connection).await });
-
-        send_gui_text(
-            &inbound_tx,
-            r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"gui-test","version":"0.0.0"},"capabilities":{}}}"#,
-        )
-        .await;
-
-        let response = recv_gui_json(&mut outbound_rx).await;
-        assert_eq!(response["jsonrpc"], "2.0");
-        assert_eq!(response["id"], 1);
-        assert!(response.get("result").is_some());
-
-        drop(inbound_tx);
-        connect_task
-            .await
-            .expect("connect task should join")
-            .expect("connect should finish cleanly");
-        client.shutdown().await.expect("shutdown");
-    }
-
-    #[tokio::test]
-    async fn gui_backend_connect_finishes_when_browser_closes() {
-        let client = start_test_client(SessionSource::Cli).await;
-        let backend = client.gui_backend();
-        let (connection, inbound_tx, _outbound_rx) = new_gui_test_connection();
-        let connect_task = tokio::spawn(async move { backend.connect(connection).await });
-
-        drop(inbound_tx);
-
-        tokio::time::timeout(Duration::from_secs(1), connect_task)
-            .await
-            .expect("connect should finish after GUI inbound closes")
-            .expect("connect task should join")
-            .expect("connect should finish cleanly");
-        client.shutdown().await.expect("shutdown");
-    }
-
-    #[tokio::test]
-    async fn gui_backend_drops_invalid_json_without_closing_connection() {
-        let client = start_test_client(SessionSource::Cli).await;
-        let backend = client.gui_backend();
-        let (connection, inbound_tx, mut outbound_rx) = new_gui_test_connection();
-        let connect_task = tokio::spawn(async move { backend.connect(connection).await });
-
-        send_gui_text(&inbound_tx, "not json").await;
-        send_gui_text(
-            &inbound_tx,
-            r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"gui-test","version":"0.0.0"},"capabilities":{}}}"#,
-        )
-        .await;
-
-        let response = recv_gui_json(&mut outbound_rx).await;
-        assert_eq!(response["id"], 1);
-
-        drop(inbound_tx);
-        connect_task
-            .await
-            .expect("connect task should join")
-            .expect("connect should finish cleanly");
-        client.shutdown().await.expect("shutdown");
-    }
-
-    #[tokio::test]
-    async fn gui_incoming_request_returns_overload_when_processor_queue_is_full() {
-        let connection_id = ConnectionId(7);
-        let (processor_tx, mut processor_rx) = mpsc::channel(1);
-        let (writer_tx, mut writer_rx) = mpsc::channel(1);
-
-        processor_tx
-            .send(ProcessorCommand::Notification(
-                ClientNotification::Initialized,
-            ))
-            .await
-            .expect("processor queue should accept first message");
-
-        let request = JSONRPCMessage::Request(JSONRPCRequest {
-            id: RequestId::Integer(99),
-            method: "config/requirements/read".to_string(),
-            params: None,
-            trace: None,
-        });
-
-        assert!(enqueue_gui_incoming_message(
-            &processor_tx,
-            &writer_tx,
-            connection_id,
-            request,
-        ));
-
-        let queued_command = processor_rx
-            .recv()
-            .await
-            .expect("first command should stay queued");
-        assert!(matches!(
-            queued_command,
-            ProcessorCommand::Notification(ClientNotification::Initialized)
-        ));
-
-        let overload = writer_rx
-            .recv()
-            .await
-            .expect("request should receive overload error");
-        let overload_json =
-            serde_json::to_value(overload.message).expect("serialize overload error");
-        assert_eq!(
-            overload_json,
-            json!({
-                "id": 99,
-                "error": {
-                    "code": OVERLOADED_ERROR_CODE,
-                    "message": "Server overloaded; retry later."
-                }
-            })
-        );
-    }
-
-    #[tokio::test]
-    async fn gui_incoming_non_request_closes_when_processor_queue_is_full() {
-        let connection_id = ConnectionId(7);
-        let (processor_tx, _processor_rx) = mpsc::channel(1);
-        let (writer_tx, _writer_rx) = mpsc::channel(1);
-
-        processor_tx
-            .send(ProcessorCommand::Notification(
-                ClientNotification::Initialized,
-            ))
-            .await
-            .expect("processor queue should accept first message");
-
-        let notification = JSONRPCMessage::Notification(JSONRPCNotification {
-            method: "initialized".to_string(),
-            params: None,
-        });
-
-        assert!(!enqueue_gui_incoming_message(
-            &processor_tx,
-            &writer_tx,
-            connection_id,
-            notification,
-        ));
-    }
-
-    #[tokio::test]
-    async fn gui_incoming_request_closes_when_overload_response_queue_is_full() {
-        let connection_id = ConnectionId(7);
-        let (processor_tx, _processor_rx) = mpsc::channel(1);
-        let (writer_tx, mut writer_rx) = mpsc::channel(1);
-
-        processor_tx
-            .send(ProcessorCommand::Notification(
-                ClientNotification::Initialized,
-            ))
-            .await
-            .expect("processor queue should accept first message");
-        writer_tx
-            .send(QueuedOutgoingMessage::new(
-                OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
-                    ConfigWarningNotification {
-                        summary: "queued".to_string(),
-                        details: None,
-                        path: None,
-                        range: None,
-                    },
-                )),
-            ))
-            .await
-            .expect("writer queue should accept first message");
-
-        let request = JSONRPCMessage::Request(JSONRPCRequest {
-            id: RequestId::Integer(99),
-            method: "config/requirements/read".to_string(),
-            params: None,
-            trace: None,
-        });
-
-        assert!(!enqueue_gui_incoming_message(
-            &processor_tx,
-            &writer_tx,
-            connection_id,
-            request,
-        ));
-
-        let queued_message = writer_rx
-            .recv()
-            .await
-            .expect("original queued message should remain");
-        let queued_json =
-            serde_json::to_value(queued_message.message).expect("serialize queued message");
-        assert_eq!(
-            queued_json,
-            json!({
-                "method": "configWarning",
-                "params": {
-                    "summary": "queued",
-                    "details": null,
-                },
-            })
-        );
-    }
-
-    #[tokio::test]
-    async fn gui_open_enqueue_fails_when_processor_queue_is_full() {
-        let connection_id = ConnectionId(7);
-        let (processor_tx, _processor_rx) = mpsc::channel(1);
-        let initialized = Arc::new(AtomicBool::new(false));
-        let experimental_api_enabled = Arc::new(AtomicBool::new(false));
-        let opted_out_notification_methods = Arc::new(RwLock::new(HashSet::new()));
-
-        processor_tx
-            .send(ProcessorCommand::Notification(
-                ClientNotification::Initialized,
-            ))
-            .await
-            .expect("processor queue should accept first message");
-
-        let result = try_enqueue_gui_opened(
-            &processor_tx,
-            connection_id,
-            Arc::clone(&initialized),
-            Arc::clone(&experimental_api_enabled),
-            Arc::clone(&opted_out_notification_methods),
-        );
-
-        assert!(result.is_err());
     }
 
     #[tokio::test]

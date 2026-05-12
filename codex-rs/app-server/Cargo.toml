@@ -41,7 +41,6 @@ codex-external-agent-migration = { workspace = true }
 codex-external-agent-sessions = { workspace = true }
 codex-features = { workspace = true }
 codex-git-utils = { workspace = true }
-codex-gui-host = { workspace = true }
 codex-hooks = { workspace = true }
 codex-otel = { workspace = true }
 codex-plugin = { workspace = true }
