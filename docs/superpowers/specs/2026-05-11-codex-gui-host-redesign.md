@@ -497,7 +497,7 @@ GUI host 生命周期绑定 TUI 同进程的 app-server session：
 - 同一 TUI 进程（= 同一 in-process app-server session）复用同一个 GUI host 和同一个 launch token。
 - 每个 TUI 进程拥有独立 host、随机端口和 launch token。
 - 多个本机 browser tab（以及未来 LAN 场景下的 PC + 手机浏览器）可以同时连接同一个 host，各自走独立 `register_extra_connection` 路径。
-- TUI 退出时 `InProcessAppServerClient` drop，`GuiHostManager` drop 触发 `GuiHostHandle::shutdown`，所有浏览器连接以 WebSocket close 关闭，token 失效。
+- TUI 退出时 `InProcessAppServerClient` drop，`GuiHostManager` drop 触发 `GuiHostHandle::shutdown`，所有浏览器连接以 WebSocket close 关闭，token 失效。shutdown 顺序约束：`GuiHostManager` 的 drop（和随之的 `GuiHost::shutdown`、所有 `GuiBackend::connect` 任务取消）必须在 worker task 结束**之前或同时**完成——不得在 worker task / runtime 退出之后再使用已失效的 sender 或 handle。实现层由 `InProcessAppServerClient` 的 drop 顺序保证：先 drop `GuiHostManager`（停止接受新浏览器连接、关闭已开的 GUI 桥接任务），再等 worker task 结束；任何 GUI 桥接任务对 sender / handle 的调用只在这段时间内有效。
 - 浏览器连接关闭时，`ExtraConnectionHandle::Drop` 发 `ExtraConnectionClosed`，`in_process.rs` 从 session HashMap / `outbound_connections` 移除 entry，走既有 projection subscription cleanup。
 
 ## 错误处理
