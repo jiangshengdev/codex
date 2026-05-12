@@ -189,51 +189,72 @@ pub trait GuiBackend: Send + Sync {
 
 MVP 的唯一宿主是 **TUI 同进程**的 `codex-rs/app-server/src/in_process.rs` runtime（目标 §1 要求 TUI 通过 `/gui` 请求本机 app-server session 启动或复用 `codex-gui-host`，且「关 TUI 就关 GUI」）。`GuiBackend` 的 app-server 实现必须把认证后的 GUI WebSocket 接入 `in_process.rs` 的现有 `MessageProcessor` 和 `outbound_connections` HashMap，让 GUI 连接与 TUI 主连接平级地看到同一套 thread store 和 projection fanout。
 
-为支持 N 条并发浏览器连接（PC + 手机 tab 同时访问）与 TUI 主连接共存，`in_process.rs` 做**纯加法**扩展：
+**改动语义边界**：TUI 主连接（`IN_PROCESS_CONNECTION_ID`）的外部行为（`InProcessClientHandle::request` / `notify` 签名、`ProcessorCommand::Request` / `Notification` variant 语义、`MessageProcessor::process_client_request` 签名、`ConnectionSessionState` 类型、`OutboundConnectionState` 类型、`route_outgoing_envelope` 行为）全部保持不变。`in_process.rs` 为支持并存连接所做的泛化改动集中且可枚举，不是完全纯加法。具体触达面：
 
-- `ProcessorCommand` 新增四个 variant：`ExtraConnectionOpened { connection_id, writer, session, disconnect_sender }`、`ExtraRequest { connection_id, request }`、`ExtraNotification { connection_id, notification }`、`ExtraConnectionClosed { connection_id }`。TUI 主连接（`IN_PROCESS_CONNECTION_ID`）保留原有 `Request` / `Notification` 路径，零改动。
-- `InProcessClientHandle` 新增中性 API `register_extra_connection(&self) -> ExtraConnectionHandle`。handle 暴露 `connection_id`、`incoming_tx: Sender<JSONRPCMessage>`、`outgoing_rx: Receiver<QueuedOutgoingMessage>`、`disconnect_token: CancellationToken`。`ExtraConnectionHandle::Drop` 自动发 `ExtraConnectionClosed`（`try_send` 幂等）。
-- extra 连接使用独立 `HashMap<ConnectionId, Arc<ConnectionSessionState>>` 查表，与主连接共享同一个 `MessageProcessor`、同一个 `outbound_connections` HashMap 和 `route_outgoing_envelope` 派发。
-- `in_process.rs` 本体**不认识** GUI / WebSocket / allowlist / Origin 概念；`register_extra_connection` 命名中性，API 不包含 GUI 字样。
+- `ProcessorCommand` enum 新增四个 variant：`ExtraConnectionOpened { connection_id, session, outgoing_tx, disconnect_token }`、`ExtraRequest { connection_id, request: JSONRPCRequest }`、`ExtraNotification { connection_id, notification: JSONRPCNotification }`、`ExtraConnectionClosed { connection_id }`。主连接仍走原有 `Request` / `Notification`，枚举值语义不变。
+- `InProcessClientHandle` 新增中性 API `register_extra_connection(&self) -> ExtraConnectionHandle`；既有 `request` / `notify` 等公开方法签名不变。
+- processor loop 的 `match ProcessorCommand` 增加四条 arm 处理新 variant；主连接 arm 原样保留。
+- outbound router task 从「只 drain 主连接 `outgoing_rx`」扩展为「同时驱动主连接 outgoing + extra 连接的 open/close 控制信号」。这是**循环形状**的改动，非纯加法，但主连接出站路径语义不变。
+- `thread_created_rx` 分派的订阅 `connection_ids` 从硬编码 `[IN_PROCESS_CONNECTION_ID]` 扩展为「主连接 + 已 initialized 的 extra 连接」。
+- `in_process.rs` 运行任务持有一个新的 `extra_session_states: HashMap<ConnectionId, Arc<ConnectionSessionState>>` 查表（与 `outbound_connections` 并列）。
+- `in_process.rs` 本体**不引入** GUI / WebSocket / allowlist / Origin 概念；`register_extra_connection` 命名中性，API 不包含 GUI 字样。
+
+**`ProcessorCommand::ExtraRequest` / `ExtraNotification` 的负载类型**：使用 **raw** JSON-RPC（`JSONRPCRequest` / `JSONRPCNotification`）而非 typed `ClientRequest` / `ClientNotification`。理由：浏览器发送的是 text JSON-RPC；parse 失败和 method-not-found 必须返回 JSON-RPC error。processor 侧在新 arm 里复用既有 raw path（见 `codex-rs/app-server/src/message_processor.rs:477-530`）做 deserialize、method 调度、error 回包，不走仅接受 typed `ClientRequest` 的 `process_client_request(connection_id, ...)` 入口。`gui_transport.rs` 在入向桥接任务里只做 `serde_json::from_str::<JSONRPCRequest | JSONRPCNotification>`；parse 失败时直接通过 extra 连接的 writer 回 JSON-RPC parse error，不投递到 processor。
+
+**Per-extra 连接的 outbound state 新建与同步**：每次 `register_extra_connection`，`in_process.rs` 在 processor task 内：
+1. 分配新 `ConnectionId`（通过 upstream 现有的 `next_connection_id()`，与 `IN_PROCESS_CONNECTION_ID = ConnectionId(0)` 自然不冲突）。
+2. 在 `outbound_connections` HashMap 插入一条 `OutboundConnectionState`：`initialized = false`，`experimental_api_enabled = false`，`opted_out_notification_methods = default`。
+3. 在 `extra_session_states` HashMap 插入一条 `Arc<ConnectionSessionState>::new()`。
+4. 返回给调用方 `ExtraConnectionHandle { connection_id, incoming_tx: Sender<String>, outgoing_rx: Receiver<String>, disconnect_token: CancellationToken }`。incoming_tx 接受 **raw JSON-RPC text**（与 `AuthenticatedGuiConnection` channel 类型一致）；processor 侧负责 parse。
+
+`initialize` 在该连接上成功处理后，走既有路径把 `OutboundConnectionState::initialized` 置为 true；`thread/projection/event` 等 broadcast 通过既有 `route_outgoing_envelope` 只发给 `initialized == true` 的连接。这与主连接一致，不需要新的同步逻辑。
 
 GUI 专属逻辑全部在 fork-only（不回流 upstream）的文件中：
 
-- `codex-rs/app-server/src/gui_host.rs`：`GuiHostManager` 持有 `Mutex<Option<GuiHostHandle>>`，负责 lazy-start / 复用 `GuiHost`，提供 `launch_url(primary_thread_id) -> GuiLaunchUrl`。`InProcessAppServerClient` 启动时构造并持有 `Arc<GuiHostManager>`；关闭时 drop 触发 host shutdown。
-- `codex-rs/app-server/src/gui_transport.rs`：`GuiBackend` 的实现。对每条认证通过的 `AuthenticatedGuiConnection` 调一次 `register_extra_connection`，spawn 两条零状态桥接任务：入向把 `AuthenticatedGuiConnection.inbound_rx` 的 `JSONRPCMessage` 转发到 `handle.incoming_tx`；出向把 `handle.outgoing_rx` 的 `QueuedOutgoingMessage` 序列化后写回 `AuthenticatedGuiConnection.outbound_tx`。桥接 loop 不维护 session 状态——未初始化前的非 `initialize` 请求由 `MessageProcessor` 的既有逻辑返回标准 JSON-RPC error。
-- `codex-rs/app-server-client/src/gui.rs`：extension trait `AppServerClientGuiExt::gui_launch_url`，以及 `GuiLaunchUrl` / `GuiLaunchError` 公开类型。`codex-app-server-client/src/lib.rs` 的 upstream 触达面限于 `pub mod gui;` + re-export + `InProcessClientStartArgs` / `InProcessAppServerClient` 加一个 `Arc<GuiHostManager>` 可选字段。
+- `codex-rs/app-server/src/gui_host.rs`：`GuiHostManager` 持有 `Mutex<Option<GuiHostHandle>>` 和一个 `Weak<InProcessClientHandle>`（或等价弱引用，见下条），负责 lazy-start / 复用 `GuiHost`，提供 `launch_url(primary_thread_id) -> GuiLaunchUrl`。构造 `GuiBackend` 实例时把 handle 弱引用传入。
+- `codex-rs/app-server/src/gui_transport.rs`：`GuiBackend` 的实现。对每条认证通过的 `AuthenticatedGuiConnection`：升级弱引用拿到 `InProcessClientHandle` → 调 `register_extra_connection` → spawn 两条桥接任务。入向任务：读 `AuthenticatedGuiConnection.inbound_rx: Receiver<String>` → `serde_json::from_str` → 成功投递到 `ExtraConnectionHandle.incoming_tx`，失败直接通过出向 writer 回 parse error。出向任务：读 `ExtraConnectionHandle.outgoing_rx: Receiver<String>` → 直接写入 `AuthenticatedGuiConnection.outbound_tx`。桥接 loop 零 session 状态；未初始化前的非 `initialize` 请求由 `MessageProcessor` 既有 raw path 返回标准 JSON-RPC error。
+- `codex-rs/app-server-client/src/gui.rs`：extension trait `AppServerClientGuiExt::gui_launch_url`，以及 `GuiLaunchUrl` / `GuiLaunchError` 公开类型。`codex-app-server-client/src/lib.rs` 的 upstream 触达面限于：`pub mod gui;` + re-export + `InProcessAppServerClient` 字段新增 `Arc<GuiHostManager>`（可选）+ `InProcessAppServerClient::start` 内持有一份 `Arc<InProcessClientHandle>`（当前上游把 handle move 进 worker task 独占；Q2=B 要求 `GuiHostManager` 能调 `register_extra_connection`，故 handle 需要 `Arc` 共享给 worker 与 manager 两侧。这是该文件一处**既有逻辑改动**，非纯加法）。
 
 数据流（认证通过之后）：
 
 ```text
-authenticated GUI websocket frame
-  -> AuthenticatedGuiConnection.inbound_rx
+authenticated GUI websocket text frame
+  -> AuthenticatedGuiConnection.inbound_rx: Receiver<String>
   -> gui_transport inbound task
-  -> ExtraConnectionHandle.incoming_tx
-  -> ProcessorCommand::ExtraRequest / ExtraNotification
-  -> MessageProcessor::process_client_request(connection_id, ...)
+  -> serde_json::from_str::<JSONRPCRequest|JSONRPCNotification>
+       (parse failure -> JSON-RPC parse error via outgoing_tx, do NOT forward)
+  -> ExtraConnectionHandle.incoming_tx: Sender<String>  (raw text)
+  -> ProcessorCommand::ExtraRequest { connection_id, request } 或 ExtraNotification
+  -> processor loop raw path (见 message_processor.rs:477-530): deserialize/dispatch
+  -> 更新对应 ConnectionSessionState / OutboundConnectionState.initialized
 
 MessageProcessor / projection fanout outbound
-  -> outbound_connections[connection_id].writer  (复用既有路径)
-  -> ExtraConnectionHandle.outgoing_rx
+  -> outbound_connections[connection_id].writer  (既有 route_outgoing_envelope)
+  -> ExtraConnectionHandle.outgoing_rx: Receiver<String>  (raw text)
   -> gui_transport outbound task
-  -> AuthenticatedGuiConnection.outbound_tx
-  -> GUI host server-side allowlist
+  -> AuthenticatedGuiConnection.outbound_tx: Sender<String>
+  -> GUI host server-side allowlist (codex-gui-host 层过滤)
   -> browser WebSocket text frame
 ```
 
 关闭路径：
 
-- 浏览器关闭或 `GuiHost::shutdown` 触发 → `AuthenticatedGuiConnection.inbound_rx` close 或 `disconnect_token` 取消。
-- `gui_transport::connect` 退出 → `ExtraConnectionHandle` drop → `ExtraConnectionClosed` 自动发出 → `in_process.rs` 从 session HashMap / outbound_connections 移除该 entry，走既有 projection subscription cleanup。
-- 关闭前让出向任务 drain 残留消息（writer drop 后 mpsc 天然 drain 到空，`gui_transport::connect` 用 `tokio::time::timeout(~1s, outbound_task)` 等 join）。
+- 浏览器关闭 `/ws` → `codex-gui-host` 的 socket pump 结束并 `backend_task.abort()`（见 `codex-rs/gui-host/src/ws.rs:153-155`）。GUI bridge 不能依赖 `GuiBackend::connect` 自身的 async drain 完成；而应在**桥接任务的入/出向关闭路径**里就地触发 handle drop。
+- 任意触发源（入向 channel 关、出向 channel 关、`disconnect_token` 取消、`backend_task.abort()` 传播、`connect` 返回 `Err`）→ `ExtraConnectionHandle` drop → `ExtraConnectionClosed` 通过 `try_send` 发出；`in_process.rs` processor loop 在该 arm 中从 `extra_session_states` / `outbound_connections` 移除 entry，走既有 projection subscription cleanup。
 - 认证失败的 `/ws` 永远不调用 `register_extra_connection`，不分配 `ConnectionId`，不会在 `outbound_connections` 留痕。
+- `InProcessAppServerClient` drop / runtime abort（如现有 shutdown 超时 abort 路径）由 `in_process.rs` 既有整体 cleanup 兜底：HashMap 整体丢弃，所有 `ConnectionSessionState` / `OutboundConnectionState` 随 task 一起回收；此路径下个别 `ExtraConnectionClosed` 可能不会单独投递。
 
 **Bridge 生命周期不变量**：
 
 - GUI 连接的注册（`register_extra_connection` 调用）当且仅当 `gui/authenticate` 成功后发生；认证失败不注册。
-- 每次注册对应恰好一次 `ExtraConnectionClosed`，包括：browser 关闭/刷新、host shutdown、`GuiBackend::connect` 返回 `Err`、以及任何错误路径。由 `ExtraConnectionHandle::Drop` 保证。
-- `ExtraConnectionClosed` 到达后，`in_process.rs` 不得再为同一 `connection_id` 派发 `ExtraRequest` / `ExtraNotification`；桥接任务在 drop handle 前停止读入方向，出方向 drain 后自然退出。
-- 桥接任务必须监听 `disconnect_token` 的取消信号；收到取消时主动停止读浏览器帧、drain 出方向、退出 `connect`。
+- `ExtraConnectionClosed` 对每个 `connection_id` **最多一次**投递；正常运行时至少一次（由 `ExtraConnectionHandle::Drop` 的 `try_send` 兜底）；runtime abort / shutdown timeout 路径下允许缺失，由 `in_process.rs` 的整体 cleanup 等价替代。
+- `ExtraConnectionClosed` 到达后，`in_process.rs` 不得再为同一 `connection_id` 派发 `ExtraRequest` / `ExtraNotification`。
+- 桥接任务必须响应 `disconnect_token` 取消：入向立即停止读 `AuthenticatedGuiConnection.inbound_rx`，出向尽量把 `outgoing_rx` buffer 写完（若上游 abort 造成写不出则放弃），然后 `connect` 退出触发 handle drop。
+- 「出向 drain 1s 超时」是**尽力而为**，不是不变量。`backend_task.abort()` 的存在意味着在被动 abort 路径下 drain 不保证完成。
+
+**Initialize 时序保证**：`InProcessAppServerClient::start`（`codex-rs/app-server-client/src/lib.rs:485+`）在返回 client facade 前已经完成主连接的 `initialize` / `initialized` 握手（见 `codex-rs/app-server/src/in_process.rs:340-364`）。`GuiHostManager` 由 `InProcessAppServerClient::start` 内部构造并把 `Arc<InProcessClientHandle>` 弱引用传入；因此 GUI 的首次 `register_extra_connection` 调用必然晚于主连接 initialize，无需额外同步。extra 连接各自独立维护 `initialized` 状态，与主连接 / 其它 extra 连接无依赖。
+
+**`gui_transport.rs` 获取 `InProcessClientHandle` 的路径**：`InProcessClientHandle` 当前被 `InProcessAppServerClient::start` move 进 worker task 独占使用。新方案把它改为 `Arc<InProcessClientHandle>`：一份给 worker 保持原有 command/event 循环，一份给 `GuiHostManager` 持有弱引用用于调 `register_extra_connection`。弱引用避免循环持有，TUI 关闭时 `InProcessAppServerClient` drop → `Arc` 引用减少 → worker task 结束后 handle 释放 → `GuiHostManager` 升级弱引用失败 → `GuiHost::shutdown`。这是 `app-server-client/src/lib.rs` 的一处已知既有逻辑改动，对 upstream 的触达可控。
 
 **与 remote-control 的关系**：语义上对齐，路径上不对齐。remote-control 在 `run_main_with_transport_options` 里走 `TransportEvent::{ConnectionOpened,IncomingMessage,ConnectionClosed}` 作为它的连接注入点——那是它宿主（独立 `codex-app-server` 进程的 run_main runtime）本来的连接入口。MVP GUI 的宿主是 `in_process.rs`，这个 runtime 的连接入口是 `ProcessorCommand` 命令总线，不是 `transport_event_tx`。GUI bridge 沿用 remote-control 的**思想**（认证先行、per-connection `ConnectionSessionState`、`ExtraConnectionHandle` 幂等 close、`disconnect_token` 取消传播），但**不复刻**它的 `TransportEvent` 路径。在 `in_process.rs` 里复刻 `run_main_with_transport_options` 的 connection map / outbound router / close cleanup 是被禁止的——既有的 HashMap 和 `route_outgoing_envelope` 已经是 per-connection 形态，直接复用即可。
 
@@ -501,11 +522,11 @@ GUI host 生命周期绑定 TUI 同进程的 app-server session：
 
 - `GuiHostManager` 懒启动，同一 session 复用同一个 host；返回的 launch URL 指向本机 GUI host。
 - `register_extra_connection` 为每条认证通过的 GUI WebSocket 分配独立 `ConnectionId` 和独立 `ConnectionSessionState`。
-- `ProcessorCommand::ExtraRequest` 派发到 `MessageProcessor::process_client_request(connection_id, ...)`，`initialize` 返回真实 app-server response。
-- `thread/projection/attach` 返回真实 app-server response；thread 产生 projection update 后，browser 通过 `outbound_connections[connection_id]` 收到 `thread/projection/event`。
-- 非 allowlist request 被 `codex-gui-host` 在 GUI host 层拒绝，不进入 `register_extra_connection`、不产生 `ExtraRequest`。
-- browser close / refresh / host shutdown / `GuiBackend::connect` 返回 `Err` 都触发 `ExtraConnectionHandle::Drop` → 唯一一次 `ExtraConnectionClosed` → projection subscription cleanup。
-- TUI 主连接（`IN_PROCESS_CONNECTION_ID`）不受 GUI 连接注册 / 关闭影响。
+- `ProcessorCommand::ExtraRequest` 带 raw `JSONRPCRequest`，processor 侧复用 message_processor 既有 raw path 完成 deserialize、method 调度、error 回包；`initialize` 返回真实 app-server response。
+- `thread/projection/attach` 返回真实 app-server response；thread 产生 projection update 后，browser 通过 `outbound_connections[connection_id]`（`initialized == true`）收到 `thread/projection/event`。
+- 非 allowlist browser request 在 `codex-gui-host` 层被拒绝，不投递到 `gui_transport` 入向桥接任务，不产生 `ExtraRequest`。allowlist 作用于认证成功后的每一帧。
+- browser close / refresh / host shutdown / `GuiBackend::connect` 返回 `Err` 触发 `ExtraConnectionHandle::Drop` → 至多一次 `ExtraConnectionClosed` → projection subscription cleanup。runtime abort 路径允许缺失 `ExtraConnectionClosed`，由整体 cleanup 兜底。
+- TUI 主连接（`IN_PROCESS_CONNECTION_ID`）的外部语义不受 GUI 连接注册 / 关闭影响。
 
 ### `codex-tui`
 
@@ -569,11 +590,11 @@ TUI 不测试 WebSocket 细节，不依赖 `tokio-tungstenite`。
   - `thread/projection/attach` response
   - 至少一个 `thread/projection/event` notification
 - 页面显示至少 `attached`，收到 event 后显示 `received event` 或等价状态。
-- 非 allowlist browser-to-server request 不进入 `register_extra_connection`，不产生 `ExtraRequest`。
+- 非 allowlist browser-to-server request 在 `codex-gui-host` 层被拒绝，不投递到 `gui_transport` 入向桥接任务，不产生 `ProcessorCommand::ExtraRequest`。认证成功后的连接已通过 `register_extra_connection` 注册；allowlist 作用于后续每一帧。
 - 非 allowlist server-to-browser notification 不发送到 browser。
-- browser close / refresh 触发 `ExtraConnectionHandle::Drop` → 唯一一次 `ExtraConnectionClosed` → projection subscription cleanup。
-- TUI 主连接（`IN_PROCESS_CONNECTION_ID`）的行为和 session state 不受 GUI 连接注册 / 关闭影响。
+- browser close / refresh 触发 `ExtraConnectionHandle::Drop` → 至多一次 `ExtraConnectionClosed` → projection subscription cleanup。runtime abort / shutdown timeout 路径下允许缺失 `ExtraConnectionClosed`，由 `in_process.rs` 既有整体 cleanup 兜底。
+- TUI 主连接（`IN_PROCESS_CONNECTION_ID`）的外部行为（`InProcessClientHandle` 公开 API 签名、`ProcessorCommand::Request` / `Notification` 语义、`MessageProcessor::process_client_request` 签名、`ConnectionSessionState` / `OutboundConnectionState` 类型）不受 GUI 连接注册 / 关闭影响。
 - `codex-tui` 不直接依赖 `codex-app-server` 也不直接依赖 `codex-gui-host`；GUI launch URL 只经 `codex-app-server-client::AppServerClientGuiExt::gui_launch_url`。
 - GUI host 生命周期由 `GuiHostManager` 管理，TUI 不直接持有 `GuiHost` 或 `GuiHostHandle`。
 - GUI host 主体代码位于 `codex-gui-host` crate。
-- `in_process.rs` 的改动限于纯加法：新增 `register_extra_connection` API、`ProcessorCommand::Extra*` 四个 variant、extra session HashMap；TUI 主连接原路径零改动。不重复实现 `run_main_with_transport_options` 的 connection map、outbound router 或 close cleanup。
+- `in_process.rs` 的改动限于 §Bridge 形态 列出的触达面（`ProcessorCommand` 新变体、`register_extra_connection` API、processor loop 新 arm、outbound router task 的循环形状泛化、`thread_created_rx` 订阅列表泛化、extra session HashMap），且主连接外部语义零变化；不在 `in_process.rs` 内复刻 `run_main_with_transport_options` 的 connection map、outbound router 或 close cleanup。
