@@ -166,6 +166,7 @@ mod tests {
             commands,
             vec![
                 SlashCommand::Ide,
+                SlashCommand::Gui,
                 SlashCommand::Copy,
                 SlashCommand::Raw,
                 SlashCommand::Diff,

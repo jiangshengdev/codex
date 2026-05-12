@@ -187,6 +187,7 @@ pub(crate) mod app_server_requests;
 mod background_requests;
 mod config_persistence;
 mod event_dispatch;
+mod gui;
 mod history_ui;
 mod input;
 mod loaded_threads;

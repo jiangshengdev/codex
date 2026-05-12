@@ -33,6 +33,7 @@ pub enum SlashCommand {
     New,
     Resume,
     Fork,
+    Gui,
     Init,
     Compact,
     Plan,
@@ -87,6 +88,7 @@ impl SlashCommand {
             SlashCommand::Resume => "resume a saved chat",
             SlashCommand::Clear => "clear the terminal and start a new chat",
             SlashCommand::Fork => "fork the current chat",
+            SlashCommand::Gui => "open GUI for the primary thread",
             SlashCommand::Quit | SlashCommand::Exit => "exit Codex",
             SlashCommand::Copy => "copy last response as markdown",
             SlashCommand::Raw => "toggle raw scrollback mode for copy-friendly terminal selection",
@@ -171,6 +173,7 @@ impl SlashCommand {
                 | SlashCommand::Diff
                 | SlashCommand::Mention
                 | SlashCommand::Status
+                | SlashCommand::Gui
                 | SlashCommand::Ide
         )
     }
@@ -203,6 +206,7 @@ impl SlashCommand {
             | SlashCommand::Copy
             | SlashCommand::Raw
             | SlashCommand::Rename
+            | SlashCommand::Gui
             | SlashCommand::Mention
             | SlashCommand::Skills
             | SlashCommand::Hooks
@@ -265,6 +269,19 @@ mod tests {
     #[test]
     fn clean_alias_parses_to_stop_command() {
         assert_eq!(SlashCommand::from_str("clean"), Ok(SlashCommand::Stop));
+    }
+
+    #[test]
+    fn gui_command_is_visible_and_available() {
+        assert_eq!(SlashCommand::from_str("gui"), Ok(SlashCommand::Gui));
+        assert_eq!(SlashCommand::Gui.command(), "gui");
+        assert_eq!(
+            SlashCommand::Gui.description(),
+            "open GUI for the primary thread"
+        );
+        assert!(SlashCommand::Gui.available_during_task());
+        assert!(SlashCommand::Gui.available_in_side_conversation());
+        assert!(!SlashCommand::Gui.supports_inline_args());
     }
 
     #[test]

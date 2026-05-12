@@ -144,6 +144,15 @@ async fn queued_slash_review_with_args_restores_for_edit() {
 }
 
 #[tokio::test]
+async fn gui_command_emits_open_gui_event() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+
+    chat.dispatch_command(SlashCommand::Gui);
+
+    assert_matches!(rx.try_recv(), Ok(AppEvent::OpenGui));
+}
+
+#[tokio::test]
 async fn queued_bang_shell_dispatches_after_active_turn() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.thread_id = Some(ThreadId::new());

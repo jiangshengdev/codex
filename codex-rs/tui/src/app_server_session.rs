@@ -11,8 +11,11 @@ use crate::session_state::ThreadSessionState;
 use crate::status::StatusAccountDisplay;
 use crate::status::plan_type_display_name;
 use codex_app_server_client::AppServerClient;
+use codex_app_server_client::AppServerClientGuiExt;
 use codex_app_server_client::AppServerEvent;
 use codex_app_server_client::AppServerRequestHandle;
+use codex_app_server_client::GuiLaunchError;
+use codex_app_server_client::GuiLaunchUrl;
 use codex_app_server_client::TypedRequestError;
 use codex_app_server_protocol::Account;
 use codex_app_server_protocol::AskForApproval;
@@ -419,6 +422,17 @@ impl AppServerSession {
         match &self.client {
             AppServerClient::InProcess(_) => ThreadParamsMode::Embedded,
             AppServerClient::Remote(_) => ThreadParamsMode::Remote,
+        }
+    }
+
+    pub(crate) async fn gui_launch_url(
+        &self,
+        primary_thread_id: ThreadId,
+    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
+        let thread_id = primary_thread_id.to_string();
+        match &self.client {
+            AppServerClient::InProcess(client) => client.gui_launch_url(&thread_id).await,
+            AppServerClient::Remote(client) => client.gui_launch_url(&thread_id).await,
         }
     }
 
