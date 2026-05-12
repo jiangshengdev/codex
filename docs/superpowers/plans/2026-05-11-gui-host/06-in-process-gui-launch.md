@@ -1,0 +1,1060 @@
+# Codex GUI In-Process Launch Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Extend the TUI's in-process app-server runtime (`codex-rs/app-server/src/in_process.rs`) with a minimal, GUI-agnostic extra-connection registration API so that plan 02's `gui_transport.rs` can attach authenticated GUI WebSockets to the existing `MessageProcessor` and `outbound_connections`. Expose launch-URL access through a new `codex-app-server-client::gui` extension trait.
+
+**Architecture:** The extension point is four new `ProcessorCommand::Extra*` variants plus an `ExtraConnectionHandle` returned by `InProcessClientSender::register_extra_connection`. The processor `match` loop calls the existing raw `MessageProcessor::process_request` (see `codex-rs/app-server/src/message_processor.rs:477-534`) for `ExtraRequest`, reuses `message_processor.process_client_notification` for `ExtraNotification`, and delegates `ExtraConnectionClosed` to the existing projection subscription cleanup path via `message_processor.connection_closed` + `outbound_connections` removal. The main TUI connection's external semantics stay byte-for-byte identical.
+
+**Tech Stack:** Rust 2024, tokio, codex-app-server, codex-app-server-client, codex-app-server-protocol.
+
+---
+
+Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md` §Bridge 形态.
+Roadmap: `docs/superpowers/plans/2026-05-11-gui-host/00-roadmap.md`.
+
+## Hard Constraints
+
+- Keep all symbols added to `in_process.rs` GUI-agnostic. No `gui`, `websocket`, `allowlist`, `auth`, or `browser` in the public surface of the registration API.
+- Do not change the signature or external behavior of `InProcessClientHandle::request`, `InProcessClientHandle::notify`, `InProcessClientHandle::respond_to_server_request`, `InProcessClientHandle::fail_server_request`, `InProcessClientHandle::next_event`, `InProcessClientHandle::shutdown`, `InProcessClientHandle::sender`, or `InProcessClientSender::{request,notify,respond_to_server_request,fail_server_request}`.
+- Do not change `ProcessorCommand::Request` / `Notification` arm bodies; only add new arms.
+- Do not copy `run_main_with_transport_options` connection maps, outbound router, or close cleanup. Reuse the existing `HashMap<ConnectionId, OutboundConnectionState>` already owned by the runtime task and `route_outgoing_envelope`.
+- Main connection `ConnectionId(0)` (`IN_PROCESS_CONNECTION_ID`) must never collide with extra connection IDs. Extra IDs are allocated from a local `AtomicU64` starting at `1`.
+- `ExtraConnectionClosed` for a given `connection_id` is delivered **at most once** under normal operation (guaranteed by `ExtraConnectionHandle::Drop::try_send`). Under runtime abort / shutdown timeout it may be skipped, in which case the runtime-end cleanup tears down all remaining entries.
+- After `ExtraConnectionClosed` is processed, the runtime must not dispatch any further `ExtraRequest` or `ExtraNotification` for that `connection_id`.
+
+## File Structure
+
+- Modify: `codex-rs/app-server/src/in_process.rs`
+  - Add `ProcessorCommand::ExtraConnectionOpened`, `ExtraRequest`, `ExtraNotification`, `ExtraConnectionClosed`.
+  - Add `ExtraConnectionHandle` with `Drop` best-effort `try_send(ExtraConnectionClosed)`.
+  - Add `InProcessClientSender::register_extra_connection(&self) -> ExtraConnectionHandle`.
+  - Add `extra_session_states: HashMap<ConnectionId, Arc<ConnectionSessionState>>` in the processor task.
+  - Extend processor `match ProcessorCommand` loop with four new arms.
+  - Generalize `thread_created_rx` dispatch list to include initialized extra connections.
+  - Insert/remove `OutboundConnectionState` entries for extra connections in the outer runtime task (owner of `outbound_connections` via the outbound router spawn closure — see Task 3 for exact placement).
+- Create: `codex-rs/app-server-client/src/gui.rs`
+  - `AppServerClientGuiExt` trait, `GuiLaunchUrl`, `GuiLaunchError`.
+- Modify: `codex-rs/app-server-client/src/lib.rs`
+  - `pub mod gui;` + re-exports.
+  - `InProcessAppServerClient` carries `Option<Arc<GuiHostManager>>`; its `AppServerClientGuiExt` impl dispatches through the manager.
+  - `RemoteAppServerClient` impl returns `GuiLaunchError::Unsupported`.
+- Tests: `codex-rs/app-server/src/in_process.rs` (new `#[cfg(test)] mod extra_connection_tests`).
+- Tests: `codex-rs/app-server-client/src/gui.rs` (unit test for `Unsupported` wiring through the facade).
+
+## Task 0: Baseline Verification
+
+**Files:**
+- Verify: `codex-rs/app-server/src/in_process.rs`
+- Verify: `codex-rs/app-server-client/src/lib.rs`
+
+- [ ] **Step 1: Confirm the obsolete multi-connection bridge is already reverted**
+
+Run from repo root:
+
+```bash
+git log --oneline --grep "remove obsolete in-process bridge" -1
+```
+
+Expected: returns `c03057779 refactor(gui): remove obsolete in-process bridge` (or a later commit with that message). If empty, stop — this plan assumes `in_process.rs` is back to the single-connection baseline before extending it.
+
+- [ ] **Step 2: Confirm main runtime handshake is intact**
+
+Run from `codex-rs`:
+
+```bash
+cargo test -p codex-app-server in_process_start_initializes_and_handles_typed_v2_request
+```
+
+Expected: test passes. This is the invariant that plan 06 must not break.
+
+## Task 1: Introduce `ExtraConnectionHandle` Types and Commands
+
+**Files:**
+- Modify: `codex-rs/app-server/src/in_process.rs`
+
+- [ ] **Step 1: Write the failing test for command variants**
+
+Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
+
+```rust
+    #[test]
+    fn processor_command_has_extra_variants() {
+        fn requires_send<T: Send>() {}
+        requires_send::<ProcessorCommand>();
+        let _opened = ProcessorCommand::ExtraConnectionOpened {
+            connection_id: ConnectionId(7),
+        };
+        let _closed = ProcessorCommand::ExtraConnectionClosed {
+            connection_id: ConnectionId(7),
+        };
+    }
+```
+
+Run:
+
+```bash
+cargo test -p codex-app-server processor_command_has_extra_variants
+```
+
+Expected: FAIL with `no variant or associated item named \`ExtraConnectionOpened\``.
+
+- [ ] **Step 2: Add the new `ProcessorCommand` variants**
+
+In `codex-rs/app-server/src/in_process.rs`, extend the enum:
+
+```rust
+enum ProcessorCommand {
+    Request(Box<ClientRequest>),
+    Notification(ClientNotification),
+    ExtraConnectionOpened {
+        connection_id: ConnectionId,
+    },
+    ExtraRequest {
+        connection_id: ConnectionId,
+        request: Box<codex_app_server_protocol::JSONRPCRequest>,
+    },
+    ExtraNotification {
+        connection_id: ConnectionId,
+        notification: codex_app_server_protocol::JSONRPCNotification,
+    },
+    ExtraConnectionClosed {
+        connection_id: ConnectionId,
+    },
+}
+```
+
+`JSONRPCRequest` / `JSONRPCNotification` come from `codex_app_server_protocol`; keep the existing `use codex_app_server_protocol::*` cluster at the top of the file and add imports there if needed (prefer module-qualified paths in the enum body to avoid polluting the file's top-level import surface).
+
+- [ ] **Step 3: Re-run the test to verify PASS**
+
+```bash
+cargo test -p codex-app-server processor_command_has_extra_variants
+```
+
+Expected:
+
+```text
+test tests::processor_command_has_extra_variants ... ok
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add codex-rs/app-server/src/in_process.rs
+git commit -m "feat(app-server): add ExtraConnection ProcessorCommand variants"
+```
+
+## Task 2: Add `ExtraConnectionHandle` + `register_extra_connection`
+
+**Files:**
+- Modify: `codex-rs/app-server/src/in_process.rs`
+
+- [ ] **Step 1: Write failing tests for the handle shape and ID allocation**
+
+Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
+
+```rust
+    #[tokio::test]
+    async fn register_extra_connection_allocates_ids_starting_above_main() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+
+        let first = sender.register_extra_connection();
+        let second = sender.register_extra_connection();
+
+        assert_ne!(first.connection_id, IN_PROCESS_CONNECTION_ID);
+        assert_ne!(second.connection_id, IN_PROCESS_CONNECTION_ID);
+        assert_ne!(first.connection_id, second.connection_id);
+        assert!(first.connection_id.0 >= 1);
+        assert!(second.connection_id.0 >= 1);
+
+        drop(first);
+        drop(second);
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn dropping_extra_connection_handle_sends_closed_command() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let handle = sender.register_extra_connection();
+        let connection_id = handle.connection_id;
+        drop(handle);
+
+        client.shutdown().await.expect("shutdown");
+        let _ = connection_id;
+    }
+```
+
+Run:
+
+```bash
+cargo test -p codex-app-server register_extra_connection_allocates_ids_starting_above_main dropping_extra_connection_handle_sends_closed_command
+```
+
+Expected: FAIL with `no method named \`register_extra_connection\``.
+
+- [ ] **Step 2: Define `ExtraConnectionHandle`**
+
+In `codex-rs/app-server/src/in_process.rs`, add near the other public types:
+
+```rust
+use tokio_util::sync::CancellationToken;
+
+/// Handle returned by [`InProcessClientSender::register_extra_connection`].
+///
+/// Dropping the handle issues a best-effort `ProcessorCommand::ExtraConnectionClosed`
+/// so callers can rely on `Drop` as the cleanup path when their bridge task exits.
+///
+/// Naming is intentionally neutral — `in_process.rs` does not model HTTP,
+/// WebSocket, authentication, or allowlist semantics. Callers layer those
+/// concerns on top and hand typed `JSONRPCRequest` / `JSONRPCNotification`
+/// values in via `command_sender`.
+pub struct ExtraConnectionHandle {
+    pub connection_id: ConnectionId,
+    pub command_sender: ExtraConnectionCommandSender,
+    pub outgoing_tx: mpsc::Sender<String>,
+    pub outgoing_rx: mpsc::Receiver<String>,
+    pub disconnect_token: CancellationToken,
+}
+
+#[derive(Clone)]
+pub struct ExtraConnectionCommandSender {
+    inner: mpsc::Sender<InProcessClientMessage>,
+    connection_id: ConnectionId,
+}
+
+impl ExtraConnectionCommandSender {
+    pub fn send_request(
+        &self,
+        request: codex_app_server_protocol::JSONRPCRequest,
+    ) -> IoResult<()> {
+        self.try_send(InProcessClientMessage::ExtraRequest {
+            connection_id: self.connection_id,
+            request: Box::new(request),
+        })
+    }
+
+    pub fn send_notification(
+        &self,
+        notification: codex_app_server_protocol::JSONRPCNotification,
+    ) -> IoResult<()> {
+        self.try_send(InProcessClientMessage::ExtraNotification {
+            connection_id: self.connection_id,
+            notification,
+        })
+    }
+
+    fn try_send(&self, message: InProcessClientMessage) -> IoResult<()> {
+        match self.inner.try_send(message) {
+            Ok(()) => Ok(()),
+            Err(mpsc::error::TrySendError::Full(_)) => Err(IoError::new(
+                ErrorKind::WouldBlock,
+                "in-process extra connection queue is full",
+            )),
+            Err(mpsc::error::TrySendError::Closed(_)) => Err(IoError::new(
+                ErrorKind::BrokenPipe,
+                "in-process app-server runtime is closed",
+            )),
+        }
+    }
+}
+
+impl Drop for ExtraConnectionHandle {
+    fn drop(&mut self) {
+        let _ = self.command_sender.inner.try_send(
+            InProcessClientMessage::ExtraConnectionClosed {
+                connection_id: self.connection_id,
+            },
+        );
+    }
+}
+```
+
+- [ ] **Step 3: Extend `InProcessClientMessage`**
+
+Add four new variants next to existing request/notification variants:
+
+```rust
+enum InProcessClientMessage {
+    // ... existing variants ...
+    ExtraConnectionOpened {
+        connection_id: ConnectionId,
+        outgoing_tx: mpsc::Sender<String>,
+    },
+    ExtraRequest {
+        connection_id: ConnectionId,
+        request: Box<codex_app_server_protocol::JSONRPCRequest>,
+    },
+    ExtraNotification {
+        connection_id: ConnectionId,
+        notification: codex_app_server_protocol::JSONRPCNotification,
+    },
+    ExtraConnectionClosed {
+        connection_id: ConnectionId,
+    },
+}
+```
+
+`ExtraConnectionOpened::outgoing_tx` reaches the outer runtime task (not the processor) so the runtime can register a new entry in `outbound_connections` (Task 3) wired to the caller's `outgoing_tx`.
+
+- [ ] **Step 4: Implement `register_extra_connection` on `InProcessClientSender`**
+
+Keep main connection reserved with `ConnectionId(0)`; extras start at `1`.
+
+```rust
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
+static EXTRA_CONNECTION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+impl InProcessClientSender {
+    pub fn register_extra_connection(&self) -> ExtraConnectionHandle {
+        let connection_id =
+            ConnectionId(EXTRA_CONNECTION_ID_COUNTER.fetch_add(1, Ordering::Relaxed));
+        let (outgoing_tx, outgoing_rx) = mpsc::channel::<String>(CHANNEL_CAPACITY);
+        let disconnect_token = CancellationToken::new();
+
+        let _ = self.client_tx.try_send(InProcessClientMessage::ExtraConnectionOpened {
+            connection_id,
+            outgoing_tx: outgoing_tx.clone(),
+        });
+
+        ExtraConnectionHandle {
+            connection_id,
+            command_sender: ExtraConnectionCommandSender {
+                inner: self.client_tx.clone(),
+                connection_id,
+            },
+            outgoing_tx,
+            outgoing_rx,
+            disconnect_token,
+        }
+    }
+}
+```
+
+The local `AtomicU64` avoids sharing ID space with `codex-app-server-transport`'s private `next_connection_id` and guarantees `ConnectionId(0)` is reserved for the main connection.
+
+- [ ] **Step 5: Run tests**
+
+```bash
+cargo test -p codex-app-server register_extra_connection_allocates_ids_starting_above_main dropping_extra_connection_handle_sends_closed_command
+```
+
+Expected: both tests pass. `dropping_extra_connection_handle_sends_closed_command` does not yet observe `ExtraConnectionClosed` processing — it only proves the sender survives a `drop` without panicking; Task 3 verifies the loop actually consumes it.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add codex-rs/app-server/src/in_process.rs
+git commit -m "feat(app-server): add register_extra_connection API"
+```
+
+## Task 3: Dispatch Extra Connection Commands in the Runtime Loop
+
+**Files:**
+- Modify: `codex-rs/app-server/src/in_process.rs`
+
+Plan 06 Task 3 is the biggest single change in `in_process.rs`. Follow each sub-step exactly; do not refactor the main connection arms.
+
+- [ ] **Step 1: Write failing integration tests for the request / notification / close round-trip**
+
+Add to `#[cfg(test)] mod tests` (reuse the existing test helpers):
+
+```rust
+    use codex_app_server_protocol::JSONRPCNotification;
+    use codex_app_server_protocol::JSONRPCRequest;
+    use codex_app_server_protocol::RequestId;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    #[tokio::test]
+    async fn extra_connection_request_reaches_message_processor() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let mut handle = sender.register_extra_connection();
+
+        handle
+            .command_sender
+            .send_request(JSONRPCRequest {
+                id: RequestId::Integer(42),
+                method: "config/requirements/read".to_string(),
+                params: None,
+                trace: None,
+            })
+            .expect("extra request should enqueue");
+
+        let outgoing = timeout(Duration::from_secs(2), handle.outgoing_rx.recv())
+            .await
+            .expect("extra outgoing should arrive within timeout")
+            .expect("extra outgoing channel should stay open");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&outgoing).expect("extra outgoing must be JSON");
+        assert_eq!(parsed["id"], serde_json::json!(42));
+        assert!(
+            parsed.get("result").is_some() || parsed.get("error").is_some(),
+            "response envelope must contain result or error: {parsed}"
+        );
+
+        drop(handle);
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn extra_connection_notification_is_accepted() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let handle = sender.register_extra_connection();
+
+        handle
+            .command_sender
+            .send_notification(JSONRPCNotification {
+                method: "initialized".to_string(),
+                params: None,
+            })
+            .expect("extra notification should enqueue");
+
+        drop(handle);
+        client.shutdown().await.expect("shutdown");
+    }
+```
+
+Run:
+
+```bash
+cargo test -p codex-app-server extra_connection_request_reaches_message_processor extra_connection_notification_is_accepted
+```
+
+Expected: FAIL because the processor loop does not yet have arms for the new commands; `outgoing_rx.recv()` times out.
+
+- [ ] **Step 2: Extend the outer runtime task to register extra `OutboundConnectionState` entries**
+
+The outbound router task in `start_uninitialized` owns `outbound_connections` via its spawn closure. Refactor so the map is owned by an extra task ("outbound router supervisor") that also handles `ExtraConnectionOpened` / `ExtraConnectionClosed` registration requests.
+
+Replace the existing block:
+
+```rust
+        let mut outbound_connections = HashMap::<ConnectionId, OutboundConnectionState>::new();
+        outbound_connections.insert(
+            IN_PROCESS_CONNECTION_ID,
+            OutboundConnectionState::new(
+                writer_tx,
+                Arc::clone(&outbound_initialized),
+                Arc::clone(&outbound_experimental_api_enabled),
+                Arc::clone(&outbound_opted_out_notification_methods),
+                /*disconnect_sender*/ None,
+            ),
+        );
+        let mut outbound_handle = tokio::spawn(async move {
+            while let Some(envelope) = outgoing_rx.recv().await {
+                route_outgoing_envelope(&mut outbound_connections, envelope).await;
+            }
+        });
+```
+
+with:
+
+```rust
+        let mut outbound_connections = HashMap::<ConnectionId, OutboundConnectionState>::new();
+        outbound_connections.insert(
+            IN_PROCESS_CONNECTION_ID,
+            OutboundConnectionState::new(
+                writer_tx,
+                Arc::clone(&outbound_initialized),
+                Arc::clone(&outbound_experimental_api_enabled),
+                Arc::clone(&outbound_opted_out_notification_methods),
+                /*disconnect_sender*/ None,
+            ),
+        );
+        // Control channel used by the client-message task to register/unregister
+        // extra connection writer entries without blocking the processor.
+        let (outbound_control_tx, mut outbound_control_rx) =
+            mpsc::channel::<OutboundControl>(channel_capacity);
+        let outbound_initialized_for_router = Arc::clone(&outbound_initialized);
+        let outbound_experimental_api_enabled_for_router =
+            Arc::clone(&outbound_experimental_api_enabled);
+        let outbound_opted_out_notification_methods_for_router =
+            Arc::clone(&outbound_opted_out_notification_methods);
+        let mut outbound_handle = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    envelope = outgoing_rx.recv() => {
+                        let Some(envelope) = envelope else { break };
+                        route_outgoing_envelope(&mut outbound_connections, envelope).await;
+                    }
+                    control = outbound_control_rx.recv() => {
+                        match control {
+                            Some(OutboundControl::Register {
+                                connection_id,
+                                writer,
+                            }) => {
+                                outbound_connections.insert(
+                                    connection_id,
+                                    OutboundConnectionState::new(
+                                        writer,
+                                        Arc::clone(&outbound_initialized_for_router),
+                                        Arc::clone(&outbound_experimental_api_enabled_for_router),
+                                        Arc::clone(&outbound_opted_out_notification_methods_for_router),
+                                        None,
+                                    ),
+                                );
+                            }
+                            Some(OutboundControl::Unregister { connection_id }) => {
+                                outbound_connections.remove(&connection_id);
+                            }
+                            None => break,
+                        }
+                    }
+                }
+            }
+        });
+```
+
+Add the control type next to `InProcessClientMessage`:
+
+```rust
+enum OutboundControl {
+    Register {
+        connection_id: ConnectionId,
+        writer: mpsc::Sender<QueuedOutgoingMessage>,
+    },
+    Unregister {
+        connection_id: ConnectionId,
+    },
+}
+```
+
+**Invariants after this change:**
+- `outgoing_rx.recv()` is still the primary source of outgoing traffic; main-connection throughput and ordering are unchanged.
+- `OutboundControl::Register` is only reachable via `ExtraConnectionOpened` handling (Step 4), so the main connection's writer slot is never overwritten.
+- `OutboundControl::Unregister` is only reachable via `ExtraConnectionClosed` handling (Step 4); `IN_PROCESS_CONNECTION_ID` is never passed in.
+
+- [ ] **Step 3: Bridge `writer_rx` payloads into `ExtraConnectionHandle::outgoing_rx`**
+
+Extra connection writer channels live in `outbound_connections`, so their `QueuedOutgoingMessage` payloads flow through the existing `writer_rx` (which is owned by the client-message select loop below — **that loop still expects only the main connection's writes on `writer_rx`**). Keep the main `writer_rx` scoped to `IN_PROCESS_CONNECTION_ID` only, and give each extra connection its own writer channel connected to the caller's `outgoing_tx: Sender<String>`.
+
+To do this, add a helper that owns the per-extra serializer bridge. In `start_uninitialized`, declare a bridge-spawn helper and use it from the `ExtraConnectionOpened` arm:
+
+```rust
+use crate::transport::OutgoingMessage;
+
+fn spawn_extra_writer_bridge(
+    connection_id: ConnectionId,
+    outgoing_tx: mpsc::Sender<String>,
+    mut writer_rx: mpsc::Receiver<QueuedOutgoingMessage>,
+) {
+    tokio::spawn(async move {
+        while let Some(queued) = writer_rx.recv().await {
+            let serialized = match queued.message {
+                OutgoingMessage::Response(_)
+                | OutgoingMessage::Error(_)
+                | OutgoingMessage::Request(_)
+                | OutgoingMessage::AppServerNotification(_) => {
+                    match serde_json::to_string(&queued.message) {
+                        Ok(text) => text,
+                        Err(err) => {
+                            tracing::error!(
+                                connection_id = ?connection_id,
+                                "failed to serialize extra outgoing message: {err}",
+                            );
+                            continue;
+                        }
+                    }
+                }
+            };
+            if outgoing_tx.send(serialized).await.is_err() {
+                break;
+            }
+            if let Some(done) = queued.write_complete_tx {
+                let _ = done.send(());
+            }
+        }
+    });
+}
+```
+
+`OutgoingMessage` already derives `Serialize` (it is what stdio / websocket transports serialize today); reusing `serde_json::to_string` keeps the on-wire shape identical to the external app-server.
+
+- [ ] **Step 4: Add `InProcessClientMessage` arms in the client-message select loop**
+
+Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv()`, extend `match message { ... }` with four new arms **before** the trailing `None => break` arm:
+
+```rust
+                        Some(InProcessClientMessage::ExtraConnectionOpened {
+                            connection_id,
+                            outgoing_tx,
+                        }) => {
+                            let (writer_tx, writer_rx) =
+                                mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
+                            spawn_extra_writer_bridge(connection_id, outgoing_tx, writer_rx);
+                            if outbound_control_tx
+                                .send(OutboundControl::Register {
+                                    connection_id,
+                                    writer: writer_tx,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                            if processor_tx
+                                .send(ProcessorCommand::ExtraConnectionOpened { connection_id })
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Some(InProcessClientMessage::ExtraRequest {
+                            connection_id,
+                            request,
+                        }) => {
+                            if processor_tx
+                                .send(ProcessorCommand::ExtraRequest {
+                                    connection_id,
+                                    request,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Some(InProcessClientMessage::ExtraNotification {
+                            connection_id,
+                            notification,
+                        }) => {
+                            if processor_tx
+                                .send(ProcessorCommand::ExtraNotification {
+                                    connection_id,
+                                    notification,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Some(InProcessClientMessage::ExtraConnectionClosed { connection_id }) => {
+                            if processor_tx
+                                .send(ProcessorCommand::ExtraConnectionClosed { connection_id })
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                            let _ = outbound_control_tx
+                                .send(OutboundControl::Unregister { connection_id })
+                                .await;
+                        }
+```
+
+Use `send().await` instead of `try_send`: extra-connection registration and teardown must not be dropped silently. Back-pressure is acceptable since a blocked registration simply throttles new browser connections.
+
+- [ ] **Step 5: Add processor-side arms**
+
+Inside the processor task `tokio::select!`, extend the `match command { ... }` inside `Some(ProcessorCommand::...)` with four new arms. Track per-connection session state in a new map declared alongside the existing `session` binding:
+
+```rust
+            let mut extra_session_states: HashMap<ConnectionId, Arc<ConnectionSessionState>> =
+                HashMap::new();
+```
+
+Then add these arms immediately after `Some(ProcessorCommand::Notification(notification))`:
+
+```rust
+                            Some(ProcessorCommand::ExtraConnectionOpened { connection_id }) => {
+                                extra_session_states.insert(
+                                    connection_id,
+                                    Arc::new(ConnectionSessionState::new()),
+                                );
+                            }
+                            Some(ProcessorCommand::ExtraRequest {
+                                connection_id,
+                                request,
+                            }) => {
+                                let Some(session_state) =
+                                    extra_session_states.get(&connection_id).cloned()
+                                else {
+                                    tracing::warn!(
+                                        ?connection_id,
+                                        "dropping extra request for unknown connection",
+                                    );
+                                    continue;
+                                };
+                                processor
+                                    .process_request(
+                                        connection_id,
+                                        *request,
+                                        &crate::transport::AppServerTransport::Off,
+                                        session_state,
+                                    )
+                                    .await;
+                            }
+                            Some(ProcessorCommand::ExtraNotification {
+                                connection_id,
+                                notification,
+                            }) => {
+                                let Some(_session_state) =
+                                    extra_session_states.get(&connection_id)
+                                else {
+                                    tracing::warn!(
+                                        ?connection_id,
+                                        "dropping extra notification for unknown connection",
+                                    );
+                                    continue;
+                                };
+                                processor.process_notification(notification).await;
+                            }
+                            Some(ProcessorCommand::ExtraConnectionClosed { connection_id }) => {
+                                if let Some(session_state) =
+                                    extra_session_states.remove(&connection_id)
+                                {
+                                    processor
+                                        .connection_closed(connection_id, &session_state)
+                                        .await;
+                                } else {
+                                    tracing::warn!(
+                                        ?connection_id,
+                                        "ExtraConnectionClosed for unknown connection",
+                                    );
+                                }
+                            }
+```
+
+`process_request` takes `transport: &AppServerTransport` only for tracing labels; `AppServerTransport::Off` is the correct neutral marker here — this is not a Unix / WebSocket / Stdio pipe.
+
+- [ ] **Step 6: Generalize `thread_created_rx` dispatch**
+
+Today:
+
+```rust
+                                let connection_ids = if session.initialized() {
+                                    vec![IN_PROCESS_CONNECTION_ID]
+                                } else {
+                                    Vec::<ConnectionId>::new()
+                                };
+```
+
+Replace with:
+
+```rust
+                                let mut connection_ids = Vec::new();
+                                if session.initialized() {
+                                    connection_ids.push(IN_PROCESS_CONNECTION_ID);
+                                }
+                                for (extra_connection_id, extra_session) in
+                                    extra_session_states.iter()
+                                {
+                                    if extra_session.initialized() {
+                                        connection_ids.push(*extra_connection_id);
+                                    }
+                                }
+```
+
+This makes projection event fan-out follow the allowlisted browser connections once they complete `initialize`.
+
+- [ ] **Step 7: Run the Task 3 failing tests**
+
+```bash
+cargo test -p codex-app-server extra_connection_request_reaches_message_processor extra_connection_notification_is_accepted
+```
+
+Expected: both tests pass.
+
+- [ ] **Step 8: Re-run the main-connection invariant tests**
+
+```bash
+cargo test -p codex-app-server in_process_start_initializes_and_handles_typed_v2_request in_process_start_uses_requested_session_source_for_thread_start in_process_start_clamps_zero_channel_capacity guaranteed_delivery_helpers_cover_terminal_server_notifications
+```
+
+Expected: all four tests still pass.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add codex-rs/app-server/src/in_process.rs
+git commit -m "feat(app-server): dispatch extra connection commands"
+```
+
+## Task 4: Close-path Cleanup and Shutdown Ordering
+
+**Files:**
+- Modify: `codex-rs/app-server/src/in_process.rs`
+
+- [ ] **Step 1: Write failing close-path test**
+
+Add to `#[cfg(test)] mod tests`:
+
+```rust
+    #[tokio::test]
+    async fn dropping_extra_handle_triggers_connection_closed() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let handle = sender.register_extra_connection();
+        let connection_id = handle.connection_id;
+
+        // Send a request first so the connection is definitely registered.
+        handle
+            .command_sender
+            .send_request(JSONRPCRequest {
+                id: RequestId::Integer(1),
+                method: "config/requirements/read".to_string(),
+                params: None,
+                trace: None,
+            })
+            .expect("send request");
+
+        // Drain the response so the processor has finished this call.
+        let mut outgoing_rx = {
+            let mut handle = handle;
+            let rx = std::mem::replace(&mut handle.outgoing_rx, mpsc::channel(1).1);
+            let _ = timeout(Duration::from_secs(2), async {
+                // ensure request handled
+            })
+            .await;
+            drop(handle);
+            rx
+        };
+
+        // After drop, `outgoing_rx` should close because the writer bridge
+        // task exits once its writer channel is removed from outbound_connections.
+        let result = timeout(Duration::from_secs(2), outgoing_rx.recv()).await;
+        assert!(
+            matches!(result, Ok(None) | Err(_)),
+            "expected channel close after drop, got {result:?}",
+        );
+
+        client.shutdown().await.expect("shutdown");
+        let _ = connection_id;
+    }
+```
+
+Run:
+
+```bash
+cargo test -p codex-app-server dropping_extra_handle_triggers_connection_closed
+```
+
+Expected: test must PASS against the Task 3 implementation. If it fails, the likely cause is that `OutboundControl::Unregister` is not closing the writer-rx path; use the diagnostic below.
+
+- [ ] **Step 2: Confirm per-connection drop removes the writer**
+
+Trace logic:
+1. `ExtraConnectionHandle::Drop` -> `ExtraConnectionClosed`.
+2. Client-message loop arm -> processor `ExtraConnectionClosed` + `outbound_control_tx` `Unregister`.
+3. Outbound router removes the entry from `outbound_connections`, which drops the `writer` (`mpsc::Sender<QueuedOutgoingMessage>`).
+4. `writer_rx` owned by `spawn_extra_writer_bridge` observes `None`, exits, and drops its captured `outgoing_tx`.
+5. Caller's `outgoing_rx.recv()` returns `None`.
+
+If the test fails, inspect which of these five steps is missing.
+
+- [ ] **Step 3: Shutdown-timeout safety note (no code change)**
+
+If the runtime task hits `SHUTDOWN_TIMEOUT` and aborts the processor handle, per-connection `ExtraConnectionClosed` may not run. This is acceptable because the runtime task's shutdown tail already drops `outgoing_message_sender` and the writer pipeline, tearing down any remaining extra connections' outbound channels. Document this in a short code comment above the client-message loop's extra arms:
+
+```rust
+// Runtime-abort path: if `SHUTDOWN_TIMEOUT` fires before all
+// ExtraConnectionClosed commands are drained, remaining extra connections are
+// torn down indirectly via the existing shutdown tail (outgoing_message_sender
+// drop + processor abort). Per-connection projection cleanup may be skipped in
+// that case; the runtime-end cleanup is the safety net.
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add codex-rs/app-server/src/in_process.rs
+git commit -m "test(app-server): extra connection close path cleanup"
+```
+
+## Task 5: `codex-app-server-client::gui` Extension Trait
+
+**Files:**
+- Create: `codex-rs/app-server-client/src/gui.rs`
+- Modify: `codex-rs/app-server-client/src/lib.rs`
+
+- [ ] **Step 1: Write failing test for the Remote `Unsupported` path**
+
+Add to `codex-rs/app-server-client/src/gui.rs` (new file) at the bottom:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn gui_launch_error_variants_are_distinct() {
+        let unsupported = GuiLaunchError::Unsupported;
+        let transport = GuiLaunchError::Transport(std::io::Error::new(
+            std::io::ErrorKind::BrokenPipe,
+            "closed",
+        ));
+        assert_eq!(unsupported.to_string(), "GUI is not available for this session");
+        assert!(transport.to_string().contains("closed"));
+    }
+}
+```
+
+- [ ] **Step 2: Implement the extension surface**
+
+Write `codex-rs/app-server-client/src/gui.rs`:
+
+```rust
+//! GUI launch URL extension for the app-server client facade.
+//!
+//! The in-process implementation starts a `GuiHost` on first call and returns
+//! a real `http://127.0.0.1:PORT/?threadId=...#token=...` URL. The remote
+//! implementation returns [`GuiLaunchError::Unsupported`] — GUI launch across
+//! a remote app-server process is out of MVP scope.
+
+use async_trait::async_trait;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuiLaunchUrl {
+    pub url: String,
+}
+
+#[derive(Debug)]
+pub enum GuiLaunchError {
+    Unsupported,
+    Transport(std::io::Error),
+}
+
+impl std::fmt::Display for GuiLaunchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unsupported => write!(f, "GUI is not available for this session"),
+            Self::Transport(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl std::error::Error for GuiLaunchError {}
+
+#[async_trait]
+pub trait AppServerClientGuiExt {
+    async fn gui_launch_url(
+        &self,
+        primary_thread_id: &str,
+    ) -> Result<GuiLaunchUrl, GuiLaunchError>;
+}
+```
+
+Then in `codex-rs/app-server-client/src/lib.rs`:
+
+```rust
+pub mod gui;
+pub use crate::gui::AppServerClientGuiExt;
+pub use crate::gui::GuiLaunchError;
+pub use crate::gui::GuiLaunchUrl;
+```
+
+And add the `Unsupported` remote implementation at the end of the file:
+
+```rust
+#[async_trait::async_trait]
+impl crate::gui::AppServerClientGuiExt for crate::remote::RemoteAppServerClient {
+    async fn gui_launch_url(
+        &self,
+        _primary_thread_id: &str,
+    ) -> Result<crate::gui::GuiLaunchUrl, crate::gui::GuiLaunchError> {
+        Err(crate::gui::GuiLaunchError::Unsupported)
+    }
+}
+```
+
+The `InProcessAppServerClient` implementation lands in plan 02 once `GuiHostManager` exists. Plan 06 intentionally stops at the remote-side stub so 02 can wire the in-process side.
+
+If `async_trait` is not already a direct dependency of `codex-app-server-client`, add it to `codex-rs/app-server-client/Cargo.toml`:
+
+```toml
+async-trait = { workspace = true }
+```
+
+Then run from `codex-rs`:
+
+```bash
+just bazel-lock-update && just bazel-lock-check
+```
+
+- [ ] **Step 3: Run the new test**
+
+```bash
+cargo test -p codex-app-server-client gui_launch_error_variants_are_distinct
+```
+
+Expected: PASS.
+
+- [ ] **Step 4: Run the broader client test suite for regression safety**
+
+```bash
+cargo test -p codex-app-server-client
+```
+
+Expected: all existing tests still pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add codex-rs/app-server-client/src/gui.rs codex-rs/app-server-client/src/lib.rs codex-rs/app-server-client/Cargo.toml codex-rs/Cargo.lock codex-rs/Cargo.Bazel.lock
+git commit -m "feat(app-server-client): add gui launch extension trait"
+```
+
+If dependency changes did not touch the Bazel lockfile, drop the last two files from `git add`.
+
+## Task 6: Format + Scoped Lint
+
+**Files:**
+- Verify: `codex-rs/app-server/src`
+- Verify: `codex-rs/app-server-client/src`
+
+- [ ] **Step 1: Format**
+
+From `codex-rs`:
+
+```bash
+just fmt
+```
+
+- [ ] **Step 2: Scoped lint**
+
+```bash
+just fix -p codex-app-server
+just fix -p codex-app-server-client
+```
+
+Expected: no errors; the tools may apply auto-fixes.
+
+- [ ] **Step 3: Commit any auto-fixes**
+
+```bash
+git add codex-rs
+git commit -m "chore(app-server): format extra-connection plumbing"
+```
+
+If no files were modified, do not create an empty commit.
+
+## Acceptance Gates
+
+- New `ProcessorCommand::Extra*` variants compile and route through the processor `match` loop.
+- `InProcessClientSender::register_extra_connection` allocates unique `ConnectionId` values starting at `1`, never colliding with `IN_PROCESS_CONNECTION_ID`.
+- `ExtraConnectionHandle::Drop` emits `ExtraConnectionClosed` exactly once under normal operation.
+- `process_request` raw path is reused for `ExtraRequest` without duplicating typed `ClientRequest` handling.
+- Main TUI connection keeps its typed `ClientRequest` path and existing tests green.
+- `thread_created_rx` dispatch fans out to both the main connection and initialized extra connections.
+- `codex-app-server-client::gui::AppServerClientGuiExt` trait and `RemoteAppServerClient` `Unsupported` impl compile and their unit test passes.
+
+## Self-Review Checklist
+
+- `in_process.rs` public surface added: `ExtraConnectionHandle`, `ExtraConnectionCommandSender`, `InProcessClientSender::register_extra_connection`. No `gui`, `browser`, `websocket`, `auth`, or `allowlist` names in these symbols.
+- `ProcessorCommand::Request` / `Notification` arms are byte-for-byte unchanged.
+- `OutboundConnectionState::new` argument list is unchanged.
+- `route_outgoing_envelope` is called from the same place as before (inside the outbound router task) for all envelopes, including extra connections.
+- The outbound router loop now also serves `OutboundControl` messages; main-connection throughput invariants are preserved (primary source is still `outgoing_rx.recv()`).
+- No `run_main_with_transport_options`-style connection map, outbound router, or close cleanup is duplicated.
+- Shutdown / abort fallback is documented inline.
+- `codex-app-server-client::gui` defines only the trait + types + remote `Unsupported` impl; in-process impl is deferred to plan 02 to keep layering clean.

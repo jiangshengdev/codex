@@ -11,6 +11,9 @@
 ---
 
 Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
+Prerequisite plans: `02-app-server-bridge.md`, `06-in-process-gui-launch.md` (produce the real launch URL in the default in-process TUI path).
+
+**Acceptance path for this plan:** the end-to-end verification in `05-packaging-verification.md` runs against the in-process TUI default — `/gui` prints a real URL, the browser opens it, and all four acceptance traces below come from the in-process runtime.
 
 ## Scope Notes
 

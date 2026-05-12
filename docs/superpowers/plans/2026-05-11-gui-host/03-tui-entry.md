@@ -4,7 +4,7 @@
 
 **目标：** 添加最小化的 `/gui` TUI 命令：向当前 app-server session 请求 GUI launch URL，并把结果打印到 transcript。
 
-**架构：** TUI 只负责 slash command dispatch 和用户可见消息。`codex-app-server` 拥有 GUI host 生命周期和 transport wiring；`codex-app-server-client` 暴露 launch URL API。TUI 不实例化 `GuiHost`，不持有 `GuiHostHandle`，不消费 raw backend handle，也不转发 GUI JSON-RPC traffic。
+**架构：** TUI 只负责 slash command dispatch 和用户可见消息。`codex-app-server` 拥有 GUI host 生命周期和 transport wiring；`codex-app-server-client` 通过 `AppServerClientGuiExt` extension trait 暴露 launch URL API。In-process 会话返回真实 URL；remote 会话返回 `GuiLaunchError::Unsupported`。TUI 不实例化 `GuiHost`，不持有 `GuiHostHandle`，不消费 raw backend handle，也不转发 GUI JSON-RPC traffic。
 
 **技术栈：** Rust 2024, codex-tui, codex-app-server-client.
 
@@ -12,6 +12,7 @@
 
 Source spec: `docs/superpowers/specs/2026-05-11-codex-gui-host-redesign.md`.
 Bridge plan: `docs/superpowers/plans/2026-05-11-gui-host/02-app-server-bridge.md`.
+Prerequisite plan: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui-launch.md` (must be merged so `AppServerClientGuiExt` is available).
 
 ## 硬约束
 
@@ -21,7 +22,8 @@ Bridge plan: `docs/superpowers/plans/2026-05-11-gui-host/02-app-server-bridge.md
 - 不在 TUI 中暴露或消费 `GuiBackendHandle`。
 - 本计划不修改 `codex-rs/app-server/src/in_process.rs`。
 - 不给 `codex-tui` 添加直接 `codex-app-server` 依赖。
-- 如果 `codex-app-server-client` 返回 `GuiLaunchError::Unsupported`，`/gui` 只打印解释性消息，不尝试 fallback host startup。
+- TUI 必须能处理三类返回：happy path（真实本机 URL，in-process 默认路径）、`GuiLaunchError::Unsupported`（remote 会话）、`GuiLaunchError::Transport(_)`（IO 错误）。
+- TUI 不得缓存 `GuiLaunchUrl`；每次 `/gui` 都重新向 client 请求。
 
 ## 文件结构
 
@@ -240,9 +242,10 @@ cargo test -p codex-tui launch_url_result_renders_url_message launch_url_result_
 
 - [ ] **Step 3: 添加 app-server session wrapper**
 
-在 `codex-rs/tui/src/app_server_session.rs` 中 import launch types：
+在 `codex-rs/tui/src/app_server_session.rs` 中 import launch types 和 extension trait：
 
 ```rust
+use codex_app_server_client::AppServerClientGuiExt;
 use codex_app_server_client::GuiLaunchError;
 use codex_app_server_client::GuiLaunchUrl;
 ```
@@ -254,11 +257,19 @@ use codex_app_server_client::GuiLaunchUrl;
         &self,
         primary_thread_id: ThreadId,
     ) -> Result<GuiLaunchUrl, GuiLaunchError> {
-        self.client
-            .gui_launch_url(&primary_thread_id.to_string())
-            .await
+        let thread_id = primary_thread_id.to_string();
+        match &self.client {
+            AppServerClient::InProcess(client) => {
+                client.gui_launch_url(&thread_id).await
+            }
+            AppServerClient::Remote(client) => {
+                client.gui_launch_url(&thread_id).await
+            }
+        }
     }
 ```
+
+Matching on `&self.client` follows the existing `thread_params_mode` pattern at `codex-rs/tui/src/app_server_session.rs:418`. `AppServerClientGuiExt` must be in scope at call sites because `gui_launch_url` is not an inherent method — it is the trait method.
 
 这是 TUI 面向 GUI 的唯一 app-server-client API。不要添加暴露 raw backend handle 的方法。
 
@@ -426,10 +437,10 @@ git commit -m "feat(tui): request GUI launch URL from app server"
 在 repo root 运行：
 
 ```bash
-rg -n "codex-gui-host|codex_gui_host|GuiHost|GuiHostHandle|GuiBackendHandle|codex-app-server\\s*=|codex_app_server::" codex-rs/tui
+rg -n "codex-gui-host|codex_gui_host|\\bGuiHost\\b|GuiHostHandle|GuiBackendHandle|codex-app-server\\s*=|\\bcodex_app_server::" codex-rs/tui
 ```
 
-预期：没有匹配。
+预期：没有匹配。命名空间 `codex_app_server_client::` 是合法的（现有依赖），所以用 `\bcodex_app_server::` 精确排除根 crate 的路径。
 
 - [ ] **Step 2: 格式化并 lint**
 
@@ -442,7 +453,7 @@ just fix -p codex-tui
 
 预期：格式化完成，scoped lint fixes 被应用，或没有需要修改的内容。
 
-- [ ] **Step 4: 运行 TUI tests**
+- [ ] **Step 3: 运行 TUI tests**
 
 在 `codex-rs` 目录运行：
 
@@ -452,7 +463,7 @@ cargo test -p codex-tui gui_command_is_visible_and_available gui_command_emits_o
 
 预期：所有 focused `/gui` tests 通过。
 
-- [ ] **Step 5: Commit verification fixes**
+- [ ] **Step 4: Commit verification fixes**
 
 如果 `just fmt` 或 `just fix -p codex-tui` 修改了文件，提交：
 
@@ -469,9 +480,9 @@ git commit -m "chore(tui): format GUI launch entry"
 - `/gui` 发出 `AppEvent::OpenGui`。
 - `AppEvent::OpenGui` 使用 primary thread ID 向 `AppServerSession` 请求 launch URL。
 - 如果没有 primary thread，TUI 打印：`Current session is not ready to open GUI.`
-- 如果 app-server-client 返回 URL，TUI 打印该 URL。
-- 如果 app-server-client 返回 `GuiLaunchError::Unsupported`，TUI 打印：`GUI is not available for this app-server session yet.`
-- 如果 app-server-client 返回 transport error，TUI 打印 `Failed to open GUI: ...`。
+- 在默认的 in-process 会话（CLI TUI 路径）下，`gui_launch_url` 返回真实本机 URL（不是 `Unsupported`），TUI 打印该 URL。
+- 在 remote 会话下 (`AppServerClient::Remote`)，`gui_launch_url` 返回 `GuiLaunchError::Unsupported`，TUI 打印：`GUI is not available for this app-server session yet.`
+- 如果 `gui_launch_url` 返回 transport error，TUI 打印 `Failed to open GUI: ...`。
 - `codex-tui` 没有直接 `codex-app-server` 依赖。
 - `codex-tui` 没有 `codex-gui-host` 依赖。
 - `codex-tui` 不实例化 `GuiHost`。
@@ -486,3 +497,4 @@ git commit -m "chore(tui): format GUI launch entry"
 - 没有步骤给 TUI 添加 `codex-gui-host` 依赖。
 - 测试命令限定在 `codex-tui`。
 - App-server bridge 行为仍由 `02-app-server-bridge.md` 负责。
+- `AppServerClientGuiExt` 在 session wrapper 里 import 一次并通过 `AppServerClient` match dispatch 到底层实现。
