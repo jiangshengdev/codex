@@ -15,6 +15,7 @@
 //! bridging async `mpsc` channels on both sides. Queues are bounded so overload
 //! surfaces as channel-full errors rather than unbounded memory growth.
 
+pub mod gui;
 mod remote;
 
 use std::error::Error;
@@ -60,6 +61,9 @@ use tokio::time::timeout;
 use toml::Value as TomlValue;
 use tracing::warn;
 
+pub use crate::gui::AppServerClientGuiExt;
+pub use crate::gui::GuiLaunchError;
+pub use crate::gui::GuiLaunchUrl;
 pub use crate::remote::RemoteAppServerClient;
 pub use crate::remote::RemoteAppServerConnectArgs;
 
@@ -933,6 +937,17 @@ pub(crate) fn request_method_name(request: &ClientRequest) -> String {
                 .map(ToOwned::to_owned)
         })
         .unwrap_or_else(|| "<unknown>".to_string())
+}
+
+impl crate::gui::AppServerClientGuiExt for crate::remote::RemoteAppServerClient {
+    fn gui_launch_url(
+        &self,
+        _primary_thread_id: &str,
+    ) -> impl std::future::Future<
+        Output = Result<crate::gui::GuiLaunchUrl, crate::gui::GuiLaunchError>,
+    > + Send {
+        std::future::ready(Err(crate::gui::GuiLaunchError::Unsupported))
+    }
 }
 
 #[cfg(test)]
