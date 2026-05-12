@@ -458,10 +458,51 @@ enum ClientCommand {
 /// model instead of exposing direct core runtime handles. That keeps in-process
 /// callers aligned with app-server behavior while still avoiding a process
 /// boundary.
+#[cfg(test)]
+#[derive(Clone, Default)]
+struct ShutdownOrderProbe {
+    inner: Arc<std::sync::Mutex<ShutdownOrderProbeState>>,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct ShutdownOrderProbeState {
+    manager_shutdown_started: Option<std::time::Instant>,
+    worker_exited: Option<std::time::Instant>,
+}
+
+#[cfg(test)]
+impl ShutdownOrderProbe {
+    fn record_manager_shutdown_started(&self) {
+        self.inner
+            .lock()
+            .expect("shutdown order probe should not be poisoned")
+            .manager_shutdown_started = Some(std::time::Instant::now());
+    }
+
+    fn record_worker_exited(&self) {
+        self.inner
+            .lock()
+            .expect("shutdown order probe should not be poisoned")
+            .worker_exited = Some(std::time::Instant::now());
+    }
+
+    fn timestamps(&self) -> (Option<std::time::Instant>, Option<std::time::Instant>) {
+        let state = self
+            .inner
+            .lock()
+            .expect("shutdown order probe should not be poisoned");
+        (state.manager_shutdown_started, state.worker_exited)
+    }
+}
+
 pub struct InProcessAppServerClient {
-    command_tx: mpsc::Sender<ClientCommand>,
-    event_rx: mpsc::Receiver<InProcessServerEvent>,
-    worker_handle: tokio::task::JoinHandle<()>,
+    command_tx: Option<mpsc::Sender<ClientCommand>>,
+    event_rx: Option<mpsc::Receiver<InProcessServerEvent>>,
+    worker_handle: Option<tokio::task::JoinHandle<()>>,
+    gui_host_manager: Option<Arc<codex_app_server::gui_host::GuiHostManager>>,
+    #[cfg(test)]
+    shutdown_order_probe: Option<ShutdownOrderProbe>,
 }
 
 #[derive(Clone)]
@@ -491,6 +532,9 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let request_sender = handle.sender();
+        let gui_host_manager = Arc::new(codex_app_server::gui_host::GuiHostManager::new(
+            request_sender.clone(),
+        ));
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
@@ -599,15 +643,25 @@ impl InProcessAppServerClient {
         });
 
         Ok(Self {
-            command_tx,
-            event_rx,
-            worker_handle,
+            command_tx: Some(command_tx),
+            event_rx: Some(event_rx),
+            worker_handle: Some(worker_handle),
+            gui_host_manager: Some(gui_host_manager),
+            #[cfg(test)]
+            shutdown_order_probe: None,
         })
+    }
+
+    fn command_tx(&self) -> &mpsc::Sender<ClientCommand> {
+        match self.command_tx.as_ref() {
+            Some(command_tx) => command_tx,
+            None => panic!("command_tx available until shutdown"),
+        }
     }
 
     pub fn request_handle(&self) -> InProcessAppServerRequestHandle {
         InProcessAppServerRequestHandle {
-            command_tx: self.command_tx.clone(),
+            command_tx: self.command_tx().clone(),
         }
     }
 
@@ -617,7 +671,7 @@ impl InProcessAppServerClient {
     /// [`request_typed`](Self::request_typed).
     pub async fn request(&self, request: ClientRequest) -> IoResult<RequestResult> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx
+        self.command_tx()
             .send(ClientCommand::Request {
                 request: Box::new(request),
                 response_tx,
@@ -666,7 +720,7 @@ impl InProcessAppServerClient {
     /// Sends a typed client notification.
     pub async fn notify(&self, notification: ClientNotification) -> IoResult<()> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx
+        self.command_tx()
             .send(ClientCommand::Notify {
                 notification,
                 response_tx,
@@ -696,7 +750,7 @@ impl InProcessAppServerClient {
         result: JsonRpcResult,
     ) -> IoResult<()> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx
+        self.command_tx()
             .send(ClientCommand::ResolveServerRequest {
                 request_id,
                 result,
@@ -724,7 +778,7 @@ impl InProcessAppServerClient {
         error: JSONRPCErrorError,
     ) -> IoResult<()> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx
+        self.command_tx()
             .send(ClientCommand::RejectServerRequest {
                 request_id,
                 error,
@@ -751,20 +805,33 @@ impl InProcessAppServerClient {
     /// the worker emits [`InProcessServerEvent::Lagged`] markers and may reject
     /// pending server requests rather than letting approval flows hang.
     pub async fn next_event(&mut self) -> Option<InProcessServerEvent> {
-        self.event_rx.recv().await
+        self.event_rx.as_mut()?.recv().await
     }
 
     /// Shuts down worker and in-process runtime with bounded wait.
     ///
     /// If graceful shutdown exceeds timeout, the worker task is aborted to
     /// avoid leaking background tasks in embedding callers.
-    pub async fn shutdown(self) -> IoResult<()> {
-        let Self {
-            command_tx,
-            event_rx,
-            worker_handle,
-        } = self;
-        let mut worker_handle = worker_handle;
+    pub async fn shutdown(mut self) -> IoResult<()> {
+        self.shutdown_inner().await
+    }
+
+    async fn shutdown_inner(&mut self) -> IoResult<()> {
+        if let Some(manager) = self.gui_host_manager.take() {
+            #[cfg(test)]
+            if let Some(probe) = &self.shutdown_order_probe {
+                probe.record_manager_shutdown_started();
+            }
+            manager.shutdown().await;
+        }
+
+        let Some(command_tx) = self.command_tx.take() else {
+            return Ok(());
+        };
+        let event_rx = self.event_rx.take();
+        let Some(mut worker_handle) = self.worker_handle.take() else {
+            return Ok(());
+        };
         // Drop the caller-facing receiver before asking the worker to shut
         // down. That unblocks any pending must-deliver `event_tx.send(..)`
         // so the worker can reach `handle.shutdown()` instead of timing out
@@ -789,7 +856,46 @@ impl InProcessAppServerClient {
             worker_handle.abort();
             let _ = worker_handle.await;
         }
+        #[cfg(test)]
+        if let Some(probe) = &self.shutdown_order_probe {
+            probe.record_worker_exited();
+        }
         Ok(())
+    }
+}
+
+impl Drop for InProcessAppServerClient {
+    fn drop(&mut self) {
+        if let Some(manager) = self.gui_host_manager.take() {
+            manager.cancel_nonblocking();
+        }
+    }
+}
+
+impl crate::gui::AppServerClientGuiExt for InProcessAppServerClient {
+    fn gui_launch_url(
+        &self,
+        primary_thread_id: &str,
+    ) -> impl std::future::Future<
+        Output = Result<crate::gui::GuiLaunchUrl, crate::gui::GuiLaunchError>,
+    > + Send {
+        let manager = self.gui_host_manager.as_ref().map(Arc::clone);
+        let thread_id = primary_thread_id.to_string();
+        async move {
+            let Some(manager) = manager else {
+                return Err(crate::gui::GuiLaunchError::Transport(std::io::Error::new(
+                    ErrorKind::BrokenPipe,
+                    "GUI host manager is unavailable after shutdown",
+                )));
+            };
+            manager
+                .launch_url_for_thread(&thread_id)
+                .await
+                .map(|url| crate::gui::GuiLaunchUrl { url })
+                .map_err(|err| {
+                    crate::gui::GuiLaunchError::Transport(std::io::Error::other(err.to_string()))
+                })
+        }
     }
 }
 
@@ -1249,6 +1355,35 @@ mod tests {
             .await
             .expect("typed request should succeed");
         client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn gui_launch_url_returns_real_url_for_in_process() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let launch_url = client
+            .gui_launch_url("thread-1")
+            .await
+            .expect("gui launch url");
+
+        assert!(launch_url.url.starts_with("http://127.0.0.1:"));
+        assert!(launch_url.url.contains("?threadId=thread-1#token="));
+
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn shutdown_drops_gui_host_manager_before_worker() {
+        let mut client = start_test_client(SessionSource::Cli).await;
+        let probe = ShutdownOrderProbe::default();
+        client.client.shutdown_order_probe = Some(probe.clone());
+
+        client.shutdown().await.expect("shutdown should complete");
+
+        let (manager_shutdown_started, worker_exited) = probe.timestamps();
+        let manager_shutdown_started =
+            manager_shutdown_started.expect("manager shutdown start should be recorded");
+        let worker_exited = worker_exited.expect("worker exit should be recorded");
+        assert!(manager_shutdown_started < worker_exited);
     }
 
     #[tokio::test]
@@ -2021,9 +2156,11 @@ mod tests {
         drop(event_tx);
 
         let mut client = InProcessAppServerClient {
-            command_tx,
-            event_rx,
-            worker_handle,
+            command_tx: Some(command_tx),
+            event_rx: Some(event_rx),
+            worker_handle: Some(worker_handle),
+            gui_host_manager: None,
+            shutdown_order_probe: None,
         };
 
         let event = timeout(Duration::from_secs(2), client.next_event())

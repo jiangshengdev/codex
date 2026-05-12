@@ -9,6 +9,7 @@ use axum::middleware;
 use axum::routing::get;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use crate::GuiBackend;
 use crate::GuiHostConfig;
@@ -23,6 +24,7 @@ pub struct GuiHostHandle {
     local_addr: SocketAddr,
     launch_token: LaunchToken,
     shutdown_tx: oneshot::Sender<()>,
+    cancel_token: CancellationToken,
     server_task: tokio::task::JoinHandle<io::Result<()>>,
 }
 
@@ -50,10 +52,15 @@ impl GuiHost {
         });
         let app = router_for_state(state).map_err(io::Error::other)?;
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let cancel_token = CancellationToken::new();
+        let server_cancel = cancel_token.clone();
         let server_task = tokio::spawn(async move {
             axum::serve(listener, app)
                 .with_graceful_shutdown(async move {
-                    let _ = shutdown_rx.await;
+                    tokio::select! {
+                        _ = shutdown_rx => {}
+                        _ = server_cancel.cancelled() => {}
+                    }
                 })
                 .await
         });
@@ -62,6 +69,7 @@ impl GuiHost {
             local_addr,
             launch_token,
             shutdown_tx,
+            cancel_token,
             server_task,
         })
     }
@@ -78,6 +86,14 @@ impl GuiHostHandle {
 
     pub fn launch_url_for_thread(&self, thread_id: impl Display) -> String {
         launch_url_for_thread(self.local_addr, thread_id, &self.launch_token)
+    }
+
+    /// Returns a clone of the server's cancel token.
+    ///
+    /// Cancelling the token triggers the same graceful shutdown path as
+    /// `shutdown(self)`, while remaining sync-firable from any context.
+    pub fn cancel_token(&self) -> CancellationToken {
+        self.cancel_token.clone()
     }
 
     pub async fn shutdown(self) {
@@ -412,7 +428,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn websocket_rejects_disallowed_client_request_without_closing() {
+    async fn browser_non_allowlisted_request_never_reaches_backend() {
         let backend = RecordingBackend::new();
         let handle = start_host(backend.clone()).await;
         let (mut websocket, _response) = connect_websocket(&handle).await;

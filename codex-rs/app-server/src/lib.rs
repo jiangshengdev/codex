@@ -85,6 +85,8 @@ mod error_code;
 mod filters;
 mod fs_watch;
 mod fuzzy_file_search;
+pub mod gui_host;
+pub mod gui_transport;
 pub mod in_process;
 mod mcp_refresh;
 mod message_processor;
