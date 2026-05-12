@@ -48,7 +48,7 @@ Roadmap: `docs/superpowers/plans/2026-05-11-gui-host/00-roadmap.md`.
 - Verify: `codex-rs/app-server/src/in_process.rs`
 - Verify: `codex-rs/app-server-client/src/lib.rs`
 
-- [ ] **Step 1: Confirm the obsolete multi-connection bridge is already reverted**
+- [x] **Step 1: Confirm the obsolete multi-connection bridge is already reverted**
 
 Run from repo root:
 
@@ -58,7 +58,7 @@ git log --oneline --grep "remove obsolete in-process bridge" -1
 
 Expected: returns `c03057779 refactor(gui): remove obsolete in-process bridge` (or a later commit with that message). If empty, stop — this plan assumes `in_process.rs` is back to the single-connection baseline before extending it.
 
-- [ ] **Step 2: Confirm main runtime handshake is intact**
+- [x] **Step 2: Confirm main runtime handshake is intact**
 
 Run from `codex-rs`:
 
@@ -73,7 +73,7 @@ Expected: test passes. This is the invariant that plan 06 must not break.
 **Files:**
 - Modify: `codex-rs/app-server/src/in_process.rs`
 
-- [ ] **Step 1: Write the failing test for command variants**
+- [x] **Step 1: Write the failing test for command variants**
 
 Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
 
@@ -102,7 +102,7 @@ cargo test -p codex-app-server processor_command_has_extra_variants
 
 Expected: FAIL with `no variant or associated item named \`ExtraConnectionOpened\``.
 
-- [ ] **Step 2: Add the new `ProcessorCommand` variants**
+- [x] **Step 2: Add the new `ProcessorCommand` variants**
 
 In `codex-rs/app-server/src/in_process.rs`, extend the enum:
 
@@ -132,7 +132,7 @@ enum ProcessorCommand {
 
 `JSONRPCRequest` / `JSONRPCNotification` come from `codex_app_server_protocol`; keep the existing `use codex_app_server_protocol::*` cluster at the top of the file and add imports there if needed (prefer module-qualified paths in the enum body to avoid polluting the file's top-level import surface).
 
-- [ ] **Step 3: Re-run the test to verify PASS**
+- [x] **Step 3: Re-run the test to verify PASS**
 
 ```bash
 cargo test -p codex-app-server processor_command_has_extra_variants
@@ -144,7 +144,7 @@ Expected:
 test tests::processor_command_has_extra_variants ... ok
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add codex-rs/app-server/src/in_process.rs
@@ -156,7 +156,7 @@ git commit -m "feat(app-server): add ExtraConnection ProcessorCommand variants"
 **Files:**
 - Modify: `codex-rs/app-server/src/in_process.rs`
 
-- [ ] **Step 1: Write failing tests for the handle shape and ID allocation**
+- [x] **Step 1: Write failing tests for the handle shape and ID allocation**
 
 Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
 
@@ -273,7 +273,7 @@ cargo test -p codex-app-server -- dropping_extra_connection_handle_
 
 Expected: FAIL with `no method named \`register_extra_connection\``.
 
-- [ ] **Step 2: Define `ExtraConnectionHandle`**
+- [x] **Step 2: Define `ExtraConnectionHandle`**
 
 In `codex-rs/app-server/src/in_process.rs`, add near the other public types:
 
@@ -385,7 +385,7 @@ impl Drop for ExtraConnectionHandle {
 
 > **Invariant:** `ExtraConnectionHandle::Drop` delivers `ExtraConnectionClosed` under every live-runtime condition, including full backpressure on the processor channel. The `Closed` branch is the only silent one, and it only fires after the runtime has already shut down. This is exercised by `drop_under_backpressure_still_delivers_closed` in Task 2 Step 2.
 
-- [ ] **Step 3: Extend `InProcessClientMessage`**
+- [x] **Step 3: Extend `InProcessClientMessage`**
 
 Add four new variants next to existing request/notification variants:
 
@@ -413,7 +413,7 @@ enum InProcessClientMessage {
 
 `ExtraConnectionOpened::outgoing_tx` reaches the outer runtime task (not the processor) so the runtime can register a new entry in `outbound_connections` (Task 3) wired to the caller's `outgoing_tx`. `ExtraConnectionOpened::disconnect_token` is passed through to `OutboundConnectionState::new(..., Some(token))` so `route_outgoing_envelope` uses the non-blocking `try_send` fast path and disconnects slow extras via the token — instead of `writer.send(...).await` blocking the shared router on any other connection (see `codex-rs/app-server/src/transport.rs:145` vs `:158`).
 
-- [ ] **Step 4: Implement `register_extra_connection` on `InProcessClientSender`**
+- [x] **Step 4: Implement `register_extra_connection` on `InProcessClientSender`**
 
 Keep main connection reserved with `ConnectionId(0)`; extras start at `1`. **Registration must not silently succeed if `ExtraConnectionOpened` cannot be enqueued — a returned handle with no corresponding `outbound_connections` entry would desync the runtime.** Therefore the method is `async` and returns `IoResult<ExtraConnectionHandle>`, using `send(...).await` for the Opened message. On `SendError` the runtime is closed; no handle is returned.
 
@@ -461,7 +461,7 @@ impl InProcessClientSender {
 
 The local `AtomicU64` avoids sharing ID space with `codex-app-server-transport`'s private `next_connection_id` and guarantees `ConnectionId(0)` is reserved for the main connection.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 cargo test -p codex-app-server -- register_extra_connection_
@@ -470,7 +470,7 @@ cargo test -p codex-app-server -- dropping_extra_connection_handle_
 
 Expected: both tests pass. `dropping_extra_connection_handle_sends_closed_command` does not yet observe `ExtraConnectionClosed` processing — it only proves the sender survives a `drop` without panicking; Task 3 verifies the loop actually consumes it.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add codex-rs/app-server/src/in_process.rs
@@ -484,7 +484,7 @@ git commit -m "feat(app-server): add register_extra_connection API"
 
 Plan 06 Task 3 is the biggest single change in `in_process.rs`. Follow each sub-step exactly; do not refactor the main connection arms.
 
-- [ ] **Step 1: Write failing integration tests for the request / notification / close round-trip**
+- [x] **Step 1: Write failing integration tests for the request / notification / close round-trip**
 
 Add to `#[cfg(test)] mod tests` (reuse the existing test helpers):
 
@@ -561,7 +561,7 @@ cargo test -p codex-app-server -- extra_connection_notification_is_accepted
 
 Expected: FAIL because the processor loop does not yet have arms for the new commands; `outgoing_rx.recv()` times out.
 
-- [ ] **Step 2: Extend the outer runtime task to register extra `OutboundConnectionState` entries**
+- [x] **Step 2: Extend the outer runtime task to register extra `OutboundConnectionState` entries**
 
 The outbound router task in `start_uninitialized` owns `outbound_connections` via its spawn closure. Refactor so the map is owned by an extra task ("outbound router supervisor") that also handles `ExtraConnectionOpened` / `ExtraConnectionClosed` registration requests.
 
@@ -805,7 +805,7 @@ The 3 Arcs (`initialized`, `experimental_api_enabled`, `opted_out_notification_m
 - `OutboundControl::Unregister` is only reachable via `ExtraConnectionClosed` handling (Step 4); `IN_PROCESS_CONNECTION_ID` is never passed in.
 - Outbound gating state (initialized / experimental / opted-out) is shared by Arc between processor and router, so the processor's post-request `store` is immediately visible to the next outbound envelope routed for that connection — no async control message race exists.
 
-- [ ] **Step 3: Bridge `writer_rx` payloads into `ExtraConnectionHandle::outgoing_rx`**
+- [x] **Step 3: Bridge `writer_rx` payloads into `ExtraConnectionHandle::outgoing_rx`**
 
 Extra connection writer channels live in `outbound_connections`, so their `QueuedOutgoingMessage` payloads flow through the existing `writer_rx` (which is owned by the client-message select loop below — **that loop still expects only the main connection's writes on `writer_rx`**). Keep the main `writer_rx` scoped to `IN_PROCESS_CONNECTION_ID` only, and give each extra connection its own writer channel connected to the caller's `outgoing_tx: Sender<String>`.
 
@@ -852,7 +852,7 @@ fn spawn_extra_writer_bridge(
 
 `OutgoingMessage` already derives `Serialize` (it is what stdio / websocket transports serialize today); reusing `serde_json::to_string` keeps the on-wire shape identical to the external app-server.
 
-- [ ] **Step 4: Add `InProcessClientMessage` arms in the client-message select loop**
+- [x] **Step 4: Add `InProcessClientMessage` arms in the client-message select loop**
 
 Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv()`, extend `match message { ... }` with four new arms **before** the trailing `None => break` arm:
 
@@ -951,7 +951,7 @@ Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv(
 
 Use `send().await` instead of `try_send`: extra-connection registration and teardown must not be dropped silently. Back-pressure is acceptable since a blocked registration simply throttles new browser connections.
 
-- [ ] **Step 5: Add processor-side arms**
+- [x] **Step 5: Add processor-side arms**
 
 Inside the processor task `tokio::select!`, extend the `match command { ... }` inside `Some(ProcessorCommand::...)` with four new arms. Track per-connection state (session state + outbound gating Arcs) in a new map declared alongside the existing `session` binding:
 
@@ -1102,7 +1102,7 @@ Then add these arms immediately after `Some(ProcessorCommand::Notification(notif
 
 `process_request` takes `transport: &AppServerTransport` only for tracing labels; `AppServerTransport::Off` is the correct neutral marker here — this is not a Unix / WebSocket / Stdio pipe.
 
-- [ ] **Step 6: Generalize `thread_created_rx` dispatch**
+- [x] **Step 6: Generalize `thread_created_rx` dispatch**
 
 Today:
 
@@ -1132,7 +1132,7 @@ Replace with:
 
 This makes projection event fan-out follow the allowlisted browser connections once they complete `initialize`.
 
-- [ ] **Step 7: Run the Task 3 failing tests**
+- [x] **Step 7: Run the Task 3 failing tests**
 
 ```bash
 cargo test -p codex-app-server -- extra_connection_request_reaches_message_processor
@@ -1141,7 +1141,7 @@ cargo test -p codex-app-server -- extra_connection_notification_is_accepted
 
 Expected: both tests pass.
 
-- [ ] **Step 8: Re-run the main-connection invariant tests**
+- [x] **Step 8: Re-run the main-connection invariant tests**
 
 ```bash
 cargo test -p codex-app-server -- in_process_start_initializes_and_handles_typed_v2_request
@@ -1152,7 +1152,7 @@ cargo test -p codex-app-server -- guaranteed_delivery_helpers_cover_terminal_ser
 
 Expected: all four tests still pass.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add codex-rs/app-server/src/in_process.rs
@@ -1164,7 +1164,7 @@ git commit -m "feat(app-server): dispatch extra connection commands"
 **Files:**
 - Modify: `codex-rs/app-server/src/in_process.rs`
 
-- [ ] **Step 1: Write failing close-path test**
+- [x] **Step 1: Write failing close-path test**
 
 Add to `#[cfg(test)] mod tests`:
 
@@ -1230,7 +1230,7 @@ cargo test -p codex-app-server dropping_extra_handle_triggers_connection_closed
 
 Expected: test must PASS against the Task 3 implementation. If it fails, the likely cause is that `OutboundControl::Unregister` is not closing the writer-rx path; use the diagnostic below.
 
-- [ ] **Step 2: Confirm per-connection drop removes the writer**
+- [x] **Step 2: Confirm per-connection drop removes the writer**
 
 Trace logic:
 1. `ExtraConnectionHandle::Drop` -> `ExtraConnectionClosed`.
@@ -1241,7 +1241,7 @@ Trace logic:
 
 If the test fails, inspect which of these five steps is missing.
 
-- [ ] **Step 3: Shutdown-timeout safety note (no code change)**
+- [x] **Step 3: Shutdown-timeout safety note (no code change)**
 
 If the runtime task hits `SHUTDOWN_TIMEOUT` and aborts the processor handle, per-connection `ExtraConnectionClosed` may not run. This is acceptable because the runtime task's shutdown tail already drops `outgoing_message_sender` and the writer pipeline, tearing down any remaining extra connections' outbound channels. Document this in a short code comment above the client-message loop's extra arms:
 
@@ -1253,7 +1253,7 @@ If the runtime task hits `SHUTDOWN_TIMEOUT` and aborts the processor handle, per
 // that case; the runtime-end cleanup is the safety net.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add codex-rs/app-server/src/in_process.rs
@@ -1266,7 +1266,7 @@ git commit -m "test(app-server): extra connection close path cleanup"
 - Create: `codex-rs/app-server-client/src/gui.rs`
 - Modify: `codex-rs/app-server-client/src/lib.rs`
 
-- [ ] **Step 1: Write failing test for the Remote `Unsupported` path**
+- [x] **Step 1: Write failing test for the Remote `Unsupported` path**
 
 Add to `codex-rs/app-server-client/src/gui.rs` (new file) at the bottom:
 
@@ -1289,7 +1289,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Implement the extension surface**
+- [x] **Step 2: Implement the extension surface**
 
 Write `codex-rs/app-server-client/src/gui.rs`:
 
@@ -1364,7 +1364,7 @@ The `InProcessAppServerClient` implementation lands in plan 02 once `GuiHostMana
 
 RPITIT (`impl Future<...> + Send` return type in a trait method) is used here to match the style of `codex_gui_host::GuiBackend::connect` and avoid introducing an `async-trait` dependency. No `Cargo.toml` or Bazel lockfile change is required.
 
-- [ ] **Step 3: Run the new test**
+- [x] **Step 3: Run the new test**
 
 ```bash
 cargo test -p codex-app-server-client gui_launch_error_variants_are_distinct
@@ -1372,7 +1372,7 @@ cargo test -p codex-app-server-client gui_launch_error_variants_are_distinct
 
 Expected: PASS.
 
-- [ ] **Step 4: Run the broader client test suite for regression safety**
+- [x] **Step 4: Run the broader client test suite for regression safety**
 
 ```bash
 cargo test -p codex-app-server-client
@@ -1380,7 +1380,7 @@ cargo test -p codex-app-server-client
 
 Expected: all existing tests still pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-rs/app-server-client/src/gui.rs codex-rs/app-server-client/src/lib.rs
@@ -1393,7 +1393,7 @@ git commit -m "feat(app-server-client): add gui launch extension trait"
 - Verify: `codex-rs/app-server/src`
 - Verify: `codex-rs/app-server-client/src`
 
-- [ ] **Step 1: Format**
+- [x] **Step 1: Format**
 
 From `codex-rs`:
 
@@ -1401,7 +1401,7 @@ From `codex-rs`:
 just fmt
 ```
 
-- [ ] **Step 2: Scoped lint**
+- [x] **Step 2: Scoped lint**
 
 ```bash
 just fix -p codex-app-server
@@ -1410,7 +1410,7 @@ just fix -p codex-app-server-client
 
 Expected: no errors; the tools may apply auto-fixes.
 
-- [ ] **Step 3: Commit any auto-fixes**
+- [x] **Step 3: Commit any auto-fixes**
 
 ```bash
 git add codex-rs/app-server/src codex-rs/app-server-client/src

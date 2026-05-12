@@ -31,7 +31,7 @@ TUI plan: `docs/superpowers/plans/2026-05-11-gui-host/03-tui-entry.md`.
 - Modify: `codex-gui/vite.config.ts`
 - Test: `codex-cli/scripts/build_npm_package.py`
 
-- [ ] **Step 1: Write failing packaging test command**
+- [x] **Step 1: Write failing packaging test command**
 
 Run from repo root before implementation:
 
@@ -45,7 +45,7 @@ Expected failure before packaging support remains a missing vendor error. This e
 RuntimeError: Vendor source directory not found
 ```
 
-- [ ] **Step 2: Implement wrapper env and dist copy**
+- [x] **Step 2: Implement wrapper env and dist copy**
 
 Modify `codex-cli/bin/codex.js` near the existing `updatedPath` setup:
 
@@ -111,7 +111,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run from `codex-gui`:
 
@@ -127,7 +127,7 @@ vite build
 
 and `codex-gui/dist/index.html` exists.
 
-- [ ] **Step 4: Verify platform package staging layout**
+- [x] **Step 4: Verify platform package staging layout**
 
 `codex-gui/dist` is in `codex-gui/.gitignore`, so it must not be committed. Instead, assert that the packaging script actually lays out the dist under the staging package root and that the CLI wrapper points `CODEX_GUI_PACKAGE_ROOT` at that root.
 
@@ -165,11 +165,11 @@ rg -n "CODEX_GUI_PACKAGE_ROOT" codex-cli/bin/codex.js
 
 Expected: one match pointing at `path.join(vendorRoot, "codex-gui")`.
 
-- [ ] **Step 5: Defer prod static cache decision (out of scope)**
+- [x] **Step 5: Defer prod static cache decision (out of scope)**
 
 Prod HTML no-cache vs fingerprinted-asset `immutable` caching is **not** part of this MVP's acceptance gates. Confirm only that the prod handler serves `dist/index.html` and hashed asset files — do not change cache headers or add a cache-header test here. Capture the follow-up decision (cache policy owner + deadline) in a non-blocking note on the MVP ship PR; it lands in a later plan.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add codex-cli/bin/codex.js codex-cli/scripts/build_npm_package.py codex-gui/vite.config.ts
@@ -187,7 +187,7 @@ git commit -m "feat(gui): package built GUI assets"
 - Modify: `codex-rs/MODULE.bazel.lock`
 - Verify: Rust and GUI tests
 
-- [ ] **Step 1: Format Rust**
+- [x] **Step 1: Format Rust**
 
 Run:
 
@@ -198,7 +198,7 @@ just fmt
 
 Expected: command exits 0.
 
-- [ ] **Step 2: Run focused Rust tests**
+- [x] **Step 2: Run focused Rust tests**
 
 `cargo test <filter>` accepts a single positional substring filter. To run each scoped set, group the tests under a shared name prefix and use one filter per command:
 
@@ -233,7 +233,7 @@ cargo test -p codex-tui -- open_gui_
 
 Expected: every command listed above exits 0, **except** the `connection_origin_has_distinct_gui_host_variant` line, which is intentionally tolerated to fail via the `|| echo ...` fallback because the `GuiHost` variant is reserved out-of-MVP per spec §Bridge shape. A failure there prints the `NOTE:` line but must not be treated as a gate; every other command is a gate. The `--` separator makes the intent explicit: everything after `--` is a libtest filter. Using one filter per command avoids relying on libtest's multi-filter OR behavior, which is not part of the documented `cargo test <TESTNAME>` contract.
 
-- [ ] **Step 3: Verify dependency boundaries**
+- [x] **Step 3: Verify dependency boundaries**
 
 Run from repo root:
 
@@ -250,7 +250,7 @@ both commands exit 0 with no matches
 
 The grep uses `\bcodex_app_server::` to allow `codex_app_server_client::` (which is the crate TUI is allowed to import) while rejecting the root `codex-app-server` crate path.
 
-- [ ] **Step 3b: End-to-end in-process launch check (manual, prod)**
+- [x] **Step 3b: End-to-end in-process launch check (manual, prod)**
 
 Start a real TUI session in **prod** mode — the default `CODEX_GUI_HOST_MODE` for a debug build is `dev`, which proxies to Vite instead of serving the staged `dist/`. The MVP acceptance path is prod serving from the staging package root, so the manual check must explicitly pin that layout:
 
@@ -279,7 +279,7 @@ Open that URL in a local browser. Expected behavior:
 
 This manual check corroborates the Rust unit/integration tests above and proves the default in-process path is end-to-end functional for both HTML and hashed assets **on the prod serving path**. The `dev` path (Vite proxy) is exercised indirectly by `pnpm vitest` in Step 4 and is not part of MVP acceptance here.
 
-- [ ] **Step 3c: Automated prod hashed-asset gate**
+- [x] **Step 3c: Automated prod hashed-asset gate**
 
 Add `codex-rs/gui-host/tests/prod_serves_hashed_asset.rs`:
 
@@ -303,7 +303,7 @@ cargo test -p codex-gui-host --test prod_serves_hashed_asset
 
 Expected: exit 0. Add this command to the Step 2 rerun if you re-verify the full suite, but the canonical gate for this gate is this step.
 
-- [ ] **Step 4: Run frontend tests**
+- [x] **Step 4: Run frontend tests**
 
 Run:
 
@@ -315,7 +315,7 @@ pnpm run type-check
 
 Expected: all commands exit 0.
 
-- [ ] **Step 5: Update Bazel lock after dependency changes**
+- [x] **Step 5: Update Bazel lock after dependency changes**
 
 Run:
 
@@ -327,7 +327,7 @@ just bazel-lock-check
 
 Expected: both commands exit 0.
 
-- [ ] **Step 6: Run scoped fixes**
+- [x] **Step 6: Run scoped fixes**
 
 Run:
 
@@ -342,7 +342,7 @@ just fix -p codex-tui
 
 Expected: commands exit 0. Do not rerun tests after `fix` or `fmt` unless the command fails and you edit code again.
 
-- [ ] **Step 7: Commit verification updates**
+- [x] **Step 7: Commit verification updates**
 
 ```bash
 git add codex-rs/gui-host/tests/prod_serves_hashed_asset.rs codex-rs/Cargo.lock codex-rs/MODULE.bazel.lock
