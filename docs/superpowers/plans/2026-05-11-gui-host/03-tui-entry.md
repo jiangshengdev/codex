@@ -291,6 +291,7 @@ use super::*;
 use crate::app_server_session::AppServerSession;
 use codex_app_server_client::GuiLaunchError;
 use codex_app_server_client::GuiLaunchUrl;
+use codex_protocol::ThreadId;
 
 #[derive(Debug, PartialEq, Eq)]
 enum GuiLaunchMessage {
@@ -313,24 +314,79 @@ fn launch_result_message(result: Result<GuiLaunchUrl, GuiLaunchError>) -> GuiLau
     }
 }
 
-impl App {
-    pub(crate) async fn open_gui(&mut self, app_server: &AppServerSession) {
-        let Some(primary_thread_id) = self.primary_thread_id else {
-            self.chat_widget.add_info_message(
-                "Current session is not ready to open GUI.".to_string(),
-                /*hint*/ None,
-            );
-            return;
-        };
+/// Small launcher trait so `open_gui_inner` can be unit-tested without
+/// booting a real `AppServerSession`.
+pub(crate) trait GuiLauncher {
+    fn gui_launch_url(
+        &self,
+        primary_thread_id: ThreadId,
+    ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send;
+}
 
-        match launch_result_message(app_server.gui_launch_url(primary_thread_id).await) {
-            GuiLaunchMessage::Info(message) => {
-                self.chat_widget.add_info_message(message, /*hint*/ None);
-            }
-            GuiLaunchMessage::Error(message) => {
-                self.chat_widget.add_error_message(message);
-            }
-        }
+impl GuiLauncher for AppServerSession {
+    fn gui_launch_url(
+        &self,
+        primary_thread_id: ThreadId,
+    ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+        // Delegates to the inherent `AppServerSession::gui_launch_url` added
+        // in Step 3 (which itself dispatches between InProcess/Remote via
+        // `AppServerClientGuiExt`).
+        AppServerSession::gui_launch_url(self, primary_thread_id)
+    }
+}
+
+/// Presentation sink abstraction so `open_gui_inner` can be unit-tested
+/// without observing `ChatWidget` internal history state. `ChatWidget`
+/// itself has no public iterator over history cells (see
+/// `codex-rs/tui/src/chatwidget.rs:9910` `add_info_message` appends opaque
+/// `PlainHistoryCell`s into `add_to_history`), so tests must observe via
+/// a recorder impl instead of matching on a transcript enum.
+pub(crate) trait GuiMessageSink {
+    fn add_info(&mut self, message: String);
+    fn add_error(&mut self, message: String);
+}
+
+impl GuiMessageSink for ChatWidget {
+    fn add_info(&mut self, message: String) {
+        self.add_info_message(message, /*hint*/ None);
+    }
+    fn add_error(&mut self, message: String) {
+        self.add_error_message(message);
+    }
+}
+
+impl App {
+    /// Production entry point called from
+    /// `codex-rs/tui/src/app/event_dispatch.rs`. Forwards the handler-param
+    /// `&AppServerSession` (not a field on `App`) and the real
+    /// `ChatWidget` sink to the testable inner.
+    pub(crate) async fn open_gui(
+        &mut self,
+        app_server: &AppServerSession,
+    ) {
+        open_gui_inner(self.primary_thread_id, app_server, &mut self.chat_widget).await;
+    }
+}
+
+/// Test-friendly core. `primary_thread_id` is passed in explicitly;
+/// `launcher` is any `GuiLauncher`; `sink` is any `GuiMessageSink`. The
+/// production `App::open_gui` is a one-line forwarder, so the real code
+/// path is exercised.
+pub(crate) async fn open_gui_inner<L, S>(
+    primary_thread_id: Option<ThreadId>,
+    launcher: &L,
+    sink: &mut S,
+) where
+    L: GuiLauncher + ?Sized,
+    S: GuiMessageSink + ?Sized,
+{
+    let Some(primary_thread_id) = primary_thread_id else {
+        sink.add_info("Current session is not ready to open GUI.".to_string());
+        return;
+    };
+    match launch_result_message(launcher.gui_launch_url(primary_thread_id).await) {
+        GuiLaunchMessage::Info(message) => sink.add_info(message),
+        GuiLaunchMessage::Error(message) => sink.add_error(message),
     }
 }
 
@@ -383,58 +439,92 @@ mod tests {
 
 - [ ] **Step 4b: `open_gui` dispatch 行为测试**
 
-spec §`/gui` 入口（spec §548-555）要求：`/gui` 在没有 primary thread 时给出"未就绪"提示；在存在 primary thread 时请求 launch URL 并把 URL 写回 transcript。纯 `launch_result_message` presentation 测试不覆盖 `App::open_gui` 的两个分支选择、对 `self.primary_thread_id` 的读取、以及对 `AppServerSession::gui_launch_url(thread_id)` 的调用。加两个 focused behavioral 测试，把 `open_gui` 行为约束锁死；session 用最小 trait 或 enum 变体做 stub，不在这里引入任何 GUI host/backend handle ownership。
+spec §`/gui` 入口（spec §548-555）要求：`/gui` 在没有 primary thread 时给出"未就绪"提示；在存在 primary thread 时请求 launch URL 并把 URL 写回 transcript。纯 `launch_result_message` presentation 测试不覆盖 `open_gui_inner` 的两个分支选择、对 primary_thread_id 的检查、以及对 launcher 的调用。加两个 focused behavioral 测试，把 `open_gui_inner` 行为约束锁死；launcher 和 sink 都用最小 stub，不在这里引入任何 GUI host/backend handle ownership，也不构造真实 `ChatWidget`（因为 `ChatWidget` 无公共 history iterator，只能通过 sink 记录器观察）。
 
-在 `codex-rs/tui/src/app/gui.rs` 同一 `#[cfg(test)] mod tests` 中新增（使用下面的 stub 形态，该 stub 不依赖真实 `AppServerSession`）：
+在 `codex-rs/tui/src/app/gui.rs` 同一 `#[cfg(test)] mod tests` 中新增：
 
 ```rust
+    use std::sync::Mutex;
+
     struct StubGuiLauncher {
-        calls: std::sync::Mutex<Vec<String>>,
-        response: Result<GuiLaunchUrl, GuiLaunchError>,
+        calls: Mutex<Vec<ThreadId>>,
+        response: Mutex<Option<Result<GuiLaunchUrl, GuiLaunchError>>>,
     }
 
     impl StubGuiLauncher {
         fn ok(url: &str) -> Self {
             Self {
-                calls: std::sync::Mutex::new(Vec::new()),
-                response: Ok(GuiLaunchUrl { url: url.to_string() }),
+                calls: Mutex::new(Vec::new()),
+                response: Mutex::new(Some(Ok(GuiLaunchUrl { url: url.to_string() }))),
             }
         }
     }
 
-    async fn run_open_gui_with_stub(
-        primary_thread_id: Option<ThreadId>,
-        launcher: &StubGuiLauncher,
-    ) -> Vec<TranscriptEntry> {
-        // The helper constructs the minimal chat widget state the real
-        // `open_gui` touches, calls the extracted `open_gui_inner`, and
-        // returns the transcript entries that were appended. The extraction
-        // is a one-liner shim around the production body in
-        // `App::open_gui` (Step 3 above) so the production code path is
-        // still what the test exercises.
-        unimplemented!("implemented alongside extracting open_gui_inner")
+    impl GuiLauncher for StubGuiLauncher {
+        fn gui_launch_url(
+            &self,
+            primary_thread_id: ThreadId,
+        ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+            self.calls.lock().unwrap().push(primary_thread_id);
+            let response = self
+                .response
+                .lock()
+                .unwrap()
+                .take()
+                .expect("stub response must be primed before each call");
+            async move { response }
+        }
+    }
+
+    #[derive(Default)]
+    struct RecordingSink {
+        info: Vec<String>,
+        error: Vec<String>,
+    }
+
+    impl GuiMessageSink for RecordingSink {
+        fn add_info(&mut self, message: String) { self.info.push(message); }
+        fn add_error(&mut self, message: String) { self.error.push(message); }
+    }
+
+    fn test_thread_id() -> ThreadId {
+        ThreadId::from_string("00000000-0000-0000-0000-000000000001")
+            .expect("valid uuid")
     }
 
     #[tokio::test]
     async fn open_gui_without_primary_thread_shows_not_ready_info() {
         let launcher = StubGuiLauncher::ok("unused");
-        let transcript = run_open_gui_with_stub(None, &launcher).await;
-        assert_eq!(launcher.calls.lock().unwrap().len(), 0, "must not call launcher without a primary thread");
-        assert!(transcript.iter().any(|e| matches!(e, TranscriptEntry::Info(msg) if msg == "Current session is not ready to open GUI.")));
+        let mut sink = RecordingSink::default();
+        open_gui_inner::<_, _>(None, &launcher, &mut sink).await;
+        assert!(
+            launcher.calls.lock().unwrap().is_empty(),
+            "must not call launcher without a primary thread"
+        );
+        assert!(sink.error.is_empty(), "error path not expected");
+        assert_eq!(sink.info, vec![
+            "Current session is not ready to open GUI.".to_string(),
+        ]);
     }
 
     #[tokio::test]
     async fn open_gui_with_primary_thread_calls_launcher_and_renders_url() {
-        let launcher = StubGuiLauncher::ok("http://127.0.0.1:4321/?threadId=t#token=secret");
-        let transcript = run_open_gui_with_stub(Some(ThreadId::from("t")), &launcher).await;
+        let tid = test_thread_id();
+        let launcher = StubGuiLauncher::ok(
+            "http://127.0.0.1:4321/?threadId=00000000-0000-0000-0000-000000000001#token=secret",
+        );
+        let mut sink = RecordingSink::default();
+        open_gui_inner::<_, _>(Some(tid), &launcher, &mut sink).await;
         let calls = launcher.calls.lock().unwrap();
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0], "t", "launcher must be called with the primary thread id");
-        assert!(transcript.iter().any(|e| matches!(e, TranscriptEntry::Info(msg) if msg.contains("http://127.0.0.1:4321"))));
+        assert_eq!(calls[0], tid, "launcher must be called with the primary thread id");
+        assert!(sink.error.is_empty(), "error path not expected on success");
+        assert_eq!(sink.info.len(), 1, "exactly one info message expected");
+        assert!(sink.info[0].contains("http://127.0.0.1:4321"));
     }
 ```
 
-Step 3 要同时抽一个 `async fn open_gui_inner<L: GuiLauncher>(state: ..., launcher: &L) -> ...`，其中 `GuiLauncher` trait 只暴露 `async fn gui_launch_url(&self, &str) -> Result<GuiLaunchUrl, GuiLaunchError>`。`App::open_gui` 实现就是三行 wrapper 调用 `open_gui_inner(..., self.app_server)`（真实 `AppServerSession` 直接 impl 这个 trait；stub 也 impl）。这样既能测 dispatch，又不让 `App` 取得任何 GUI host ownership。
+Step 3/4 已经抽出 `open_gui_inner<L, S>` 并为 `AppServerSession` / `ChatWidget` 提供了 trait impl；`App::open_gui` 就是一行 wrapper。这样既能测 dispatch，又不让 `App` 取得任何 GUI host ownership。
 
 - [ ] **Step 5: 声明 module**
 
@@ -458,18 +548,26 @@ mod gui;
 
 - [ ] **Step 7: 运行 focused tests**
 
-在 `codex-rs` 目录运行：
+在 `codex-rs` 目录分别运行两条命令——libtest 每次只接受一个 substring filter，`open_gui_` 和 `launch_url_result_` 分别跑：
 
 ```bash
 cargo test -p codex-tui -- launch_url_result_
+cargo test -p codex-tui -- open_gui_
 ```
 
-预期：
+预期 `launch_url_result_`：
 
 ```text
 test app::gui::tests::launch_url_result_renders_url_message ... ok
 test app::gui::tests::launch_url_result_renders_unsupported_message ... ok
 test app::gui::tests::launch_url_result_renders_transport_error ... ok
+```
+
+预期 `open_gui_`：
+
+```text
+test app::gui::tests::open_gui_without_primary_thread_shows_not_ready_info ... ok
+test app::gui::tests::open_gui_with_primary_thread_calls_launcher_and_renders_url ... ok
 ```
 
 - [ ] **Step 8: 运行 command path tests**
@@ -524,9 +622,10 @@ just fix -p codex-tui
 ```bash
 cargo test -p codex-tui -- gui_command_
 cargo test -p codex-tui -- launch_url_result_
+cargo test -p codex-tui -- open_gui_
 ```
 
-预期：两个命令都退出 0；所有 `/gui` focused tests 通过。
+预期：三个命令都退出 0；所有 `/gui` focused tests 通过。
 
 - [ ] **Step 4: Commit verification fixes**
 
@@ -545,7 +644,7 @@ git commit -m "chore(tui): format GUI launch entry"
 - `/gui` 在 active side conversation 下仍可 dispatch（`available_in_side_conversation` 返回 `true`），触发后仍请求 primary thread 的 launch URL。
 - `/gui` 发出 `AppEvent::OpenGui`。
 - `AppEvent::OpenGui` 使用 primary thread ID 向 `AppServerSession` 请求 launch URL。
-- `app/gui.rs` 的 `open_gui_inner` 有 focused behavioral tests 覆盖无 primary / 有 primary 两条路径，通过 `GuiLauncher` trait stub 实现，不在 `codex-tui` 里启动真实 app-server。
+- `app/gui.rs` 的 `open_gui_inner` 有 focused behavioral tests 覆盖无 primary / 有 primary 两条路径，通过 `GuiLauncher` 和 `GuiMessageSink` trait stub 实现，不在 `codex-tui` 里启动真实 app-server，也不构造真实 `ChatWidget`。
 - 如果没有 primary thread，TUI 打印：`Current session is not ready to open GUI.`
 - 在默认的 in-process 会话（CLI TUI 路径）下，`gui_launch_url` 返回真实本机 URL（不是 `Unsupported`），TUI 打印该 URL。
 - 在 remote 会话下 (`AppServerClient::Remote`)，`gui_launch_url` 返回 `GuiLaunchError::Unsupported`，TUI 打印：`GUI is not available for this app-server session yet.`
