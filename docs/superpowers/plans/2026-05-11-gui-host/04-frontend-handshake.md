@@ -35,7 +35,7 @@ http://127.0.0.1:<port>/?threadId=<primary-thread-id>#token=<launch-token>
 - Modify: `codex-gui/src/App.tsx`
 - Test: `codex-gui/src/features/guiHost/guiHostClient.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `codex-gui/src/features/guiHost/guiHostClient.test.ts`:
 
@@ -233,7 +233,7 @@ describe("guiHostClient", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify FAIL**
+- [x] **Step 2: Run tests to verify FAIL**
 
 Run from `codex-gui`:
 
@@ -247,7 +247,7 @@ Expected failure:
 Failed to resolve import "./guiHostClient"
 ```
 
-- [ ] **Step 3: Implement frontend client and status UI**
+- [x] **Step 3: Implement frontend client and status UI**
 
 Create `codex-gui/src/features/guiHost/guiHostClient.ts`:
 
@@ -504,7 +504,7 @@ function App() {
 export default App;
 ```
 
-- [ ] **Step 4: Run tests to verify PASS**
+- [x] **Step 4: Run tests to verify PASS**
 
 Run:
 
@@ -519,7 +519,7 @@ Test Files  1 passed (1)
 Tests  5 passed (5)
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add codex-gui/src/App.tsx codex-gui/src/features/guiHost
