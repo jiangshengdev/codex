@@ -79,7 +79,7 @@ In-process foundation (plan 06):
   - Extend the processor `match ProcessorCommand` loop with the four new arms (main-connection arms kept byte-for-byte).
   - Generalize the outbound router task loop shape to drive both the main connection's outgoing drain and extra connections' control signals (functional invariants: main-connection outgoing drain semantics and throughput unchanged).
   - Generalize `thread_created_rx` dispatch from hardcoded `[IN_PROCESS_CONNECTION_ID]` to `main + initialized extra connections`.
-  - Add `extra_session_states: HashMap<ConnectionId, Arc<ConnectionSessionState>>` next to `outbound_connections`.
+  - Add `extra_connections: HashMap<ConnectionId, ExtraConnectionEntry>` next to `outbound_connections`. Each entry owns that connection's `ConnectionSessionState` plus clones of the outbound-gating Arcs shared with the router.
   - Keep all naming in `in_process.rs` GUI-agnostic (no `gui`, `websocket`, `allowlist` symbols).
 - Create: `codex-rs/app-server-client/src/gui.rs`
   - `pub trait AppServerClientGuiExt { async fn gui_launch_url(&self, primary_thread_id: &str) -> Result<GuiLaunchUrl, GuiLaunchError>; }`.
@@ -121,7 +121,7 @@ Frontend and packaging changes (plans 04, 05):
 - `/gui` prints a local URL (real URL in the TUI's in-process path, not `GUI is not available`).
 - Browser opens GUI host URL and connects to same-origin `/ws`.
 - `gui/authenticate` succeeds before any `register_extra_connection` call.
-- `gui/authenticate` failure closes `/ws` with code `1008` and never calls `register_extra_connection`; no entry is left in `outbound_connections` or `extra_session_states`.
+- `gui/authenticate` failure closes `/ws` with code `1008` and never calls `register_extra_connection`; no entry is left in `outbound_connections` or `extra_connections`.
 - Browser sends `initialize` and receives a real app-server response via `message_processor.rs` `process_request` raw path.
 - Browser sends `thread/projection/attach` and receives a real app-server response.
 - Browser receives at least one real `thread/projection/event` via the existing `route_outgoing_envelope`.

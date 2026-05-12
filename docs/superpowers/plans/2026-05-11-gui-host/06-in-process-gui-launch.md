@@ -29,7 +29,7 @@ Roadmap: `docs/superpowers/plans/2026-05-11-gui-host/00-roadmap.md`.
   - Add `ProcessorCommand::ExtraConnectionOpened`, `ExtraRequest`, `ExtraNotification`, `ExtraConnectionClosed`.
   - Add `ExtraConnectionHandle` with `Drop` best-effort `try_send(ExtraConnectionClosed)`.
   - Add `InProcessClientSender::register_extra_connection(&self) -> ExtraConnectionHandle`.
-  - Add `extra_session_states: HashMap<ConnectionId, Arc<ConnectionSessionState>>` in the processor task.
+  - Add `extra_connections: HashMap<ConnectionId, ExtraConnectionEntry>` in the processor task (each entry owns the connection's `ConnectionSessionState` plus clones of the outbound gating Arcs shared with the router).
   - Extend processor `match ProcessorCommand` loop with four new arms.
   - Generalize `thread_created_rx` dispatch list to include initialized extra connections.
   - Insert/remove `OutboundConnectionState` entries for extra connections in the outer runtime task (owner of `outbound_connections` via the outbound router spawn closure — see Task 3 for exact placement).
@@ -84,6 +84,9 @@ Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
         requires_send::<ProcessorCommand>();
         let _opened = ProcessorCommand::ExtraConnectionOpened {
             connection_id: ConnectionId(7),
+            outbound_initialized: Arc::new(AtomicBool::new(false)),
+            outbound_experimental_api_enabled: Arc::new(AtomicBool::new(false)),
+            outbound_opted_out_notification_methods: Arc::new(RwLock::new(HashSet::new())),
         };
         let _closed = ProcessorCommand::ExtraConnectionClosed {
             connection_id: ConnectionId(7),
@@ -109,6 +112,9 @@ enum ProcessorCommand {
     Notification(ClientNotification),
     ExtraConnectionOpened {
         connection_id: ConnectionId,
+        outbound_initialized: Arc<AtomicBool>,
+        outbound_experimental_api_enabled: Arc<AtomicBool>,
+        outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
     },
     ExtraRequest {
         connection_id: ConnectionId,
@@ -471,9 +477,12 @@ with:
                 /*disconnect_sender*/ None,
             ),
         );
-        // Control channel used by the client-message task to register/unregister
-        // extra connection writer entries and mirror session state without
-        // blocking the processor.
+        // Control channel used by the client-message task to register and
+        // unregister extra connection writer entries without blocking the
+        // processor. Outbound gating state (initialized / experimental /
+        // opted-out) is NOT mirrored through this channel — it is shared
+        // directly via `Arc`s between processor and router (see the
+        // `Invariants` block below).
         let (outbound_control_tx, mut outbound_control_rx) =
             mpsc::channel::<OutboundControl>(channel_capacity);
         let mut outbound_handle = tokio::spawn(async move {
@@ -503,24 +512,6 @@ with:
                                     ),
                                 );
                             }
-                            Some(OutboundControl::MirrorSessionState {
-                                connection_id,
-                                initialized,
-                                experimental_api_enabled,
-                                opted_out_notification_methods,
-                            }) => {
-                                if let Some(entry) = outbound_connections.get(&connection_id) {
-                                    entry.initialized.store(initialized, Ordering::Release);
-                                    entry
-                                        .experimental_api_enabled
-                                        .store(experimental_api_enabled, Ordering::Release);
-                                    if let Ok(mut opted_out) =
-                                        entry.opted_out_notification_methods.write()
-                                    {
-                                        *opted_out = opted_out_notification_methods;
-                                    }
-                                }
-                            }
                             Some(OutboundControl::Unregister { connection_id }) => {
                                 outbound_connections.remove(&connection_id);
                             }
@@ -543,25 +534,19 @@ enum OutboundControl {
         experimental_api_enabled: Arc<AtomicBool>,
         opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
     },
-    MirrorSessionState {
-        connection_id: ConnectionId,
-        initialized: bool,
-        experimental_api_enabled: bool,
-        opted_out_notification_methods: HashSet<String>,
-    },
     Unregister {
         connection_id: ConnectionId,
     },
 }
 ```
 
-Each extra connection gets its own `Arc<AtomicBool>` for `initialized` and `experimental_api_enabled`, and its own `Arc<RwLock<HashSet<String>>>` for opted-out notification methods. The main connection's existing Arcs (`outbound_initialized`, etc.) stay reserved for `IN_PROCESS_CONNECTION_ID` and are never shared with extras.
+The 3 Arcs (`initialized`, `experimental_api_enabled`, `opted_out_notification_methods`) are allocated once per extra connection in the `ExtraConnectionOpened` handling (Step 4) and cloned into **two** places: (a) the outbound router via `OutboundControl::Register`, and (b) the processor task via `ProcessorCommand::ExtraConnectionOpened` payload fields. Router and processor share the same underlying `AtomicBool` / `RwLock<HashSet<String>>`, so when the processor stores new values after `process_request` (Step 5), the outbound router's subsequent `load` in `route_outgoing_envelope` sees them via the atomic's Acquire/Release ordering — exactly the same synchronization shape websocket callers use in `codex-rs/app-server/src/lib.rs:915-949`. No cross-task control message is required for state mirroring. The main connection's existing Arcs (`outbound_initialized`, etc.) stay reserved for `IN_PROCESS_CONNECTION_ID` and are never shared with extras.
 
 **Invariants after this change:**
 - `outgoing_rx.recv()` is still the primary source of outgoing traffic; main-connection throughput and ordering are unchanged.
 - `OutboundControl::Register` is only reachable via `ExtraConnectionOpened` handling (Step 4), so the main connection's writer slot is never overwritten.
 - `OutboundControl::Unregister` is only reachable via `ExtraConnectionClosed` handling (Step 4); `IN_PROCESS_CONNECTION_ID` is never passed in.
-- `OutboundControl::MirrorSessionState` is only reachable from the processor arm after `process_request` returns for an extra connection (Step 5); it mirrors the extra connection's own `ConnectionSessionState` into its own outbound Arcs — it never touches the main connection's Arcs.
+- Outbound gating state (initialized / experimental / opted-out) is shared by Arc between processor and router, so the processor's post-request `store` is immediately visible to the next outbound envelope routed for that connection — no async control message race exists.
 
 - [ ] **Step 3: Bridge `writer_rx` payloads into `ExtraConnectionHandle::outgoing_rx`**
 
@@ -630,9 +615,13 @@ Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv(
                                 .send(OutboundControl::Register {
                                     connection_id,
                                     writer: writer_tx,
-                                    initialized,
-                                    experimental_api_enabled,
-                                    opted_out_notification_methods,
+                                    initialized: Arc::clone(&initialized),
+                                    experimental_api_enabled: Arc::clone(
+                                        &experimental_api_enabled,
+                                    ),
+                                    opted_out_notification_methods: Arc::clone(
+                                        &opted_out_notification_methods,
+                                    ),
                                 })
                                 .await
                                 .is_err()
@@ -640,7 +629,13 @@ Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv(
                                 break;
                             }
                             if processor_tx
-                                .send(ProcessorCommand::ExtraConnectionOpened { connection_id })
+                                .send(ProcessorCommand::ExtraConnectionOpened {
+                                    connection_id,
+                                    outbound_initialized: initialized,
+                                    outbound_experimental_api_enabled: experimental_api_enabled,
+                                    outbound_opted_out_notification_methods:
+                                        opted_out_notification_methods,
+                                })
                                 .await
                                 .is_err()
                             {
@@ -695,37 +690,56 @@ Use `send().await` instead of `try_send`: extra-connection registration and tear
 
 - [ ] **Step 5: Add processor-side arms**
 
-Inside the processor task `tokio::select!`, extend the `match command { ... }` inside `Some(ProcessorCommand::...)` with four new arms. Track per-connection session state in a new map declared alongside the existing `session` binding. Also clone `outbound_control_tx` into the processor spawn so `ExtraRequest` can mirror session state after each turn:
+Inside the processor task `tokio::select!`, extend the `match command { ... }` inside `Some(ProcessorCommand::...)` with four new arms. Track per-connection state (session state + outbound gating Arcs) in a new map declared alongside the existing `session` binding:
 
 ```rust
-            let mut extra_session_states: HashMap<ConnectionId, Arc<ConnectionSessionState>> =
+            struct ExtraConnectionEntry {
+                session_state: Arc<ConnectionSessionState>,
+                outbound_initialized: Arc<AtomicBool>,
+                outbound_experimental_api_enabled: Arc<AtomicBool>,
+                outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
+            }
+            let mut extra_connections: HashMap<ConnectionId, ExtraConnectionEntry> =
                 HashMap::new();
-            let outbound_control_tx_for_processor = outbound_control_tx.clone();
 ```
 
 Then add these arms immediately after `Some(ProcessorCommand::Notification(notification))`:
 
 ```rust
-                            Some(ProcessorCommand::ExtraConnectionOpened { connection_id }) => {
-                                extra_session_states.insert(
+                            Some(ProcessorCommand::ExtraConnectionOpened {
+                                connection_id,
+                                outbound_initialized,
+                                outbound_experimental_api_enabled,
+                                outbound_opted_out_notification_methods,
+                            }) => {
+                                extra_connections.insert(
                                     connection_id,
-                                    Arc::new(ConnectionSessionState::new()),
+                                    ExtraConnectionEntry {
+                                        session_state: Arc::new(ConnectionSessionState::new()),
+                                        outbound_initialized,
+                                        outbound_experimental_api_enabled,
+                                        outbound_opted_out_notification_methods,
+                                    },
                                 );
                             }
                             Some(ProcessorCommand::ExtraRequest {
                                 connection_id,
                                 request,
                             }) => {
-                                let Some(session_state) =
-                                    extra_session_states.get(&connection_id).cloned()
-                                else {
+                                let Some(entry) = extra_connections.get(&connection_id) else {
                                     tracing::warn!(
                                         ?connection_id,
                                         "dropping extra request for unknown connection",
                                     );
                                     continue;
                                 };
-                                let was_initialized = session_state.initialized();
+                                let session_state = Arc::clone(&entry.session_state);
+                                let outbound_initialized = Arc::clone(&entry.outbound_initialized);
+                                let outbound_experimental_api_enabled =
+                                    Arc::clone(&entry.outbound_experimental_api_enabled);
+                                let outbound_opted_out_notification_methods = Arc::clone(
+                                    &entry.outbound_opted_out_notification_methods,
+                                );
                                 processor
                                     .process_request(
                                         connection_id,
@@ -734,27 +748,40 @@ Then add these arms immediately after `Some(ProcessorCommand::Notification(notif
                                         Arc::clone(&session_state),
                                     )
                                     .await;
-                                // Mirror the extra connection's session state
-                                // into its own outbound Arcs. Main connection's
-                                // Arcs are not touched. This matches the shape
-                                // used by the main-connection `Request` arm;
-                                // `process_request` passes `None` for outbound
-                                // initialized and defers the mirror to the
-                                // caller on purpose (see
-                                // `message_processor.rs:511-524`).
-                                let initialized = session_state.initialized();
-                                let experimental_api_enabled =
-                                    session_state.experimental_api_enabled();
-                                let opted_out_notification_methods =
+                                // Mirror session state into the outbound Arcs
+                                // synchronously, identical to the shape used by
+                                // websocket callers in
+                                // `codex-rs/app-server/src/lib.rs:915-949`.
+                                // The processor passes `None` for
+                                // `outbound_initialized` inside
+                                // `process_request` on purpose
+                                // (`message_processor.rs:511-524`); the caller
+                                // — here, this arm — is responsible for the
+                                // mirror. Because the outbound router shares
+                                // these same `Arc<AtomicBool>` /
+                                // `Arc<RwLock<_>>` instances (see Step 4), its
+                                // next `load` observes the new values via
+                                // Release/Acquire ordering before any
+                                // subsequent envelope for this connection is
+                                // routed.
+                                let opted_out_snapshot =
                                     session_state.opted_out_notification_methods();
-                                let _ = outbound_control_tx_for_processor
-                                    .send(OutboundControl::MirrorSessionState {
-                                        connection_id,
-                                        initialized,
-                                        experimental_api_enabled,
-                                        opted_out_notification_methods,
-                                    })
-                                    .await;
+                                if let Ok(mut opted_out) =
+                                    outbound_opted_out_notification_methods.write()
+                                {
+                                    *opted_out = opted_out_snapshot;
+                                } else {
+                                    tracing::warn!(
+                                        ?connection_id,
+                                        "failed to mirror extra connection opted-out list",
+                                    );
+                                }
+                                outbound_experimental_api_enabled.store(
+                                    session_state.experimental_api_enabled(),
+                                    Ordering::Release,
+                                );
+                                outbound_initialized
+                                    .store(session_state.initialized(), Ordering::Release);
                                 // Extra connections intentionally do NOT
                                 // trigger `send_initialize_notifications`
                                 // on first initialize: that method broadcasts
@@ -763,29 +790,24 @@ Then add these arms immediately after `Some(ProcessorCommand::Notification(notif
                                 // connections rely on the `thread_created_rx`
                                 // fan-out (Step 6) and on responses to the
                                 // requests they themselves issued.
-                                let _ = was_initialized;
                             }
                             Some(ProcessorCommand::ExtraNotification {
                                 connection_id,
                                 notification,
                             }) => {
-                                let Some(_session_state) =
-                                    extra_session_states.get(&connection_id)
-                                else {
+                                if !extra_connections.contains_key(&connection_id) {
                                     tracing::warn!(
                                         ?connection_id,
                                         "dropping extra notification for unknown connection",
                                     );
                                     continue;
-                                };
+                                }
                                 processor.process_notification(notification).await;
                             }
                             Some(ProcessorCommand::ExtraConnectionClosed { connection_id }) => {
-                                if let Some(session_state) =
-                                    extra_session_states.remove(&connection_id)
-                                {
+                                if let Some(entry) = extra_connections.remove(&connection_id) {
                                     processor
-                                        .connection_closed(connection_id, &session_state)
+                                        .connection_closed(connection_id, &entry.session_state)
                                         .await;
                                 } else {
                                     tracing::warn!(
@@ -817,10 +839,10 @@ Replace with:
                                 if session.initialized() {
                                     connection_ids.push(IN_PROCESS_CONNECTION_ID);
                                 }
-                                for (extra_connection_id, extra_session) in
-                                    extra_session_states.iter()
+                                for (extra_connection_id, extra_entry) in
+                                    extra_connections.iter()
                                 {
-                                    if extra_session.initialized() {
+                                    if extra_entry.session_state.initialized() {
                                         connection_ids.push(*extra_connection_id);
                                     }
                                 }
@@ -902,11 +924,12 @@ Add to `#[cfg(test)] mod tests`:
 
         // After drop, `outgoing_rx` must close because the writer bridge
         // task exits once its writer channel is removed from
-        // `outbound_connections`.
+        // `outbound_connections`. A timeout counts as failure — close must
+        // complete within 2s for this path to prove cleanup.
         let result = timeout(Duration::from_secs(2), outgoing_rx.recv()).await;
         assert!(
-            matches!(result, Ok(None) | Err(_)),
-            "expected channel close after drop, got {result:?}",
+            matches!(result, Ok(None)),
+            "expected Ok(None) (channel closed) after drop, got {result:?}",
         );
 
         client.shutdown().await.expect("shutdown");

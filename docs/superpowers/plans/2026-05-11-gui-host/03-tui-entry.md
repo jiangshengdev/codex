@@ -238,7 +238,7 @@ mod tests {
 cargo test -p codex-tui -- launch_url_result_
 ```
 
-预期失败包含缺少 `GuiLaunchUrl`、`GuiLaunchError`、`GuiLaunchMessage` 和 `launch_result_message`。其中 `GuiLaunchUrl` / `GuiLaunchError` 需要先由 `02-app-server-bridge.md` Task 5 提供。
+预期失败包含缺少 `GuiLaunchUrl`、`GuiLaunchError`、`GuiLaunchMessage` 和 `launch_result_message`。其中 `GuiLaunchUrl` / `GuiLaunchError` 需要先由 `06-in-process-gui-launch.md` Task 5 提供。
 
 - [ ] **Step 3: 添加 app-server session wrapper**
 

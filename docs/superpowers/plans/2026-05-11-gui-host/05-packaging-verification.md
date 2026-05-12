@@ -4,7 +4,7 @@
 
 **Goal:** Package GUI dist for prod mode and run final verification for the GUI host projection transport MVP.
 
-**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, dependency boundary checks, and lockfile checks. Verification follows the方案 B ownership split: app-server owns GUI host lifecycle and emits transport events; TUI requests only an app-server-client launch URL and never starts `GuiHost` directly. Prod static caching details remain outside the transport MVP acceptance criteria and can be finalized during packaging implementation.
+**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, dependency boundary checks, and lockfile checks. Verification follows the方案 B ownership split: app-server owns GUI host lifecycle and routes GUI JSON-RPC traffic through its own in-process extra-connection machinery (no new `TransportEvent` producer); TUI requests only an app-server-client launch URL and never starts `GuiHost` directly. Prod static caching details remain outside the transport MVP acceptance criteria and can be finalized during packaging implementation.
 
 **Tech Stack:** Node CLI wrapper, Python packaging script, Vite build, Rust verification, Playwright.
 

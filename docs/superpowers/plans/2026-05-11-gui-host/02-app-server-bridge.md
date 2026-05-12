@@ -4,7 +4,7 @@
 
 **Goal:** Implement the GUI host bridge inside `codex-app-server`: a `GuiHostManager` owned by `InProcessAppServerClient` plus a `GuiBackend` (`gui_transport.rs`) that converts each authenticated GUI WebSocket into an extra connection on the in-process runtime (plan 06's `register_extra_connection` API).
 
-**Architecture:** `GuiHostManager` lazy-starts a single `codex_gui_host::GuiHost` per session and provides `launch_url_for_thread(primary_thread_id) -> GuiLaunchUrl`. Each `AuthenticatedGuiConnection` handed to `gui_transport.rs` calls `InProcessClientSender::register_extra_connection`, spawns an inbound task that parses `JSONRPCMessage` (validates against the GUI allowlist) and forwards to `ExtraConnectionCommandSender`, and spawns an outbound task that forwards already-serialized text from `ExtraConnectionHandle::outgoing_rx` straight to the browser (allowlist filter wraps the send).
+**Architecture:** `GuiHostManager` lazy-starts a single `codex_gui_host::GuiHost` per session and provides `launch_url_for_thread(primary_thread_id) -> anyhow::Result<String>` (raw URL, wrapped into `GuiLaunchUrl` at the `codex-app-server-client` boundary since the app-server crate cannot depend on the client crate). Each `AuthenticatedGuiConnection` handed to `gui_transport.rs` calls `InProcessClientSender::register_extra_connection`, spawns an inbound task that parses `JSONRPCMessage` (validates against the GUI allowlist) and forwards to `ExtraConnectionCommandSender`, and spawns an outbound task that forwards already-serialized text from `ExtraConnectionHandle::outgoing_rx` straight to the browser (allowlist filter wraps the send).
 
 **Tech Stack:** Rust 2024, tokio, codex-gui-host, codex-app-server, codex-app-server-client, codex-app-server-protocol.
 
@@ -26,12 +26,12 @@ Prerequisite plan: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui
 
 ## File Structure
 
-- Modify: `codex-rs/app-server/Cargo.toml` — add `codex-gui-host = { workspace = true }`, and `async-trait = { workspace = true }` if not present.
+- Modify: `codex-rs/app-server/Cargo.toml` — add `codex-gui-host = { workspace = true }`. No `async-trait` dependency is required; the `AppServerClientGuiExt` trait uses RPITIT.
 - Modify: `codex-rs/app-server/BUILD.bazel` — add `//gui-host:codex-gui-host` to deps if the file lists them explicitly.
 - Modify: `codex-rs/app-server/src/lib.rs` — declare `mod gui_host;` and `mod gui_transport;`.
 - Create: `codex-rs/app-server/src/gui_host.rs` — `GuiHostManager` + lazy-start + `launch_url_for_thread` + `shutdown`.
 - Create: `codex-rs/app-server/src/gui_transport.rs` — `GuiTransportBackend` implementing `codex_gui_host::GuiBackend`.
-- Modify: `codex-rs/app-server-client/src/lib.rs` — `InProcessAppServerClient` carries `Option<Arc<GuiHostManager>>`; implements `AppServerClientGuiExt` via the manager.
+- Modify: `codex-rs/app-server-client/src/lib.rs` — `InProcessAppServerClient` carries `Arc<GuiHostManager>` (non-optional; the manager itself handles lazy start internally); implements `AppServerClientGuiExt` via the manager.
 - Tests: `codex-rs/app-server/src/gui_transport.rs` (inline `#[cfg(test)] mod tests`).
 - Tests: `codex-rs/app-server/src/gui_host.rs` (inline `#[cfg(test)] mod tests`).
 - Tests: `codex-rs/app-server-client/src/lib.rs` (`gui_launch_url_returns_real_url_for_in_process` integration test).
