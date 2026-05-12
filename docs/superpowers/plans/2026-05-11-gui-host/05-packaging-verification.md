@@ -131,17 +131,22 @@ and `codex-gui/dist/index.html` exists.
 
 `codex-gui/dist` is in `codex-gui/.gitignore`, so it must not be committed. Instead, assert that the packaging script actually lays out the dist under the staging package root and that the CLI wrapper points `CODEX_GUI_PACKAGE_ROOT` at that root.
 
+`copy_native_binaries` at `codex-cli/scripts/build_npm_package.py:394-420` expects `--vendor-src` to contain a subdirectory per target triple and, inside each, subdirectories per component destination (`codex/` for the `codex` binary, `path/` for `rg`). For `--package codex-darwin-arm64` that triple is `aarch64-apple-darwin` (see `CODEX_PLATFORM_PACKAGES` at `build_npm_package.py:43-49`) and the components are `["codex", "rg"]` (mapped via `COMPONENT_DEST_DIR` to `codex/` and `path/` respectively).
+
 Run from repo root:
 
 ```bash
-rm -rf /tmp/codex-gui-stage
-# --vendor-src must point at a staging layout that already contains the per-
-# platform subdirectory the packager expects (see
-# `codex-cli/scripts/build_npm_package.py::copy_native_binaries`). For a
-# local smoke run you can stand one up with:
-#   mkdir -p /tmp/codex-gui-vendor/codex-darwin-arm64/bin
-#   cp target/release/codex /tmp/codex-gui-vendor/codex-darwin-arm64/bin/
-# Or point --vendor-src at the CI `codex-native-sources` artifact.
+rm -rf /tmp/codex-gui-stage /tmp/codex-gui-vendor
+# Stand up the exact layout copy_native_binaries expects. For a smoke run,
+# stub both components with a do-nothing executable — copy_native_binaries
+# only checks that the files exist, not that they run.
+mkdir -p /tmp/codex-gui-vendor/aarch64-apple-darwin/codex \
+         /tmp/codex-gui-vendor/aarch64-apple-darwin/path
+cp target/release/codex /tmp/codex-gui-vendor/aarch64-apple-darwin/codex/
+# `rg` is required; if you don't have a built copy handy, any file suffices
+# for the layout check:
+cp "$(command -v rg || echo /bin/ls)" /tmp/codex-gui-vendor/aarch64-apple-darwin/path/rg
+
 python3 codex-cli/scripts/build_npm_package.py \
   --package codex-darwin-arm64 \
   --version 0.0.0-test \
@@ -220,9 +225,13 @@ cargo test -p codex-app-server-transport -- connection_origin_has_distinct_gui_h
 # TUI /gui focused tests.
 cargo test -p codex-tui -- gui_command_
 cargo test -p codex-tui -- launch_url_result_
+cargo test -p codex-tui -- open_gui_
+# Plan 05's prod hashed-asset gate is created in Step 3c below; run that
+# command **after** Step 3c lands the new test target, not here. Running it
+# before Step 3c will fail with `no test target named prod_serves_hashed_asset`.
 ```
 
-Expected: every command exits 0. The `--` separator makes the intent explicit: everything after `--` is a libtest filter. Using one filter per command avoids relying on libtest's multi-filter OR behavior, which is not part of the documented `cargo test <TESTNAME>` contract.
+Expected: every command listed above exits 0, **except** the `connection_origin_has_distinct_gui_host_variant` line, which is intentionally tolerated to fail via the `|| echo ...` fallback because the `GuiHost` variant is reserved out-of-MVP per spec §Bridge shape. A failure there prints the `NOTE:` line but must not be treated as a gate; every other command is a gate. The `--` separator makes the intent explicit: everything after `--` is a libtest filter. Using one filter per command avoids relying on libtest's multi-filter OR behavior, which is not part of the documented `cargo test <TESTNAME>` contract.
 
 - [ ] **Step 3: Verify dependency boundaries**
 
@@ -241,14 +250,18 @@ both commands exit 0 with no matches
 
 The grep uses `\bcodex_app_server::` to allow `codex_app_server_client::` (which is the crate TUI is allowed to import) while rejecting the root `codex-app-server` crate path.
 
-- [ ] **Step 3b: End-to-end in-process launch check (manual)**
+- [ ] **Step 3b: End-to-end in-process launch check (manual, prod)**
 
-Start a real TUI session (the user-facing `codex` bin lives in `codex-cli`, not `codex-tui`; use `codex-tui`'s own bin for this direct path check):
+Start a real TUI session in **prod** mode — the default `CODEX_GUI_HOST_MODE` for a debug build is `dev`, which proxies to Vite instead of serving the staged `dist/`. The MVP acceptance path is prod serving from the staging package root, so the manual check must explicitly pin that layout:
 
 ```bash
 cd codex-rs
-cargo run -p codex-tui --bin codex-tui
+CODEX_GUI_HOST_MODE=prod \
+CODEX_GUI_PACKAGE_ROOT=/tmp/codex-gui-stage/vendor/codex-gui \
+cargo run -p codex-tui --bin codex-tui --release
 ```
+
+Before running, the staging tree from Step 4 must exist (`/tmp/codex-gui-stage/vendor/codex-gui/dist/index.html` present). `--release` matches what the packaged CLI ships and avoids dragging in the `cfg!(debug_assertions)` branch in `codex-rs/gui-host/src/config.rs:30-34` that picks `Dev` when `CODEX_GUI_HOST_MODE` is unset. Setting `CODEX_GUI_HOST_MODE=prod` explicitly also makes the check reproducible regardless of build profile.
 
 In the TUI, run `/gui`. Expected transcript output matches the pattern:
 
@@ -257,18 +270,18 @@ http://127.0.0.1:<port>/?threadId=<thread-id>#token=<url-safe-base64-no-pad>
 ```
 
 Open that URL in a local browser. Expected behavior:
-- The GUI host serves HTTP 200 at `/`.
+- The GUI host serves HTTP 200 at `/`, reading `dist/index.html` from the staged package root.
 - The WebSocket at `/ws` completes `gui/authenticate -> initialize -> thread/projection/attach` without errors (check browser devtools WebSocket frames).
 - At least one `thread/projection/event` frame arrives after attach.
 - Fetch a hashed asset directly to prove the prod static tree is wired, not only the root index:
-  - Identify any fingerprinted asset produced by Vite under `codex-gui/dist/assets/` (for example `assets/index-abc123.js`).
+  - Identify any fingerprinted asset produced by Vite under `codex-gui/dist/assets/` (for example `assets/index-abc123.js`). The staged copy is at `/tmp/codex-gui-stage/vendor/codex-gui/dist/assets/<that-file>`.
   - Open `http://127.0.0.1:<port>/assets/<that-file>` and confirm HTTP 200 with the expected body length (>0). No cache-header assertion; see Step 5.
 
-This manual check corroborates the Rust unit/integration tests above and proves the default in-process path is end-to-end functional for both HTML and hashed assets.
+This manual check corroborates the Rust unit/integration tests above and proves the default in-process path is end-to-end functional for both HTML and hashed assets **on the prod serving path**. The `dev` path (Vite proxy) is exercised indirectly by `pnpm vitest` in Step 4 and is not part of MVP acceptance here.
 
 - [ ] **Step 3c: Automated prod hashed-asset gate**
 
-Add to `codex-rs/gui-host/tests/`:
+Add `codex-rs/gui-host/tests/prod_serves_hashed_asset.rs`:
 
 ```rust
 #[tokio::test]
@@ -281,6 +294,14 @@ async fn prod_serves_hashed_asset_from_package_root() {
 ```
 
 This gate is necessary: existing prod host tests at `codex-rs/gui-host/src/host.rs:169-260` only exercise `/` and `/index.html`, but the spec requires prod serving from `$CODEX_GUI_PACKAGE_ROOT/dist/` which includes fingerprinted JS/CSS under `dist/assets/`.
+
+After the file exists, run the gate from `codex-rs`:
+
+```bash
+cargo test -p codex-gui-host --test prod_serves_hashed_asset
+```
+
+Expected: exit 0. Add this command to the Step 2 rerun if you re-verify the full suite, but the canonical gate for this gate is this step.
 
 - [ ] **Step 4: Run frontend tests**
 
@@ -324,7 +345,7 @@ Expected: commands exit 0. Do not rerun tests after `fix` or `fmt` unless the co
 - [ ] **Step 7: Commit verification updates**
 
 ```bash
-git add codex-rs/Cargo.lock codex-rs/MODULE.bazel.lock
+git add codex-rs/gui-host/tests/prod_serves_hashed_asset.rs codex-rs/Cargo.lock codex-rs/MODULE.bazel.lock
 git commit -m "chore(gui): update Rust locks for GUI host"
 ```
 
