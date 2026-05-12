@@ -166,8 +166,14 @@ Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
         let client = start_test_client(SessionSource::Cli).await;
         let sender = client.sender();
 
-        let first = sender.register_extra_connection();
-        let second = sender.register_extra_connection();
+        let first = sender
+            .register_extra_connection()
+            .await
+            .expect("register first extra connection");
+        let second = sender
+            .register_extra_connection()
+            .await
+            .expect("register second extra connection");
 
         assert_ne!(first.connection_id, IN_PROCESS_CONNECTION_ID);
         assert_ne!(second.connection_id, IN_PROCESS_CONNECTION_ID);
@@ -198,27 +204,64 @@ Add to `codex-rs/app-server/src/in_process.rs` inside `#[cfg(test)] mod tests`:
     // Defense-in-depth for the Drop path: even if the processor channel is
     // saturated when `Drop` runs, `ExtraConnectionClosed` must still be
     // delivered before the runtime shuts down. The Drop impl falls back to a
-    // detached async `send(...).await` when `try_send` returns Full; this test
-    // exercises that fallback by filling the channel via a blocking sender
-    // before dropping the handle.
+    // detached async `send(...).await` when `try_send` returns Full; this
+    // test exercises that fallback.
     #[tokio::test]
     async fn drop_under_backpressure_still_delivers_closed() {
-        // Intent: start a client whose processor channel headroom is
-        // bounded. Register an extra, then flood the processor channel with
-        // ExtraNotification sends so try_send from Drop sees Full. Drop the
-        // handle and verify (via a processor-side counter on extra_connections)
-        // that the connection eventually leaves the map. Timeout after 2s to
-        // avoid hangs if the fallback regresses.
-        //
-        // Implementation note: `start_test_client` exposes no explicit
-        // capacity knob today. A helper `start_test_client_with_channel_capacity`
-        // will land alongside this test so we can pin `channel_capacity` to a
-        // small value (e.g. 4) and reliably saturate it. If that helper is
-        // not feasible without deeper refactoring, hold this test at
-        // `#[ignore]` and file a follow-up; it is defense-in-depth, not the
-        // core Drop assertion.
-        // (See Task 2 Step 2 invariant note.)
+        // A tiny channel capacity makes `try_send` from Drop reliably hit
+        // Full: the processor task will be busy enough that the sender's
+        // queue fills before Drop fires. `start_test_client_with_channel_capacity`
+        // is a new test helper (Step 6b) that pins `channel_capacity` to
+        // this value without changing production defaults.
+        let client =
+            start_test_client_with_channel_capacity(SessionSource::Cli, 1).await;
+        let sender = client.sender();
+
+        // Register and send enough traffic to saturate the processor's
+        // client channel. We send N ExtraNotification frames via the
+        // handle's command sender while the processor is still parked on
+        // the first iteration; once the channel is saturated, Drop will
+        // observe `Full` on try_send.
+        let mut handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
+        let sender_for_flood = handle.command_sender.clone();
+        for _ in 0..64 {
+            // Don't unwrap: at some point try_send starts returning Full —
+            // that's exactly the saturation we want for the Drop path.
+            let _ = sender_for_flood.try_send_notification(JSONRPCNotification {
+                method: "initialized".into(),
+                params: None,
+            });
+        }
+
+        // Take a test probe that the processor increments each time it
+        // sees an ExtraConnectionClosed for this connection_id.
+        let closed_probe = client.extra_closed_probe(handle.connection_id);
+
+        // Dropping now must deliver ExtraConnectionClosed exactly once via
+        // the detached async fallback.
+        drop(handle);
+
+        // Give the runtime a generous but bounded budget to deliver Closed.
+        let observed = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            closed_probe.wait_for_close(),
+        )
+        .await
+        .expect("ExtraConnectionClosed did not arrive within 500ms");
+        assert_eq!(observed, 1, "ExtraConnectionClosed must fire exactly once");
+
+        client.shutdown().await.expect("shutdown");
     }
+
+    // `start_test_client_with_channel_capacity` and `extra_closed_probe`
+    // land alongside this test; they are not exposed in non-test builds.
+    // If adding the probe is infeasible without production-side changes
+    // beyond this plan, replace it with a direct observation through the
+    // test helper's recorded ProcessorCommand log and keep this test
+    // executable — do NOT regress to `#[ignore]`.
 ```
 
 Run:
@@ -306,7 +349,7 @@ impl Drop for ExtraConnectionHandle {
             connection_id: self.connection_id,
         };
         match self.command_sender.inner.try_send(close_msg) {
-            Ok(()) => 
+            Ok(()) => {}
             Err(mpsc::error::TrySendError::Full(msg)) => {
                 // Detached async retry. The processor task owns the other
                 // end of `inner`, so `send(...).await` completes once the
@@ -441,7 +484,10 @@ Add to `#[cfg(test)] mod tests` (reuse the existing test helpers):
     async fn extra_connection_request_reaches_message_processor() {
         let client = start_test_client(SessionSource::Cli).await;
         let sender = client.sender();
-        let mut handle = sender.register_extra_connection();
+        let mut handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
 
         handle
             .command_sender
@@ -473,7 +519,10 @@ Add to `#[cfg(test)] mod tests` (reuse the existing test helpers):
     async fn extra_connection_notification_is_accepted() {
         let client = start_test_client(SessionSource::Cli).await;
         let sender = client.sender();
-        let handle = sender.register_extra_connection();
+        let handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
 
         handle
             .command_sender
@@ -545,17 +594,38 @@ with:
         let (outbound_control_tx, mut outbound_control_rx) =
             mpsc::channel::<OutboundControl>(channel_capacity);
         let mut outbound_handle = tokio::spawn(async move {
+            // Starvation-safe scheduler. Before each envelope drain we make
+            // a bounded number of non-blocking attempts to drain control
+            // messages. This keeps envelope routing as the hot path (the
+            // single-source drain shape at
+            // `codex-rs/app-server/src/in_process.rs:401` is preserved)
+            // while guaranteeing that a saturated `outgoing_rx` — which a
+            // plain `biased; envelope; control;` select would let win every
+            // poll — can still service Register/Unregister quickly. Control
+            // handling is cheap (HashMap insert/remove).
+            const CONTROL_BURST: usize = 8;
             loop {
-                // `biased` keeps envelope routing at the head of the select
-                // so saturated control traffic (GUI connect/disconnect bursts
-                // registering/unregistering extras) cannot materially delay
-                // main-connection outgoing messages. Control handling is
-                // cheap (HashMap insert/remove); envelope handling is the
-                // hot path. This preserves the single-source drain shape
-                // present before this plan at
-                // `codex-rs/app-server/src/in_process.rs:401`.
+                // 1) Opportunistic control drain. `try_recv` never parks, so
+                //    an idle control channel is a few cheap atomics.
+                for _ in 0..CONTROL_BURST {
+                    match outbound_control_rx.try_recv() {
+                        Ok(control) => {
+                            handle_outbound_control(&mut outbound_connections, control);
+                        }
+                        Err(mpsc::error::TryRecvError::Empty) => break,
+                        Err(mpsc::error::TryRecvError::Disconnected) => {
+                            // Control channel closed implies the client
+                            // task exited; let the final envelope recv
+                            // observe the matching outgoing_rx close.
+                            break;
+                        }
+                    }
+                }
+                // 2) Fair select between the next envelope and the next
+                //    control message. No `biased;`: we rely on the bounded
+                //    drain above to keep control latency low without
+                //    skewing the outcome when both channels are ready.
                 tokio::select! {
-                    biased;
                     envelope = outgoing_rx.recv() => {
                         let Some(envelope) = envelope else { break };
                         route_outgoing_envelope(&mut outbound_connections, envelope).await;
@@ -590,6 +660,56 @@ with:
                 }
             }
         });
+```
+
+```rust
+fn handle_outbound_control(
+    outbound_connections: &mut HashMap<ConnectionId, OutboundConnectionState>,
+    control: OutboundControl,
+) {
+    match control {
+        OutboundControl::Register {
+            connection_id,
+            writer,
+            initialized,
+            experimental_api_enabled,
+            opted_out_notification_methods,
+            disconnect_sender,
+        } => {
+            outbound_connections.insert(
+                connection_id,
+                OutboundConnectionState::new(
+                    writer,
+                    initialized,
+                    experimental_api_enabled,
+                    opted_out_notification_methods,
+                    disconnect_sender,
+                ),
+            );
+        }
+        OutboundControl::Unregister { connection_id } => {
+            outbound_connections.remove(&connection_id);
+        }
+    }
+}
+```
+
+The inline `control = outbound_control_rx.recv()` match arm above should delegate to `handle_outbound_control` for the `Some(control)` case, keeping register/unregister logic in one place. The `None =>` arm still breaks the router loop.
+
+Regression test for this starvation-safe scheduler belongs in the same test module as `extra_connection_request_reaches_message_processor`:
+
+```rust
+#[tokio::test]
+async fn register_and_unregister_progress_under_sustained_outgoing_load() {
+    // Spin up the in-process runtime. Start a tight loop that keeps
+    // pushing main-connection outgoing envelopes into `outgoing_rx` at a
+    // rate meant to starve a naive `biased; envelope; control;` loop.
+    // While that load is live, register an extra connection and then
+    // drop it; assert that both ExtraConnectionOpened and
+    // ExtraConnectionClosed are observed within a bounded deadline
+    // (e.g. 500 ms). Without the bounded-drain scheduler this test
+    // deadlocks on register.
+}
 ```
 
 Add the control type next to `InProcessClientMessage`:
@@ -677,6 +797,7 @@ Inside the main `loop { tokio::select! { ... } }` arm `message = client_rx.recv(
                         Some(InProcessClientMessage::ExtraConnectionOpened {
                             connection_id,
                             outgoing_tx,
+                            disconnect_token,
                         }) => {
                             let (writer_tx, writer_rx) =
                                 mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
@@ -989,7 +1110,10 @@ Add to `#[cfg(test)] mod tests`:
     async fn dropping_extra_handle_triggers_connection_closed() {
         let client = start_test_client(SessionSource::Cli).await;
         let sender = client.sender();
-        let mut handle = sender.register_extra_connection();
+        let mut handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
         let connection_id = handle.connection_id;
 
         // Send a request so the connection is definitely registered and the

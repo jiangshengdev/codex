@@ -29,8 +29,10 @@ Prerequisite plan: `docs/superpowers/plans/2026-05-11-gui-host/06-in-process-gui
 - Modify: `codex-rs/app-server/Cargo.toml` — add `codex-gui-host = { workspace = true }`. No `async-trait` dependency is required; the `AppServerClientGuiExt` trait uses RPITIT.
 - Modify: `codex-rs/app-server/BUILD.bazel` — add `//gui-host:codex-gui-host` to deps if the file lists them explicitly.
 - Modify: `codex-rs/app-server/src/lib.rs` — declare `mod gui_host;` and `mod gui_transport;`.
-- Create: `codex-rs/app-server/src/gui_host.rs` — `GuiHostManager` + lazy-start + `launch_url_for_thread` + `shutdown`.
-- Create: `codex-rs/app-server/src/gui_transport.rs` — `GuiTransportBackend` implementing `codex_gui_host::GuiBackend`.
+- Create: `codex-rs/app-server/src/gui_host.rs` — `GuiHostManager` + lazy-start + `launch_url_for_thread` + `shutdown` + sync-safe `cancel_nonblocking` (uses a sync `StdMutex<Option<GuiHostHandleForCancel>>` holding a cloned shutdown sender so Drop can poke the host without awaiting).
+- Create: `codex-rs/app-server/src/gui_transport.rs` — `GuiTransportBackend` implementing `codex_gui_host::GuiBackend`; accepts a shared `CancellationToken` from the manager for fleet-wide cancel on `cancel_nonblocking`.
+- Modify: `codex-rs/gui-host/src/host.rs` — add `impl GuiHostHandle { pub fn shutdown_tx_clone(&self) -> tokio::sync::mpsc::Sender<()> { self.shutdown_tx.clone() } }`. This is a minimal surface expansion on top of plan 01 so `GuiHostManager::cancel_nonblocking` can fire `shutdown_tx.try_send(())` from a sync context. The body is one line; no state change.
+- Modify: `codex-rs/gui-host/BUILD.bazel` — no change if deps unchanged; if the file gates `pub fn`, ensure visibility.
 - Modify: `codex-rs/app-server-client/src/lib.rs` — `InProcessAppServerClient` carries `Arc<GuiHostManager>` (non-optional; the manager itself handles lazy start internally); implements `AppServerClientGuiExt` via the manager.
 - Tests: `codex-rs/app-server/src/gui_transport.rs` (inline `#[cfg(test)] mod tests`).
 - Tests: `codex-rs/app-server/src/gui_host.rs` (inline `#[cfg(test)] mod tests`).
@@ -158,21 +160,64 @@ use codex_gui_host::GuiHost;
 use codex_gui_host::GuiHostConfig;
 use codex_gui_host::GuiHostHandle;
 use codex_gui_host::GuiHostMode;
-use tokio::sync::Mutex;
+use std::sync::Mutex as StdMutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use tokio::sync::Mutex as AsyncMutex;
+use tokio_util::sync::CancellationToken;
 
 use crate::gui_transport::GuiTransportBackend;
 use crate::in_process::InProcessClientSender;
 
 pub struct GuiHostManager {
-    inner: Mutex<Option<GuiHostHandle>>,
+    // Async-acquired during `launch_url_for_thread` (lazy start; awaits GuiHost bind).
+    inner: AsyncMutex<Option<GuiHostHandle>>,
+    // Sync-accessible during `Drop` / panic paths (must never await).
+    handle_sync: StdMutex<Option<GuiHostHandleForCancel>>,
+    stopped: AtomicBool,
+    cancel_token: CancellationToken,
     sender: InProcessClientSender,
+}
+
+// Subset of GuiHostHandle that is safe to poke from a sync context: only the
+// shared CancellationToken / shutdown_tx clone, never the join handle (which
+// would need an awaited `shutdown(self)`). Plan 01 exposed `shutdown_tx:
+// mpsc::Sender<()>` and `server_task: JoinHandle<...>` on GuiHostHandle at
+// `codex-rs/gui-host/src/host.rs:22-26`. We clone the shutdown_tx here so
+// `cancel_nonblocking` can fire `try_send(())` without any await.
+struct GuiHostHandleForCancel {
+    shutdown_tx: tokio::sync::mpsc::Sender<()>,
 }
 
 impl GuiHostManager {
     pub fn new(sender: InProcessClientSender) -> Self {
         Self {
-            inner: Mutex::new(None),
+            inner: AsyncMutex::new(None),
+            handle_sync: StdMutex::new(None),
+            stopped: AtomicBool::new(false),
+            cancel_token: CancellationToken::new(),
             sender,
+        }
+    }
+
+    /// Synchronous, non-awaiting teardown trigger. Safe from `Drop`.
+    /// Idempotent.
+    pub fn cancel_nonblocking(&self) {
+        // Flip the stopped flag so `launch_url_for_thread` short-circuits
+        // with `Unsupported` afterwards, even on a racing call.
+        if self.stopped.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        // Wake every bridge task that is parked on `disconnect_token` or on
+        // the shared cancel_token.
+        self.cancel_token.cancel();
+        // Nudge the GUI host to unwind. `shutdown_tx` is a bounded
+        // `mpsc::Sender<()>` owned by the host task; if it's closed the
+        // task is already gone.
+        if let Ok(guard) = self.handle_sync.lock() {
+            if let Some(ref sync_handle) = *guard {
+                let _ = sync_handle.shutdown_tx.try_send(());
+            }
         }
     }
 
@@ -180,14 +225,27 @@ impl GuiHostManager {
         self: &Arc<Self>,
         primary_thread_id: &str,
     ) -> anyhow::Result<String> {
+        if self.stopped.load(Ordering::Acquire) {
+            anyhow::bail!("gui host manager is stopped");
+        }
         let mut guard = self.inner.lock().await;
         if guard.is_none() {
             let mode = GuiHostMode::default_for_profile()
                 .context("resolve GUI host mode")?;
-            let backend = GuiTransportBackend::new(self.sender.clone());
+            let backend = GuiTransportBackend::new(
+                self.sender.clone(),
+                self.cancel_token.child_token(),
+            );
             let handle = GuiHost::start(GuiHostConfig { mode }, backend)
                 .await
                 .context("start GuiHost")?;
+            // Stash a sync-safe clone of the host's shutdown sender so
+            // `cancel_nonblocking` can fire without awaiting.
+            if let Ok(mut sync_guard) = self.handle_sync.lock() {
+                *sync_guard = Some(GuiHostHandleForCancel {
+                    shutdown_tx: handle.shutdown_tx_clone(),
+                });
+            }
             *guard = Some(handle);
         }
         let handle = guard.as_ref().expect("GuiHostHandle just ensured");
@@ -385,11 +443,20 @@ use tokio::sync::mpsc;
 #[derive(Clone)]
 pub struct GuiTransportBackend {
     sender: InProcessClientSender,
+    // Cancel token shared with `GuiHostManager::cancel_nonblocking` so every
+    // bridge task wakes immediately on a sync-path shutdown (e.g. panic
+    // unwind during Drop). Still per-connection cancel is handled by the
+    // `disconnect_token` wired through `ExtraConnectionHandle`; this token is
+    // additive.
+    manager_cancel: tokio_util::sync::CancellationToken,
 }
 
 impl GuiTransportBackend {
-    pub fn new(sender: InProcessClientSender) -> Self {
-        Self { sender }
+    pub fn new(
+        sender: InProcessClientSender,
+        manager_cancel: tokio_util::sync::CancellationToken,
+    ) -> Self {
+        Self { sender, manager_cancel }
     }
 }
 
@@ -450,7 +517,12 @@ impl GuiBackend for GuiTransportBackend {
             // `ExtraConnectionHandle` implements `Drop`, so we cannot move
             // fields out by destructuring — clone/borrow instead and keep
             // `handle` alive until both pumps stop.
-            let mut handle = sender.register_extra_connection();
+            let mut handle = sender
+                .register_extra_connection()
+                .await
+                .map_err(|err| anyhow::anyhow!(
+                    "register_extra_connection: in-process runtime closed: {err}"
+                ))?;
             let command_sender = handle.command_sender.clone();
             let disconnect_token = handle.disconnect_token.clone();
             let outgoing_tx_for_parse = handle.outgoing_tx.clone();
@@ -782,11 +854,17 @@ In `codex-rs/app-server-client/src/lib.rs` tests (or a new sibling test module),
 async fn shutdown_drops_gui_host_manager_before_worker() {
     use codex_app_server::gui_host::test_probe;
     let client = InProcessAppServerClient::start_for_test_with_gui().await;
-    let probe = test_probe(&client); // returns Arc<AtomicU64> stamped when manager.shutdown() is entered
+    // `probe.snapshot()` returns (manager_entered_at_ns, worker_exited_at_ns).
+    // Both are monotonic nanosecond stamps from the same Instant epoch.
+    let probe = test_probe(&client);
     client.shutdown().await.expect("shutdown should complete");
     let (manager_stamp, worker_stamp) = probe.snapshot();
     assert!(manager_stamp > 0, "manager shutdown did not run");
-    assert!(manager_stamp <= worker_stamp, "manager must shut down at or before worker exit");
+    assert!(worker_stamp > 0, "worker shutdown did not run");
+    // Strict inequality: spec requires the manager to have started (and
+    // finished) its shutdown before the worker is awaited to completion,
+    // not merely on-or-after. Use '<' instead of '<='.
+    assert!(manager_stamp < worker_stamp, "manager must shut down strictly before worker exit (got manager={manager_stamp}, worker={worker_stamp})");
 }
 ```
 
@@ -851,7 +929,7 @@ Append to `#[cfg(test)] mod tests` in `codex-rs/app-server/src/gui_transport.rs`
             .await
             .expect("runtime start");
         let sender = handle.sender();
-        let backend = GuiTransportBackend::new(sender);
+        let backend = GuiTransportBackend::new(sender, tokio_util::sync::CancellationToken::new());
 
         let (connection, inbound_tx, mut outbound_rx) =
             AuthenticatedGuiConnection::new();

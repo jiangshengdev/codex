@@ -59,6 +59,7 @@ class MemoryStorage {
 
 class RecordingWebSocket {
   sent: string[] = [];
+  closed: Array<{ code?: number; reason?: string }> = [];
   onerror: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   onopen: (() => void) | null = null;
@@ -66,6 +67,10 @@ class RecordingWebSocket {
 
   send(message: string): void {
     this.sent.push(message);
+  }
+
+  close(code?: number, reason?: string): void {
+    this.closed.push({ code, reason });
   }
 }
 
@@ -170,6 +175,10 @@ describe("guiHostClient", () => {
       "initialize",
     ]);
     expect(statuses.at(-1)?.label).toBe("error");
+    // Must also close the socket on protocol error so the backend bridge
+    // can release its extra connection.
+    expect(socket.closed).toHaveLength(1);
+    expect(socket.closed[0].code).toBe(1000);
   });
 
   it("reports policy-close as error", () => {
@@ -215,6 +224,7 @@ export type GuiHostStatus =
   | { label: "initialized"; eventCount: number; lastEventType: null }
   | { label: "attached"; eventCount: number; lastEventType: null }
   | { label: "received event"; eventCount: number; lastEventType: string }
+  | { label: "closed"; eventCount: number; lastEventType: null }
   | { label: "error"; eventCount: number; lastEventType: null; message: string };
 
 export type LaunchParams = {
@@ -321,6 +331,14 @@ export function startGuiHostConnection({
         lastEventType: null,
         message: `JSON-RPC error (id=${message.id ?? "-"}, code=${message.error.code}): ${message.error.message ?? ""}`.trim(),
       });
+      // Once the handshake has surfaced a protocol error we should not keep
+      // the socket open silently; close cleanly so the backend's bridge
+      // exits the pump pair and the GUI host releases its ExtraConnectionHandle.
+      try {
+        socket.close(1000, "handshake error");
+      } catch {
+        // ignore: some browsers throw if the socket is already closing.
+      }
       return;
     }
     if (message.id === 1 && message.result?.authenticated === true) {

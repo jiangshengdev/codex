@@ -4,7 +4,7 @@
 
 **Goal:** Package GUI dist for prod mode and run final verification for the GUI host projection transport MVP.
 
-**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, dependency boundary checks, and lockfile checks. Verification follows the方案 B ownership split: app-server owns GUI host lifecycle and routes GUI JSON-RPC traffic through its own in-process extra-connection machinery (no new `TransportEvent` producer); TUI requests only an app-server-client launch URL and never starts `GuiHost` directly. Prod static caching (HTML no-cache vs. fingerprinted-asset immutable cache) is **out of scope** for this MVP plan — it is explicitly deferred; see Task 11 Step 5. The reserved `ConnectionOrigin::GuiHost` variant is likewise out of MVP acceptance scope per spec §JSON-RPC Allowlist; we keep it compiling but do not gate release on a distinct-variant regression test.
+**Architecture:** This plan owns package root wiring, Vite config, final Rust/frontend verification, dependency boundary checks, and lockfile checks. Verification follows the方案 B ownership split: app-server owns GUI host lifecycle and routes GUI JSON-RPC traffic through its own in-process extra-connection machinery (no new `TransportEvent` producer); TUI requests only an app-server-client launch URL and never starts `GuiHost` directly. Prod static caching (HTML no-cache vs. fingerprinted-asset immutable cache) is **out of scope** for this MVP plan — it is explicitly deferred; see Task 11 Step 5. The reserved `ConnectionOrigin::GuiHost` variant is likewise out of MVP acceptance scope per spec §Bridge shape (transport-origin policy); we keep it compiling but do not gate release on a distinct-variant regression test.
 
 **Tech Stack:** Node CLI wrapper, Python packaging script, Vite build, Rust verification, Playwright.
 
@@ -135,11 +135,18 @@ Run from repo root:
 
 ```bash
 rm -rf /tmp/codex-gui-stage
+# --vendor-src must point at a staging layout that already contains the per-
+# platform subdirectory the packager expects (see
+# `codex-cli/scripts/build_npm_package.py::copy_native_binaries`). For a
+# local smoke run you can stand one up with:
+#   mkdir -p /tmp/codex-gui-vendor/codex-darwin-arm64/bin
+#   cp target/release/codex /tmp/codex-gui-vendor/codex-darwin-arm64/bin/
+# Or point --vendor-src at the CI `codex-native-sources` artifact.
 python3 codex-cli/scripts/build_npm_package.py \
   --package codex-darwin-arm64 \
   --version 0.0.0-test \
   --staging-dir /tmp/codex-gui-stage \
-  --vendor-src <vendor-source-that-exists>
+  --vendor-src /tmp/codex-gui-vendor
 test -f /tmp/codex-gui-stage/vendor/codex-gui/dist/index.html
 ```
 
@@ -207,7 +214,7 @@ cargo test -p codex-app-server-client -- gui_launch_error_variants_are_distinct
 cargo test -p codex-app-server-client -- gui_launch_url_returns_real_url_for_in_process
 # Invariants.
 cargo test -p codex-app-server -- in_process_start_initializes_and_handles_typed_v2_request
-# Non-gating sanity: ConnectionOrigin::GuiHost is reserved for future work (spec §JSON-RPC Allowlist).
+# Non-gating sanity: ConnectionOrigin::GuiHost is reserved for future work (spec §Bridge shape).
 # Running this test guards against accidental removal but a failure here alone does not block the MVP.
 cargo test -p codex-app-server-transport -- connection_origin_has_distinct_gui_host_variant || echo "NOTE: reserved-variant sanity check failed; treat as follow-up, not an MVP blocker"
 # TUI /gui focused tests.
@@ -236,25 +243,44 @@ The grep uses `\bcodex_app_server::` to allow `codex_app_server_client::` (which
 
 - [ ] **Step 3b: End-to-end in-process launch check (manual)**
 
-Start a real TUI session:
+Start a real TUI session (the user-facing `codex` bin lives in `codex-cli`, not `codex-tui`; use `codex-tui`'s own bin for this direct path check):
 
 ```bash
 cd codex-rs
-cargo run -p codex-tui --bin codex
+cargo run -p codex-tui --bin codex-tui
 ```
 
 In the TUI, run `/gui`. Expected transcript output matches the pattern:
 
 ```text
-http://127.0.0.1:<port>/?threadId=<thread-id>#token=<64-hex>
+http://127.0.0.1:<port>/?threadId=<thread-id>#token=<url-safe-base64-no-pad>
 ```
 
 Open that URL in a local browser. Expected behavior:
 - The GUI host serves HTTP 200 at `/`.
 - The WebSocket at `/ws` completes `gui/authenticate -> initialize -> thread/projection/attach` without errors (check browser devtools WebSocket frames).
 - At least one `thread/projection/event` frame arrives after attach.
+- Fetch a hashed asset directly to prove the prod static tree is wired, not only the root index:
+  - Identify any fingerprinted asset produced by Vite under `codex-gui/dist/assets/` (for example `assets/index-abc123.js`).
+  - Open `http://127.0.0.1:<port>/assets/<that-file>` and confirm HTTP 200 with the expected body length (>0). No cache-header assertion; see Step 5.
 
-This manual check corroborates the Rust unit/integration tests above and proves the default in-process path is end-to-end functional.
+This manual check corroborates the Rust unit/integration tests above and proves the default in-process path is end-to-end functional for both HTML and hashed assets.
+
+- [ ] **Step 3c: Automated prod hashed-asset gate**
+
+Add to `codex-rs/gui-host/tests/`:
+
+```rust
+#[tokio::test]
+async fn prod_serves_hashed_asset_from_package_root() {
+    // Stand up a GuiHost in prod mode pointed at a fixture that mirrors the
+    // Vite output: `dist/index.html` plus `dist/assets/index-<hash>.js`.
+    // GET /assets/index-<hash>.js and assert status=200, non-empty body.
+    // Do NOT assert cache headers (cache policy is out of MVP acceptance).
+}
+```
+
+This gate is necessary: existing prod host tests at `codex-rs/gui-host/src/host.rs:169-260` only exercise `/` and `/index.html`, but the spec requires prod serving from `$CODEX_GUI_PACKAGE_ROOT/dist/` which includes fingerprinted JS/CSS under `dist/assets/`.
 
 - [ ] **Step 4: Run frontend tests**
 
@@ -314,7 +340,7 @@ git commit -m "chore(gui): update Rust locks for GUI host"
 - `codex-app-server` `gui_transport` tests pass (including `backend_round_trips_initialize`).
 - `codex-app-server` `gui_host` tests pass.
 - `codex-app-server-client` `gui_launch_error_variants_are_distinct` and `gui_launch_url_returns_real_url_for_in_process` pass.
-- `codex-app-server-transport` `connection_origin_has_distinct_gui_host_variant` is run as a non-gating sanity check only (reserved variant; spec §JSON-RPC Allowlist marks `GuiHost` out of MVP acceptance).
+- `codex-app-server-transport` `connection_origin_has_distinct_gui_host_variant` is run as a non-gating sanity check only (reserved variant; spec §Bridge shape marks `GuiHost` out of MVP acceptance).
 - `codex-app-server` `in_process_start_initializes_and_handles_typed_v2_request` still passes (main TUI connection invariant).
 - `codex-tui` `/gui` tests prove launch URL request/display behavior, not direct host ownership.
 - The manual in-process e2e check (Step 3b) produces a real `http://127.0.0.1:<port>/?threadId=...#token=...` URL; the browser reaches the GUI host and completes `gui/authenticate -> initialize -> thread/projection/attach -> thread/projection/event` (at least one real event notification).

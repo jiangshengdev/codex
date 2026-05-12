@@ -381,6 +381,61 @@ mod tests {
 
 `launch_result_message` 是刻意保留的小型 presentation boundary：这样 TUI messaging 可以用纯 unit test 覆盖，而不需要在 `codex-tui` 测试里启动 app-server。不要把 `GuiLaunchUrl` 存到 `App`；每次 `/gui` 都重新向 app-server-client 请求当前 launch URL。
 
+- [ ] **Step 4b: `open_gui` dispatch 行为测试**
+
+spec §`/gui` 入口（spec §548-555）要求：`/gui` 在没有 primary thread 时给出"未就绪"提示；在存在 primary thread 时请求 launch URL 并把 URL 写回 transcript。纯 `launch_result_message` presentation 测试不覆盖 `App::open_gui` 的两个分支选择、对 `self.primary_thread_id` 的读取、以及对 `AppServerSession::gui_launch_url(thread_id)` 的调用。加两个 focused behavioral 测试，把 `open_gui` 行为约束锁死；session 用最小 trait 或 enum 变体做 stub，不在这里引入任何 GUI host/backend handle ownership。
+
+在 `codex-rs/tui/src/app/gui.rs` 同一 `#[cfg(test)] mod tests` 中新增（使用下面的 stub 形态，该 stub 不依赖真实 `AppServerSession`）：
+
+```rust
+    struct StubGuiLauncher {
+        calls: std::sync::Mutex<Vec<String>>,
+        response: Result<GuiLaunchUrl, GuiLaunchError>,
+    }
+
+    impl StubGuiLauncher {
+        fn ok(url: &str) -> Self {
+            Self {
+                calls: std::sync::Mutex::new(Vec::new()),
+                response: Ok(GuiLaunchUrl { url: url.to_string() }),
+            }
+        }
+    }
+
+    async fn run_open_gui_with_stub(
+        primary_thread_id: Option<ThreadId>,
+        launcher: &StubGuiLauncher,
+    ) -> Vec<TranscriptEntry> {
+        // The helper constructs the minimal chat widget state the real
+        // `open_gui` touches, calls the extracted `open_gui_inner`, and
+        // returns the transcript entries that were appended. The extraction
+        // is a one-liner shim around the production body in
+        // `App::open_gui` (Step 3 above) so the production code path is
+        // still what the test exercises.
+        unimplemented!("implemented alongside extracting open_gui_inner")
+    }
+
+    #[tokio::test]
+    async fn open_gui_without_primary_thread_shows_not_ready_info() {
+        let launcher = StubGuiLauncher::ok("unused");
+        let transcript = run_open_gui_with_stub(None, &launcher).await;
+        assert_eq!(launcher.calls.lock().unwrap().len(), 0, "must not call launcher without a primary thread");
+        assert!(transcript.iter().any(|e| matches!(e, TranscriptEntry::Info(msg) if msg == "Current session is not ready to open GUI.")));
+    }
+
+    #[tokio::test]
+    async fn open_gui_with_primary_thread_calls_launcher_and_renders_url() {
+        let launcher = StubGuiLauncher::ok("http://127.0.0.1:4321/?threadId=t#token=secret");
+        let transcript = run_open_gui_with_stub(Some(ThreadId::from("t")), &launcher).await;
+        let calls = launcher.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0], "t", "launcher must be called with the primary thread id");
+        assert!(transcript.iter().any(|e| matches!(e, TranscriptEntry::Info(msg) if msg.contains("http://127.0.0.1:4321"))));
+    }
+```
+
+Step 3 要同时抽一个 `async fn open_gui_inner<L: GuiLauncher>(state: ..., launcher: &L) -> ...`，其中 `GuiLauncher` trait 只暴露 `async fn gui_launch_url(&self, &str) -> Result<GuiLaunchUrl, GuiLaunchError>`。`App::open_gui` 实现就是三行 wrapper 调用 `open_gui_inner(..., self.app_server)`（真实 `AppServerSession` 直接 impl 这个 trait；stub 也 impl）。这样既能测 dispatch，又不让 `App` 取得任何 GUI host ownership。
+
 - [ ] **Step 5: 声明 module**
 
 在 `codex-rs/tui/src/app.rs` 的其他 `mod` 附近添加：
@@ -490,6 +545,7 @@ git commit -m "chore(tui): format GUI launch entry"
 - `/gui` 在 active side conversation 下仍可 dispatch（`available_in_side_conversation` 返回 `true`），触发后仍请求 primary thread 的 launch URL。
 - `/gui` 发出 `AppEvent::OpenGui`。
 - `AppEvent::OpenGui` 使用 primary thread ID 向 `AppServerSession` 请求 launch URL。
+- `app/gui.rs` 的 `open_gui_inner` 有 focused behavioral tests 覆盖无 primary / 有 primary 两条路径，通过 `GuiLauncher` trait stub 实现，不在 `codex-tui` 里启动真实 app-server。
 - 如果没有 primary thread，TUI 打印：`Current session is not ready to open GUI.`
 - 在默认的 in-process 会话（CLI TUI 路径）下，`gui_launch_url` 返回真实本机 URL（不是 `Unsupported`），TUI 打印该 URL。
 - 在 remote 会话下 (`AppServerClient::Remote`)，`gui_launch_url` 返回 `GuiLaunchError::Unsupported`，TUI 打印：`GUI is not available for this app-server session yet.`
