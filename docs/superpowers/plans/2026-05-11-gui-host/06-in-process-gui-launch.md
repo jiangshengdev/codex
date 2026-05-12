@@ -28,7 +28,7 @@ Roadmap: `docs/superpowers/plans/2026-05-11-gui-host/00-roadmap.md`.
 - Modify: `codex-rs/app-server/src/in_process.rs`
   - Add `ProcessorCommand::ExtraConnectionOpened`, `ExtraRequest`, `ExtraNotification`, `ExtraConnectionClosed`.
   - Add `ExtraConnectionHandle` with `Drop` best-effort `try_send(ExtraConnectionClosed)`.
-  - Add `InProcessClientSender::register_extra_connection(&self) -> ExtraConnectionHandle`.
+  - Add `InProcessClientSender::register_extra_connection(&self) -> IoResult<ExtraConnectionHandle>` (async; fail-visible — returns `ErrorKind::BrokenPipe` if the runtime task is gone instead of handing back a half-registered handle).
   - Add `extra_connections: HashMap<ConnectionId, ExtraConnectionEntry>` in the processor task (each entry owns the connection's `ConnectionSessionState` plus clones of the outbound gating Arcs shared with the router).
   - Extend processor `match ProcessorCommand` loop with four new arms.
   - Generalize `thread_created_rx` dispatch list to include initialized extra connections.
@@ -315,6 +315,21 @@ impl ExtraConnectionCommandSender {
     }
 
     pub fn send_notification(
+        &self,
+        notification: codex_app_server_protocol::JSONRPCNotification,
+    ) -> IoResult<()> {
+        self.try_send(InProcessClientMessage::ExtraNotification {
+            connection_id: self.connection_id,
+            notification,
+        })
+    }
+
+    /// Non-blocking variant used by tests that want to observe saturation.
+    /// Returns `ErrorKind::WouldBlock` without logging when the queue is
+    /// full, so tests can flood the channel to force the Drop path's
+    /// `Full` branch (`drop_under_backpressure_still_delivers_closed`).
+    /// Not used by production callers.
+    pub fn try_send_notification(
         &self,
         notification: codex_app_server_protocol::JSONRPCNotification,
     ) -> IoResult<()> {
@@ -701,14 +716,62 @@ Regression test for this starvation-safe scheduler belongs in the same test modu
 ```rust
 #[tokio::test]
 async fn register_and_unregister_progress_under_sustained_outgoing_load() {
-    // Spin up the in-process runtime. Start a tight loop that keeps
-    // pushing main-connection outgoing envelopes into `outgoing_rx` at a
-    // rate meant to starve a naive `biased; envelope; control;` loop.
-    // While that load is live, register an extra connection and then
-    // drop it; assert that both ExtraConnectionOpened and
-    // ExtraConnectionClosed are observed within a bounded deadline
-    // (e.g. 500 ms). Without the bounded-drain scheduler this test
-    // deadlocks on register.
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    // Spin up the in-process runtime and register the main connection the
+    // same way the standard test client does.
+    let client = start_test_client(SessionSource::Cli).await;
+    let main_sender = client.sender();
+
+    // Sustained load on the main connection's outgoing path. Any notification
+    // method accepted by the raw notification path works; `Initialized` is
+    // intentionally cheap and is a unit variant in the protocol. The loop
+    // exits when `stop_flag` flips.
+    //
+    // `InProcessClientSender::notify` is `pub fn notify(..) -> IoResult<()>`
+    // (sync) — see `codex-rs/app-server/src/in_process.rs:211` — so there is
+    // no `.await` here. An explicit `tokio::task::yield_now().await` gives
+    // the runtime a chance to schedule the router and processor tasks when
+    // the flood task is otherwise tight-looped.
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let flood_flag = Arc::clone(&stop_flag);
+    let flood_sender = main_sender.clone();
+    let flood_task = tokio::spawn(async move {
+        while !flood_flag.load(Ordering::Acquire) {
+            // Ignore backpressure; tight loop so `outgoing_rx` stays hot.
+            let _ = flood_sender.notify(ClientNotification::Initialized);
+            tokio::task::yield_now().await;
+        }
+    });
+
+    // While the flood is live, a naive `biased; envelope; control;` router
+    // would never serve register/unregister. The starvation-safe scheduler
+    // must deliver Opened + Closed within a bounded window.
+    let extra = timeout(Duration::from_millis(500), main_sender.register_extra_connection())
+        .await
+        .expect("register_extra_connection must complete under outgoing load within 500ms")
+        .expect("register_extra_connection must succeed (runtime not torn down)");
+    let connection_id = extra.connection_id;
+    // Drop inside the flood; Drop's fast path try_send goes onto the same
+    // processor channel, so the scheduler must still make progress.
+    drop(extra);
+
+    // The connection-id probe mirrors the one used by
+    // `drop_under_backpressure_still_delivers_closed`: it increments when the
+    // processor observes the matching ExtraConnectionClosed.
+    let closed_probe = client.extra_closed_probe(connection_id);
+    let observed = timeout(Duration::from_millis(500), closed_probe.wait_for_close())
+        .await
+        .expect("ExtraConnectionClosed must arrive within 500ms under load");
+    assert_eq!(observed, 1, "ExtraConnectionClosed must fire exactly once");
+
+    stop_flag.store(true, Ordering::Release);
+    flood_task.await.expect("flood task joins cleanly");
+    client.shutdown().await.expect("shutdown");
 }
 ```
 
