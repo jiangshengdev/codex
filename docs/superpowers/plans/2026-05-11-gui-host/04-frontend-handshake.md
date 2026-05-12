@@ -181,6 +181,40 @@ describe("guiHostClient", () => {
     expect(socket.closed[0].code).toBe(1000);
   });
 
+  it("keeps terminal error state even after clean close fires afterwards", () => {
+    // B1 regression: our own protocol-error path calls socket.close(1000, "handshake error").
+    // Browsers then fire `socket.onclose({ code: 1000 })`. Without a terminal
+    // error sentinel, that onclose would overwrite the 'error' status with
+    // 'closed'. Verify status is sticky once an error has been reported.
+    const socket = new RecordingWebSocket();
+    const statuses: string[] = [];
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState: vi.fn(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: (status) => statuses.push(status.label),
+    });
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+    });
+    // Protocol error on initialize → status becomes 'error' AND socket.close(1000)
+    // is invoked by the client.
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        error: { code: -32601, message: "method not found" },
+      }),
+    });
+    expect(socket.closed).toHaveLength(1);
+    expect(socket.closed[0].code).toBe(1000);
+    // Browser now delivers the matching onclose. Must NOT demote 'error' to 'closed'.
+    socket.onclose?.({ code: 1000, reason: "handshake error" } as CloseEvent);
+    expect(statuses.at(-1)).toBe("error");
+  });
+
   it("reports policy-close as error", () => {
     const socket = new RecordingWebSocket();
     const statuses: string[] = [];
@@ -280,13 +314,28 @@ export function startGuiHostConnection({
   clearLaunchTokenFragment(location, replaceState);
   const socket = createWebSocket(`${webSocketProtocol(location)}://${location.host}/ws`);
   let eventCount = 0;
-  onStatus?.({ label: "connecting", eventCount, lastEventType: null });
+  // Terminal error sentinel. Once the client has surfaced an 'error' status
+  // (JSON-RPC error, policy-close, socket error), subsequent onclose events —
+  // including the one browsers fire after our own socket.close(1000) in the
+  // protocol-error path — must not demote the status to 'closed'. All emit
+  // sites funnel through `emit`, which enforces this invariant.
+  let terminalError = false;
+  const emit = (status: GuiHostStatus): void => {
+    if (terminalError && status.label !== "error") {
+      return;
+    }
+    if (status.label === "error") {
+      terminalError = true;
+    }
+    onStatus?.(status);
+  };
+  emit({ label: "connecting", eventCount, lastEventType: null });
 
   socket.onopen = () => {
     sendRequest(socket, 1, "gui/authenticate", { token });
   };
   socket.onerror = () => {
-    onStatus?.({
+    emit({
       label: "error",
       eventCount,
       lastEventType: null,
@@ -295,19 +344,18 @@ export function startGuiHostConnection({
   };
   socket.onclose = (ev) => {
     // Auth reject closes with policy violation (1008). Bridge-side shutdown
-    // or server abort also surfaces here. Only report an error if we have
-    // not yet reached 'attached' AND this is not a clean client-initiated
-    // close. If the caller never sets a custom close handler, any close is
-    // surfaced so the page does not silently stall.
+    // or server abort also surfaces here. A code=1000 close that arrives
+    // AFTER a terminal error (e.g. as the browser's echo of our own
+    // socket.close(1000, "handshake error")) is dropped by `emit` above.
     if (ev.code === 1000) {
-      onStatus?.({
+      emit({
         label: "closed",
         eventCount,
         lastEventType: null,
       });
       return;
     }
-    onStatus?.({
+    emit({
       label: "error",
       eventCount,
       lastEventType: null,
@@ -325,7 +373,7 @@ export function startGuiHostConnection({
       };
     };
     if (message.error) {
-      onStatus?.({
+      emit({
         label: "error",
         eventCount,
         lastEventType: null,
@@ -342,7 +390,7 @@ export function startGuiHostConnection({
       return;
     }
     if (message.id === 1 && message.result?.authenticated === true) {
-      onStatus?.({ label: "authenticated", eventCount, lastEventType: null });
+      emit({ label: "authenticated", eventCount, lastEventType: null });
       sendRequest(socket, 2, "initialize", {
         clientInfo: { name: "codex-gui", version: "0.0.0" },
         capabilities: {},
@@ -351,7 +399,7 @@ export function startGuiHostConnection({
     }
     if (message.id === 2) {
       if (!message.result) {
-        onStatus?.({
+        emit({
           label: "error",
           eventCount,
           lastEventType: null,
@@ -359,13 +407,13 @@ export function startGuiHostConnection({
         });
         return;
       }
-      onStatus?.({ label: "initialized", eventCount, lastEventType: null });
+      emit({ label: "initialized", eventCount, lastEventType: null });
       sendRequest(socket, 3, "thread/projection/attach", { threadId });
       return;
     }
     if (message.id === 3) {
       if (!message.result) {
-        onStatus?.({
+        emit({
           label: "error",
           eventCount,
           lastEventType: null,
@@ -373,12 +421,12 @@ export function startGuiHostConnection({
         });
         return;
       }
-      onStatus?.({ label: "attached", eventCount, lastEventType: null });
+      emit({ label: "attached", eventCount, lastEventType: null });
       return;
     }
     if (message.method === "thread/projection/event") {
       eventCount += 1;
-      onStatus?.({
+      emit({
         label: "received event",
         eventCount,
         lastEventType: message.params?.event?.type ?? "unknown",
@@ -412,7 +460,7 @@ function App() {
   const [status, setStatus] = useState<GuiHostStatus>({
     label: "connecting",
     eventCount: 0,
-    lastEventType: null as string | null,
+    lastEventType: null,
   });
   const hasStartedConnection = useRef(false);
 
@@ -468,7 +516,7 @@ Expected:
 
 ```text
 Test Files  1 passed (1)
-Tests  2 passed (2)
+Tests  5 passed (5)
 ```
 
 - [ ] **Step 5: Commit**
