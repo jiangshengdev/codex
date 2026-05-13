@@ -111,7 +111,7 @@ This is a baseline task only.
 - Modify: `codex-rs/app-server/src/in_process_extra.rs`
 - Test: `codex-rs/app-server/src/in_process_extra.rs`
 
-- [ ] **Step 1: Write the failing test for prepared open output**
+- [x] **Step 1: Write the failing test for prepared open output**
 
 Add this test inside `codex-rs/app-server/src/in_process_extra.rs` `#[cfg(test)] mod tests`:
 
@@ -161,7 +161,7 @@ Add this test inside `codex-rs/app-server/src/in_process_extra.rs` `#[cfg(test)]
     }
 ```
 
-- [ ] **Step 2: Run the focused test and confirm it fails**
+- [x] **Step 2: Run the focused test and confirm it fails**
 
 Run from `codex-rs`:
 
@@ -171,7 +171,7 @@ cargo test -p codex-app-server prepare_opened_connection_builds_register_and_pro
 
 Expected: FAIL with unresolved symbols such as `prepare_opened_connection`, `PreparedExtraConnectionOpen`, or `OpenedExtraConnection::connection_id`.
 
-- [ ] **Step 3: Add `PreparedExtraConnectionOpen` and `OpenedExtraConnection`**
+- [x] **Step 3: Add `PreparedExtraConnectionOpen` and `OpenedExtraConnection`**
 
 In `codex-rs/app-server/src/in_process_extra.rs`, add these types after `handle_outbound_control(...)` and before `spawn_extra_writer_bridge(...)`:
 
@@ -209,7 +209,7 @@ impl OpenedExtraConnection {
 
 The fields stay private. `connection_id()` and `for_test(...)` are test-only helpers so production code cannot start depending on the opened-state field list.
 
-- [ ] **Step 4: Add `prepare_opened_connection(...)`**
+- [x] **Step 4: Add `prepare_opened_connection(...)`**
 
 Add this function after `impl OpenedExtraConnection`:
 
@@ -250,7 +250,7 @@ pub(crate) fn prepare_opened_connection(
 
 `prepare_opened_connection(...)` must not send on runtime channels, must not access `MessageProcessor`, and must not access `outbound_connections`.
 
-- [ ] **Step 5: Run the focused test and confirm it passes**
+- [x] **Step 5: Run the focused test and confirm it passes**
 
 Run from `codex-rs`:
 
@@ -264,7 +264,7 @@ Expected:
 test in_process_extra::tests::prepare_opened_connection_builds_register_and_processor_open ... ok
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add codex-rs/app-server/src/in_process_extra.rs
