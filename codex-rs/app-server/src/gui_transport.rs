@@ -215,6 +215,13 @@ async fn pump_inbound(
                 let message = match serde_json::from_str::<JSONRPCMessage>(&text) {
                     Ok(message) => message,
                     Err(err) => {
+                        // Intentional: a single malformed frame terminates the
+                        // bridge. We write the standard parse-error envelope
+                        // back once so the browser sees exactly one response,
+                        // then break — any continuation would amplify a
+                        // broken or malicious producer that keeps sending
+                        // garbage. A healthy browser should reconnect rather
+                        // than recover mid-stream.
                         let payload = build_jsonrpc_parse_error(&err);
                         tokio::select! {
                             _ = disconnect_token.cancelled() => break,
@@ -229,6 +236,12 @@ async fn pump_inbound(
                     }
                 };
 
+                // Intentional: any enqueue failure terminates the bridge. We
+                // do not distinguish `WouldBlock` (processor queue saturated)
+                // from `BrokenPipe` (runtime closed) — both mean this
+                // connection cannot make forward progress right now, and the
+                // browser is better off observing a clean disconnect and
+                // reconnecting than seeing silently dropped requests.
                 match classify_inbound(message) {
                     InboundClassification::ForwardRequest(request) => {
                         command_sender.send_request(request)?;
