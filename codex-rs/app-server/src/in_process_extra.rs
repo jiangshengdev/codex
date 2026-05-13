@@ -499,10 +499,16 @@ mod tests {
             /*channel_capacity*/ 4,
         );
 
-        assert_eq!(prepared.connection_id, connection_id);
-        assert_eq!(prepared.processor_open.connection_id(), connection_id);
+        let PreparedExtraConnectionOpen {
+            connection_id: prepared_connection_id,
+            outbound_control,
+            processor_open,
+        } = prepared;
 
-        match prepared.outbound_control {
+        assert_eq!(prepared_connection_id, connection_id);
+        assert_eq!(processor_open.connection_id(), connection_id);
+
+        match outbound_control {
             OutboundControl::Register {
                 connection_id: registered_id,
                 writer,
@@ -512,6 +518,18 @@ mod tests {
                 disconnect_sender,
             } => {
                 assert_eq!(registered_id, connection_id);
+                assert!(Arc::ptr_eq(
+                    &initialized,
+                    &processor_open.outbound_initialized
+                ));
+                assert!(Arc::ptr_eq(
+                    &experimental_api_enabled,
+                    &processor_open.outbound_experimental_api_enabled,
+                ));
+                assert!(Arc::ptr_eq(
+                    &opted_out_notification_methods,
+                    &processor_open.outbound_opted_out_notification_methods,
+                ));
                 assert!(!initialized.load(Ordering::Acquire));
                 assert!(!experimental_api_enabled.load(Ordering::Acquire));
                 assert_eq!(
