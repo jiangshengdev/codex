@@ -279,7 +279,7 @@ git commit -m "refactor(app-server): prepare extra connection open state"
 - Test: `codex-rs/app-server/src/in_process.rs`
 - Test: `codex-rs/app-server/src/in_process_extra.rs`
 
-- [ ] **Step 1: Update the processor command shape test first**
+- [x] **Step 1: Update the processor command shape test first**
 
 Replace the body of `processor_command_has_extra_variants` in `codex-rs/app-server/src/in_process.rs` with:
 
@@ -298,7 +298,7 @@ Replace the body of `processor_command_has_extra_variants` in `codex-rs/app-serv
     }
 ```
 
-- [ ] **Step 2: Run the focused test and confirm it fails**
+- [x] **Step 2: Run the focused test and confirm it fails**
 
 Run from `codex-rs`:
 
@@ -308,7 +308,7 @@ cargo test -p codex-app-server processor_command_has_extra_variants
 
 Expected: FAIL because `ProcessorCommand::ExtraConnectionOpened` still uses the old struct variant shape.
 
-- [ ] **Step 3: Change `ProcessorCommand::ExtraConnectionOpened` to a single payload**
+- [x] **Step 3: Change `ProcessorCommand::ExtraConnectionOpened` to a single payload**
 
 In `codex-rs/app-server/src/in_process.rs`, replace the old enum variant:
 
@@ -353,7 +353,7 @@ with:
                             }
 ```
 
-- [ ] **Step 4: Change `ExtraConnectionState::register_opened(...)`**
+- [x] **Step 4: Change `ExtraConnectionState::register_opened(...)`**
 
 In `codex-rs/app-server/src/in_process_extra.rs`, replace:
 
@@ -400,7 +400,7 @@ with:
     }
 ```
 
-- [ ] **Step 5: Thin the `ExtraConnectionCommand::Opened` branch**
+- [x] **Step 5: Thin the `ExtraConnectionCommand::Opened` branch**
 
 In `codex-rs/app-server/src/in_process.rs`, replace the opened branch body:
 
@@ -489,7 +489,7 @@ with:
 
 Keep the send order exactly as shown: outbound registration first, processor registration second.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run from `codex-rs`:
 
@@ -500,7 +500,7 @@ cargo test -p codex-app-server prepare_opened_connection_builds_register_and_pro
 
 Expected: both tests pass.
 
-- [ ] **Step 7: Confirm `in_process.rs` no longer owns extra open field construction**
+- [x] **Step 7: Confirm `in_process.rs` no longer owns extra open field construction**
 
 Run from repo root:
 
@@ -511,7 +511,7 @@ rg -n "spawn_extra_writer_bridge|ExtraConnectionOpened \\{|mpsc::channel::<Queue
 
 Expected: no matches for the extra open branch. Matches from the main connection writer setup near `IN_PROCESS_CONNECTION_ID` are acceptable for `mpsc::channel::<QueuedOutgoingMessage>(channel_capacity)`, `AtomicBool`, and `RwLock<HashSet<String>>`; if those appear, inspect the lines and confirm they are only for the main connection.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add codex-rs/app-server/src/in_process.rs codex-rs/app-server/src/in_process_extra.rs
