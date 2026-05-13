@@ -68,6 +68,11 @@ pub struct ExtraConnectionHandle {
 pub struct ExtraConnectionCommandSender {
     inner: mpsc::Sender<crate::in_process::InProcessClientMessage>,
     connection_id: ConnectionId,
+    // Captured at registration time so the `Drop` fallback can spawn its
+    // async retry from any thread, including non-Tokio contexts where
+    // `tokio::spawn` would panic. `register_extra_connection` is an async
+    // fn so `Handle::try_current()` returns `Some` in the production path;
+    // the `None` arm is pure defense for future non-async construction.
     runtime_handle: Option<tokio::runtime::Handle>,
 }
 

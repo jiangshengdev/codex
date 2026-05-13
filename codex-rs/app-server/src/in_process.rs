@@ -469,6 +469,14 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     }
                 }
 
+                // Starvation-safe scheduler. The bounded `try_recv` drain
+                // above already keeps control latency low in the common case;
+                // `biased;` here is a belt-and-braces guard so a continuously
+                // saturated `outgoing_rx` cannot stall register/unregister for
+                // a full outbound envelope cycle. Control traffic fires only
+                // on extra connection open/close, so prioritising it over
+                // envelopes cannot meaningfully starve main-connection
+                // throughput.
                 tokio::select! {
                     biased;
                     control = outbound_control_rx.recv() => {
