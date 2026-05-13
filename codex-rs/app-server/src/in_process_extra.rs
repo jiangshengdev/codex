@@ -410,13 +410,14 @@ impl ExtraConnectionState {
         }
     }
 
-    pub(crate) fn register_opened(
-        &mut self,
-        connection_id: ConnectionId,
-        outbound_initialized: Arc<AtomicBool>,
-        outbound_experimental_api_enabled: Arc<AtomicBool>,
-        outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-    ) {
+    pub(crate) fn register_opened(&mut self, opened: OpenedExtraConnection) {
+        let OpenedExtraConnection {
+            connection_id,
+            outbound_initialized,
+            outbound_experimental_api_enabled,
+            outbound_opted_out_notification_methods,
+        } = opened;
+
         self.entries.insert(
             connection_id,
             ExtraConnectionEntry {

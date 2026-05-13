@@ -191,12 +191,7 @@ pub(crate) enum InProcessClientMessage {
 enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
-    ExtraConnectionOpened {
-        connection_id: ConnectionId,
-        outbound_initialized: Arc<AtomicBool>,
-        outbound_experimental_api_enabled: Arc<AtomicBool>,
-        outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-    },
+    ExtraConnectionOpened(crate::in_process_extra::OpenedExtraConnection),
     Extra(crate::in_process_extra::ExtraConnectionCommand),
 }
 
@@ -580,18 +575,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             Some(ProcessorCommand::Notification(notification)) => {
                                 processor.process_client_notification(notification).await;
                             }
-                            Some(ProcessorCommand::ExtraConnectionOpened {
-                                connection_id,
-                                outbound_initialized,
-                                outbound_experimental_api_enabled,
-                                outbound_opted_out_notification_methods,
-                            }) => {
-                                extra_connections.register_opened(
-                                    connection_id,
-                                    outbound_initialized,
-                                    outbound_experimental_api_enabled,
-                                    outbound_opted_out_notification_methods,
-                                );
+                            Some(ProcessorCommand::ExtraConnectionOpened(opened)) => {
+                                extra_connections.register_opened(opened);
                             }
                             Some(ProcessorCommand::Extra(command)) => {
                                 extra_connections
@@ -704,45 +689,26 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     // Runtime-abort path: if `SHUTDOWN_TIMEOUT` fires before all
                                     // close commands are drained, remaining extra connections are
                                     // torn down indirectly via the existing shutdown tail.
-                                    let (extra_writer_tx, extra_writer_rx) =
-                                        mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
-                                    crate::in_process_extra::spawn_extra_writer_bridge(
-                                        connection_id,
-                                        outgoing_tx,
-                                        extra_writer_rx,
-                                    );
-                                    let initialized = Arc::new(AtomicBool::new(false));
-                                    let experimental_api_enabled =
-                                        Arc::new(AtomicBool::new(false));
-                                    let opted_out_notification_methods =
-                                        Arc::new(RwLock::new(HashSet::new()));
-                                    if outbound_control_tx
-                                        .send(crate::in_process_extra::OutboundControl::Register {
+                                    let prepared =
+                                        crate::in_process_extra::prepare_opened_connection(
                                             connection_id,
-                                            writer: extra_writer_tx,
-                                            initialized: Arc::clone(&initialized),
-                                            experimental_api_enabled: Arc::clone(
-                                                &experimental_api_enabled,
-                                            ),
-                                            opted_out_notification_methods: Arc::clone(
-                                                &opted_out_notification_methods,
-                                            ),
-                                            disconnect_sender: Some(disconnect_token),
-                                        })
+                                            outgoing_tx,
+                                            disconnect_token,
+                                            channel_capacity,
+                                        );
+
+                                    if outbound_control_tx
+                                        .send(prepared.outbound_control)
                                         .await
                                         .is_err()
                                     {
                                         break;
                                     }
+
                                     if processor_tx
-                                        .send(ProcessorCommand::ExtraConnectionOpened {
-                                            connection_id,
-                                            outbound_initialized: initialized,
-                                            outbound_experimental_api_enabled:
-                                                experimental_api_enabled,
-                                            outbound_opted_out_notification_methods:
-                                                opted_out_notification_methods,
-                                        })
+                                        .send(ProcessorCommand::ExtraConnectionOpened(
+                                            prepared.processor_open,
+                                        ))
                                         .await
                                         .is_err()
                                     {
@@ -1032,12 +998,9 @@ mod tests {
     fn processor_command_has_extra_variants() {
         fn requires_send<T: Send>() {}
         requires_send::<ProcessorCommand>();
-        let _opened = ProcessorCommand::ExtraConnectionOpened {
-            connection_id: ConnectionId(7),
-            outbound_initialized: Arc::new(AtomicBool::new(false)),
-            outbound_experimental_api_enabled: Arc::new(AtomicBool::new(false)),
-            outbound_opted_out_notification_methods: Arc::new(RwLock::new(HashSet::new())),
-        };
+        let _opened = ProcessorCommand::ExtraConnectionOpened(
+            crate::in_process_extra::OpenedExtraConnection::for_test(ConnectionId(7)),
+        );
         let _closed =
             ProcessorCommand::Extra(crate::in_process_extra::ExtraConnectionCommand::Closed {
                 connection_id: ConnectionId(7),
