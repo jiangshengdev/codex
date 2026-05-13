@@ -188,7 +188,6 @@ pub(crate) fn handle_outbound_control(
 }
 
 pub(crate) struct PreparedExtraConnectionOpen {
-    pub(crate) connection_id: ConnectionId,
     pub(crate) outbound_control: OutboundControl,
     pub(crate) processor_open: OpenedExtraConnection,
 }
@@ -232,7 +231,6 @@ pub(crate) fn prepare_opened_connection(
     let opted_out_notification_methods = Arc::new(RwLock::new(HashSet::new()));
 
     PreparedExtraConnectionOpen {
-        connection_id,
         outbound_control: OutboundControl::Register {
             connection_id,
             writer: extra_writer_tx,
@@ -501,12 +499,10 @@ mod tests {
         );
 
         let PreparedExtraConnectionOpen {
-            connection_id: prepared_connection_id,
             outbound_control,
             processor_open,
         } = prepared;
 
-        assert_eq!(prepared_connection_id, connection_id);
         assert_eq!(processor_open.connection_id(), connection_id);
 
         match outbound_control {
