@@ -187,6 +187,69 @@ pub(crate) fn handle_outbound_control(
     }
 }
 
+pub(crate) struct PreparedExtraConnectionOpen {
+    pub(crate) connection_id: ConnectionId,
+    pub(crate) outbound_control: OutboundControl,
+    pub(crate) processor_open: OpenedExtraConnection,
+}
+
+pub(crate) struct OpenedExtraConnection {
+    connection_id: ConnectionId,
+    outbound_initialized: Arc<AtomicBool>,
+    outbound_experimental_api_enabled: Arc<AtomicBool>,
+    outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
+}
+
+impl OpenedExtraConnection {
+    #[cfg(test)]
+    pub(crate) fn connection_id(&self) -> ConnectionId {
+        self.connection_id
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_test(connection_id: ConnectionId) -> Self {
+        Self {
+            connection_id,
+            outbound_initialized: Arc::new(AtomicBool::new(false)),
+            outbound_experimental_api_enabled: Arc::new(AtomicBool::new(false)),
+            outbound_opted_out_notification_methods: Arc::new(RwLock::new(HashSet::new())),
+        }
+    }
+}
+
+pub(crate) fn prepare_opened_connection(
+    connection_id: ConnectionId,
+    outgoing_tx: mpsc::Sender<String>,
+    disconnect_token: CancellationToken,
+    channel_capacity: usize,
+) -> PreparedExtraConnectionOpen {
+    let (extra_writer_tx, extra_writer_rx) =
+        mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
+    spawn_extra_writer_bridge(connection_id, outgoing_tx, extra_writer_rx);
+
+    let initialized = Arc::new(AtomicBool::new(false));
+    let experimental_api_enabled = Arc::new(AtomicBool::new(false));
+    let opted_out_notification_methods = Arc::new(RwLock::new(HashSet::new()));
+
+    PreparedExtraConnectionOpen {
+        connection_id,
+        outbound_control: OutboundControl::Register {
+            connection_id,
+            writer: extra_writer_tx,
+            initialized: Arc::clone(&initialized),
+            experimental_api_enabled: Arc::clone(&experimental_api_enabled),
+            opted_out_notification_methods: Arc::clone(&opted_out_notification_methods),
+            disconnect_sender: Some(disconnect_token),
+        },
+        processor_open: OpenedExtraConnection {
+            connection_id,
+            outbound_initialized: initialized,
+            outbound_experimental_api_enabled: experimental_api_enabled,
+            outbound_opted_out_notification_methods: opted_out_notification_methods,
+        },
+    }
+}
+
 pub(crate) fn spawn_extra_writer_bridge(
     connection_id: ConnectionId,
     outgoing_tx: mpsc::Sender<String>,
@@ -420,6 +483,50 @@ mod tests {
                 assert_eq!(closed_id, connection_id);
             }
             _ => panic!("expected ExtraConnectionCommand::Closed"),
+        }
+    }
+
+    #[tokio::test]
+    async fn prepare_opened_connection_builds_register_and_processor_open() {
+        let connection_id = ConnectionId(41);
+        let (outgoing_tx, _outgoing_rx) = mpsc::channel(4);
+        let disconnect_token = CancellationToken::new();
+
+        let prepared = prepare_opened_connection(
+            connection_id,
+            outgoing_tx,
+            disconnect_token,
+            /*channel_capacity*/ 4,
+        );
+
+        assert_eq!(prepared.connection_id, connection_id);
+        assert_eq!(prepared.processor_open.connection_id(), connection_id);
+
+        match prepared.outbound_control {
+            OutboundControl::Register {
+                connection_id: registered_id,
+                writer,
+                initialized,
+                experimental_api_enabled,
+                opted_out_notification_methods,
+                disconnect_sender,
+            } => {
+                assert_eq!(registered_id, connection_id);
+                assert!(!initialized.load(Ordering::Acquire));
+                assert!(!experimental_api_enabled.load(Ordering::Acquire));
+                assert_eq!(
+                    opted_out_notification_methods
+                        .read()
+                        .expect("opted-out lock should not be poisoned")
+                        .len(),
+                    0
+                );
+                assert!(disconnect_sender.is_some());
+                drop(writer);
+            }
+            OutboundControl::Unregister { .. } => {
+                panic!("prepared open must register outbound state");
+            }
         }
     }
 
