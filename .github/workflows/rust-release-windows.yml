@@ -8,17 +8,17 @@ on:
         type: string
     secrets:
       AZURE_TRUSTED_SIGNING_CLIENT_ID:
-        required: true
+        required: false
       AZURE_TRUSTED_SIGNING_TENANT_ID:
-        required: true
+        required: false
       AZURE_TRUSTED_SIGNING_SUBSCRIPTION_ID:
-        required: true
+        required: false
       AZURE_TRUSTED_SIGNING_ENDPOINT:
-        required: true
+        required: false
       AZURE_TRUSTED_SIGNING_ACCOUNT_NAME:
-        required: true
+        required: false
       AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME:
-        required: true
+        required: false
 
 jobs:
   build-windows-binaries:
@@ -193,7 +193,32 @@ jobs:
             ls -lh "target/${{ matrix.target }}/release/${binary}.exe"
           done
 
+      - name: Check Windows signing credentials
+        id: windows_signing
+        shell: bash
+        env:
+          AZURE_TRUSTED_SIGNING_CLIENT_ID: ${{ secrets.AZURE_TRUSTED_SIGNING_CLIENT_ID }}
+          AZURE_TRUSTED_SIGNING_TENANT_ID: ${{ secrets.AZURE_TRUSTED_SIGNING_TENANT_ID }}
+          AZURE_TRUSTED_SIGNING_SUBSCRIPTION_ID: ${{ secrets.AZURE_TRUSTED_SIGNING_SUBSCRIPTION_ID }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${AZURE_TRUSTED_SIGNING_CLIENT_ID:-}" \
+            && -n "${AZURE_TRUSTED_SIGNING_TENANT_ID:-}" \
+            && -n "${AZURE_TRUSTED_SIGNING_SUBSCRIPTION_ID:-}" \
+            && -n "${AZURE_TRUSTED_SIGNING_ENDPOINT:-}" \
+            && -n "${AZURE_TRUSTED_SIGNING_ACCOUNT_NAME:-}" \
+            && -n "${AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME:-}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Windows signing credentials are incomplete; Windows artifacts will be unsigned."
+          fi
+
       - name: Sign Windows binaries with Azure Trusted Signing
+        if: ${{ steps.windows_signing.outputs.enabled == 'true' }}
         uses: ./.github/actions/windows-code-sign
         with:
           target: ${{ matrix.target }}
