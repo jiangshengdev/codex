@@ -230,6 +230,26 @@ describe("guiHostClient", () => {
     expect(statuses.at(-1)).toBe("error");
   });
 
+  it("keeps terminal error state when socket error is followed by clean close", () => {
+    const socket = new RecordingWebSocket();
+    const statuses: string[] = [];
+
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState: vi.fn(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: (status) => {
+        statuses.push(status.label);
+      },
+    });
+
+    socket.onerror?.();
+    socket.onclose?.({ code: 1000, reason: "" });
+
+    expect(statuses.at(-1)).toBe("error");
+  });
+
   it("reports malformed JSON-RPC messages as errors and closes cleanly", () => {
     const socket = new RecordingWebSocket();
     const statuses: { label: string; message?: string }[] = [];
