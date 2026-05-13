@@ -14,7 +14,6 @@ const require = createRequire(import.meta.url);
 
 const PLATFORM_PACKAGE_BY_TARGET = {
   "x86_64-unknown-linux-musl": "@jiangshengdev/codex-linux-x64",
-  "aarch64-unknown-linux-musl": "@jiangshengdev/codex-linux-arm64",
   "x86_64-apple-darwin": "@jiangshengdev/codex-darwin-x64",
   "aarch64-apple-darwin": "@jiangshengdev/codex-darwin-arm64",
   "x86_64-pc-windows-msvc": "@jiangshengdev/codex-win32-x64",

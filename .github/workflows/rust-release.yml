@@ -695,7 +695,6 @@ jobs:
           # package it aliases must already exist in the registry first.
           platform_tarballs=(
             "dist/npm/codex-npm-linux-x64-${VERSION}.tgz"
-            "dist/npm/codex-npm-linux-arm64-${VERSION}.tgz"
             "dist/npm/codex-npm-darwin-x64-${VERSION}.tgz"
             "dist/npm/codex-npm-darwin-arm64-${VERSION}.tgz"
             "dist/npm/codex-npm-win32-x64-${VERSION}.tgz"
