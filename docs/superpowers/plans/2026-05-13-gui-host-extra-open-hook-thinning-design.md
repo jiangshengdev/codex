@@ -525,7 +525,7 @@ git commit -m "refactor(app-server): thin extra connection open hook"
 - Verify: `codex-rs/app-server/src/in_process_extra.rs`
 - Verify: `codex-rs/app-server-client/src/gui.rs`
 
-- [ ] **Step 1: Run app-server extra connection tests**
+- [x] **Step 1: Run app-server extra connection tests**
 
 Run from `codex-rs`:
 
@@ -537,7 +537,7 @@ cargo test -p codex-app-server dropping_extra_handle_triggers_connection_closed
 
 Expected: all matching tests pass. These preserve request roundtrip, notification, close, and backpressure-related behavior around extra connections.
 
-- [ ] **Step 2: Run main in-process smoke test**
+- [x] **Step 2: Run main in-process smoke test**
 
 Run from `codex-rs`:
 
@@ -551,7 +551,7 @@ Expected:
 test tests::in_process_start_initializes_and_handles_typed_v2_request ... ok
 ```
 
-- [ ] **Step 3: Run GUI client launch/shutdown tests**
+- [x] **Step 3: Run GUI client launch/shutdown tests**
 
 Run from `codex-rs`:
 
@@ -562,7 +562,7 @@ cargo test -p codex-app-server-client shutdown_drops_gui_host_manager_before_wor
 
 Expected: both tests pass. This confirms the thinning did not change GUI launch URL behavior or shutdown ordering.
 
-- [ ] **Step 4: Run formatting and scoped lint fix**
+- [x] **Step 4: Run formatting and scoped lint fix**
 
 Run from `codex-rs`:
 
@@ -573,7 +573,7 @@ just fix -p codex-app-server
 
 Expected: both commands complete successfully. Per repo convention, do not rerun tests after `fmt` or `fix`; inspect any automatic changes before committing.
 
-- [ ] **Step 5: Run whitespace check**
+- [x] **Step 5: Run whitespace check**
 
 Run from repo root:
 
@@ -583,7 +583,7 @@ git diff --check
 
 Expected: no whitespace errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add codex-rs/app-server/src/in_process.rs codex-rs/app-server/src/in_process_extra.rs
