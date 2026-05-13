@@ -496,11 +496,15 @@ impl ShutdownOrderProbe {
     }
 }
 
-pub struct InProcessAppServerClient {
-    command_tx: Option<mpsc::Sender<ClientCommand>>,
-    event_rx: Option<mpsc::Receiver<InProcessServerEvent>>,
-    worker_handle: Option<tokio::task::JoinHandle<()>>,
+struct InProcessAppServerClientState {
+    command_tx: mpsc::Sender<ClientCommand>,
+    event_rx: mpsc::Receiver<InProcessServerEvent>,
+    worker_handle: tokio::task::JoinHandle<()>,
     gui_host_manager: Option<Arc<codex_app_server::gui_host::GuiHostManager>>,
+}
+
+pub struct InProcessAppServerClient {
+    state: Option<InProcessAppServerClientState>,
     #[cfg(test)]
     shutdown_order_probe: Option<ShutdownOrderProbe>,
 }
@@ -643,25 +647,39 @@ impl InProcessAppServerClient {
         });
 
         Ok(Self {
-            command_tx: Some(command_tx),
-            event_rx: Some(event_rx),
-            worker_handle: Some(worker_handle),
-            gui_host_manager: Some(gui_host_manager),
+            state: Some(InProcessAppServerClientState {
+                command_tx,
+                event_rx,
+                worker_handle,
+                gui_host_manager: Some(gui_host_manager),
+            }),
             #[cfg(test)]
             shutdown_order_probe: None,
         })
     }
 
-    fn command_tx(&self) -> &mpsc::Sender<ClientCommand> {
-        match self.command_tx.as_ref() {
-            Some(command_tx) => command_tx,
-            None => panic!("command_tx available until shutdown"),
+    fn state(&self) -> &InProcessAppServerClientState {
+        match self.state.as_ref() {
+            Some(state) => state,
+            None => panic!("in-process app-server client state is available until shutdown"),
         }
+    }
+
+    fn state_mut(&mut self) -> Option<&mut InProcessAppServerClientState> {
+        self.state.as_mut()
+    }
+
+    pub(crate) fn gui_host_manager(
+        &self,
+    ) -> Option<Arc<codex_app_server::gui_host::GuiHostManager>> {
+        self.state
+            .as_ref()
+            .and_then(|state| state.gui_host_manager.as_ref().map(Arc::clone))
     }
 
     pub fn request_handle(&self) -> InProcessAppServerRequestHandle {
         InProcessAppServerRequestHandle {
-            command_tx: self.command_tx().clone(),
+            command_tx: self.state().command_tx.clone(),
         }
     }
 
@@ -671,7 +689,8 @@ impl InProcessAppServerClient {
     /// [`request_typed`](Self::request_typed).
     pub async fn request(&self, request: ClientRequest) -> IoResult<RequestResult> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx()
+        self.state()
+            .command_tx
             .send(ClientCommand::Request {
                 request: Box::new(request),
                 response_tx,
@@ -720,7 +739,8 @@ impl InProcessAppServerClient {
     /// Sends a typed client notification.
     pub async fn notify(&self, notification: ClientNotification) -> IoResult<()> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx()
+        self.state()
+            .command_tx
             .send(ClientCommand::Notify {
                 notification,
                 response_tx,
@@ -750,7 +770,8 @@ impl InProcessAppServerClient {
         result: JsonRpcResult,
     ) -> IoResult<()> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx()
+        self.state()
+            .command_tx
             .send(ClientCommand::ResolveServerRequest {
                 request_id,
                 result,
@@ -778,7 +799,8 @@ impl InProcessAppServerClient {
         error: JSONRPCErrorError,
     ) -> IoResult<()> {
         let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx()
+        self.state()
+            .command_tx
             .send(ClientCommand::RejectServerRequest {
                 request_id,
                 error,
@@ -805,7 +827,7 @@ impl InProcessAppServerClient {
     /// the worker emits [`InProcessServerEvent::Lagged`] markers and may reject
     /// pending server requests rather than letting approval flows hang.
     pub async fn next_event(&mut self) -> Option<InProcessServerEvent> {
-        self.event_rx.as_mut()?.recv().await
+        self.state_mut()?.event_rx.recv().await
     }
 
     /// Shuts down worker and in-process runtime with bounded wait.
@@ -817,20 +839,22 @@ impl InProcessAppServerClient {
     }
 
     async fn shutdown_inner(&mut self) -> IoResult<()> {
-        if let Some(manager) = self.gui_host_manager.take() {
-            #[cfg(test)]
-            if let Some(probe) = &self.shutdown_order_probe {
-                probe.record_manager_shutdown_started();
-            }
-            manager.shutdown().await;
-        }
-
-        let Some(command_tx) = self.command_tx.take() else {
+        let Some(state) = self.state.take() else {
             return Ok(());
         };
-        let event_rx = self.event_rx.take();
-        let Some(mut worker_handle) = self.worker_handle.take() else {
-            return Ok(());
+        let InProcessAppServerClientState {
+            command_tx,
+            event_rx,
+            mut worker_handle,
+            gui_host_manager,
+        } = state;
+
+        #[cfg(test)]
+        if let Some(probe) = &self.shutdown_order_probe {
+            probe.record_manager_shutdown_started();
+        }
+        if let Some(gui_host_manager) = gui_host_manager {
+            gui_host_manager.shutdown().await;
         };
         // Drop the caller-facing receiver before asking the worker to shut
         // down. That unblocks any pending must-deliver `event_tx.send(..)`
@@ -866,35 +890,10 @@ impl InProcessAppServerClient {
 
 impl Drop for InProcessAppServerClient {
     fn drop(&mut self) {
-        if let Some(manager) = self.gui_host_manager.take() {
-            manager.cancel_nonblocking();
-        }
-    }
-}
-
-impl crate::gui::AppServerClientGuiExt for InProcessAppServerClient {
-    fn gui_launch_url(
-        &self,
-        primary_thread_id: &str,
-    ) -> impl std::future::Future<
-        Output = Result<crate::gui::GuiLaunchUrl, crate::gui::GuiLaunchError>,
-    > + Send {
-        let manager = self.gui_host_manager.as_ref().map(Arc::clone);
-        let thread_id = primary_thread_id.to_string();
-        async move {
-            let Some(manager) = manager else {
-                return Err(crate::gui::GuiLaunchError::Transport(std::io::Error::new(
-                    ErrorKind::BrokenPipe,
-                    "GUI host manager is unavailable after shutdown",
-                )));
-            };
-            manager
-                .launch_url_for_thread(&thread_id)
-                .await
-                .map(|url| crate::gui::GuiLaunchUrl { url })
-                .map_err(|err| {
-                    crate::gui::GuiLaunchError::Transport(std::io::Error::other(err.to_string()))
-                })
+        if let Some(state) = self.state.take()
+            && let Some(gui_host_manager) = state.gui_host_manager
+        {
+            gui_host_manager.cancel_nonblocking();
         }
     }
 }
@@ -1043,17 +1042,6 @@ pub(crate) fn request_method_name(request: &ClientRequest) -> String {
                 .map(ToOwned::to_owned)
         })
         .unwrap_or_else(|| "<unknown>".to_string())
-}
-
-impl crate::gui::AppServerClientGuiExt for crate::remote::RemoteAppServerClient {
-    fn gui_launch_url(
-        &self,
-        _primary_thread_id: &str,
-    ) -> impl std::future::Future<
-        Output = Result<crate::gui::GuiLaunchUrl, crate::gui::GuiLaunchError>,
-    > + Send {
-        std::future::ready(Err(crate::gui::GuiLaunchError::Unsupported))
-    }
 }
 
 #[cfg(test)]
@@ -2156,10 +2144,12 @@ mod tests {
         drop(event_tx);
 
         let mut client = InProcessAppServerClient {
-            command_tx: Some(command_tx),
-            event_rx: Some(event_rx),
-            worker_handle: Some(worker_handle),
-            gui_host_manager: None,
+            state: Some(InProcessAppServerClientState {
+                command_tx,
+                event_rx,
+                worker_handle,
+                gui_host_manager: None,
+            }),
             shutdown_order_probe: None,
         };
 

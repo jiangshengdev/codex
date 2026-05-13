@@ -1,14 +1,8 @@
 //! GUI launch URL extension for the app-server client facade.
 //!
-//! Plan 06 lands the trait, the public types, and the remote implementation
-//! (which returns [`GuiLaunchError::Unsupported`] because GUI launch across a
-//! remote app-server process is out of MVP scope).
-//!
-//! The in-process implementation is added by plan 02: plan 02 introduces
-//! `codex-app-server::gui_host::GuiHostManager`, stores an
-//! `Arc<GuiHostManager>` on `InProcessAppServerClient`, and writes the
-//! in-process [`AppServerClientGuiExt`] impl there. Plan 06 does not depend on
-//! `codex-app-server` and does not start a `GuiHost` itself.
+//! The TUI requests a launch URL through this client extension. The app-server
+//! runtime owns the GUI host lifecycle; client surfaces do not hold a `GuiHost`
+//! or raw backend handle.
 
 /// Launch URL returned by a client that can expose the local GUI.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +47,38 @@ pub trait AppServerClientGuiExt {
     ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send;
 }
 
+impl AppServerClientGuiExt for crate::remote::RemoteAppServerClient {
+    fn gui_launch_url(
+        &self,
+        _primary_thread_id: &str,
+    ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+        std::future::ready(Err(GuiLaunchError::Unsupported))
+    }
+}
+
+impl AppServerClientGuiExt for crate::InProcessAppServerClient {
+    fn gui_launch_url(
+        &self,
+        primary_thread_id: &str,
+    ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+        let manager = self.gui_host_manager();
+        let thread_id = primary_thread_id.to_string();
+        async move {
+            let Some(manager) = manager else {
+                return Err(GuiLaunchError::Transport(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "GUI host manager is unavailable after shutdown",
+                )));
+            };
+            manager
+                .launch_url_for_thread(&thread_id)
+                .await
+                .map(|url| GuiLaunchUrl { url })
+                .map_err(|err| GuiLaunchError::Transport(std::io::Error::other(err.to_string())))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,5 +96,26 @@ mod tests {
             "GUI is not available for this session"
         );
         assert!(transport.to_string().contains("closed"));
+    }
+
+    #[tokio::test]
+    async fn remote_gui_launch_url_returns_unsupported() {
+        struct UnsupportedRemote;
+
+        impl AppServerClientGuiExt for UnsupportedRemote {
+            fn gui_launch_url(
+                &self,
+                _primary_thread_id: &str,
+            ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send
+            {
+                std::future::ready(Err(GuiLaunchError::Unsupported))
+            }
+        }
+
+        let err = UnsupportedRemote
+            .gui_launch_url("thread-1")
+            .await
+            .expect_err("remote GUI launch should be unsupported");
+        assert_eq!(err.to_string(), "GUI is not available for this session");
     }
 }

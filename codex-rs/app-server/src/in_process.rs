@@ -47,7 +47,6 @@ use std::io::Result as IoResult;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
@@ -98,9 +97,11 @@ use tracing::warn;
 
 const IN_PROCESS_CONNECTION_ID: ConnectionId = ConnectionId(0);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
-static EXTRA_CONNECTION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 /// Default bounded channel capacity for in-process runtime queues.
 pub const DEFAULT_IN_PROCESS_CHANNEL_CAPACITY: usize = CHANNEL_CAPACITY;
+
+pub use crate::in_process_extra::ExtraConnectionCommandSender;
+pub use crate::in_process_extra::ExtraConnectionHandle;
 
 type PendingClientRequestResponse = std::result::Result<Result, JSONRPCErrorError>;
 
@@ -165,7 +166,7 @@ pub enum InProcessServerEvent {
 /// Requests carry a oneshot sender for the response; notifications and server-request
 /// replies are fire-and-forget from the caller's perspective (transport errors are
 /// caught by `try_send` on the outer channel).
-enum InProcessClientMessage {
+pub(crate) enum InProcessClientMessage {
     Request {
         request: Box<ClientRequest>,
         response_tx: oneshot::Sender<PendingClientRequestResponse>,
@@ -173,22 +174,7 @@ enum InProcessClientMessage {
     Notification {
         notification: ClientNotification,
     },
-    ExtraConnectionOpened {
-        connection_id: ConnectionId,
-        outgoing_tx: mpsc::Sender<String>,
-        disconnect_token: CancellationToken,
-    },
-    ExtraRequest {
-        connection_id: ConnectionId,
-        request: Box<codex_app_server_protocol::JSONRPCRequest>,
-    },
-    ExtraNotification {
-        connection_id: ConnectionId,
-        notification: codex_app_server_protocol::JSONRPCNotification,
-    },
-    ExtraConnectionClosed {
-        connection_id: ConnectionId,
-    },
+    Extra(crate::in_process_extra::ExtraConnectionCommand),
     ServerRequestResponse {
         request_id: RequestId,
         result: Result,
@@ -202,20 +188,6 @@ enum InProcessClientMessage {
     },
 }
 
-enum OutboundControl {
-    Register {
-        connection_id: ConnectionId,
-        writer: mpsc::Sender<QueuedOutgoingMessage>,
-        initialized: Arc<AtomicBool>,
-        experimental_api_enabled: Arc<AtomicBool>,
-        opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-        disconnect_sender: Option<CancellationToken>,
-    },
-    Unregister {
-        connection_id: ConnectionId,
-    },
-}
-
 enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
@@ -225,95 +197,7 @@ enum ProcessorCommand {
         outbound_experimental_api_enabled: Arc<AtomicBool>,
         outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
     },
-    ExtraRequest {
-        connection_id: ConnectionId,
-        request: Box<codex_app_server_protocol::JSONRPCRequest>,
-    },
-    ExtraNotification {
-        connection_id: ConnectionId,
-        notification: codex_app_server_protocol::JSONRPCNotification,
-    },
-    ExtraConnectionClosed {
-        connection_id: ConnectionId,
-    },
-}
-
-/// Handle returned by [`InProcessClientSender::register_extra_connection`].
-///
-/// Dropping the handle issues a best-effort close command for this extra
-/// connection. Transport-specific concerns belong in callers layered above this
-/// neutral registration API.
-pub struct ExtraConnectionHandle {
-    pub connection_id: ConnectionId,
-    pub command_sender: ExtraConnectionCommandSender,
-    pub outgoing_tx: mpsc::Sender<String>,
-    pub outgoing_rx: mpsc::Receiver<String>,
-    pub disconnect_token: CancellationToken,
-}
-
-#[derive(Clone)]
-pub struct ExtraConnectionCommandSender {
-    inner: mpsc::Sender<InProcessClientMessage>,
-    connection_id: ConnectionId,
-    runtime_handle: Option<tokio::runtime::Handle>,
-}
-
-impl ExtraConnectionCommandSender {
-    pub fn send_request(&self, request: codex_app_server_protocol::JSONRPCRequest) -> IoResult<()> {
-        self.try_send(InProcessClientMessage::ExtraRequest {
-            connection_id: self.connection_id,
-            request: Box::new(request),
-        })
-    }
-
-    pub fn send_notification(
-        &self,
-        notification: codex_app_server_protocol::JSONRPCNotification,
-    ) -> IoResult<()> {
-        self.try_send(InProcessClientMessage::ExtraNotification {
-            connection_id: self.connection_id,
-            notification,
-        })
-    }
-
-    fn try_send(&self, message: InProcessClientMessage) -> IoResult<()> {
-        match self.inner.try_send(message) {
-            Ok(()) => Ok(()),
-            Err(mpsc::error::TrySendError::Full(_)) => Err(IoError::new(
-                ErrorKind::WouldBlock,
-                "in-process extra connection queue is full",
-            )),
-            Err(mpsc::error::TrySendError::Closed(_)) => Err(IoError::new(
-                ErrorKind::BrokenPipe,
-                "in-process app-server runtime is closed",
-            )),
-        }
-    }
-}
-
-impl Drop for ExtraConnectionHandle {
-    fn drop(&mut self) {
-        let close_msg = InProcessClientMessage::ExtraConnectionClosed {
-            connection_id: self.connection_id,
-        };
-        match self.command_sender.inner.try_send(close_msg) {
-            Ok(()) => {}
-            Err(mpsc::error::TrySendError::Full(msg)) => {
-                let sender = self.command_sender.inner.clone();
-                if let Some(runtime_handle) = self.command_sender.runtime_handle.as_ref() {
-                    runtime_handle.spawn(async move {
-                        let _ = sender.send(msg).await;
-                    });
-                } else {
-                    warn!(
-                        connection_id = ?self.connection_id,
-                        "dropping extra connection close command without Tokio runtime handle"
-                    );
-                }
-            }
-            Err(mpsc::error::TrySendError::Closed(_)) => {}
-        }
-    }
+    Extra(crate::in_process_extra::ExtraConnectionCommand),
 }
 
 #[derive(Clone)]
@@ -323,17 +207,20 @@ pub struct InProcessClientSender {
 
 impl InProcessClientSender {
     pub async fn register_extra_connection(&self) -> IoResult<ExtraConnectionHandle> {
-        let connection_id = next_extra_connection_id();
+        let connection_id =
+            crate::in_process_extra::next_extra_connection_id(IN_PROCESS_CONNECTION_ID);
         let (outgoing_tx, outgoing_rx) = mpsc::channel::<String>(CHANNEL_CAPACITY);
         let disconnect_token = CancellationToken::new();
         let runtime_handle = tokio::runtime::Handle::try_current().ok();
 
         self.client_tx
-            .send(InProcessClientMessage::ExtraConnectionOpened {
-                connection_id,
-                outgoing_tx: outgoing_tx.clone(),
-                disconnect_token: disconnect_token.clone(),
-            })
+            .send(InProcessClientMessage::Extra(
+                crate::in_process_extra::ExtraConnectionCommand::Opened {
+                    connection_id,
+                    outgoing_tx: outgoing_tx.clone(),
+                    disconnect_token: disconnect_token.clone(),
+                },
+            ))
             .await
             .map_err(|_| {
                 IoError::new(
@@ -344,11 +231,11 @@ impl InProcessClientSender {
 
         Ok(ExtraConnectionHandle {
             connection_id,
-            command_sender: ExtraConnectionCommandSender {
-                inner: self.client_tx.clone(),
+            command_sender: crate::in_process_extra::ExtraConnectionCommandSender::new(
+                self.client_tx.clone(),
                 connection_id,
                 runtime_handle,
-            },
+            ),
             outgoing_tx,
             outgoing_rx,
             disconnect_token,
@@ -404,72 +291,6 @@ impl InProcessClientSender {
             )),
         }
     }
-}
-
-fn next_extra_connection_id() -> ConnectionId {
-    loop {
-        let raw = EXTRA_CONNECTION_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
-        if raw != IN_PROCESS_CONNECTION_ID.0 {
-            break ConnectionId(raw);
-        }
-    }
-}
-
-fn handle_outbound_control(
-    outbound_connections: &mut HashMap<ConnectionId, OutboundConnectionState>,
-    control: OutboundControl,
-) {
-    match control {
-        OutboundControl::Register {
-            connection_id,
-            writer,
-            initialized,
-            experimental_api_enabled,
-            opted_out_notification_methods,
-            disconnect_sender,
-        } => {
-            outbound_connections.insert(
-                connection_id,
-                OutboundConnectionState::new(
-                    writer,
-                    initialized,
-                    experimental_api_enabled,
-                    opted_out_notification_methods,
-                    disconnect_sender,
-                ),
-            );
-        }
-        OutboundControl::Unregister { connection_id } => {
-            outbound_connections.remove(&connection_id);
-        }
-    }
-}
-
-fn spawn_extra_writer_bridge(
-    connection_id: ConnectionId,
-    outgoing_tx: mpsc::Sender<String>,
-    mut writer_rx: mpsc::Receiver<QueuedOutgoingMessage>,
-) {
-    tokio::spawn(async move {
-        while let Some(queued) = writer_rx.recv().await {
-            let serialized = match serde_json::to_string(&queued.message) {
-                Ok(text) => text,
-                Err(err) => {
-                    tracing::error!(
-                        connection_id = ?connection_id,
-                        "failed to serialize extra outgoing message: {err}",
-                    );
-                    continue;
-                }
-            };
-            if outgoing_tx.send(serialized).await.is_err() {
-                break;
-            }
-            if let Some(done) = queued.write_complete_tx {
-                let _ = done.send(());
-            }
-        }
-    });
 }
 
 /// Handle used by an in-process client to call app-server and consume events.
@@ -636,14 +457,17 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             ),
         );
         let (outbound_control_tx, mut outbound_control_rx) =
-            mpsc::channel::<OutboundControl>(channel_capacity);
+            mpsc::channel::<crate::in_process_extra::OutboundControl>(channel_capacity);
         let mut outbound_handle = tokio::spawn(async move {
             const CONTROL_BURST: usize = 8;
             loop {
                 for _ in 0..CONTROL_BURST {
                     match outbound_control_rx.try_recv() {
                         Ok(control) => {
-                            handle_outbound_control(&mut outbound_connections, control);
+                            crate::in_process_extra::handle_outbound_control(
+                                &mut outbound_connections,
+                                control,
+                            );
                         }
                         Err(mpsc::error::TryRecvError::Empty) => break,
                         Err(mpsc::error::TryRecvError::Disconnected) => break,
@@ -655,7 +479,10 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     control = outbound_control_rx.recv() => {
                         match control {
                             Some(control) => {
-                                handle_outbound_control(&mut outbound_connections, control);
+                                crate::in_process_extra::handle_outbound_control(
+                                    &mut outbound_connections,
+                                    control,
+                                );
                             }
                             None => break,
                         }
@@ -701,13 +528,18 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             }));
             let mut thread_created_rx = processor.thread_created_receiver();
             let session = Arc::new(ConnectionSessionState::new());
-            struct ExtraConnectionEntry {
-                session_state: Arc<ConnectionSessionState>,
-                outbound_initialized: Arc<AtomicBool>,
-                outbound_experimental_api_enabled: Arc<AtomicBool>,
-                outbound_opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
-            }
-            let mut extra_connections = HashMap::<ConnectionId, ExtraConnectionEntry>::new();
+            let mut extra_connections = {
+                #[cfg(test)]
+                {
+                    crate::in_process_extra::ExtraConnectionState::with_closed_probe(
+                        extra_connection_closed_probe_tx,
+                    )
+                }
+                #[cfg(not(test))]
+                {
+                    crate::in_process_extra::ExtraConnectionState::new()
+                }
+            };
             let mut listen_for_threads = true;
 
             loop {
@@ -754,92 +586,17 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 outbound_experimental_api_enabled,
                                 outbound_opted_out_notification_methods,
                             }) => {
-                                extra_connections.insert(
+                                extra_connections.register_opened(
                                     connection_id,
-                                    ExtraConnectionEntry {
-                                        session_state: Arc::new(ConnectionSessionState::new()),
-                                        outbound_initialized,
-                                        outbound_experimental_api_enabled,
-                                        outbound_opted_out_notification_methods,
-                                    },
+                                    outbound_initialized,
+                                    outbound_experimental_api_enabled,
+                                    outbound_opted_out_notification_methods,
                                 );
                             }
-                            Some(ProcessorCommand::ExtraRequest {
-                                connection_id,
-                                request,
-                            }) => {
-                                let Some(entry) = extra_connections.get(&connection_id) else {
-                                    warn!(
-                                        ?connection_id,
-                                        "dropping extra request for unknown connection"
-                                    );
-                                    continue;
-                                };
-                                let session_state = Arc::clone(&entry.session_state);
-                                let outbound_initialized = Arc::clone(&entry.outbound_initialized);
-                                let outbound_experimental_api_enabled =
-                                    Arc::clone(&entry.outbound_experimental_api_enabled);
-                                let outbound_opted_out_notification_methods = Arc::clone(
-                                    &entry.outbound_opted_out_notification_methods,
-                                );
-                                processor
-                                    .process_request(
-                                        connection_id,
-                                        *request,
-                                        &crate::transport::AppServerTransport::Off,
-                                        Arc::clone(&session_state),
-                                    )
+                            Some(ProcessorCommand::Extra(command)) => {
+                                extra_connections
+                                    .handle_processor_command(&processor, command)
                                     .await;
-                                let opted_out_snapshot =
-                                    session_state.opted_out_notification_methods();
-                                if let Ok(mut opted_out) =
-                                    outbound_opted_out_notification_methods.write()
-                                {
-                                    *opted_out = opted_out_snapshot;
-                                } else {
-                                    warn!(
-                                        ?connection_id,
-                                        "failed to mirror extra connection opted-out list"
-                                    );
-                                }
-                                outbound_experimental_api_enabled.store(
-                                    session_state.experimental_api_enabled(),
-                                    Ordering::Release,
-                                );
-                                let is_initialized = session_state.initialized();
-                                let was_initialized =
-                                    outbound_initialized.swap(is_initialized, Ordering::AcqRel);
-                                if !was_initialized && is_initialized {
-                                    processor.connection_initialized(connection_id).await;
-                                }
-                            }
-                            Some(ProcessorCommand::ExtraNotification {
-                                connection_id,
-                                notification,
-                            }) => {
-                                if !extra_connections.contains_key(&connection_id) {
-                                    warn!(
-                                        ?connection_id,
-                                        "dropping extra notification for unknown connection"
-                                    );
-                                    continue;
-                                }
-                                processor.process_notification(notification).await;
-                            }
-                            Some(ProcessorCommand::ExtraConnectionClosed { connection_id }) => {
-                                if let Some(entry) = extra_connections.remove(&connection_id) {
-                                    processor
-                                        .connection_closed(connection_id, &entry.session_state)
-                                        .await;
-                                    #[cfg(test)]
-                                    let _ =
-                                        extra_connection_closed_probe_tx.try_send(connection_id);
-                                } else {
-                                    warn!(
-                                        ?connection_id,
-                                        "ExtraConnectionClosed for unknown connection"
-                                    );
-                                }
                             }
                             None => {
                                 break;
@@ -849,15 +606,10 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     created = thread_created_rx.recv(), if listen_for_threads => {
                         match created {
                             Ok(thread_id) => {
-                                let mut connection_ids = Vec::new();
-                                if session.initialized() {
-                                    connection_ids.push(IN_PROCESS_CONNECTION_ID);
-                                }
-                                for (extra_connection_id, extra_entry) in &extra_connections {
-                                    if extra_entry.session_state.initialized() {
-                                        connection_ids.push(*extra_connection_id);
-                                    }
-                                }
+                                let connection_ids = extra_connections.initialized_connection_ids(
+                                    IN_PROCESS_CONNECTION_ID,
+                                    session.initialized(),
+                                );
                                 processor
                                     .try_attach_thread_listener(thread_id, connection_ids)
                                     .await;
@@ -942,100 +694,92 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 }
                             }
                         }
-                        Some(InProcessClientMessage::ExtraConnectionOpened {
-                            connection_id,
-                            outgoing_tx,
-                            disconnect_token,
-                        }) => {
-                            // Runtime-abort path: if `SHUTDOWN_TIMEOUT` fires before all
-                            // ExtraConnectionClosed commands are drained, remaining extra
-                            // connections are torn down indirectly via the existing shutdown
-                            // tail (outgoing_message_sender drop + processor abort).
-                            // Per-connection projection cleanup may be skipped in that case;
-                            // the runtime-end cleanup is the safety net.
-                            let (extra_writer_tx, extra_writer_rx) =
-                                mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
-                            spawn_extra_writer_bridge(connection_id, outgoing_tx, extra_writer_rx);
-                            let initialized = Arc::new(AtomicBool::new(false));
-                            let experimental_api_enabled = Arc::new(AtomicBool::new(false));
-                            let opted_out_notification_methods =
-                                Arc::new(RwLock::new(HashSet::new()));
-                            if outbound_control_tx
-                                .send(OutboundControl::Register {
+                        Some(InProcessClientMessage::Extra(command)) => {
+                            match command {
+                                crate::in_process_extra::ExtraConnectionCommand::Opened {
                                     connection_id,
-                                    writer: extra_writer_tx,
-                                    initialized: Arc::clone(&initialized),
-                                    experimental_api_enabled: Arc::clone(
-                                        &experimental_api_enabled,
-                                    ),
-                                    opted_out_notification_methods: Arc::clone(
-                                        &opted_out_notification_methods,
-                                    ),
-                                    disconnect_sender: Some(disconnect_token),
-                                })
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                            if processor_tx
-                                .send(ProcessorCommand::ExtraConnectionOpened {
+                                    outgoing_tx,
+                                    disconnect_token,
+                                } => {
+                                    // Runtime-abort path: if `SHUTDOWN_TIMEOUT` fires before all
+                                    // close commands are drained, remaining extra connections are
+                                    // torn down indirectly via the existing shutdown tail.
+                                    let (extra_writer_tx, extra_writer_rx) =
+                                        mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
+                                    crate::in_process_extra::spawn_extra_writer_bridge(
+                                        connection_id,
+                                        outgoing_tx,
+                                        extra_writer_rx,
+                                    );
+                                    let initialized = Arc::new(AtomicBool::new(false));
+                                    let experimental_api_enabled =
+                                        Arc::new(AtomicBool::new(false));
+                                    let opted_out_notification_methods =
+                                        Arc::new(RwLock::new(HashSet::new()));
+                                    if outbound_control_tx
+                                        .send(crate::in_process_extra::OutboundControl::Register {
+                                            connection_id,
+                                            writer: extra_writer_tx,
+                                            initialized: Arc::clone(&initialized),
+                                            experimental_api_enabled: Arc::clone(
+                                                &experimental_api_enabled,
+                                            ),
+                                            opted_out_notification_methods: Arc::clone(
+                                                &opted_out_notification_methods,
+                                            ),
+                                            disconnect_sender: Some(disconnect_token),
+                                        })
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                    if processor_tx
+                                        .send(ProcessorCommand::ExtraConnectionOpened {
+                                            connection_id,
+                                            outbound_initialized: initialized,
+                                            outbound_experimental_api_enabled:
+                                                experimental_api_enabled,
+                                            outbound_opted_out_notification_methods:
+                                                opted_out_notification_methods,
+                                        })
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                                crate::in_process_extra::ExtraConnectionCommand::Request { .. }
+                                | crate::in_process_extra::ExtraConnectionCommand::Notification {
+                                    ..
+                                } => {
+                                    if processor_tx.send(ProcessorCommand::Extra(command)).await.is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                                crate::in_process_extra::ExtraConnectionCommand::Closed {
                                     connection_id,
-                                    outbound_initialized: initialized,
-                                    outbound_experimental_api_enabled: experimental_api_enabled,
-                                    outbound_opted_out_notification_methods:
-                                        opted_out_notification_methods,
-                                })
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
-                        Some(InProcessClientMessage::ExtraRequest {
-                            connection_id,
-                            request,
-                        }) => {
-                            if processor_tx
-                                .send(ProcessorCommand::ExtraRequest {
-                                    connection_id,
-                                    request,
-                                })
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
-                        Some(InProcessClientMessage::ExtraNotification {
-                            connection_id,
-                            notification,
-                        }) => {
-                            if processor_tx
-                                .send(ProcessorCommand::ExtraNotification {
-                                    connection_id,
-                                    notification,
-                                })
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
-                        Some(InProcessClientMessage::ExtraConnectionClosed { connection_id }) => {
-                            if processor_tx
-                                .send(ProcessorCommand::ExtraConnectionClosed { connection_id })
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                            if outbound_control_tx
-                                .send(OutboundControl::Unregister { connection_id })
-                                .await
-                                .is_err()
-                            {
-                                break;
+                                } => {
+                                    if processor_tx
+                                        .send(ProcessorCommand::Extra(command))
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                    if outbound_control_tx
+                                        .send(
+                                            crate::in_process_extra::OutboundControl::Unregister {
+                                                connection_id,
+                                            },
+                                        )
+                                        .await
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
                             }
                         }
                         Some(InProcessClientMessage::ServerRequestResponse { request_id, result }) => {
@@ -1294,34 +1038,10 @@ mod tests {
             outbound_experimental_api_enabled: Arc::new(AtomicBool::new(false)),
             outbound_opted_out_notification_methods: Arc::new(RwLock::new(HashSet::new())),
         };
-        let _closed = ProcessorCommand::ExtraConnectionClosed {
-            connection_id: ConnectionId(7),
-        };
-    }
-
-    #[tokio::test]
-    async fn register_extra_connection_allocates_ids_starting_above_main() {
-        let client = start_test_client(SessionSource::Cli).await;
-        let sender = client.sender();
-
-        let first = sender
-            .register_extra_connection()
-            .await
-            .expect("register first extra connection");
-        let second = sender
-            .register_extra_connection()
-            .await
-            .expect("register second extra connection");
-
-        assert_ne!(first.connection_id, IN_PROCESS_CONNECTION_ID);
-        assert_ne!(second.connection_id, IN_PROCESS_CONNECTION_ID);
-        assert_ne!(first.connection_id, second.connection_id);
-        assert!(first.connection_id.0 >= 1);
-        assert!(second.connection_id.0 >= 1);
-
-        drop(first);
-        drop(second);
-        client.shutdown().await.expect("shutdown");
+        let _closed =
+            ProcessorCommand::Extra(crate::in_process_extra::ExtraConnectionCommand::Closed {
+                connection_id: ConnectionId(7),
+            });
     }
 
     #[tokio::test]
@@ -1334,105 +1054,6 @@ mod tests {
             panic!("registration should fail after runtime shutdown");
         };
         assert_eq!(err.kind(), ErrorKind::BrokenPipe);
-    }
-
-    #[tokio::test]
-    async fn dropping_extra_connection_handle_sends_closed_command() {
-        let (client_tx, mut client_rx) = mpsc::channel(4);
-        let (_outgoing_tx, outgoing_rx) = mpsc::channel(4);
-        let (outgoing_tx, _outgoing_rx) = mpsc::channel(4);
-        let connection_id = ConnectionId(31);
-        let handle = ExtraConnectionHandle {
-            connection_id,
-            command_sender: ExtraConnectionCommandSender {
-                inner: client_tx,
-                connection_id,
-                runtime_handle: tokio::runtime::Handle::try_current().ok(),
-            },
-            outgoing_tx,
-            outgoing_rx,
-            disconnect_token: tokio_util::sync::CancellationToken::new(),
-        };
-
-        drop(handle);
-
-        let message = client_rx
-            .recv()
-            .await
-            .expect("drop should send close command");
-        match message {
-            InProcessClientMessage::ExtraConnectionClosed {
-                connection_id: closed_id,
-            } => {
-                assert_eq!(closed_id, connection_id);
-            }
-            _ => panic!("expected ExtraConnectionClosed"),
-        }
-    }
-
-    #[test]
-    fn dropping_extra_connection_handle_under_backpressure_still_delivers_closed() {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("test runtime");
-        let connection_id = ConnectionId(37);
-        let (handle, mut client_rx) = runtime.block_on(async {
-            let (client_tx, client_rx) = mpsc::channel(1);
-            let (_outgoing_tx, outgoing_rx) = mpsc::channel(4);
-            let (outgoing_tx, _outgoing_rx) = mpsc::channel(4);
-            client_tx
-                .try_send(InProcessClientMessage::ExtraNotification {
-                    connection_id,
-                    notification: JSONRPCNotification {
-                        method: "initialized".to_string(),
-                        params: None,
-                    },
-                })
-                .expect("pre-fill client queue");
-            let handle = ExtraConnectionHandle {
-                connection_id,
-                command_sender: ExtraConnectionCommandSender {
-                    inner: client_tx,
-                    connection_id,
-                    runtime_handle: tokio::runtime::Handle::try_current().ok(),
-                },
-                outgoing_tx,
-                outgoing_rx,
-                disconnect_token: tokio_util::sync::CancellationToken::new(),
-            };
-            (handle, client_rx)
-        });
-
-        drop(handle);
-
-        let first = runtime
-            .block_on(client_rx.recv())
-            .expect("pre-filled message");
-        match first {
-            InProcessClientMessage::ExtraNotification {
-                connection_id: notified_id,
-                ..
-            } => {
-                assert_eq!(notified_id, connection_id);
-            }
-            _ => panic!("expected pre-filled ExtraNotification"),
-        }
-
-        let close = runtime
-            .block_on(async {
-                tokio::time::timeout(Duration::from_secs(1), client_rx.recv()).await
-            })
-            .expect("close command should arrive after queue drains")
-            .expect("close command");
-        match close {
-            InProcessClientMessage::ExtraConnectionClosed {
-                connection_id: closed_id,
-            } => {
-                assert_eq!(closed_id, connection_id);
-            }
-            _ => panic!("expected ExtraConnectionClosed"),
-        }
     }
 
     #[tokio::test]
