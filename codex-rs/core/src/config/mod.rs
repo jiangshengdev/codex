@@ -3102,6 +3102,7 @@ impl Config {
                         .ok()
                         .map(|value| value.trim().trim_end_matches('/').to_string())
                         .filter(|value| !value.is_empty())
+                        .map(|value| format!("{value}/"))
                 })
                 .unwrap_or("https://chatgpt.com/backend-api/".to_string()),
             apps_mcp_path_override,
