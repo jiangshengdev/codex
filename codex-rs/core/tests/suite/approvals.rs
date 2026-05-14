@@ -1840,18 +1840,21 @@ async fn run_scenario(scenario: &ScenarioSpec) -> Result<()> {
     let model = model_override.unwrap_or("gpt-5.4");
     let policy_src = scenario.action.policy_src();
 
-    let mut builder = test_codex().with_model(model).with_config(move |config| {
-        config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config
-            .set_legacy_sandbox_policy(sandbox_policy.clone())
-            .expect("set sandbox policy");
-        for feature in features {
+    let mut builder = test_codex()
+        .with_noop_skills_watcher()
+        .with_model(model)
+        .with_config(move |config| {
+            config.permissions.approval_policy = Constrained::allow_any(approval_policy);
             config
-                .features
-                .enable(feature)
-                .expect("test config should allow feature update");
-        }
-    });
+                .set_legacy_sandbox_policy(sandbox_policy.clone())
+                .expect("set sandbox policy");
+            for feature in features {
+                config
+                    .features
+                    .enable(feature)
+                    .expect("test config should allow feature update");
+            }
+        });
     if let Some(policy_src) = policy_src {
         builder = builder.with_pre_build_hook(move |home| {
             let rules_dir = home.join("rules");
