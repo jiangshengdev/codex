@@ -34,6 +34,7 @@ const MAX_REQUEST_MAX_RETRIES: u64 = 100;
 
 const OPENAI_PROVIDER_NAME: &str = "OpenAI";
 pub const OPENAI_PROVIDER_ID: &str = "openai";
+const CHATGPT_CODEX_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_CODEX_BASE_URL";
 const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
 pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
 pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
@@ -234,14 +235,14 @@ impl ModelProviderInfo {
             auth_mode,
             Some(AuthMode::Chatgpt | AuthMode::ChatgptAuthTokens | AuthMode::AgentIdentity)
         ) {
-            "https://chatgpt.com/backend-api/codex"
+            std::env::var(CHATGPT_CODEX_BASE_URL_ENV_VAR)
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| "https://chatgpt.com/backend-api/codex".to_string())
         } else {
-            "https://api.openai.com/v1"
+            "https://api.openai.com/v1".to_string()
         };
-        let base_url = self
-            .base_url
-            .clone()
-            .unwrap_or_else(|| default_base_url.to_string());
+        let base_url = self.base_url.clone().unwrap_or(default_base_url);
 
         let headers = self.build_header_map()?;
         let retry = ApiRetryConfig {

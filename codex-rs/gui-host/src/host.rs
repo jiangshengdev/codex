@@ -484,9 +484,10 @@ mod tests {
             ))
             .await
             .expect("allowed frame should send");
-        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
-
-        assert_eq!(backend.received(), vec!["initialize"]);
+        assert_eq!(
+            backend.wait_for_received(&["initialize"]).await,
+            vec!["initialize"]
+        );
 
         handle.shutdown().await;
     }
@@ -528,9 +529,10 @@ mod tests {
             ))
             .await
             .expect("allowed frame should send");
-        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
-
-        assert_eq!(backend.received(), vec!["initialize"]);
+        assert_eq!(
+            backend.wait_for_received(&["initialize"]).await,
+            vec!["initialize"]
+        );
 
         handle.shutdown().await;
     }
