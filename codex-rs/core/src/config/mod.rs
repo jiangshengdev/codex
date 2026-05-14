@@ -145,6 +145,7 @@ pub(crate) use permissions::resolve_permission_profile;
 
 const DEFAULT_IGNORE_LARGE_UNTRACKED_DIRS: i64 = 200;
 const DEFAULT_IGNORE_LARGE_UNTRACKED_FILES: i64 = 10 * 1024 * 1024;
+const CHATGPT_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_BASE_URL";
 
 /// Compatibility-only config retained so legacy `ghost_snapshot` settings
 /// continue to load even though snapshots are no longer produced.
@@ -3096,6 +3097,12 @@ impl Config {
             chatgpt_base_url: config_profile
                 .chatgpt_base_url
                 .or(cfg.chatgpt_base_url)
+                .or_else(|| {
+                    std::env::var(CHATGPT_BASE_URL_ENV_VAR)
+                        .ok()
+                        .map(|value| value.trim().trim_end_matches('/').to_string())
+                        .filter(|value| !value.is_empty())
+                })
                 .unwrap_or("https://chatgpt.com/backend-api/".to_string()),
             apps_mcp_path_override,
             realtime_audio: cfg
