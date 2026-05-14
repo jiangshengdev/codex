@@ -299,6 +299,29 @@ jobs:
           binaries: ${{ matrix.binaries }}
 
       - if: ${{ runner.os == 'macOS' }}
+        name: Check Apple signing credentials
+        id: apple_signing
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARIZATION_KEY_P8: ${{ secrets.APPLE_NOTARIZATION_KEY_P8 }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${APPLE_CERTIFICATE_P12:-}" \
+            && -n "${APPLE_CERTIFICATE_PASSWORD:-}" \
+            && -n "${APPLE_NOTARIZATION_KEY_P8:-}" \
+            && -n "${APPLE_NOTARIZATION_KEY_ID:-}" \
+            && -n "${APPLE_NOTARIZATION_ISSUER_ID:-}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Apple signing credentials are incomplete; macOS artifacts will be unsigned."
+          fi
+
+      - if: ${{ runner.os == 'macOS' && steps.apple_signing.outputs.enabled == 'true' }}
         name: MacOS code signing (binaries)
         uses: ./.github/actions/macos-code-sign
         with:
@@ -324,9 +347,9 @@ jobs:
           volname="Codex (${target})"
           dmg_path="${release_dir}/codex-${target}.dmg"
 
-          # The previous "MacOS code signing (binaries)" step signs + notarizes the
-          # built artifacts in `${release_dir}`. This step packages *those same*
-          # signed binaries into a dmg.
+          # If signing is enabled, the previous "MacOS code signing (binaries)"
+          # step signs + notarizes the built artifacts in `${release_dir}`. This
+          # step packages the binaries from that same location into a dmg.
           rm -rf "$dmg_root"
           mkdir -p "$dmg_root"
 
@@ -352,7 +375,7 @@ jobs:
             exit 1
           fi
 
-      - if: ${{ runner.os == 'macOS' && matrix.build_dmg == 'true' }}
+      - if: ${{ runner.os == 'macOS' && matrix.build_dmg == 'true' && steps.apple_signing.outputs.enabled == 'true' }}
         name: MacOS code signing (dmg)
         uses: ./.github/actions/macos-code-sign
         with:
