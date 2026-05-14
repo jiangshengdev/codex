@@ -242,10 +242,7 @@ impl ModelProviderInfo {
         } else {
             "https://api.openai.com/v1".to_string()
         };
-        let base_url = self
-            .base_url
-            .clone()
-            .unwrap_or(default_base_url);
+        let base_url = self.base_url.clone().unwrap_or(default_base_url);
 
         let headers = self.build_header_map()?;
         let retry = ApiRetryConfig {

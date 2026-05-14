@@ -25,6 +25,9 @@ pub use url::launch_url_for_thread;
 pub(crate) mod test_support {
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::time::Duration;
+
+    use tokio::sync::watch;
 
     use crate::AuthenticatedGuiConnection;
     use crate::GuiBackend;
@@ -39,15 +42,20 @@ pub(crate) mod test_support {
     }
 
     #[allow(dead_code)]
-    #[derive(Clone, Default)]
+    #[derive(Clone)]
     pub(crate) struct RecordingBackend {
         received: Arc<Mutex<Vec<String>>>,
+        received_tx: watch::Sender<Vec<String>>,
     }
 
     #[allow(dead_code)]
     impl RecordingBackend {
         pub(crate) fn new() -> Self {
-            Self::default()
+            let (received_tx, _received_rx) = watch::channel(Vec::new());
+            Self {
+                received: Arc::new(Mutex::new(Vec::new())),
+                received_tx,
+            }
         }
 
         pub(crate) fn received(&self) -> Vec<String> {
@@ -55,6 +63,28 @@ pub(crate) mod test_support {
                 .lock()
                 .expect("recording backend mutex should not be poisoned")
                 .clone()
+        }
+
+        pub(crate) async fn wait_for_received(&self, expected: &[&str]) -> Vec<String> {
+            let expected: Vec<String> = expected
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect();
+            let mut received_rx = self.received_tx.subscribe();
+            tokio::time::timeout(Duration::from_secs(1), async {
+                loop {
+                    let received = received_rx.borrow_and_update().clone();
+                    if received == expected {
+                        return received;
+                    }
+                    received_rx
+                        .changed()
+                        .await
+                        .expect("recording backend watch channel should stay open");
+                }
+            })
+            .await
+            .expect("recording backend should receive expected methods")
         }
     }
 
@@ -65,10 +95,15 @@ pub(crate) mod test_support {
                     .ok()
                     .and_then(|value| value["method"].as_str().map(str::to_owned))
                     .unwrap_or(text);
-                self.received
-                    .lock()
-                    .expect("recording backend mutex should not be poisoned")
-                    .push(method);
+                let received = {
+                    let mut received = self
+                        .received
+                        .lock()
+                        .expect("recording backend mutex should not be poisoned");
+                    received.push(method);
+                    received.clone()
+                };
+                let _ = self.received_tx.send(received);
             }
             Ok(())
         }
