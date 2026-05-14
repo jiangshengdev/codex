@@ -6936,6 +6936,15 @@ model_verbosity = "high"
     })
 }
 
+fn expected_chatgpt_base_url() -> String {
+    std::env::var("CODEX_CHATGPT_BASE_URL")
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| format!("{value}/"))
+        .unwrap_or_else(|| "https://chatgpt.com/backend-api/".to_string())
+}
+
 /// Users can specify config values at multiple levels that have the
 /// following precedence:
 ///
@@ -7030,7 +7039,7 @@ async fn test_precedence_fixture_with_o3_profile() -> std::io::Result<()> {
             model_catalog: None,
             model_verbosity: None,
             personality: Some(Personality::Pragmatic),
-            chatgpt_base_url: "https://chatgpt.com/backend-api/".to_string(),
+            chatgpt_base_url: expected_chatgpt_base_url(),
             apps_mcp_path_override: None,
             realtime_audio: RealtimeAudioConfig::default(),
             experimental_realtime_start_instructions: None,
@@ -7402,7 +7411,7 @@ async fn test_precedence_fixture_with_gpt3_profile() -> std::io::Result<()> {
         model_catalog: None,
         model_verbosity: None,
         personality: Some(Personality::Pragmatic),
-        chatgpt_base_url: "https://chatgpt.com/backend-api/".to_string(),
+        chatgpt_base_url: expected_chatgpt_base_url(),
         apps_mcp_path_override: None,
         realtime_audio: RealtimeAudioConfig::default(),
         experimental_realtime_start_instructions: None,
@@ -7560,7 +7569,7 @@ async fn test_precedence_fixture_with_zdr_profile() -> std::io::Result<()> {
         model_catalog: None,
         model_verbosity: None,
         personality: Some(Personality::Pragmatic),
-        chatgpt_base_url: "https://chatgpt.com/backend-api/".to_string(),
+        chatgpt_base_url: expected_chatgpt_base_url(),
         apps_mcp_path_override: None,
         realtime_audio: RealtimeAudioConfig::default(),
         experimental_realtime_start_instructions: None,
@@ -7703,7 +7712,7 @@ async fn test_precedence_fixture_with_gpt5_profile() -> std::io::Result<()> {
         model_catalog: None,
         model_verbosity: Some(Verbosity::High),
         personality: Some(Personality::Pragmatic),
-        chatgpt_base_url: "https://chatgpt.com/backend-api/".to_string(),
+        chatgpt_base_url: expected_chatgpt_base_url(),
         apps_mcp_path_override: None,
         realtime_audio: RealtimeAudioConfig::default(),
         experimental_realtime_start_instructions: None,
