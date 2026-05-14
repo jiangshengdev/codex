@@ -329,6 +329,33 @@ impl ThreadManager {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_with_noop_skills_watcher_for_tests(
+        config: &Config,
+        auth_manager: Arc<AuthManager>,
+        session_source: SessionSource,
+        environment_manager: Arc<EnvironmentManager>,
+        analytics_events_client: Option<AnalyticsEventsClient>,
+        thread_store: Arc<dyn ThreadStore>,
+        state_db: Option<StateDbHandle>,
+        installation_id: String,
+    ) -> Self {
+        let mut manager = Self::new(
+            config,
+            auth_manager,
+            session_source,
+            environment_manager,
+            analytics_events_client,
+            thread_store,
+            state_db,
+            installation_id,
+        );
+        Arc::get_mut(&mut manager.state)
+            .expect("new ThreadManager state should be uniquely owned")
+            .skills_watcher = Arc::new(SkillsWatcher::noop());
+        manager
+    }
+
     /// Construct with a dummy AuthManager containing the provided CodexAuth.
     /// Used for integration tests: should not be used by ordinary business logic.
     pub(crate) fn with_models_provider_for_tests(

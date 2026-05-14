@@ -20,6 +20,8 @@ use codex_models_manager::test_support::get_model_offline_for_tests;
 use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ModelPreset;
+use codex_protocol::protocol::SessionSource;
+use codex_thread_store::ThreadStore;
 use once_cell::sync::Lazy;
 
 use crate::ThreadManager;
@@ -86,6 +88,29 @@ pub fn thread_manager_with_models_provider_home_and_state(
         codex_home,
         environment_manager,
         state_db,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn thread_manager_with_noop_skills_watcher(
+    config: &Config,
+    auth_manager: Arc<AuthManager>,
+    session_source: SessionSource,
+    environment_manager: Arc<EnvironmentManager>,
+    analytics_events_client: Option<codex_analytics::AnalyticsEventsClient>,
+    thread_store: Arc<dyn ThreadStore>,
+    state_db: Option<crate::StateDbHandle>,
+    installation_id: String,
+) -> ThreadManager {
+    ThreadManager::new_with_noop_skills_watcher_for_tests(
+        config,
+        auth_manager,
+        session_source,
+        environment_manager,
+        analytics_events_client,
+        thread_store,
+        state_db,
+        installation_id,
     )
 }
 

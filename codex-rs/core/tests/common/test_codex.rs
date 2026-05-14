@@ -224,6 +224,7 @@ pub struct TestCodexBuilder {
     cloud_requirements: Option<CloudRequirementsLoader>,
     user_shell_override: Option<Shell>,
     exec_server_url: Option<String>,
+    noop_skills_watcher: bool,
 }
 
 impl TestCodexBuilder {
@@ -282,6 +283,11 @@ impl TestCodexBuilder {
 
     pub fn with_exec_server_url(mut self, exec_server_url: impl Into<String>) -> Self {
         self.exec_server_url = Some(exec_server_url.into());
+        self
+    }
+
+    pub fn with_noop_skills_watcher(mut self) -> Self {
+        self.noop_skills_watcher = true;
         self
     }
 
@@ -426,16 +432,29 @@ impl TestCodexBuilder {
         let state_db = codex_core::init_state_db(&config).await;
         let thread_store = thread_store_from_config(&config, state_db.clone());
         let installation_id = resolve_installation_id(&config.codex_home).await?;
-        let thread_manager = ThreadManager::new(
-            &config,
-            codex_core::test_support::auth_manager_from_auth(auth.clone()),
-            SessionSource::Exec,
-            Arc::clone(&environment_manager),
-            /*analytics_events_client*/ None,
-            thread_store,
-            state_db.clone(),
-            installation_id,
-        );
+        let thread_manager = if self.noop_skills_watcher {
+            codex_core::test_support::thread_manager_with_noop_skills_watcher(
+                &config,
+                codex_core::test_support::auth_manager_from_auth(auth.clone()),
+                SessionSource::Exec,
+                Arc::clone(&environment_manager),
+                /*analytics_events_client*/ None,
+                thread_store,
+                state_db.clone(),
+                installation_id,
+            )
+        } else {
+            ThreadManager::new(
+                &config,
+                codex_core::test_support::auth_manager_from_auth(auth.clone()),
+                SessionSource::Exec,
+                Arc::clone(&environment_manager),
+                /*analytics_events_client*/ None,
+                thread_store,
+                state_db.clone(),
+                installation_id,
+            )
+        };
         let thread_manager = Arc::new(thread_manager);
         let user_shell_override = self.user_shell_override.clone();
 
@@ -1008,6 +1027,7 @@ pub fn test_codex() -> TestCodexBuilder {
         cloud_requirements: None,
         user_shell_override: None,
         exec_server_url: None,
+        noop_skills_watcher: false,
     }
 }
 
