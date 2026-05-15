@@ -636,7 +636,7 @@ jobs:
       - name: Trigger developers.openai.com deploy
         # Only trigger the deploy if the release is not a pre-release.
         # The deploy is used to update the developers.openai.com website with the new config schema json file.
-        if: ${{ !contains(steps.release_name.outputs.name, '-') }}
+        if: ${{ github.repository == 'openai/codex' && !contains(steps.release_name.outputs.name, '-') }}
         continue-on-error: true
         env:
           DEV_WEBSITE_VERCEL_DEPLOY_HOOK_URL: ${{ secrets.DEV_WEBSITE_VERCEL_DEPLOY_HOOK_URL }}
@@ -808,7 +808,7 @@ jobs:
     needs: release
     # Only publish stable/mainline releases to WinGet; pre-releases include a
     # '-' in the semver string (e.g., 1.2.3-alpha.1).
-    if: ${{ !contains(needs.release.outputs.version, '-') }}
+    if: ${{ github.repository == 'openai/codex' && !contains(needs.release.outputs.version, '-') }}
     # This job only invokes a GitHub Action to open/update the winget-pkgs PR;
     # it does not execute Windows-only tooling, so Linux is sufficient.
     runs-on: ubuntu-latest
@@ -828,6 +828,7 @@ jobs:
 
   update-branch:
     name: Update latest-alpha-cli branch
+    if: ${{ github.repository == 'openai/codex' }}
     permissions:
       contents: write
     needs: release
