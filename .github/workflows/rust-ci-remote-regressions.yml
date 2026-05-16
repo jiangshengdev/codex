@@ -58,40 +58,29 @@ jobs:
           echo "CODEX_TEST_REMOTE_ENV=${CODEX_TEST_REMOTE_ENV}" >> "$GITHUB_ENV"
           echo "CODEX_TEST_REMOTE_EXEC_SERVER_URL=${CODEX_TEST_REMOTE_EXEC_SERVER_URL}" >> "$GITHUB_ENV"
 
-      - name: Run targeted regressions
-        shell: bash
-        run: |
-          set +e
+      - name: apply_patch move traversal rejects workspace escape
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::apply_patch_cli::apply_patch_cli_rejects_move_path_traversal_outside_workspace'
 
-          failures=0
+      - name: apply_patch turn diff stays repo relative
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::apply_patch_cli::apply_patch_turn_diff_paths_stay_repo_relative_when_session_cwd_is_nested'
 
-          tests=(
-            "apply_patch move traversal rejects workspace escape|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::apply_patch_cli::apply_patch_cli_rejects_move_path_traversal_outside_workspace'"
-            "apply_patch turn diff stays repo relative|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::apply_patch_cli::apply_patch_turn_diff_paths_stay_repo_relative_when_session_cwd_is_nested'"
-            "remote env allows readable root under sandbox|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_sandboxed_read_allows_readable_root'"
-            "remote env rejects symlink dotdot escape|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_sandboxed_read_rejects_symlink_parent_dotdot_escape'"
-            "remote env remove deletes symlink not target|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_remove_removes_symlink_not_target'"
-            "remote env copy preserves symlink source|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_copy_preserves_symlink_source'"
-            "unified exec emits failed background end event for network denial|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::unified_exec::unified_exec_network_denial_emits_failed_background_end_event'"
-            "view_image routes to selected remote environment|cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::view_image::view_image_routes_to_selected_remote_environment'"
-          )
+      - name: remote env allows readable root under sandbox
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_sandboxed_read_allows_readable_root'
 
-          for entry in "${tests[@]}"; do
-            name="${entry%%|*}"
-            command="${entry#*|}"
-            echo "=== ${name} ==="
-            bash -lc "${command}"
-            status=$?
-            if [[ ${status} -ne 0 ]]; then
-              failures=$((failures + 1))
-              echo "::error::${name} failed with exit code ${status}"
-            fi
-          done
+      - name: remote env rejects symlink dotdot escape
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_sandboxed_read_rejects_symlink_parent_dotdot_escape'
 
-          if [[ ${failures} -ne 0 ]]; then
-            echo "::error::${failures} targeted regression command(s) failed"
-            exit 1
-          fi
+      - name: remote env remove deletes symlink not target
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_remove_removes_symlink_not_target'
+
+      - name: remote env copy preserves symlink source
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::remote_env::remote_test_env_copy_preserves_symlink_source'
+
+      - name: unified exec emits failed background end event for network denial
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::unified_exec::unified_exec_network_denial_emits_failed_background_end_event'
+
+      - name: view_image routes to selected remote environment
+        run: cargo nextest run -p codex-core --target x86_64-unknown-linux-gnu --cargo-profile ci-test --test-threads 1 'suite::view_image::view_image_routes_to_selected_remote_environment'
 
       - name: Dump remote env logs on failure
         if: failure()
