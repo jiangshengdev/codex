@@ -90,6 +90,9 @@ pub(crate) async fn handle_projection_attach_response(
     )
     .await
     {
+        // Connection is already closed; outgoing will drop any response, so we
+        // skip sending. Unlike the closing-thread path, there is no live client
+        // to receive an error.
         return;
     }
 

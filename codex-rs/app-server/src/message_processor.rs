@@ -672,6 +672,9 @@ impl MessageProcessor {
         self.process_exec_processor
             .connection_closed(connection_id)
             .await;
+        // Must precede remove_connection: thread_processor marks the connection
+        // closed in thread_state_manager, which skip_projection_attach_after_connection_closed
+        // checks to prevent registering a subscription after cleanup.
         self.thread_processor.connection_closed(connection_id).await;
         let projection_threads = self
             .outgoing
