@@ -1302,7 +1302,12 @@ fn insert_definition(
             .unwrap_or("<untitled>");
         if schemas_match_except_annotations(existing, &schema) {
             eprintln!(
-                "INFO schema definition metadata differed but structure matched; merged duplicate definition location=\"{location}\" name=\"{name}\" existing_title=\"{existing_title}\" new_title=\"{new_title}\""
+                r#"[INFO] Replaced equivalent schema definition
+  location:       {location}
+  name:           {name}
+  existing_title: {existing_title}
+  new_title:      {new_title}
+"#
             );
             *existing = schema;
             return Ok(());
