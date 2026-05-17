@@ -25,6 +25,7 @@ use tracing::warn;
 
 use crate::error_code::internal_error;
 use crate::server_request_error::TURN_TRANSITION_PENDING_REQUEST_ERROR_REASON;
+use crate::thread_projection::ThreadProjectionManager;
 pub(crate) use codex_app_server_transport::ConnectionId;
 pub(crate) use codex_app_server_transport::OutgoingError;
 pub(crate) use codex_app_server_transport::OutgoingMessage;
@@ -100,6 +101,7 @@ pub(crate) struct OutgoingMessageSender {
     /// disconnect cleanup all get handled.
     request_contexts: Mutex<HashMap<ConnectionRequestId, RequestContext>>,
     analytics_events_client: AnalyticsEventsClient,
+    thread_projection_manager: ThreadProjectionManager,
 }
 
 #[derive(Clone)]
@@ -145,6 +147,19 @@ impl ThreadScopedOutgoingMessageSender {
         self.outgoing
             .analytics_events_client
             .track_notification(notification.clone());
+        for delivery in self
+            .outgoing
+            .thread_projection_manager()
+            .project_notification(self.thread_id, &notification)
+            .await
+        {
+            self.outgoing
+                .send_server_notification_to_connections(
+                    &[delivery.connection_id],
+                    ServerNotification::ThreadProjectionEvent(delivery.notification),
+                )
+                .await;
+        }
         if self.connection_ids.is_empty() {
             return;
         }
@@ -201,7 +216,12 @@ impl OutgoingMessageSender {
             request_id_to_callback: Mutex::new(HashMap::new()),
             request_contexts: Mutex::new(HashMap::new()),
             analytics_events_client,
+            thread_projection_manager: ThreadProjectionManager::new(),
         }
+    }
+
+    pub(crate) fn thread_projection_manager(&self) -> ThreadProjectionManager {
+        self.thread_projection_manager.clone()
     }
 
     pub(crate) async fn register_request_context(&self, request_context: RequestContext) {
@@ -683,7 +703,12 @@ mod tests {
     use codex_app_server_protocol::RateLimitSnapshot;
     use codex_app_server_protocol::RateLimitWindow;
     use codex_app_server_protocol::ServerResponse;
+    use codex_app_server_protocol::ThreadProjectionEvent;
     use codex_app_server_protocol::ToolRequestUserInputParams;
+    use codex_app_server_protocol::Turn;
+    use codex_app_server_protocol::TurnItemsView;
+    use codex_app_server_protocol::TurnStartedNotification;
+    use codex_app_server_protocol::TurnStatus;
     use codex_protocol::ThreadId;
     use pretty_assertions::assert_eq;
     use serde_json::json;
@@ -1165,6 +1190,66 @@ mod tests {
             .expect("wait should not time out")
             .expect("waiter should receive a callback");
         assert_eq!(result, Err(error));
+    }
+
+    #[tokio::test]
+    async fn thread_scoped_notification_fans_out_projection_event_without_normal_subscribers() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(4);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_id = ThreadId::new();
+        let projection_connection_id = ConnectionId(2);
+        let attach = outgoing
+            .thread_projection_manager()
+            .attach(thread_id, projection_connection_id)
+            .await;
+        let thread_outgoing =
+            ThreadScopedOutgoingMessageSender::new(outgoing, Vec::new(), thread_id);
+
+        thread_outgoing
+            .send_server_notification(ServerNotification::TurnStarted(TurnStartedNotification {
+                thread_id: thread_id.to_string(),
+                turn: Turn {
+                    id: "turn-1".to_string(),
+                    items: Vec::new(),
+                    items_view: TurnItemsView::Full,
+                    status: TurnStatus::InProgress,
+                    error: None,
+                    started_at: Some(1),
+                    completed_at: None,
+                    duration_ms: None,
+                },
+            }))
+            .await;
+
+        let envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("should receive projection envelope before timeout")
+            .expect("channel should contain one message");
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message,
+            ..
+        } = envelope
+        else {
+            panic!("expected targeted projection notification envelope");
+        };
+        assert_eq!(projection_connection_id, connection_id);
+        let OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
+            notification,
+        )) = message
+        else {
+            panic!("expected thread projection event notification");
+        };
+        assert_eq!(thread_id.to_string(), notification.thread_id);
+        assert_eq!(attach.subscription_id, notification.subscription_id);
+        assert!(matches!(
+            notification.event,
+            ThreadProjectionEvent::TurnStarted { .. }
+        ));
+        assert!(rx.try_recv().is_err());
     }
 
     #[tokio::test]

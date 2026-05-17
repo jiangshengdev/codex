@@ -18,6 +18,7 @@ struct UnloadingState {
     delay: Duration,
     has_subscribers_rx: watch::Receiver<bool>,
     has_subscribers: (bool, Instant),
+    projection_subscribers: crate::thread_projection_runtime::ProjectionSubscriberWatch,
     thread_status_rx: watch::Receiver<ThreadStatus>,
     is_active: (bool, Instant),
 }
@@ -32,6 +33,15 @@ impl UnloadingState {
             .thread_state_manager
             .subscribe_to_has_connections(thread_id)
             .await?;
+        let has_projection_subscribers_rx = listener_task_context
+            .outgoing
+            .thread_projection_manager()
+            .subscribe_to_has_subscribers(thread_id)
+            .await;
+        let projection_subscribers =
+            crate::thread_projection_runtime::ProjectionSubscriberWatch::new(
+                has_projection_subscribers_rx,
+            );
         let thread_status_rx = listener_task_context
             .thread_watch_manager
             .subscribe(thread_id)
@@ -45,6 +55,7 @@ impl UnloadingState {
             delay,
             has_subscribers_rx,
             has_subscribers,
+            projection_subscribers,
             thread_status_rx,
             is_active,
         })
@@ -53,7 +64,17 @@ impl UnloadingState {
     fn unloading_target(&self) -> Option<Instant> {
         match (self.has_subscribers, self.is_active) {
             ((false, has_no_subscribers_since), (false, is_inactive_since)) => {
-                Some(std::cmp::max(has_no_subscribers_since, is_inactive_since) + self.delay)
+                let has_no_projection_subscribers_since =
+                    self.projection_subscribers.no_subscribers_since()?;
+                Some(
+                    std::cmp::max(
+                        std::cmp::max(
+                            has_no_subscribers_since,
+                            has_no_projection_subscribers_since,
+                        ),
+                        is_inactive_since,
+                    ) + self.delay,
+                )
             }
             _ => None,
         }
@@ -64,6 +85,7 @@ impl UnloadingState {
         if self.has_subscribers.0 != has_subscribers {
             self.has_subscribers = (has_subscribers, Instant::now());
         }
+        self.projection_subscribers.sync();
 
         let is_active = matches!(*self.thread_status_rx.borrow(), ThreadStatus::Active { .. });
         if self.is_active.0 != is_active {
@@ -102,6 +124,12 @@ impl UnloadingState {
             tokio::select! {
                 _ = unloading_sleep => return true,
                 changed = self.has_subscribers_rx.changed() => {
+                    if changed.is_err() {
+                        return false;
+                    }
+                    self.sync_receiver_values();
+                },
+                changed = self.projection_subscribers.changed() => {
                     if changed.is_err() {
                         return false;
                     }
@@ -389,6 +417,10 @@ pub(super) async fn unload_thread_without_subscribers(
     outgoing
         .cancel_requests_for_thread(thread_id, /*error*/ None)
         .await;
+    outgoing
+        .thread_projection_manager()
+        .remove_thread(thread_id)
+        .await;
     thread_state_manager.remove_thread_state(thread_id).await;
 
     tokio::spawn(async move {
@@ -484,6 +516,24 @@ pub(super) async fn handle_thread_listener_command(
                 thread_state_manager,
                 outgoing,
                 request_id,
+            )
+            .await;
+            let _ = completion_tx.send(());
+        }
+        ThreadListenerCommand::SendThreadProjectionAttachResponse {
+            request_id,
+            connection_id,
+            snapshot,
+            completion_tx,
+        } => {
+            crate::thread_projection_runtime::handle_projection_attach_response(
+                conversation_id,
+                pending_thread_unloads,
+                outgoing,
+                thread_state_manager,
+                request_id,
+                connection_id,
+                snapshot,
             )
             .await;
             let _ = completion_tx.send(());

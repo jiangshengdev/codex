@@ -55,6 +55,12 @@ pub(crate) enum ThreadListenerCommand {
         request_id: RequestId,
         completion_tx: oneshot::Sender<()>,
     },
+    SendThreadProjectionAttachResponse {
+        request_id: ConnectionRequestId,
+        connection_id: ConnectionId,
+        snapshot: crate::thread_projection_runtime::ThreadProjectionSnapshotFuture,
+        completion_tx: oneshot::Sender<()>,
+    },
 }
 
 /// Per-conversation accumulation of the latest states e.g. error message while a turn runs.
@@ -231,6 +237,14 @@ impl ThreadStateManager {
             .unwrap_or_default()
     }
 
+    pub(crate) async fn is_live_connection(&self, connection_id: ConnectionId) -> bool {
+        self.state
+            .lock()
+            .await
+            .live_connections
+            .contains(&connection_id)
+    }
+
     pub(crate) async fn thread_state(&self, thread_id: ThreadId) -> Arc<Mutex<ThreadState>> {
         let mut state = self.state.lock().await;
         state.threads.entry(thread_id).or_default().state.clone()
@@ -358,6 +372,18 @@ impl ThreadStateManager {
             }
         }
         Some(thread_state)
+    }
+
+    pub(crate) async fn try_thread_state_for_live_connection(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) -> Option<Arc<Mutex<ThreadState>>> {
+        let mut state = self.state.lock().await;
+        if !state.live_connections.contains(&connection_id) {
+            return None;
+        }
+        Some(state.threads.entry(thread_id).or_default().state.clone())
     }
 
     pub(crate) async fn try_add_connection_to_thread(
