@@ -3948,6 +3948,119 @@
       ],
       "type": "object"
     },
+    "ThreadProjectionEvent": {
+      "oneOf": [
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/TurnStartedNotification"
+            },
+            "type": {
+              "enum": [
+                "turnStarted"
+              ],
+              "title": "TurnStartedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "TurnStartedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/TurnCompletedNotification"
+            },
+            "type": {
+              "enum": [
+                "turnCompleted"
+              ],
+              "title": "TurnCompletedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "TurnCompletedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ItemStartedNotification"
+            },
+            "type": {
+              "enum": [
+                "itemStarted"
+              ],
+              "title": "ItemStartedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ItemStartedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ItemCompletedNotification"
+            },
+            "type": {
+              "enum": [
+                "itemCompleted"
+              ],
+              "title": "ItemCompletedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ItemCompletedThreadProjectionEvent",
+          "type": "object"
+        }
+      ]
+    },
+    "ThreadProjectionEventNotification": {
+      "properties": {
+        "commitId": {
+          "type": "string"
+        },
+        "event": {
+          "$ref": "#/definitions/ThreadProjectionEvent"
+        },
+        "parentCommitId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subscriptionId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "commitId",
+        "event",
+        "subscriptionId",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadRealtimeAudioChunk": {
       "description": "EXPERIMENTAL - thread realtime audio chunk.",
       "properties": {
@@ -5067,6 +5180,26 @@
         "params"
       ],
       "title": "Thread/tokenUsage/updatedNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "thread/projection/event"
+          ],
+          "title": "Thread/projection/eventNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadProjectionEventNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Thread/projection/eventNotification",
       "type": "object"
     },
     {
