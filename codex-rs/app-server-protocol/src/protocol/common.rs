@@ -469,6 +469,16 @@ client_request_definitions! {
         serialization: thread_id(params.thread_id),
         response: v2::ThreadUnsubscribeResponse,
     },
+    ThreadProjectionAttach => "thread/projection/attach" {
+        params: v2::ThreadProjectionAttachParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadProjectionAttachResponse,
+    },
+    ThreadProjectionDetach => "thread/projection/detach" {
+        params: v2::ThreadProjectionDetachParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadProjectionDetachResponse,
+    },
     #[experimental("thread/increment_elicitation")]
     /// Increment the thread-local out-of-band elicitation counter.
     ///
@@ -1424,6 +1434,7 @@ server_notification_definitions! {
     #[experimental("thread/goal/cleared")]
     ThreadGoalCleared => "thread/goal/cleared" (v2::ThreadGoalClearedNotification),
     ThreadTokenUsageUpdated => "thread/tokenUsage/updated" (v2::ThreadTokenUsageUpdatedNotification),
+    ThreadProjectionEvent => "thread/projection/event" (v2::ThreadProjectionEventNotification),
     TurnStarted => "turn/started" (v2::TurnStartedNotification),
     HookStarted => "hook/started" (v2::HookStartedNotification),
     TurnCompleted => "turn/completed" (v2::TurnCompletedNotification),
