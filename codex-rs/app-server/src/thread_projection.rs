@@ -21,9 +21,9 @@ pub(crate) struct ThreadProjectionManager {
 pub(crate) enum ProjectionDetachResult {
     Detached,
     NotSubscribed,
-    // Manager-level NotLoaded means no projection entry exists for the thread.
+    // Manager-level NoProjectionEntry means no projection entry exists for the thread.
     // API handlers must check thread loaded state before mapping this to wire status.
-    NotLoaded,
+    NoProjectionEntry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,7 +82,7 @@ impl ThreadProjectionManager {
     ) -> ProjectionDetachResult {
         let mut inner = self.inner.lock().await;
         let Some(entry) = inner.threads.get_mut(&thread_id) else {
-            return ProjectionDetachResult::NotLoaded;
+            return ProjectionDetachResult::NoProjectionEntry;
         };
         if !entry.detach(connection_id) {
             return ProjectionDetachResult::NotSubscribed;

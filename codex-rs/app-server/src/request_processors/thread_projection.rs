@@ -103,7 +103,8 @@ impl ThreadRequestProcessor {
                 .await
             {
                 ProjectionDetachResult::Detached => ThreadProjectionDetachStatus::Detached,
-                ProjectionDetachResult::NotSubscribed | ProjectionDetachResult::NotLoaded => {
+                ProjectionDetachResult::NotSubscribed
+                | ProjectionDetachResult::NoProjectionEntry => {
                     ThreadProjectionDetachStatus::NotSubscribed
                 }
             }
