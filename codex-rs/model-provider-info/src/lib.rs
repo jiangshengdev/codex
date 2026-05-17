@@ -34,8 +34,10 @@ const MAX_REQUEST_MAX_RETRIES: u64 = 100;
 
 const OPENAI_PROVIDER_NAME: &str = "OpenAI";
 pub const OPENAI_PROVIDER_ID: &str = "openai";
-const OPENAI_BASE_URL_ENV_VAR: &str = "CODEX_OPENAI_BASE_URL";
-const CHATGPT_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_BASE_URL";
+const CODEX_OPENAI_BASE_URL_ENV_VAR: &str = "CODEX_OPENAI_BASE_URL";
+const CODEX_CHATGPT_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_BASE_URL";
+const DEFAULT_OPENAI_API_BASE_URL: &str = "https://api.openai.com/v1";
+const DEFAULT_CHATGPT_CODEX_PROVIDER_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
 pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
 pub const AMAZON_BEDROCK_DEFAULT_BASE_URL: &str =
@@ -389,31 +391,31 @@ impl ModelProviderInfo {
 fn default_base_url(auth_mode: Option<AuthMode>) -> String {
     default_base_url_from_env(
         auth_mode,
-        std::env::var(CHATGPT_BASE_URL_ENV_VAR).ok(),
-        std::env::var(OPENAI_BASE_URL_ENV_VAR).ok(),
+        std::env::var(CODEX_CHATGPT_BASE_URL_ENV_VAR).ok(),
+        std::env::var(CODEX_OPENAI_BASE_URL_ENV_VAR).ok(),
     )
 }
 
 fn default_base_url_from_env(
     auth_mode: Option<AuthMode>,
-    chatgpt_base_url: Option<String>,
-    openai_base_url: Option<String>,
+    raw_chatgpt_backend_base_url: Option<String>,
+    raw_openai_api_base_url: Option<String>,
 ) -> String {
     if matches!(
         auth_mode,
         Some(AuthMode::Chatgpt | AuthMode::ChatgptAuthTokens | AuthMode::AgentIdentity)
     ) {
-        return chatgpt_base_url
-            .map(|value| value.trim().trim_end_matches('/').to_string())
-            .filter(|value| !value.is_empty())
-            .map(|value| format!("{value}/codex"))
-            .unwrap_or_else(|| "https://chatgpt.com/backend-api/codex".to_string());
+        return raw_chatgpt_backend_base_url
+            .map(|raw_base_url| raw_base_url.trim().trim_end_matches('/').to_string())
+            .filter(|raw_base_url| !raw_base_url.is_empty())
+            .map(|raw_base_url| format!("{raw_base_url}/codex"))
+            .unwrap_or_else(|| DEFAULT_CHATGPT_CODEX_PROVIDER_BASE_URL.to_string());
     }
 
-    openai_base_url
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "https://api.openai.com/v1".to_string())
+    raw_openai_api_base_url
+        .map(|raw_base_url| raw_base_url.trim().to_string())
+        .filter(|raw_base_url| !raw_base_url.is_empty())
+        .unwrap_or_else(|| DEFAULT_OPENAI_API_BASE_URL.to_string())
 }
 
 pub const DEFAULT_LMSTUDIO_PORT: u16 = 1234;

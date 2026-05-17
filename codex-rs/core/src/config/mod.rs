@@ -145,19 +145,19 @@ pub(crate) use permissions::resolve_permission_profile;
 
 const DEFAULT_IGNORE_LARGE_UNTRACKED_DIRS: i64 = 200;
 const DEFAULT_IGNORE_LARGE_UNTRACKED_FILES: i64 = 10 * 1024 * 1024;
-const CHATGPT_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_BASE_URL";
-const DEFAULT_CHATGPT_BASE_URL: &str = "https://chatgpt.com/backend-api/";
+const CODEX_CHATGPT_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_BASE_URL";
+const DEFAULT_CHATGPT_BACKEND_BASE_URL: &str = "https://chatgpt.com/backend-api/";
 
-fn chatgpt_base_url() -> String {
-    chatgpt_base_url_from_env(std::env::var(CHATGPT_BASE_URL_ENV_VAR).ok())
+fn default_chatgpt_backend_base_url() -> String {
+    chatgpt_backend_base_url_from_env(std::env::var(CODEX_CHATGPT_BASE_URL_ENV_VAR).ok())
 }
 
-fn chatgpt_base_url_from_env(value: Option<String>) -> String {
-    value
-        .map(|value| value.trim().trim_end_matches('/').to_string())
-        .filter(|value| !value.is_empty())
-        .map(|value| format!("{value}/"))
-        .unwrap_or_else(|| DEFAULT_CHATGPT_BASE_URL.to_string())
+fn chatgpt_backend_base_url_from_env(raw_base_url: Option<String>) -> String {
+    raw_base_url
+        .map(|raw_base_url| raw_base_url.trim().trim_end_matches('/').to_string())
+        .filter(|raw_base_url| !raw_base_url.is_empty())
+        .map(|raw_base_url| format!("{raw_base_url}/"))
+        .unwrap_or_else(|| DEFAULT_CHATGPT_BACKEND_BASE_URL.to_string())
 }
 
 /// Compatibility-only config retained so legacy `ghost_snapshot` settings
@@ -3110,7 +3110,7 @@ impl Config {
             chatgpt_base_url: config_profile
                 .chatgpt_base_url
                 .or(cfg.chatgpt_base_url)
-                .unwrap_or_else(chatgpt_base_url),
+                .unwrap_or_else(default_chatgpt_backend_base_url),
             apps_mcp_path_override,
             realtime_audio: cfg
                 .audio
