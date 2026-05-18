@@ -1,5 +1,18 @@
 # test Tag Merge Projection Migration Draft
 
+## 已确认决策
+
+- 迁移模型采用 `tag merge + overlay re-integration`。
+- 新的 `dev` 分支同时承载正式设计文档和实际迁移工作。
+- 冲突处理以官方 `rust-v0.131.0` 的结构和功能完整性优先。
+- 当前 fork 的 projection 是本地核心 overlay，不能退化成官方 API 的薄组合。
+- 官方版本已有功能不能被 projection 迁移破坏、削弱或覆盖。
+- 迁移提交必须分层：官方合入、本地 overlay、生成物、验证修复分开落地。
+- schema / TypeScript 生成物后置，最终状态以 generator 输出为准。
+- projection lifecycle 与普通 thread subscription lifecycle 保持独立。
+- 默认只做窄范围验证；全量测试需要单独明确授权。
+- 正式设计文档只覆盖本次 `rust-v0.131.0` tag merge 与 projection overlay 迁移。
+
 ## 背景
 
 `test` 是长期维护分支，基于原始 `rust-v0.130.0` 开发。它不能合并回 `main`，后续只能通过官方发布 tag，把 `main` 的变化一次一次单向合并到 `test`。
@@ -14,6 +27,7 @@ thread projection 在 `test` 上是本地 overlay，不是 `rust-v0.131.0` 的�
 - 保留 `test` 的 thread projection API、runtime、测试和文档。
 - 让 projection 适配 `rust-v0.131.0` 的新 app-server、protocol、TUI 结构。
 - 保持后续 tag 升级可重复：每次都是“官方 tag merge + test overlay 修复”。
+- 保证官方 `rust-v0.131.0` 已有功能不被当前 fork 的 projection overlay 破坏。
 
 ## 非目标
 
@@ -21,6 +35,8 @@ thread projection 在 `test` 上是本地 overlay，不是 `rust-v0.131.0` 的�
 - 不把 projection 改写成 upstream-ready PR。
 - 不用整文件覆盖方式回退官方 `rust-v0.131.0` 的结构性改动。
 - 不为了迁移 projection 而扩展无关功能。
+- 不把 `thread/read`、`thread/turns/list` 或普通 notification stream 重新设计成 projection 的替代品。
+- 不覆盖 GUI 后续、长期 release 治理或 upstream-ready 方案。
 - 不在草案阶段修改生产代码或运行大范围测试。
 
 ## 已知现状
@@ -38,20 +54,23 @@ projection 相关源码多数可以自动合并，但这不代表语义安全。
 
 ## 推荐迁移策略
 
-采用 `tag merge + overlay re-integration`。
+采用已确认的 `tag merge + overlay re-integration`。
 
-1. 从当前 `test` 创建临时迁移分支，例如 `test-merge-rust-v0.131.0`。
-2. 在临时分支合并官方 tag `rust-v0.131.0`。
-3. 冲突解决时以官方 tag 的新结构为底座。
-4. 把 `test` 的 projection 作为 overlay 重新接回官方新结构。
-5. 先让手写源码编译和测试通过，再重新生成 schema/TypeScript 文件。
-6. 用小提交分层落地，避免把官方合并、projection 修复、生成物和 release/version 调整混在一起。
+1. 使用新的 `dev` 分支作为本次设计和迁移的工作分支。
+2. 先在 `dev` 上落正式设计文档。
+3. 在同一个 `dev` 分支合并官方 tag `rust-v0.131.0`。
+4. 冲突解决时以官方 tag 的新结构和功能完整性为底座。
+5. 把 `test` 的 projection 作为 overlay 重新接回官方新结构。
+6. 先让手写源码编译和窄范围测试通过，再重新生成 schema/TypeScript 文件。
+7. 用小提交分层落地，避免把官方合并、projection 修复、生成物和 release/version 调整混在一起。
 
 ## 冲突解决原则
 
-### 官方结构优先
+### 官方结构和功能优先
 
-如果冲突来自官方新增模块、官方重构、官方 API 变更，默认保留 `rust-v0.131.0` 的结构，再把 `test` 的必要功能补进去。
+如果冲突来自官方新增模块、官方重构、官方 API 变更，默认保留 `rust-v0.131.0` 的结构和行为，再把 `test` 的必要功能补进去。
+
+projection overlay 只能追加当前 fork 的能力，不能改变官方原始功能的语义。冲突解决时不允许为了让 projection 更容易接入而删除、降级或绕过官方 `rust-v0.131.0` 的已有功能。
 
 典型例子：
 
@@ -59,9 +78,9 @@ projection 相关源码多数可以自动合并，但这不代表语义安全。
 - `codex-rs/app-server/src/request_processors.rs` 要保留 0.131 的新增 processor/import，再补回 projection request 类型和 handler 所需导入。
 - `codex-rs/tui/src/chatwidget.rs` 不能按 0.130 的旧位置硬套，因为 0.131 已把大量逻辑拆到 `chatwidget/*` 子模块。
 
-### projection 作为 test overlay
+### projection 作为本地核心 overlay
 
-projection 不是官方 0.131 功能，所以不应尝试在官方代码里寻找一比一替代。保留 overlay 的核心语义：
+projection 不是官方 0.131 功能，所以不应尝试在官方代码里寻找一比一替代，也不应退化为 `thread/read`、`thread/turns/list` 和普通 notification stream 的薄组合。保留 overlay 的核心语义：
 
 - `thread/projection/attach` 返回 `subscriptionId` 和 `snapshot`。
 - `snapshot` 包含当前 `thread` 和 `headCommitId`。
@@ -70,6 +89,15 @@ projection 不是官方 0.131 功能，所以不应尝试在官方代码里寻�
 - `thread/unsubscribe` 不 detach projection subscription。
 - connection close 需要清理 projection subscription。
 - projection subscriber 需要参与 thread unload 判断。
+
+### lifecycle 独立
+
+projection subscription 与普通 thread subscription 是两套 lifecycle。
+
+- `thread/projection/attach` 创建 projection subscription。
+- `thread/projection/detach` 移除 projection subscription。
+- `thread/unsubscribe` 只处理普通 thread subscription，不隐藏清理 projection。
+- connection close 和 thread teardown 负责 projection 的兜底清理。
 
 ### 生成物后置
 
@@ -165,7 +193,13 @@ projection event 对 TUI 不是 actionable notification。迁移时要在 0.131 
 
 ## 提交分层建议
 
-### Commit 1: merge official rust-v0.131.0 into test
+提交分层是本次迁移的设计约束，不只是建议。每个提交应有单一目的，方便后续继续按 tag 迁移时定位官方合入、本地 overlay、生成物和验证修复。
+
+### Commit 0: write formal migration design
+
+在 `dev` 上落正式设计文档。该提交只包含文档，不包含源码迁移。
+
+### Commit 1: merge official rust-v0.131.0 into dev
 
 只做官方 tag 合并和机械冲突解决，不做 projection 语义修复之外的额外重构。
 
@@ -191,7 +225,7 @@ projection event 对 TUI 不是 actionable notification。迁移时要在 0.131 
 
 ## 验证策略
 
-默认只跑窄范围验证，不跑全量测试。
+默认只跑窄范围验证，不跑全量测试。全量 Rust 测试、workspace-wide 测试或 crate-wide 大测试只能在明确授权后执行。
 
 建议顺序：
 
@@ -199,7 +233,7 @@ projection event 对 TUI 不是 actionable notification。迁移时要在 0.131 
 2. `cargo test -p codex-app-server-protocol`。
 3. `cargo test -p codex-app-server thread_projection --no-fail-fast`。
 4. schema 变化后运行 `just write-app-server-schema`。
-5. 如果 TUI match 编译失败，只跑最小 TUI compile/clippy filter；不默认跑 `cargo test -p codex-tui`。
+5. 如果 TUI match 编译失败，只跑最小 TUI compile/check；不默认跑 `cargo test -p codex-tui`。
 
 如果修改了 `Cargo.toml` 或 `Cargo.lock` 中的依赖，而不是单纯版本/merge drift，需要按仓库规则补跑 Bazel lock 更新和检查。
 
@@ -240,7 +274,8 @@ projection event 对 TUI 不是 actionable notification。迁移时要在 0.131 
 
 ## 成功标准
 
-- `test` 包含 `rust-v0.131.0` 的官方代码。
+- `dev` 完成本次迁移工作后，目标状态等价于 `test` 包含 `rust-v0.131.0` 的官方代码和 projection overlay。
+- 官方 `rust-v0.131.0` 已有功能没有因为 projection 迁移发生退化。
 - projection API surface 仍存在并通过协议测试。
 - projection attach/detach/event runtime 通过 app-server targeted tests。
 - TUI 能处理新增 `ThreadProjectionEvent` variant，不因 exhaustive match 编译失败。
