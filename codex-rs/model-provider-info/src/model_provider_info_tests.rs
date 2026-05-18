@@ -140,6 +140,43 @@ fn test_supports_remote_compaction_for_openai() {
 }
 
 #[test]
+fn default_base_url_uses_env_overrides() {
+    assert_eq!(
+        default_base_url_from_env(
+            Some(AuthMode::Chatgpt),
+            /*raw_chatgpt_backend_base_url*/
+            Some("https://chatgpt.example/backend-api/".to_string()),
+            /*raw_openai_api_base_url*/ None,
+        ),
+        "https://chatgpt.example/backend-api/codex"
+    );
+    assert_eq!(
+        default_base_url_from_env(
+            /*auth_mode*/ None,
+            /*raw_chatgpt_backend_base_url*/ None,
+            /*raw_openai_api_base_url*/ Some("https://api.example/v1".to_string()),
+        ),
+        "https://api.example/v1"
+    );
+    assert_eq!(
+        default_base_url_from_env(
+            Some(AuthMode::ChatgptAuthTokens),
+            /*raw_chatgpt_backend_base_url*/ Some("   ".to_string()),
+            /*raw_openai_api_base_url*/ None,
+        ),
+        "https://chatgpt.com/backend-api/codex"
+    );
+    assert_eq!(
+        default_base_url_from_env(
+            /*auth_mode*/ None,
+            /*raw_chatgpt_backend_base_url*/ None,
+            /*raw_openai_api_base_url*/ Some("   ".to_string()),
+        ),
+        "https://api.openai.com/v1"
+    );
+}
+
+#[test]
 fn test_supports_remote_compaction_for_azure_name() {
     let provider = ModelProviderInfo {
         name: "Azure".into(),

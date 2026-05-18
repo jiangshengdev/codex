@@ -687,6 +687,10 @@ impl ThreadRequestProcessor {
         self.outgoing
             .cancel_requests_for_thread(thread_id, /*error*/ None)
             .await;
+        self.outgoing
+            .thread_projection_manager()
+            .remove_thread(thread_id)
+            .await;
         self.thread_state_manager
             .remove_thread_state(thread_id)
             .await;
@@ -770,7 +774,7 @@ impl ThreadRequestProcessor {
         .await
     }
 
-    async fn ensure_listener_task_running(
+    pub(super) async fn ensure_listener_task_running(
         &self,
         conversation_id: ThreadId,
         conversation: Arc<CodexThread>,
@@ -1909,7 +1913,7 @@ impl ThreadRequestProcessor {
     }
 
     /// Builds the API view for `thread/read` from persisted metadata plus optional live state.
-    async fn read_thread_view(
+    pub(super) async fn read_thread_view(
         &self,
         thread_id: ThreadId,
         include_turns: bool,
@@ -3541,13 +3545,13 @@ fn normalize_thread_turns_status(
     }
 }
 
-enum ThreadReadViewError {
+pub(super) enum ThreadReadViewError {
     InvalidRequest(String),
     Unsupported(&'static str),
     Internal(String),
 }
 
-fn thread_read_view_error(err: ThreadReadViewError) -> JSONRPCErrorError {
+pub(super) fn thread_read_view_error(err: ThreadReadViewError) -> JSONRPCErrorError {
     match err {
         ThreadReadViewError::InvalidRequest(message) => invalid_request(message),
         ThreadReadViewError::Unsupported(operation) => {

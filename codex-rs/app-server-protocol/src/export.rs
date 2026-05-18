@@ -1287,7 +1287,7 @@ fn insert_definition(
     schema: Value,
     location: &str,
 ) -> Result<()> {
-    if let Some(existing) = definitions.get(&name) {
+    if let Some(existing) = definitions.get_mut(&name) {
         if existing == &schema {
             return Ok(());
         }
@@ -1300,6 +1300,19 @@ fn insert_definition(
             .get("title")
             .and_then(Value::as_str)
             .unwrap_or("<untitled>");
+        if schemas_match_except_annotations(existing, &schema) {
+            eprintln!(
+                r#"[INFO] Replaced equivalent schema definition
+  location:       {location}
+  name:           {name}
+  existing_title: {existing_title}
+  new_title:      {new_title}
+"#
+            );
+            *existing = schema;
+            return Ok(());
+        }
+
         return Err(anyhow!(
             "schema definition collision in {location}: {name} (existing title: {existing_title}, new title: {new_title}); use #[schemars(rename = \"...\")] to rename one of the conflicting schema definitions"
         ));
@@ -1307,6 +1320,33 @@ fn insert_definition(
 
     definitions.insert(name, schema);
     Ok(())
+}
+
+fn schemas_match_except_annotations(left: &Value, right: &Value) -> bool {
+    let mut left = left.clone();
+    let mut right = right.clone();
+    remove_schema_annotations(&mut left);
+    remove_schema_annotations(&mut right);
+    left == right
+}
+
+fn remove_schema_annotations(value: &mut Value) {
+    match value {
+        Value::Object(obj) => {
+            obj.remove("$schema");
+            obj.remove("title");
+            obj.remove("description");
+            for child in obj.values_mut() {
+                remove_schema_annotations(child);
+            }
+        }
+        Value::Array(items) => {
+            for child in items {
+                remove_schema_annotations(child);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn write_json_schema_with_return<T>(out_dir: &Path, name: &str) -> Result<GeneratedSchema>
@@ -2385,6 +2425,71 @@ mod tests {
             .expect("ThreadStartParams should have properties");
         assert_eq!(properties.contains_key("mockExperimentalField"), false);
         let _cleanup = fs::remove_dir_all(&output_dir);
+        Ok(())
+    }
+
+    #[test]
+    fn insert_definition_merges_duplicate_schemas_that_only_differ_by_annotations() -> Result<()> {
+        let mut definitions = Map::new();
+        insert_definition(
+            &mut definitions,
+            "TurnStartedNotification".to_string(),
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "threadId": { "type": "string" }
+                },
+                "required": ["threadId"]
+            }),
+            "namespace `v2`",
+        )?;
+
+        insert_definition(
+            &mut definitions,
+            "TurnStartedNotification".to_string(),
+            serde_json::json!({
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "title": "TurnStartedNotification",
+                "description": "A turn started.",
+                "type": "object",
+                "properties": {
+                    "threadId": {
+                        "description": "Thread identifier.",
+                        "type": "string"
+                    }
+                },
+                "required": ["threadId"]
+            }),
+            "namespace `v2`",
+        )?;
+
+        assert_eq!(
+            definitions["TurnStartedNotification"]["title"],
+            serde_json::json!("TurnStartedNotification")
+        );
+        assert_eq!(
+            definitions["TurnStartedNotification"]["properties"]["threadId"]["description"],
+            serde_json::json!("Thread identifier.")
+        );
+
+        let err = insert_definition(
+            &mut definitions,
+            "TurnStartedNotification".to_string(),
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "threadId": { "type": "integer" }
+                },
+                "required": ["threadId"]
+            }),
+            "namespace `v2`",
+        )
+        .expect_err("structurally different schemas should still collide");
+        assert_eq!(
+            err.to_string().contains("schema definition collision"),
+            true
+        );
+
         Ok(())
     }
 

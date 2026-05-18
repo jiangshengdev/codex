@@ -1095,6 +1095,54 @@
             },
             "method": {
               "enum": [
+                "thread/projection/attach"
+              ],
+              "title": "Thread/projection/attachRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/ThreadProjectionAttachParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Thread/projection/attachRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "enum": [
+                "thread/projection/detach"
+              ],
+              "title": "Thread/projection/detachRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/ThreadProjectionDetachParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Thread/projection/detachRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "enum": [
                 "thread/name/set"
               ],
               "title": "Thread/name/setRequestMethod",
@@ -11197,6 +11245,26 @@
           "properties": {
             "method": {
               "enum": [
+                "thread/projection/event"
+              ],
+              "title": "Thread/projection/eventNotificationMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/ThreadProjectionEventNotification"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "title": "Thread/projection/eventNotification",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "enum": [
                 "turn/started"
               ],
               "title": "Turn/startedNotificationMethod",
@@ -14319,6 +14387,202 @@
         "threadId"
       ],
       "title": "ThreadNameUpdatedNotification",
+      "type": "object"
+    },
+    "ThreadProjectionAttachParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "title": "ThreadProjectionAttachParams",
+      "type": "object"
+    },
+    "ThreadProjectionAttachResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "snapshot": {
+          "$ref": "#/definitions/ThreadProjectionSnapshot"
+        },
+        "subscriptionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "snapshot",
+        "subscriptionId"
+      ],
+      "title": "ThreadProjectionAttachResponse",
+      "type": "object"
+    },
+    "ThreadProjectionDetachParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "title": "ThreadProjectionDetachParams",
+      "type": "object"
+    },
+    "ThreadProjectionDetachResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/ThreadProjectionDetachStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ThreadProjectionDetachResponse",
+      "type": "object"
+    },
+    "ThreadProjectionDetachStatus": {
+      "enum": [
+        "detached",
+        "notSubscribed",
+        "notLoaded"
+      ],
+      "type": "string"
+    },
+    "ThreadProjectionEvent": {
+      "oneOf": [
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/TurnStartedNotification"
+            },
+            "type": {
+              "enum": [
+                "turnStarted"
+              ],
+              "title": "TurnStartedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "TurnStartedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/TurnCompletedNotification"
+            },
+            "type": {
+              "enum": [
+                "turnCompleted"
+              ],
+              "title": "TurnCompletedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "TurnCompletedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ItemStartedNotification"
+            },
+            "type": {
+              "enum": [
+                "itemStarted"
+              ],
+              "title": "ItemStartedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ItemStartedThreadProjectionEvent",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ItemCompletedNotification"
+            },
+            "type": {
+              "enum": [
+                "itemCompleted"
+              ],
+              "title": "ItemCompletedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ItemCompletedThreadProjectionEvent",
+          "type": "object"
+        }
+      ]
+    },
+    "ThreadProjectionEventNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "commitId": {
+          "type": "string"
+        },
+        "event": {
+          "$ref": "#/definitions/ThreadProjectionEvent"
+        },
+        "parentCommitId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subscriptionId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "commitId",
+        "event",
+        "subscriptionId",
+        "threadId"
+      ],
+      "title": "ThreadProjectionEventNotification",
+      "type": "object"
+    },
+    "ThreadProjectionSnapshot": {
+      "properties": {
+        "headCommitId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "thread": {
+          "$ref": "#/definitions/Thread"
+        }
+      },
+      "required": [
+        "thread"
+      ],
       "type": "object"
     },
     "ThreadReadParams": {
