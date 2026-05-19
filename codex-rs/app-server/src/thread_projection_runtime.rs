@@ -226,6 +226,8 @@ mod tests {
     use tokio::time::Duration;
     use tokio::time::timeout;
 
+    use crate::thread_state::ConnectionCapabilities;
+
     fn test_thread(thread_id: ThreadId) -> Thread {
         Thread {
             id: thread_id.to_string(),
@@ -277,7 +279,7 @@ mod tests {
         let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
         let thread_state_manager = ThreadStateManager::new();
         thread_state_manager
-            .connection_initialized(connection_id)
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
             .await;
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tokio::sync::mpsc::channel(1).0,
@@ -336,7 +338,7 @@ mod tests {
         let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
         let thread_state_manager = ThreadStateManager::new();
         thread_state_manager
-            .connection_initialized(connection_id)
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
             .await;
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tokio::sync::mpsc::channel(1).0,
@@ -405,7 +407,7 @@ mod tests {
         let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
         let thread_state_manager = ThreadStateManager::new();
         thread_state_manager
-            .connection_initialized(connection_id)
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
             .await;
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tokio::sync::mpsc::channel(1).0,
