@@ -20,8 +20,11 @@
 - Modify `codex-rs/tui/src/bottom_pane/status_surface_preview.rs`
   - Add `StatusSurfacePreviewItem::ContextUsedTokens`.
   - Add the `0 ctx` placeholder and iterator entry.
+- Modify `codex-rs/tui/src/bottom_pane/status_line_style.rs`
+  - Classify `StatusLineItem::ContextUsedTokens` with the existing usage accent so it uses the same status line styling family as `context-used`.
 - Modify `codex-rs/tui/src/chatwidget/status_surfaces.rs`
   - Add runtime rendering for `context-used-tokens`.
+  - Add compile-only placeholder arms in the first plumbing task so the crate remains buildable before runtime rendering is implemented.
 - Modify `codex-rs/tui/src/chatwidget.rs`
   - Add a small read-only helper near the existing context helper methods. It mirrors the `/status` card fallback shape for this item and deliberately avoids `status_line_total_usage()`.
 - Modify `codex-rs/tui/src/chatwidget/tests/status_and_layout.rs`
@@ -37,6 +40,8 @@
 **Files:**
 - Modify: `codex-rs/tui/src/bottom_pane/status_line_setup.rs`
 - Modify: `codex-rs/tui/src/bottom_pane/status_surface_preview.rs`
+- Modify: `codex-rs/tui/src/bottom_pane/status_line_style.rs`
+- Modify: `codex-rs/tui/src/chatwidget/status_surfaces.rs`
 - Test: `codex-rs/tui/src/bottom_pane/status_line_setup.rs`
 
 - [ ] **Step 1: Add failing enum coverage**
@@ -90,6 +95,18 @@ In `StatusLineItem::preview_item`, add:
             StatusLineItem::ContextUsedTokens => StatusSurfacePreviewItem::ContextUsedTokens,
 ```
 
+In `StatusLineAccent::for_item` in `codex-rs/tui/src/bottom_pane/status_line_style.rs`, add the new item to the existing usage group:
+
+```rust
+            StatusLineItem::ContextRemaining
+            | StatusLineItem::ContextUsed
+            | StatusLineItem::ContextUsedTokens
+            | StatusLineItem::ContextWindowSize
+            | StatusLineItem::UsedTokens
+            | StatusLineItem::TotalInputTokens
+            | StatusLineItem::TotalOutputTokens => Self::Usage,
+```
+
 - [ ] **Step 4: Add the preview item**
 
 In `StatusSurfacePreviewItem`, add `ContextUsedTokens` immediately after `ContextUsed`.
@@ -105,6 +122,20 @@ In `iter`, add:
 ```rust
             Self::ContextUsedTokens,
 ```
+
+In `status_line_value_for_item` in `codex-rs/tui/src/chatwidget/status_surfaces.rs`, add this temporary compile-only arm immediately after `StatusLineItem::ContextUsed`:
+
+```rust
+            StatusLineItem::ContextUsedTokens => None,
+```
+
+In `status_surface_preview_value_for_item`, add this temporary compile-only arm immediately after `StatusSurfacePreviewItem::ContextUsed`:
+
+```rust
+            StatusSurfacePreviewItem::ContextUsedTokens => return None,
+```
+
+Task 2 replaces these placeholder arms with the real runtime mapping. They exist only so the crate stays buildable after adding exhaustive enum variants.
 
 - [ ] **Step 5: Run the focused enum test and verify it passes**
 
@@ -146,6 +177,7 @@ async fn status_line_context_used_tokens_matches_status_card_used_value() {
     ]);
 
     chat.set_token_info(Some(TokenUsageInfo {
+        // Sentinel: this item must not read session cumulative usage.
         total_token_usage: TokenUsage {
             total_tokens: 519_000,
             ..TokenUsage::default()
@@ -161,6 +193,23 @@ async fn status_line_context_used_tokens_matches_status_card_used_value() {
     assert_eq!(
         status_line_text(&chat),
         Some("Context 48% used · 130K ctx".to_string())
+    );
+}
+
+#[tokio::test]
+async fn status_line_context_used_tokens_is_valid_config_item() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+    chat.config.model_context_window = Some(258_400);
+    chat.config.tui_status_line = Some(vec!["context-used-tokens".to_string()]);
+
+    chat.set_token_info(/*info*/ None);
+    chat.refresh_status_line();
+
+    assert_eq!(status_line_text(&chat), Some("0 ctx".to_string()));
+    assert!(
+        drain_insert_history(&mut rx).is_empty(),
+        "context-used-tokens should parse as a valid status line item"
     );
 }
 
@@ -183,6 +232,8 @@ async fn status_line_context_used_tokens_omits_when_status_card_would_omit_conte
     chat.config.tui_status_line = Some(vec!["context-used-tokens".to_string()]);
 
     chat.set_token_info(Some(TokenUsageInfo {
+        // Sentinel: the helper should omit because the context window is unknown, not because
+        // session cumulative usage is zero.
         total_token_usage: TokenUsage {
             total_tokens: 519_000,
             ..TokenUsage::default()
@@ -199,6 +250,8 @@ async fn status_line_context_used_tokens_omits_when_status_card_would_omit_conte
 }
 ```
 
+- `total_token_usage.total_tokens = 519_000` is intentional sentinel data. These tests should fail if the implementation accidentally reuses the `used-tokens`/session cumulative path instead of `last_token_usage`.
+
 - [ ] **Step 2: Run the runtime tests and verify they fail**
 
 Run from `codex-rs`:
@@ -207,7 +260,7 @@ Run from `codex-rs`:
 cargo test -p codex-tui status_line_context_used_tokens
 ```
 
-Expected: FAIL because `context-used-tokens` is not yet rendered.
+Expected: FAIL with assertion failures because Task 1 leaves `context-used-tokens` as a compile-only status line placeholder that renders no segment yet.
 
 - [ ] **Step 3: Add a `/status`-aligned helper**
 
@@ -229,9 +282,11 @@ In the `impl ChatWidget` block that already contains `status_line_context_window
 
 Do not use `status_line_total_usage()` here. That helper returns `total_token_usage` and would make this item show session cumulative usage instead of the `/status` card's `used` value.
 
+Keep `TokenUsage::default().tokens_in_context_window()` instead of hardcoding `0` in the fallback branch. The helper should stay structurally aligned with `/status`, which pairs default usage with `config.model_context_window` before reading `tokens_in_context_window()`.
+
 - [ ] **Step 4: Render the new status line branch**
 
-In `status_line_value_for_item`, add this branch immediately after `StatusLineItem::ContextUsed`:
+In `status_line_value_for_item`, replace the temporary `StatusLineItem::ContextUsedTokens => None` arm with:
 
 ```rust
             StatusLineItem::ContextUsedTokens => self
@@ -239,7 +294,7 @@ In `status_line_value_for_item`, add this branch immediately after `StatusLineIt
                 .map(|tokens| format!("{} ctx", format_tokens_compact(tokens))),
 ```
 
-In `status_surface_preview_value_for_item`, map the preview item:
+In `status_surface_preview_value_for_item`, replace the temporary `StatusSurfacePreviewItem::ContextUsedTokens => return None` arm with:
 
 ```rust
             StatusSurfacePreviewItem::ContextUsedTokens => StatusLineItem::ContextUsedTokens,
@@ -278,7 +333,7 @@ async fn status_surface_preview_lines_context_used_tokens_placeholder() {
             StatusLineItem::ContextUsed,
             StatusLineItem::ContextUsedTokens,
         ],
-        &[],
+        &[TerminalTitleItem::Project],
     );
 
     assert_chatwidget_snapshot!(
@@ -307,16 +362,17 @@ cargo insta pending-snapshots -p codex-tui
 find codex-rs/tui/src/chatwidget/snapshots -maxdepth 1 -name '*.snap.new' -print -exec sed -n '1,220p' {} \;
 ```
 
-Expected preview content includes:
+Expected preview content must match this line exactly:
 
 ```text
 status line: Context 0% used · 0 ctx
+terminal title: my-project
 ```
 
 Accept the snapshot only after confirming the content:
 
 ```bash
-cargo insta accept -p codex-tui
+cargo insta accept -p codex-tui status_surface_previews_context_used_tokens_placeholder
 ```
 
 - [ ] **Step 4: Run Configure Status Line popup snapshots**
@@ -337,7 +393,7 @@ If `.snap.new` files were created, inspect them:
 cargo insta pending-snapshots -p codex-tui
 ```
 
-Confirm the Configure Status Line list includes:
+Confirm the only pending snapshots are the intended `status_line_setup_popup_*` snapshots, and that the Configure Status Line list includes:
 
 ```text
 context-used-tokens  Raw context-window tokens for the latest model request
@@ -346,7 +402,7 @@ context-used-tokens  Raw context-window tokens for the latest model request
 Accept intended updates:
 
 ```bash
-cargo insta accept -p codex-tui
+cargo insta accept -p codex-tui status_line_setup_popup_live_only status_line_setup_popup_hardcoded_only status_line_setup_popup_mixed
 ```
 
 ---
@@ -405,6 +461,7 @@ Run from repo root:
 ```bash
 git diff -- codex-rs/tui/src/bottom_pane/status_line_setup.rs \
   codex-rs/tui/src/bottom_pane/status_surface_preview.rs \
+  codex-rs/tui/src/bottom_pane/status_line_style.rs \
   codex-rs/tui/src/chatwidget.rs \
   codex-rs/tui/src/chatwidget/status_surfaces.rs \
   codex-rs/tui/src/chatwidget/tests/status_and_layout.rs \
@@ -427,6 +484,7 @@ Expected:
 - Spec coverage:
   - New item id `context-used-tokens`: Task 1.
   - Description text: Task 1.
+  - User config parsing and invalid-item warning avoidance: Task 2.
   - `/status` parity and `last_token_usage`: Task 2.
   - `0 ctx` default usage behavior: Task 2.
   - Unknown context window omission: Task 2.
@@ -434,6 +492,7 @@ Expected:
   - Formatting and targeted tests: Task 4.
 - Type consistency:
   - `StatusLineItem::ContextUsedTokens` maps to `StatusSurfacePreviewItem::ContextUsedTokens`.
+  - `StatusLineItem::ContextUsedTokens` is included in the status line usage accent group.
   - Runtime value uses `TokenUsage::tokens_in_context_window()` and `format_tokens_compact`.
   - No terminal title enum is introduced.
 - Risk notes:
