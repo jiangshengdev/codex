@@ -70,7 +70,7 @@ Run from `codex-rs`:
 cargo test -p codex-tui context_used_tokens_is_selectable_id
 ```
 
-Expected: FAIL because `StatusLineItem::ContextUsedTokens` does not exist.
+Expected: FAIL at compile time with an unresolved `StatusLineItem::ContextUsedTokens` variant. This first red step intentionally proves the new selectable enum surface does not exist yet; Task 2's red step is the runtime assertion failure after Task 1 leaves a compile-only placeholder.
 
 - [ ] **Step 3: Add the status line item enum variant**
 
@@ -372,7 +372,8 @@ terminal title: my-project
 Accept the snapshot only after confirming the content:
 
 ```bash
-cargo insta accept -p codex-tui status_surface_previews_context_used_tokens_placeholder
+SNAPSHOT="$PWD/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__status_surface_previews_context_used_tokens_placeholder.snap"
+cargo insta accept -p codex-tui --snapshot "$SNAPSHOT"
 ```
 
 - [ ] **Step 4: Run Configure Status Line popup snapshots**
@@ -402,7 +403,10 @@ context-used-tokens  Raw context-window tokens for the latest model request
 Accept intended updates:
 
 ```bash
-cargo insta accept -p codex-tui status_line_setup_popup_live_only status_line_setup_popup_hardcoded_only status_line_setup_popup_mixed
+cargo insta accept -p codex-tui \
+  --snapshot "$PWD/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__status_line_setup_popup_live_only.snap" \
+  --snapshot "$PWD/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__status_line_setup_popup_hardcoded_only.snap" \
+  --snapshot "$PWD/tui/src/chatwidget/snapshots/codex_tui__chatwidget__tests__status_line_setup_popup_mixed.snap"
 ```
 
 ---
