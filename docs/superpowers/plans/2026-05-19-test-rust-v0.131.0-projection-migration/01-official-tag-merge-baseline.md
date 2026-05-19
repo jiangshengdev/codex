@@ -133,6 +133,7 @@ If release workflow or version files conflict:
 
 - Preserve official 0.131 release surface unless a `test`-specific setting is clearly required.
 - Do not mix release policy decisions with projection runtime changes.
+- During an active merge, conflict resolution for tracked release/version files remains part of the merge commit. If a `test`-specific release policy adjustment is still needed after the merge commit, make that as a separate follow-up commit before Plan 02.
 
 Run:
 
@@ -219,3 +220,16 @@ Expected:
 
 - Working tree is clean.
 - Latest commit is the official tag merge baseline.
+
+- [ ] **Step 4: Commit optional post-merge release policy adjustment**
+
+Only run this step if Task 3 Step 3 identified a `test`-specific release/version policy adjustment that should not live in the merge commit.
+
+Run:
+
+```bash
+git add .github/workflows/rust-release.yml
+git commit -m "chore(release): adopt rust v0.131 release surface"
+```
+
+Expected: commit contains only release/version policy files.

@@ -4,7 +4,7 @@
 
 **Goal:** Restore the projection protocol and app-server runtime on top of the official 0.131 baseline.
 
-**Architecture:** Keep projection logic in dedicated modules and add only thin hooks to official 0.131 choke points. The runtime owns projection subscriptions, per-thread commit chains, snapshot attachment, event projection, unload participation, detach semantics, and connection cleanup.
+**Architecture:** Keep projection logic in dedicated modules and add only thin wiring hooks to official 0.131 choke points. The runtime owns projection subscriptions, per-thread commit chains, snapshot attachment, event projection, unload participation, detach semantics, and connection cleanup.
 
 **Tech Stack:** Rust, `codex-app-server-protocol`, `codex-app-server`, Tokio, app-server v2 tests.
 
@@ -20,11 +20,52 @@
 - Create or modify: `codex-rs/app-server/src/request_processors/thread_projection.rs`
 - Modify: `codex-rs/app-server/src/lib.rs`
 - Modify: `codex-rs/app-server/src/request_processors.rs`
-- Modify: `codex-rs/app-server/src/thread_state.rs`
+- Modify: `codex-rs/app-server/src/thread_state.rs` after verifying it still owns `ThreadListenerCommand`.
 - Modify: `codex-rs/app-server/src/request_processors/thread_lifecycle.rs`
 - Modify: `codex-rs/app-server/src/outgoing_message.rs`
 - Modify: `codex-rs/app-server/src/message_processor.rs`
 - Modify or create: `codex-rs/app-server/tests/suite/v2/thread_projection.rs`
+
+## Task 0: Protocol And 0.131 Grounding Gates
+
+- [ ] **Step 1: Confirm design authorizes detach status space**
+
+Run:
+
+```bash
+rg -n "Detach.*status|notSubscribed|notLoaded|detached" docs/superpowers/specs/2026-05-19-test-rust-v0.131.0-projection-migration-design.md
+```
+
+Expected:
+
+- The design explicitly names `detached`, `notSubscribed`, and `notLoaded` as the `thread/projection/detach` response status space.
+- If the design does not contain those three statuses, stop and update the design before continuing with Plan 02.
+
+- [ ] **Step 2: Snapshot official app-server module list**
+
+Run after Plan 01 baseline merge:
+
+```bash
+rg -n "^pub mod |^mod " codex-rs/app-server/src/lib.rs
+```
+
+Expected:
+
+- Save the terminal output as the module baseline for this plan.
+- Any module removal during Plan 02 must be treated as a design check and not silently dropped.
+
+- [ ] **Step 3: Locate current ThreadListenerCommand owner**
+
+Run:
+
+```bash
+rg -n "enum ThreadListenerCommand" codex-rs/app-server/src
+```
+
+Expected:
+
+- The command prints the current owner file.
+- If the owner is not `codex-rs/app-server/src/thread_state.rs`, use the actual owner file in Task 4.
 
 ## Task 1: Restore Protocol Surface
 
@@ -146,6 +187,7 @@ detach removes only matching connection
 remove_connection removes all subscriptions and updates watch
 remove_thread clears head and subscribers
 non-whitelisted notifications do not deliver or advance head
+detach removes only matching subscription and wakes unload watch when it was the last projection subscriber for the thread
 ```
 
 - [ ] **Step 4: Register app-server modules**
@@ -160,7 +202,8 @@ mod thread_projection_runtime;
 Expected:
 
 - Preserve all official 0.131 modules.
-- Do not remove official `attestation`, `environment`, `extensions`, `skills_watcher`, or `remote_control` modules if present.
+- Compare against the module snapshot from Task 0 Step 2.
+- Do not remove any official 0.131 module unless the design is updated to explain why.
 
 ## Task 3: Restore Request Processor And Snapshot
 
@@ -187,7 +230,21 @@ Required behavior:
 - closed connection silently skips attach response,
 - attach does not create ordinary thread subscription.
 
-- [ ] **Step 3: Build snapshot from 0.131 reconstruction**
+- [ ] **Step 3: Locate 0.131 reconstruction entry**
+
+Run:
+
+```bash
+rg -n "fn .*reconstruct|fn .*build_thread|active_turn_snapshot|merge_turn_history_with_active_turn|read_thread_view" codex-rs/app-server/src/request_processors
+```
+
+Expected:
+
+- Record the function names and signatures used by `thread/turns/list` and `thread/read(includeTurns=true)`.
+- If one entry covers persisted history plus live active turn semantics, use it as the default snapshot source.
+- If no single entry covers persisted history plus live active turn semantics, mark the fallback path active and require the equivalence test before proceeding.
+
+- [ ] **Step 4: Build snapshot from 0.131 reconstruction**
 
 Default path:
 
@@ -201,7 +258,7 @@ Fallback path:
 - only use independent code when `headCommitId` wrapping, listener ordering, or loaded-thread fallback prevents direct reuse,
 - add focused equivalence test proving field semantics match 0.131 reconstruction for persisted history + live active turn.
 
-- [ ] **Step 4: Implement detach status mapping**
+- [ ] **Step 5: Implement detach status mapping**
 
 Required status mapping:
 
@@ -212,7 +269,7 @@ loaded but connection not subscribed -> notSubscribed
 loaded and subscription removed -> detached
 ```
 
-- [ ] **Step 5: Wire request dispatch**
+- [ ] **Step 6: Wire request dispatch**
 
 In `codex-rs/app-server/src/request_processors.rs` and `codex-rs/app-server/src/message_processor.rs`, dispatch:
 
@@ -230,7 +287,7 @@ Expected:
 
 - [ ] **Step 1: Add listener command**
 
-In `codex-rs/app-server/src/thread_state.rs`, add a command equivalent to:
+In the `ThreadListenerCommand` owner file found in Task 0 Step 3, add a command equivalent to:
 
 ```text
 SendThreadProjectionAttachResponse {
@@ -257,6 +314,8 @@ late-close cleanup
 send response
 ```
 
+The second closing-thread guard is intentional: closing can start while the snapshot future is awaited, so attach must re-check before registering the subscriber.
+
 - [ ] **Step 3: Add attach race tests**
 
 Runtime tests must cover:
@@ -270,6 +329,8 @@ Runtime tests must cover:
 - [ ] **Step 1: Add projection manager to outgoing sender**
 
 In `codex-rs/app-server/src/outgoing_message.rs`, ensure `OutgoingMessageSender` owns `ThreadProjectionManager` and exposes a clone accessor.
+
+Ownership rationale: keep the projection manager colocated with the fanout choke point so projection events are produced in the same task path as ordinary thread notifications. If the baseline 0.131 code splits outgoing ownership into per-thread senders, stop and re-evaluate this owner before implementing.
 
 - [ ] **Step 2: Add fanout thin hook**
 
@@ -350,22 +411,63 @@ just fmt
 
 Expected: formatting completes.
 
-- [ ] **Step 5: Commit app-server runtime**
+- [ ] **Step 5: Commit projection manager**
 
 Run:
 
 ```bash
 git add codex-rs/app-server/src/lib.rs \
-  codex-rs/app-server/src/request_processors.rs \
-  codex-rs/app-server/src/thread_state.rs \
-  codex-rs/app-server/src/request_processors/thread_lifecycle.rs \
-  codex-rs/app-server/src/outgoing_message.rs \
-  codex-rs/app-server/src/message_processor.rs \
-  codex-rs/app-server/src/thread_projection.rs \
-  codex-rs/app-server/src/thread_projection_runtime.rs \
-  codex-rs/app-server/src/request_processors/thread_projection.rs \
-  codex-rs/app-server/tests/suite/v2/thread_projection.rs
-git commit -m "feat(app-server): restore thread projection runtime"
+  codex-rs/app-server/src/thread_projection.rs
+git commit -m "feat(app-server): add thread projection manager"
 ```
 
-Expected: commit contains app-server projection source and focused tests.
+Expected: commit contains projection manager and module registration only.
+
+- [ ] **Step 6: Commit projection request processor and snapshot**
+
+Run:
+
+```bash
+git add codex-rs/app-server/src/request_processors.rs \
+  codex-rs/app-server/src/request_processors/thread_projection.rs
+git commit -m "feat(app-server): add projection request processor"
+```
+
+Expected: commit contains projection request handling and snapshot logic only.
+
+- [ ] **Step 7: Commit listener-ordered attach runtime**
+
+Run:
+
+```bash
+git add codex-rs/app-server/src/thread_state.rs \
+  codex-rs/app-server/src/request_processors/thread_lifecycle.rs \
+  codex-rs/app-server/src/thread_projection_runtime.rs
+git commit -m "feat(app-server): add listener ordered projection attach"
+```
+
+Expected: commit contains listener command and attach response runtime only.
+
+- [ ] **Step 8: Commit projection fanout and lifecycle hooks**
+
+Run:
+
+```bash
+git add codex-rs/app-server/src/outgoing_message.rs \
+  codex-rs/app-server/src/message_processor.rs \
+  codex-rs/app-server/src/request_processors/thread_lifecycle.rs
+git commit -m "feat(app-server): add projection fanout lifecycle hooks"
+```
+
+Expected: commit contains fanout, unload, and connection-close hooks only.
+
+- [ ] **Step 9: Commit app-server focused tests**
+
+Run:
+
+```bash
+git add codex-rs/app-server/tests/suite/v2/thread_projection.rs
+git commit -m "test(app-server): cover thread projection runtime"
+```
+
+Expected: commit contains app-server projection focused tests only. If implementation required test-only helpers in source files, include only those helper changes with this commit after reviewing the diff.

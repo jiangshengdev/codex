@@ -12,9 +12,7 @@
 
 ## Files
 
-- Modify: `codex-rs/tui/src/app/app_server_event_targets.rs`
-- Modify: `codex-rs/tui/src/chatwidget/protocol.rs` or the 0.131 exhaustive match owner if different.
-- Modify: `codex-rs/tui/src/chatwidget.rs` only if 0.131 still has an exhaustive `ServerNotification` match there.
+- Modify: actual TUI exhaustive-match owner files located in Task 1 Step 1.
 - Modify: `codex-rs/app-server-protocol/schema/json/*` through generator only.
 - Modify: `codex-rs/app-server-protocol/schema/typescript/*` through generator only.
 - Modify: `codex-rs/app-server/README.md`
@@ -194,7 +192,7 @@ Run:
 git diff --exit-code -- codex-rs/app-server-protocol/schema
 ```
 
-Expected: no output. If output appears, regenerate schema and commit generated files separately.
+Expected: no output. If output appears and only includes formatting changes inside `codex-rs/app-server-protocol/schema`, verify whether the formatter touched generated files and then re-run the generator so committed schema remains canonical.
 
 - [ ] **Step 5: Check whitespace**
 

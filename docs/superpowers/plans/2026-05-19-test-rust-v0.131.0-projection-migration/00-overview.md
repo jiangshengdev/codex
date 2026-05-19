@@ -4,7 +4,7 @@
 
 **Goal:** Coordinate the `test` branch migration to official `rust-v0.131.0` while preserving the local thread projection overlay.
 
-**Architecture:** The work is split into three execution plans: official tag merge baseline, projection protocol/app-server runtime, and TUI/schema/final verification. Official upstream code stays authoritative; projection remains an isolated overlay with thin hooks at stable choke points.
+**Architecture:** The work is split into three execution plans: official tag merge baseline, projection protocol/app-server runtime, and TUI/schema/final verification. Official upstream code stays authoritative; projection remains an isolated overlay with thin wiring hooks at stable choke points.
 
 **Tech Stack:** Rust, Cargo, app-server v2 protocol, JSON schema / TypeScript generation, TUI server notification handling, Git.
 
@@ -50,10 +50,12 @@ Do not combine official merge, projection runtime changes, generated files, and 
 ## Global Success Criteria
 
 - `dev` contains official `rust-v0.131.0` plus projection overlay.
-- Projection API still exposes `thread/projection/attach`, `thread/projection/detach`, and `thread/projection/event`.
-- Projection commit chain remains per-thread and preserves attach-to-first-event parent linkage.
-- Projection detach is not a drain barrier; client in-flight event contract is documented.
-- Projection subscribers participate in unload decisions.
+- Official 0.131 functionality does not regress because of projection overlay.
+- Projection API surface includes `thread/projection/attach`, `thread/projection/detach`, and `thread/projection/event`, plus matching schema / TypeScript output.
+- Projection attach/detach/event focused tests cover independent lifecycle, per-thread commit chain, detach status, and in-flight event client contract.
+- Snapshot focused tests cover persisted history, loaded thread, and live active turn, and verify turn/item field semantics against 0.131 reconstruction.
+- Unload focused tests cover ordinary subscribers clearing while projection subscribers keep the thread loaded.
+- Connection close focused tests cover projection subscription cleanup and prove the official close order is not moved earlier by projection hooks.
 - TUI accepts `ThreadProjectionEvent` but does not consume projection data.
 - Generated schema / TypeScript contains both official 0.131 APIs and projection APIs.
 
