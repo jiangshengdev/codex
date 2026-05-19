@@ -196,7 +196,6 @@ In `codex-rs/app-server/src/lib.rs`, add:
 
 ```rust
 mod thread_projection;
-mod thread_projection_runtime;
 ```
 
 Expected:
@@ -204,6 +203,7 @@ Expected:
 - Preserve all official 0.131 modules.
 - Compare against the module snapshot from Task 0 Step 2.
 - Do not remove any official 0.131 module unless the design is updated to explain why.
+- Do not declare `thread_projection_runtime` in this task; that module is created and registered with the listener-ordered attach runtime in Task 4 so the Task 2 commit remains buildable.
 
 - [ ] **Step 5: Commit projection manager**
 
@@ -298,18 +298,20 @@ Expected:
 - Dispatch only delegates to `request_processors/thread_projection.rs`.
 - No projection business logic is added inline to `message_processor.rs`.
 
-- [ ] **Step 7: Commit projection request processor and snapshot**
+- [ ] **Step 7: Check request processor diff without committing**
 
 Run:
 
 ```bash
-git add codex-rs/app-server/src/request_processors.rs \
+git diff -- codex-rs/app-server/src/request_processors.rs \
   codex-rs/app-server/src/message_processor.rs \
   codex-rs/app-server/src/request_processors/thread_projection.rs
-git commit -m "feat(app-server): add projection request processor"
 ```
 
-Expected: commit contains projection request handling, dispatch, and snapshot logic only.
+Expected:
+
+- Diff contains projection request handling, dispatch, and snapshot logic only.
+- Do not commit yet. The attach processor enqueues a listener command and uses the runtime snapshot future type, so it must be committed together with Task 4's listener command, handler, runtime module, and `lib.rs` runtime registration to keep the intermediate commit buildable.
 
 ## Task 4: Restore Listener-Ordered Attach Runtime
 
@@ -329,6 +331,12 @@ SendThreadProjectionAttachResponse {
 - [ ] **Step 2: Handle listener command**
 
 In `codex-rs/app-server/src/request_processors/thread_lifecycle.rs`, handle the command by delegating to `thread_projection_runtime::handle_projection_attach_response`.
+
+In `codex-rs/app-server/src/lib.rs`, add the runtime module declaration now that the runtime file is created:
+
+```rust
+mod thread_projection_runtime;
+```
 
 Expected ordering:
 
@@ -352,18 +360,22 @@ Runtime tests must cover:
 - late connection close after attach registration removes the projection subscription,
 - first event after attach has `parentCommitId == snapshot.headCommitId`.
 
-- [ ] **Step 4: Commit listener-ordered attach runtime**
+- [ ] **Step 4: Commit request processor and listener-ordered attach runtime**
 
 Run:
 
 ```bash
-git add codex-rs/app-server/src/thread_state.rs \
+git add codex-rs/app-server/src/lib.rs \
+  codex-rs/app-server/src/request_processors.rs \
+  codex-rs/app-server/src/message_processor.rs \
+  codex-rs/app-server/src/request_processors/thread_projection.rs \
+  codex-rs/app-server/src/thread_state.rs \
   codex-rs/app-server/src/request_processors/thread_lifecycle.rs \
   codex-rs/app-server/src/thread_projection_runtime.rs
-git commit -m "feat(app-server): add listener ordered projection attach"
+git commit -m "feat(app-server): add projection request processor and listener attach"
 ```
 
-Expected: commit contains listener command, listener command handler, and attach response runtime only.
+Expected: commit contains projection request handling, dispatch, snapshot logic, listener command, listener command handler, attach response runtime, and `thread_projection_runtime` module registration. Keeping these pieces together avoids a non-buildable intermediate commit where the request processor references a missing listener command or runtime type.
 
 ## Task 5: Restore Fanout And Lifecycle Hooks
 
@@ -418,7 +430,7 @@ git add codex-rs/app-server/src/outgoing_message.rs \
 git commit -m "feat(app-server): add projection fanout lifecycle hooks"
 ```
 
-Expected: commit contains fanout, unload watcher, and connection-close hooks only. This commit may modify `thread_lifecycle.rs` again after Task 4; because Task 4 has already committed the listener handler, this step stages only the later unload watcher changes.
+Expected: commit contains fanout, unload watcher, and connection-close hooks only. This commit may modify `thread_lifecycle.rs` and `message_processor.rs` again after Task 4; because Task 4 has already committed the listener handler and request dispatch, this step stages only the later unload watcher and connection-close cleanup changes.
 
 ## Task 6: Add App-Server Focused Tests
 
@@ -470,8 +482,9 @@ Expected: formatting completes.
 Run:
 
 ```bash
-git add codex-rs/app-server/tests/suite/v2/thread_projection.rs
+git add codex-rs/app-server/tests/suite/v2/thread_projection.rs \
+  codex-rs/app-server/src/request_processors/thread_projection.rs
 git commit -m "test(app-server): cover thread projection runtime"
 ```
 
-Expected: commit contains app-server projection focused tests only. If implementation required test-only helpers in source files, include only those helper changes with this commit after reviewing the diff.
+Expected: commit contains app-server projection focused tests only, including the snapshot equivalence unit test hunks added to `request_processors/thread_projection.rs` in Task 6 Step 2. If implementation required other test-only helpers in source files, include only those helper changes with this commit after reviewing the diff.
