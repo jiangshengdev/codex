@@ -56,7 +56,7 @@ Expected:
 
 - [ ] **Step 3: Locate current ThreadListenerCommand owner**
 
-Run:
+Run after Plan 01 baseline merge:
 
 ```bash
 rg -n "enum ThreadListenerCommand" codex-rs/app-server/src
@@ -205,6 +205,18 @@ Expected:
 - Compare against the module snapshot from Task 0 Step 2.
 - Do not remove any official 0.131 module unless the design is updated to explain why.
 
+- [ ] **Step 5: Commit projection manager**
+
+Run:
+
+```bash
+git add codex-rs/app-server/src/lib.rs \
+  codex-rs/app-server/src/thread_projection.rs
+git commit -m "feat(app-server): add thread projection manager"
+```
+
+Expected: commit contains projection manager and module registration only.
+
 ## Task 3: Restore Request Processor And Snapshot
 
 - [ ] **Step 1: Add projection request processor module**
@@ -235,12 +247,15 @@ Required behavior:
 Run:
 
 ```bash
-rg -n "fn .*reconstruct|fn .*build_thread|active_turn_snapshot|merge_turn_history_with_active_turn|read_thread_view" codex-rs/app-server/src/request_processors
+rg -n "fn .*reconstruct|fn .*build_thread|active_turn_snapshot|merge_turn_history_with_active_turn|read_thread_view" \
+  codex-rs/app-server/src \
+  codex-rs/app-server-protocol/src
 ```
 
 Expected:
 
 - Record the function names and signatures used by `thread/turns/list` and `thread/read(includeTurns=true)`.
+- Prefer app-server's `thread/read` and `thread/turns/list` paths as the snapshot source. Treat protocol crate matches as lower-level reconstruction evidence, not as a direct replacement for app-server snapshot ownership.
 - If one entry covers persisted history plus live active turn semantics, use it as the default snapshot source.
 - If no single entry covers persisted history plus live active turn semantics, mark the fallback path active and require the equivalence test before proceeding.
 
@@ -283,6 +298,19 @@ Expected:
 - Dispatch only delegates to `request_processors/thread_projection.rs`.
 - No projection business logic is added inline to `message_processor.rs`.
 
+- [ ] **Step 7: Commit projection request processor and snapshot**
+
+Run:
+
+```bash
+git add codex-rs/app-server/src/request_processors.rs \
+  codex-rs/app-server/src/message_processor.rs \
+  codex-rs/app-server/src/request_processors/thread_projection.rs
+git commit -m "feat(app-server): add projection request processor"
+```
+
+Expected: commit contains projection request handling, dispatch, and snapshot logic only.
+
 ## Task 4: Restore Listener-Ordered Attach Runtime
 
 - [ ] **Step 1: Add listener command**
@@ -324,6 +352,19 @@ Runtime tests must cover:
 - late connection close after attach registration removes the projection subscription,
 - first event after attach has `parentCommitId == snapshot.headCommitId`.
 
+- [ ] **Step 4: Commit listener-ordered attach runtime**
+
+Run:
+
+```bash
+git add codex-rs/app-server/src/thread_state.rs \
+  codex-rs/app-server/src/request_processors/thread_lifecycle.rs \
+  codex-rs/app-server/src/thread_projection_runtime.rs
+git commit -m "feat(app-server): add listener ordered projection attach"
+```
+
+Expected: commit contains listener command, listener command handler, and attach response runtime only.
+
 ## Task 5: Restore Fanout And Lifecycle Hooks
 
 - [ ] **Step 1: Add projection manager to outgoing sender**
@@ -332,7 +373,7 @@ In `codex-rs/app-server/src/outgoing_message.rs`, ensure `OutgoingMessageSender`
 
 Ownership rationale: keep the projection manager colocated with the fanout choke point so projection events are produced in the same task path as ordinary thread notifications. If the baseline 0.131 code splits outgoing ownership into per-thread senders, stop and re-evaluate this owner before implementing.
 
-- [ ] **Step 2: Add fanout thin hook**
+- [ ] **Step 2: Add fanout thin wiring hook**
 
 In `ThreadScopedOutgoingMessageSender::send_server_notification`, project the typed notification before ordinary send.
 
@@ -365,6 +406,19 @@ Required behavior:
 - do not reorder official close processors,
 - cleanup only projection subscriptions,
 - removed projection subscribers wake unload watch.
+
+- [ ] **Step 5: Commit projection fanout and lifecycle hooks**
+
+Run:
+
+```bash
+git add codex-rs/app-server/src/outgoing_message.rs \
+  codex-rs/app-server/src/message_processor.rs \
+  codex-rs/app-server/src/request_processors/thread_lifecycle.rs
+git commit -m "feat(app-server): add projection fanout lifecycle hooks"
+```
+
+Expected: commit contains fanout, unload watcher, and connection-close hooks only. This commit may modify `thread_lifecycle.rs` again after Task 4; because Task 4 has already committed the listener handler, this step stages only the later unload watcher changes.
 
 ## Task 6: Add App-Server Focused Tests
 
@@ -411,57 +465,7 @@ just fmt
 
 Expected: formatting completes.
 
-- [ ] **Step 5: Commit projection manager**
-
-Run:
-
-```bash
-git add codex-rs/app-server/src/lib.rs \
-  codex-rs/app-server/src/thread_projection.rs
-git commit -m "feat(app-server): add thread projection manager"
-```
-
-Expected: commit contains projection manager and module registration only.
-
-- [ ] **Step 6: Commit projection request processor and snapshot**
-
-Run:
-
-```bash
-git add codex-rs/app-server/src/request_processors.rs \
-  codex-rs/app-server/src/request_processors/thread_projection.rs
-git commit -m "feat(app-server): add projection request processor"
-```
-
-Expected: commit contains projection request handling and snapshot logic only.
-
-- [ ] **Step 7: Commit listener-ordered attach runtime**
-
-Run:
-
-```bash
-git add codex-rs/app-server/src/thread_state.rs \
-  codex-rs/app-server/src/request_processors/thread_lifecycle.rs \
-  codex-rs/app-server/src/thread_projection_runtime.rs
-git commit -m "feat(app-server): add listener ordered projection attach"
-```
-
-Expected: commit contains listener command and attach response runtime only.
-
-- [ ] **Step 8: Commit projection fanout and lifecycle hooks**
-
-Run:
-
-```bash
-git add codex-rs/app-server/src/outgoing_message.rs \
-  codex-rs/app-server/src/message_processor.rs \
-  codex-rs/app-server/src/request_processors/thread_lifecycle.rs
-git commit -m "feat(app-server): add projection fanout lifecycle hooks"
-```
-
-Expected: commit contains fanout, unload, and connection-close hooks only.
-
-- [ ] **Step 9: Commit app-server focused tests**
+- [ ] **Step 5: Commit app-server focused tests**
 
 Run:
 
