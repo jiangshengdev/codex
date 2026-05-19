@@ -43,7 +43,7 @@ gpt-5.5 high · ~/cnb/codex · Context 41% used · 130K ctx · Fast off · Ready
 last_token_usage.tokens_in_context_window()
 ```
 
-它不使用 `total_token_usage`，不使用 session 累计 token，也不从 `context-used` 百分比反推。实现时应对齐 `/status` 卡片，而不是复制 bottom pane 在 context window percent 未知时的 fallback 逻辑。
+它不使用 `total_token_usage`，不使用 session 累计 token，也不从 `context-used` 百分比反推。实现时应对齐 `/status` 卡片，而不是复制 `chatwidget.rs` 中 bottom pane footer fallback 的 `total_token_usage` 路径。
 
 现有 `context-used` 百分比会扣除 `BASELINE_TOKENS` 来表达用户可支配上下文的使用率。`context-used-tokens` 不扣 `BASELINE_TOKENS`，因为它用于展示 `/status` 卡片同源的 raw context token count。
 
@@ -72,11 +72,11 @@ last_token_usage.tokens_in_context_window()
 
 - 只有当 `/status` 卡片会显示 `Context window` 行时，状态栏才显示 `context-used-tokens`。
 - 当 `token_info = Some(info)` 时，必须要求 `info.model_context_window` 已知；此时显示 `info.last_token_usage.tokens_in_context_window()`。
-- 当 `token_info = None` 但 `config.model_context_window` 已知时，行为与 `/status` 的默认 usage 一致，显示 `0 ctx`。
+- 当 `token_info = None` 但 `config.model_context_window` 已知时，行为与 `/status` 的默认 usage 一致，显示 `0 ctx`。实现需新增只读 helper，与 `/status` 卡片的 fallback 同形态：用 default usage 搭配 `config.model_context_window`。
 - 当无法构造 `/status` 的 `Context window` 行时，省略该 segment。
 - `0 ctx` 是有效显示值，不按 `used-tokens` 的“0 时省略”规则处理；它表示在已知 context window 下，当前还没有可计入的最近请求 context token。
 - 颜色和主题样式与 `context-used` 一致，走现有 status line item 样式机制。
-- `ctx` 是刻意选择的短后缀，表示 context tokens；它比 `tokens` 更短，比裸值更容易识别。
+- `ctx` 是刻意选择的短后缀，表示 context tokens；它与 `context-used` 共享 context 语义，方便识别为同一类上下文信息，同时比 `tokens` 更短、比裸值更清楚。
 - Configure Status Line 中的描述文案为：
 
 ```text
@@ -99,7 +99,7 @@ Raw context-window tokens for the latest model request
 
 - `StatusLineItem` 增加 `ContextUsedTokens`。
 - status line item 描述和配置解析包含 `context-used-tokens`。
-- `status_line_value_for_item` 增加渲染分支：先判断 `/status` 是否会显示 `Context window` 行，再读取同源的 raw used token 值并格式化为 `<compact> ctx`。
+- `status_line_value_for_item` 增加渲染分支：先通过新的只读 helper 判断 `/status` 是否会显示 `Context window` 行，再读取同源的 raw used token 值并格式化为 `<compact> ctx`。
 - status line setup/preview 中显示新 item。
 - terminal title 不需要新增对应 item，除非后续明确要求。
 
