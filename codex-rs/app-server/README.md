@@ -406,6 +406,10 @@ Use `thread/projection/attach` to receive a GUI projection stream for a loaded t
 
 Normal thread subscriptions and projection subscriptions are independent. `thread/unsubscribe` does not detach a projection subscription, and `thread/projection/detach` does not unsubscribe normal turn/item notifications.
 
+Projection commits form a per-thread chain shared by all projection subscribers for that thread. The first event delivered after attach has `parentCommitId` equal to the attach response's `snapshot.headCommitId`; later events advance with `commitId` / `parentCommitId`. Repeating attach for the same connection and thread releases the old `subscriptionId` and returns a new subscription from the current thread head.
+
+`thread/projection/detach` is not a transport drain barrier. After a `detached` response, the server stops generating new projection deliveries for that connection/subscription, but events already materialized on the outbound path can still arrive. Connection drop implicitly removes all projection subscriptions for that connection; reconnecting clients must attach again.
+
 ```json
 { "method": "thread/projection/attach", "id": 23, "params": { "threadId": "thr_123" } }
 { "id": 23, "result": {
