@@ -277,7 +277,7 @@ impl ThreadStateManager {
             .lock()
             .await
             .live_connections
-            .contains(&connection_id)
+            .contains_key(&connection_id)
     }
 
     pub(crate) async fn thread_state(&self, thread_id: ThreadId) -> Arc<Mutex<ThreadState>> {
@@ -415,7 +415,7 @@ impl ThreadStateManager {
         connection_id: ConnectionId,
     ) -> Option<Arc<Mutex<ThreadState>>> {
         let mut state = self.state.lock().await;
-        if !state.live_connections.contains(&connection_id) {
+        if !state.live_connections.contains_key(&connection_id) {
             return None;
         }
         Some(state.threads.entry(thread_id).or_default().state.clone())

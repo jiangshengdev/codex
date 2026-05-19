@@ -212,6 +212,7 @@ mod tests {
     use codex_config::LoaderOverrides;
     use codex_config::NoopThreadConfigLoader;
     use codex_core::config::ConfigBuilder;
+    use codex_extension_api::ExtensionRegistryBuilder;
     use codex_protocol::protocol::SessionSource;
     use codex_thread_store::AppendThreadItemsParams;
     use codex_thread_store::InMemoryThreadStore;
@@ -245,10 +246,12 @@ mod tests {
             auth_manager.clone(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
+            Arc::new(ExtensionRegistryBuilder::new().build()),
             /*analytics_events_client*/ None,
             thread_store.clone(),
             /*state_db*/ None,
             uuid::Uuid::new_v4().to_string(),
+            /*attestation_provider*/ None,
         ));
         let (outgoing_tx, _outgoing_rx) = tokio::sync::mpsc::channel(8);
         let outgoing = Arc::new(OutgoingMessageSender::new(
@@ -266,13 +269,14 @@ mod tests {
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
-            outgoing,
+            outgoing.clone(),
             Arg0DispatchPaths::default(),
             config.clone(),
             ConfigManager::new(
                 temp_dir.path().to_path_buf(),
                 Vec::new(),
                 loader_overrides,
+                /*strict_config*/ false,
                 CloudRequirementsLoader::default(),
                 Arg0DispatchPaths::default(),
                 Arc::new(NoopThreadConfigLoader),
@@ -284,6 +288,10 @@ mod tests {
             Arc::new(Semaphore::new(1)),
             thread_goal_processor,
             /*state_db*/ None,
+            crate::skills_watcher::SkillsWatcher::new(
+                thread_manager.skills_manager(),
+                outgoing.clone(),
+            ),
         );
 
         let new_thread = thread_manager.start_thread(config.as_ref().clone()).await?;
