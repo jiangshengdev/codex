@@ -144,11 +144,13 @@ async fn run_code_mode_turn(
     server: &MockServer,
     prompt: &str,
     code: &str,
+    include_apply_patch: bool,
 ) -> Result<(TestCodex, ResponseMock)> {
     let mut builder = test_codex()
         .with_model("test-gpt-5.1-codex")
         .with_config(move |config| {
             let _ = config.features.enable(Feature::CodeMode);
+            config.include_apply_patch_tool = include_apply_patch;
         });
     let test = builder.build(server).await?;
 
@@ -242,7 +244,6 @@ async fn run_code_mode_turn_with_rmcp_config(
                 enabled_tools: None,
                 disabled_tools: None,
                 scopes: None,
-                oauth: None,
                 oauth_resource: None,
                 tools: HashMap::new(),
             },
@@ -289,6 +290,7 @@ async fn code_mode_can_return_exec_command_output() -> Result<()> {
         r#"
 text(JSON.stringify(await tools.exec_command({ cmd: "printf code_mode_exec_marker" })));
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -538,6 +540,7 @@ const result = await tools.update_plan({
 });
 text(JSON.stringify(result));
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -662,6 +665,7 @@ text(JSON.stringify(await tools.exec_command({
   max_output_tokens: 100
 })));
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -700,6 +704,7 @@ text("before crash");
 text("still before crash");
 throw new Error("boom");
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -746,6 +751,7 @@ try {
   text(`caught:${error?.message ?? String(error)}`);
 }
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -1762,6 +1768,7 @@ async fn code_mode_can_output_serialized_text_via_global_helper() -> Result<()> 
         r#"
 text({ json: true });
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -1793,6 +1800,7 @@ async fn code_mode_can_resume_after_set_timeout() -> Result<()> {
 await new Promise((resolve) => setTimeout(resolve, 10));
 text("timer done");
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -1821,6 +1829,7 @@ notify("code_mode_notify_marker");
 await tools.test_sync_tool({});
 text("done");
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -1858,6 +1867,7 @@ text("before");
 exit();
 text("after");
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -1896,6 +1906,7 @@ const circular = {};
 circular.self = circular;
 text(circular);
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -1935,6 +1946,7 @@ async fn code_mode_can_output_images_via_global_helper() -> Result<()> {
 image("https://example.com/image.jpg");
 image("data:image/png;base64,AAA");
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 
@@ -2124,8 +2136,13 @@ async fn code_mode_can_apply_patch_via_nested_tool() -> Result<()> {
     );
     let code = format!("text(await tools.apply_patch({patch:?}));\n");
 
-    let (test, second_mock) =
-        run_code_mode_turn(&server, "use exec to run apply_patch", &code).await?;
+    let (test, second_mock) = run_code_mode_turn(
+        &server,
+        "use exec to run apply_patch",
+        &code,
+        /*include_apply_patch*/ true,
+    )
+    .await?;
 
     let req = second_mock.single_request();
     let items = custom_tool_output_items(&req, "call-1");
@@ -2447,8 +2464,13 @@ const tool = ALL_TOOLS.find(({ name }) => name === "view_image");
 text(JSON.stringify(tool));
 "#;
 
-    let (_test, second_mock) =
-        run_code_mode_turn(&server, "use exec to inspect ALL_TOOLS", code).await?;
+    let (_test, second_mock) = run_code_mode_turn(
+        &server,
+        "use exec to inspect ALL_TOOLS",
+        code,
+        /*include_apply_patch*/ false,
+    )
+    .await?;
 
     let req = second_mock.single_request();
     let (output, success) = custom_tool_output_body_and_success(&req, "call-1");
@@ -2867,6 +2889,7 @@ text(JSON.stringify({
   waited_long_enough: end_ms - start_ms >= 100,
 }));
 "#,
+        /*include_apply_patch*/ false,
     )
     .await?;
 

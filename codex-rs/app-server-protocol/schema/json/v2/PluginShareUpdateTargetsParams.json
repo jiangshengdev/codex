@@ -16,24 +16,13 @@
         },
         "principalType": {
           "$ref": "#/definitions/PluginSharePrincipalType"
-        },
-        "role": {
-          "$ref": "#/definitions/PluginShareTargetRole"
         }
       },
       "required": [
         "principalId",
-        "principalType",
-        "role"
+        "principalType"
       ],
       "type": "object"
-    },
-    "PluginShareTargetRole": {
-      "enum": [
-        "reader",
-        "editor"
-      ],
-      "type": "string"
     },
     "PluginShareUpdateDiscoverability": {
       "enum": [

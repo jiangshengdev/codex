@@ -88,12 +88,14 @@ impl OtelProvider {
             return Ok(None);
         }
 
-        // Provider setup installs process-global OTEL state that cannot be
-        // rolled back. Validate trace metadata before any setup path can
-        // mutate those globals, and keep span attribute checks aligned with
-        // config loading when traces are exported.
-        if trace_enabled {
-            crate::config::validate_span_attributes(&settings.span_attributes)?;
+        // Provider setup below installs process-global OTEL state that cannot
+        // be rolled back, so reject invalid trace metadata before any setup
+        // path can mutate those globals.
+        if trace_enabled && settings.span_attributes.keys().any(String::is_empty) {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "configured span attribute key must not be empty",
+            )));
         }
         crate::trace_context::validate_tracestate_entries(&settings.tracestate)?;
 

@@ -12,11 +12,10 @@ use crate::function_tool::FunctionCallError;
 use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
-use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::parse_arguments;
 use crate::tools::handlers::test_sync_spec::create_test_sync_tool;
-use crate::tools::registry::CoreToolRuntime;
-use crate::tools::registry::ToolExecutor;
+use crate::tools::registry::ToolHandler;
+use crate::tools::registry::ToolKind;
 use codex_tools::ToolName;
 use codex_tools::ToolSpec;
 
@@ -57,8 +56,9 @@ fn barrier_map() -> &'static tokio::sync::Mutex<HashMap<String, BarrierState>> {
     BARRIERS.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
 }
 
-#[async_trait::async_trait]
-impl ToolExecutor<ToolInvocation> for TestSyncHandler {
+impl ToolHandler for TestSyncHandler {
+    type Output = FunctionToolOutput;
+
     fn tool_name(&self) -> ToolName {
         ToolName::plain("test_sync_tool")
     }
@@ -71,10 +71,11 @@ impl ToolExecutor<ToolInvocation> for TestSyncHandler {
         true
     }
 
-    async fn handle(
-        &self,
-        invocation: ToolInvocation,
-    ) -> Result<Box<dyn crate::tools::context::ToolOutput>, FunctionCallError> {
+    fn kind(&self) -> ToolKind {
+        ToolKind::Function
+    }
+
+    async fn handle(&self, invocation: ToolInvocation) -> Result<Self::Output, FunctionCallError> {
         let ToolInvocation { payload, .. } = invocation;
 
         let arguments = match payload {
@@ -104,14 +105,9 @@ impl ToolExecutor<ToolInvocation> for TestSyncHandler {
             sleep(Duration::from_millis(delay)).await;
         }
 
-        Ok(boxed_tool_output(FunctionToolOutput::from_text(
-            "ok".to_string(),
-            Some(true),
-        )))
+        Ok(FunctionToolOutput::from_text("ok".to_string(), Some(true)))
     }
 }
-
-impl CoreToolRuntime for TestSyncHandler {}
 
 async fn wait_on_barrier(args: BarrierArgs) -> Result<(), FunctionCallError> {
     if args.participants == 0 {

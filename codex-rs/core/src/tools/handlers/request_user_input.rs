@@ -2,15 +2,14 @@ use crate::function_tool::FunctionCallError;
 use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
-use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::parse_arguments;
 use crate::tools::handlers::request_user_input_spec::REQUEST_USER_INPUT_TOOL_NAME;
 use crate::tools::handlers::request_user_input_spec::create_request_user_input_tool;
 use crate::tools::handlers::request_user_input_spec::normalize_request_user_input_args;
 use crate::tools::handlers::request_user_input_spec::request_user_input_tool_description;
 use crate::tools::handlers::request_user_input_spec::request_user_input_unavailable_message;
-use crate::tools::registry::CoreToolRuntime;
-use crate::tools::registry::ToolExecutor;
+use crate::tools::registry::ToolHandler;
+use crate::tools::registry::ToolKind;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::request_user_input::RequestUserInputArgs;
 use codex_tools::ToolName;
@@ -20,8 +19,9 @@ pub struct RequestUserInputHandler {
     pub available_modes: Vec<ModeKind>,
 }
 
-#[async_trait::async_trait]
-impl ToolExecutor<ToolInvocation> for RequestUserInputHandler {
+impl ToolHandler for RequestUserInputHandler {
+    type Output = FunctionToolOutput;
+
     fn tool_name(&self) -> ToolName {
         ToolName::plain(REQUEST_USER_INPUT_TOOL_NAME)
     }
@@ -32,10 +32,11 @@ impl ToolExecutor<ToolInvocation> for RequestUserInputHandler {
         ))
     }
 
-    async fn handle(
-        &self,
-        invocation: ToolInvocation,
-    ) -> Result<Box<dyn crate::tools::context::ToolOutput>, FunctionCallError> {
+    fn kind(&self) -> ToolKind {
+        ToolKind::Function
+    }
+
+    async fn handle(&self, invocation: ToolInvocation) -> Result<Self::Output, FunctionCallError> {
         let ToolInvocation {
             session,
             turn,
@@ -82,14 +83,9 @@ impl ToolExecutor<ToolInvocation> for RequestUserInputHandler {
             ))
         })?;
 
-        Ok(boxed_tool_output(FunctionToolOutput::from_text(
-            content,
-            Some(true),
-        )))
+        Ok(FunctionToolOutput::from_text(content, Some(true)))
     }
 }
-
-impl CoreToolRuntime for RequestUserInputHandler {}
 
 #[cfg(test)]
 #[path = "request_user_input_tests.rs"]

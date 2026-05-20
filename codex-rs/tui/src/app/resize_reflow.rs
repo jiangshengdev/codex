@@ -419,13 +419,12 @@ impl App {
     }
 
     pub(super) fn reflow_transcript_now(&mut self, tui: &mut tui::Tui) -> Result<u16> {
-        let terminal_width = tui.terminal.size()?.width;
-        let width = self.chat_widget.history_wrap_width(terminal_width);
+        let width = tui.terminal.size()?.width;
         if self.transcript_cells.is_empty() {
             // Drop any queued pre-resize/pre-consolidation inserts before rebuilding from cells.
             tui.clear_pending_history_lines();
             self.reset_history_emission_state();
-            return Ok(terminal_width);
+            return Ok(width);
         }
 
         let reflow_result = self.render_transcript_lines_for_reflow(width);
@@ -443,7 +442,7 @@ impl App {
             );
         }
 
-        Ok(terminal_width)
+        Ok(width)
     }
 
     /// Render transcript cells for the current resize rebuild.

@@ -263,7 +263,7 @@ pub fn policy_from_settings(
     Ok(WebsocketAuthPolicy { mode })
 }
 
-pub(crate) fn is_unauthenticated_non_loopback_listener(
+pub(crate) fn should_warn_about_unauthenticated_non_loopback_listener(
     bind_address: SocketAddr,
     policy: &WebsocketAuthPolicy,
 ) -> bool {
@@ -482,17 +482,17 @@ mod tests {
     }
 
     #[test]
-    fn detects_unauthenticated_non_loopback_listener() {
+    fn warns_about_unauthenticated_non_loopback_listener() {
         let policy = WebsocketAuthPolicy::default();
-        assert!(is_unauthenticated_non_loopback_listener(
+        assert!(should_warn_about_unauthenticated_non_loopback_listener(
             "0.0.0.0:8765".parse().unwrap(),
             &policy,
         ));
-        assert!(!is_unauthenticated_non_loopback_listener(
+        assert!(!should_warn_about_unauthenticated_non_loopback_listener(
             "127.0.0.1:8765".parse().unwrap(),
             &policy,
         ));
-        assert!(!is_unauthenticated_non_loopback_listener(
+        assert!(!should_warn_about_unauthenticated_non_loopback_listener(
             "0.0.0.0:8765".parse().unwrap(),
             &WebsocketAuthPolicy {
                 mode: Some(WebsocketAuthMode::CapabilityToken {

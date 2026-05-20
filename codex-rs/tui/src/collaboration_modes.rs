@@ -11,6 +11,10 @@ fn filtered_presets(_model_catalog: &ModelCatalog) -> Vec<CollaborationModeMask>
         .collect()
 }
 
+pub(crate) fn presets_for_tui(model_catalog: &ModelCatalog) -> Vec<CollaborationModeMask> {
+    filtered_presets(model_catalog)
+}
+
 pub(crate) fn default_mask(model_catalog: &ModelCatalog) -> Option<CollaborationModeMask> {
     let presets = filtered_presets(model_catalog);
     presets

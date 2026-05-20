@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -12,8 +11,7 @@ use crate::DefaultEnvironmentProvider;
 use crate::Environment;
 use crate::EnvironmentProvider;
 use crate::ExecServerError;
-use crate::client_api::DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT;
-use crate::client_api::DEFAULT_REMOTE_EXEC_SERVER_INITIALIZE_TIMEOUT;
+use crate::ExecServerRuntimePaths;
 use crate::client_api::ExecServerTransportParams;
 use crate::client_api::StdioExecServerCommand;
 use crate::environment::LOCAL_ENVIRONMENT_ID;
@@ -41,16 +39,12 @@ struct EnvironmentToml {
     args: Option<Vec<String>>,
     env: Option<HashMap<String, String>>,
     cwd: Option<PathBuf>,
-    #[serde(default, with = "option_duration_secs")]
-    connect_timeout_sec: Option<Duration>,
-    #[serde(default, with = "option_duration_secs")]
-    initialize_timeout_sec: Option<Duration>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TomlEnvironmentProvider {
     default: EnvironmentDefault,
-    environments: Vec<(String, ExecServerTransportParams)>,
+    environments: HashMap<String, ExecServerTransportParams>,
 }
 
 impl TomlEnvironmentProvider {
@@ -64,7 +58,7 @@ impl TomlEnvironmentProvider {
         config_dir: Option<&Path>,
     ) -> Result<Self, ExecServerError> {
         let mut ids = HashSet::from([LOCAL_ENVIRONMENT_ID.to_string()]);
-        let mut environments = Vec::with_capacity(config.environments.len());
+        let mut environments = HashMap::with_capacity(config.environments.len());
         for item in config.environments {
             let (id, transport) = parse_environment_toml(item, config_dir)?;
             if !ids.insert(id.clone()) {
@@ -72,7 +66,7 @@ impl TomlEnvironmentProvider {
                     "environment id `{id}` is duplicated"
                 )));
             }
-            environments.push((id, transport));
+            environments.insert(id, transport);
         }
         let default = normalize_default_environment_id(config.default.as_deref(), &ids)?;
         Ok(Self {
@@ -84,22 +78,28 @@ impl TomlEnvironmentProvider {
 
 #[async_trait]
 impl EnvironmentProvider for TomlEnvironmentProvider {
-    async fn snapshot(&self) -> Result<EnvironmentProviderSnapshot, ExecServerError> {
-        let mut environments = Vec::with_capacity(self.environments.len());
+    async fn snapshot(
+        &self,
+        local_runtime_paths: &ExecServerRuntimePaths,
+    ) -> Result<EnvironmentProviderSnapshot, ExecServerError> {
+        let mut environments = HashMap::from([(
+            LOCAL_ENVIRONMENT_ID.to_string(),
+            Environment::local(local_runtime_paths.clone()),
+        )]);
+
         for (id, transport_params) in &self.environments {
-            environments.push((
+            environments.insert(
                 id.clone(),
                 Environment::remote_with_transport(
                     transport_params.clone(),
-                    /*local_runtime_paths*/ None,
+                    Some(local_runtime_paths.clone()),
                 ),
-            ));
+            );
         }
 
         Ok(EnvironmentProviderSnapshot {
             environments,
             default: self.default.clone(),
-            include_local: true,
         })
     }
 }
@@ -115,8 +115,6 @@ fn parse_environment_toml(
         args,
         env,
         cwd,
-        connect_timeout_sec,
-        initialize_timeout_sec,
     } = item;
     validate_environment_id(&id)?;
     if program.is_none() && (args.is_some() || env.is_some() || cwd.is_some()) {
@@ -124,24 +122,11 @@ fn parse_environment_toml(
             "environment `{id}` args, env, and cwd require program"
         )));
     }
-    if url.is_none() && connect_timeout_sec.is_some() {
-        return Err(ExecServerError::Protocol(format!(
-            "environment `{id}` connect_timeout_sec requires url"
-        )));
-    }
-
-    let connect_timeout = connect_timeout_sec.unwrap_or(DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT);
-    let initialize_timeout =
-        initialize_timeout_sec.unwrap_or(DEFAULT_REMOTE_EXEC_SERVER_INITIALIZE_TIMEOUT);
 
     let transport_params = match (url, program) {
         (Some(url), None) => {
             let url = validate_websocket_url(url)?;
-            ExecServerTransportParams::WebSocketUrl {
-                websocket_url: url,
-                connect_timeout,
-                initialize_timeout,
-            }
+            ExecServerTransportParams::WebSocketUrl(url)
         }
         (None, Some(program)) => {
             let program = program.trim().to_string();
@@ -151,15 +136,12 @@ fn parse_environment_toml(
                 )));
             }
             let cwd = normalize_stdio_cwd(&id, cwd, config_dir)?;
-            ExecServerTransportParams::StdioCommand {
-                command: StdioExecServerCommand {
-                    program,
-                    args: args.unwrap_or_default(),
-                    env: env.unwrap_or_default(),
-                    cwd,
-                },
-                initialize_timeout,
-            }
+            ExecServerTransportParams::StdioCommand(StdioExecServerCommand {
+                program,
+                args: args.unwrap_or_default(),
+                env: env.unwrap_or_default(),
+                cwd,
+            })
         }
         (None, None) | (Some(_), Some(_)) => {
             return Err(ExecServerError::Protocol(format!(
@@ -303,22 +285,6 @@ fn load_environments_toml(path: &Path) -> Result<EnvironmentsToml, ExecServerErr
     })
 }
 
-mod option_duration_secs {
-    use std::time::Duration;
-
-    use serde::Deserialize;
-    use serde::Deserializer;
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let secs = Option::<f64>::deserialize(deserializer)?;
-        secs.map(|secs| Duration::try_from_secs_f64(secs).map_err(serde::de::Error::custom))
-            .transpose()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -326,8 +292,25 @@ mod tests {
 
     use super::*;
 
+    fn test_runtime_paths() -> ExecServerRuntimePaths {
+        ExecServerRuntimePaths::new(
+            std::env::current_exe().expect("current exe"),
+            /*codex_linux_sandbox_exe*/ None,
+        )
+        .expect("runtime paths")
+    }
+
     #[tokio::test]
-    async fn toml_provider_includes_local_and_adds_configured_environments() {
+    async fn toml_provider_adds_implicit_local_and_configured_environments() {
+        let ssh_transport = ExecServerTransportParams::StdioCommand(StdioExecServerCommand {
+            program: "ssh".to_string(),
+            args: vec![
+                "dev".to_string(),
+                "codex exec-server --listen stdio".to_string(),
+            ],
+            env: HashMap::from([("CODEX_LOG".to_string(), "debug".to_string())]),
+            cwd: None,
+        });
         let provider = TomlEnvironmentProvider::new(EnvironmentsToml {
             default: Some("ssh-dev".to_string()),
             environments: vec![
@@ -352,26 +335,23 @@ mod tests {
             ],
         })
         .expect("provider");
+        let runtime_paths = test_runtime_paths();
 
-        let snapshot = provider.snapshot().await.expect("environments");
+        let snapshot = provider
+            .snapshot(&runtime_paths)
+            .await
+            .expect("environments");
         let EnvironmentProviderSnapshot {
             environments,
             default,
-            include_local,
         } = snapshot;
-        let environment_ids: Vec<_> = environments
-            .iter()
-            .map(|(id, _environment)| id.as_str())
-            .collect();
-        assert_eq!(environment_ids, vec!["devbox", "ssh-dev"]);
-        let environments: HashMap<_, _> = environments.into_iter().collect();
 
-        assert!(include_local);
-        assert!(!environments.contains_key(LOCAL_ENVIRONMENT_ID));
+        assert!(!environments[LOCAL_ENVIRONMENT_ID].is_remote());
         assert_eq!(
             environments["devbox"].exec_server_url(),
             Some("ws://127.0.0.1:8765")
         );
+        assert_eq!(provider.environments["ssh-dev"], ssh_transport);
         assert!(environments["ssh-dev"].is_remote());
         assert_eq!(environments["ssh-dev"].exec_server_url(), None);
         assert_eq!(
@@ -383,9 +363,11 @@ mod tests {
     #[tokio::test]
     async fn toml_provider_default_omitted_selects_local() {
         let provider = TomlEnvironmentProvider::new(EnvironmentsToml::default()).expect("provider");
-        let snapshot = provider.snapshot().await.expect("environments");
+        let snapshot = provider
+            .snapshot(&test_runtime_paths())
+            .await
+            .expect("environments");
 
-        assert!(snapshot.include_local);
         assert_eq!(
             snapshot.default,
             EnvironmentDefault::EnvironmentId(LOCAL_ENVIRONMENT_ID.to_string())
@@ -399,9 +381,11 @@ mod tests {
             environments: Vec::new(),
         })
         .expect("provider");
-        let snapshot = provider.snapshot().await.expect("environments");
+        let snapshot = provider
+            .snapshot(&test_runtime_paths())
+            .await
+            .expect("environments");
 
-        assert!(snapshot.include_local);
         assert_eq!(snapshot.default, EnvironmentDefault::Disabled);
     }
 
@@ -465,15 +449,6 @@ mod tests {
                 },
                 "environment `devbox` args, env, and cwd require program",
             ),
-            (
-                EnvironmentToml {
-                    id: "ssh-dev".to_string(),
-                    program: Some("ssh".to_string()),
-                    connect_timeout_sec: Some(Duration::from_secs(1)),
-                    ..Default::default()
-                },
-                "environment `ssh-dev` connect_timeout_sec requires url",
-            ),
         ];
 
         for (item, expected) in cases {
@@ -508,60 +483,13 @@ mod tests {
         .expect("provider");
 
         assert_eq!(
-            provider.environments[0].1,
-            ExecServerTransportParams::StdioCommand {
-                command: StdioExecServerCommand {
-                    program: "ssh".to_string(),
-                    args: Vec::new(),
-                    env: HashMap::new(),
-                    cwd: Some(config_dir.path().join("workspace")),
-                },
-                initialize_timeout: DEFAULT_REMOTE_EXEC_SERVER_INITIALIZE_TIMEOUT,
-            }
-        );
-    }
-
-    #[test]
-    fn toml_provider_parses_configured_transport_timeouts() {
-        let provider = TomlEnvironmentProvider::new(EnvironmentsToml {
-            default: None,
-            environments: vec![
-                EnvironmentToml {
-                    id: "devbox".to_string(),
-                    url: Some("ws://127.0.0.1:8765".to_string()),
-                    connect_timeout_sec: Some(Duration::from_secs(12)),
-                    initialize_timeout_sec: Some(Duration::from_secs(34)),
-                    ..Default::default()
-                },
-                EnvironmentToml {
-                    id: "ssh-dev".to_string(),
-                    program: Some("ssh".to_string()),
-                    initialize_timeout_sec: Some(Duration::from_secs(56)),
-                    ..Default::default()
-                },
-            ],
-        })
-        .expect("provider");
-
-        assert_eq!(
-            provider.environments[0].1,
-            ExecServerTransportParams::WebSocketUrl {
-                websocket_url: "ws://127.0.0.1:8765".to_string(),
-                connect_timeout: Duration::from_secs(12),
-                initialize_timeout: Duration::from_secs(34),
-            }
-        );
-        assert_eq!(
-            provider.environments[1].1,
-            ExecServerTransportParams::StdioCommand {
-                command: StdioExecServerCommand {
-                    program: "ssh".to_string(),
-                    args: Vec::new(),
-                    env: HashMap::new(),
-                    cwd: None,
-                },
-                initialize_timeout: Duration::from_secs(56),
-            }
+            provider.environments["ssh-dev"],
+            ExecServerTransportParams::StdioCommand(StdioExecServerCommand {
+                program: "ssh".to_string(),
+                args: Vec::new(),
+                env: HashMap::new(),
+                cwd: Some(config_dir.path().join("workspace")),
+            })
         );
     }
 
@@ -656,8 +584,6 @@ default = "ssh-dev"
 [[environments]]
 id = "devbox"
 url = "ws://127.0.0.1:4512"
-connect_timeout_sec = 12.0
-initialize_timeout_sec = 34.0
 
 [[environments]]
 id = "ssh-dev"
@@ -674,16 +600,7 @@ CODEX_LOG = "debug"
 
         assert_eq!(environments.default.as_deref(), Some("ssh-dev"));
         assert_eq!(environments.environments.len(), 2);
-        assert_eq!(
-            environments.environments[0],
-            EnvironmentToml {
-                id: "devbox".to_string(),
-                url: Some("ws://127.0.0.1:4512".to_string()),
-                connect_timeout_sec: Some(Duration::from_secs(12)),
-                initialize_timeout_sec: Some(Duration::from_secs(34)),
-                ..Default::default()
-            }
-        );
+        assert_eq!(environments.environments[0].id, "devbox");
         assert_eq!(
             environments.environments[1],
             EnvironmentToml {
@@ -765,15 +682,12 @@ default = "none"
         let provider =
             environment_provider_from_codex_home(codex_home.path()).expect("environment provider");
 
-        let snapshot = provider.snapshot().await.expect("environments");
-        let environment_ids: Vec<_> = snapshot
-            .environments
-            .into_iter()
-            .map(|(id, _environment)| id)
-            .collect();
+        let snapshot = provider
+            .snapshot(&test_runtime_paths())
+            .await
+            .expect("environments");
 
-        assert!(snapshot.include_local);
-        assert!(!environment_ids.contains(&LOCAL_ENVIRONMENT_ID.to_string()));
+        assert!(snapshot.environments.contains_key(LOCAL_ENVIRONMENT_ID));
         assert_eq!(snapshot.default, EnvironmentDefault::Disabled);
     }
 
@@ -784,18 +698,11 @@ default = "none"
         let provider =
             environment_provider_from_codex_home(codex_home.path()).expect("environment provider");
 
-        let snapshot = provider.snapshot().await.expect("environments");
-        let environment_ids: Vec<_> = snapshot
-            .environments
-            .into_iter()
-            .map(|(id, _environment)| id)
-            .collect();
+        let snapshot = provider
+            .snapshot(&test_runtime_paths())
+            .await
+            .expect("environments");
 
-        assert!(snapshot.include_local);
-        assert!(!environment_ids.contains(&LOCAL_ENVIRONMENT_ID.to_string()));
-        assert_eq!(
-            snapshot.default,
-            EnvironmentDefault::EnvironmentId(LOCAL_ENVIRONMENT_ID.to_string())
-        );
+        assert!(snapshot.environments.contains_key(LOCAL_ENVIRONMENT_ID));
     }
 }

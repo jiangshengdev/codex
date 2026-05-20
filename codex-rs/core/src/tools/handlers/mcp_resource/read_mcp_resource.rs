@@ -1,12 +1,12 @@
 use std::time::Instant;
 
 use crate::function_tool::FunctionCallError;
+use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
-use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::mcp_resource_spec::create_read_mcp_resource_tool;
-use crate::tools::registry::CoreToolRuntime;
-use crate::tools::registry::ToolExecutor;
+use crate::tools::registry::ToolHandler;
+use crate::tools::registry::ToolKind;
 use codex_protocol::models::function_call_output_content_items_to_text;
 use codex_protocol::protocol::McpInvocation;
 use codex_tools::ToolName;
@@ -26,8 +26,9 @@ use super::serialize_function_output;
 
 pub struct ReadMcpResourceHandler;
 
-#[async_trait::async_trait]
-impl ToolExecutor<ToolInvocation> for ReadMcpResourceHandler {
+impl ToolHandler for ReadMcpResourceHandler {
+    type Output = FunctionToolOutput;
+
     fn tool_name(&self) -> ToolName {
         ToolName::plain("read_mcp_resource")
     }
@@ -40,10 +41,11 @@ impl ToolExecutor<ToolInvocation> for ReadMcpResourceHandler {
         true
     }
 
-    async fn handle(
-        &self,
-        invocation: ToolInvocation,
-    ) -> Result<Box<dyn crate::tools::context::ToolOutput>, FunctionCallError> {
+    fn kind(&self) -> ToolKind {
+        ToolKind::Function
+    }
+
+    async fn handle(&self, invocation: ToolInvocation) -> Result<Self::Output, FunctionCallError> {
         let ToolInvocation {
             session,
             turn,
@@ -113,7 +115,7 @@ impl ToolExecutor<ToolInvocation> for ReadMcpResourceHandler {
                         Ok(call_tool_result_from_content(&content, output.success)),
                     )
                     .await;
-                    Ok(boxed_tool_output(output))
+                    Ok(output)
                 }
                 Err(err) => {
                     let duration = start.elapsed();
@@ -147,5 +149,3 @@ impl ToolExecutor<ToolInvocation> for ReadMcpResourceHandler {
         }
     }
 }
-
-impl CoreToolRuntime for ReadMcpResourceHandler {}

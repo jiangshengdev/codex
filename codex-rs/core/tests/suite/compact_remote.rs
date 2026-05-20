@@ -357,11 +357,11 @@ async fn remote_compact_replaces_history_for_followups() -> Result<()> {
         Some("Bearer Access Token")
     );
     assert_eq!(
-        compact_request.header("session-id").as_deref(),
+        compact_request.header("session_id").as_deref(),
         Some(session_id.as_str())
     );
     assert_eq!(
-        compact_request.header("thread-id").as_deref(),
+        compact_request.header("thread_id").as_deref(),
         Some(thread_id.as_str())
     );
     let compact_body = compact_request.body_json();
@@ -479,9 +479,10 @@ async fn assert_remote_manual_compact_request_parity(
                 responses::ev_completed("turn-three-final-response"),
             ]),
             responses::sse(vec![
-                responses::ev_shell_command_call(
-                    "turn-four-shell-command",
-                    "echo TURN_FOUR_LOCAL_SHELL",
+                responses::ev_local_shell_call(
+                    "turn-four-local-shell",
+                    "completed",
+                    vec!["/bin/echo", "TURN_FOUR_LOCAL_SHELL"],
                 ),
                 responses::ev_completed("turn-four-local-shell-response"),
             ]),
@@ -588,7 +589,7 @@ async fn assert_remote_manual_compact_request_parity(
     assert_eq!(
         response_requests.len(),
         7,
-        "expected five turns with one unsupported tool continuation and one shell command continuation"
+        "expected five turns with one unsupported tool continuation and one local shell continuation"
     );
     assert_eq!(
         compact_mock.requests().len(),
@@ -697,7 +698,7 @@ async fn remote_manual_compact_chatgpt_auth_reuses_service_tier_and_prompt_cache
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn remote_compact_v2_reuses_compaction_trigger_for_followups() -> Result<()> {
+async fn remote_compact_v2_reuses_context_compaction_for_followups() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let harness = TestCodexHarness::with_builder(
@@ -721,7 +722,7 @@ async fn remote_compact_v2_reuses_compaction_trigger_for_followups() -> Result<(
                 serde_json::json!({
                     "type": "response.output_item.done",
                     "item": {
-                        "type": "compaction",
+                        "type": "context_compaction",
                         "encrypted_content": "ENCRYPTED_CONTEXT_COMPACTION_SUMMARY",
                     }
                 }),
@@ -778,8 +779,8 @@ async fn remote_compact_v2_reuses_compaction_trigger_for_followups() -> Result<(
     assert_eq!(compact_request.path(), "/v1/responses");
     let compact_body = compact_request.body_json().to_string();
     assert!(
-        compact_body.contains("\"type\":\"compaction_trigger\""),
-        "expected v2 compaction request to include the compaction_trigger item"
+        compact_body.contains("\"type\":\"context_compaction\""),
+        "expected v2 compaction request to include the context_compaction trigger item"
     );
     assert!(
         !compact_body.contains("ENCRYPTED_CONTEXT_COMPACTION_SUMMARY"),
@@ -789,12 +790,12 @@ async fn remote_compact_v2_reuses_compaction_trigger_for_followups() -> Result<(
     let follow_up_request = response_requests.last().expect("follow-up request missing");
     let follow_up_body = follow_up_request.body_json().to_string();
     assert!(
-        follow_up_body.contains("\"type\":\"compaction\""),
-        "expected follow-up request to preserve the compaction item"
+        follow_up_body.contains("\"type\":\"context_compaction\""),
+        "expected follow-up request to preserve the v2 context_compaction item"
     );
     assert!(
         follow_up_body.contains("ENCRYPTED_CONTEXT_COMPACTION_SUMMARY"),
-        "expected follow-up request to include the compaction payload"
+        "expected follow-up request to include the context compaction payload"
     );
     assert!(
         follow_up_body.contains("hello remote compact"),
@@ -805,7 +806,8 @@ async fn remote_compact_v2_reuses_compaction_trigger_for_followups() -> Result<(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn remote_compact_v2_accepts_additional_output_items_before_compaction() -> Result<()> {
+async fn remote_compact_v2_accepts_additional_output_items_before_context_compaction() -> Result<()>
+{
     skip_if_no_network!(Ok(()));
 
     let harness = TestCodexHarness::with_builder(
@@ -830,7 +832,7 @@ async fn remote_compact_v2_accepts_additional_output_items_before_compaction() -
                 serde_json::json!({
                     "type": "response.output_item.done",
                     "item": {
-                        "type": "compaction",
+                        "type": "context_compaction",
                         "encrypted_content": "ENCRYPTED_CONTEXT_COMPACTION_SUMMARY",
                     }
                 }),
@@ -877,12 +879,12 @@ async fn remote_compact_v2_accepts_additional_output_items_before_compaction() -
     let follow_up_request = response_requests.last().expect("follow-up request missing");
     let follow_up_body = follow_up_request.body_json().to_string();
     assert!(
-        follow_up_body.contains("\"type\":\"compaction\""),
-        "expected follow-up request to preserve the compaction item"
+        follow_up_body.contains("\"type\":\"context_compaction\""),
+        "expected follow-up request to preserve the v2 context_compaction item"
     );
     assert!(
         follow_up_body.contains("ENCRYPTED_CONTEXT_COMPACTION_SUMMARY"),
-        "expected follow-up request to include the compaction payload"
+        "expected follow-up request to include the context compaction payload"
     );
     assert!(
         !follow_up_body.contains("IGNORED_COMPACT_REPLY"),
@@ -1044,12 +1046,12 @@ async fn remote_compact_runs_automatically() -> Result<()> {
     assert_eq!(
         compact_mock
             .single_request()
-            .header("session-id")
+            .header("session_id")
             .as_deref(),
         Some(session_id.as_str())
     );
     assert_eq!(
-        compact_mock.single_request().header("thread-id").as_deref(),
+        compact_mock.single_request().header("thread_id").as_deref(),
         Some(thread_id.as_str())
     );
     let follow_up_request = responses_mock.single_request();

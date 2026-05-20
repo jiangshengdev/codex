@@ -26,7 +26,6 @@ pub use streaming_parser::StreamingPatchParser;
 use thiserror::Error;
 
 pub use invocation::maybe_parse_apply_patch_verified;
-pub use invocation::verify_apply_patch_args;
 pub use standalone_executable::main;
 
 use crate::invocation::ExtractHeredocError;
@@ -98,7 +97,6 @@ pub struct ApplyPatchArgs {
     pub patch: String,
     pub hunks: Vec<Hunk>,
     pub workdir: Option<String>,
-    pub environment_id: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]

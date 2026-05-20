@@ -15,7 +15,6 @@ impl App {
             .codex_home(self.config.codex_home.to_path_buf())
             .cli_overrides(self.cli_kv_overrides.clone())
             .harness_overrides(overrides)
-            .loader_overrides(self.loader_overrides.clone())
             .build()
             .await
             .wrap_err_with(|| format!("Failed to rebuild config for cwd {cwd_display}"))
@@ -171,7 +170,7 @@ impl App {
             (root_blocks_disable, profile_configured)
         };
         let mut permissions_history_label: Option<&'static str> = None;
-        let mut builder = ConfigEditsBuilder::for_config(&self.config)
+        let mut builder = ConfigEditsBuilder::new(&self.config.codex_home)
             .with_profile(self.active_profile.as_deref());
 
         for (feature, enabled) in updates {
@@ -299,13 +298,10 @@ impl App {
                 self.config.permissions.approval_policy.value(),
             ));
         }
-        let permission_profile_override_value = permission_profile_override
-            .is_some()
-            .then(|| self.config.permissions.permission_profile().clone());
-        if let Some(permission_profile) = permission_profile_override_value.as_ref()
+        if permission_profile_override.is_some()
             && let Err(err) = self
                 .chat_widget
-                .set_permission_profile(permission_profile.clone())
+                .set_permission_profile(self.config.permissions.permission_profile())
         {
             tracing::error!(
                 error = %err,
@@ -314,8 +310,9 @@ impl App {
             self.chat_widget
                 .add_error_message(format!("Failed to enable Auto-review: {err}"));
         }
-        if let Some(permission_profile) = permission_profile_override_value {
-            self.runtime_permission_profile_override = Some(permission_profile);
+        if permission_profile_override.is_some() {
+            self.runtime_permission_profile_override =
+                Some(self.config.permissions.permission_profile());
         }
 
         if approval_policy_override.is_some()
@@ -410,7 +407,7 @@ impl App {
             },
         ];
 
-        if let Err(err) = ConfigEditsBuilder::for_config(&self.config)
+        if let Err(err) = ConfigEditsBuilder::new(&self.config.codex_home)
             .with_edits(edits)
             .apply()
             .await
@@ -518,18 +515,6 @@ impl App {
         self.chat_widget.set_tui_theme(Some(name));
     }
 
-    #[cfg(test)]
-    pub(super) fn sync_tui_pet_selection(&mut self, pet: String) {
-        self.config.tui_pet = Some(pet.clone());
-        self.chat_widget.set_tui_pet(Some(pet));
-    }
-
-    pub(super) fn sync_tui_pet_disabled(&mut self) {
-        let pet = crate::pets::DISABLED_PET_ID.to_string();
-        self.config.tui_pet = Some(pet.clone());
-        self.chat_widget.set_tui_pet(Some(pet));
-    }
-
     pub(super) fn restore_runtime_theme_from_config(&self) {
         if let Some(name) = self.config.tui_theme.as_deref()
             && let Some(theme) =
@@ -594,7 +579,7 @@ mod tests {
 
         assert_eq!(app_enabled_in_effective_config(&app.config, &app_id), None);
 
-        ConfigEditsBuilder::for_config(&app.config)
+        ConfigEditsBuilder::new(&app.config.codex_home)
             .with_edits([
                 ConfigEdit::SetPath {
                     segments: vec!["apps".to_string(), app_id.clone(), "enabled".to_string()],
@@ -661,7 +646,6 @@ mod tests {
                 permission_profile: PermissionProfile::read_only(),
                 active_permission_profile: None,
                 cwd: next_cwd.clone().abs(),
-                runtime_workspace_roots: Vec::new(),
                 instruction_source_paths: Vec::new(),
                 reasoning_effort: None,
                 message_history: None,
@@ -746,35 +730,6 @@ terminal_resize_reflow_max_rows = 9000
         assert_eq!(
             app.chat_widget.config_ref().tui_theme.as_deref(),
             Some("dracula")
-        );
-    }
-
-    #[tokio::test]
-    async fn sync_tui_pet_selection_updates_chat_widget_config_copy() {
-        let mut app = make_test_app().await;
-
-        app.sync_tui_pet_selection("chefito".to_string());
-
-        assert_eq!(app.config.tui_pet.as_deref(), Some("chefito"));
-        assert_eq!(
-            app.chat_widget.config_ref().tui_pet.as_deref(),
-            Some("chefito")
-        );
-    }
-
-    #[tokio::test]
-    async fn sync_tui_pet_disabled_updates_chat_widget_config_copy() {
-        let mut app = make_test_app().await;
-
-        app.sync_tui_pet_disabled();
-
-        assert_eq!(
-            app.config.tui_pet.as_deref(),
-            Some(crate::pets::DISABLED_PET_ID)
-        );
-        assert_eq!(
-            app.chat_widget.config_ref().tui_pet.as_deref(),
-            Some(crate::pets::DISABLED_PET_ID)
         );
     }
 }
