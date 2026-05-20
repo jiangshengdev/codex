@@ -211,6 +211,7 @@ async fn remove_projection_attach_after_connection_closed(
 mod tests {
     use super::*;
     use crate::outgoing_message::OutgoingMessageSender;
+    use crate::thread_state::ConnectionCapabilities;
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ServerNotification;
     use codex_app_server_protocol::SessionSource;
@@ -277,7 +278,7 @@ mod tests {
         let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
         let thread_state_manager = ThreadStateManager::new();
         thread_state_manager
-            .connection_initialized(connection_id)
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
             .await;
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tokio::sync::mpsc::channel(1).0,
@@ -336,7 +337,7 @@ mod tests {
         let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
         let thread_state_manager = ThreadStateManager::new();
         thread_state_manager
-            .connection_initialized(connection_id)
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
             .await;
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tokio::sync::mpsc::channel(1).0,
@@ -405,7 +406,7 @@ mod tests {
         let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
         let thread_state_manager = ThreadStateManager::new();
         thread_state_manager
-            .connection_initialized(connection_id)
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
             .await;
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tokio::sync::mpsc::channel(1).0,
