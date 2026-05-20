@@ -15,14 +15,6 @@ use codex_sandboxing::policy_transforms::effective_network_sandbox_policy;
 use core_test_support::PathBufExt;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
-fn test_turn_environment(environment_id: &str) -> crate::session::turn_context::TurnEnvironment {
-    crate::session::turn_context::TurnEnvironment {
-        environment_id: environment_id.to_string(),
-        environment: std::sync::Arc::new(codex_exec_server::Environment::default_for_tests()),
-        cwd: std::env::temp_dir().abs(),
-        shell: None,
-    }
-}
 
 #[test]
 fn wants_no_sandbox_approval_granular_respects_sandbox_flag() {
@@ -48,8 +40,8 @@ fn wants_no_sandbox_approval_granular_respects_sandbox_flag() {
     );
 }
 
-#[tokio::test]
-async fn guardian_review_request_includes_patch_context() {
+#[test]
+fn guardian_review_request_includes_patch_context() {
     let path = std::env::temp_dir()
         .join("guardian-apply-patch-test.txt")
         .abs();
@@ -57,7 +49,6 @@ async fn guardian_review_request_includes_patch_context() {
     let expected_cwd = action.cwd.clone();
     let expected_patch = action.patch.clone();
     let request = ApplyPatchRequest {
-        turn_environment: test_turn_environment(codex_exec_server::LOCAL_ENVIRONMENT_ID),
         action,
         file_paths: vec![path.clone()],
         changes: HashMap::from([(
@@ -87,8 +78,8 @@ async fn guardian_review_request_includes_patch_context() {
     );
 }
 
-#[tokio::test]
-async fn permission_request_payload_uses_apply_patch_hook_name_and_aliases() {
+#[test]
+fn permission_request_payload_uses_apply_patch_hook_name_and_aliases() {
     let runtime = ApplyPatchRuntime::new();
     let path = std::env::temp_dir()
         .join("apply-patch-permission-request-payload.txt")
@@ -96,7 +87,6 @@ async fn permission_request_payload_uses_apply_patch_hook_name_and_aliases() {
     let action = ApplyPatchAction::new_add_for_test(&path, "hello".to_string());
     let expected_patch = action.patch.clone();
     let req = ApplyPatchRequest {
-        turn_environment: test_turn_environment(codex_exec_server::LOCAL_ENVIRONMENT_ID),
         action,
         file_paths: vec![path],
         changes: HashMap::new(),
@@ -123,62 +113,8 @@ async fn permission_request_payload_uses_apply_patch_hook_name_and_aliases() {
     );
 }
 
-#[tokio::test]
-async fn approval_keys_include_environment_id() {
-    let runtime = ApplyPatchRuntime::new();
-    let path = std::env::temp_dir()
-        .join("apply-patch-approval-key.txt")
-        .abs();
-    let req = ApplyPatchRequest {
-        turn_environment: test_turn_environment("remote"),
-        action: ApplyPatchAction::new_add_for_test(&path, "hello".to_string()),
-        file_paths: vec![path.clone()],
-        changes: HashMap::new(),
-        exec_approval_requirement: ExecApprovalRequirement::Skip {
-            bypass_sandbox: false,
-            proposed_execpolicy_amendment: None,
-        },
-        additional_permissions: None,
-        permissions_preapproved: false,
-    };
-
-    let keys = runtime.approval_keys(&req);
-
-    assert_eq!(
-        serde_json::to_value(&keys).expect("serialize approval keys"),
-        serde_json::json!([
-            {
-                "environment_id": "remote",
-                "path": path,
-            }
-        ])
-    );
-}
-
-#[tokio::test]
-async fn sandbox_cwd_uses_patch_action_cwd() {
-    let runtime = ApplyPatchRuntime::new();
-    let path = std::env::temp_dir()
-        .join("apply-patch-runtime-sandbox-cwd.txt")
-        .abs();
-    let req = ApplyPatchRequest {
-        turn_environment: test_turn_environment(codex_exec_server::LOCAL_ENVIRONMENT_ID),
-        action: ApplyPatchAction::new_add_for_test(&path, "hello".to_string()),
-        file_paths: vec![path.clone()],
-        changes: HashMap::new(),
-        exec_approval_requirement: ExecApprovalRequirement::Skip {
-            bypass_sandbox: false,
-            proposed_execpolicy_amendment: None,
-        },
-        additional_permissions: None,
-        permissions_preapproved: false,
-    };
-
-    assert_eq!(runtime.sandbox_cwd(&req), Some(&req.action.cwd));
-}
-
-#[tokio::test]
-async fn file_system_sandbox_context_uses_active_attempt() {
+#[test]
+fn file_system_sandbox_context_uses_active_attempt() {
     let path = std::env::temp_dir()
         .join("apply-patch-runtime-attempt.txt")
         .abs();
@@ -190,7 +126,6 @@ async fn file_system_sandbox_context_uses_active_attempt() {
         )),
     };
     let req = ApplyPatchRequest {
-        turn_environment: test_turn_environment(codex_exec_server::LOCAL_ENVIRONMENT_ID),
         action: ApplyPatchAction::new_add_for_test(&path, "hello".to_string()),
         file_paths: vec![path.clone()],
         changes: HashMap::new(),
@@ -242,13 +177,12 @@ async fn file_system_sandbox_context_uses_active_attempt() {
     assert_eq!(sandbox.use_legacy_landlock, true);
 }
 
-#[tokio::test]
-async fn no_sandbox_attempt_has_no_file_system_context() {
+#[test]
+fn no_sandbox_attempt_has_no_file_system_context() {
     let path = std::env::temp_dir()
         .join("apply-patch-runtime-none.txt")
         .abs();
     let req = ApplyPatchRequest {
-        turn_environment: test_turn_environment(codex_exec_server::LOCAL_ENVIRONMENT_ID),
         action: ApplyPatchAction::new_add_for_test(&path, "hello".to_string()),
         file_paths: vec![path.clone()],
         changes: HashMap::new(),

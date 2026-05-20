@@ -4,7 +4,6 @@ use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::render::Insets;
 use crate::render::RectExt as _;
 use crate::selection_list::selection_option_row_with_dim;
-use crate::style::accent_style;
 use crate::tui::FrameRequester;
 use crate::tui::Tui;
 use crate::tui::TuiEvent;
@@ -611,7 +610,7 @@ impl ExternalAgentConfigMigrationScreen {
             let mut line = entry.line.clone();
             if selected {
                 line.spans.iter_mut().for_each(|span| {
-                    span.style = span.style.patch(accent_style());
+                    span.style = span.style.cyan().bold();
                 });
             } else if entry.kind != RenderLineKind::Item && !line.spans.is_empty() {
                 line.spans.iter_mut().for_each(|span| {

@@ -24,7 +24,7 @@ Requirements:
 ## 2) Run your first turn (sync)
 
 ```python
-from openai_codex import Codex
+from codex_app_server import Codex
 
 with Codex() as codex:
     server = codex.metadata.serverInfo
@@ -45,12 +45,12 @@ What happened:
 - `thread.run("...")` started a turn, consumed events until completion, and returned the final assistant response plus collected items and usage.
 - `result.final_response` is `None` when no final-answer or phase-less assistant message item completes for the turn.
 - use `thread.turn(...)` when you need a `TurnHandle` for streaming, steering, interrupting, or turn IDs/status
-- one client can consume multiple active turns concurrently; turn streams are routed by turn ID
+- one client can have only one active turn consumer (`thread.run(...)`, `TurnHandle.stream()`, or `TurnHandle.run()`) at a time in the current experimental build
 
 ## 3) Continue the same thread (multi-turn)
 
 ```python
-from openai_codex import Codex
+from codex_app_server import Codex
 
 with Codex() as codex:
     thread = codex.thread_start(model="gpt-5.4", config={"model_reasoning_effort": "high"})
@@ -69,7 +69,7 @@ initializes lazily, and context entry makes startup/shutdown explicit.
 
 ```python
 import asyncio
-from openai_codex import AsyncCodex
+from codex_app_server import AsyncCodex
 
 
 async def main() -> None:
@@ -85,7 +85,7 @@ asyncio.run(main())
 ## 5) Resume an existing thread
 
 ```python
-from openai_codex import Codex
+from codex_app_server import Codex
 
 THREAD_ID = "thr_123"  # replace with a real id
 
@@ -95,13 +95,12 @@ with Codex() as codex:
     print(result.final_response)
 ```
 
-## 6) Public app-server types
+## 6) Generated models
 
-The convenience wrappers live at the package root. Public app-server value and
-event types live under:
+The convenience wrappers live at the package root, but the canonical app-server models live under:
 
 ```python
-from openai_codex.types import ThreadReadResponse, Turn, TurnStatus
+from codex_app_server.generated.v2_all import Turn, TurnStatus, ThreadReadResponse
 ```
 
 ## 7) Next stops

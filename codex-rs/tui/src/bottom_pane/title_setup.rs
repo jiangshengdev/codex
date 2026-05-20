@@ -26,7 +26,6 @@ use crate::bottom_pane::multi_select_picker::MultiSelectItem;
 use crate::bottom_pane::multi_select_picker::MultiSelectPicker;
 use crate::bottom_pane::status_surface_preview::StatusSurfacePreviewData;
 use crate::bottom_pane::status_surface_preview::StatusSurfacePreviewItem;
-use crate::keymap::ListKeymap;
 use crate::render::renderable::Renderable;
 
 /// Available items that can be displayed in the terminal title.
@@ -72,8 +71,7 @@ pub(crate) enum TerminalTitleItem {
     TotalInputTokens,
     /// Total output tokens generated.
     TotalOutputTokens,
-    /// Full thread UUID.
-    #[strum(to_string = "thread-id", serialize = "session-id")]
+    /// Full session UUID.
     SessionId,
     /// Whether Fast mode is currently active.
     FastMode,
@@ -98,7 +96,7 @@ impl TerminalTitleItem {
             TerminalTitleItem::Status => {
                 "Compact session run-state text (Ready, Working, Thinking)"
             }
-            TerminalTitleItem::Thread => "Current thread title, or thread identifier when unnamed",
+            TerminalTitleItem::Thread => "Current thread title (omitted when unavailable)",
             TerminalTitleItem::GitBranch => "Current Git branch (omitted when unavailable)",
             TerminalTitleItem::ContextRemaining => {
                 "Percentage of context window remaining (omitted when unknown)"
@@ -117,7 +115,7 @@ impl TerminalTitleItem {
             TerminalTitleItem::TotalInputTokens => "Total input tokens used in session",
             TerminalTitleItem::TotalOutputTokens => "Total output tokens used in session",
             TerminalTitleItem::SessionId => {
-                "Current thread identifier (omitted until thread starts)"
+                "Current session identifier (omitted until session starts)"
             }
             TerminalTitleItem::FastMode => "Whether Fast mode is currently active",
             TerminalTitleItem::Model => "Current model name",
@@ -245,7 +243,6 @@ impl TerminalTitleSetupView {
         title_items: Option<&[String]>,
         preview_data: StatusSurfacePreviewData,
         app_event_tx: AppEventSender,
-        list_keymap: ListKeymap,
     ) -> Self {
         let selected_items = title_items
             .into_iter()
@@ -273,7 +270,10 @@ impl TerminalTitleSetupView {
                 Some("Select which items to display in the terminal title.".to_string()),
                 app_event_tx,
             )
-            .list_keymap(list_keymap)
+            .instructions(vec![
+                "Use ↑↓ to navigate, ←→ to move, space to select, enter to confirm, esc to cancel."
+                    .into(),
+            ])
             .items(items)
             .enable_ordering()
             .on_preview(move |items| {
@@ -386,12 +386,8 @@ mod tests {
             "run-state".to_string(),
             "thread-title".to_string(),
         ];
-        let view = TerminalTitleSetupView::new(
-            Some(&selected),
-            StatusSurfacePreviewData::default(),
-            tx,
-            crate::keymap::RuntimeKeymap::defaults().list,
-        );
+        let view =
+            TerminalTitleSetupView::new(Some(&selected), StatusSurfacePreviewData::default(), tx);
         assert_snapshot!(
             "terminal_title_setup_basic",
             render_lines(&view, /*width*/ 84)

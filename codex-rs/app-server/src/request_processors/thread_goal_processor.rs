@@ -107,7 +107,7 @@ impl ThreadGoalRequestProcessor {
                     "ephemeral thread does not support goals: {thread_id}"
                 ))
             })?,
-            None => codex_rollout::find_thread_path_by_id_str(
+            None => find_thread_path_by_id_str(
                 &self.config.codex_home,
                 &thread_id.to_string(),
                 self.state_db.as_deref(),
@@ -153,13 +153,15 @@ impl ThreadGoalRequestProcessor {
                 .get_thread_goal(thread_id)
                 .await
                 .map_err(|err| invalid_request(err.to_string()))?;
-            if let Some(goal) = existing_goal.as_ref() {
-                let previous_status = ExternalGoalPreviousStatus::from(goal);
+            if let Some(goal) = existing_goal.as_ref().filter(|goal| {
+                goal.objective == objective
+                    && goal.status != codex_state::ThreadGoalStatus::Complete
+            }) {
+                let previous_status = ExternalGoalPreviousStatus::Existing(goal.status);
                 state_db
                     .update_thread_goal(
                         thread_id,
                         codex_state::ThreadGoalUpdate {
-                            objective: Some(objective.to_string()),
                             status,
                             token_budget: params.token_budget,
                             expected_goal_id: Some(goal.goal_id.clone()),
@@ -196,12 +198,11 @@ impl ThreadGoalRequestProcessor {
                     "cannot update goal for thread {thread_id}: no goal exists"
                 )));
             };
-            let previous_status = ExternalGoalPreviousStatus::from(&existing_goal);
+            let previous_status = ExternalGoalPreviousStatus::Existing(existing_goal.status);
             state_db
                 .update_thread_goal(
                     thread_id,
                     codex_state::ThreadGoalUpdate {
-                        objective: None,
                         status,
                         token_budget: params.token_budget,
                         expected_goal_id: None,
@@ -271,7 +272,7 @@ impl ThreadGoalRequestProcessor {
                     "ephemeral thread does not support goals: {thread_id}"
                 ))
             })?,
-            None => codex_rollout::find_thread_path_by_id_str(
+            None => find_thread_path_by_id_str(
                 &self.config.codex_home,
                 &thread_id.to_string(),
                 self.state_db.as_deref(),
@@ -335,7 +336,7 @@ impl ThreadGoalRequestProcessor {
                 return Ok(state_db);
             }
         } else {
-            codex_rollout::find_thread_path_by_id_str(
+            find_thread_path_by_id_str(
                 &self.config.codex_home,
                 &thread_id.to_string(),
                 self.state_db.as_deref(),

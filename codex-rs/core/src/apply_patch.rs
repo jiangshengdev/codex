@@ -40,7 +40,7 @@ pub(crate) async fn apply_patch(
         turn_context.approval_policy.value(),
         &turn_context.permission_profile(),
         file_system_sandbox_policy,
-        &action.cwd,
+        &turn_context.cwd,
         turn_context.windows_sandbox_level,
     ) {
         SafetyCheck::AutoApprove {

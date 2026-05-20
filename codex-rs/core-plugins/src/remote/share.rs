@@ -16,12 +16,9 @@ use std::io::Write;
 use std::path::Path;
 use tracing::warn;
 
-mod checkout;
 mod local_paths;
 
 const REMOTE_PLUGIN_SHARE_MAX_ARCHIVE_BYTES: usize = 50 * 1024 * 1024;
-
-pub use checkout::checkout_remote_plugin_share;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemotePluginShareSaveResult {
@@ -62,30 +59,13 @@ pub enum RemotePluginSharePrincipalType {
 pub struct RemotePluginShareTarget {
     pub principal_type: RemotePluginSharePrincipalType,
     pub principal_id: String,
-    pub role: RemotePluginShareTargetRole,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct RemotePluginSharePrincipal {
     pub principal_type: RemotePluginSharePrincipalType,
     pub principal_id: String,
-    pub role: RemotePluginSharePrincipalRole,
     pub name: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RemotePluginShareTargetRole {
-    Reader,
-    Editor,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum RemotePluginSharePrincipalRole {
-    Reader,
-    Editor,
-    Owner,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -135,7 +115,7 @@ struct RemotePluginShareUpdateTargetsRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct RemotePluginShareUpdateTargetsResponse {
     principals: Vec<RemotePluginSharePrincipal>,
-    discoverability: RemotePluginShareDiscoverability,
+    discoverability: Option<RemotePluginShareDiscoverability>,
 }
 
 pub async fn save_remote_plugin_share(
@@ -223,54 +203,33 @@ pub async fn list_remote_plugin_shares(
             .map(|plugin| (plugin.plugin.id.clone(), plugin))
             .collect::<BTreeMap<_, _>>();
     let local_plugin_paths =
-        local_paths::load_plugin_share_local_paths(codex_home).map_err(|err| {
-            RemotePluginCatalogError::UnexpectedResponse(format!(
-                "failed to load plugin share local path mapping: {err}"
-            ))
-        })?;
+        local_paths::load_plugin_share_local_paths(codex_home).unwrap_or_else(|err| {
+            warn!("failed to load plugin share local path mapping: {err}");
+            BTreeMap::new()
+        });
 
-    created_plugins
+    Ok(created_plugins
         .into_iter()
         .map(|plugin| {
-            let summary = build_remote_plugin_summary(&plugin, installed_by_id.get(&plugin.id))?;
-            if summary
-                .share_context
-                .as_ref()
-                .and_then(|context| context.share_principals.as_ref())
-                .is_none()
-            {
-                return Err(RemotePluginCatalogError::UnexpectedResponse(format!(
-                    "created workspace plugin `{}` did not include share_principals",
-                    plugin.id
-                )));
-            }
+            let summary = build_remote_plugin_summary(&plugin, installed_by_id.get(&plugin.id));
             let local_plugin_path = local_plugin_paths.get(&plugin.id).cloned();
-            Ok(RemotePluginShareSummary {
+            RemotePluginShareSummary {
                 summary,
+                share_url: plugin.share_url,
                 local_plugin_path,
-            })
+            }
         })
-        .collect()
+        .collect())
 }
 
 pub fn load_plugin_share_remote_ids_by_local_path(
     codex_home: &Path,
 ) -> io::Result<BTreeMap<AbsolutePathBuf, String>> {
     let local_paths = local_paths::load_plugin_share_local_paths(codex_home)?;
-    local_paths
+    Ok(local_paths
         .into_iter()
-        .map(|(remote_plugin_id, local_plugin_path)| {
-            if !is_valid_remote_plugin_id(&remote_plugin_id) {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!(
-                        "invalid remote plugin id in share local path mapping: {remote_plugin_id}"
-                    ),
-                ));
-            }
-            Ok((local_plugin_path, remote_plugin_id))
-        })
-        .collect()
+        .map(|(remote_plugin_id, local_plugin_path)| (local_plugin_path, remote_plugin_id))
+        .collect())
 }
 
 pub async fn delete_remote_plugin_share(
@@ -325,7 +284,9 @@ pub async fn update_remote_plugin_share_targets(
     let response: RemotePluginShareUpdateTargetsResponse = send_and_decode(request, &url).await?;
     Ok(RemotePluginShareUpdateTargetsResult {
         principals: response.principals,
-        discoverability: response.discoverability,
+        // TODO: Remove this fallback once deployed plugin-service responses always include
+        // discoverability per the API schema.
+        discoverability: response.discoverability.unwrap_or(target_discoverability),
     })
 }
 
@@ -350,7 +311,6 @@ fn ensure_unlisted_workspace_target(
         targets.push(RemotePluginShareTarget {
             principal_type: RemotePluginSharePrincipalType::Workspace,
             principal_id: account_id,
-            role: RemotePluginShareTargetRole::Reader,
         });
     }
     Ok(Some(targets))

@@ -160,7 +160,6 @@ impl McpRequestProcessor {
             http_headers,
             env_http_headers,
             &resolved_scopes.scopes,
-            server.oauth_client_id(),
             server.oauth_resource.as_deref(),
             timeout_secs,
             config.mcp_oauth_callback_port,
@@ -287,7 +286,7 @@ impl McpRequestProcessor {
             .mcp_servers
             .keys()
             .cloned()
-            // Include runtime-added/plugin MCP servers that are present in the
+            // Include built-in/plugin MCP servers that are present in the
             // effective runtime config even when they are not user-declared in
             // `config.mcp_servers`.
             .chain(effective_servers.keys().cloned())

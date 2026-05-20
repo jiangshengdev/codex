@@ -9,9 +9,6 @@ use crate::HttpRequestParams;
 use crate::HttpRequestResponse;
 use crate::HttpResponseBodyStream;
 
-pub(crate) const DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-pub(crate) const DEFAULT_REMOTE_EXEC_SERVER_INITIALIZE_TIMEOUT: Duration = Duration::from_secs(10);
-
 /// Connection options for any exec-server client transport.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecServerClientConnectOptions {
@@ -51,26 +48,9 @@ pub(crate) struct StdioExecServerCommand {
 /// Parameters used to connect to a remote exec-server environment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ExecServerTransportParams {
-    WebSocketUrl {
-        websocket_url: String,
-        connect_timeout: Duration,
-        initialize_timeout: Duration,
-    },
+    WebSocketUrl(String),
     #[allow(dead_code)]
-    StdioCommand {
-        command: StdioExecServerCommand,
-        initialize_timeout: Duration,
-    },
-}
-
-impl ExecServerTransportParams {
-    pub(crate) fn websocket_url(websocket_url: String) -> Self {
-        Self::WebSocketUrl {
-            websocket_url,
-            connect_timeout: DEFAULT_REMOTE_EXEC_SERVER_CONNECT_TIMEOUT,
-            initialize_timeout: DEFAULT_REMOTE_EXEC_SERVER_INITIALIZE_TIMEOUT,
-        }
-    }
+    StdioCommand(StdioExecServerCommand),
 }
 
 /// Sends HTTP requests through a runtime-selected transport.

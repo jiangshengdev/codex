@@ -126,7 +126,7 @@ fn reserialize_shell_outputs(items: &mut [ResponseItem]) {
 }
 
 fn is_shell_tool_name(name: &str) -> bool {
-    name == "shell"
+    matches!(name, "shell" | "container.exec")
 }
 
 #[derive(Deserialize)]
