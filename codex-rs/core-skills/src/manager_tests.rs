@@ -87,10 +87,7 @@ fn user_config_layer(codex_home: &TempDir, config_toml: &str) -> ConfigLayerEntr
     let config_path = AbsolutePathBuf::try_from(codex_home.path().join(CONFIG_TOML_FILE))
         .expect("user config path should be absolute");
     ConfigLayerEntry::new(
-        ConfigLayerSource::User {
-            file: config_path,
-            profile: None,
-        },
+        ConfigLayerSource::User { file: config_path },
         toml::from_str(config_toml).expect("user layer toml"),
     )
 }
@@ -498,10 +495,7 @@ fn disabled_paths_for_skills_allows_session_flags_to_override_user_layer() {
     let user_file = AbsolutePathBuf::try_from(tempdir.path().join("config.toml"))
         .expect("user config path should be absolute");
     let user_layer = ConfigLayerEntry::new(
-        ConfigLayerSource::User {
-            file: user_file,
-            profile: None,
-        },
+        ConfigLayerSource::User { file: user_file },
         toml::from_str(&path_toggle_config(&skill_path, /*enabled*/ false))
             .expect("user layer toml"),
     );
@@ -533,10 +527,7 @@ fn disabled_paths_for_skills_allows_session_flags_to_disable_user_enabled_skill(
     let user_file = AbsolutePathBuf::try_from(tempdir.path().join("config.toml"))
         .expect("user config path should be absolute");
     let user_layer = ConfigLayerEntry::new(
-        ConfigLayerSource::User {
-            file: user_file,
-            profile: None,
-        },
+        ConfigLayerSource::User { file: user_file },
         toml::from_str(&path_toggle_config(&skill_path, /*enabled*/ true))
             .expect("user layer toml"),
     );
@@ -571,10 +562,7 @@ fn disabled_paths_for_skills_disables_matching_name_selectors() {
     let user_file = AbsolutePathBuf::try_from(tempdir.path().join("config.toml"))
         .expect("user config path should be absolute");
     let user_layer = ConfigLayerEntry::new(
-        ConfigLayerSource::User {
-            file: user_file,
-            profile: None,
-        },
+        ConfigLayerSource::User { file: user_file },
         toml::from_str(&name_toggle_config("github:yeet", /*enabled*/ false))
             .expect("user layer toml"),
     );
@@ -604,10 +592,7 @@ fn disabled_paths_for_skills_allows_name_selector_to_override_path_selector() {
     let user_file = AbsolutePathBuf::try_from(tempdir.path().join("config.toml"))
         .expect("user config path should be absolute");
     let user_layer = ConfigLayerEntry::new(
-        ConfigLayerSource::User {
-            file: user_file,
-            profile: None,
-        },
+        ConfigLayerSource::User { file: user_file },
         toml::from_str(&path_toggle_config(&skill_path, /*enabled*/ false))
             .expect("user layer toml"),
     );

@@ -1,10 +1,8 @@
 use super::*;
 use codex_config::types::AppToolApproval;
-use codex_config::types::McpServerOAuthConfig;
 use codex_config::types::McpServerToolConfig;
 use codex_config::types::McpServerTransportConfig;
 use codex_config::types::SessionPickerViewMode;
-use codex_protocol::config_types::ServiceTier;
 use codex_protocol::openai_models::ReasoningEffort;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
@@ -32,34 +30,6 @@ fn blocking_set_model_top_level() {
 model_reasoning_effort = "high"
 "#;
     assert_eq!(contents, expected);
-}
-
-#[test]
-fn set_service_tier_saves_priority_as_fast() {
-    let tmp = tempdir().expect("tmpdir");
-    let codex_home = tmp.path();
-
-    ConfigEditsBuilder::new(codex_home)
-        .set_service_tier(Some(ServiceTier::Fast.request_value().to_string()))
-        .apply_blocking()
-        .expect("persist");
-
-    let contents = std::fs::read_to_string(codex_home.join(CONFIG_TOML_FILE)).expect("read config");
-    assert_eq!(contents, "service_tier = \"fast\"\n");
-}
-
-#[test]
-fn set_service_tier_preserves_unknown_service_tier() {
-    let tmp = tempdir().expect("tmpdir");
-    let codex_home = tmp.path();
-
-    ConfigEditsBuilder::new(codex_home)
-        .set_service_tier(Some("experimental-tier-id".to_string()))
-        .apply_blocking()
-        .expect("persist");
-
-    let contents = std::fs::read_to_string(codex_home.join(CONFIG_TOML_FILE)).expect("read config");
-    assert_eq!(contents, "service_tier = \"experimental-tier-id\"\n");
 }
 
 #[test]
@@ -941,7 +911,6 @@ fn blocking_replace_mcp_servers_round_trips() {
             enabled_tools: Some(vec!["one".to_string(), "two".to_string()]),
             disabled_tools: None,
             scopes: None,
-            oauth: None,
             oauth_resource: None,
             tools: HashMap::new(),
         },
@@ -971,9 +940,6 @@ fn blocking_replace_mcp_servers_round_trips() {
             enabled_tools: None,
             disabled_tools: Some(vec!["forbidden".to_string()]),
             scopes: None,
-            oauth: Some(McpServerOAuthConfig {
-                client_id: Some("eci-prd-pub-codex-123".to_string()),
-            }),
             oauth_resource: Some("https://resource.example.com".to_string()),
             tools: HashMap::new(),
         },
@@ -998,9 +964,6 @@ oauth_resource = \"https://resource.example.com\"
 
 [mcp_servers.http.http_headers]
 Z-Header = \"z\"
-
-[mcp_servers.http.oauth]
-client_id = \"eci-prd-pub-codex-123\"
 
 [mcp_servers.stdio]
 command = \"cmd\"
@@ -1043,7 +1006,6 @@ fn blocking_replace_mcp_servers_serializes_tool_approval_overrides() {
             enabled_tools: None,
             disabled_tools: None,
             scopes: None,
-            oauth: None,
             oauth_resource: None,
             tools: HashMap::from([(
                 "search".to_string(),
@@ -1108,7 +1070,6 @@ foo = { command = "cmd" }
             enabled_tools: None,
             disabled_tools: None,
             scopes: None,
-            oauth: None,
             oauth_resource: None,
             tools: HashMap::new(),
         },
@@ -1163,7 +1124,6 @@ foo = { command = "cmd" } # keep me
             enabled_tools: None,
             disabled_tools: None,
             scopes: None,
-            oauth: None,
             oauth_resource: None,
             tools: HashMap::new(),
         },
@@ -1217,7 +1177,6 @@ foo = { command = "cmd", args = ["--flag"] } # keep me
             enabled_tools: None,
             disabled_tools: None,
             scopes: None,
-            oauth: None,
             oauth_resource: None,
             tools: HashMap::new(),
         },
@@ -1272,7 +1231,6 @@ foo = { command = "cmd" }
             enabled_tools: None,
             disabled_tools: None,
             scopes: None,
-            oauth: None,
             oauth_resource: None,
             tools: HashMap::new(),
         },

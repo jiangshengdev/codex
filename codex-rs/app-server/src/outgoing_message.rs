@@ -13,11 +13,9 @@ use codex_app_server_protocol::Result;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::ServerRequestPayload;
-use codex_app_server_protocol::ServerResponse;
 use codex_otel::span_w3c_trace_context;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::W3cTraceContext;
-use codex_protocol::request_permissions::RequestPermissionsResponse;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -143,20 +141,6 @@ impl ThreadScopedOutgoingMessageSender {
                 Some(self.thread_id),
             )
             .await
-    }
-
-    pub(crate) fn track_effective_permissions_approval_response(
-        &self,
-        request_id: RequestId,
-        response: RequestPermissionsResponse,
-    ) {
-        self.outgoing
-            .analytics_events_client
-            .track_effective_permissions_approval_response(
-                now_unix_timestamp_ms(),
-                request_id,
-                response,
-            );
     }
 
     pub(crate) async fn send_server_notification(&self, notification: ServerNotification) {
@@ -303,7 +287,7 @@ impl OutgoingMessageSender {
         RequestId::Integer(self.next_server_request_id.fetch_add(1, Ordering::Relaxed))
     }
 
-    pub(crate) async fn send_request_to_connections(
+    async fn send_request_to_connections(
         &self,
         connection_ids: Option<&[ConnectionId]>,
         request: ServerRequestPayload,
@@ -396,9 +380,7 @@ impl OutgoingMessageSender {
         match entry {
             Some((id, entry)) => {
                 let completed_at_ms = now_unix_timestamp_ms();
-                if let Ok(response) = entry.request.response_from_result(result.clone())
-                    && !matches!(response, ServerResponse::PermissionsRequestApproval { .. })
-                {
+                if let Ok(response) = entry.request.response_from_result(result.clone()) {
                     self.analytics_events_client
                         .track_server_response(completed_at_ms, response);
                 }
@@ -418,8 +400,6 @@ impl OutgoingMessageSender {
         match entry {
             Some((id, entry)) => {
                 warn!("client responded with error for {id:?}: {error:?}");
-                self.analytics_events_client
-                    .track_server_request_aborted(now_unix_timestamp_ms(), id.clone());
                 if let Err(err) = entry.callback.send(Err(error)) {
                     warn!("could not notify callback for {id:?} due to: {err:?}");
                 }
@@ -431,14 +411,7 @@ impl OutgoingMessageSender {
     }
 
     pub(crate) async fn cancel_request(&self, id: &RequestId) -> bool {
-        let entry = self.take_request_callback(id).await;
-        if let Some((request_id, _entry)) = entry {
-            self.analytics_events_client
-                .track_server_request_aborted(now_unix_timestamp_ms(), request_id);
-            true
-        } else {
-            false
-        }
+        self.take_request_callback(id).await.is_some()
     }
 
     pub(crate) async fn cancel_all_requests(&self, error: Option<JSONRPCErrorError>) {
@@ -450,14 +423,12 @@ impl OutgoingMessageSender {
                 .collect::<Vec<_>>()
         };
 
-        for entry in entries {
-            self.analytics_events_client
-                .track_server_request_aborted(now_unix_timestamp_ms(), entry.request.id().clone());
-            if let Some(error) = error.as_ref()
-                && let Err(err) = entry.callback.send(Err(error.clone()))
-            {
-                let request_id = entry.request.id();
-                warn!("could not notify callback for {request_id:?} due to: {err:?}");
+        if let Some(error) = error {
+            for entry in entries {
+                if let Err(err) = entry.callback.send(Err(error.clone())) {
+                    let request_id = entry.request.id();
+                    warn!("could not notify callback for {request_id:?} due to: {err:?}");
+                }
             }
         }
     }
@@ -508,14 +479,12 @@ impl OutgoingMessageSender {
             entries
         };
 
-        for entry in entries {
-            self.analytics_events_client
-                .track_server_request_aborted(now_unix_timestamp_ms(), entry.request.id().clone());
-            if let Some(error) = error.as_ref()
-                && let Err(err) = entry.callback.send(Err(error.clone()))
-            {
-                let request_id = entry.request.id();
-                warn!("could not notify callback for {request_id:?} due to: {err:?}",);
+        if let Some(error) = error {
+            for entry in entries {
+                if let Err(err) = entry.callback.send(Err(error.clone())) {
+                    let request_id = entry.request.id();
+                    warn!("could not notify callback for {request_id:?} due to: {err:?}",);
+                }
             }
         }
     }

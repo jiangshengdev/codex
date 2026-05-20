@@ -171,5 +171,11 @@ pub fn install_wfp_filters<F>(
         }
     };
 
-    emit_wfp_setup_metric_safely(codex_home, otel, offline_username, &metric, &mut log);
+    emit_wfp_setup_metric_safely(
+        codex_home,
+        otel,
+        offline_username,
+        &metric,
+        &mut log,
+    );
 }

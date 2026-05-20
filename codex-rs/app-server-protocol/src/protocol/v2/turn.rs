@@ -64,12 +64,6 @@ pub struct TurnStartParams {
     /// Override the working directory for this turn and subsequent turns.
     #[ts(optional = nullable)]
     pub cwd: Option<PathBuf>,
-    /// Replace the thread's runtime workspace roots for this turn and
-    /// subsequent turns. Relative paths are resolved against the effective
-    /// cwd for the turn.
-    #[experimental("turn/start.runtimeWorkspaceRoots")]
-    #[ts(optional = nullable)]
-    pub runtime_workspace_roots: Option<Vec<PathBuf>>,
     /// Override the approval policy for this turn and subsequent turns.
     #[experimental(nested)]
     #[ts(optional = nullable)]
@@ -81,11 +75,11 @@ pub struct TurnStartParams {
     /// Override the sandbox policy for this turn and subsequent turns.
     #[ts(optional = nullable)]
     pub sandbox_policy: Option<SandboxPolicy>,
-    /// Select a named permissions profile id for this turn and subsequent
-    /// turns. Cannot be combined with `sandboxPolicy`.
+    /// Select a named permissions profile for this turn and subsequent turns.
+    /// Cannot be combined with `sandboxPolicy`. Use bounded `modifications`
+    /// for supported turn adjustments instead of replacing the full
+    /// permissions profile.
     #[experimental("turn/start.permissions")]
-    #[schemars(with = "Option<String>")]
-    #[ts(type = "string | null")]
     #[ts(optional = nullable)]
     pub permissions: Option<PermissionProfileSelectionParams>,
     /// Override the model for this turn and subsequent turns.

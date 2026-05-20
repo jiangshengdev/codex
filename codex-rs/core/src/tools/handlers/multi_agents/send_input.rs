@@ -6,8 +6,9 @@ use codex_tools::ToolSpec;
 
 pub(crate) struct Handler;
 
-#[async_trait::async_trait]
-impl ToolExecutor<ToolInvocation> for Handler {
+impl ToolHandler for Handler {
+    type Output = SendInputResult;
+
     fn tool_name(&self) -> ToolName {
         ToolName::plain("send_input")
     }
@@ -16,10 +17,15 @@ impl ToolExecutor<ToolInvocation> for Handler {
         Some(create_send_input_tool_v1())
     }
 
-    async fn handle(
-        &self,
-        invocation: ToolInvocation,
-    ) -> Result<Box<dyn crate::tools::context::ToolOutput>, FunctionCallError> {
+    fn kind(&self) -> ToolKind {
+        ToolKind::Function
+    }
+
+    fn matches_kind(&self, payload: &ToolPayload) -> bool {
+        matches!(payload, ToolPayload::Function { .. })
+    }
+
+    async fn handle(&self, invocation: ToolInvocation) -> Result<Self::Output, FunctionCallError> {
         let ToolInvocation {
             session,
             turn,
@@ -86,13 +92,7 @@ impl ToolExecutor<ToolInvocation> for Handler {
             .await;
         let submission_id = result?;
 
-        Ok(boxed_tool_output(SendInputResult { submission_id }))
-    }
-}
-
-impl CoreToolRuntime for Handler {
-    fn matches_kind(&self, payload: &ToolPayload) -> bool {
-        matches!(payload, ToolPayload::Function { .. })
+        Ok(SendInputResult { submission_id })
     }
 }
 

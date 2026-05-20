@@ -99,7 +99,6 @@ async fn make_config_for_cwd(codex_home: &TempDir, cwd: PathBuf) -> TestConfig {
         ConfigLayerEntry::new(
             ConfigLayerSource::User {
                 file: config_file(user_config_path),
-                profile: None,
             },
             TomlValue::Table(toml::map::Map::new()),
         ),
@@ -165,10 +164,7 @@ async fn skill_roots_from_layer_stack_maps_user_to_user_and_system_cache_and_sys
             TomlValue::Table(toml::map::Map::new()),
         ),
         ConfigLayerEntry::new(
-            ConfigLayerSource::User {
-                file: user_file,
-                profile: None,
-            },
+            ConfigLayerSource::User { file: user_file },
             TomlValue::Table(toml::map::Map::new()),
         ),
     ];
@@ -226,10 +222,7 @@ async fn skill_roots_from_layer_stack_includes_disabled_project_layers() -> anyh
 
     let layers = vec![
         ConfigLayerEntry::new(
-            ConfigLayerSource::User {
-                file: user_file,
-                profile: None,
-            },
+            ConfigLayerSource::User { file: user_file },
             TomlValue::Table(toml::map::Map::new()),
         ),
         ConfigLayerEntry::new_disabled(
@@ -288,10 +281,7 @@ async fn loads_skills_from_home_agents_dir_for_user_scope() -> anyhow::Result<()
 
     let user_file = user_folder.join("config.toml").abs();
     let layers = vec![ConfigLayerEntry::new(
-        ConfigLayerSource::User {
-            file: user_file,
-            profile: None,
-        },
+        ConfigLayerSource::User { file: user_file },
         TomlValue::Table(toml::map::Map::new()),
     )];
     let stack = ConfigLayerStack::new(

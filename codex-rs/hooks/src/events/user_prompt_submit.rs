@@ -255,7 +255,6 @@ fn parse_completed(
             stop_reason,
             additional_contexts_for_model,
         },
-        completion_order: 0,
     }
 }
 

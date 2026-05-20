@@ -19,26 +19,14 @@
         },
         "principalType": {
           "$ref": "#/definitions/PluginSharePrincipalType"
-        },
-        "role": {
-          "$ref": "#/definitions/PluginSharePrincipalRole"
         }
       },
       "required": [
         "name",
         "principalId",
-        "principalType",
-        "role"
+        "principalType"
       ],
       "type": "object"
-    },
-    "PluginSharePrincipalRole": {
-      "enum": [
-        "reader",
-        "editor",
-        "owner"
-      ],
-      "type": "string"
     },
     "PluginSharePrincipalType": {
       "enum": [

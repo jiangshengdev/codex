@@ -120,12 +120,7 @@ async fn goal_slash_command_rejects_oversized_objective() {
         "oversized goal should not emit a SetThreadGoalObjective event: {events:?}"
     );
     let rendered = rendered_insert_history(&events);
-    assert!(rendered.contains("Goal objective is too long"));
-    assert!(rendered.contains("Put longer instructions in a file"));
-    assert!(
-        !rendered.contains("Message exceeds the maximum length"),
-        "expected goal-specific length error, got {rendered:?}"
-    );
+    assert_chatwidget_snapshot!("goal_slash_command_oversized_objective_error", rendered);
     assert_no_submit_op(&mut op_rx);
 }
 
@@ -200,7 +195,7 @@ async fn queued_goal_slash_command_rejects_oversized_objective_and_drains_next_i
 
     queue_composer_text_with_tab(&mut chat, &format!("/goal {objective}"));
     queue_composer_text_with_tab(&mut chat, "continue");
-    assert_eq!(chat.input_queue.queued_user_messages.len(), 2);
+    assert_eq!(chat.queued_user_messages.len(), 2);
 
     complete_turn_with_message(&mut chat, "turn-1", Some("done"));
 
@@ -224,6 +219,6 @@ async fn queued_goal_slash_command_rejects_oversized_objective_and_drains_next_i
         ),
         other => panic!("expected queued follow-up after oversized goal, got {other:?}"),
     }
-    assert!(chat.input_queue.queued_user_messages.is_empty());
+    assert!(chat.queued_user_messages.is_empty());
     assert_no_submit_op(&mut op_rx);
 }

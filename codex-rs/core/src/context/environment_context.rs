@@ -96,24 +96,6 @@ impl NetworkContext {
             denied_domains,
         }
     }
-
-    fn render(&self) -> String {
-        let mut rendered = "<network enabled=\"true\">".to_string();
-        Self::push_rendered_domain_element(&mut rendered, "allowed", &self.allowed_domains);
-        Self::push_rendered_domain_element(&mut rendered, "denied", &self.denied_domains);
-        rendered.push_str("</network>");
-        rendered
-    }
-
-    fn push_rendered_domain_element(rendered_network: &mut String, name: &str, domains: &[String]) {
-        if domains.is_empty() {
-            return;
-        }
-
-        rendered_network.push_str(&format!("<{name}>"));
-        rendered_network.push_str(&domains.join(","));
-        rendered_network.push_str(&format!("</{name}>"));
-    }
 }
 
 impl EnvironmentContext {
@@ -306,7 +288,14 @@ impl ContextualUserFragment for EnvironmentContext {
         }
         match &self.network {
             Some(network) => {
-                lines.push(format!("  {}", network.render()));
+                lines.push("  <network enabled=\"true\">".to_string());
+                for allowed in &network.allowed_domains {
+                    lines.push(format!("    <allowed>{allowed}</allowed>"));
+                }
+                for denied in &network.denied_domains {
+                    lines.push(format!("    <denied>{denied}</denied>"));
+                }
+                lines.push("  </network>".to_string());
             }
             None => {
                 // TODO(mbolin): Include this line if it helps the model.
