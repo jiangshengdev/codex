@@ -212,7 +212,6 @@ mod tests {
     use codex_config::LoaderOverrides;
     use codex_config::NoopThreadConfigLoader;
     use codex_core::config::ConfigBuilder;
-    use codex_extension_api::ExtensionRegistryBuilder;
     use codex_protocol::protocol::SessionSource;
     use codex_thread_store::AppendThreadItemsParams;
     use codex_thread_store::InMemoryThreadStore;
@@ -246,7 +245,7 @@ mod tests {
             auth_manager.clone(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
-            Arc::new(ExtensionRegistryBuilder::new().build()),
+            Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             /*analytics_events_client*/ None,
             thread_store.clone(),
             /*state_db*/ None,
@@ -266,10 +265,11 @@ mod tests {
             thread_state_manager.clone(),
             /*state_db*/ None,
         );
+        let skills_watcher = SkillsWatcher::new(thread_manager.skills_manager(), outgoing.clone());
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
-            outgoing.clone(),
+            outgoing,
             Arg0DispatchPaths::default(),
             config.clone(),
             ConfigManager::new(
@@ -288,10 +288,7 @@ mod tests {
             Arc::new(Semaphore::new(1)),
             thread_goal_processor,
             /*state_db*/ None,
-            crate::skills_watcher::SkillsWatcher::new(
-                thread_manager.skills_manager(),
-                outgoing.clone(),
-            ),
+            skills_watcher,
         );
 
         let new_thread = thread_manager.start_thread(config.as_ref().clone()).await?;

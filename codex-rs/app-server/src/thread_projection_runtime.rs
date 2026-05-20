@@ -211,6 +211,7 @@ async fn remove_projection_attach_after_connection_closed(
 mod tests {
     use super::*;
     use crate::outgoing_message::OutgoingMessageSender;
+    use crate::thread_state::ConnectionCapabilities;
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ServerNotification;
     use codex_app_server_protocol::SessionSource;
@@ -225,8 +226,6 @@ mod tests {
     use tokio::sync::oneshot;
     use tokio::time::Duration;
     use tokio::time::timeout;
-
-    use crate::thread_state::ConnectionCapabilities;
 
     fn test_thread(thread_id: ThreadId) -> Thread {
         Thread {

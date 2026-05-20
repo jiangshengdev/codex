@@ -423,6 +423,29 @@ jobs:
           binaries: ${{ matrix.binaries }}
 
       - if: ${{ runner.os == 'macOS' && env.SIGN_MACOS == 'true' }}
+        name: Check Apple signing credentials
+        id: apple_signing
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARIZATION_KEY_P8: ${{ secrets.APPLE_NOTARIZATION_KEY_P8 }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${APPLE_CERTIFICATE_P12:-}" \
+            && -n "${APPLE_CERTIFICATE_PASSWORD:-}" \
+            && -n "${APPLE_NOTARIZATION_KEY_P8:-}" \
+            && -n "${APPLE_NOTARIZATION_KEY_ID:-}" \
+            && -n "${APPLE_NOTARIZATION_ISSUER_ID:-}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Apple signing credentials are incomplete; macOS artifacts will be unsigned."
+          fi
+
+      - if: ${{ runner.os == 'macOS' && env.SIGN_MACOS == 'true' && steps.apple_signing.outputs.enabled == 'true' }}
         name: MacOS code signing (binaries)
         uses: ./.github/actions/macos-code-sign
         with:
@@ -476,7 +499,7 @@ jobs:
             exit 1
           fi
 
-      - if: ${{ runner.os == 'macOS' && matrix.build_dmg == 'true' && env.SIGN_MACOS == 'true' }}
+      - if: ${{ runner.os == 'macOS' && matrix.build_dmg == 'true' && env.SIGN_MACOS == 'true' && steps.apple_signing.outputs.enabled == 'true' }}
         name: MacOS code signing (dmg)
         uses: ./.github/actions/macos-code-sign
         with:
@@ -1245,7 +1268,7 @@ jobs:
       - name: Trigger developers.openai.com deploy
         # Only trigger the deploy if the release is not a pre-release.
         # The deploy is used to update the developers.openai.com website with the new config schema json file.
-        if: ${{ env.SIGN_MACOS == 'true' && !contains(steps.release_name.outputs.name, '-') }}
+        if: ${{ github.repository == 'openai/codex' && env.SIGN_MACOS == 'true' && !contains(steps.release_name.outputs.name, '-') }}
         continue-on-error: true
         env:
           DEV_WEBSITE_VERCEL_DEPLOY_HOOK_URL: ${{ secrets.DEV_WEBSITE_VERCEL_DEPLOY_HOOK_URL }}
@@ -1477,6 +1500,7 @@ jobs:
         !cancelled() &&
         needs.release.result == 'success' &&
         needs.release.outputs.sign_macos == 'true' &&
+        github.repository == 'openai/codex' &&
         !contains(needs.release.outputs.version, '-')
       }}
     # This job only invokes a GitHub Action to open/update the winget-pkgs PR;
@@ -1502,7 +1526,8 @@ jobs:
       ${{
         !cancelled() &&
         needs.release.result == 'success' &&
-        needs.release.outputs.sign_macos == 'true'
+        needs.release.outputs.sign_macos == 'true' &&
+        github.repository == 'openai/codex'
       }}
     permissions:
       contents: write
