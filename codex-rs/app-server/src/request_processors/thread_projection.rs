@@ -25,6 +25,11 @@ impl ThreadRequestProcessor {
 
         let snapshot_processor = self.clone();
         let thread_id = attach.thread_id;
+        let projection_generation = self
+            .outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
         let snapshot = Box::pin(async move {
             snapshot_processor
                 .read_thread_projection_snapshot(thread_id)
@@ -35,6 +40,7 @@ impl ThreadRequestProcessor {
             attach.thread_state,
             attach.thread_id,
             request_id.clone(),
+            projection_generation,
             snapshot,
         )
         .await?;
@@ -171,6 +177,7 @@ async fn enqueue_projection_attach_response(
     thread_state: Arc<Mutex<crate::thread_state::ThreadState>>,
     thread_id: ThreadId,
     request_id: ConnectionRequestId,
+    projection_generation: crate::thread_projection::ProjectionGeneration,
     snapshot: crate::thread_projection_runtime::ThreadProjectionSnapshotFuture,
 ) -> Result<(), JSONRPCErrorError> {
     let listener_command_tx = {
@@ -188,6 +195,7 @@ async fn enqueue_projection_attach_response(
         .send(crate::thread_state::ThreadListenerCommand::SendThreadProjectionAttachResponse {
             request_id: request_id.clone(),
             connection_id: request_id.connection_id,
+            projection_generation,
             snapshot,
             completion_tx,
         })
