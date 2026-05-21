@@ -227,6 +227,8 @@ async fn remove_projection_attach_after_connection_closed(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::outgoing_message::OutgoingEnvelope;
+    use crate::outgoing_message::OutgoingMessage;
     use crate::outgoing_message::OutgoingMessageSender;
     use crate::thread_state::ConnectionCapabilities;
     use codex_app_server_protocol::RequestId;
@@ -407,6 +409,106 @@ mod tests {
             .await
             .expect("attach task should finish")
             .expect("attach task should not panic");
+
+        let projection_cleanup = outgoing
+            .thread_projection_manager()
+            .remove_connection(connection_id)
+            .await;
+        assert_eq!(projection_cleanup, Vec::new());
+
+        let deliveries = outgoing
+            .thread_projection_manager()
+            .project_notification(thread_id, &turn_started_notification(thread_id))
+            .await;
+        assert_eq!(deliveries, Vec::new());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attach_response_after_thread_teardown_does_not_recreate_projection_subscription()
+    -> anyhow::Result<()> {
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        let request_id = ConnectionRequestId {
+            connection_id,
+            request_id: RequestId::Integer(1),
+        };
+        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
+        let thread_state_manager = ThreadStateManager::new();
+        thread_state_manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(4);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            outgoing_tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let projection_generation = outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
+        let (snapshot_tx, snapshot_rx) = oneshot::channel();
+        let (snapshot_waiting_tx, snapshot_waiting_rx) = oneshot::channel();
+        let snapshot = Box::pin(async move {
+            snapshot_waiting_tx
+                .send(())
+                .expect("snapshot waiting receiver should still be alive");
+            snapshot_rx
+                .await
+                .expect("snapshot sender should resolve the future")
+        });
+
+        let attach_task = tokio::spawn({
+            let pending_thread_unloads = pending_thread_unloads.clone();
+            let outgoing = outgoing.clone();
+            let thread_state_manager = thread_state_manager.clone();
+            async move {
+                handle_projection_attach_response(
+                    thread_id,
+                    &pending_thread_unloads,
+                    &outgoing,
+                    &thread_state_manager,
+                    request_id,
+                    connection_id,
+                    projection_generation,
+                    snapshot,
+                )
+                .await;
+            }
+        });
+
+        timeout(Duration::from_secs(1), snapshot_waiting_rx)
+            .await
+            .expect("snapshot future should reach the wait point")
+            .expect("snapshot future should signal before waiting");
+        outgoing
+            .thread_projection_manager()
+            .remove_thread(thread_id)
+            .await;
+        snapshot_tx
+            .send(Ok(test_thread(thread_id)))
+            .expect("snapshot future should still be awaiting the sender");
+        timeout(Duration::from_secs(1), attach_task)
+            .await
+            .expect("attach task should finish")
+            .expect("attach task should not panic");
+
+        let message = outgoing_rx
+            .recv()
+            .await
+            .expect("stale attach should send an error response");
+        let error = match message {
+            OutgoingEnvelope::ToConnection {
+                message: OutgoingMessage::Error(error),
+                ..
+            } => error.error,
+            other => panic!("expected stale attach error response, got {other:?}"),
+        };
+        assert!(
+            error
+                .message
+                .contains("was unloaded while attaching projection")
+        );
 
         let projection_cleanup = outgoing
             .thread_projection_manager()
