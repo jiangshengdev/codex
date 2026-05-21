@@ -348,6 +348,18 @@ impl ChatWidget {
         Some((100 - remaining).clamp(0, 100))
     }
 
+    pub(super) fn status_line_context_used_tokens(&self) -> Option<i64> {
+        match self.token_info.as_ref() {
+            Some(info) => info
+                .model_context_window
+                .map(|_| info.last_token_usage.tokens_in_context_window()),
+            None => self
+                .config
+                .model_context_window
+                .map(|_| TokenUsage::default().tokens_in_context_window()),
+        }
+    }
+
     pub(super) fn status_line_total_usage(&self) -> TokenUsage {
         self.token_info
             .as_ref()

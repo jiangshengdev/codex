@@ -37,7 +37,6 @@ pub const OPENAI_PROVIDER_ID: &str = "openai";
 const CODEX_OPENAI_BASE_URL_ENV_VAR: &str = "CODEX_OPENAI_BASE_URL";
 const CODEX_CHATGPT_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_BASE_URL";
 const DEFAULT_OPENAI_API_BASE_URL: &str = "https://api.openai.com/v1";
-const DEFAULT_CHATGPT_CODEX_PROVIDER_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 pub const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
 pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
@@ -416,7 +415,7 @@ fn default_base_url_from_env(
             .map(|raw_base_url| raw_base_url.trim().trim_end_matches('/').to_string())
             .filter(|raw_base_url| !raw_base_url.is_empty())
             .map(|raw_base_url| format!("{raw_base_url}/codex"))
-            .unwrap_or_else(|| DEFAULT_CHATGPT_CODEX_PROVIDER_BASE_URL.to_string());
+            .unwrap_or_else(|| CHATGPT_CODEX_BASE_URL.to_string());
     }
 
     raw_openai_api_base_url

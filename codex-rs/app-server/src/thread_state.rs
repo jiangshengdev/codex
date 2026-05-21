@@ -1,5 +1,6 @@
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
+use crate::thread_projection::ProjectionGeneration;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ThreadGoal;
 use codex_app_server_protocol::ThreadHistoryBuilder;
@@ -60,6 +61,7 @@ pub(crate) enum ThreadListenerCommand {
     SendThreadProjectionAttachResponse {
         request_id: ConnectionRequestId,
         connection_id: ConnectionId,
+        projection_generation: ProjectionGeneration,
         snapshot: crate::thread_projection_runtime::ThreadProjectionSnapshotFuture,
         completion_tx: oneshot::Sender<()>,
     },

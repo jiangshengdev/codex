@@ -535,6 +535,7 @@ pub(super) async fn handle_thread_listener_command(
         ThreadListenerCommand::SendThreadProjectionAttachResponse {
             request_id,
             connection_id,
+            projection_generation,
             snapshot,
             completion_tx,
         } => {
@@ -543,9 +544,12 @@ pub(super) async fn handle_thread_listener_command(
                 pending_thread_unloads,
                 outgoing,
                 thread_state_manager,
-                request_id,
-                connection_id,
-                snapshot,
+                crate::thread_projection_runtime::ProjectionAttachResponseWork {
+                    request_id,
+                    connection_id,
+                    projection_generation,
+                    snapshot,
+                },
             )
             .await;
             let _ = completion_tx.send(());
