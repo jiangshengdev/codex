@@ -21,6 +21,13 @@ use tokio::sync::watch;
 pub(crate) type ThreadProjectionSnapshotFuture =
     Pin<Box<dyn Future<Output = Result<Thread, JSONRPCErrorError>> + Send>>;
 
+pub(crate) struct ProjectionAttachResponseWork {
+    pub(crate) request_id: ConnectionRequestId,
+    pub(crate) connection_id: ConnectionId,
+    pub(crate) projection_generation: ProjectionGeneration,
+    pub(crate) snapshot: ThreadProjectionSnapshotFuture,
+}
+
 pub(crate) struct ProjectionSubscriberWatch {
     has_subscribers_rx: watch::Receiver<bool>,
     has_subscribers: (bool, Instant),
@@ -62,11 +69,15 @@ pub(crate) async fn handle_projection_attach_response(
     pending_thread_unloads: &Arc<Mutex<HashSet<ThreadId>>>,
     outgoing: &Arc<OutgoingMessageSender>,
     thread_state_manager: &ThreadStateManager,
-    request_id: ConnectionRequestId,
-    connection_id: ConnectionId,
-    projection_generation: ProjectionGeneration,
-    snapshot: ThreadProjectionSnapshotFuture,
+    attach_response: ProjectionAttachResponseWork,
 ) {
+    let ProjectionAttachResponseWork {
+        request_id,
+        connection_id,
+        projection_generation,
+        snapshot,
+    } = attach_response;
+
     if reject_projection_attach_for_closing_thread(
         pending_thread_unloads,
         outgoing,
@@ -324,10 +335,12 @@ mod tests {
                     &pending_thread_unloads,
                     &outgoing,
                     &thread_state_manager,
-                    request_id,
-                    connection_id,
-                    projection_generation,
-                    snapshot,
+                    ProjectionAttachResponseWork {
+                        request_id,
+                        connection_id,
+                        projection_generation,
+                        snapshot,
+                    },
                 )
                 .await;
             }
@@ -388,10 +401,12 @@ mod tests {
                     &pending_thread_unloads,
                     &outgoing,
                     &thread_state_manager,
-                    request_id,
-                    connection_id,
-                    projection_generation,
-                    snapshot,
+                    ProjectionAttachResponseWork {
+                        request_id,
+                        connection_id,
+                        projection_generation,
+                        snapshot,
+                    },
                 )
                 .await;
             }
@@ -468,10 +483,12 @@ mod tests {
                     &pending_thread_unloads,
                     &outgoing,
                     &thread_state_manager,
-                    request_id,
-                    connection_id,
-                    projection_generation,
-                    snapshot,
+                    ProjectionAttachResponseWork {
+                        request_id,
+                        connection_id,
+                        projection_generation,
+                        snapshot,
+                    },
                 )
                 .await;
             }
@@ -558,10 +575,12 @@ mod tests {
             &pending_thread_unloads,
             &outgoing,
             &thread_state_manager,
-            request_id,
-            connection_id,
-            projection_generation,
-            snapshot,
+            ProjectionAttachResponseWork {
+                request_id,
+                connection_id,
+                projection_generation,
+                snapshot,
+            },
         )
         .await;
 
