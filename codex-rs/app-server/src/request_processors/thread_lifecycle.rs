@@ -535,6 +535,7 @@ pub(super) async fn handle_thread_listener_command(
         ThreadListenerCommand::SendThreadProjectionAttachResponse {
             request_id,
             connection_id,
+            projection_generation,
             snapshot,
             completion_tx,
         } => {
@@ -545,6 +546,7 @@ pub(super) async fn handle_thread_listener_command(
                 thread_state_manager,
                 request_id,
                 connection_id,
+                projection_generation,
                 snapshot,
             )
             .await;

@@ -2,6 +2,8 @@ use crate::error_code::invalid_request;
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
 use crate::outgoing_message::OutgoingMessageSender;
+use crate::thread_projection::ProjectionAttachAttempt;
+use crate::thread_projection::ProjectionGeneration;
 use crate::thread_state::ThreadStateManager;
 use codex_app_server_protocol::JSONRPCErrorError;
 use codex_app_server_protocol::Thread;
@@ -62,6 +64,7 @@ pub(crate) async fn handle_projection_attach_response(
     thread_state_manager: &ThreadStateManager,
     request_id: ConnectionRequestId,
     connection_id: ConnectionId,
+    projection_generation: ProjectionGeneration,
     snapshot: ThreadProjectionSnapshotFuture,
 ) {
     if reject_projection_attach_for_closing_thread(
@@ -107,10 +110,24 @@ pub(crate) async fn handle_projection_attach_response(
         return;
     }
 
-    let attach_result = outgoing
+    let attach_result = match outgoing
         .thread_projection_manager()
-        .attach(conversation_id, connection_id)
-        .await;
+        .attach_if_generation_matches(conversation_id, connection_id, projection_generation)
+        .await
+    {
+        ProjectionAttachAttempt::Attached(attach_result) => attach_result,
+        ProjectionAttachAttempt::StaleThreadGeneration => {
+            outgoing
+                .send_error(
+                    request_id,
+                    invalid_request(format!(
+                        "thread {conversation_id} was unloaded while attaching projection; retry thread/projection/attach after the thread is loaded"
+                    )),
+                )
+                .await;
+            return;
+        }
+    };
     if remove_projection_attach_after_connection_closed(
         outgoing,
         thread_state_manager,
@@ -284,6 +301,10 @@ mod tests {
             tokio::sync::mpsc::channel(1).0,
             codex_analytics::AnalyticsEventsClient::disabled(),
         ));
+        let projection_generation = outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
         let (snapshot_tx, snapshot_rx) = oneshot::channel();
         let snapshot = Box::pin(async move {
             snapshot_rx
@@ -303,6 +324,7 @@ mod tests {
                     &thread_state_manager,
                     request_id,
                     connection_id,
+                    projection_generation,
                     snapshot,
                 )
                 .await;
@@ -343,6 +365,10 @@ mod tests {
             tokio::sync::mpsc::channel(1).0,
             codex_analytics::AnalyticsEventsClient::disabled(),
         ));
+        let projection_generation = outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
         let (snapshot_tx, snapshot_rx) = oneshot::channel();
         let snapshot = Box::pin(async move {
             snapshot_rx
@@ -362,6 +388,7 @@ mod tests {
                     &thread_state_manager,
                     request_id,
                     connection_id,
+                    projection_generation,
                     snapshot,
                 )
                 .await;
@@ -419,6 +446,10 @@ mod tests {
             .await;
         assert_eq!(initial_cleanup, Vec::new());
 
+        let projection_generation = outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
         let snapshot = Box::pin(async move { Ok(test_thread(thread_id)) });
         handle_projection_attach_response(
             thread_id,
@@ -427,6 +458,7 @@ mod tests {
             &thread_state_manager,
             request_id,
             connection_id,
+            projection_generation,
             snapshot,
         )
         .await;

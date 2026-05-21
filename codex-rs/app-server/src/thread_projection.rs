@@ -79,6 +79,7 @@ impl ThreadProjectionManager {
         Self::default()
     }
 
+    #[cfg(test)]
     pub(crate) async fn attach(
         &self,
         thread_id: ThreadId,
