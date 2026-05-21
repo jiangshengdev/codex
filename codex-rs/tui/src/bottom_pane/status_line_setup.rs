@@ -100,6 +100,9 @@ pub(crate) enum StatusLineItem {
     #[strum(to_string = "context-used", serialize = "context-usage")]
     ContextUsed,
 
+    /// Raw context-window tokens for the latest model request.
+    ContextUsedTokens,
+
     /// Remaining usage on the 5-hour rate limit.
     FiveHourLimit,
 
@@ -162,6 +165,9 @@ impl StatusLineItem {
             StatusLineItem::ContextUsed => {
                 "Percentage of context window used (omitted when unknown)"
             }
+            StatusLineItem::ContextUsedTokens => {
+                "Raw context-window tokens for the latest model request"
+            }
             StatusLineItem::FiveHourLimit => {
                 "Remaining usage on 5-hour usage limit (omitted when unavailable)"
             }
@@ -201,6 +207,7 @@ impl StatusLineItem {
             StatusLineItem::ApprovalMode => StatusSurfacePreviewItem::ApprovalMode,
             StatusLineItem::ContextRemaining => StatusSurfacePreviewItem::ContextRemaining,
             StatusLineItem::ContextUsed => StatusSurfacePreviewItem::ContextUsed,
+            StatusLineItem::ContextUsedTokens => StatusSurfacePreviewItem::ContextUsedTokens,
             StatusLineItem::FiveHourLimit => StatusSurfacePreviewItem::FiveHourLimit,
             StatusLineItem::WeeklyLimit => StatusSurfacePreviewItem::WeeklyLimit,
             StatusLineItem::CodexVersion => StatusSurfacePreviewItem::CodexVersion,
@@ -384,6 +391,18 @@ mod tests {
         assert_eq!(
             "context-usage".parse::<StatusLineItem>(),
             Ok(StatusLineItem::ContextUsed)
+        );
+    }
+
+    #[test]
+    fn context_used_tokens_is_selectable_id() {
+        assert_eq!(
+            "context-used-tokens".parse::<StatusLineItem>(),
+            Ok(StatusLineItem::ContextUsedTokens)
+        );
+        assert_eq!(
+            StatusLineItem::ContextUsedTokens.description(),
+            "Raw context-window tokens for the latest model request"
         );
     }
 
