@@ -1,0 +1,13 @@
+name: test-ci
+
+on:
+  push:
+    branches:
+      - test
+      - "**full-ci**"
+  workflow_dispatch:
+
+jobs:
+  rust-ci-full:
+    uses: ./.github/workflows/rust-ci-full.yml
+    secrets: inherit

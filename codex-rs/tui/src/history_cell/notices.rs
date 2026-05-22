@@ -43,7 +43,7 @@ impl HistoryCell for UpdateAvailableHistoryCell {
             update_instruction,
             "",
             "See full release notes:",
-            "https://github.com/openai/codex/releases/latest"
+            "https://github.com/jiangshengdev/codex/releases/latest"
                 .cyan()
                 .underlined(),
         ];
@@ -67,7 +67,7 @@ impl HistoryCell for UpdateAvailableHistoryCell {
             Line::from(update_instruction),
             Line::from(""),
             Line::from("See full release notes:"),
-            Line::from("https://github.com/openai/codex/releases/latest"),
+            Line::from("https://github.com/jiangshengdev/codex/releases/latest"),
         ]
     }
 }

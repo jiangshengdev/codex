@@ -1,4 +1,5 @@
 use super::thread_processor::ThreadReadViewError;
+use super::thread_processor::reconstruct_thread_turns_for_turns_list;
 use super::thread_processor::thread_read_view_error;
 use super::*;
 use crate::thread_projection::ProjectionDetachResult;
@@ -122,54 +123,50 @@ impl ThreadRequestProcessor {
         &self,
         thread_id: ThreadId,
     ) -> Result<Thread, ThreadReadViewError> {
-        let mut thread = self.read_projection_base_thread_view(thread_id).await?;
-        self.merge_live_projection_state(thread_id, &mut thread)
+        let mut thread = self
+            .read_thread_view(thread_id, /*include_turns*/ false)
+            .await?;
+        let loaded_thread = self.thread_manager.get_thread(thread_id).await.ok();
+        let has_live_running_thread = match loaded_thread.as_ref() {
+            Some(thread) => matches!(thread.agent_status().await, AgentStatus::Running),
+            None => false,
+        };
+        let active_turn = if loaded_thread.is_some() {
+            let thread_state = self.thread_state_manager.thread_state(thread_id).await;
+            thread_state.lock().await.active_turn_snapshot()
+        } else {
+            None
+        };
+        let has_live_in_progress_turn = has_live_running_thread
+            || active_turn
+                .as_ref()
+                .is_some_and(|turn| matches!(turn.status, TurnStatus::InProgress));
+        let loaded_status = self
+            .thread_watch_manager
+            .loaded_status_for_thread(&thread.id)
             .await;
-        Ok(thread)
-    }
-
-    async fn read_projection_base_thread_view(
-        &self,
-        thread_id: ThreadId,
-    ) -> Result<Thread, ThreadReadViewError> {
-        match self
-            .read_thread_view(thread_id, /*include_turns*/ true)
-            .await
-        {
-            Ok(thread) => Ok(thread),
+        let history_items = match self.load_thread_turns_list_history(thread_id).await {
+            Ok(items) => items,
             Err(ThreadReadViewError::InvalidRequest(message))
                 if message
                     == format!(
-                        "thread {thread_id} is not materialized yet; includeTurns is unavailable before first user message"
+                        "thread {thread_id} is not materialized yet; thread/turns/list is unavailable before first user message"
                     ) =>
             {
-                self.read_thread_view(thread_id, /*include_turns*/ false)
-                    .await
+                Vec::new()
             }
-            Err(err) => Err(err),
-        }
-    }
+            Err(err) => return Err(err),
+        };
+        let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
 
-    async fn merge_live_projection_state(&self, thread_id: ThreadId, thread: &mut Thread) {
-        let thread_state = self.thread_state_manager.thread_state(thread_id).await;
-        let active_turn = thread_state.lock().await.active_turn_snapshot();
-        let has_live_in_progress_turn = active_turn
-            .as_ref()
-            .is_some_and(|turn| matches!(turn.status, TurnStatus::InProgress));
-        if let Some(active_turn) = active_turn {
-            merge_turn_history_with_active_turn(&mut thread.turns, active_turn);
-        }
-        if has_live_in_progress_turn {
-            let thread_status = self
-                .thread_watch_manager
-                .loaded_status_for_thread(&thread.id)
-                .await;
-            set_thread_status_and_interrupt_stale_turns(
-                thread,
-                thread_status,
-                has_live_in_progress_turn,
-            );
-        }
+        thread.turns = reconstruct_thread_turns_for_turns_list(
+            &history_items,
+            loaded_status,
+            has_live_running_thread,
+            active_turn,
+        );
+        thread.status = thread_status;
+        Ok(thread)
     }
 }
 
@@ -230,8 +227,8 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
-    async fn thread_read_loaded_include_turns_preserves_history_and_projection_merges_active_turn()
-    -> Result<()> {
+    async fn projection_snapshot_turns_match_0131_reconstruction_for_live_active_turn() -> Result<()>
+    {
         let temp_dir = TempDir::new()?;
         let store_id = uuid::Uuid::new_v4().to_string();
         write_in_memory_thread_store_config(temp_dir.path(), &store_id)?;
@@ -304,7 +301,7 @@ mod tests {
         store
             .append_items(AppendThreadItemsParams {
                 thread_id,
-                items: persisted_history_items("persisted"),
+                items: persisted_in_progress_history_items("persisted-turn", "persisted"),
             })
             .await?;
         {
@@ -344,33 +341,51 @@ mod tests {
             "thread/read should not merge the active turn snapshot"
         );
 
+        let loaded_status = processor
+            .thread_watch_manager
+            .loaded_status_for_thread(&thread_id.to_string())
+            .await;
+        let state = thread_state_manager.thread_state(thread_id).await;
+        let active_turn = state.lock().await.active_turn_snapshot();
+        let expected_turns =
+            super::super::thread_processor::reconstruct_thread_turns_for_turns_list(
+                &persisted_in_progress_history_items("persisted-turn", "persisted"),
+                loaded_status,
+                /*has_live_running_thread*/ false,
+                active_turn,
+            );
+
         let thread = processor
             .read_thread_projection_snapshot(thread_id)
             .await
             .unwrap_or_else(|_| panic!("projection snapshot should include the active turn"));
 
-        assert_eq!(turn_user_texts(&thread.turns), vec!["persisted"]);
-        let active_turn = thread
-            .turns
-            .last()
-            .expect("active turn should be merged into projection snapshot");
-        assert_eq!(active_turn.id, "live-turn");
-        assert_eq!(active_turn.status, TurnStatus::InProgress);
+        assert_eq!(thread.turns, expected_turns);
 
         new_thread.thread.shutdown_and_wait().await?;
         let _ = thread_manager.remove_thread(&thread_id).await;
         Ok(())
     }
 
-    fn persisted_history_items(message: &str) -> Vec<RolloutItem> {
-        vec![RolloutItem::EventMsg(EventMsg::UserMessage(
-            codex_protocol::protocol::UserMessageEvent {
-                message: message.to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-            },
-        ))]
+    fn persisted_in_progress_history_items(turn_id: &str, message: &str) -> Vec<RolloutItem> {
+        vec![
+            RolloutItem::EventMsg(EventMsg::TurnStarted(
+                codex_protocol::protocol::TurnStartedEvent {
+                    turn_id: turn_id.to_string(),
+                    started_at: None,
+                    model_context_window: None,
+                    collaboration_mode_kind: Default::default(),
+                },
+            )),
+            RolloutItem::EventMsg(EventMsg::UserMessage(
+                codex_protocol::protocol::UserMessageEvent {
+                    message: message.to_string(),
+                    images: None,
+                    local_images: Vec::new(),
+                    text_elements: Vec::new(),
+                },
+            )),
+        ]
     }
 
     fn turn_user_texts(turns: &[Turn]) -> Vec<&str> {
