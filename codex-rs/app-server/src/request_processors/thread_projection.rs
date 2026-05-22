@@ -227,8 +227,8 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
-    async fn projection_snapshot_turns_match_0131_reconstruction_for_live_active_turn() -> Result<()>
-    {
+    async fn projection_snapshot_turns_match_canonical_reconstruction_for_live_active_turn()
+    -> Result<()> {
         let temp_dir = TempDir::new()?;
         let store_id = uuid::Uuid::new_v4().to_string();
         write_in_memory_thread_store_config(temp_dir.path(), &store_id)?;

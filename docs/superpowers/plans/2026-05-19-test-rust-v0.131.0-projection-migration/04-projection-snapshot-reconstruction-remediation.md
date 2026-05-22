@@ -55,7 +55,7 @@ async fn thread_read_loaded_include_turns_preserves_history_and_projection_merge
 with:
 
 ```rust
-async fn projection_snapshot_turns_match_0131_reconstruction_for_live_active_turn()
+async fn projection_snapshot_turns_match_canonical_reconstruction_for_live_active_turn()
 ```
 
 Inside the test, keep the existing setup but replace the final projection assertions with a whole-object comparison against the official helper. The final section of the test should have this shape:
@@ -166,7 +166,7 @@ Expected: after helper visibility is fixed, the old implementation should fail t
 Run from `codex-rs`:
 
 ```bash
-cargo test -p codex-app-server projection_snapshot_turns_match_0131_reconstruction_for_live_active_turn --no-fail-fast
+cargo test -p codex-app-server projection_snapshot_turns_match_canonical_reconstruction_for_live_active_turn --no-fail-fast
 ```
 
 Expected now: FAIL. The first acceptable failure is a Rust privacy/visibility error for `reconstruct_thread_turns_for_turns_list`. After visibility is fixed, the acceptable failure is an assertion diff between projection snapshot turns and the canonical expected turns.
@@ -382,7 +382,7 @@ Do not remove helpers from `thread_lifecycle.rs`; they are still used by officia
 Run from `codex-rs`:
 
 ```bash
-cargo test -p codex-app-server projection_snapshot_turns_match_0131_reconstruction_for_live_active_turn --no-fail-fast
+cargo test -p codex-app-server projection_snapshot_turns_match_canonical_reconstruction_for_live_active_turn --no-fail-fast
 ```
 
 Expected: PASS.
