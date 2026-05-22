@@ -2183,7 +2183,7 @@ impl ThreadRequestProcessor {
         })
     }
 
-    async fn load_thread_turns_list_history(
+    pub(super) async fn load_thread_turns_list_history(
         &self,
         thread_id: ThreadId,
     ) -> Result<Vec<RolloutItem>, ThreadReadViewError> {
@@ -3537,7 +3537,7 @@ fn parse_thread_turns_cursor(cursor: &str) -> Result<ThreadTurnsCursor, JSONRPCE
     serde_json::from_str(cursor).map_err(|_| invalid_request(format!("invalid cursor: {cursor}")))
 }
 
-fn reconstruct_thread_turns_for_turns_list(
+pub(super) fn reconstruct_thread_turns_for_turns_list(
     items: &[RolloutItem],
     loaded_status: ThreadStatus,
     has_live_running_thread: bool,
