@@ -67,19 +67,6 @@ jobs:
           fi
           git push "https://jiangshengdev:${GH_TAG_PUSH_TOKEN}@github.com/jiangshengdev/codex.git" +main:main
 
-      - name: Push latest stable rust release tag to GitHub fork
-        env:
-          GH_TAG_PUSH_TOKEN: ${{ secrets.GH_TAG_PUSH_TOKEN }}
-        run: |
-          tag="${{ steps.rust_tags.outputs.stable_tag }}"
-          if [ -n "$tag" ]; then
-            if [ -z "$GH_TAG_PUSH_TOKEN" ]; then
-              echo "GH_TAG_PUSH_TOKEN is not set"
-              exit 1
-            fi
-            git push "https://jiangshengdev:${GH_TAG_PUSH_TOKEN}@github.com/jiangshengdev/codex.git" "+refs/tags/${tag}:refs/tags/${tag}"
-          fi
-
       - name: Push mirrored main to CNB
         env:
           CNB_TOKEN: ${{ secrets.CNB_TOKEN }}
