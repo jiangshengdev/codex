@@ -217,12 +217,14 @@ mod tests {
     use codex_config::LoaderOverrides;
     use codex_config::NoopThreadConfigLoader;
     use codex_core::config::ConfigBuilder;
+    use codex_protocol::models::ImageDetail;
     use codex_protocol::protocol::SessionSource;
     use codex_thread_store::AppendThreadItemsParams;
     use codex_thread_store::InMemoryThreadStore;
     use codex_thread_store::ThreadStore;
     use pretty_assertions::assert_eq;
     use std::path::Path;
+    use std::path::PathBuf;
     use std::sync::Arc;
     use tempfile::TempDir;
 
@@ -298,10 +300,11 @@ mod tests {
 
         let new_thread = thread_manager.start_thread(config.as_ref().clone()).await?;
         let thread_id = new_thread.thread_id;
+        let persisted_items = persisted_in_progress_history_items("persisted-turn", "persisted");
         store
             .append_items(AppendThreadItemsParams {
                 thread_id,
-                items: persisted_in_progress_history_items("persisted-turn", "persisted"),
+                items: persisted_items.clone(),
             })
             .await?;
         {
@@ -349,7 +352,7 @@ mod tests {
         let active_turn = state.lock().await.active_turn_snapshot();
         let expected_turns =
             super::super::thread_processor::reconstruct_thread_turns_for_turns_list(
-                &persisted_in_progress_history_items("persisted-turn", "persisted"),
+                &persisted_items,
                 loaded_status,
                 /*has_live_running_thread*/ false,
                 active_turn,
@@ -361,6 +364,31 @@ mod tests {
             .unwrap_or_else(|_| panic!("projection snapshot should include the active turn"));
 
         assert_eq!(thread.turns, expected_turns);
+        let persisted_turn = thread
+            .turns
+            .iter()
+            .find(|turn| turn.id == "persisted-turn")
+            .expect("projection snapshot should preserve persisted turn");
+        assert_eq!(
+            persisted_turn.items,
+            vec![ThreadItem::UserMessage {
+                id: "item-1".to_string(),
+                content: vec![
+                    V2UserInput::Text {
+                        text: "persisted".to_string(),
+                        text_elements: Vec::new(),
+                    },
+                    V2UserInput::Image {
+                        url: "https://example.com/projection.png".to_string(),
+                        detail: Some(ImageDetail::Original),
+                    },
+                    V2UserInput::LocalImage {
+                        path: PathBuf::from("/tmp/projection-local.png"),
+                        detail: Some(ImageDetail::Original),
+                    },
+                ],
+            }]
+        );
 
         new_thread.thread.shutdown_and_wait().await?;
         let _ = thread_manager.remove_thread(&thread_id).await;
@@ -380,8 +408,10 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::UserMessage(
                 codex_protocol::protocol::UserMessageEvent {
                     message: message.to_string(),
-                    images: None,
-                    local_images: Vec::new(),
+                    images: Some(vec!["https://example.com/projection.png".to_string()]),
+                    image_details: vec![Some(ImageDetail::Original)],
+                    local_images: vec![PathBuf::from("/tmp/projection-local.png")],
+                    local_image_details: vec![Some(ImageDetail::Original)],
                     text_elements: Vec::new(),
                 },
             )),
