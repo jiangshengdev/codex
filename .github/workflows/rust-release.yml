@@ -203,6 +203,7 @@ jobs:
             bundle: primary
             artifact_name: aarch64-unknown-linux-musl
             binaries: "codex codex-responses-api-proxy bwrap"
+            cargo_build_jobs: 2
             build_dmg: "false"
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
@@ -377,8 +378,12 @@ jobs:
           for binary in ${{ matrix.binaries }}; do
             build_args+=(--bin "$binary")
           done
+          cargo_args=()
+          if [[ -n "${{ matrix.cargo_build_jobs }}" ]]; then
+            cargo_args+=(-j "${{ matrix.cargo_build_jobs }}")
+          fi
           echo "CARGO_PROFILE_RELEASE_LTO: ${CARGO_PROFILE_RELEASE_LTO}"
-          cargo build --target ${{ matrix.target }} --release --timings "${build_args[@]}"
+          cargo build "${cargo_args[@]}" --target ${{ matrix.target }} --release --timings "${build_args[@]}"
 
       - name: Upload Cargo timings
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
