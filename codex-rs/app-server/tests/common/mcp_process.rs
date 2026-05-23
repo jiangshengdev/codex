@@ -56,6 +56,7 @@ use codex_app_server_protocol::McpServerToolCallParams;
 use codex_app_server_protocol::MockExperimentalMethodParams;
 use codex_app_server_protocol::ModelListParams;
 use codex_app_server_protocol::ModelProviderCapabilitiesReadParams;
+use codex_app_server_protocol::PermissionProfileListParams;
 use codex_app_server_protocol::PluginInstallParams;
 use codex_app_server_protocol::PluginInstalledParams;
 use codex_app_server_protocol::PluginListParams;
@@ -90,6 +91,7 @@ use codex_app_server_protocol::ThreadRealtimeStopParams;
 use codex_app_server_protocol::ThreadResumeParams;
 use codex_app_server_protocol::ThreadRollbackParams;
 use codex_app_server_protocol::ThreadSetNameParams;
+use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_app_server_protocol::ThreadShellCommandParams;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadTurnsItemsListParams;
@@ -445,6 +447,15 @@ impl McpProcess {
         self.send_request("thread/metadata/update", params).await
     }
 
+    /// Send a `thread/settings/update` JSON-RPC request.
+    pub async fn send_thread_settings_update_request(
+        &mut self,
+        params: ThreadSettingsUpdateParams,
+    ) -> anyhow::Result<i64> {
+        let params = Some(serde_json::to_value(params)?);
+        self.send_request("thread/settings/update", params).await
+    }
+
     /// Send a `thread/unsubscribe` JSON-RPC request.
     pub async fn send_thread_unsubscribe_request(
         &mut self,
@@ -579,6 +590,15 @@ impl McpProcess {
     ) -> anyhow::Result<i64> {
         let params = Some(serde_json::to_value(params)?);
         self.send_request("experimentalFeature/list", params).await
+    }
+
+    /// Send a `permissionProfile/list` JSON-RPC request.
+    pub async fn send_permission_profile_list_request(
+        &mut self,
+        params: PermissionProfileListParams,
+    ) -> anyhow::Result<i64> {
+        let params = Some(serde_json::to_value(params)?);
+        self.send_request("permissionProfile/list", params).await
     }
 
     /// Send an `experimentalFeature/enablement/set` JSON-RPC request.
