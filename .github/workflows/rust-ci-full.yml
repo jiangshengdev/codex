@@ -490,10 +490,10 @@ jobs:
           key: apt-${{ matrix.runner }}-${{ matrix.target }}-v1
 
   tests_macos_aarch64:
-    name: Tests — macos-15-xlarge - aarch64-apple-darwin
+    name: Tests — macos-15 - aarch64-apple-darwin
     uses: ./.github/workflows/rust-ci-full-nextest-platform.yml
     with:
-      runner: macos-15-xlarge
+      runner: macos-15
       target: aarch64-apple-darwin
       profile: ci-test
       artifact_id: macos-aarch64
@@ -505,8 +505,6 @@ jobs:
     uses: ./.github/workflows/rust-ci-full-nextest-platform.yml
     with:
       runner: ubuntu-24.04
-      runner_group: codex-runners
-      runner_labels: codex-linux-x64
       target: x86_64-unknown-linux-gnu
       profile: ci-test
       artifact_id: linux-x64-remote
@@ -519,8 +517,6 @@ jobs:
     uses: ./.github/workflows/rust-ci-full-nextest-platform.yml
     with:
       runner: ubuntu-24.04-arm
-      runner_group: codex-runners
-      runner_labels: codex-linux-arm64
       target: aarch64-unknown-linux-gnu
       profile: ci-test
       artifact_id: linux-arm64
@@ -531,9 +527,7 @@ jobs:
     name: Tests — windows-x64 - x86_64-pc-windows-msvc
     uses: ./.github/workflows/rust-ci-full-nextest-platform.yml
     with:
-      runner: windows-x64
-      runner_group: codex-runners
-      runner_labels: codex-windows-x64
+      runner: windows-2025
       target: x86_64-pc-windows-msvc
       profile: ci-test
       artifact_id: windows-x64
@@ -544,12 +538,8 @@ jobs:
     name: Tests — windows-arm64 - aarch64-pc-windows-msvc
     uses: ./.github/workflows/rust-ci-full-nextest-platform.yml
     with:
-      runner: windows-arm64
-      runner_group: codex-runners
-      runner_labels: codex-windows-arm64
-      archive_runner: windows-x64
-      archive_runner_group: codex-runners
-      archive_runner_labels: codex-windows-x64
+      runner: windows-11-arm
+      archive_runner: windows-2025
       target: aarch64-pc-windows-msvc
       profile: ci-test
       artifact_id: windows-arm64
