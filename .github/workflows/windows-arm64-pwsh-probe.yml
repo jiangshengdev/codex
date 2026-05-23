@@ -1,0 +1,54 @@
+name: windows-arm64-pwsh-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_targeted_sandbox_tests:
+        description: "Also run targeted codex-windows-sandbox PowerShell tests"
+        required: true
+        default: true
+        type: boolean
+      test_filter:
+        description: "Cargo test filter for targeted sandbox tests"
+        required: true
+        default: "unified_exec::tests::legacy"
+        type: string
+
+env:
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  probe:
+    name: Probe Windows ARM64 PowerShell modules
+    runs-on: windows-11-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Probe host PowerShell modules
+        shell: pwsh
+        run: |
+          .\.github\scripts\probe-windows-pwsh-modules.ps1 `
+            -Target 'aarch64-pc-windows-msvc' `
+            -ArtifactId 'windows-arm64' `
+            -Shard 'standalone'
+
+      - uses: dtolnay/rust-toolchain@a0b273b48ed29de4470960879e8381ff45632f26 # 1.93.0
+        if: ${{ inputs.run_targeted_sandbox_tests }}
+        with:
+          targets: aarch64-pc-windows-msvc
+
+      - name: Run targeted sandbox tests
+        if: ${{ inputs.run_targeted_sandbox_tests }}
+        shell: bash
+        working-directory: codex-rs
+        run: |
+          set -euo pipefail
+          cargo test \
+            --target aarch64-pc-windows-msvc \
+            -p codex-windows-sandbox \
+            "${{ inputs.test_filter }}" \
+            -- --nocapture
