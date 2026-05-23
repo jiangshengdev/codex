@@ -43,6 +43,10 @@ on:
         required: false
         default: 0
         type: number
+      cargo_build_jobs:
+        required: false
+        default: 0
+        type: number
       use_sccache:
         required: false
         default: false
@@ -192,7 +196,11 @@ jobs:
           set -euo pipefail
           archive_dir="${RUNNER_TEMP}/nextest-archive"
           mkdir -p "${archive_dir}"
-          cargo nextest archive \
+          nextest_args=()
+          if [[ "${{ inputs.cargo_build_jobs }}" != "0" ]]; then
+            nextest_args+=(--build-jobs "${{ inputs.cargo_build_jobs }}")
+          fi
+          cargo nextest archive "${nextest_args[@]}" \
             --target ${{ inputs.target }} \
             --cargo-profile ${{ inputs.profile }} \
             --timings \
