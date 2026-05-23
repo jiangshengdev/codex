@@ -62,9 +62,9 @@ jobs:
       run:
         working-directory: codex-rs
     env:
-      # Windows ARM64 archives are built on Windows x64, while their shards run
-      # on native Windows ARM64. Key producer-side caches by the archive runner
-      # so the cross-compile build reuses the Windows x64 cache lineage.
+      # When archive builds use a different runner than the test shards, key
+      # producer-side caches by the archive runner so cross-compile builds reuse
+      # the archive runner's cache lineage.
       ARCHIVE_CACHE_RUNNER: ${{ inputs.archive_runner != '' && inputs.archive_runner || inputs.runner }}
       USE_SCCACHE: ${{ inputs.use_sccache && 'true' || 'false' }}
       CARGO_INCREMENTAL: "0"
