@@ -55,7 +55,7 @@ async fn turn_interrupt_aborts_running_turn() -> Result<()> {
             "call_sleep",
         )?])
         .await;
-    create_config_toml(&codex_home, &server.uri(), "never", "workspace-write")?;
+    create_config_toml_excluding_tmp_roots(&codex_home, &server.uri(), "never", "workspace-write")?;
 
     let mut mcp = McpProcess::new(&codex_home).await?;
     timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
@@ -331,6 +331,35 @@ fn create_config_toml(
     approval_policy: &str,
     sandbox_mode: &str,
 ) -> std::io::Result<()> {
+    create_config_toml_with_extra(codex_home, server_uri, approval_policy, sandbox_mode, "")
+}
+
+fn create_config_toml_excluding_tmp_roots(
+    codex_home: &std::path::Path,
+    server_uri: &str,
+    approval_policy: &str,
+    sandbox_mode: &str,
+) -> std::io::Result<()> {
+    create_config_toml_with_extra(
+        codex_home,
+        server_uri,
+        approval_policy,
+        sandbox_mode,
+        r#"
+[sandbox_workspace_write]
+exclude_tmpdir_env_var = true
+exclude_slash_tmp = true
+"#,
+    )
+}
+
+fn create_config_toml_with_extra(
+    codex_home: &std::path::Path,
+    server_uri: &str,
+    approval_policy: &str,
+    sandbox_mode: &str,
+    extra_config: &str,
+) -> std::io::Result<()> {
     let config_toml = codex_home.join("config.toml");
     std::fs::write(
         config_toml,
@@ -340,6 +369,7 @@ model = "mock-model"
 approval_policy = "{approval_policy}"
 approvals_reviewer = "user"
 sandbox_mode = "{sandbox_mode}"
+{extra_config}
 
 model_provider = "mock_provider"
 
