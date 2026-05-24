@@ -31,6 +31,39 @@ pub fn ensure_non_interactive_pager(env_map: &mut HashMap<String, String>) {
     env_map.entry("LESS".into()).or_insert_with(|| "".into());
 }
 
+fn existing_env_key(env_map: &HashMap<String, String>, name: &str) -> Option<String> {
+    env_map
+        .keys()
+        .find(|key| key.eq_ignore_ascii_case(name))
+        .cloned()
+}
+
+fn parent_system_root() -> Option<String> {
+    ["SystemRoot", "WINDIR"].into_iter().find_map(|key| {
+        env::var(key)
+            .ok()
+            .and_then(|value| (!value.is_empty()).then_some(value))
+    })
+}
+
+pub fn inherit_system_root_env(env_map: &mut HashMap<String, String>) {
+    let Some(system_root) = parent_system_root() else {
+        return;
+    };
+
+    if let Some(existing_key) = existing_env_key(env_map, "SystemRoot") {
+        if env_map
+            .get(&existing_key)
+            .is_some_and(|value| !value.is_empty())
+        {
+            return;
+        }
+        env_map.insert(existing_key, system_root);
+    } else {
+        env_map.insert("SystemRoot".into(), system_root);
+    }
+}
+
 // Keep PATH and PATHEXT stable for callers that rely on inheriting the parent process env.
 pub fn inherit_path_env(env_map: &mut HashMap<String, String>) {
     if !env_map.contains_key("PATH")
