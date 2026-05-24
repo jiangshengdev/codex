@@ -3911,7 +3911,6 @@ pub(super) fn preview_from_rollout_items(items: &[RolloutItem]) -> String {
                 Some(codex_protocol::items::TurnItem::UserMessage(user)) => Some(user.message()),
                 _ => None,
             },
-            RolloutItem::EventMsg(EventMsg::UserMessage(user)) => Some(user.message.clone()),
             _ => None,
         })
         .map(|preview| match preview.find(USER_MESSAGE_BEGIN) {
