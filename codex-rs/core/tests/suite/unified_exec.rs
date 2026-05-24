@@ -908,8 +908,8 @@ allow_local_binding = true
     let permission_profile_for_config = PermissionProfile::workspace_write_with(
         &[],
         NetworkSandboxPolicy::Enabled,
-        /*exclude_tmpdir_env_var*/ false,
-        /*exclude_slash_tmp*/ false,
+        /*exclude_tmpdir_env_var*/ true,
+        /*exclude_slash_tmp*/ true,
     );
     let permission_profile = permission_profile_for_config.clone();
     let mut builder = test_codex()
