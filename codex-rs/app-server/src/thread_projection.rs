@@ -11,6 +11,8 @@ use tokio::sync::watch;
 use uuid::Uuid;
 
 use crate::outgoing_message::ConnectionId;
+use crate::thread_projection_cut::ProjectionHistoryCursor;
+use crate::thread_projection_cut::ProjectionSnapshotCut;
 
 #[derive(Clone, Default)]
 pub(crate) struct ThreadProjectionManager {
@@ -66,6 +68,7 @@ struct ThreadProjectionManagerInner {
 
 struct ThreadEntry {
     head_commit_id: Option<String>,
+    history_cursor: ProjectionHistoryCursor,
     subscribers: HashMap<ConnectionId, ProjectionSubscriber>,
     has_subscribers_tx: watch::Sender<bool>,
 }
@@ -158,11 +161,63 @@ impl ThreadProjectionManager {
         thread_id: ThreadId,
         notification: &ServerNotification,
     ) -> Vec<ProjectionDelivery> {
+        if projection_event_from_notification(notification).is_none() {
+            return Vec::new();
+        }
+        let cursor = self.capture_snapshot_cut(thread_id).await.history_cursor;
+        self.project_notification_at_cursor(thread_id, notification, cursor)
+            .await
+    }
+
+    pub(crate) async fn set_history_cursor(
+        &self,
+        thread_id: ThreadId,
+        history_cursor: ProjectionHistoryCursor,
+    ) {
         let mut inner = self.inner.lock().await;
+        inner.thread_entry_mut(thread_id).history_cursor = history_cursor;
+    }
+
+    pub(crate) async fn capture_snapshot_cut(&self, thread_id: ThreadId) -> ProjectionSnapshotCut {
+        let mut inner = self.inner.lock().await;
+        let generation = inner.capture_generation(thread_id);
+        let entry = inner.thread_entry_mut(thread_id);
+        ProjectionSnapshotCut {
+            generation,
+            head_commit_id: entry.head_commit_id.clone(),
+            history_cursor: entry.history_cursor,
+        }
+    }
+
+    pub(crate) async fn capture_snapshot_cut_if_generation_matches(
+        &self,
+        thread_id: ThreadId,
+        expected_generation: ProjectionGeneration,
+    ) -> Option<ProjectionSnapshotCut> {
+        let mut inner = self.inner.lock().await;
+        if inner.thread_generations.get(&thread_id) != Some(&expected_generation) {
+            return None;
+        }
+        let entry = inner.thread_entry_mut(thread_id);
+        Some(ProjectionSnapshotCut {
+            generation: expected_generation,
+            head_commit_id: entry.head_commit_id.clone(),
+            history_cursor: entry.history_cursor,
+        })
+    }
+
+    pub(crate) async fn project_notification_at_cursor(
+        &self,
+        thread_id: ThreadId,
+        notification: &ServerNotification,
+        history_cursor: ProjectionHistoryCursor,
+    ) -> Vec<ProjectionDelivery> {
+        let mut inner = self.inner.lock().await;
+        let entry = inner.thread_entry_mut(thread_id);
+        entry.history_cursor = history_cursor;
         let Some(event) = projection_event_from_notification(notification) else {
             return Vec::new();
         };
-        let entry = inner.thread_entry_mut(thread_id);
         let commit_id = Uuid::now_v7().to_string();
         let parent_commit_id = entry.advance_head(commit_id.clone());
         entry
@@ -194,7 +249,7 @@ impl ThreadProjectionManager {
     }
 
     #[cfg(test)]
-    async fn has_thread_entry(&self, thread_id: ThreadId) -> bool {
+    pub(crate) async fn has_thread_entry(&self, thread_id: ThreadId) -> bool {
         self.inner.lock().await.threads.contains_key(&thread_id)
     }
 
@@ -309,6 +364,7 @@ impl ThreadProjectionManagerInner {
             let (has_subscribers_tx, _) = watch::channel(false);
             ThreadEntry {
                 head_commit_id: None,
+                history_cursor: ProjectionHistoryCursor::default(),
                 subscribers: HashMap::new(),
                 has_subscribers_tx,
             }
@@ -353,6 +409,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::outgoing_message::ConnectionId;
+    use crate::thread_projection_cut::ProjectionHistoryCursor;
 
     use super::*;
 
@@ -620,6 +677,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn non_projected_notification_for_unknown_thread_does_not_create_entry() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+
+        let deliveries = manager
+            .project_notification(thread_id, &non_whitelisted_notification(thread_id))
+            .await;
+
+        assert_eq!(Vec::<ProjectionDelivery>::new(), deliveries);
+        assert!(!manager.has_thread_entry(thread_id).await);
+        assert!(!manager.has_thread_generation(thread_id).await);
+    }
+
+    #[tokio::test]
     async fn remove_thread_for_uncaptured_entry_prevents_default_generation_reattach() {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
@@ -674,6 +745,78 @@ mod tests {
             second.head_commit_id,
             Some(deliveries[0].notification.commit_id.clone())
         );
+    }
+
+    #[tokio::test]
+    async fn capture_snapshot_cut_returns_head_and_cursor_together() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        let baseline = ProjectionHistoryCursor::new(2);
+
+        manager.set_history_cursor(thread_id, baseline).await;
+        let cut = manager.capture_snapshot_cut(thread_id).await;
+        let attached = manager
+            .attach_if_generation_matches(thread_id, connection_id, cut.generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(attached) = attached else {
+            panic!("attach should succeed");
+        };
+        assert_eq!(attached.head_commit_id, None);
+
+        let next_cursor = baseline.advance_by(1);
+        let deliveries = manager
+            .project_notification_at_cursor(
+                thread_id,
+                &turn_started_notification(thread_id, "turn-1"),
+                next_cursor,
+            )
+            .await;
+
+        let cut = manager.capture_snapshot_cut(thread_id).await;
+        assert_eq!(
+            cut.head_commit_id,
+            Some(deliveries[0].notification.commit_id.clone())
+        );
+        assert_eq!(cut.history_cursor, next_cursor);
+    }
+
+    #[tokio::test]
+    async fn capture_snapshot_cut_with_stale_generation_does_not_create_entry() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+
+        let generation = manager.capture_current_generation(thread_id).await;
+        manager.remove_thread(thread_id).await;
+
+        let cut = manager
+            .capture_snapshot_cut_if_generation_matches(thread_id, generation)
+            .await;
+
+        assert_eq!(cut, None);
+        assert!(!manager.has_thread_entry(thread_id).await);
+    }
+
+    #[tokio::test]
+    async fn non_projected_persisted_event_advances_cursor_without_head() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let baseline = ProjectionHistoryCursor::new(2);
+        let next_cursor = baseline.advance_by(1);
+
+        manager.set_history_cursor(thread_id, baseline).await;
+        let deliveries = manager
+            .project_notification_at_cursor(
+                thread_id,
+                &non_whitelisted_notification(thread_id),
+                next_cursor,
+            )
+            .await;
+
+        assert_eq!(Vec::<ProjectionDelivery>::new(), deliveries);
+        let cut = manager.capture_snapshot_cut(thread_id).await;
+        assert_eq!(cut.head_commit_id, None);
+        assert_eq!(cut.history_cursor, next_cursor);
     }
 
     #[tokio::test]

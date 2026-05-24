@@ -63,7 +63,7 @@ pub(crate) enum ThreadListenerCommand {
         request_id: ConnectionRequestId,
         connection_id: ConnectionId,
         projection_generation: ProjectionGeneration,
-        snapshot: crate::thread_projection_runtime::ThreadProjectionSnapshotFuture,
+        snapshot_processor: Box<crate::request_processors::ThreadRequestProcessor>,
         completion_tx: oneshot::Sender<()>,
     },
 }

@@ -3903,7 +3903,7 @@ fn summary_from_thread_metadata(metadata: &ThreadMetadata) -> ConversationSummar
     )
 }
 
-fn preview_from_rollout_items(items: &[RolloutItem]) -> String {
+pub(super) fn preview_from_rollout_items(items: &[RolloutItem]) -> String {
     items
         .iter()
         .find_map(|item| match item {
