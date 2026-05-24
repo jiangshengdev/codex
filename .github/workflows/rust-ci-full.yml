@@ -532,7 +532,7 @@ jobs:
       target: x86_64-pc-windows-msvc
       profile: ci-test
       artifact_id: windows-x64
-      test_threads: 1
+      test_threads: 8
     secrets: inherit
 
   tests_windows_arm64:
