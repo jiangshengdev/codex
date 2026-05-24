@@ -39,6 +39,14 @@ pub fn persisted_rollout_items(
     persisted
 }
 
+/// Return how many canonical rollout items would be persisted for a live append.
+pub fn persisted_rollout_item_count(items: &[RolloutItem], mode: EventPersistenceMode) -> usize {
+    items
+        .iter()
+        .filter(|item| is_persisted_rollout_item(item, mode))
+        .count()
+}
+
 fn sanitize_rollout_item_for_persistence(
     item: RolloutItem,
     mode: EventPersistenceMode,
@@ -217,5 +225,40 @@ fn event_msg_persistence_mode(ev: &EventMsg) -> Option<EventPersistenceMode> {
         | EventMsg::CollabWaitingBegin(_)
         | EventMsg::CollabCloseBegin(_)
         | EventMsg::CollabResumeBegin(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use codex_protocol::protocol::EventMsg;
+    use codex_protocol::protocol::RolloutItem;
+    use codex_protocol::protocol::TokenCountEvent;
+    use codex_protocol::protocol::TurnStartedEvent;
+
+    #[test]
+    fn persisted_rollout_item_count_matches_filtered_items() {
+        let items = vec![
+            RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
+                turn_id: "turn-1".to_string(),
+                started_at: None,
+                model_context_window: None,
+                collaboration_mode_kind: Default::default(),
+            })),
+            RolloutItem::EventMsg(EventMsg::TokenCount(TokenCountEvent {
+                info: None,
+                rate_limits: None,
+            })),
+            RolloutItem::EventMsg(EventMsg::ShutdownComplete),
+        ];
+
+        assert_eq!(
+            persisted_rollout_item_count(&items, EventPersistenceMode::Limited),
+            persisted_rollout_items(&items, EventPersistenceMode::Limited).len()
+        );
+        assert_eq!(
+            persisted_rollout_item_count(&items, EventPersistenceMode::Extended),
+            persisted_rollout_items(&items, EventPersistenceMode::Extended).len()
+        );
     }
 }

@@ -3903,7 +3903,7 @@ fn summary_from_thread_metadata(metadata: &ThreadMetadata) -> ConversationSummar
     )
 }
 
-fn preview_from_rollout_items(items: &[RolloutItem]) -> String {
+pub(super) fn preview_from_rollout_items(items: &[RolloutItem]) -> String {
     items
         .iter()
         .find_map(|item| match item {
@@ -3911,6 +3911,7 @@ fn preview_from_rollout_items(items: &[RolloutItem]) -> String {
                 Some(codex_protocol::items::TurnItem::UserMessage(user)) => Some(user.message()),
                 _ => None,
             },
+            RolloutItem::EventMsg(EventMsg::UserMessage(user)) => Some(user.message.clone()),
             _ => None,
         })
         .map(|preview| match preview.find(USER_MESSAGE_BEGIN) {
