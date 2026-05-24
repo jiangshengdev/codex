@@ -510,6 +510,7 @@ jobs:
       artifact_id: linux-x64-remote
       remote_env: true
       use_sccache: true
+      test_threads: 1
     secrets: inherit
 
   tests_linux_arm64:
