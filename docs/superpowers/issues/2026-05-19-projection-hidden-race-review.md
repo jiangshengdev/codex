@@ -1,5 +1,17 @@
 # Projection hidden race review
 
+## 状态
+
+更新日期：2026-05-24。
+
+- Finding 1：已修复。`c810a3dc7 feat(app-server): cut projection snapshots at history cursor`
+  通过 listener 侧 projection history cursor 捕获 snapshot cut，使
+  `thread/projection/attach` 返回的 `snapshot.thread` 与 `headCommitId` 来自同一个
+  listener 已处理的 projection cut。随后 `4ba8af0c8 fix(app-server): preserve rollout preview derivation`
+  回退了共享 preview helper 的语义扩张，避免影响上游 read 路径。
+- Finding 2：仍开放。本轮 snapshot/head cut 修复未处理 projection fanout 对普通
+  thread notification delivery 的 backpressure 隔离问题。
+
 ## 背景
 
 本记录比较当前分支与 `rust-v0.130.0` tag，聚焦
@@ -26,6 +38,11 @@
 `codex-rs/app-server/src/thread_projection.rs:120`。
 
 严重程度：Blocker。
+
+状态：已修复。修复提交为
+`c810a3dc7 feat(app-server): cut projection snapshots at history cursor`，后续
+`4ba8af0c8 fix(app-server): preserve rollout preview derivation` 回退了会改变上游
+`preview_from_rollout_items` 行为的附带改动。
 
 当前分支引入的具体改动：projection attach 通过 listener command 返回 snapshot，但
 snapshot 的数据源是 `read_thread_projection_snapshot()` 读取的 persisted/live thread
@@ -64,6 +81,9 @@ PM commit”的 attach response。
 
 严重程度：Important。
 
+状态：仍开放。`c810a3dc7` 只修复 snapshot/head cut mismatch，没有隔离 projection fanout
+backpressure。
+
 当前分支引入的具体改动：`ThreadScopedOutgoingMessageSender::send_server_notification()`
 在发送原始 thread notification 之前，先调用
 `ThreadProjectionManager::project_notification()`，然后对每个 projection delivery 串行
@@ -86,6 +106,6 @@ ordinary thread subscribers 的隔离队列与 backpressure 策略。
 
 ## 风险判断
 
-第一个问题会破坏 attach response 的 snapshot/head 一致性，并可能让客户端对同一事件做重复
-apply。第二个问题主要是 backpressure 隔离问题：低速 projection client 会放大普通 turn/item
-事件延迟，尤其在多 projection 订阅或 websocket consumer 积压时更明显。
+第一个问题已通过 projection snapshot cut 修复，当前继续保留本节作为历史背景和回归风险说明。
+第二个问题仍是 backpressure 隔离问题：低速 projection client 会放大普通 turn/item 事件延迟，
+尤其在多 projection 订阅或 websocket consumer 积压时更明显。
