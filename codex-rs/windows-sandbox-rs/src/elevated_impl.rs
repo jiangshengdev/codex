@@ -46,6 +46,7 @@ mod windows_impl {
     use crate::cap::workspace_write_cap_sid_for_root;
     use crate::env::ensure_non_interactive_pager;
     use crate::env::inherit_path_env;
+    use crate::env::inherit_system_root_env;
     use crate::env::normalize_null_device_env;
     use crate::identity::require_logon_sandbox_creds;
     use crate::ipc_framed::Message;
@@ -105,6 +106,7 @@ mod windows_impl {
             .collect::<Vec<_>>();
         normalize_null_device_env(&mut env_map);
         ensure_non_interactive_pager(&mut env_map);
+        inherit_system_root_env(&mut env_map);
         inherit_path_env(&mut env_map);
         inject_git_safe_directory(&mut env_map, cwd);
         // Use a temp-based log dir that the sandbox user can write.

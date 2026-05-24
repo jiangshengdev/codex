@@ -572,7 +572,9 @@ mod tests {
                 .capture_current_generation(fixture.thread_id)
                 .await,
             head_commit_id: None,
-            history_cursor: crate::thread_projection_cut::ProjectionHistoryCursor::new(1),
+            history_cursor: crate::thread_projection_cut::ProjectionHistoryCursor::new(
+                /*item_count*/ 1,
+            ),
         };
         let snapshot = match fixture
             .processor

@@ -200,7 +200,7 @@ jobs:
           if [[ "${{ inputs.cargo_build_jobs }}" != "0" ]]; then
             nextest_args+=(--build-jobs "${{ inputs.cargo_build_jobs }}")
           fi
-          cargo nextest archive "${nextest_args[@]}" \
+          cargo nextest archive ${nextest_args[@]+"${nextest_args[@]}"} \
             --target ${{ inputs.target }} \
             --cargo-profile ${{ inputs.profile }} \
             --timings \
