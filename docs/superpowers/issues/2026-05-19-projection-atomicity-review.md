@@ -34,6 +34,12 @@ subscription 的关键语义是同 owner 的 check-and-insert，而不是先检�
 
 ### 1. Projection attach 可以在 finalize teardown 后注册并返回成功
 
+状态：已修复。当前实现已经改为在 attach 生命周期开始时捕获
+`ProjectionGeneration`，并在最终注册 projection subscription 前通过
+`ThreadProjectionManager::attach_if_generation_matches` 做条件提交；thread teardown 会通过
+`ThreadProjectionManager::remove_thread` 使已捕获的 generation 失效。因此 teardown 后继续完成的
+旧 attach work 不会再重新创建 projection entry 并返回成功。
+
 位置：`codex-rs/app-server/src/request_processors/thread_projection.rs:51`、
 `codex-rs/app-server/src/thread_projection_runtime.rs:67`、
 `codex-rs/app-server/src/thread_projection_runtime.rs:99`、
