@@ -752,7 +752,7 @@ mod tests {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
         let connection_id = ConnectionId(1);
-        let baseline = ProjectionHistoryCursor::new(2);
+        let baseline = ProjectionHistoryCursor::new(/*item_count*/ 2);
 
         manager.set_history_cursor(thread_id, baseline).await;
         let cut = manager.capture_snapshot_cut(thread_id).await;
@@ -764,7 +764,7 @@ mod tests {
         };
         assert_eq!(attached.head_commit_id, None);
 
-        let next_cursor = baseline.advance_by(1);
+        let next_cursor = baseline.advance_by(/*item_count*/ 1);
         let deliveries = manager
             .project_notification_at_cursor(
                 thread_id,
@@ -801,8 +801,8 @@ mod tests {
     async fn non_projected_persisted_event_advances_cursor_without_head() {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
-        let baseline = ProjectionHistoryCursor::new(2);
-        let next_cursor = baseline.advance_by(1);
+        let baseline = ProjectionHistoryCursor::new(/*item_count*/ 2);
+        let next_cursor = baseline.advance_by(/*item_count*/ 1);
 
         manager.set_history_cursor(thread_id, baseline).await;
         let deliveries = manager

@@ -480,7 +480,7 @@ stream_max_retries = 0
             .thread_projection_manager()
             .set_history_cursor(
                 thread_id,
-                crate::thread_projection_cut::ProjectionHistoryCursor::new(1),
+                crate::thread_projection_cut::ProjectionHistoryCursor::new(/*item_count*/ 1),
             )
             .await;
         let projection_generation = outgoing
