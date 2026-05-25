@@ -192,58 +192,6 @@ impl ThreadRequestProcessor {
         Ok(Some(ThreadProjectionDetachResponse { status }.into()))
     }
 
-    #[allow(dead_code)]
-    pub(super) async fn read_thread_projection_snapshot(
-        &self,
-        thread_id: ThreadId,
-    ) -> Result<Thread, ThreadReadViewError> {
-        let mut thread = self
-            .read_thread_view(thread_id, /*include_turns*/ false)
-            .await?;
-        let loaded_thread = self.thread_manager.get_thread(thread_id).await.ok();
-        let has_live_running_thread = match loaded_thread.as_ref() {
-            Some(thread) => matches!(thread.agent_status().await, AgentStatus::Running),
-            None => false,
-        };
-        let active_turn = if loaded_thread.is_some() {
-            let thread_state = self.thread_state_manager.thread_state(thread_id).await;
-            thread_state.lock().await.active_turn_snapshot()
-        } else {
-            None
-        };
-        let has_live_in_progress_turn = has_live_running_thread
-            || active_turn
-                .as_ref()
-                .is_some_and(|turn| matches!(turn.status, TurnStatus::InProgress));
-        let loaded_status = self
-            .thread_watch_manager
-            .loaded_status_for_thread(&thread.id)
-            .await;
-        let history_items = match self.load_thread_turns_list_history(thread_id).await {
-            Ok(items) => items,
-            Err(ThreadReadViewError::InvalidRequest(message))
-                if message
-                    == format!(
-                        "thread {thread_id} is not materialized yet; thread/turns/list is unavailable before first user message"
-                    ) =>
-            {
-                Vec::new()
-            }
-            Err(err) => return Err(err),
-        };
-        let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
-        thread.preview = preview_from_rollout_items(&history_items);
-
-        thread.turns = reconstruct_thread_turns_for_turns_list(
-            &history_items,
-            loaded_status,
-            has_live_running_thread,
-            active_turn,
-        );
-        thread.status = thread_status;
-        Ok(thread)
-    }
-
     pub(super) async fn read_thread_projection_snapshot_at_cut(
         &self,
         thread_id: ThreadId,
@@ -505,10 +453,22 @@ mod tests {
                 active_turn,
             );
 
-        let thread = processor
-            .read_thread_projection_snapshot(thread_id)
+        let cut = crate::thread_projection_cut::ProjectionSnapshotCut {
+            generation: processor
+                .outgoing
+                .thread_projection_manager()
+                .capture_current_generation(thread_id)
+                .await,
+            head_commit_id: None,
+            history_cursor: crate::thread_projection_cut::ProjectionHistoryCursor::new(
+                persisted_items.len(),
+            ),
+        };
+        let snapshot = processor
+            .read_thread_projection_snapshot_at_cut(thread_id, cut)
             .await
             .unwrap_or_else(|_| panic!("projection snapshot should include the active turn"));
+        let thread = snapshot.thread;
 
         assert_eq!(thread.turns, expected_turns);
         let persisted_turn = thread
