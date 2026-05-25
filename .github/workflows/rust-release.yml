@@ -191,6 +191,7 @@ jobs:
             bundle: primary
             artifact_name: x86_64-unknown-linux-musl
             binaries: "codex codex-responses-api-proxy bwrap"
+            cargo_build_jobs: 2
             build_dmg: "false"
           - runner: ubuntu-24.04
             target: x86_64-unknown-linux-musl
