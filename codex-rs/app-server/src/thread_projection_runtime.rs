@@ -441,84 +441,216 @@ stream_max_retries = 0
         ))
     }
 
-    async fn snapshot_processor_with_projection_history(
-        harness: &ProjectionRuntimeHarness,
-        history_items: Vec<RolloutItem>,
-    ) -> anyhow::Result<ThreadRequestProcessor> {
-        harness
-            .store
-            .append_items(AppendThreadItemsParams {
-                thread_id: harness.thread_id,
-                items: history_items,
+    struct ProjectionAttachHarness {
+        connection_id: ConnectionId,
+        request_id: ConnectionRequestId,
+        pending_thread_unloads: Arc<Mutex<HashSet<ThreadId>>>,
+        thread_state_manager: ThreadStateManager,
+        outgoing: Arc<OutgoingMessageSender>,
+        outgoing_rx: tokio::sync::mpsc::Receiver<OutgoingEnvelope>,
+        runtime: ProjectionRuntimeHarness,
+        projection_generation: ProjectionGeneration,
+    }
+
+    impl ProjectionAttachHarness {
+        async fn new() -> anyhow::Result<Self> {
+            let connection_id = ConnectionId(1);
+            let request_id = ConnectionRequestId {
+                connection_id,
+                request_id: RequestId::Integer(1),
+            };
+            let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
+            let thread_state_manager = ThreadStateManager::new();
+            thread_state_manager
+                .connection_initialized(connection_id, ConnectionCapabilities::default())
+                .await;
+            let (outgoing_tx, outgoing_rx) = tokio::sync::mpsc::channel(4);
+            let outgoing = Arc::new(OutgoingMessageSender::new(
+                outgoing_tx,
+                codex_analytics::AnalyticsEventsClient::disabled(),
+            ));
+            let runtime =
+                projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
+            let projection_generation = outgoing
+                .thread_projection_manager()
+                .capture_current_generation(runtime.thread_id)
+                .await;
+            Ok(Self {
+                connection_id,
+                request_id,
+                pending_thread_unloads,
+                thread_state_manager,
+                outgoing,
+                outgoing_rx,
+                runtime,
+                projection_generation,
             })
-            .await?;
-        Ok(harness.processor.clone())
+        }
+
+        fn thread_id(&self) -> ThreadId {
+            self.runtime.thread_id
+        }
+
+        fn processor(&self) -> ThreadRequestProcessor {
+            self.runtime.processor.clone()
+        }
+
+        fn attach_work(&self) -> ProjectionAttachResponseWork {
+            ProjectionAttachResponseWork {
+                request_id: self.request_id.clone(),
+                connection_id: self.connection_id,
+                projection_generation: self.projection_generation,
+                snapshot_processor: self.processor(),
+            }
+        }
+
+        async fn handle_attach(&self) {
+            handle_projection_attach_response(
+                self.thread_id(),
+                &self.pending_thread_unloads,
+                &self.outgoing,
+                &self.thread_state_manager,
+                self.attach_work(),
+            )
+            .await;
+        }
+
+        fn spawn_handle_attach(&self) -> tokio::task::JoinHandle<()> {
+            let thread_id = self.thread_id();
+            let pending_thread_unloads = self.pending_thread_unloads.clone();
+            let outgoing = self.outgoing.clone();
+            let thread_state_manager = self.thread_state_manager.clone();
+            let attach_work = self.attach_work();
+            tokio::spawn(async move {
+                handle_projection_attach_response(
+                    thread_id,
+                    &pending_thread_unloads,
+                    &outgoing,
+                    &thread_state_manager,
+                    attach_work,
+                )
+                .await;
+            })
+        }
+
+        async fn remove_connection(&self) {
+            self.thread_state_manager
+                .remove_connection(self.connection_id)
+                .await;
+        }
+
+        async fn remove_thread(&self) {
+            self.outgoing
+                .thread_projection_manager()
+                .remove_thread(self.thread_id())
+                .await;
+        }
+
+        async fn remove_projection_connection(&self) -> Vec<ThreadId> {
+            self.outgoing
+                .thread_projection_manager()
+                .remove_connection(self.connection_id)
+                .await
+        }
+
+        async fn set_history_cursor(&self, item_count: usize) {
+            self.outgoing
+                .thread_projection_manager()
+                .set_history_cursor(
+                    self.thread_id(),
+                    crate::thread_projection_cut::ProjectionHistoryCursor::new(item_count),
+                )
+                .await;
+        }
+
+        async fn append_history(&self, history_items: Vec<RolloutItem>) -> anyhow::Result<()> {
+            self.runtime
+                .store
+                .append_items(AppendThreadItemsParams {
+                    thread_id: self.thread_id(),
+                    items: history_items,
+                })
+                .await?;
+            Ok(())
+        }
+
+        async fn recv_attach_response(&mut self) -> anyhow::Result<ThreadProjectionAttachResponse> {
+            let message = timeout(Duration::from_secs(1), self.outgoing_rx.recv())
+                .await
+                .expect("attach should send a response")
+                .expect("attach response channel should remain open");
+            let response = match message {
+                OutgoingEnvelope::ToConnection {
+                    message: OutgoingMessage::Response(response),
+                    ..
+                } => response,
+                other => panic!("expected attach response, got {other:?}"),
+            };
+            Ok(serde_json::from_value(response.result)?)
+        }
+
+        async fn recv_attach_error_message(&mut self) -> String {
+            let message = self
+                .outgoing_rx
+                .recv()
+                .await
+                .expect("stale attach should send an error response");
+            match message {
+                OutgoingEnvelope::ToConnection {
+                    message: OutgoingMessage::Error(error),
+                    ..
+                } => error.error.message,
+                other => panic!("expected stale attach error response, got {other:?}"),
+            }
+        }
+
+        async fn assert_no_projection_delivery(&self) {
+            let deliveries = self
+                .outgoing
+                .thread_projection_manager()
+                .project_notification(
+                    self.thread_id(),
+                    &turn_started_notification(self.thread_id()),
+                )
+                .await;
+            assert_eq!(deliveries, Vec::new());
+        }
+
+        async fn assert_one_projection_delivery(&self) {
+            let deliveries = self
+                .outgoing
+                .thread_projection_manager()
+                .project_notification(
+                    self.thread_id(),
+                    &turn_started_notification(self.thread_id()),
+                )
+                .await;
+            assert_eq!(deliveries.len(), 1);
+        }
+
+        async fn assert_projection_entry_removed(&self) {
+            assert!(
+                !self
+                    .outgoing
+                    .thread_projection_manager()
+                    .has_thread_entry(self.thread_id())
+                    .await
+            );
+        }
     }
 
     #[tokio::test]
     async fn attach_snapshot_cut_excludes_persisted_event_not_processed_by_projection()
     -> anyhow::Result<()> {
-        let connection_id = ConnectionId(1);
-        let request_id = ConnectionRequestId {
-            connection_id,
-            request_id: RequestId::Integer(1),
-        };
-        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
-        let thread_state_manager = ThreadStateManager::new();
-        thread_state_manager
-            .connection_initialized(connection_id, ConnectionCapabilities::default())
-            .await;
-        let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(4);
-        let outgoing = Arc::new(OutgoingMessageSender::new(
-            outgoing_tx,
-            codex_analytics::AnalyticsEventsClient::disabled(),
-        ));
-        let harness =
-            projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
-        let thread_id = harness.thread_id;
-        outgoing
-            .thread_projection_manager()
-            .set_history_cursor(
-                thread_id,
-                crate::thread_projection_cut::ProjectionHistoryCursor::new(/*item_count*/ 1),
-            )
-            .await;
-        let projection_generation = outgoing
-            .thread_projection_manager()
-            .capture_current_generation(thread_id)
-            .await;
-        let snapshot_processor = snapshot_processor_with_projection_history(
-            &harness,
-            vec![visible_turn_started(), pending_turn_started()],
-        )
-        .await?;
+        let mut harness = ProjectionAttachHarness::new().await?;
+        harness.set_history_cursor(/*item_count*/ 1).await;
+        harness
+            .append_history(vec![visible_turn_started(), pending_turn_started()])
+            .await?;
 
-        handle_projection_attach_response(
-            thread_id,
-            &pending_thread_unloads,
-            &outgoing,
-            &thread_state_manager,
-            ProjectionAttachResponseWork {
-                request_id,
-                connection_id,
-                projection_generation,
-                snapshot_processor,
-            },
-        )
-        .await;
+        harness.handle_attach().await;
 
-        let message = timeout(Duration::from_secs(1), outgoing_rx.recv())
-            .await
-            .expect("attach should send a response")
-            .expect("attach response channel should remain open");
-        let response = match message {
-            OutgoingEnvelope::ToConnection {
-                message: OutgoingMessage::Response(response),
-                ..
-            } => response,
-            other => panic!("expected attach response, got {other:?}"),
-        };
-        let payload: ThreadProjectionAttachResponse = serde_json::from_value(response.result)?;
+        let payload = harness.recv_attach_response().await?;
         let turn_ids = payload
             .snapshot
             .thread
@@ -533,253 +665,71 @@ stream_max_retries = 0
 
     #[tokio::test]
     async fn attach_response_after_connection_close_does_not_subscribe() -> anyhow::Result<()> {
-        let connection_id = ConnectionId(1);
-        let request_id = ConnectionRequestId {
-            connection_id,
-            request_id: RequestId::Integer(1),
-        };
-        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
-        let thread_state_manager = ThreadStateManager::new();
-        thread_state_manager
-            .connection_initialized(connection_id, ConnectionCapabilities::default())
-            .await;
-        let outgoing = Arc::new(OutgoingMessageSender::new(
-            tokio::sync::mpsc::channel(1).0,
-            codex_analytics::AnalyticsEventsClient::disabled(),
-        ));
-        let harness =
-            projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
-        let thread_id = harness.thread_id;
-        let projection_generation = outgoing
-            .thread_projection_manager()
-            .capture_current_generation(thread_id)
-            .await;
+        let harness = ProjectionAttachHarness::new().await?;
 
-        thread_state_manager.remove_connection(connection_id).await;
-        handle_projection_attach_response(
-            thread_id,
-            &pending_thread_unloads,
-            &outgoing,
-            &thread_state_manager,
-            ProjectionAttachResponseWork {
-                request_id,
-                connection_id,
-                projection_generation,
-                snapshot_processor: harness.processor.clone(),
-            },
-        )
-        .await;
+        harness.remove_connection().await;
+        harness.handle_attach().await;
 
-        let deliveries = outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await;
-        assert_eq!(deliveries, Vec::new());
+        harness.assert_no_projection_delivery().await;
         Ok(())
     }
 
     #[tokio::test]
     async fn connection_close_interleaving_does_not_leave_projection_subscription()
     -> anyhow::Result<()> {
-        let connection_id = ConnectionId(1);
-        let request_id = ConnectionRequestId {
-            connection_id,
-            request_id: RequestId::Integer(1),
-        };
-        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
-        let thread_state_manager = ThreadStateManager::new();
-        thread_state_manager
-            .connection_initialized(connection_id, ConnectionCapabilities::default())
-            .await;
-        let outgoing = Arc::new(OutgoingMessageSender::new(
-            tokio::sync::mpsc::channel(1).0,
-            codex_analytics::AnalyticsEventsClient::disabled(),
-        ));
-        let harness =
-            projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
-        let thread_id = harness.thread_id;
-        let projection_generation = outgoing
-            .thread_projection_manager()
-            .capture_current_generation(thread_id)
-            .await;
+        let harness = ProjectionAttachHarness::new().await?;
 
         // Production close handling must mark the connection closed before the
         // final projection cleanup so a listener-queued attach observes the
         // closed connection and does not register a subscriber.
-        thread_state_manager.remove_connection(connection_id).await;
-        handle_projection_attach_response(
-            thread_id,
-            &pending_thread_unloads,
-            &outgoing,
-            &thread_state_manager,
-            ProjectionAttachResponseWork {
-                request_id,
-                connection_id,
-                projection_generation,
-                snapshot_processor: harness.processor.clone(),
-            },
-        )
-        .await;
+        harness.remove_connection().await;
+        harness.handle_attach().await;
 
-        let projection_cleanup = outgoing
-            .thread_projection_manager()
-            .remove_connection(connection_id)
-            .await;
+        let projection_cleanup = harness.remove_projection_connection().await;
         assert_eq!(projection_cleanup, Vec::new());
-
-        let deliveries = outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await;
-        assert_eq!(deliveries, Vec::new());
+        harness.assert_no_projection_delivery().await;
         Ok(())
     }
 
     #[tokio::test]
     async fn attach_response_after_thread_teardown_does_not_recreate_projection_subscription()
     -> anyhow::Result<()> {
-        let connection_id = ConnectionId(1);
-        let request_id = ConnectionRequestId {
-            connection_id,
-            request_id: RequestId::Integer(1),
-        };
-        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
-        let thread_state_manager = ThreadStateManager::new();
-        thread_state_manager
-            .connection_initialized(connection_id, ConnectionCapabilities::default())
-            .await;
-        let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(4);
-        let outgoing = Arc::new(OutgoingMessageSender::new(
-            outgoing_tx,
-            codex_analytics::AnalyticsEventsClient::disabled(),
-        ));
-        let harness =
-            projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
-        let thread_id = harness.thread_id;
-        let projection_generation = outgoing
-            .thread_projection_manager()
-            .capture_current_generation(thread_id)
-            .await;
-        outgoing
-            .thread_projection_manager()
-            .remove_thread(thread_id)
-            .await;
-        timeout(
-            Duration::from_secs(1),
-            handle_projection_attach_response(
-                thread_id,
-                &pending_thread_unloads,
-                &outgoing,
-                &thread_state_manager,
-                ProjectionAttachResponseWork {
-                    request_id,
-                    connection_id,
-                    projection_generation,
-                    snapshot_processor: harness.processor.clone(),
-                },
-            ),
-        )
-        .await
-        .expect("attach task should finish");
+        let mut harness = ProjectionAttachHarness::new().await?;
 
-        let message = outgoing_rx
-            .recv()
+        harness.remove_thread().await;
+        timeout(Duration::from_secs(1), harness.handle_attach())
             .await
-            .expect("stale attach should send an error response");
-        let error = match message {
-            OutgoingEnvelope::ToConnection {
-                message: OutgoingMessage::Error(error),
-                ..
-            } => error.error,
-            other => panic!("expected stale attach error response, got {other:?}"),
-        };
-        assert!(
-            error
-                .message
-                .contains("was unloaded while attaching projection")
-        );
-        assert!(
-            !outgoing
-                .thread_projection_manager()
-                .has_thread_entry(thread_id)
-                .await
-        );
+            .expect("attach task should finish");
 
-        let projection_cleanup = outgoing
-            .thread_projection_manager()
-            .remove_connection(connection_id)
-            .await;
+        let error = harness.recv_attach_error_message().await;
+        assert!(error.contains("was unloaded while attaching projection"));
+        harness.assert_projection_entry_removed().await;
+
+        let projection_cleanup = harness.remove_projection_connection().await;
         assert_eq!(projection_cleanup, Vec::new());
-
-        let deliveries = outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await;
-        assert_eq!(deliveries, Vec::new());
+        harness.assert_no_projection_delivery().await;
         Ok(())
     }
 
     #[tokio::test]
     async fn attach_response_after_thread_teardown_during_snapshot_read_does_not_subscribe()
     -> anyhow::Result<()> {
-        let connection_id = ConnectionId(1);
-        let request_id = ConnectionRequestId {
-            connection_id,
-            request_id: RequestId::Integer(1),
-        };
-        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
-        let thread_state_manager = ThreadStateManager::new();
-        thread_state_manager
-            .connection_initialized(connection_id, ConnectionCapabilities::default())
-            .await;
-        let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(4);
-        let outgoing = Arc::new(OutgoingMessageSender::new(
-            outgoing_tx,
-            codex_analytics::AnalyticsEventsClient::disabled(),
-        ));
-        let harness =
-            projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
-        let thread_id = harness.thread_id;
-        let projection_generation = outgoing
-            .thread_projection_manager()
-            .capture_current_generation(thread_id)
-            .await;
+        let mut harness = ProjectionAttachHarness::new().await?;
         let (entered_tx, entered_rx) = oneshot::channel();
         let (resume_tx, resume_rx) = oneshot::channel();
         let _hook = ThreadRequestProcessor::install_projection_snapshot_read_test_hook(
-            thread_id, entered_tx, resume_rx,
+            harness.thread_id(),
+            entered_tx,
+            resume_rx,
         );
 
-        let attach_task = tokio::spawn({
-            let pending_thread_unloads = pending_thread_unloads.clone();
-            let outgoing = outgoing.clone();
-            let thread_state_manager = thread_state_manager.clone();
-            let snapshot_processor = harness.processor.clone();
-            async move {
-                handle_projection_attach_response(
-                    thread_id,
-                    &pending_thread_unloads,
-                    &outgoing,
-                    &thread_state_manager,
-                    ProjectionAttachResponseWork {
-                        request_id,
-                        connection_id,
-                        projection_generation,
-                        snapshot_processor,
-                    },
-                )
-                .await;
-            }
-        });
+        let attach_task = harness.spawn_handle_attach();
 
         timeout(Duration::from_secs(1), entered_rx)
             .await
             .expect("handler should enter snapshot read")
             .expect("snapshot read hook should signal entry");
-        outgoing
-            .thread_projection_manager()
-            .remove_thread(thread_id)
-            .await;
+        harness.remove_thread().await;
         resume_tx
             .send(())
             .expect("snapshot read hook should still be waiting");
@@ -788,105 +738,31 @@ stream_max_retries = 0
             .expect("attach task should finish")
             .expect("attach task should not panic");
 
-        let message = outgoing_rx
-            .recv()
-            .await
-            .expect("stale attach should send an error response");
-        let error = match message {
-            OutgoingEnvelope::ToConnection {
-                message: OutgoingMessage::Error(error),
-                ..
-            } => error.error,
-            other => panic!("expected stale attach error response, got {other:?}"),
-        };
-        assert!(
-            error
-                .message
-                .contains("was unloaded while attaching projection")
-        );
-        assert!(
-            !outgoing
-                .thread_projection_manager()
-                .has_thread_entry(thread_id)
-                .await
-        );
+        let error = harness.recv_attach_error_message().await;
+        assert!(error.contains("was unloaded while attaching projection"));
+        harness.assert_projection_entry_removed().await;
 
-        let projection_cleanup = outgoing
-            .thread_projection_manager()
-            .remove_connection(connection_id)
-            .await;
+        let projection_cleanup = harness.remove_projection_connection().await;
         assert_eq!(projection_cleanup, Vec::new());
-
-        let deliveries = outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await;
-        assert_eq!(deliveries, Vec::new());
+        harness.assert_no_projection_delivery().await;
         Ok(())
     }
 
     #[tokio::test]
     async fn late_connection_close_cleanup_removes_projection_attach_race() -> anyhow::Result<()> {
-        let connection_id = ConnectionId(1);
-        let request_id = ConnectionRequestId {
-            connection_id,
-            request_id: RequestId::Integer(1),
-        };
-        let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
-        let thread_state_manager = ThreadStateManager::new();
-        thread_state_manager
-            .connection_initialized(connection_id, ConnectionCapabilities::default())
-            .await;
-        let outgoing = Arc::new(OutgoingMessageSender::new(
-            tokio::sync::mpsc::channel(1).0,
-            codex_analytics::AnalyticsEventsClient::disabled(),
-        ));
-        let harness =
-            projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
-        let thread_id = harness.thread_id;
+        let harness = ProjectionAttachHarness::new().await?;
 
-        let initial_cleanup = outgoing
-            .thread_projection_manager()
-            .remove_connection(connection_id)
-            .await;
+        let initial_cleanup = harness.remove_projection_connection().await;
         assert_eq!(initial_cleanup, Vec::new());
 
-        let projection_generation = outgoing
-            .thread_projection_manager()
-            .capture_current_generation(thread_id)
-            .await;
-        handle_projection_attach_response(
-            thread_id,
-            &pending_thread_unloads,
-            &outgoing,
-            &thread_state_manager,
-            ProjectionAttachResponseWork {
-                request_id,
-                connection_id,
-                projection_generation,
-                snapshot_processor: harness.processor.clone(),
-            },
-        )
-        .await;
+        harness.handle_attach().await;
+        harness.assert_one_projection_delivery().await;
 
-        let deliveries_before_late_cleanup = outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await;
-        assert_eq!(deliveries_before_late_cleanup.len(), 1);
+        harness.remove_connection().await;
+        let late_cleanup = harness.remove_projection_connection().await;
+        assert_eq!(late_cleanup, vec![harness.thread_id()]);
 
-        thread_state_manager.remove_connection(connection_id).await;
-        let late_cleanup = outgoing
-            .thread_projection_manager()
-            .remove_connection(connection_id)
-            .await;
-        assert_eq!(late_cleanup, vec![thread_id]);
-
-        let deliveries_after_late_cleanup = outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await;
-        assert_eq!(deliveries_after_late_cleanup, Vec::new());
+        harness.assert_no_projection_delivery().await;
         Ok(())
     }
 }
