@@ -79,6 +79,9 @@ pub(crate) async fn handle_projection_attach_response(
     )
     .await
     {
+        thread_state_manager
+            .release_projection_attach_lease(conversation_id, connection_id)
+            .await;
         return;
     }
 
@@ -87,6 +90,9 @@ pub(crate) async fn handle_projection_attach_response(
         .capture_snapshot_cut_if_generation_matches(conversation_id, projection_generation)
         .await
     else {
+        thread_state_manager
+            .release_projection_attach_lease(conversation_id, connection_id)
+            .await;
         outgoing
             .send_error(
                 request_id,
@@ -104,6 +110,9 @@ pub(crate) async fn handle_projection_attach_response(
     {
         Ok(snapshot) => snapshot,
         Err(error) => {
+            thread_state_manager
+                .release_projection_attach_lease(conversation_id, connection_id)
+                .await;
             outgoing.send_error(request_id, error).await;
             return;
         }
@@ -116,6 +125,9 @@ pub(crate) async fn handle_projection_attach_response(
     )
     .await
     {
+        thread_state_manager
+            .release_projection_attach_lease(conversation_id, connection_id)
+            .await;
         // Connection is already closed; outgoing will drop any response, so we
         // skip sending. Unlike the closing-thread path, there is no live client
         // to receive an error.
@@ -130,6 +142,9 @@ pub(crate) async fn handle_projection_attach_response(
     )
     .await
     {
+        thread_state_manager
+            .release_projection_attach_lease(conversation_id, connection_id)
+            .await;
         return;
     }
 
@@ -140,6 +155,9 @@ pub(crate) async fn handle_projection_attach_response(
     {
         ProjectionAttachAttempt::Attached(attach_result) => attach_result,
         ProjectionAttachAttempt::StaleThreadGeneration => {
+            thread_state_manager
+                .release_projection_attach_lease(conversation_id, connection_id)
+                .await;
             outgoing
                 .send_error(
                     request_id,
@@ -151,6 +169,9 @@ pub(crate) async fn handle_projection_attach_response(
             return;
         }
     };
+    thread_state_manager
+        .release_projection_attach_lease(conversation_id, connection_id)
+        .await;
     if remove_projection_attach_after_connection_closed(
         outgoing,
         thread_state_manager,
@@ -276,6 +297,7 @@ mod tests {
     use codex_thread_store::InMemoryThreadStore;
     use codex_thread_store::ThreadStore;
     use pretty_assertions::assert_eq;
+    use serial_test::serial;
     use std::path::Path;
     use tempfile::TempDir;
     use tokio::sync::oneshot;
@@ -471,6 +493,10 @@ stream_max_retries = 0
             ));
             let runtime =
                 projection_runtime_harness(outgoing.clone(), thread_state_manager.clone()).await?;
+            thread_state_manager
+                .try_begin_projection_attach(runtime.thread_id, connection_id)
+                .await
+                .expect("live connection should begin projection attach");
             let projection_generation = outgoing
                 .thread_projection_manager()
                 .capture_current_generation(runtime.thread_id)
@@ -533,10 +559,19 @@ stream_max_retries = 0
             })
         }
 
-        async fn remove_connection(&self) {
+        async fn assert_no_projection_attach_lease(&self) {
+            assert!(
+                !self
+                    .thread_state_manager
+                    .has_projection_attach_lease(self.thread_id(), self.connection_id)
+                    .await
+            );
+        }
+
+        async fn remove_connection(&self) -> Vec<ThreadId> {
             self.thread_state_manager
                 .remove_connection(self.connection_id)
-                .await;
+                .await
         }
 
         async fn remove_thread(&self) {
@@ -660,6 +695,7 @@ stream_max_retries = 0
             .collect::<Vec<_>>();
         assert_eq!(turn_ids, vec!["turn-visible"]);
         assert_eq!(payload.snapshot.head_commit_id, None);
+        harness.assert_no_projection_attach_lease().await;
         Ok(())
     }
 
@@ -670,6 +706,7 @@ stream_max_retries = 0
         harness.remove_connection().await;
         harness.handle_attach().await;
 
+        harness.assert_no_projection_attach_lease().await;
         harness.assert_no_projection_delivery().await;
         Ok(())
     }
@@ -685,6 +722,7 @@ stream_max_retries = 0
         harness.remove_connection().await;
         harness.handle_attach().await;
 
+        harness.assert_no_projection_attach_lease().await;
         let projection_cleanup = harness.remove_projection_connection().await;
         assert_eq!(projection_cleanup, Vec::new());
         harness.assert_no_projection_delivery().await;
@@ -703,6 +741,7 @@ stream_max_retries = 0
 
         let error = harness.recv_attach_error_message().await;
         assert!(error.contains("was unloaded while attaching projection"));
+        harness.assert_no_projection_attach_lease().await;
         harness.assert_projection_entry_removed().await;
 
         let projection_cleanup = harness.remove_projection_connection().await;
@@ -712,6 +751,55 @@ stream_max_retries = 0
     }
 
     #[tokio::test]
+    #[serial(projection_snapshot_read_test_hook)]
+    async fn attach_response_after_connection_close_during_snapshot_read_releases_lease()
+    -> anyhow::Result<()> {
+        let mut harness = ProjectionAttachHarness::new().await?;
+        let (entered_tx, entered_rx) = oneshot::channel();
+        let (resume_tx, resume_rx) = oneshot::channel();
+        let _hook = ThreadRequestProcessor::install_projection_snapshot_read_test_hook(
+            harness.thread_id(),
+            entered_tx,
+            resume_rx,
+        );
+
+        let attach_task = harness.spawn_handle_attach();
+
+        timeout(Duration::from_secs(1), entered_rx)
+            .await
+            .expect("handler should enter snapshot read")
+            .expect("snapshot read hook should signal entry");
+        assert!(
+            harness
+                .thread_state_manager
+                .has_projection_attach_lease(harness.thread_id(), harness.connection_id)
+                .await
+        );
+        let cleanup = harness.remove_connection().await;
+        assert_eq!(cleanup, vec![harness.thread_id()]);
+        resume_tx
+            .send(())
+            .expect("snapshot read hook should still be waiting");
+        timeout(Duration::from_secs(1), attach_task)
+            .await
+            .expect("attach task should finish")
+            .expect("attach task should not panic");
+
+        harness.assert_no_projection_attach_lease().await;
+        let projection_cleanup = harness.remove_projection_connection().await;
+        assert_eq!(projection_cleanup, Vec::new());
+        harness.assert_no_projection_delivery().await;
+        assert!(
+            timeout(Duration::from_millis(50), harness.outgoing_rx.recv())
+                .await
+                .is_err(),
+            "closed connection path should not send an attach response"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial(projection_snapshot_read_test_hook)]
     async fn attach_response_after_thread_teardown_during_snapshot_read_does_not_subscribe()
     -> anyhow::Result<()> {
         let mut harness = ProjectionAttachHarness::new().await?;
@@ -740,6 +828,7 @@ stream_max_retries = 0
 
         let error = harness.recv_attach_error_message().await;
         assert!(error.contains("was unloaded while attaching projection"));
+        harness.assert_no_projection_attach_lease().await;
         harness.assert_projection_entry_removed().await;
 
         let projection_cleanup = harness.remove_projection_connection().await;
@@ -756,6 +845,7 @@ stream_max_retries = 0
         assert_eq!(initial_cleanup, Vec::new());
 
         harness.handle_attach().await;
+        harness.assert_no_projection_attach_lease().await;
         harness.assert_one_projection_delivery().await;
 
         harness.remove_connection().await;

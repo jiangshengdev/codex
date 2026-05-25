@@ -110,14 +110,20 @@ impl ThreadRequestProcessor {
             .capture_current_generation(thread_id)
             .await;
         let snapshot_processor = self.clone();
-        enqueue_projection_attach_response(
+        let enqueue_result = enqueue_projection_attach_response(
             attach.thread_state,
             attach.thread_id,
             request_id.clone(),
             projection_generation,
             snapshot_processor,
         )
-        .await?;
+        .await;
+        if let Err(error) = enqueue_result {
+            self.thread_state_manager
+                .release_projection_attach_lease(thread_id, request_id.connection_id)
+                .await;
+            return Err(error);
+        }
         Ok(None)
     }
 
@@ -146,7 +152,7 @@ impl ThreadRequestProcessor {
 
         let Some(thread_state) = self
             .thread_state_manager
-            .try_thread_state_for_live_connection(thread_id, request_id.connection_id)
+            .try_begin_projection_attach(thread_id, request_id.connection_id)
             .await
         else {
             tracing::debug!(
@@ -157,8 +163,15 @@ impl ThreadRequestProcessor {
             return Ok(None);
         };
 
-        self.ensure_listener_task_running(thread_id, thread, thread_state.clone())
-            .await?;
+        if let Err(error) = self
+            .ensure_listener_task_running(thread_id, thread, thread_state.clone())
+            .await
+        {
+            self.thread_state_manager
+                .release_projection_attach_lease(thread_id, request_id.connection_id)
+                .await;
+            return Err(error);
+        }
 
         Ok(Some(PreparedProjectionAttach {
             thread_id,

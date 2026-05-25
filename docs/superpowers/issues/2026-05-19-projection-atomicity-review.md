@@ -8,9 +8,10 @@
   `ThreadProjectionManager::attach_if_generation_matches` 阻止 stale attach 在 thread teardown 后
   重新创建 projection entry。后续 `6af70d99f Refactor app-server projection runtime test harness`
   只收敛测试样板，不改变修复语义。
-- Finding 2：仍开放。`prepare_projection_attach` 仍通过
-  `try_thread_state_for_live_connection` 获取/创建 `ThreadState`，该路径仍不写
-  `thread_ids_by_connection` 或 `ThreadEntry.connection_ids`。
+- Finding 2：已修复。projection attach 准备阶段现在通过 projection-only attach lease
+  登记 pending attach 状态；该状态使用独立反向索引，不写入 ordinary
+  `thread_ids_by_connection` 或 `ThreadEntry.connection_ids`，并会在 attach 成功、失败、
+  stale generation、snapshot error 和 connection close 路径显式释放。
 - Finding 3：仍开放。projection delivery 仍在普通 thread notification 前串行入队，teardown 与
   已 materialized delivery 之间仍没有同 owner 的线性化。
 
@@ -41,8 +42,8 @@ subscription 的关键语义是同 owner 的 check-and-insert，而不是先检�
 再 await 到另一个 manager 里注册。
 
 当前分支的 `ThreadStateManager::try_add_connection_to_thread` 仍然保留了这个模式。
-新增的 `ThreadStateManager::try_thread_state_for_live_connection` 则只做 live check
-并返回 `ThreadState`，没有登记 connection/thread 关系。
+修复前新增的 check-only attach 准备路径只做 live check 并返回 `ThreadState`，
+没有登记 connection/thread 关系。
 
 ## Findings
 
@@ -93,22 +94,21 @@ teardown。
 
 ### 2. check-only attach 准备路径会留下没有反向索引的 TSM entry
 
-状态：仍开放。当前实现仍在 `prepare_projection_attach` 中调用
-`ThreadStateManager::try_thread_state_for_live_connection`；该 API 只检查
-`live_connections`，随后返回 `state.threads.entry(thread_id).or_default().state.clone()`，
-没有登记 connection -> thread 的反向索引。
+状态：已修复。`prepare_projection_attach` 不再调用 check-only
+`try_thread_state_for_live_connection`。它改为创建 projection-only attach lease；connection close
+会通过 projection 专用反向索引清理 lease，并且该 lease 不会进入 ordinary thread subscriber fanout。
 
-位置：`codex-rs/app-server/src/request_processors/thread_projection.rs:56`、
+原位置：`codex-rs/app-server/src/request_processors/thread_projection.rs:56`、
 `codex-rs/app-server/src/thread_state.rs:377`、
 `codex-rs/app-server/src/thread_state.rs:386`、
 `codex-rs/app-server/src/thread_projection_runtime.rs:86`。
 
-当前分支引入的具体改动：`prepare_projection_attach` 调用
+修复前的具体问题：`prepare_projection_attach` 调用
 `try_thread_state_for_live_connection`，该 API 在确认 connection live 后执行
 `state.threads.entry(thread_id).or_default()`，但不写
 `thread_ids_by_connection`，也不写 `ThreadEntry.connection_ids`。
 
-可观察坏结果：connection 在 `try_thread_state_for_live_connection` 返回后、listener command
+修复前可观察坏结果：connection 在 `try_thread_state_for_live_connection` 返回后、listener command
 完成前关闭时，`handle_projection_attach_response` 会因为 `is_live_connection` 为 false
 直接跳过发送；但 `ThreadStateManager::remove_connection` 无法通过
 `thread_ids_by_connection` 找到这个 thread。结果是 TSM 可能留下无 connection、无反向索引的
@@ -116,8 +116,8 @@ teardown。
 
 与 `rust-v0.130.0` 的差异：tag 上的 `try_ensure_connection_subscribed` 和
 `try_add_connection_to_thread` 都在同一个 TSM 锁内把 live check 与 connection/thread 登记
-一起完成，connection close cleanup 能通过登记的 index 找到 thread；当前分支新增的
-check-only API 没有这个反向索引。
+一起完成，connection close cleanup 能通过登记的 index 找到 thread；修复前的 check-only
+API 没有这个反向索引。
 
 建议方向：不要让 projection attach 的准备阶段创建长期 TSM 状态；要么延迟创建
 `ThreadState` 到真正 attach 成功时，要么创建时也登记可被 close cleanup 回收的占用关系。
