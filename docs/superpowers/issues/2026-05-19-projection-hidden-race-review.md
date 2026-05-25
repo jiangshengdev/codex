@@ -2,13 +2,15 @@
 
 ## 状态
 
-更新日期：2026-05-24。
+更新日期：2026-05-25。
 
 - Finding 1：已修复。`c810a3dc7 feat(app-server): cut projection snapshots at history cursor`
   通过 listener 侧 projection history cursor 捕获 snapshot cut，使
   `thread/projection/attach` 返回的 `snapshot.thread` 与 `headCommitId` 来自同一个
   listener 已处理的 projection cut。随后 `4ba8af0c8 fix(app-server): preserve rollout preview derivation`
-  回退了共享 preview helper 的语义扩张，避免影响上游 read 路径。
+  回退了共享 preview helper 的语义扩张，避免影响上游 read 路径。后续
+  `6af70d99f Refactor app-server projection runtime test harness` 只重构 runtime 测试样板，
+  不改变修复状态。
 - Finding 2：仍开放。本轮 snapshot/head cut 修复未处理 projection fanout 对普通
   thread notification delivery 的 backpressure 隔离问题。
 
@@ -42,7 +44,8 @@
 状态：已修复。修复提交为
 `c810a3dc7 feat(app-server): cut projection snapshots at history cursor`，后续
 `4ba8af0c8 fix(app-server): preserve rollout preview derivation` 回退了会改变上游
-`preview_from_rollout_items` 行为的附带改动。
+`preview_from_rollout_items` 行为的附带改动。`6af70d99f Refactor app-server projection runtime test harness`
+仅收敛测试内部样板，保持同一组 runtime race regression 覆盖。
 
 当前分支引入的具体改动：projection attach 通过 listener command 返回 snapshot，但
 snapshot 的数据源是 `read_thread_projection_snapshot()` 读取的 persisted/live thread

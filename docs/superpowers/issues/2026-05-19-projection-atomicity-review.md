@@ -1,5 +1,19 @@
 # Projection attach atomicity review
 
+## 状态
+
+更新日期：2026-05-25。
+
+- Finding 1：已修复。当前实现使用 `ProjectionGeneration` 和
+  `ThreadProjectionManager::attach_if_generation_matches` 阻止 stale attach 在 thread teardown 后
+  重新创建 projection entry。后续 `6af70d99f Refactor app-server projection runtime test harness`
+  只收敛测试样板，不改变修复语义。
+- Finding 2：仍开放。`prepare_projection_attach` 仍通过
+  `try_thread_state_for_live_connection` 获取/创建 `ThreadState`，该路径仍不写
+  `thread_ids_by_connection` 或 `ThreadEntry.connection_ids`。
+- Finding 3：仍开放。projection delivery 仍在普通 thread notification 前串行入队，teardown 与
+  已 materialized delivery 之间仍没有同 owner 的线性化。
+
 ## 背景
 
 本记录比较当前分支与 `rust-v0.130.0` tag，聚焦当前分支新增的
@@ -79,6 +93,11 @@ teardown。
 
 ### 2. check-only attach 准备路径会留下没有反向索引的 TSM entry
 
+状态：仍开放。当前实现仍在 `prepare_projection_attach` 中调用
+`ThreadStateManager::try_thread_state_for_live_connection`；该 API 只检查
+`live_connections`，随后返回 `state.threads.entry(thread_id).or_default().state.clone()`，
+没有登记 connection -> thread 的反向索引。
+
 位置：`codex-rs/app-server/src/request_processors/thread_projection.rs:56`、
 `codex-rs/app-server/src/thread_state.rs:377`、
 `codex-rs/app-server/src/thread_state.rs:386`、
@@ -104,6 +123,10 @@ check-only API 没有这个反向索引。
 `ThreadState` 到真正 attach 成功时，要么创建时也登记可被 close cleanup 回收的占用关系。
 
 ### 3. Projection event delivery 在 PM 锁外发送，finalize teardown 可先清空 head
+
+状态：仍开放。当前 `ThreadScopedOutgoingMessageSender::send_server_notification` 仍先 await
+projection delivery 入队，再发送普通 thread notification；`c810a3dc7` 的 snapshot/head cut 修复
+没有改变这条 delivery/teardown 边界。
 
 位置：`codex-rs/app-server/src/outgoing_message.rs:150`、
 `codex-rs/app-server/src/thread_projection.rs:120`、
