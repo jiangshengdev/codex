@@ -2,7 +2,7 @@
 
 ## 状态
 
-更新日期：2026-05-25。
+更新日期：2026-05-26。
 
 - Finding 1：已修复。当前实现使用 `ProjectionGeneration` 和
   `ThreadProjectionManager::attach_if_generation_matches` 阻止 stale attach 在 thread teardown 后
@@ -12,8 +12,10 @@
   登记 pending attach 状态；该状态使用独立反向索引，不写入 ordinary
   `thread_ids_by_connection` 或 `ThreadEntry.connection_ids`，并会在 attach 成功、失败、
   stale generation、snapshot error 和 connection close 路径显式释放。
-- Finding 3：仍开放。projection delivery 仍在普通 thread notification 前串行入队，teardown 与
-  已 materialized delivery 之间仍没有同 owner 的线性化。
+- Finding 3：已修复。projection delivery 现在携带 materialize 时捕获的
+  `ProjectionGeneration`；发送侧在获得 outgoing queue capacity 后、真正入队前校验 generation。
+  如果 teardown 已经通过 `ThreadProjectionManager::remove_thread` bump generation，旧 delivery
+  会被丢弃。
 
 ## 背景
 
@@ -124,9 +126,9 @@ API 没有这个反向索引。
 
 ### 3. Projection event delivery 在 PM 锁外发送，finalize teardown 可先清空 head
 
-状态：仍开放。当前 `ThreadScopedOutgoingMessageSender::send_server_notification` 仍先 await
-projection delivery 入队，再发送普通 thread notification；`c810a3dc7` 的 snapshot/head cut 修复
-没有改变这条 delivery/teardown 边界。
+状态：已修复。当前实现让 `ProjectionDelivery` 携带生成时的 `ProjectionGeneration`。
+projection delivery 发送侧先等待 outgoing queue capacity，然后校验 generation，最后在没有额外
+`await` 的情况下入队。teardown 如果先执行并 bump generation，旧 delivery 会在发送侧被丢弃。
 
 位置：`codex-rs/app-server/src/outgoing_message.rs:150`、
 `codex-rs/app-server/src/thread_projection.rs:120`、
