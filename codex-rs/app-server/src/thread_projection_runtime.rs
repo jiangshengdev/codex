@@ -272,9 +272,11 @@ mod tests {
     use crate::outgoing_message::OutgoingEnvelope;
     use crate::outgoing_message::OutgoingMessage;
     use crate::outgoing_message::OutgoingMessageSender;
+    use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
     use crate::request_processors::ThreadGoalRequestProcessor;
     use crate::thread_state::ConnectionCapabilities;
     use crate::thread_status::ThreadWatchManager;
+    use codex_app_server_protocol::ConfigWarningNotification;
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ServerNotification;
     use codex_app_server_protocol::Turn;
@@ -853,6 +855,84 @@ stream_max_retries = 0
         assert_eq!(late_cleanup, vec![harness.thread_id()]);
 
         harness.assert_no_projection_delivery().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn projection_delivery_waiting_for_queue_capacity_is_dropped_after_thread_teardown()
+    -> anyhow::Result<()> {
+        let mut harness = ProjectionAttachHarness::new().await?;
+        harness.handle_attach().await;
+        let _attach_response = harness.recv_attach_response().await?;
+
+        for index in 0..4 {
+            harness
+                .outgoing
+                .send_server_notification(ServerNotification::ConfigWarning(
+                    ConfigWarningNotification {
+                        summary: format!("hold capacity {index}"),
+                        details: None,
+                        path: None,
+                        range: None,
+                    },
+                ))
+                .await;
+        }
+
+        let outgoing = harness.outgoing.clone();
+        let thread_id = harness.thread_id();
+        let send_task = tokio::spawn(async move {
+            let sender =
+                ThreadScopedOutgoingMessageSender::new(outgoing, vec![ConnectionId(99)], thread_id);
+            sender
+                .send_server_notification(turn_started_notification(thread_id))
+                .await;
+        });
+
+        timeout(Duration::from_secs(1), async {
+            loop {
+                let cut = harness
+                    .outgoing
+                    .thread_projection_manager()
+                    .capture_snapshot_cut(harness.thread_id())
+                    .await;
+                if cut.head_commit_id.is_some() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("projection delivery should materialize before teardown");
+
+        harness.remove_thread().await;
+
+        for _ in 0..4 {
+            let _ = harness
+                .outgoing_rx
+                .recv()
+                .await
+                .expect("capacity holder should be present");
+        }
+
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect("send task should finish")
+            .expect("send task should not panic");
+
+        while let Ok(Some(envelope)) =
+            timeout(Duration::from_millis(50), harness.outgoing_rx.recv()).await
+        {
+            if let OutgoingEnvelope::ToConnection {
+                message:
+                    OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_)),
+                ..
+            } = envelope
+            {
+                panic!("stale projection delivery should not enqueue after teardown");
+            }
+        }
+
         Ok(())
     }
 }
