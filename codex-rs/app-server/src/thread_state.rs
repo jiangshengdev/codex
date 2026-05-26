@@ -247,11 +247,254 @@ mod tests {
             personality: None,
         }
     }
+
+    #[tokio::test]
+    async fn projection_attach_lease_does_not_subscribe_connection() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+
+        let thread_state = manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            thread_state.lock().await.listener_generation,
+            ThreadState::default().listener_generation
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            Vec::<ConnectionId>::new()
+        );
+        assert!(!manager.has_subscribers(thread_id).await);
+        assert!(
+            manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+    }
+
+    #[tokio::test]
+    async fn projection_attach_lease_does_not_update_has_connections_watcher() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let projection_connection_id = ConnectionId(1);
+        let ordinary_connection_id = ConnectionId(2);
+        manager.thread_state(thread_id).await;
+        let mut has_connections = manager
+            .subscribe_to_has_connections(thread_id)
+            .await
+            .expect("thread should have a has-connections watcher");
+        assert!(!*has_connections.borrow_and_update());
+
+        manager
+            .connection_initialized(projection_connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, projection_connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert!(
+            !has_connections
+                .has_changed()
+                .expect("has-connections watcher should remain open")
+        );
+
+        manager
+            .release_projection_attach_lease(thread_id, projection_connection_id)
+            .await;
+
+        assert!(
+            !has_connections
+                .has_changed()
+                .expect("has-connections watcher should remain open")
+        );
+
+        manager
+            .connection_initialized(ordinary_connection_id, ConnectionCapabilities::default())
+            .await;
+        assert!(
+            manager
+                .try_add_connection_to_thread(thread_id, ordinary_connection_id)
+                .await
+        );
+        assert!(
+            has_connections
+                .has_changed()
+                .expect("has-connections watcher should remain open")
+        );
+        assert!(*has_connections.borrow_and_update());
+    }
+
+    #[tokio::test]
+    async fn projection_attach_lease_requires_live_connection() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+
+        let thread_state = manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await;
+
+        assert!(thread_state.is_none());
+        assert!(!manager.has_thread_entry(thread_id).await);
+    }
+
+    #[tokio::test]
+    async fn release_projection_attach_lease_is_idempotent() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        manager
+            .release_projection_attach_lease(thread_id, connection_id)
+            .await;
+        manager
+            .release_projection_attach_lease(thread_id, connection_id)
+            .await;
+
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(manager.remove_connection(connection_id).await, Vec::new());
+    }
+
+    #[tokio::test]
+    async fn remove_connection_cleans_projection_attach_lease() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            manager.remove_connection(connection_id).await,
+            vec![thread_id]
+        );
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            Vec::<ConnectionId>::new()
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_connection_deduplicates_ordinary_and_projection_cleanup() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        assert!(
+            manager
+                .try_add_connection_to_thread(thread_id, connection_id)
+                .await
+        );
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            manager.remove_connection(connection_id).await,
+            vec![thread_id]
+        );
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            Vec::<ConnectionId>::new()
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_connection_keeps_thread_with_other_ordinary_subscribers_out_of_reconciliation()
+    {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let projection_connection_id = ConnectionId(1);
+        let ordinary_connection_id = ConnectionId(2);
+        manager
+            .connection_initialized(projection_connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .connection_initialized(ordinary_connection_id, ConnectionCapabilities::default())
+            .await;
+        assert!(
+            manager
+                .try_add_connection_to_thread(thread_id, ordinary_connection_id)
+                .await
+        );
+        manager
+            .try_begin_projection_attach(thread_id, projection_connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            manager.remove_connection(projection_connection_id).await,
+            Vec::<ThreadId>::new()
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            vec![ordinary_connection_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_thread_state_cleans_projection_attach_lease_index() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        manager.remove_thread_state(thread_id).await;
+
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(manager.remove_connection(connection_id).await, Vec::new());
+    }
 }
 
 struct ThreadEntry {
     state: Arc<Mutex<ThreadState>>,
     connection_ids: HashSet<ConnectionId>,
+    projection_attach_leases: HashSet<ConnectionId>,
     has_connections_watcher: watch::Sender<bool>,
 }
 
@@ -260,6 +503,7 @@ impl Default for ThreadEntry {
         Self {
             state: Arc::new(Mutex::new(ThreadState::default())),
             connection_ids: HashSet::new(),
+            projection_attach_leases: HashSet::new(),
             has_connections_watcher: watch::channel(false).0,
         }
     }
@@ -280,6 +524,7 @@ struct ThreadStateManagerInner {
     live_connections: HashMap<ConnectionId, ConnectionCapabilities>,
     threads: HashMap<ThreadId, ThreadEntry>,
     thread_ids_by_connection: HashMap<ConnectionId, HashSet<ThreadId>>,
+    projection_attach_thread_ids_by_connection: HashMap<ConnectionId, HashSet<ThreadId>>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -362,6 +607,12 @@ impl ThreadStateManager {
                 thread_ids.remove(&thread_id);
                 !thread_ids.is_empty()
             });
+            state
+                .projection_attach_thread_ids_by_connection
+                .retain(|_, thread_ids| {
+                    thread_ids.remove(&thread_id);
+                    !thread_ids.is_empty()
+                });
             thread_state
         };
 
@@ -475,7 +726,7 @@ impl ThreadStateManager {
         Some(thread_state)
     }
 
-    pub(crate) async fn try_thread_state_for_live_connection(
+    pub(crate) async fn try_begin_projection_attach(
         &self,
         thread_id: ThreadId,
         connection_id: ConnectionId,
@@ -484,7 +735,36 @@ impl ThreadStateManager {
         if !state.live_connections.contains_key(&connection_id) {
             return None;
         }
-        Some(state.threads.entry(thread_id).or_default().state.clone())
+        state
+            .projection_attach_thread_ids_by_connection
+            .entry(connection_id)
+            .or_default()
+            .insert(thread_id);
+        let thread_entry = state.threads.entry(thread_id).or_default();
+        thread_entry.projection_attach_leases.insert(connection_id);
+        Some(thread_entry.state.clone())
+    }
+
+    pub(crate) async fn release_projection_attach_lease(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) {
+        let mut state = self.state.lock().await;
+        if let Some(thread_entry) = state.threads.get_mut(&thread_id) {
+            thread_entry.projection_attach_leases.remove(&connection_id);
+        }
+        if let Some(thread_ids) = state
+            .projection_attach_thread_ids_by_connection
+            .get_mut(&connection_id)
+        {
+            thread_ids.remove(&thread_id);
+            if thread_ids.is_empty() {
+                state
+                    .projection_attach_thread_ids_by_connection
+                    .remove(&connection_id);
+            }
+        }
     }
 
     pub(crate) async fn try_add_connection_to_thread(
@@ -515,13 +795,24 @@ impl ThreadStateManager {
                 .thread_ids_by_connection
                 .remove(&connection_id)
                 .unwrap_or_default();
+            let projection_attach_thread_ids = state
+                .projection_attach_thread_ids_by_connection
+                .remove(&connection_id)
+                .unwrap_or_default();
             for thread_id in &thread_ids {
                 if let Some(thread_entry) = state.threads.get_mut(thread_id) {
                     thread_entry.connection_ids.remove(&connection_id);
                     thread_entry.update_has_connections();
                 }
             }
-            thread_ids
+            for thread_id in &projection_attach_thread_ids {
+                if let Some(thread_entry) = state.threads.get_mut(thread_id) {
+                    thread_entry.projection_attach_leases.remove(&connection_id);
+                }
+            }
+            let mut cleanup_thread_ids = thread_ids;
+            cleanup_thread_ids.extend(projection_attach_thread_ids);
+            cleanup_thread_ids
                 .into_iter()
                 .filter(|thread_id| {
                     state
@@ -542,5 +833,28 @@ impl ThreadStateManager {
             .threads
             .get(&thread_id)
             .map(|thread_entry| thread_entry.has_connections_watcher.subscribe())
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn has_thread_entry(&self, thread_id: ThreadId) -> bool {
+        self.state.lock().await.threads.contains_key(&thread_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn has_projection_attach_lease(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) -> bool {
+        self.state
+            .lock()
+            .await
+            .threads
+            .get(&thread_id)
+            .is_some_and(|thread_entry| {
+                thread_entry
+                    .projection_attach_leases
+                    .contains(&connection_id)
+            })
     }
 }

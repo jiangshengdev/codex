@@ -27,6 +27,7 @@ use tracing::warn;
 
 use crate::error_code::internal_error;
 use crate::server_request_error::TURN_TRANSITION_PENDING_REQUEST_ERROR_REASON;
+use crate::thread_projection::ProjectionDelivery;
 use crate::thread_projection::ThreadProjectionManager;
 use crate::thread_projection_cut::ProjectionHistoryCursor;
 pub(crate) use codex_app_server_transport::ConnectionId;
@@ -193,10 +194,7 @@ impl ThreadScopedOutgoingMessageSender {
         };
         for delivery in deliveries {
             self.outgoing
-                .send_server_notification_to_connections(
-                    &[delivery.connection_id],
-                    ServerNotification::ThreadProjectionEvent(delivery.notification),
-                )
+                .send_projection_delivery_if_current(self.thread_id, delivery)
                 .await;
         }
         if self.connection_ids.is_empty() {
@@ -635,6 +633,33 @@ impl OutgoingMessageSender {
         }
     }
 
+    pub(crate) async fn send_projection_delivery_if_current(
+        &self,
+        thread_id: ThreadId,
+        delivery: ProjectionDelivery,
+    ) {
+        let outgoing_message = OutgoingMessage::AppServerNotification(
+            ServerNotification::ThreadProjectionEvent(delivery.notification),
+        );
+        let permit = match self.sender.reserve().await {
+            Ok(permit) => permit,
+            Err(err) => {
+                warn!("failed to send projection delivery to client: {err:?}");
+                return;
+            }
+        };
+
+        self.thread_projection_manager
+            .run_if_generation_matches(thread_id, delivery.generation, || {
+                permit.send(OutgoingEnvelope::ToConnection {
+                    connection_id: delivery.connection_id,
+                    message: outgoing_message,
+                    write_complete_tx: None,
+                });
+            })
+            .await;
+    }
+
     pub(crate) async fn send_server_notification_to_connection_and_wait(
         &self,
         connection_id: ConnectionId,
@@ -770,7 +795,25 @@ mod tests {
     use tokio::time::timeout;
     use uuid::Uuid;
 
+    use crate::thread_projection::ProjectionAttachAttempt;
+
     use super::*;
+
+    fn turn_started_notification(thread_id: ThreadId, turn_id: &str) -> ServerNotification {
+        ServerNotification::TurnStarted(TurnStartedNotification {
+            thread_id: thread_id.to_string(),
+            turn: Turn {
+                id: turn_id.to_string(),
+                items: Vec::new(),
+                items_view: TurnItemsView::Full,
+                status: TurnStatus::InProgress,
+                error: None,
+                started_at: Some(1),
+                completed_at: None,
+                duration_ms: None,
+            },
+        })
+    }
 
     #[test]
     fn verify_server_notification_serialization() {
@@ -1304,6 +1347,148 @@ mod tests {
             ThreadProjectionEvent::TurnStarted { .. }
         ));
         assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn stale_projection_delivery_waiting_for_capacity_is_dropped() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(OutgoingEnvelope::Broadcast {
+            message: OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
+                ConfigWarningNotification {
+                    summary: "hold capacity".to_string(),
+                    details: None,
+                    path: None,
+                    range: None,
+                },
+            )),
+        })
+        .await
+        .expect("capacity holder should enqueue");
+
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(7);
+        let generation = outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
+        let attach = outgoing
+            .thread_projection_manager()
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = attach else {
+            panic!("current generation should attach");
+        };
+        let delivery = outgoing
+            .thread_projection_manager()
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await
+            .pop()
+            .expect("projection subscriber should receive delivery");
+
+        let send_task = tokio::spawn({
+            let outgoing = outgoing.clone();
+            async move {
+                outgoing
+                    .send_projection_delivery_if_current(thread_id, delivery)
+                    .await;
+            }
+        });
+        tokio::task::yield_now().await;
+
+        outgoing
+            .thread_projection_manager()
+            .remove_thread(thread_id)
+            .await;
+        let _capacity_holder = rx.recv().await.expect("capacity holder should be present");
+
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect("send task should finish")
+            .expect("send task should not panic");
+        assert!(
+            timeout(Duration::from_millis(50), rx.recv()).await.is_err(),
+            "stale projection delivery should not enqueue"
+        );
+    }
+
+    #[tokio::test]
+    async fn current_projection_delivery_enqueues_after_capacity_is_available() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(OutgoingEnvelope::Broadcast {
+            message: OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
+                ConfigWarningNotification {
+                    summary: "hold capacity".to_string(),
+                    details: None,
+                    path: None,
+                    range: None,
+                },
+            )),
+        })
+        .await
+        .expect("capacity holder should enqueue");
+
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(7);
+        let generation = outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
+        let attach = outgoing
+            .thread_projection_manager()
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = attach else {
+            panic!("current generation should attach");
+        };
+        let delivery = outgoing
+            .thread_projection_manager()
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await
+            .pop()
+            .expect("projection subscriber should receive delivery");
+
+        let send_task = tokio::spawn({
+            let outgoing = outgoing.clone();
+            async move {
+                outgoing
+                    .send_projection_delivery_if_current(thread_id, delivery)
+                    .await;
+            }
+        });
+        tokio::task::yield_now().await;
+
+        let _capacity_holder = rx.recv().await.expect("capacity holder should be present");
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect("send task should finish")
+            .expect("send task should not panic");
+
+        let envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("projection delivery should enqueue")
+            .expect("channel should remain open");
+        let OutgoingEnvelope::ToConnection {
+            connection_id: delivered_connection_id,
+            message,
+            write_complete_tx,
+        } = envelope
+        else {
+            panic!("expected targeted projection delivery");
+        };
+        assert_eq!(delivered_connection_id, connection_id);
+        assert!(write_complete_tx.is_none());
+        assert!(matches!(
+            message,
+            OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_))
+        ));
     }
 
     #[tokio::test]
