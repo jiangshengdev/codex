@@ -21,11 +21,13 @@ use codex_protocol::request_permissions::RequestPermissionsResponse;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 use tracing::Span;
 use tracing::warn;
 
 use crate::error_code::internal_error;
+use crate::projection_fanout::ProjectionFanoutManager;
 use crate::server_request_error::TURN_TRANSITION_PENDING_REQUEST_ERROR_REASON;
 use crate::thread_projection::ProjectionDelivery;
 use crate::thread_projection::ThreadProjectionManager;
@@ -106,6 +108,7 @@ pub(crate) struct OutgoingMessageSender {
     request_contexts: Mutex<HashMap<ConnectionRequestId, RequestContext>>,
     analytics_events_client: AnalyticsEventsClient,
     thread_projection_manager: ThreadProjectionManager,
+    projection_fanout_manager: ProjectionFanoutManager,
 }
 
 #[derive(Clone)]
@@ -192,16 +195,17 @@ impl ThreadScopedOutgoingMessageSender {
                 .project_notification(self.thread_id, &notification)
                 .await
         };
-        for delivery in deliveries {
+        if !self.connection_ids.is_empty() {
             self.outgoing
-                .send_projection_delivery_if_current(self.thread_id, delivery)
+                .send_server_notification_to_connections(
+                    self.connection_ids.as_slice(),
+                    notification,
+                )
                 .await;
         }
-        if self.connection_ids.is_empty() {
-            return;
-        }
+
         self.outgoing
-            .send_server_notification_to_connections(self.connection_ids.as_slice(), notification)
+            .enqueue_projection_fanout(self.thread_id, deliveries)
             .await;
     }
 
@@ -254,11 +258,28 @@ impl OutgoingMessageSender {
             request_contexts: Mutex::new(HashMap::new()),
             analytics_events_client,
             thread_projection_manager: ThreadProjectionManager::new(),
+            projection_fanout_manager: ProjectionFanoutManager::new(),
         }
     }
 
     pub(crate) fn thread_projection_manager(&self) -> ThreadProjectionManager {
         self.thread_projection_manager.clone()
+    }
+
+    pub(crate) async fn enqueue_projection_fanout(
+        self: &Arc<Self>,
+        thread_id: ThreadId,
+        deliveries: Vec<ProjectionDelivery>,
+    ) {
+        self.projection_fanout_manager
+            .enqueue_projection_fanout(self.clone(), thread_id, deliveries)
+            .await;
+    }
+
+    pub(crate) async fn cancel_projection_fanout(&self, thread_id: ThreadId) {
+        self.projection_fanout_manager
+            .cancel_thread(thread_id)
+            .await;
     }
 
     pub(crate) async fn register_request_context(&self, request_context: RequestContext) {
@@ -633,24 +654,35 @@ impl OutgoingMessageSender {
         }
     }
 
-    pub(crate) async fn send_projection_delivery_if_current(
+    pub(crate) async fn send_projection_delivery_if_current_or_cancelled(
         &self,
         thread_id: ThreadId,
         delivery: ProjectionDelivery,
+        cancellation: &CancellationToken,
     ) {
         let outgoing_message = OutgoingMessage::AppServerNotification(
             ServerNotification::ThreadProjectionEvent(delivery.notification),
         );
-        let permit = match self.sender.reserve().await {
-            Ok(permit) => permit,
-            Err(err) => {
-                warn!("failed to send projection delivery to client: {err:?}");
-                return;
-            }
+        let permit = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => return,
+            permit = self.sender.reserve() => match permit {
+                Ok(permit) => permit,
+                Err(err) => {
+                    warn!("failed to send projection delivery to client: {err:?}");
+                    return;
+                }
+            },
         };
+        if cancellation.is_cancelled() {
+            return;
+        }
 
         self.thread_projection_manager
             .run_if_generation_matches(thread_id, delivery.generation, || {
+                if cancellation.is_cancelled() {
+                    return;
+                }
                 permit.send(OutgoingEnvelope::ToConnection {
                     connection_id: delivery.connection_id,
                     message: outgoing_message,
@@ -1290,7 +1322,77 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn thread_scoped_notification_fans_out_projection_event_without_normal_subscribers() {
+    async fn ordinary_notification_does_not_wait_for_projection_delivery_capacity() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(OutgoingEnvelope::Broadcast {
+            message: OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
+                ConfigWarningNotification {
+                    summary: "hold capacity".to_string(),
+                    details: None,
+                    path: None,
+                    range: None,
+                },
+            )),
+        })
+        .await
+        .expect("capacity holder should enqueue");
+
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_id = ThreadId::new();
+        let ordinary_connection_id = ConnectionId(1);
+        let projection_connection_id = ConnectionId(2);
+        let _attach = outgoing
+            .thread_projection_manager()
+            .attach(thread_id, projection_connection_id)
+            .await;
+        let thread_outgoing = ThreadScopedOutgoingMessageSender::new(
+            outgoing,
+            vec![ordinary_connection_id],
+            thread_id,
+        );
+
+        let send_task = tokio::spawn(async move {
+            thread_outgoing
+                .send_server_notification(turn_started_notification(thread_id, "turn-1"))
+                .await;
+        });
+        tokio::task::yield_now().await;
+
+        let _capacity_holder = rx.recv().await.expect("capacity holder should be present");
+        let envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("ordinary notification should enqueue first")
+            .expect("channel should remain open");
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message,
+            write_complete_tx,
+        } = envelope
+        else {
+            panic!("expected targeted ordinary notification envelope");
+        };
+        assert_eq!(connection_id, ordinary_connection_id);
+        assert!(write_complete_tx.is_none());
+        assert!(matches!(
+            message,
+            OutgoingMessage::AppServerNotification(ServerNotification::TurnStarted(_))
+        ));
+
+        let _projection_delivery = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("projection delivery should enqueue after ordinary notification")
+            .expect("channel should remain open");
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect("send task should finish")
+            .expect("send task should not panic");
+    }
+
+    #[tokio::test]
+    async fn projection_only_subscriber_receives_event_without_ordinary_subscribers() {
         let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(4);
         let outgoing = Arc::new(OutgoingMessageSender::new(
             tx,
@@ -1350,6 +1452,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancelled_projection_delivery_wait_does_not_enqueue_after_capacity_returns() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(OutgoingEnvelope::Broadcast {
+            message: OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
+                ConfigWarningNotification {
+                    summary: "hold capacity".to_string(),
+                    details: None,
+                    path: None,
+                    range: None,
+                },
+            )),
+        })
+        .await
+        .expect("capacity holder should enqueue");
+
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(7);
+        let generation = outgoing
+            .thread_projection_manager()
+            .capture_current_generation(thread_id)
+            .await;
+        let attach = outgoing
+            .thread_projection_manager()
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = attach else {
+            panic!("current generation should attach");
+        };
+        let delivery = outgoing
+            .thread_projection_manager()
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await
+            .pop()
+            .expect("projection subscriber should receive delivery");
+        let cancellation = CancellationToken::new();
+
+        let send_task = tokio::spawn({
+            let outgoing = outgoing.clone();
+            let cancellation = cancellation.clone();
+            async move {
+                outgoing
+                    .send_projection_delivery_if_current_or_cancelled(
+                        thread_id,
+                        delivery,
+                        &cancellation,
+                    )
+                    .await;
+            }
+        });
+        tokio::task::yield_now().await;
+
+        cancellation.cancel();
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect("send task should finish")
+            .expect("send task should not panic");
+        let _capacity_holder = rx.recv().await.expect("capacity holder should be present");
+        assert!(
+            timeout(Duration::from_millis(50), rx.recv()).await.is_err(),
+            "cancelled projection delivery should not enqueue"
+        );
+    }
+
+    #[tokio::test]
     async fn stale_projection_delivery_waiting_for_capacity_is_dropped() {
         let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
         tx.send(OutgoingEnvelope::Broadcast {
@@ -1392,8 +1562,13 @@ mod tests {
         let send_task = tokio::spawn({
             let outgoing = outgoing.clone();
             async move {
+                let cancellation = CancellationToken::new();
                 outgoing
-                    .send_projection_delivery_if_current(thread_id, delivery)
+                    .send_projection_delivery_if_current_or_cancelled(
+                        thread_id,
+                        delivery,
+                        &cancellation,
+                    )
                     .await;
             }
         });
@@ -1458,8 +1633,13 @@ mod tests {
         let send_task = tokio::spawn({
             let outgoing = outgoing.clone();
             async move {
+                let cancellation = CancellationToken::new();
                 outgoing
-                    .send_projection_delivery_if_current(thread_id, delivery)
+                    .send_projection_delivery_if_current_or_cancelled(
+                        thread_id,
+                        delivery,
+                        &cancellation,
+                    )
                     .await;
             }
         });
