@@ -680,6 +680,9 @@ impl OutgoingMessageSender {
 
         self.thread_projection_manager
             .run_if_generation_matches(thread_id, delivery.generation, || {
+                if cancellation.is_cancelled() {
+                    return;
+                }
                 permit.send(OutgoingEnvelope::ToConnection {
                     connection_id: delivery.connection_id,
                     message: outgoing_message,

@@ -2,7 +2,7 @@
 
 ## 状态
 
-更新日期：2026-05-25。
+更新日期：2026-05-27。
 
 - Finding 1：已修复。`c810a3dc7 feat(app-server): cut projection snapshots at history cursor`
   通过 listener 侧 projection history cursor 捕获 snapshot cut，使
@@ -11,8 +11,10 @@
   回退了共享 preview helper 的语义扩张，避免影响上游 read 路径。后续
   `6af70d99f Refactor app-server projection runtime test harness` 只重构 runtime 测试样板，
   不改变修复状态。
-- Finding 2：仍开放。本轮 snapshot/head cut 修复未处理 projection fanout 对普通
-  thread notification delivery 的 backpressure 隔离问题。
+- Finding 2：已修复。projection fanout 现在通过 per-thread bounded queue 和 worker
+  与 ordinary thread notification path 半隔离；ordinary notification 不再等待 projection
+  delivery 实际入 outgoing queue。queue full 会失效该 thread 当前 projection subscriptions，
+  并要求客户端重新 attach。
 
 ## 背景
 
@@ -84,16 +86,18 @@ PM commit”的 attach response。
 
 严重程度：Important。
 
-状态：仍开放。`c810a3dc7` 只修复 snapshot/head cut mismatch，没有隔离 projection fanout
-backpressure。
+状态：已修复。`84a664b5a fix(app-server): isolate projection fanout backpressure`
+将 projection fanout 移入 per-thread bounded queue 和 worker；ordinary notification 先走原有
+发送路径，projection delivery 后续通过 fanout queue 入队。queue full 会 bump projection
+generation、清空该 thread 的 projection subscribers，并要求客户端重新 attach。
 
-当前分支引入的具体改动：`ThreadScopedOutgoingMessageSender::send_server_notification()`
+修复前当前分支引入的具体改动：`ThreadScopedOutgoingMessageSender::send_server_notification()`
 在发送原始 thread notification 之前，先调用
 `ThreadProjectionManager::project_notification()`，然后对每个 projection delivery 串行
 `await send_server_notification_to_connections(...)`。只有 projection delivery 全部入队后，
 才继续发送原始 `turn/started`、`item/completed` 等 notification。
 
-可观察坏结果：一个 projection subscriber 的 outgoing 队列积压，会先阻塞 projection event
+修复前可观察坏结果：一个 projection subscriber 的 outgoing 队列积压，会先阻塞 projection event
 入队，再阻塞普通 thread notification。多个 projection subscriber 会把每个 thread event 放大成
 N+1 条 outgoing envelope，并且 projection 的 N 条排在普通订阅者前面。内部 outgoing channel
 容量只有 128，慢 projection consumer 因而可以对原本独立的普通 thread event delivery 形成
@@ -103,12 +107,14 @@ head-of-line blocking。
 新增 projection fanout 这层前置 await。当前分支把 projection transport backpressure 耦合进了
 旧有普通 thread event path。
 
-建议方向：projection delivery 不应在普通 notification 前串行 await。可以考虑先发送原始
-notification，再异步/独立队列投递 projection event；或者让 projection fanout 使用不会阻塞
-ordinary thread subscribers 的隔离队列与 backpressure 策略。
+采用方向：projection delivery 不再在普通 notification 前串行 await。当前实现先发送原始
+notification，再用 per-thread fanout worker 顺序投递 projection event；fanout queue 使用
+`try_send`，满队列时通过 projection generation invalidation 丢弃旧 stream，而不是无声丢失
+commit chain 中间段。
 
 ## 风险判断
 
 第一个问题已通过 projection snapshot cut 修复，当前继续保留本节作为历史背景和回归风险说明。
-第二个问题仍是 backpressure 隔离问题：低速 projection client 会放大普通 turn/item 事件延迟，
-尤其在多 projection 订阅或 websocket consumer 积压时更明显。
+第二个问题已通过 per-thread bounded fanout queue 半隔离。剩余边界是设计中明确的非目标：
+projection traffic 仍可能占用 shared outgoing channel capacity；本修复隔离的是
+`send_server_notification(...)` 中 projection fanout 的 await 和任务堆积。
