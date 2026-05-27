@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 
 use codex_protocol::ThreadId;
@@ -50,16 +51,17 @@ impl ProjectionFanoutManager {
 
         let mut job = ProjectionFanoutJob { deliveries };
         loop {
-            let mut inner = self.inner.lock().await;
-            let tx = inner
-                .thread_handle(thread_id, self.clone(), outgoing.clone())
-                .tx
-                .clone();
+            let tx = {
+                let mut inner = self.inner.lock().await;
+                inner
+                    .thread_handle(thread_id, self.clone(), outgoing.clone())
+                    .tx
+                    .clone()
+            };
             match tx.try_send(job) {
                 Ok(()) => return,
                 Err(mpsc::error::TrySendError::Full(returned_job)) => {
-                    let removed = inner.threads.remove(&thread_id);
-                    drop(inner);
+                    let removed = self.remove_thread_handle_for_sender(thread_id, &tx).await;
                     if let Some(handle) = removed {
                         handle.cancellation.cancel();
                     }
@@ -74,8 +76,7 @@ impl ProjectionFanoutManager {
                     return;
                 }
                 Err(mpsc::error::TrySendError::Closed(returned_job)) => {
-                    inner.threads.remove(&thread_id);
-                    drop(inner);
+                    self.remove_thread_handle_for_sender(thread_id, &tx).await;
                     job = returned_job;
                     continue;
                 }
@@ -90,6 +91,22 @@ impl ProjectionFanoutManager {
         if let Some(handle) = handle {
             handle.cancellation.cancel();
         }
+    }
+
+    async fn remove_thread_handle_for_sender(
+        &self,
+        thread_id: ThreadId,
+        tx: &mpsc::Sender<ProjectionFanoutJob>,
+    ) -> Option<ThreadFanoutHandle> {
+        let mut inner = self.inner.lock().await;
+        if inner
+            .threads
+            .get(&thread_id)
+            .is_some_and(|handle| handle.tx.same_channel(tx))
+        {
+            return inner.threads.remove(&thread_id);
+        }
+        None
     }
 
     async fn finish_worker(&self, thread_id: ThreadId, worker_id: u64) {
@@ -111,32 +128,28 @@ impl ProjectionFanoutManagerInner {
         manager: ProjectionFanoutManager,
         outgoing: Arc<OutgoingMessageSender>,
     ) -> &ThreadFanoutHandle {
-        if !self.threads.contains_key(&thread_id) {
-            let (tx, rx) = mpsc::channel(PROJECTION_FANOUT_QUEUE_CAPACITY);
-            let cancellation = CancellationToken::new();
-            let worker_id = self.next_worker_id;
-            self.next_worker_id = self.next_worker_id.wrapping_add(1);
-            tokio::spawn(run_projection_fanout_worker(
-                manager,
-                outgoing,
-                thread_id,
-                worker_id,
-                cancellation.clone(),
-                rx,
-            ));
-            self.threads.insert(
-                thread_id,
-                ThreadFanoutHandle {
+        match self.threads.entry(thread_id) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let (tx, rx) = mpsc::channel(PROJECTION_FANOUT_QUEUE_CAPACITY);
+                let cancellation = CancellationToken::new();
+                let worker_id = self.next_worker_id;
+                self.next_worker_id = self.next_worker_id.wrapping_add(1);
+                tokio::spawn(run_projection_fanout_worker(
+                    manager,
+                    outgoing,
+                    thread_id,
+                    worker_id,
+                    cancellation.clone(),
+                    rx,
+                ));
+                entry.insert(ThreadFanoutHandle {
                     worker_id,
                     tx,
                     cancellation,
-                },
-            );
+                })
+            }
         }
-
-        self.threads
-            .get(&thread_id)
-            .expect("thread handle should exist after insertion")
     }
 }
 
@@ -326,12 +339,12 @@ mod tests {
     async fn wait_for_empty_thread_queue(manager: &ProjectionFanoutManager, thread_id: ThreadId) {
         timeout(Duration::from_secs(1), async {
             loop {
-                let inner = manager.inner.lock().await;
-                let is_empty = inner
-                    .threads
-                    .get(&thread_id)
-                    .is_some_and(|handle| handle.tx.capacity() == PROJECTION_FANOUT_QUEUE_CAPACITY);
-                drop(inner);
+                let is_empty = {
+                    let inner = manager.inner.lock().await;
+                    inner.threads.get(&thread_id).is_some_and(|handle| {
+                        handle.tx.capacity() == PROJECTION_FANOUT_QUEUE_CAPACITY
+                    })
+                };
                 if is_empty {
                     return;
                 }
