@@ -715,7 +715,6 @@ impl ThreadRequestProcessor {
             .thread_projection_manager()
             .remove_thread(thread_id)
             .await;
-        self.outgoing.cancel_projection_fanout(thread_id).await;
         self.thread_state_manager
             .remove_thread_state(thread_id)
             .await;
