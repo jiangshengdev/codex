@@ -486,4 +486,121 @@ mod tests {
             "old generation projection delivery should not enqueue after invalidation"
         );
     }
+
+    #[tokio::test]
+    async fn stale_projection_delivery_waiting_for_capacity_is_dropped() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(7);
+        let generation = manager.capture_current_generation(thread_id).await;
+        let attach = manager
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = attach else {
+            panic!("current generation should attach");
+        };
+        let delivery = manager
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await
+            .pop()
+            .expect("projection subscriber should receive delivery");
+
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(capacity_holder())
+            .await
+            .expect("capacity holder should enqueue");
+
+        let send_task = tokio::spawn({
+            let manager = manager.clone();
+            let cancellation = CancellationToken::new();
+            async move {
+                send_projection_delivery_if_current_or_cancelled(
+                    &manager,
+                    tx,
+                    thread_id,
+                    delivery,
+                    &cancellation,
+                )
+                .await;
+            }
+        });
+        tokio::task::yield_now().await;
+
+        manager.remove_thread(thread_id).await;
+        let _capacity_holder = rx.recv().await.expect("capacity holder should exist");
+
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect("send task should finish")
+            .expect("send task should not panic");
+        match timeout(Duration::from_millis(50), rx.recv()).await {
+            Err(_) | Ok(None) => {}
+            Ok(Some(_)) => panic!("stale projection delivery should not enqueue"),
+        }
+    }
+
+    #[tokio::test]
+    async fn current_projection_delivery_enqueues_after_capacity_is_available() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(7);
+        let generation = manager.capture_current_generation(thread_id).await;
+        let attach = manager
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = attach else {
+            panic!("current generation should attach");
+        };
+        let delivery = manager
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await
+            .pop()
+            .expect("projection subscriber should receive delivery");
+
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(capacity_holder())
+            .await
+            .expect("capacity holder should enqueue");
+
+        let send_task = tokio::spawn({
+            let manager = manager.clone();
+            let cancellation = CancellationToken::new();
+            async move {
+                send_projection_delivery_if_current_or_cancelled(
+                    &manager,
+                    tx,
+                    thread_id,
+                    delivery,
+                    &cancellation,
+                )
+                .await;
+            }
+        });
+        tokio::task::yield_now().await;
+
+        let _capacity_holder = rx.recv().await.expect("capacity holder should exist");
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect("send task should finish")
+            .expect("send task should not panic");
+
+        let envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("projection delivery should enqueue")
+            .expect("channel should remain open");
+        let OutgoingEnvelope::ToConnection {
+            connection_id: delivered_connection_id,
+            message,
+            write_complete_tx,
+        } = envelope
+        else {
+            panic!("expected targeted projection delivery");
+        };
+        assert_eq!(delivered_connection_id, connection_id);
+        assert!(write_complete_tx.is_none());
+        assert!(matches!(
+            message,
+            OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_))
+        ));
+    }
 }
