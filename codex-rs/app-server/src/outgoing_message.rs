@@ -181,27 +181,20 @@ impl ThreadScopedOutgoingMessageSender {
         self.outgoing
             .analytics_events_client
             .track_notification(notification.clone());
-        let deliveries = if let Some(cursor) = self.projection_history_cursor {
+        if !self.connection_ids.is_empty() {
             self.outgoing
-                .thread_projection_manager()
-                .project_notification_at_cursor(self.thread_id, &notification, cursor)
-                .await
-        } else {
-            self.outgoing
-                .thread_projection_manager()
-                .project_notification(self.thread_id, &notification)
-                .await
-        };
-        for delivery in deliveries {
-            self.outgoing
-                .send_projection_delivery_if_current(self.thread_id, delivery)
+                .send_server_notification_to_connections(
+                    self.connection_ids.as_slice(),
+                    notification.clone(),
+                )
                 .await;
         }
-        if self.connection_ids.is_empty() {
-            return;
-        }
         self.outgoing
-            .send_server_notification_to_connections(self.connection_ids.as_slice(), notification)
+            .send_thread_projection_notification(
+                self.thread_id,
+                &notification,
+                self.projection_history_cursor,
+            )
             .await;
     }
 
@@ -630,6 +623,28 @@ impl OutgoingMessageSender {
             {
                 warn!("failed to send server notification to client: {err:?}");
             }
+        }
+    }
+
+    async fn send_thread_projection_notification(
+        &self,
+        thread_id: ThreadId,
+        notification: &ServerNotification,
+        projection_history_cursor: Option<ProjectionHistoryCursor>,
+    ) {
+        let deliveries = if let Some(cursor) = projection_history_cursor {
+            self.thread_projection_manager()
+                .project_notification_at_cursor(thread_id, notification, cursor)
+                .await
+        } else {
+            self.thread_projection_manager()
+                .project_notification(thread_id, notification)
+                .await
+        };
+
+        for delivery in deliveries {
+            self.send_projection_delivery_if_current(thread_id, delivery)
+                .await;
         }
     }
 
@@ -1330,6 +1345,78 @@ mod tests {
             message,
             ..
         } = envelope
+        else {
+            panic!("expected targeted projection notification envelope");
+        };
+        assert_eq!(projection_connection_id, connection_id);
+        let OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
+            notification,
+        )) = message
+        else {
+            panic!("expected thread projection event notification");
+        };
+        assert_eq!(thread_id.to_string(), notification.thread_id);
+        assert_eq!(attach.subscription_id, notification.subscription_id);
+        assert!(matches!(
+            notification.event,
+            ThreadProjectionEvent::TurnStarted { .. }
+        ));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn thread_scoped_notification_sends_ordinary_before_projection() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(4);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_id = ThreadId::new();
+        let ordinary_connection_id = ConnectionId(1);
+        let projection_connection_id = ConnectionId(2);
+        let attach = outgoing
+            .thread_projection_manager()
+            .attach(thread_id, projection_connection_id)
+            .await;
+        let thread_outgoing = ThreadScopedOutgoingMessageSender::new(
+            outgoing,
+            vec![ordinary_connection_id],
+            thread_id,
+        );
+
+        thread_outgoing
+            .send_server_notification(turn_started_notification(thread_id, "turn-1"))
+            .await;
+
+        let ordinary_envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("ordinary envelope should arrive before timeout")
+            .expect("channel should contain ordinary envelope");
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message,
+            ..
+        } = ordinary_envelope
+        else {
+            panic!("expected targeted ordinary notification envelope");
+        };
+        assert_eq!(ordinary_connection_id, connection_id);
+        let OutgoingMessage::AppServerNotification(ServerNotification::TurnStarted(notification)) =
+            message
+        else {
+            panic!("expected ordinary turn started notification");
+        };
+        assert_eq!(thread_id.to_string(), notification.thread_id);
+
+        let projection_envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("projection envelope should arrive before timeout")
+            .expect("channel should contain projection envelope");
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message,
+            ..
+        } = projection_envelope
         else {
             panic!("expected targeted projection notification envelope");
         };
