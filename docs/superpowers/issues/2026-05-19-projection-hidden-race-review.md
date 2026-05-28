@@ -2,7 +2,7 @@
 
 ## 状态
 
-更新日期：2026-05-25。
+更新日期：2026-05-28。
 
 - Finding 1：已修复。`c810a3dc7 feat(app-server): cut projection snapshots at history cursor`
   通过 listener 侧 projection history cursor 捕获 snapshot cut，使
@@ -11,8 +11,12 @@
   回退了共享 preview helper 的语义扩张，避免影响上游 read 路径。后续
   `6af70d99f Refactor app-server projection runtime test harness` 只重构 runtime 测试样板，
   不改变修复状态。
-- Finding 2：仍开放。本轮 snapshot/head cut 修复未处理 projection fanout 对普通
-  thread notification delivery 的 backpressure 隔离问题。
+- Finding 2：已修复。`8ea5570b1 fix(app-server): route projection hook through fanout`
+  将 projection hook 接到 projection-owned fanout facade；
+  `d31209dd3 fix(app-server): centralize projection cleanup` 将 thread teardown 的
+  projection cleanup 收口到同一 facade；
+  `3cf943e88 test(app-server): cover projection fanout backpressure` 覆盖普通
+  thread notification 不再等待 projection delivery shared outgoing capacity 的回归。
 
 ## 背景
 
@@ -84,8 +88,12 @@ PM commit”的 attach response。
 
 严重程度：Important。
 
-状态：仍开放。`c810a3dc7` 只修复 snapshot/head cut mismatch，没有隔离 projection fanout
-backpressure。
+状态：已修复。`8ea5570b1 fix(app-server): route projection hook through fanout`
+将 projection delivery materialization 和发送移入 per-thread bounded fanout queue；
+`d31209dd3 fix(app-server): centralize projection cleanup` 通过 facade 统一取消 fanout
+worker 和清理 projection state；`3cf943e88 test(app-server): cover projection fanout backpressure`
+验证 shared outgoing capacity 被 projection delivery 占满时，普通 thread notification 仍先完成发送且
+`send_server_notification(...)` 不等待 projection delivery 入队。
 
 当前分支引入的具体改动：`ThreadScopedOutgoingMessageSender::send_server_notification()`
 在发送原始 thread notification 之前，先调用
@@ -110,5 +118,7 @@ ordinary thread subscribers 的隔离队列与 backpressure 策略。
 ## 风险判断
 
 第一个问题已通过 projection snapshot cut 修复，当前继续保留本节作为历史背景和回归风险说明。
-第二个问题仍是 backpressure 隔离问题：低速 projection client 会放大普通 turn/item 事件延迟，
-尤其在多 projection 订阅或 websocket consumer 积压时更明显。
+第二个问题已通过 projection-owned per-thread fanout queue 修复：普通 turn/item notification
+仍可能和 projection delivery 共享最终 outgoing channel capacity，但 listener / ordinary
+notification path 不再等待 projection delivery 完成入队；projection queue full 时会 invalidate
+该 thread 的 projection stream，而不是无声丢弃 commit chain 中间事件。
