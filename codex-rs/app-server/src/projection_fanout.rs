@@ -71,10 +71,20 @@ struct ProjectionFanoutManager {
     manager: ThreadProjectionManager,
 }
 
-#[derive(Default)]
 struct ProjectionFanoutManagerInner {
     threads: HashMap<ThreadId, ThreadFanoutHandle>,
     next_worker_id: u64,
+    capacity: usize,
+}
+
+impl Default for ProjectionFanoutManagerInner {
+    fn default() -> Self {
+        Self {
+            threads: HashMap::new(),
+            next_worker_id: 0,
+            capacity: PROJECTION_FANOUT_QUEUE_CAPACITY,
+        }
+    }
 }
 
 struct ThreadFanoutHandle {
@@ -92,6 +102,17 @@ impl ProjectionFanoutManager {
     fn new(manager: ThreadProjectionManager) -> Self {
         Self {
             inner: Arc::new(Mutex::new(ProjectionFanoutManagerInner::default())),
+            manager,
+        }
+    }
+
+    #[cfg(test)]
+    fn new_with_capacity(manager: ThreadProjectionManager, capacity: usize) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(ProjectionFanoutManagerInner {
+                capacity,
+                ..ProjectionFanoutManagerInner::default()
+            })),
             manager,
         }
     }
@@ -138,7 +159,8 @@ impl ProjectionFanoutManager {
 
         let worker_id = inner.next_worker_id;
         inner.next_worker_id = inner.next_worker_id.wrapping_add(1);
-        let (tx, rx) = mpsc::channel(PROJECTION_FANOUT_QUEUE_CAPACITY);
+        let capacity = inner.capacity;
+        let (tx, rx) = mpsc::channel(capacity);
         let cancellation = CancellationToken::new();
         let handle = ThreadFanoutHandle {
             tx,
@@ -244,4 +266,224 @@ async fn send_projection_delivery_if_current_or_cancelled(
             });
         })
         .await;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use codex_app_server_protocol::ConfigWarningNotification;
+    use codex_app_server_protocol::ThreadProjectionEvent;
+    use codex_app_server_protocol::Turn;
+    use codex_app_server_protocol::TurnItemsView;
+    use codex_app_server_protocol::TurnStartedNotification;
+    use codex_app_server_protocol::TurnStatus;
+    use pretty_assertions::assert_eq;
+    use tokio::time::timeout;
+
+    use crate::outgoing_message::ConnectionId;
+    use crate::thread_projection::ProjectionAttachAttempt;
+
+    use super::*;
+
+    fn turn_started_notification(thread_id: ThreadId, turn_id: &str) -> ServerNotification {
+        ServerNotification::TurnStarted(TurnStartedNotification {
+            thread_id: thread_id.to_string(),
+            turn: Turn {
+                id: turn_id.to_string(),
+                items: Vec::new(),
+                items_view: TurnItemsView::Full,
+                status: TurnStatus::InProgress,
+                error: None,
+                started_at: Some(1),
+                completed_at: None,
+                duration_ms: None,
+            },
+        })
+    }
+
+    fn capacity_holder() -> OutgoingEnvelope {
+        OutgoingEnvelope::Broadcast {
+            message: OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
+                ConfigWarningNotification {
+                    summary: "hold capacity".to_string(),
+                    details: None,
+                    path: None,
+                    range: None,
+                },
+            )),
+        }
+    }
+
+    async fn attach_projection(
+        facade: &ThreadProjectionFacade,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) {
+        let generation = facade.manager.capture_current_generation(thread_id).await;
+        let attach = facade
+            .manager
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = attach else {
+            panic!("current generation should attach");
+        };
+    }
+
+    #[tokio::test]
+    async fn enqueue_notification_returns_before_worker_has_outgoing_capacity() {
+        let facade = ThreadProjectionFacade::new();
+        let thread_id = ThreadId::new();
+        attach_projection(&facade, thread_id, ConnectionId(7)).await;
+
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(capacity_holder())
+            .await
+            .expect("capacity holder should enqueue");
+
+        timeout(
+            Duration::from_secs(1),
+            facade.enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-1"),
+                None,
+            ),
+        )
+        .await
+        .expect("enqueue should not wait for outgoing capacity");
+
+        let _capacity_holder = rx.recv().await.expect("capacity holder should be present");
+        let envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("worker should send after capacity is released")
+            .expect("projection envelope should exist");
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message,
+            ..
+        } = envelope
+        else {
+            panic!("expected targeted projection envelope");
+        };
+        assert_eq!(ConnectionId(7), connection_id);
+        assert!(matches!(
+            message,
+            OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn fanout_worker_preserves_thread_job_order() {
+        let facade = ThreadProjectionFacade::new();
+        let thread_id = ThreadId::new();
+        attach_projection(&facade, thread_id, ConnectionId(3)).await;
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(8);
+
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-1"),
+                None,
+            )
+            .await;
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-2"),
+                None,
+            )
+            .await;
+
+        let first = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("first projection envelope should arrive")
+            .expect("first projection envelope should exist");
+        let second = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("second projection envelope should arrive")
+            .expect("second projection envelope should exist");
+
+        let OutgoingEnvelope::ToConnection {
+            message:
+                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
+                    first_notification,
+                )),
+            ..
+        } = first
+        else {
+            panic!("expected first projection event");
+        };
+        let OutgoingEnvelope::ToConnection {
+            message:
+                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
+                    second_notification,
+                )),
+            ..
+        } = second
+        else {
+            panic!("expected second projection event");
+        };
+
+        assert!(matches!(
+            first_notification.event,
+            ThreadProjectionEvent::TurnStarted { .. }
+        ));
+        assert_eq!(
+            first_notification.commit_id,
+            second_notification
+                .parent_commit_id
+                .expect("second event should link to first")
+        );
+    }
+
+    #[tokio::test]
+    async fn queue_full_invalidates_generation_and_drops_current_job() {
+        let manager = ThreadProjectionManager::new();
+        let fanout = ProjectionFanoutManager::new_with_capacity(manager.clone(), 1);
+        let facade = ThreadProjectionFacade {
+            manager: manager.clone(),
+            fanout,
+        };
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(9);
+        attach_projection(&facade, thread_id, connection_id).await;
+        let generation = manager.capture_current_generation(thread_id).await;
+
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(capacity_holder())
+            .await
+            .expect("capacity holder should enqueue");
+
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-1"),
+                None,
+            )
+            .await;
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-2"),
+                None,
+            )
+            .await;
+
+        assert!(!manager.generation_matches(thread_id, generation).await);
+        assert_eq!(
+            Vec::<ThreadId>::new(),
+            manager.remove_connection(connection_id).await
+        );
+
+        let _capacity_holder = rx.recv().await.expect("capacity holder should exist");
+        assert!(
+            timeout(Duration::from_millis(50), rx.recv()).await.is_err(),
+            "old generation projection delivery should not enqueue after invalidation"
+        );
+    }
 }
