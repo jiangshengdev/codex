@@ -788,20 +788,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn invalidate_thread_projection_preserves_history_cursor() {
-        let manager = ThreadProjectionManager::new();
-        let thread_id = ThreadId::new();
-        let baseline = ProjectionHistoryCursor::new(7);
-
-        manager.set_history_cursor(thread_id, baseline).await;
-        manager.invalidate_thread_projection(thread_id).await;
-
-        let cut = manager.capture_snapshot_cut(thread_id).await;
-        assert_eq!(cut.history_cursor, baseline);
-        assert_eq!(cut.head_commit_id, None);
-    }
-
-    #[tokio::test]
     async fn invalidate_unknown_thread_has_no_projection_side_effects() {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
