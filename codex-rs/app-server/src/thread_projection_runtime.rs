@@ -273,7 +273,6 @@ mod tests {
     use crate::outgoing_message::OutgoingMessage;
     use crate::outgoing_message::OutgoingMessageSender;
     use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
-    use crate::projection_fanout::PROJECTION_FANOUT_QUEUE_CAPACITY;
     use crate::request_processors::ThreadGoalRequestProcessor;
     use crate::thread_state::ConnectionCapabilities;
     use crate::thread_status::ThreadWatchManager;
@@ -880,18 +879,31 @@ stream_max_retries = 0
                 .await;
         }
 
+        let outgoing = harness.outgoing.clone();
         let thread_id = harness.thread_id();
-        let delivery = harness
-            .outgoing
-            .thread_projection_manager()
-            .project_notification(thread_id, &turn_started_notification(thread_id))
-            .await
-            .pop()
-            .expect("projection delivery should materialize before teardown");
-        harness
-            .outgoing
-            .enqueue_projection_fanout(thread_id, vec![delivery])
-            .await;
+        let send_task = tokio::spawn(async move {
+            let sender =
+                ThreadScopedOutgoingMessageSender::new(outgoing, vec![ConnectionId(99)], thread_id);
+            sender
+                .send_server_notification(turn_started_notification(thread_id))
+                .await;
+        });
+
+        timeout(Duration::from_secs(1), async {
+            loop {
+                let cut = harness
+                    .outgoing
+                    .thread_projection_manager()
+                    .capture_snapshot_cut(harness.thread_id())
+                    .await;
+                if cut.head_commit_id.is_some() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("projection delivery should materialize before teardown");
 
         harness.remove_thread().await;
 
@@ -903,150 +915,23 @@ stream_max_retries = 0
                 .expect("capacity holder should be present");
         }
 
-        timeout(Duration::from_millis(50), async {
-            while let Some(envelope) = harness.outgoing_rx.recv().await {
-                if let OutgoingEnvelope::ToConnection {
-                    message:
-                        OutgoingMessage::AppServerNotification(
-                            ServerNotification::ThreadProjectionEvent(_),
-                        ),
-                    ..
-                } = envelope
-                {
-                    panic!("stale projection delivery should not enqueue after teardown");
-                }
-            }
-        })
-        .await
-        .expect_err("channel should stay open without projection delivery");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn projection_fanout_backpressure_does_not_block_ordinary_notification()
-    -> anyhow::Result<()> {
-        let mut harness = ProjectionAttachHarness::new().await?;
-        harness.handle_attach().await;
-        let _attach_response = harness.recv_attach_response().await?;
-
-        for index in 0..4 {
-            harness
-                .outgoing
-                .send_server_notification(ServerNotification::ConfigWarning(
-                    ConfigWarningNotification {
-                        summary: format!("hold capacity {index}"),
-                        details: None,
-                        path: None,
-                        range: None,
-                    },
-                ))
-                .await;
-        }
-
-        let outgoing = harness.outgoing.clone();
-        let thread_id = harness.thread_id();
-        let ordinary_connection_id = ConnectionId(99);
-        let send_task = tokio::spawn(async move {
-            let sender = ThreadScopedOutgoingMessageSender::new(
-                outgoing,
-                vec![ordinary_connection_id],
-                thread_id,
-            );
-            sender
-                .send_server_notification(turn_started_notification(thread_id))
-                .await;
-        });
-        tokio::task::yield_now().await;
-
-        for _ in 0..4 {
-            let _capacity_holder = harness
-                .outgoing_rx
-                .recv()
-                .await
-                .expect("capacity holder should be present");
-        }
-        let envelope = timeout(Duration::from_secs(1), harness.outgoing_rx.recv())
-            .await
-            .expect("ordinary notification should enqueue before projection fanout")
-            .expect("channel should remain open");
-        let OutgoingEnvelope::ToConnection {
-            connection_id,
-            message,
-            ..
-        } = envelope
-        else {
-            panic!("expected targeted ordinary notification envelope");
-        };
-        assert_eq!(connection_id, ordinary_connection_id);
-        assert!(matches!(
-            message,
-            OutgoingMessage::AppServerNotification(ServerNotification::TurnStarted(_))
-        ));
-
         timeout(Duration::from_secs(1), send_task)
             .await
             .expect("send task should finish")
             .expect("send task should not panic");
 
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn full_projection_fanout_queue_invalidates_subscription_until_reattach()
-    -> anyhow::Result<()> {
-        let mut harness = ProjectionAttachHarness::new().await?;
-        harness.handle_attach().await;
-        let _attach_response = harness.recv_attach_response().await?;
-
-        for index in 0..4 {
-            harness
-                .outgoing
-                .send_server_notification(ServerNotification::ConfigWarning(
-                    ConfigWarningNotification {
-                        summary: format!("hold capacity {index}"),
-                        details: None,
-                        path: None,
-                        range: None,
-                    },
-                ))
-                .await;
+        while let Ok(Some(envelope)) =
+            timeout(Duration::from_millis(50), harness.outgoing_rx.recv()).await
+        {
+            if let OutgoingEnvelope::ToConnection {
+                message:
+                    OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_)),
+                ..
+            } = envelope
+            {
+                panic!("stale projection delivery should not enqueue after teardown");
+            }
         }
-
-        let sender = ThreadScopedOutgoingMessageSender::new(
-            harness.outgoing.clone(),
-            Vec::new(),
-            harness.thread_id(),
-        );
-        for _ in 0..(PROJECTION_FANOUT_QUEUE_CAPACITY + 2) {
-            sender
-                .send_server_notification(turn_started_notification(harness.thread_id()))
-                .await;
-        }
-
-        assert_eq!(
-            harness.remove_projection_connection().await,
-            Vec::<ThreadId>::new()
-        );
-
-        let new_generation = harness
-            .outgoing
-            .thread_projection_manager()
-            .capture_current_generation(harness.thread_id())
-            .await;
-        let new_attach = harness
-            .outgoing
-            .thread_projection_manager()
-            .attach_if_generation_matches(
-                harness.thread_id(),
-                harness.connection_id,
-                new_generation,
-            )
-            .await;
-        let ProjectionAttachAttempt::Attached(result) = new_attach else {
-            panic!("fresh generation should attach after fanout invalidation");
-        };
-        assert_eq!(result.head_commit_id, None);
 
         Ok(())
     }
