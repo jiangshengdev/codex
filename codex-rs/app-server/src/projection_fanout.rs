@@ -488,6 +488,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn remove_thread_cancels_worker_and_invalidates_projection_state() {
+        let facade = ThreadProjectionFacade::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(5);
+        attach_projection(&facade, thread_id, connection_id).await;
+        let generation = facade.manager.capture_current_generation(thread_id).await;
+
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(capacity_holder())
+            .await
+            .expect("capacity holder should enqueue");
+
+        facade
+            .enqueue_notification(
+                tx,
+                thread_id,
+                &turn_started_notification(thread_id, "turn-1"),
+                None,
+            )
+            .await;
+        facade.remove_thread(thread_id).await;
+
+        assert!(
+            !facade
+                .manager
+                .generation_matches(thread_id, generation)
+                .await
+        );
+        assert_eq!(
+            Vec::<ThreadId>::new(),
+            facade.manager.remove_connection(connection_id).await
+        );
+
+        let _capacity_holder = rx.recv().await.expect("capacity holder should exist");
+        match timeout(Duration::from_millis(50), rx.recv()).await {
+            Err(_) | Ok(None) => {}
+            Ok(Some(_)) => {
+                panic!("worker should be cancelled before sending blocked projection delivery")
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn stale_projection_delivery_waiting_for_capacity_is_dropped() {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
