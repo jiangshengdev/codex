@@ -180,6 +180,11 @@ impl ThreadProjectionManager {
         }
     }
 
+    pub(crate) async fn invalidate_thread_projection(&self, thread_id: ThreadId) {
+        let mut inner = self.inner.lock().await;
+        inner.invalidate_thread_projection(thread_id);
+    }
+
     pub(crate) async fn project_notification(
         &self,
         thread_id: ThreadId,
@@ -352,6 +357,28 @@ impl ThreadProjectionManagerInner {
             .unwrap_or_else(ProjectionGeneration::initial)
             .next();
         self.thread_generations.insert(thread_id, next_generation);
+    }
+
+    fn invalidate_thread_projection(&mut self, thread_id: ThreadId) {
+        if !self.thread_generations.contains_key(&thread_id)
+            && !self.threads.contains_key(&thread_id)
+        {
+            return;
+        }
+
+        self.bump_generation_if_known(thread_id);
+        let Some(entry) = self.threads.get_mut(&thread_id) else {
+            return;
+        };
+
+        let connection_ids = entry.subscribers.keys().copied().collect::<Vec<_>>();
+        entry.head_commit_id = None;
+        entry.subscribers.clear();
+        let _ = entry.has_subscribers_tx.send(false);
+
+        for connection_id in connection_ids {
+            self.remove_connection_thread_index(connection_id, thread_id);
+        }
     }
 
     fn attach_locked(
@@ -680,6 +707,95 @@ mod tests {
             manager.remove_connection(connection_id).await,
             Vec::<ThreadId>::new()
         );
+    }
+
+    #[tokio::test]
+    async fn invalidate_thread_projection_clears_subscribers_head_and_generation() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let first_connection_id = ConnectionId(1);
+        let second_connection_id = ConnectionId(2);
+        let generation = manager.capture_current_generation(thread_id).await;
+
+        let first_attach = manager
+            .attach_if_generation_matches(thread_id, first_connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = first_attach else {
+            panic!("current generation should attach");
+        };
+        let second_attach = manager
+            .attach_if_generation_matches(thread_id, second_connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = second_attach else {
+            panic!("current generation should attach");
+        };
+
+        let deliveries = manager
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await;
+        assert_eq!(2, deliveries.len());
+
+        manager.invalidate_thread_projection(thread_id).await;
+
+        assert!(
+            !manager
+                .generation_matches(thread_id, deliveries[0].generation)
+                .await
+        );
+        assert_eq!(
+            Vec::<ThreadId>::new(),
+            manager.remove_connection(first_connection_id).await
+        );
+        assert_eq!(
+            Vec::<ThreadId>::new(),
+            manager.remove_connection(second_connection_id).await
+        );
+
+        let new_generation = manager.capture_current_generation(thread_id).await;
+        let new_attach = manager
+            .attach_if_generation_matches(thread_id, first_connection_id, new_generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(result) = new_attach else {
+            panic!("new generation should attach after invalidation");
+        };
+        assert_eq!(None, result.head_commit_id);
+    }
+
+    #[tokio::test]
+    async fn invalidate_thread_projection_preserves_has_subscribers_watcher() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        let mut has_subscribers = manager.subscribe_to_has_subscribers(thread_id).await;
+        let generation = manager.capture_current_generation(thread_id).await;
+
+        let attach = manager
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(_) = attach else {
+            panic!("current generation should attach");
+        };
+        has_subscribers.changed().await.expect("watch open");
+        assert!(*has_subscribers.borrow());
+
+        manager.invalidate_thread_projection(thread_id).await;
+
+        has_subscribers
+            .changed()
+            .await
+            .expect("watch should stay open");
+        assert!(!*has_subscribers.borrow());
+    }
+
+    #[tokio::test]
+    async fn invalidate_unknown_thread_has_no_projection_side_effects() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+
+        manager.invalidate_thread_projection(thread_id).await;
+
+        assert!(!manager.has_thread_entry(thread_id).await);
+        assert!(!manager.has_thread_generation(thread_id).await);
     }
 
     #[tokio::test]
