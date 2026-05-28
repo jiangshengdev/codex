@@ -578,8 +578,7 @@ stream_max_retries = 0
 
         async fn remove_thread(&self) {
             self.outgoing
-                .thread_projection_manager()
-                .remove_thread(self.thread_id())
+                .remove_thread_projection(self.thread_id())
                 .await;
         }
 
@@ -882,8 +881,7 @@ stream_max_retries = 0
         let outgoing = harness.outgoing.clone();
         let thread_id = harness.thread_id();
         let send_task = tokio::spawn(async move {
-            let sender =
-                ThreadScopedOutgoingMessageSender::new(outgoing, vec![ConnectionId(99)], thread_id);
+            let sender = ThreadScopedOutgoingMessageSender::new(outgoing, Vec::new(), thread_id);
             sender
                 .send_server_notification(turn_started_notification(thread_id))
                 .await;
