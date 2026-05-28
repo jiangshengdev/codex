@@ -1406,6 +1406,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn thread_projection_fanout_backpressure_does_not_block_ordinary_notification() {
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        let outgoing = Arc::new(OutgoingMessageSender::new(
+            tx,
+            codex_analytics::AnalyticsEventsClient::disabled(),
+        ));
+        let thread_id = ThreadId::new();
+        let ordinary_connection_id = ConnectionId(1);
+        let projection_connection_id = ConnectionId(2);
+        let attach = outgoing
+            .thread_projection_manager()
+            .attach(thread_id, projection_connection_id)
+            .await;
+        let thread_outgoing = ThreadScopedOutgoingMessageSender::new(
+            outgoing,
+            vec![ordinary_connection_id],
+            thread_id,
+        );
+
+        let send_task = tokio::spawn(async move {
+            thread_outgoing
+                .send_server_notification(turn_started_notification(thread_id, "turn-1"))
+                .await;
+        });
+
+        let ordinary_envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("ordinary notification should not wait for blocked projection delivery")
+            .expect("ordinary envelope should exist");
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message,
+            ..
+        } = ordinary_envelope
+        else {
+            panic!("expected targeted ordinary notification envelope");
+        };
+        assert_eq!(ordinary_connection_id, connection_id);
+        let OutgoingMessage::AppServerNotification(ServerNotification::TurnStarted(notification)) =
+            message
+        else {
+            panic!("expected ordinary turn started notification");
+        };
+        assert_eq!(thread_id.to_string(), notification.thread_id);
+
+        timeout(Duration::from_secs(1), send_task)
+            .await
+            .expect(
+                "send_server_notification should return without waiting for projection delivery",
+            )
+            .expect("send task should not panic");
+
+        let projection_envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("projection envelope should arrive after ordinary capacity is released")
+            .expect("projection envelope should exist");
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message,
+            ..
+        } = projection_envelope
+        else {
+            panic!("expected targeted projection notification envelope");
+        };
+        assert_eq!(projection_connection_id, connection_id);
+        let OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
+            notification,
+        )) = message
+        else {
+            panic!("expected thread projection event notification");
+        };
+        assert_eq!(thread_id.to_string(), notification.thread_id);
+        assert_eq!(attach.subscription_id, notification.subscription_id);
+        assert!(matches!(
+            notification.event,
+            ThreadProjectionEvent::TurnStarted { .. }
+        ));
+    }
+
+    #[tokio::test]
     async fn pending_requests_for_thread_returns_thread_requests_in_request_id_order() {
         let (tx, _rx) = mpsc::channel::<OutgoingEnvelope>(8);
         let outgoing = Arc::new(OutgoingMessageSender::new(
