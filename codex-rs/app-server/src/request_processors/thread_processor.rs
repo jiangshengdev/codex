@@ -711,10 +711,7 @@ impl ThreadRequestProcessor {
         self.outgoing
             .cancel_requests_for_thread(thread_id, /*error*/ None)
             .await;
-        self.outgoing
-            .thread_projection_manager()
-            .remove_thread(thread_id)
-            .await;
+        self.outgoing.remove_thread_projection(thread_id).await;
         self.thread_state_manager
             .remove_thread_state(thread_id)
             .await;

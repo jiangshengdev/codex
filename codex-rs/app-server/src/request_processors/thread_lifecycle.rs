@@ -486,10 +486,7 @@ pub(super) async fn unload_thread_without_subscribers(
     outgoing
         .cancel_requests_for_thread(thread_id, /*error*/ None)
         .await;
-    outgoing
-        .thread_projection_manager()
-        .remove_thread(thread_id)
-        .await;
+    outgoing.remove_thread_projection(thread_id).await;
     thread_state_manager.remove_thread_state(thread_id).await;
 
     tokio::spawn(async move {
