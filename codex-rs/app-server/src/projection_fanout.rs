@@ -347,7 +347,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                None,
+                /*projection_history_cursor*/ None,
             ),
         )
         .await
@@ -385,7 +385,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                None,
+                /*projection_history_cursor*/ None,
             )
             .await;
         facade
@@ -393,7 +393,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                None,
+                /*projection_history_cursor*/ None,
             )
             .await;
 
@@ -442,7 +442,8 @@ mod tests {
     #[tokio::test]
     async fn queue_full_invalidates_generation_and_drops_current_job() {
         let manager = ThreadProjectionManager::new();
-        let fanout = ProjectionFanoutManager::new_with_capacity(manager.clone(), 1);
+        let fanout =
+            ProjectionFanoutManager::new_with_capacity(manager.clone(), /*capacity*/ 1);
         let facade = ThreadProjectionFacade {
             manager: manager.clone(),
             fanout,
@@ -462,7 +463,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                None,
+                /*projection_history_cursor*/ None,
             )
             .await;
         facade
@@ -470,7 +471,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                None,
+                /*projection_history_cursor*/ None,
             )
             .await;
 
@@ -505,7 +506,7 @@ mod tests {
                 tx,
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                None,
+                /*projection_history_cursor*/ None,
             )
             .await;
         facade.remove_thread(thread_id).await;
