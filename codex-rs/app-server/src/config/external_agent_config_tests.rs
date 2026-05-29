@@ -2182,24 +2182,6 @@ async fn detect_home_infers_external_official_marketplace_when_missing_from_sett
     );
 }
 
-#[test]
-fn external_official_marketplace_source_uses_env_override() {
-    assert_eq!(
-        external_official_marketplace_source_from_env(/*raw_source*/ Some(
-            " https://mirror.example/claude-plugins-official ".to_string()
-        )),
-        "https://mirror.example/claude-plugins-official"
-    );
-    assert_eq!(
-        external_official_marketplace_source_from_env(/*raw_source*/ Some("   ".to_string())),
-        EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE
-    );
-    assert_eq!(
-        external_official_marketplace_source_from_env(/*raw_source*/ None),
-        EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE
-    );
-}
-
 #[tokio::test]
 async fn import_plugins_supports_relative_external_agent_plugin_marketplace_path() {
     let (_root, external_agent_home, codex_home) = fixture_paths();

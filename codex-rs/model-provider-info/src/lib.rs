@@ -34,9 +34,6 @@ const MAX_REQUEST_MAX_RETRIES: u64 = 100;
 
 const OPENAI_PROVIDER_NAME: &str = "OpenAI";
 pub const OPENAI_PROVIDER_ID: &str = "openai";
-const CODEX_OPENAI_BASE_URL_ENV_VAR: &str = "CODEX_OPENAI_BASE_URL";
-const CODEX_CHATGPT_BASE_URL_ENV_VAR: &str = "CODEX_CHATGPT_BASE_URL";
-const DEFAULT_OPENAI_API_BASE_URL: &str = "https://api.openai.com/v1";
 pub const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
 pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
@@ -237,10 +234,18 @@ impl ModelProviderInfo {
     }
 
     pub fn to_api_provider(&self, auth_mode: Option<AuthMode>) -> CodexResult<ApiProvider> {
+        let default_base_url = if matches!(
+            auth_mode,
+            Some(AuthMode::Chatgpt | AuthMode::ChatgptAuthTokens | AuthMode::AgentIdentity)
+        ) {
+            CHATGPT_CODEX_BASE_URL
+        } else {
+            "https://api.openai.com/v1"
+        };
         let base_url = self
             .base_url
             .clone()
-            .unwrap_or_else(|| default_base_url(auth_mode));
+            .unwrap_or_else(|| default_base_url.to_string());
 
         let headers = self.build_header_map()?;
         let retry = ApiRetryConfig {
@@ -392,36 +397,6 @@ impl ModelProviderInfo {
     pub fn has_command_auth(&self) -> bool {
         self.auth.is_some()
     }
-}
-
-fn default_base_url(auth_mode: Option<AuthMode>) -> String {
-    default_base_url_from_env(
-        auth_mode,
-        std::env::var(CODEX_CHATGPT_BASE_URL_ENV_VAR).ok(),
-        std::env::var(CODEX_OPENAI_BASE_URL_ENV_VAR).ok(),
-    )
-}
-
-fn default_base_url_from_env(
-    auth_mode: Option<AuthMode>,
-    raw_chatgpt_backend_base_url: Option<String>,
-    raw_openai_api_base_url: Option<String>,
-) -> String {
-    if matches!(
-        auth_mode,
-        Some(AuthMode::Chatgpt | AuthMode::ChatgptAuthTokens | AuthMode::AgentIdentity)
-    ) {
-        return raw_chatgpt_backend_base_url
-            .map(|raw_base_url| raw_base_url.trim().trim_end_matches('/').to_string())
-            .filter(|raw_base_url| !raw_base_url.is_empty())
-            .map(|raw_base_url| format!("{raw_base_url}/codex"))
-            .unwrap_or_else(|| CHATGPT_CODEX_BASE_URL.to_string());
-    }
-
-    raw_openai_api_base_url
-        .map(|raw_base_url| raw_base_url.trim().to_string())
-        .filter(|raw_base_url| !raw_base_url.is_empty())
-        .unwrap_or_else(|| DEFAULT_OPENAI_API_BASE_URL.to_string())
 }
 
 pub const DEFAULT_LMSTUDIO_PORT: u16 = 1234;

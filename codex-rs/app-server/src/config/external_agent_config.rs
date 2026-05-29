@@ -38,8 +38,6 @@ const EXTERNAL_AGENT_DIR: &str = ".claude";
 const EXTERNAL_AGENT_CONFIG_MD: &str = "CLAUDE.md";
 const EXTERNAL_OFFICIAL_MARKETPLACE_NAME: &str = "claude-plugins-official";
 const EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE: &str = "anthropics/claude-plugins-official";
-const EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE_ENV_VAR: &str =
-    "CODEX_EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ExternalAgentConfigDetectOptions {
@@ -1228,26 +1226,13 @@ fn collect_marketplace_import_sources(
         import_sources.insert(
             EXTERNAL_OFFICIAL_MARKETPLACE_NAME.to_string(),
             MarketplaceImportSource {
-                source: configured_external_official_marketplace_source(),
+                source: EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE.to_string(),
                 ref_name: None,
             },
         );
     }
 
     import_sources
-}
-
-fn configured_external_official_marketplace_source() -> String {
-    external_official_marketplace_source_from_env(
-        std::env::var(EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE_ENV_VAR).ok(),
-    )
-}
-
-fn external_official_marketplace_source_from_env(raw_source: Option<String>) -> String {
-    raw_source
-        .map(|raw_source| raw_source.trim().to_string())
-        .filter(|raw_source| !raw_source.is_empty())
-        .unwrap_or_else(|| EXTERNAL_OFFICIAL_MARKETPLACE_SOURCE.to_string())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
