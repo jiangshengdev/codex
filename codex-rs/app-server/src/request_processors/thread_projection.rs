@@ -421,6 +421,7 @@ mod tests {
                 "live-turn",
                 &EventMsg::TurnStarted(codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "live-turn".to_string(),
+                    trace_id: None,
                     started_at: None,
                     model_context_window: None,
                     collaboration_mode_kind: Default::default(),
@@ -521,6 +522,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-visible".to_string(),
+                    trace_id: None,
                     started_at: Some(1),
                     model_context_window: None,
                     collaboration_mode_kind: Default::default(),
@@ -529,6 +531,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: "turn-pending".to_string(),
+                    trace_id: None,
                     started_at: Some(2),
                     model_context_window: None,
                     collaboration_mode_kind: Default::default(),
@@ -670,6 +673,7 @@ mod tests {
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
                     turn_id: turn_id.to_string(),
+                    trace_id: None,
                     started_at: None,
                     model_context_window: None,
                     collaboration_mode_kind: Default::default(),
