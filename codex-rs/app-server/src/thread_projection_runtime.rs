@@ -447,6 +447,7 @@ stream_max_retries = 0
         RolloutItem::EventMsg(EventMsg::TurnStarted(
             codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-visible".to_string(),
+                trace_id: None,
                 started_at: Some(1),
                 model_context_window: None,
                 collaboration_mode_kind: Default::default(),
@@ -458,6 +459,7 @@ stream_max_retries = 0
         RolloutItem::EventMsg(EventMsg::TurnStarted(
             codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-pending".to_string(),
+                trace_id: None,
                 started_at: Some(2),
                 model_context_window: None,
                 collaboration_mode_kind: Default::default(),
