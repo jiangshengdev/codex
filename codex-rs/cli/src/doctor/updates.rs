@@ -21,6 +21,7 @@ use super::doctor_managed_by_npm;
 use super::npm_global_root_check;
 use super::run_command;
 
+const VERSION_CACHE_DIR: &str = "cdx";
 const VERSION_FILE_NAME: &str = "version.json";
 const GITHUB_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
 const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
@@ -40,7 +41,7 @@ pub(super) fn updates_check(config: &Config) -> DoctorCheck {
         ),
         format!("update action: {}", update_action_label(&install_context)),
     ];
-    let version_file = config.codex_home.join(VERSION_FILE_NAME);
+    let version_file = version_file_path(config.codex_home.as_path());
     push_cached_version_details(&mut details, &version_file);
 
     let mut status = CheckStatus::Ok;
@@ -105,6 +106,10 @@ pub(super) fn updates_check(config: &Config) -> DoctorCheck {
         check = check.remediation(remediation);
     }
     check
+}
+
+fn version_file_path(codex_home: &Path) -> std::path::PathBuf {
+    codex_home.join(VERSION_CACHE_DIR).join(VERSION_FILE_NAME)
 }
 
 fn push_cached_version_details(details: &mut Vec<String>, version_file: &Path) {
@@ -229,6 +234,16 @@ mod tests {
                 package_layout: None,
             }),
             "manual or unknown"
+        );
+    }
+
+    #[test]
+    fn version_file_path_uses_fork_cache_dir() {
+        assert_eq!(
+            version_file_path(Path::new("/home/user/.codex")),
+            Path::new("/home/user/.codex")
+                .join("cdx")
+                .join("version.json")
         );
     }
 }

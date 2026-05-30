@@ -60,6 +60,7 @@ struct VersionInfo {
     dismissed_version: Option<String>,
 }
 
+const VERSION_CACHE_DIR: &str = "cdx";
 const VERSION_FILENAME: &str = "version.json";
 // We use the latest version from the cask if installation is via homebrew - homebrew does not immediately pick up the latest release and can lag behind.
 const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
@@ -76,7 +77,11 @@ struct HomebrewCaskInfo {
 }
 
 fn version_filepath(config: &Config) -> PathBuf {
-    config.codex_home.join(VERSION_FILENAME).into_path_buf()
+    config
+        .codex_home
+        .join(VERSION_CACHE_DIR)
+        .join(VERSION_FILENAME)
+        .into_path_buf()
 }
 
 fn read_version_info(version_file: &Path) -> anyhow::Result<VersionInfo> {
