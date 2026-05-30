@@ -604,9 +604,6 @@ impl ChatWidget {
             StatusLineItem::ContextUsed => self
                 .status_line_context_used_percent()
                 .map(|used| format!("Context {used}% used")),
-            StatusLineItem::ContextUsedTokens => self
-                .status_line_context_used_tokens()
-                .map(|tokens| format!("{} ctx", format_tokens_compact(tokens))),
             StatusLineItem::FiveHourLimit => {
                 let (window, is_secondary) = self
                     .rate_limit_snapshots_by_limit_id
@@ -685,7 +682,6 @@ impl ChatWidget {
             StatusSurfacePreviewItem::ApprovalMode => StatusLineItem::ApprovalMode,
             StatusSurfacePreviewItem::ContextRemaining => StatusLineItem::ContextRemaining,
             StatusSurfacePreviewItem::ContextUsed => StatusLineItem::ContextUsed,
-            StatusSurfacePreviewItem::ContextUsedTokens => StatusLineItem::ContextUsedTokens,
             StatusSurfacePreviewItem::FiveHourLimit => StatusLineItem::FiveHourLimit,
             StatusSurfacePreviewItem::WeeklyLimit => StatusLineItem::WeeklyLimit,
             StatusSurfacePreviewItem::CodexVersion => StatusLineItem::CodexVersion,
