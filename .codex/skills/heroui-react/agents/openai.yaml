@@ -1,0 +1,4 @@
+interface:
+  display_name: "HeroUI React"
+  short_description: "Use HeroUI React v3 with offline local docs."
+  default_prompt: "Use HeroUI React v3 patterns and consult local repository docs before changing UI. Do not browse or fetch remote HeroUI docs."
