@@ -90,9 +90,10 @@
   中止事件)。`projection_fanout.rs:132`、`thread_projection.rs:362`。
 - `issues/2026-05-30-02-thread-generations-unbounded.md` — **P2 中高**:`thread_generations` map 永不回收
   (全仓库无 remove/clear/retain),常驻进程慢速内存泄漏。`thread_projection.rs:67`。
-- `issues/2026-05-30-03-doctor-update-url-points-upstream.md` — **P1 高**:`doctor/updates.rs:26` GitHub
-  releases URL 仍指 `openai/codex`(姊妹文件 `tui/updates.rs:67` 已改 fork),Npm/Bun/Standalone/Other
-  四种安装方式全走此 URL,fork 用户 `codex doctor` 拿上游版本错误比对。半改残留,已核实。
+- `issues/2026-05-30-03-doctor-update-url-points-upstream.md` — **P1 高 · ✅ 已修复(commit `ca68bf4e2`)**:
+  `doctor/updates.rs:26` GitHub releases URL 原指 `openai/codex`(姊妹文件 `tui/updates.rs:67` 已改 fork),
+  Npm/Bun/Standalone/Other 四种安装方式全走此 URL,fork 用户 `codex doctor` 拿上游版本错误比对。
+  已改为 `jiangshengdev/codex` 并复核。
 - `issues/2026-05-30-04-non-npm-update-channels-upstream.md` — **P2 中**:brew/standalone/homebrew-cask
   三条自更新通道仍指上游(`update_action.rs:43/48/57`、`updates.rs:66`),命中则更新覆盖成上游版。
   当前仅经 npm 分发,概率低。已核实。

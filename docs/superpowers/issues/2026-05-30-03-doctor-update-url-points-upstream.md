@@ -1,5 +1,9 @@
 # P1 · `codex doctor` 自更新检测仍指向上游 openai/codex,fork 用户拿错版本比对
 
+> **✅ 已修复(2026-05-30,commit `ca68bf4e2`)**:`GITHUB_LATEST_RELEASE_URL` 已改为
+> `jiangshengdev/codex`(`doctor/updates.rs:26-27`)。已 grep 复核工作区为该值,提交仅改此一行常量。
+> 注:同类残留的 [[2026-05-30-04-non-npm-update-channels-upstream]](P2,brew/standalone/cask 通道)**仍未修**。
+
 日期:2026-05-30
 范围:批次 6(Fork 发布/自更新)
 优先级:高(fork 半改残留,用户可见的错误版本判定)
