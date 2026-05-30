@@ -1,0 +1,4 @@
+packages:
+  - .
+
+recursiveInstall: false

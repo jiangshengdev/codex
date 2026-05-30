@@ -1,0 +1,22 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "subscriptionId": "projection-fixture-subscription",
+  "commitId": "commit-turn-started",
+  "parentCommitId": null,
+  "event": {
+    "type": "turnStarted",
+    "notification": {
+      "threadId": "00000000-0000-0000-0000-000000000001",
+      "turn": {
+        "id": "turn-in-progress",
+        "items": [],
+        "itemsView": "full",
+        "status": "inProgress",
+        "error": null,
+        "startedAt": 1700000010,
+        "completedAt": null,
+        "durationMs": null
+      }
+    }
+  }
+}
