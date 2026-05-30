@@ -1,0 +1,4 @@
+interface:
+  display_name: "Redux Toolkit"
+  short_description: "Use @reduxjs/toolkit with offline local docs."
+  default_prompt: "Use Redux Toolkit patterns and consult local repository docs before changing Redux code. Do not browse or fetch remote Redux docs."

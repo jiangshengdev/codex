@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vitest React Browser Docs"
+  short_description: "Find local Vitest Browser Mode docs for React testing."
+  default_prompt: "Use local Vitest documentation to answer or implement React Browser Mode tests."
