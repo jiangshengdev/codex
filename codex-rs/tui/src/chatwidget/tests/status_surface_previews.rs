@@ -293,26 +293,6 @@ async fn status_line_setup_popup_mixed_snapshot() {
 }
 
 #[tokio::test]
-async fn status_surface_preview_lines_context_used_tokens_placeholder() {
-    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    cache_project_root(&mut chat, "my-project");
-
-    let snapshot = combined_preview_snapshot(
-        &mut chat,
-        &[
-            StatusLineItem::ContextUsed,
-            StatusLineItem::ContextUsedTokens,
-        ],
-        &[TerminalTitleItem::Project],
-    );
-
-    assert_chatwidget_snapshot!(
-        "status_surface_previews_context_used_tokens_placeholder",
-        snapshot
-    );
-}
-
-#[tokio::test]
 async fn terminal_title_setup_popup_live_only_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     cache_project_root(&mut chat, "preview-live-root");

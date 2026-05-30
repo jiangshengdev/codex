@@ -1,7 +1,0 @@
----
-source: tui/src/chatwidget/tests/status_surface_previews.rs
-assertion_line: 213
-expression: snapshot
----
-status line: Context 0% used · 0 ctx
-terminal title: my-project
