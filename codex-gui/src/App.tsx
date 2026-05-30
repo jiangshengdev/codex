@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { useAppDispatch } from "./app/hooks";
 import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
-import {
-  projectionAttached,
-  projectionEventReceived,
-} from "./features/projection/projectionSlice";
+import { projectionAttached, projectionEventReceived } from "./features/projection/projectionSlice";
 
 function App() {
   const dispatch = useAppDispatch();

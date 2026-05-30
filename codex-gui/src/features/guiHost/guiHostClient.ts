@@ -293,9 +293,7 @@ function parseRpcError(value: unknown): RpcMessage["error"] {
   };
 }
 
-function isThreadProjectionAttachResponse(
-  value: unknown,
-): value is ThreadProjectionAttachResponse {
+function isThreadProjectionAttachResponse(value: unknown): value is ThreadProjectionAttachResponse {
   if (!isRecord(value) || typeof value.subscriptionId !== "string") {
     return false;
   }
