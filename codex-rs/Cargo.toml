@@ -53,6 +53,7 @@ members = [
     "external-agent-sessions",
     "keyring-store",
     "file-search",
+    "gui-host",
     "file-watcher",
     "linux-sandbox",
     "lmstudio",
@@ -174,6 +175,7 @@ codex-install-context = { path = "install-context" }
 codex-file-search = { path = "file-search" }
 codex-file-watcher = { path = "file-watcher" }
 codex-git-utils = { path = "git-utils" }
+codex-gui-host = { path = "gui-host" }
 codex-hooks = { path = "hooks" }
 codex-keyring-store = { path = "keyring-store" }
 codex-linux-sandbox = { path = "linux-sandbox" }
@@ -400,6 +402,7 @@ tokio-tungstenite = { version = "0.28.0", features = [
 tokio-util = "0.7.18"
 toml = "0.9.5"
 toml_edit = "0.24.0"
+tower-http = { version = "0.6", features = ["fs"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.3"
 tracing-opentelemetry = "0.32.0"
