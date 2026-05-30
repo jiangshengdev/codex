@@ -100,7 +100,7 @@
 - Create: `codex-rs/gui-host/src/ws.rs`
 - Modify: `codex-rs/Cargo.toml`
 - Modify: `codex-rs/Cargo.lock` only if Rust dependency changes require it
-- Modify: `codex-rs/WORKSPACE.bazel` / `codex-rs/MODULE.bazel.lock` only if the crate/dependency wiring requires the repo's Bazel lock flow
+- Do not run local Bazel/Bazel lock workflows for this migration; leave CI-style checks to CI.
 
 ### In-Process Extra Connection
 
@@ -207,6 +207,7 @@ It must not contain GUI, WebSocket, Origin, token, allowlist, or browser-specifi
 - Rust 格式化：Rust 代码改完后在 `codex-rs` 运行 `just fmt`。
 - Rust lint：较大 Rust 改动 finalize 前，按 crate 运行 `just fix -p <project>`。
 - Rust 测试：按变更 crate 运行 `just test -p <project>`，不要直接运行 `cargo test`。
+- 本地环境按无网络/网络不可靠处理。不要在本地跑 Bazel、Bazel lock、remote test、CI matrix 这类 CI 操作；这些检查留给 CI。
 - App-server protocol shape 如有变化，按 app-server API 规则生成 schema 并运行 `just test -p codex-app-server-protocol`。
 - TUI 可见 UI 文案或渲染变化必须有 `insta` snapshot 覆盖，并按 repo 流程 review/accept snapshot。
 - Frontend transport/store 改动运行对应 `codex-gui` Vitest / Browser Mode 测试。
