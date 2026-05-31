@@ -443,46 +443,9 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 /*disconnect_sender*/ None,
             ),
         );
-        let (outbound_control_tx, mut outbound_control_rx) =
-            mpsc::channel::<crate::in_process_extra::OutboundControl>(channel_capacity);
         let mut outbound_handle = tokio::spawn(async move {
-            const CONTROL_BURST: usize = 8;
-            loop {
-                for _ in 0..CONTROL_BURST {
-                    match outbound_control_rx.try_recv() {
-                        Ok(control) => {
-                            crate::in_process_extra::handle_outbound_control(
-                                &mut outbound_connections,
-                                control,
-                            );
-                        }
-                        Err(mpsc::error::TryRecvError::Empty) => break,
-                        Err(mpsc::error::TryRecvError::Disconnected) => break,
-                    }
-                }
-
-                // Drain a bounded number of control messages before waiting so
-                // register/unregister operations are not buried behind a
-                // continuously ready envelope stream. The following select
-                // remains unbiased so sustained control traffic cannot starve
-                // ordinary outbound routing.
-                tokio::select! {
-                    control = outbound_control_rx.recv() => {
-                        let Some(control) = control else {
-                            break;
-                        };
-                        crate::in_process_extra::handle_outbound_control(
-                            &mut outbound_connections,
-                            control,
-                        );
-                    }
-                    envelope = outgoing_rx.recv() => {
-                        let Some(envelope) = envelope else {
-                            break;
-                        };
-                        route_outgoing_envelope(&mut outbound_connections, envelope).await;
-                    }
-                }
+            while let Some(envelope) = outgoing_rx.recv().await {
+                route_outgoing_envelope(&mut outbound_connections, envelope).await;
             }
         });
 
@@ -663,82 +626,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 }
                             }
                         }
-                        Some(InProcessClientMessage::Extra(command)) => {
-                            match command {
-                                crate::in_process_extra::ExtraConnectionCommand::Opened {
-                                    connection_id,
-                                    outgoing_tx,
-                                    disconnect_token,
-                                } => {
-                                    let prepared =
-                                        crate::in_process_extra::prepare_opened_connection(
-                                            connection_id,
-                                            outgoing_tx,
-                                            disconnect_token,
-                                            channel_capacity,
-                                        );
-                                    if outbound_control_tx
-                                        .send(prepared.outbound_control)
-                                        .await
-                                        .is_err()
-                                    {
-                                        break;
-                                    }
-                                    if processor_tx
-                                        .send(ProcessorCommand::ExtraConnectionOpened(
-                                            prepared.processor_open,
-                                        ))
-                                        .await
-                                        .is_err()
-                                    {
-                                        break;
-                                    }
-                                }
-                                crate::in_process_extra::ExtraConnectionCommand::Request { .. }
-                                | crate::in_process_extra::ExtraConnectionCommand::Notification {
-                                    ..
-                                } => {
-                                    match processor_tx.try_send(ProcessorCommand::Extra(command)) {
-                                        Ok(()) => {}
-                                        Err(mpsc::error::TrySendError::Full(_)) => {
-                                            warn!(
-                                                "dropping in-process extra command (processor queue full)"
-                                            );
-                                        }
-                                        Err(mpsc::error::TrySendError::Closed(_)) => {
-                                            break;
-                                        }
-                                    }
-                                }
-                                crate::in_process_extra::ExtraConnectionCommand::Closed {
-                                    connection_id,
-                                } => {
-                                    match processor_tx.try_send(ProcessorCommand::Extra(command)) {
-                                        Ok(()) => {}
-                                        Err(mpsc::error::TrySendError::Full(_)) => {
-                                            warn!(
-                                                "dropping in-process extra close command (processor queue full)"
-                                            );
-                                        }
-                                        Err(mpsc::error::TrySendError::Closed(_)) => {
-                                            warn!(
-                                                "dropping in-process extra close command (processor queue closed)"
-                                            );
-                                        }
-                                    }
-                                    if outbound_control_tx
-                                        .send(
-                                            crate::in_process_extra::OutboundControl::Unregister {
-                                                connection_id,
-                                            },
-                                        )
-                                        .await
-                                        .is_err()
-                                    {
-                                        break;
-                                    }
-                                }
-                            }
+                        Some(InProcessClientMessage::Extra(_command)) => {
+                            warn!("dropping in-process extra connection command before routing is wired");
                         }
                         Some(InProcessClientMessage::ServerRequestResponse { request_id, result }) => {
                             outgoing_message_sender
