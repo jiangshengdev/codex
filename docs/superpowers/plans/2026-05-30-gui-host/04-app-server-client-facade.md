@@ -97,6 +97,7 @@ Owns:
 - `pub trait AppServerClientGuiExt`
 - `impl AppServerClientGuiExt for crate::remote::RemoteAppServerClient`
 - `impl AppServerClientGuiExt for crate::InProcessAppServerClient`
+- `impl AppServerClientGuiExt for crate::AppServerClient`
 - facade-only unit tests
 
 Does not own:
@@ -115,7 +116,7 @@ Owns only:
 - `pub use crate::gui::{AppServerClientGuiExt, GuiLaunchError, GuiLaunchUrl};`
 - `InProcessAppServerClient` field reshape to `Option<T>`
 - creation of `Arc<codex_app_server::gui_host::GuiHostManager>`
-- explicit shutdown ordering
+- explicit shutdown ordering with bounded GUI manager wait
 - Drop fallback cancellation
 - app-server-client tests proving in-process URL and shutdown behavior
 
@@ -247,6 +248,25 @@ impl AppServerClientGuiExt for crate::InProcessAppServerClient {
     }
 }
 
+impl AppServerClientGuiExt for crate::AppServerClient {
+    fn gui_launch_url(
+        &self,
+        primary_thread_id: &str,
+    ) -> impl std::future::Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+        let thread_id = primary_thread_id.to_string();
+        let manager = match self {
+            crate::AppServerClient::InProcess(client) => Some(client.gui_host_manager()),
+            crate::AppServerClient::Remote(_) => None,
+        };
+        async move {
+            match manager {
+                Some(manager) => gui_launch_url_for_manager(manager, thread_id).await,
+                None => Err(GuiLaunchError::Unsupported),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,6 +291,12 @@ mod tests {
     fn remote_client_implements_gui_extension() {
         fn assert_impl<T: AppServerClientGuiExt>() {}
         assert_impl::<crate::remote::RemoteAppServerClient>();
+    }
+
+    #[test]
+    fn facade_client_implements_gui_extension() {
+        fn assert_impl<T: AppServerClientGuiExt>() {}
+        assert_impl::<crate::AppServerClient>();
     }
 }
 ```
@@ -422,8 +448,10 @@ Add:
 
 ```rust
 async fn shutdown_inner(&mut self) -> IoResult<()> {
-    if let Some(manager) = self.gui_host_manager.take() {
-        manager.shutdown().await;
+    if let Some(manager) = self.gui_host_manager.take()
+        && timeout(SHUTDOWN_TIMEOUT, manager.shutdown()).await.is_err()
+    {
+        warn!("timed out shutting down GUI host manager");
     }
 
     let Some(command_tx) = self.command_tx.take() else {
@@ -460,7 +488,7 @@ async fn shutdown_inner(&mut self) -> IoResult<()> {
 }
 ```
 
-The manager shutdown must stay before dropping `event_rx` and before sending `ClientCommand::Shutdown`.
+The manager shutdown attempt must stay before dropping `event_rx` and before sending `ClientCommand::Shutdown`. It must also be bounded by `SHUTDOWN_TIMEOUT`; on timeout, log a warning and continue into worker shutdown so `InProcessAppServerClient::shutdown` keeps its bounded-wait contract.
 
 - [ ] **Step 2: Add Drop fallback**
 
@@ -510,7 +538,10 @@ async fn gui_launch_url_returns_real_url_for_in_process() {
         .expect("launch URL fragment should be token=<value>");
     assert_eq!(token.len(), 43);
 
-    client.shutdown().await.expect("shutdown");
+    timeout(Duration::from_secs(10), client.shutdown())
+        .await
+        .expect("shutdown should not time out")
+        .expect("shutdown");
 }
 ```
 
@@ -523,10 +554,11 @@ Run from `codex-rs`:
 ```bash
 just test -p codex-app-server-client gui_launch_error_variants_are_distinct
 just test -p codex-app-server-client remote_client_implements_gui_extension
+just test -p codex-app-server-client facade_client_implements_gui_extension
 just test -p codex-app-server-client gui_launch_url_returns_real_url_for_in_process
 ```
 
-Expected: all three tests pass.
+Expected: all four tests pass.
 
 ## Task 5: Final verification and implementation commit
 
@@ -605,8 +637,9 @@ git commit -m "feat(gui-host): add app-server client facade"
 - `codex-rs/app-server-client/src/gui.rs` defines `GuiLaunchUrl`, `GuiLaunchError`, and `AppServerClientGuiExt`.
 - `RemoteAppServerClient` implements `AppServerClientGuiExt` and returns `GuiLaunchError::Unsupported`.
 - `InProcessAppServerClient` implements `AppServerClientGuiExt` through `GuiHostManager::launch_url_for_thread`.
+- `AppServerClient` implements `AppServerClientGuiExt` and delegates to its concrete transport.
 - In-process launch returns `http://127.0.0.1:<port>/?threadId=<thread-id>#token=<token>` with a URL-safe 43-character token value.
-- `InProcessAppServerClient::shutdown(self)` awaits `GuiHostManager::shutdown()` before worker shutdown.
+- `InProcessAppServerClient::shutdown(self)` attempts `GuiHostManager::shutdown()` before worker shutdown and bounds that wait with `SHUTDOWN_TIMEOUT`.
 - `Drop for InProcessAppServerClient` calls `cancel_nonblocking()` only; it does not block.
 - `app-server-client/src/lib.rs` keeps current `dev` remote exports and socket path exports intact.
 - No TUI, frontend, app-server protocol, app-server transport, or `codex-core` code is changed by this plan.
