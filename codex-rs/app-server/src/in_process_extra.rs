@@ -12,6 +12,7 @@ use std::sync::atomic::Ordering;
 use codex_app_server_protocol::JSONRPCNotification;
 use codex_app_server_protocol::JSONRPCRequest;
 use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
@@ -37,6 +38,7 @@ pub(crate) enum ExtraConnectionCommand {
         connection_id: ConnectionId,
         outgoing_tx: mpsc::Sender<String>,
         disconnect_token: CancellationToken,
+        processor_opened_tx: oneshot::Sender<()>,
     },
     Request {
         connection_id: ConnectionId,
@@ -156,6 +158,7 @@ pub(crate) enum OutboundControl {
         experimental_api_enabled: Arc<AtomicBool>,
         opted_out_notification_methods: Arc<RwLock<HashSet<String>>>,
         disconnect_sender: Option<CancellationToken>,
+        registered_tx: Option<oneshot::Sender<()>>,
     },
     Unregister {
         connection_id: ConnectionId,
@@ -174,6 +177,7 @@ pub(crate) fn handle_outbound_control(
             experimental_api_enabled,
             opted_out_notification_methods,
             disconnect_sender,
+            registered_tx,
         } => {
             outbound_connections.insert(
                 connection_id,
@@ -185,6 +189,9 @@ pub(crate) fn handle_outbound_control(
                     disconnect_sender,
                 ),
             );
+            if let Some(registered_tx) = registered_tx {
+                let _ = registered_tx.send(());
+            }
         }
         OutboundControl::Unregister { connection_id } => {
             outbound_connections.remove(&connection_id);
@@ -211,6 +218,7 @@ impl OpenedExtraConnection {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn for_test(connection_id: ConnectionId) -> Self {
         Self {
             connection_id,
@@ -226,6 +234,7 @@ pub(crate) fn prepare_opened_connection(
     outgoing_tx: mpsc::Sender<String>,
     disconnect_token: CancellationToken,
     channel_capacity: usize,
+    registered_tx: Option<oneshot::Sender<()>>,
 ) -> PreparedExtraConnectionOpen {
     let (extra_writer_tx, extra_writer_rx) =
         mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
@@ -243,6 +252,7 @@ pub(crate) fn prepare_opened_connection(
             experimental_api_enabled: Arc::clone(&experimental_api_enabled),
             opted_out_notification_methods: Arc::clone(&opted_out_notification_methods),
             disconnect_sender: Some(disconnect_token),
+            registered_tx,
         },
         processor_open: OpenedExtraConnection {
             connection_id,
@@ -503,6 +513,7 @@ mod tests {
             outgoing_tx,
             disconnect_token,
             /*channel_capacity*/ 4,
+            /*registered_tx*/ None,
         );
 
         let PreparedExtraConnectionOpen {
@@ -520,6 +531,7 @@ mod tests {
                 experimental_api_enabled,
                 opted_out_notification_methods,
                 disconnect_sender,
+                registered_tx,
             } => {
                 assert_eq!(registered_id, connection_id);
                 assert!(Arc::ptr_eq(
@@ -544,6 +556,7 @@ mod tests {
                     0
                 );
                 assert!(disconnect_sender.is_some());
+                assert!(registered_tx.is_none());
                 drop(writer);
             }
             OutboundControl::Unregister { .. } => {

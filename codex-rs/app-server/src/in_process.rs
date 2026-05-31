@@ -228,12 +228,14 @@ impl InProcessClientSender {
             crate::in_process_extra::next_extra_connection_id(IN_PROCESS_CONNECTION_ID);
         let (outgoing_tx, outgoing_rx) = mpsc::channel::<String>(self.channel_capacity);
         let disconnect_token = tokio_util::sync::CancellationToken::new();
+        let (processor_opened_tx, processor_opened_rx) = oneshot::channel();
         self.client_tx
             .send(InProcessClientMessage::Extra(
                 crate::in_process_extra::ExtraConnectionCommand::Opened {
                     connection_id,
                     outgoing_tx: outgoing_tx.clone(),
                     disconnect_token: disconnect_token.clone(),
+                    processor_opened_tx,
                 },
             ))
             .await
@@ -243,6 +245,12 @@ impl InProcessClientSender {
                     format!("in-process app-server runtime is closed: {err}"),
                 )
             })?;
+        processor_opened_rx.await.map_err(|err| {
+            IoError::new(
+                ErrorKind::BrokenPipe,
+                format!("in-process extra connection open failed: {err}"),
+            )
+        })?;
 
         Ok(ExtraConnectionHandle {
             connection_id,
@@ -299,6 +307,8 @@ pub struct InProcessClientHandle {
     client: InProcessClientSender,
     event_rx: mpsc::Receiver<InProcessServerEvent>,
     runtime_handle: tokio::task::JoinHandle<()>,
+    #[cfg(test)]
+    extra_connection_closed_probe_rx: mpsc::Receiver<ConnectionId>,
     #[cfg(test)]
     _test_codex_home: Option<tempfile::TempDir>,
 }
@@ -380,6 +390,11 @@ impl InProcessClientHandle {
     pub fn sender(&self) -> InProcessClientSender {
         self.client.clone()
     }
+
+    #[cfg(test)]
+    async fn next_extra_connection_closed_for_test(&mut self) -> Option<ConnectionId> {
+        self.extra_connection_closed_probe_rx.recv().await
+    }
 }
 
 /// Starts an in-process app-server runtime and performs initialize handshake.
@@ -414,6 +429,9 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
     let installation_id = resolve_installation_id(&args.config.codex_home).await?;
     let (client_tx, mut client_rx) = mpsc::channel::<InProcessClientMessage>(channel_capacity);
     let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
+    #[cfg(test)]
+    let (extra_connection_closed_probe_tx, extra_connection_closed_probe_rx) =
+        mpsc::channel::<ConnectionId>(channel_capacity);
 
     let runtime_handle = tokio::spawn(async move {
         let (outgoing_tx, mut outgoing_rx) = mpsc::channel::<OutgoingEnvelope>(channel_capacity);
@@ -518,6 +536,18 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             }));
             let mut thread_created_rx = processor.thread_created_receiver();
             let session = Arc::new(ConnectionSessionState::new());
+            let mut extra_connections = {
+                #[cfg(test)]
+                {
+                    crate::in_process_extra::ExtraConnectionState::with_closed_probe(
+                        extra_connection_closed_probe_tx,
+                    )
+                }
+                #[cfg(not(test))]
+                {
+                    crate::in_process_extra::ExtraConnectionState::new()
+                }
+            };
             let mut listen_for_threads = true;
 
             loop {
@@ -558,13 +588,13 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             Some(ProcessorCommand::Notification(notification)) => {
                                 processor.process_client_notification(notification).await;
                             }
-                            Some(
-                                ProcessorCommand::ExtraConnectionOpened(_)
-                                | ProcessorCommand::Extra(_),
-                            ) => {
-                                warn!(
-                                    "dropping in-process extra processor command before state is wired"
-                                );
+                            Some(ProcessorCommand::ExtraConnectionOpened(opened)) => {
+                                extra_connections.register_opened(opened);
+                            }
+                            Some(ProcessorCommand::Extra(command)) => {
+                                extra_connections
+                                    .handle_processor_command(&processor, command)
+                                    .await;
                             }
                             None => {
                                 break;
@@ -574,11 +604,10 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     created = thread_created_rx.recv(), if listen_for_threads => {
                         match created {
                             Ok(thread_id) => {
-                                let connection_ids = if session.initialized() {
-                                    vec![IN_PROCESS_CONNECTION_ID]
-                                } else {
-                                    Vec::<ConnectionId>::new()
-                                };
+                                let connection_ids = extra_connections.initialized_connection_ids(
+                                    IN_PROCESS_CONNECTION_ID,
+                                    session.initialized(),
+                                );
                                 processor
                                     .try_attach_thread_listener(thread_id, connection_ids)
                                     .await;
@@ -669,13 +698,16 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     connection_id,
                                     outgoing_tx,
                                     disconnect_token,
+                                    processor_opened_tx,
                                 } => {
+                                    let (registered_tx, registered_rx) = oneshot::channel();
                                     let prepared =
                                         crate::in_process_extra::prepare_opened_connection(
                                             connection_id,
                                             outgoing_tx,
                                             disconnect_token,
                                             channel_capacity,
+                                            Some(registered_tx),
                                         );
                                     if outbound_control_tx
                                         .send(prepared.outbound_control)
@@ -684,15 +716,30 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     {
                                         break;
                                     }
-                                    if processor_tx
-                                        .send(ProcessorCommand::ExtraConnectionOpened(
-                                            prepared.processor_open,
-                                        ))
-                                        .await
-                                        .is_err()
-                                    {
-                                        break;
-                                    }
+                                    let processor_tx = processor_tx.clone();
+                                    tokio::spawn(async move {
+                                        if registered_rx.await.is_err() {
+                                            warn!(
+                                                ?connection_id,
+                                                "extra connection outbound register ack canceled"
+                                            );
+                                            return;
+                                        }
+                                        if processor_tx
+                                            .send(ProcessorCommand::ExtraConnectionOpened(
+                                                prepared.processor_open,
+                                            ))
+                                            .await
+                                            .is_err()
+                                        {
+                                            warn!(
+                                                ?connection_id,
+                                                "dropping extra connection open because processor is closed"
+                                            );
+                                            return;
+                                        }
+                                        let _ = processor_opened_tx.send(());
+                                    });
                                 }
                                 crate::in_process_extra::ExtraConnectionCommand::Request { .. }
                                 | crate::in_process_extra::ExtraConnectionCommand::Notification {
@@ -885,6 +932,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         event_rx,
         runtime_handle,
         #[cfg(test)]
+        extra_connection_closed_probe_rx,
+        #[cfg(test)]
         _test_codex_home: None,
     })
 }
@@ -894,6 +943,8 @@ mod tests {
     use super::*;
     use codex_app_server_protocol::ClientInfo;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
+    use codex_app_server_protocol::JSONRPCNotification;
+    use codex_app_server_protocol::JSONRPCRequest;
     use codex_app_server_protocol::SessionSource as ApiSessionSource;
     use codex_app_server_protocol::ThreadStartParams;
     use codex_app_server_protocol::ThreadStartResponse;
@@ -965,6 +1016,29 @@ mod tests {
         start_test_client_with_capacity(session_source, DEFAULT_IN_PROCESS_CHANNEL_CAPACITY).await
     }
 
+    async fn request_config_requirements_with_retry(
+        sender: InProcessClientSender,
+        request_id: i64,
+    ) -> ConfigRequirementsReadResponse {
+        let response = loop {
+            match sender
+                .request(ClientRequest::ConfigRequirementsRead {
+                    request_id: RequestId::Integer(request_id),
+                    params: None,
+                })
+                .await
+            {
+                Ok(Ok(response)) => break response,
+                Ok(Err(error)) => panic!("request should succeed: {error:?}"),
+                Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                    tokio::task::yield_now().await;
+                }
+                Err(err) => panic!("request transport should work: {err}"),
+            }
+        };
+        serde_json::from_value(response).expect("response should match v2 schema")
+    }
+
     #[tokio::test]
     async fn in_process_start_initializes_and_handles_typed_v2_request() {
         let client = start_test_client(SessionSource::Cli).await;
@@ -984,6 +1058,191 @@ mod tests {
             .shutdown()
             .await
             .expect("in-process runtime should shutdown cleanly");
+    }
+
+    #[tokio::test]
+    async fn register_extra_connection_returns_broken_pipe_after_shutdown() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        client.shutdown().await.expect("shutdown");
+
+        let Err(err) = sender.register_extra_connection().await else {
+            panic!("registration should fail after runtime shutdown");
+        };
+        assert_eq!(err.kind(), ErrorKind::BrokenPipe);
+    }
+
+    #[tokio::test]
+    async fn register_extra_connection_request_reaches_message_processor() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let mut handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
+
+        handle
+            .command_sender
+            .send_request(JSONRPCRequest {
+                id: RequestId::Integer(42),
+                method: "config/requirements/read".to_string(),
+                params: None,
+                trace: None,
+            })
+            .expect("extra request should enqueue");
+
+        let outgoing = tokio::time::timeout(Duration::from_secs(2), handle.outgoing_rx.recv())
+            .await
+            .expect("extra outgoing should arrive within timeout")
+            .expect("extra outgoing channel should stay open");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&outgoing).expect("extra outgoing must be JSON");
+        assert_eq!(parsed["id"], serde_json::json!(42));
+        assert!(
+            parsed.get("result").is_some() || parsed.get("error").is_some(),
+            "response envelope must contain result or error: {parsed}"
+        );
+
+        drop(handle);
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn dropping_extra_handle_triggers_connection_closed() {
+        let mut client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let mut handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
+        let connection_id = handle.connection_id;
+
+        handle
+            .command_sender
+            .send_request(JSONRPCRequest {
+                id: RequestId::Integer(1),
+                method: "config/requirements/read".to_string(),
+                params: None,
+                trace: None,
+            })
+            .expect("send request");
+
+        let _response = tokio::time::timeout(Duration::from_secs(2), handle.outgoing_rx.recv())
+            .await
+            .expect("outgoing response within timeout")
+            .expect("outgoing channel still open for response");
+
+        let (_noop_tx, noop_rx) = mpsc::channel::<String>(1);
+        let mut outgoing_rx = std::mem::replace(&mut handle.outgoing_rx, noop_rx);
+        drop(handle);
+
+        let result = tokio::time::timeout(Duration::from_secs(2), outgoing_rx.recv()).await;
+        assert!(
+            matches!(result, Ok(None)),
+            "expected Ok(None) after drop, got {result:?}",
+        );
+
+        let closed_id = tokio::time::timeout(
+            Duration::from_secs(2),
+            client.next_extra_connection_closed_for_test(),
+        )
+        .await
+        .expect("processor cleanup probe within timeout")
+        .expect("processor cleanup probe channel should stay open");
+        assert_eq!(closed_id, connection_id);
+
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn extra_connection_present_still_allows_main_typed_request() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let extra = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
+
+        let response = client
+            .request(ClientRequest::ConfigRequirementsRead {
+                request_id: RequestId::Integer(44),
+                params: None,
+            })
+            .await
+            .expect("request transport should work")
+            .expect("request should succeed");
+        let _parsed: ConfigRequirementsReadResponse =
+            serde_json::from_value(response).expect("response should match v2 schema");
+
+        drop(extra);
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn extra_connection_open_does_not_block_main_request_under_backpressure() {
+        let client =
+            start_test_client_with_capacity(SessionSource::Cli, /*channel_capacity*/ 1).await;
+        let sender = client.sender();
+        let load_tasks = (0..8)
+            .map(|offset| {
+                let sender = sender.clone();
+                tokio::spawn(async move {
+                    request_config_requirements_with_retry(sender, 100 + offset).await
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let extra = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                match sender.register_extra_connection().await {
+                    Ok(handle) => break handle,
+                    Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                        tokio::task::yield_now().await;
+                    }
+                    Err(err) => panic!("register_extra_connection should work: {err}"),
+                }
+            }
+        })
+        .await
+        .expect("register_extra_connection should not hang under main backpressure");
+
+        let _main_response = tokio::time::timeout(
+            Duration::from_secs(2),
+            request_config_requirements_with_retry(sender, 200),
+        )
+        .await
+        .expect("main typed request should complete while extra open waits for outbound ack");
+
+        for task in load_tasks {
+            let _load_response = tokio::time::timeout(Duration::from_secs(2), task)
+                .await
+                .expect("load request should complete")
+                .expect("load task should join");
+        }
+
+        drop(extra);
+        client.shutdown().await.expect("shutdown");
+    }
+
+    #[tokio::test]
+    async fn extra_connection_notification_is_accepted() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let sender = client.sender();
+        let handle = sender
+            .register_extra_connection()
+            .await
+            .expect("register_extra_connection");
+
+        handle
+            .command_sender
+            .send_notification(JSONRPCNotification {
+                method: "initialized".to_string(),
+                params: None,
+            })
+            .expect("extra notification should enqueue");
+
+        drop(handle);
+        client.shutdown().await.expect("shutdown");
     }
 
     #[tokio::test]
