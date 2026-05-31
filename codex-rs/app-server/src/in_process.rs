@@ -98,8 +98,6 @@ const IN_PROCESS_CONNECTION_ID: ConnectionId = ConnectionId(0);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 /// Default bounded channel capacity for in-process runtime queues.
 pub const DEFAULT_IN_PROCESS_CHANNEL_CAPACITY: usize = CHANNEL_CAPACITY;
-pub use crate::in_process_extra::ExtraConnectionCommandSender;
-pub use crate::in_process_extra::ExtraConnectionHandle;
 
 type PendingClientRequestResponse = std::result::Result<Result, JSONRPCErrorError>;
 
@@ -169,7 +167,7 @@ pub enum InProcessServerEvent {
 /// Requests carry a oneshot sender for the response; notifications and server-request
 /// replies are fire-and-forget from the caller's perspective (transport errors are
 /// caught by `try_send` on the outer channel).
-pub(crate) enum InProcessClientMessage {
+enum InProcessClientMessage {
     Request {
         request: Box<ClientRequest>,
         response_tx: oneshot::Sender<PendingClientRequestResponse>,
@@ -177,7 +175,6 @@ pub(crate) enum InProcessClientMessage {
     Notification {
         notification: ClientNotification,
     },
-    Extra(crate::in_process_extra::ExtraConnectionCommand),
     ServerRequestResponse {
         request_id: RequestId,
         result: Result,
@@ -194,14 +191,11 @@ pub(crate) enum InProcessClientMessage {
 enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
-    ExtraConnectionOpened(crate::in_process_extra::OpenedExtraConnection),
-    Extra(crate::in_process_extra::ExtraConnectionCommand),
 }
 
 #[derive(Clone)]
 pub struct InProcessClientSender {
     client_tx: mpsc::Sender<InProcessClientMessage>,
-    channel_capacity: usize,
 }
 
 impl InProcessClientSender {
@@ -221,40 +215,6 @@ impl InProcessClientSender {
 
     pub fn notify(&self, notification: ClientNotification) -> IoResult<()> {
         self.try_send_client_message(InProcessClientMessage::Notification { notification })
-    }
-
-    pub async fn register_extra_connection(&self) -> IoResult<ExtraConnectionHandle> {
-        let connection_id =
-            crate::in_process_extra::next_extra_connection_id(IN_PROCESS_CONNECTION_ID);
-        let (outgoing_tx, outgoing_rx) = mpsc::channel::<String>(self.channel_capacity);
-        let disconnect_token = tokio_util::sync::CancellationToken::new();
-        self.client_tx
-            .send(InProcessClientMessage::Extra(
-                crate::in_process_extra::ExtraConnectionCommand::Opened {
-                    connection_id,
-                    outgoing_tx: outgoing_tx.clone(),
-                    disconnect_token: disconnect_token.clone(),
-                },
-            ))
-            .await
-            .map_err(|err| {
-                IoError::new(
-                    ErrorKind::BrokenPipe,
-                    format!("in-process app-server runtime is closed: {err}"),
-                )
-            })?;
-
-        Ok(ExtraConnectionHandle {
-            connection_id,
-            command_sender: ExtraConnectionCommandSender::new(
-                self.client_tx.clone(),
-                connection_id,
-                tokio::runtime::Handle::try_current().ok(),
-            ),
-            outgoing_tx,
-            outgoing_rx,
-            disconnect_token,
-        })
     }
 
     pub fn respond_to_server_request(&self, request_id: RequestId, result: Result) -> IoResult<()> {
@@ -521,14 +481,6 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             Some(ProcessorCommand::Notification(notification)) => {
                                 processor.process_client_notification(notification).await;
                             }
-                            Some(
-                                ProcessorCommand::ExtraConnectionOpened(_)
-                                | ProcessorCommand::Extra(_),
-                            ) => {
-                                warn!(
-                                    "dropping in-process extra processor command before state is wired"
-                                );
-                            }
                             None => {
                                 break;
                             }
@@ -625,9 +577,6 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     break;
                                 }
                             }
-                        }
-                        Some(InProcessClientMessage::Extra(_command)) => {
-                            warn!("dropping in-process extra connection command before routing is wired");
                         }
                         Some(InProcessClientMessage::ServerRequestResponse { request_id, result }) => {
                             outgoing_message_sender
@@ -767,10 +716,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
     });
 
     Ok(InProcessClientHandle {
-        client: InProcessClientSender {
-            client_tx,
-            channel_capacity,
-        },
+        client: InProcessClientSender { client_tx },
         event_rx,
         runtime_handle,
         #[cfg(test)]

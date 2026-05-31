@@ -378,9 +378,7 @@ impl ExtraConnectionState {
                 let is_initialized = session_state.initialized();
                 let was_initialized = outbound_initialized.swap(is_initialized, Ordering::AcqRel);
                 if !was_initialized && is_initialized {
-                    processor
-                        .connection_initialized(connection_id, session_state.request_attestation())
-                        .await;
+                    processor.connection_initialized(connection_id).await;
                 }
             }
             ExtraConnectionCommand::Notification {
