@@ -88,6 +88,8 @@ mod extensions;
 mod filters;
 mod fs_watch;
 mod fuzzy_file_search;
+pub mod gui_host;
+mod gui_transport;
 pub mod in_process;
 mod in_process_extra;
 mod mcp_refresh;
