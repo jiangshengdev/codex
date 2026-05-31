@@ -30,7 +30,6 @@
 ### In Scope
 
 - Modify: `codex-rs/app-server/Cargo.toml`
-- Modify: `codex-rs/Cargo.lock`
 - Modify if needed: `codex-rs/app-server/BUILD.bazel`
 - Modify: `codex-rs/app-server/src/lib.rs`
 - Create: `codex-rs/app-server/src/gui_host.rs`
@@ -730,7 +729,6 @@ rg -n "gui|websocket|origin|token|allowlist|browser" codex-rs/app-server/src/in_
 Expected:
 
 - `git diff --name-only HEAD | sort` lists only:
-  - `codex-rs/Cargo.lock`
   - `codex-rs/app-server/Cargo.toml`
   - `codex-rs/app-server/src/gui_host.rs`
   - `codex-rs/app-server/src/gui_transport.rs`
@@ -752,7 +750,7 @@ Expected: no output.
 - [ ] **Step 6: Commit implementation**
 
 ```bash
-git add codex-rs/Cargo.lock codex-rs/app-server/Cargo.toml codex-rs/app-server/src/lib.rs codex-rs/app-server/src/gui_host.rs codex-rs/app-server/src/gui_transport.rs
+git add codex-rs/app-server/Cargo.toml codex-rs/app-server/src/lib.rs codex-rs/app-server/src/gui_host.rs codex-rs/app-server/src/gui_transport.rs
 git add codex-rs/app-server/BUILD.bazel
 git commit -m "feat(gui-host): add app-server bridge"
 ```
