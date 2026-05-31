@@ -277,38 +277,26 @@ async fn pump_outbound(
 ) {
     loop {
         tokio::select! {
-            _ = disconnect_token.cancelled() => {
-                while let Ok(text) = outgoing_rx.try_recv() {
-                    if !send_outbound_text(&outbound_tx, &manager_cancel, text).await {
-                        break;
-                    }
-                }
-                break;
-            },
+            _ = disconnect_token.cancelled() => break,
             _ = manager_cancel.cancelled() => break,
             text = outgoing_rx.recv() => {
                 let Some(text) = text else {
                     break;
                 };
-                if !send_outbound_text(&outbound_tx, &manager_cancel, text).await {
-                    break;
+                let Some(text) = normalize_outbound_text(&text) else {
+                    continue;
+                };
+                tokio::select! {
+                    _ = disconnect_token.cancelled() => break,
+                    _ = manager_cancel.cancelled() => break,
+                    result = outbound_tx.send(text) => {
+                        if result.is_err() {
+                            break;
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
-async fn send_outbound_text(
-    outbound_tx: &mpsc::Sender<String>,
-    manager_cancel: &CancellationToken,
-    text: String,
-) -> bool {
-    let Some(text) = normalize_outbound_text(&text) else {
-        return true;
-    };
-    tokio::select! {
-        _ = manager_cancel.cancelled() => false,
-        result = outbound_tx.send(text) => result.is_ok(),
     }
 }
 
@@ -558,50 +546,6 @@ mod tests {
         );
         assert_eq!(outbound_rx.recv().await, None);
         client.shutdown().await.expect("runtime shutdown");
-    }
-
-    #[tokio::test]
-    async fn outbound_delivers_queued_message_when_disconnect_is_already_cancelled() {
-        for _ in 0..64 {
-            let (outgoing_tx, outgoing_rx) = mpsc::channel(1);
-            outgoing_tx
-                .send(
-                    serde_json::json!({
-                        "id": null,
-                        "error": {
-                            "code": -32700,
-                            "message": "Parse error"
-                        }
-                    })
-                    .to_string(),
-                )
-                .await
-                .expect("queue outbound message");
-            drop(outgoing_tx);
-
-            let (outbound_tx, mut outbound_rx) = mpsc::channel(1);
-            let disconnect_token = CancellationToken::new();
-            disconnect_token.cancel();
-
-            pump_outbound(
-                outgoing_rx,
-                outbound_tx,
-                disconnect_token,
-                CancellationToken::new(),
-            )
-            .await;
-
-            let outbound = outbound_rx
-                .recv()
-                .await
-                .expect("queued outbound message should be delivered before disconnect exits");
-            let parsed: serde_json::Value =
-                serde_json::from_str(&outbound).expect("outbound should be JSON");
-            assert_eq!(parsed["jsonrpc"], serde_json::json!("2.0"));
-            assert_eq!(parsed["id"], serde_json::Value::Null);
-            assert_eq!(parsed["error"]["code"], serde_json::json!(-32700));
-            assert_eq!(outbound_rx.recv().await, None);
-        }
     }
 
     struct TestRuntime {
