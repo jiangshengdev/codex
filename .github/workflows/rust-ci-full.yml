@@ -123,6 +123,7 @@ jobs:
         if: ${{ runner.os != 'Windows' }}
         env:
           BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+          CODEX_BAZEL_JOBS: "8"
         shell: bash
         run: |
           bazel_targets="$(./tools/argument-comment-lint/list-bazel-targets.sh)"
@@ -138,6 +139,7 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         env:
           BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+          CODEX_BAZEL_JOBS: "8"
         shell: bash
         run: |
           ./.github/scripts/run-argument-comment-lint-bazel.sh \
