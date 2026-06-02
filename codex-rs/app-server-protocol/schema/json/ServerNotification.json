@@ -4246,6 +4246,31 @@
       ],
       "type": "object"
     },
+    "ThreadProjectionClosedNotification": {
+      "properties": {
+        "reason": {
+          "$ref": "#/definitions/ThreadProjectionClosedReason"
+        },
+        "subscriptionId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason",
+        "subscriptionId",
+        "threadId"
+      ],
+      "type": "object"
+    },
+    "ThreadProjectionClosedReason": {
+      "enum": [
+        "backpressure"
+      ],
+      "type": "string"
+    },
     "ThreadProjectionEvent": {
       "oneOf": [
         {
@@ -5636,6 +5661,26 @@
         "params"
       ],
       "title": "Thread/projection/eventNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "thread/projection/closed"
+          ],
+          "title": "Thread/projection/closedNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadProjectionClosedNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Thread/projection/closedNotification",
       "type": "object"
     },
     {

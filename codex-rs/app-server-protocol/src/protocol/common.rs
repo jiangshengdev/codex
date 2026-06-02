@@ -1497,6 +1497,7 @@ server_notification_definitions! {
     ThreadSettingsUpdated => "thread/settings/updated" (v2::ThreadSettingsUpdatedNotification),
     ThreadTokenUsageUpdated => "thread/tokenUsage/updated" (v2::ThreadTokenUsageUpdatedNotification),
     ThreadProjectionEvent => "thread/projection/event" (v2::ThreadProjectionEventNotification),
+    ThreadProjectionClosed => "thread/projection/closed" (v2::ThreadProjectionClosedNotification),
     TurnStarted => "turn/started" (v2::TurnStartedNotification),
     HookStarted => "hook/started" (v2::HookStartedNotification),
     TurnCompleted => "turn/completed" (v2::TurnCompletedNotification),

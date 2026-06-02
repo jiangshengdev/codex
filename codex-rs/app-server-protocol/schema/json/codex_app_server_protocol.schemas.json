@@ -4263,6 +4263,26 @@
           "properties": {
             "method": {
               "enum": [
+                "thread/projection/closed"
+              ],
+              "title": "Thread/projection/closedNotificationMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ThreadProjectionClosedNotification"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "title": "Thread/projection/closedNotification",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "enum": [
                 "turn/started"
               ],
               "title": "Turn/startedNotificationMethod",
@@ -17088,6 +17108,33 @@
         ],
         "title": "ThreadProjectionAttachResponse",
         "type": "object"
+      },
+      "ThreadProjectionClosedNotification": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "reason": {
+            "$ref": "#/definitions/v2/ThreadProjectionClosedReason"
+          },
+          "subscriptionId": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "subscriptionId",
+          "threadId"
+        ],
+        "title": "ThreadProjectionClosedNotification",
+        "type": "object"
+      },
+      "ThreadProjectionClosedReason": {
+        "enum": [
+          "backpressure"
+        ],
+        "type": "string"
       },
       "ThreadProjectionDetachParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",

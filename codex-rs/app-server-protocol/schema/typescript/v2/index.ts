@@ -390,6 +390,8 @@ export type { ThreadMetadataUpdateResponse } from "./ThreadMetadataUpdateRespons
 export type { ThreadNameUpdatedNotification } from "./ThreadNameUpdatedNotification";
 export type { ThreadProjectionAttachParams } from "./ThreadProjectionAttachParams";
 export type { ThreadProjectionAttachResponse } from "./ThreadProjectionAttachResponse";
+export type { ThreadProjectionClosedNotification } from "./ThreadProjectionClosedNotification";
+export type { ThreadProjectionClosedReason } from "./ThreadProjectionClosedReason";
 export type { ThreadProjectionDetachParams } from "./ThreadProjectionDetachParams";
 export type { ThreadProjectionDetachResponse } from "./ThreadProjectionDetachResponse";
 export type { ThreadProjectionDetachStatus } from "./ThreadProjectionDetachStatus";
