@@ -26,3 +26,9 @@ projection fanout 每线程队列容量固定 32(`PROJECTION_FANOUT_QUEUE_CAPACI
 
 对一个「让客户端与线程保持同步」的特性,静默丢流且无重新同步信号,等于静默数据丢失。
 客户端下次 `thread/projection/detach` 会得到 `NotSubscribed`,但那是它主动问才知道。
+
+## 状态
+
+已修复。queue full invalidation 现在会向被服务端清理的 projection subscribers 发送
+`thread/projection/closed`，`reason` 为 `backpressure`。客户端收到后应重新
+`thread/projection/attach` 获取新的 snapshot baseline。

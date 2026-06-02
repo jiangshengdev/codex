@@ -155,6 +155,7 @@ Example with notification opt-out:
 - `thread/projection/attach` — subscribe this connection to GUI projection events for a loaded thread. The response returns a `subscriptionId` and `snapshot` containing the current `thread` plus `headCommitId`.
 - `thread/projection/detach` — remove this connection's projection subscription for a thread. The response `status` is `detached`, `notSubscribed`, or `notLoaded`.
 - `thread/projection/event` — notification emitted to projection subscribers. Each event has `threadId`, `subscriptionId`, `commitId`, `parentCommitId`, and wraps one of `turn/started`, `turn/completed`, `item/started`, or `item/completed`.
+- `thread/projection/closed` — notification emitted when the server terminates a projection subscription. Currently `reason` is `backpressure`, which means the per-thread projection fanout queue filled and the client must call `thread/projection/attach` again to get a fresh snapshot baseline.
 - `thread/name/set` — set or update a thread’s user-facing name for either a loaded thread or a persisted rollout; returns `{}` on success and emits `thread/name/updated` to initialized, opted-in clients. Thread names are not required to be unique; name lookups resolve to the most recently updated thread.
 - `thread/unarchive` — move an archived rollout file back into the sessions directory; returns the restored `thread` on success and emits `thread/unarchived`.
 - `thread/compact/start` — trigger conversation history compaction for a thread; returns `{}` immediately while progress streams through standard turn/item notifications.
@@ -434,6 +435,8 @@ Normal thread subscriptions and projection subscriptions are independent. `threa
 Projection commits form a per-thread chain shared by all projection subscribers for that thread. The first event delivered after attach has `parentCommitId` equal to the attach response's `snapshot.headCommitId`; later events advance with `commitId` / `parentCommitId`. Repeating attach for the same connection and thread releases the old `subscriptionId` and returns a new subscription from the current thread head.
 
 `thread/projection/detach` is not a transport drain barrier. After a `detached` response, the server stops generating new projection deliveries for that connection/subscription, but events already materialized on the outbound path can still arrive. Connection drop implicitly removes all projection subscriptions for that connection; reconnecting clients must attach again.
+
+If a projection subscriber falls behind far enough to fill the server-side fanout queue, the server invalidates that projection stream and emits `thread/projection/closed` with `{ threadId, subscriptionId, reason: "backpressure" }`. Clients should ignore the closed notification if its `subscriptionId` is no longer current; otherwise they should attach again and use the returned snapshot as the new baseline.
 
 ```json
 { "method": "thread/projection/attach", "id": 23, "params": { "threadId": "thr_123" } }
