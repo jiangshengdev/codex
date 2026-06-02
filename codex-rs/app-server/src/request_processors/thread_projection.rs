@@ -494,6 +494,7 @@ mod tests {
             persisted_turn.items,
             vec![ThreadItem::UserMessage {
                 id: "item-1".to_string(),
+                client_id: None,
                 content: vec![
                     V2UserInput::Text {
                         text: "persisted".to_string(),
@@ -681,6 +682,7 @@ mod tests {
             )),
             RolloutItem::EventMsg(EventMsg::UserMessage(
                 codex_protocol::protocol::UserMessageEvent {
+                    client_id: None,
                     message: message.to_string(),
                     images: Some(vec!["https://example.com/projection.png".to_string()]),
                     image_details: vec![Some(ImageDetail::Original)],

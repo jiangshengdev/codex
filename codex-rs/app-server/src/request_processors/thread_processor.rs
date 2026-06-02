@@ -3785,7 +3785,7 @@ fn apply_thread_turns_items_view(turns: &mut [Turn], items_view: TurnItemsView) 
     }
 }
 
-fn reconstruct_thread_turns_for_turns_list(
+pub(super) fn reconstruct_thread_turns_for_turns_list(
     items: &[RolloutItem],
     loaded_status: ThreadStatus,
     has_live_running_thread: bool,
