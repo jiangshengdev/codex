@@ -141,6 +141,7 @@ async fn run_local_image_turn(detail: Option<ImageDetail>) -> Result<Vec<Value>>
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::LocalImage {
                 path: image_path,
                 detail,
@@ -235,6 +236,7 @@ async fn turn_start_with_empty_input_runs_model_request() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: Vec::new(),
             ..Default::default()
         })
@@ -335,6 +337,7 @@ async fn turn_start_additional_context_flows_to_model_input() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "inspect tab".to_string(),
                 text_elements: Vec::new(),
@@ -420,6 +423,7 @@ async fn turn_start_sends_originator_header() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -492,6 +496,7 @@ async fn turn_start_emits_user_message_item_with_text_elements() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: Some("client-message-1".to_string()),
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: text_elements.clone(),
@@ -521,7 +526,10 @@ async fn turn_start_emits_user_message_item_with_text_elements() -> Result<()> {
     .await??;
 
     match user_message_item {
-        ThreadItem::UserMessage { content, .. } => {
+        ThreadItem::UserMessage {
+            client_id, content, ..
+        } => {
+            assert_eq!(client_id, Some("client-message-1".to_string()));
             assert_eq!(
                 content,
                 vec![V2UserInput::Text {
@@ -604,6 +612,7 @@ async fn turn_start_emits_thread_scoped_warning_notification_for_trimmed_skills(
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -770,6 +779,7 @@ async fn thread_start_omits_empty_instruction_overrides_from_model_request() -> 
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -849,6 +859,7 @@ async fn turn_start_tracks_turn_event_analytics() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Image {
                 url: "https://example.com/a.png".to_string(),
                 detail: None,
@@ -937,6 +948,7 @@ async fn turn_start_accepts_text_at_limit_with_mention_item() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![
                 V2UserInput::Text {
                     text: "x".repeat(MAX_USER_INPUT_TEXT_CHARS),
@@ -1000,6 +1012,7 @@ async fn turn_start_rejects_combined_oversized_text_input() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![
                 V2UserInput::Text {
                     text: first,
@@ -1074,6 +1087,7 @@ async fn turn_start_rejects_invalid_permission_selection_before_starting_turn() 
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1146,6 +1160,7 @@ async fn turn_start_rejects_unknown_environment_before_starting_turn() -> Result
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1219,6 +1234,7 @@ async fn turn_start_emits_notifications_and_accepts_model_override() -> Result<(
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1271,6 +1287,7 @@ async fn turn_start_emits_notifications_and_accepts_model_override() -> Result<(
     let turn_req2 = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Second".to_string(),
                 text_elements: Vec::new(),
@@ -1369,6 +1386,7 @@ async fn turn_start_accepts_collaboration_mode_override_v2() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1458,6 +1476,7 @@ async fn turn_start_uses_thread_feature_overrides_for_request_user_input_tool_de
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1529,6 +1548,7 @@ async fn turn_start_accepts_personality_override_v2() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1610,6 +1630,7 @@ async fn turn_start_change_personality_mid_thread_v2() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1634,6 +1655,7 @@ async fn turn_start_change_personality_mid_thread_v2() -> Result<()> {
     let turn_req2 = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello again".to_string(),
                 text_elements: Vec::new(),
@@ -1736,6 +1758,7 @@ async fn turn_start_uses_migrated_pragmatic_personality_without_override_v2() ->
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "Hello".to_string(),
                 text_elements: Vec::new(),
@@ -1856,6 +1879,7 @@ async fn turn_start_exec_approval_toggle_v2() -> Result<()> {
     let first_turn_id = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "run python".to_string(),
                 text_elements: Vec::new(),
@@ -1920,6 +1944,7 @@ async fn turn_start_exec_approval_toggle_v2() -> Result<()> {
     let second_turn_id = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "run python again".to_string(),
                 text_elements: Vec::new(),
@@ -1997,6 +2022,7 @@ async fn turn_start_exec_approval_decline_v2() -> Result<()> {
     let turn_id = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "run python".to_string(),
                 text_elements: Vec::new(),
@@ -2152,6 +2178,7 @@ async fn turn_start_updates_sandbox_and_cwd_between_turns_v2() -> Result<()> {
         .send_turn_start_request(TurnStartParams {
             environments: None,
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "first turn".to_string(),
                 text_elements: Vec::new(),
@@ -2195,6 +2222,7 @@ async fn turn_start_updates_sandbox_and_cwd_between_turns_v2() -> Result<()> {
         .send_turn_start_request(TurnStartParams {
             environments: None,
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "second turn".to_string(),
                 text_elements: Vec::new(),
@@ -2337,6 +2365,7 @@ stream_max_retries = 0
     let first_turn_id = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "select dev profile".to_string(),
                 text_elements: Vec::new(),
@@ -2360,6 +2389,7 @@ stream_max_retries = 0
     let second_turn_id = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "write in new root".to_string(),
                 text_elements: Vec::new(),
@@ -2492,6 +2522,7 @@ async fn run_environment_selection_case(
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: format!("run {}", case.name),
                 text_elements: Vec::new(),
@@ -2607,6 +2638,7 @@ async fn turn_start_file_change_approval_v2() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "apply patch".into(),
                 text_elements: Vec::new(),
@@ -2797,6 +2829,7 @@ async fn turn_start_does_not_stream_apply_patch_change_updates_without_feature_v
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id,
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "apply patch".into(),
                 text_elements: Vec::new(),
@@ -2934,6 +2967,7 @@ async fn turn_start_streams_apply_patch_change_updates_v2() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "apply patch".into(),
                 text_elements: Vec::new(),
@@ -3064,6 +3098,7 @@ async fn turn_start_emits_spawn_agent_item_with_model_metadata_v2() -> Result<()
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: PARENT_PROMPT.to_string(),
                 text_elements: Vec::new(),
@@ -3283,6 +3318,7 @@ config_file = "./custom-role.toml"
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: PARENT_PROMPT.to_string(),
                 text_elements: Vec::new(),
@@ -3428,6 +3464,7 @@ async fn turn_start_file_change_approval_accept_for_session_persists_v2() -> Res
     let turn_1_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "apply patch 1".into(),
                 text_elements: Vec::new(),
@@ -3500,6 +3537,7 @@ async fn turn_start_file_change_approval_accept_for_session_persists_v2() -> Res
     let turn_2_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "apply patch 2".into(),
                 text_elements: Vec::new(),
@@ -3598,6 +3636,7 @@ async fn turn_start_file_change_approval_decline_v2() -> Result<()> {
     let turn_req = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "apply patch".into(),
                 text_elements: Vec::new(),
@@ -3743,6 +3782,7 @@ async fn command_execution_notifications_include_process_id() -> Result<()> {
     let turn_id = mcp
         .send_turn_start_request(TurnStartParams {
             thread_id: thread.id.clone(),
+            client_user_message_id: None,
             input: vec![V2UserInput::Text {
                 text: "run a command".to_string(),
                 text_elements: Vec::new(),

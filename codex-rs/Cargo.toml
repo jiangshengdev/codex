@@ -14,7 +14,6 @@ members = [
     "app-server-client",
     "app-server-protocol",
     "app-server-test-client",
-    "debug-client",
     "apply-patch",
     "arg0",
     "feedback",
@@ -47,12 +46,14 @@ members = [
     "ext/extension-api",
     "ext/goal",
     "ext/guardian",
+    "ext/image-generation",
     "ext/memories",
     "ext/web-search",
     "external-agent-migration",
     "external-agent-sessions",
     "keyring-store",
     "file-search",
+    "gui-host",
     "file-watcher",
     "linux-sandbox",
     "lmstudio",
@@ -165,6 +166,7 @@ codex-execpolicy = { path = "execpolicy" }
 codex-extension-api = { path = "ext/extension-api" }
 codex-goal-extension = { path = "ext/goal" }
 codex-guardian = { path = "ext/guardian" }
+codex-image-generation-extension = { path = "ext/image-generation" }
 codex-external-agent-migration = { path = "external-agent-migration" }
 codex-external-agent-sessions = { path = "external-agent-sessions" }
 codex-experimental-api-macros = { path = "codex-experimental-api-macros" }
@@ -174,6 +176,7 @@ codex-install-context = { path = "install-context" }
 codex-file-search = { path = "file-search" }
 codex-file-watcher = { path = "file-watcher" }
 codex-git-utils = { path = "git-utils" }
+codex-gui-host = { path = "gui-host" }
 codex-hooks = { path = "hooks" }
 codex-keyring-store = { path = "keyring-store" }
 codex-linux-sandbox = { path = "linux-sandbox" }
@@ -342,7 +345,7 @@ rcgen = { version = "0.14.7", default-features = false, features = [
 regex = "1.12.3"
 regex-lite = "0.1.8"
 reqwest = { version = "0.12", features = ["cookies"] }
-rmcp = { version = "0.15.0", default-features = false }
+rmcp = { version = "1.7.0", default-features = false }
 runfiles = { git = "https://github.com/dzbarsky/rules_rust", rev = "b56cbaa8465e74127f1ea216f813cd377295ad81" }
 rustls = { version = "0.23", default-features = false, features = [
     "ring",
@@ -400,6 +403,7 @@ tokio-tungstenite = { version = "0.28.0", features = [
 tokio-util = "0.7.18"
 toml = "0.9.5"
 toml_edit = "0.24.0"
+tower-http = { version = "0.6", features = ["fs"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.3"
 tracing-opentelemetry = "0.32.0"
