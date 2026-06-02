@@ -60,6 +60,12 @@ pub(crate) struct ProjectionDelivery {
     pub(crate) notification: ThreadProjectionEventNotification,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InvalidatedProjectionSubscriber {
+    pub(crate) connection_id: ConnectionId,
+    pub(crate) subscription_id: String,
+}
+
 #[derive(Default)]
 struct ThreadProjectionManagerInner {
     threads: HashMap<ThreadId, ThreadEntry>,
@@ -180,9 +186,12 @@ impl ThreadProjectionManager {
         }
     }
 
-    pub(crate) async fn invalidate_thread_projection(&self, thread_id: ThreadId) {
+    pub(crate) async fn invalidate_thread_projection(
+        &self,
+        thread_id: ThreadId,
+    ) -> Vec<InvalidatedProjectionSubscriber> {
         let mut inner = self.inner.lock().await;
-        inner.invalidate_thread_projection(thread_id);
+        inner.invalidate_thread_projection(thread_id)
     }
 
     pub(crate) async fn project_notification(
@@ -359,26 +368,44 @@ impl ThreadProjectionManagerInner {
         self.thread_generations.insert(thread_id, next_generation);
     }
 
-    fn invalidate_thread_projection(&mut self, thread_id: ThreadId) {
+    fn invalidate_thread_projection(
+        &mut self,
+        thread_id: ThreadId,
+    ) -> Vec<InvalidatedProjectionSubscriber> {
         if !self.thread_generations.contains_key(&thread_id)
             && !self.threads.contains_key(&thread_id)
         {
-            return;
+            return Vec::new();
         }
 
         self.bump_generation_if_known(thread_id);
-        let Some(entry) = self.threads.get_mut(&thread_id) else {
-            return;
+
+        let subscribers = {
+            let Some(entry) = self.threads.get_mut(&thread_id) else {
+                return Vec::new();
+            };
+
+            let subscribers = entry
+                .sorted_subscribers()
+                .into_iter()
+                .map(
+                    |(connection_id, subscription_id)| InvalidatedProjectionSubscriber {
+                        connection_id,
+                        subscription_id,
+                    },
+                )
+                .collect::<Vec<_>>();
+            entry.head_commit_id = None;
+            entry.subscribers.clear();
+            let _ = entry.has_subscribers_tx.send(false);
+            subscribers
         };
 
-        let connection_ids = entry.subscribers.keys().copied().collect::<Vec<_>>();
-        entry.head_commit_id = None;
-        entry.subscribers.clear();
-        let _ = entry.has_subscribers_tx.send(false);
-
-        for connection_id in connection_ids {
-            self.remove_connection_thread_index(connection_id, thread_id);
+        for subscriber in &subscribers {
+            self.remove_connection_thread_index(subscriber.connection_id, thread_id);
         }
+
+        subscribers
     }
 
     fn attach_locked(
@@ -720,13 +747,13 @@ mod tests {
         let first_attach = manager
             .attach_if_generation_matches(thread_id, first_connection_id, generation)
             .await;
-        let ProjectionAttachAttempt::Attached(_) = first_attach else {
+        let ProjectionAttachAttempt::Attached(first_result) = first_attach else {
             panic!("current generation should attach");
         };
         let second_attach = manager
             .attach_if_generation_matches(thread_id, second_connection_id, generation)
             .await;
-        let ProjectionAttachAttempt::Attached(_) = second_attach else {
+        let ProjectionAttachAttempt::Attached(second_result) = second_attach else {
             panic!("current generation should attach");
         };
 
@@ -735,7 +762,20 @@ mod tests {
             .await;
         assert_eq!(2, deliveries.len());
 
-        manager.invalidate_thread_projection(thread_id).await;
+        let invalidated = manager.invalidate_thread_projection(thread_id).await;
+        assert_eq!(
+            vec![
+                InvalidatedProjectionSubscriber {
+                    connection_id: first_connection_id,
+                    subscription_id: first_result.subscription_id,
+                },
+                InvalidatedProjectionSubscriber {
+                    connection_id: second_connection_id,
+                    subscription_id: second_result.subscription_id,
+                },
+            ],
+            invalidated
+        );
 
         assert!(
             !manager
@@ -792,7 +832,8 @@ mod tests {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
 
-        manager.invalidate_thread_projection(thread_id).await;
+        let invalidated = manager.invalidate_thread_projection(thread_id).await;
+        assert_eq!(Vec::<InvalidatedProjectionSubscriber>::new(), invalidated);
 
         assert!(!manager.has_thread_entry(thread_id).await);
         assert!(!manager.has_thread_generation(thread_id).await);

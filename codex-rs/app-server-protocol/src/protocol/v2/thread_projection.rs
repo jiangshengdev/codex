@@ -65,6 +65,22 @@ pub struct ThreadProjectionEventNotification {
     pub event: ThreadProjectionEvent,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadProjectionClosedNotification {
+    pub thread_id: String,
+    pub subscription_id: String,
+    pub reason: ThreadProjectionClosedReason,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum ThreadProjectionClosedReason {
+    Backpressure,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(tag = "type", rename_all = "camelCase", export_to = "v2/")]
@@ -201,6 +217,31 @@ mod tests {
                             }
                         }
                     }
+                }
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_thread_projection_closed_notification() -> Result<()> {
+        let notification: ServerNotification = serde_json::from_value(json!({
+            "method": "thread/projection/closed",
+            "params": {
+                "threadId": "thr_123",
+                "subscriptionId": "sub_123",
+                "reason": "backpressure"
+            }
+        }))?;
+
+        assert_eq!(
+            serde_json::to_value(&notification)?,
+            json!({
+                "method": "thread/projection/closed",
+                "params": {
+                    "threadId": "thr_123",
+                    "subscriptionId": "sub_123",
+                    "reason": "backpressure"
                 }
             })
         );

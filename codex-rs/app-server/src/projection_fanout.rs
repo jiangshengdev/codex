@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use codex_app_server_protocol::ServerNotification;
+use codex_app_server_protocol::ThreadProjectionClosedNotification;
+use codex_app_server_protocol::ThreadProjectionClosedReason;
 use codex_protocol::ThreadId;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
@@ -10,6 +12,7 @@ use tracing::warn;
 
 use crate::outgoing_message::OutgoingEnvelope;
 use crate::outgoing_message::OutgoingMessage;
+use crate::thread_projection::InvalidatedProjectionSubscriber;
 use crate::thread_projection::ProjectionDelivery;
 use crate::thread_projection::ThreadProjectionManager;
 use crate::thread_projection_cut::ProjectionHistoryCursor;
@@ -129,13 +132,19 @@ impl ProjectionFanoutManager {
             .try_send(ProjectionFanoutJob { sender, deliveries })
         {
             Ok(()) => {}
-            Err(mpsc::error::TrySendError::Full(_job)) => {
+            Err(mpsc::error::TrySendError::Full(job)) => {
                 warn!(
                     "projection fanout queue full; invalidating projection stream for {thread_id}"
                 );
-                self.manager.invalidate_thread_projection(thread_id).await;
+                let invalidated_subscribers =
+                    self.manager.invalidate_thread_projection(thread_id).await;
                 handle.cancellation.cancel();
                 self.remove_handle(thread_id, handle.worker_id).await;
+                spawn_projection_closed_notifications(
+                    job.sender,
+                    thread_id,
+                    invalidated_subscribers,
+                );
             }
             Err(mpsc::error::TrySendError::Closed(_job)) => {
                 warn!("projection fanout worker stopped before delivery for {thread_id}");
@@ -268,6 +277,39 @@ async fn send_projection_delivery_if_current_or_cancelled(
         .await;
 }
 
+fn spawn_projection_closed_notifications(
+    sender: mpsc::Sender<OutgoingEnvelope>,
+    thread_id: ThreadId,
+    subscribers: Vec<InvalidatedProjectionSubscriber>,
+) {
+    if subscribers.is_empty() {
+        return;
+    }
+
+    tokio::spawn(async move {
+        for subscriber in subscribers {
+            let message = OutgoingMessage::AppServerNotification(
+                ServerNotification::ThreadProjectionClosed(ThreadProjectionClosedNotification {
+                    thread_id: thread_id.to_string(),
+                    subscription_id: subscriber.subscription_id,
+                    reason: ThreadProjectionClosedReason::Backpressure,
+                }),
+            );
+            if let Err(err) = sender
+                .send(OutgoingEnvelope::ToConnection {
+                    connection_id: subscriber.connection_id,
+                    message,
+                    write_complete_tx: None,
+                })
+                .await
+            {
+                warn!("failed to send projection closed notification to client: {err:?}");
+                break;
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -319,15 +361,16 @@ mod tests {
         facade: &ThreadProjectionFacade,
         thread_id: ThreadId,
         connection_id: ConnectionId,
-    ) {
+    ) -> String {
         let generation = facade.manager.capture_current_generation(thread_id).await;
         let attach = facade
             .manager
             .attach_if_generation_matches(thread_id, connection_id, generation)
             .await;
-        let ProjectionAttachAttempt::Attached(_) = attach else {
+        let ProjectionAttachAttempt::Attached(result) = attach else {
             panic!("current generation should attach");
         };
+        result.subscription_id
     }
 
     #[tokio::test]
@@ -440,7 +483,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn queue_full_invalidates_generation_and_drops_current_job() {
+    async fn queue_full_sends_closed_notification_and_drops_current_job() {
         let manager = ThreadProjectionManager::new();
         let fanout =
             ProjectionFanoutManager::new_with_capacity(manager.clone(), /*capacity*/ 1);
@@ -450,7 +493,7 @@ mod tests {
         };
         let thread_id = ThreadId::new();
         let connection_id = ConnectionId(9);
-        attach_projection(&facade, thread_id, connection_id).await;
+        let subscription_id = attach_projection(&facade, thread_id, connection_id).await;
         let generation = manager.capture_current_generation(thread_id).await;
 
         let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
@@ -466,11 +509,20 @@ mod tests {
                 /*projection_history_cursor*/ None,
             )
             .await;
+        tokio::task::yield_now().await;
         facade
             .enqueue_notification(
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
+                /*projection_history_cursor*/ None,
+            )
+            .await;
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-3"),
                 /*projection_history_cursor*/ None,
             )
             .await;
@@ -482,10 +534,82 @@ mod tests {
         );
 
         let _capacity_holder = rx.recv().await.expect("capacity holder should exist");
+        let envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("closed notification should arrive")
+            .expect("closed notification should exist");
+        let OutgoingEnvelope::ToConnection {
+            connection_id: delivered_connection_id,
+            message:
+                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionClosed(
+                    notification,
+                )),
+            write_complete_tx,
+        } = envelope
+        else {
+            panic!("expected targeted projection closed notification");
+        };
+        assert_eq!(connection_id, delivered_connection_id);
+        assert_eq!(thread_id.to_string(), notification.thread_id);
+        assert_eq!(subscription_id, notification.subscription_id);
+        assert_eq!(
+            ThreadProjectionClosedReason::Backpressure,
+            notification.reason
+        );
+        assert!(write_complete_tx.is_none());
+
         assert!(
             timeout(Duration::from_millis(50), rx.recv()).await.is_err(),
             "old generation projection delivery should not enqueue after invalidation"
         );
+    }
+
+    #[tokio::test]
+    async fn queue_full_closed_notification_does_not_wait_for_outgoing_capacity() {
+        let manager = ThreadProjectionManager::new();
+        let fanout =
+            ProjectionFanoutManager::new_with_capacity(manager.clone(), /*capacity*/ 1);
+        let facade = ThreadProjectionFacade { manager, fanout };
+        let thread_id = ThreadId::new();
+        attach_projection(&facade, thread_id, ConnectionId(9)).await;
+
+        let (tx, _rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(capacity_holder())
+            .await
+            .expect("capacity holder should enqueue");
+
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-1"),
+                /*projection_history_cursor*/ None,
+            )
+            .await;
+        tokio::task::yield_now().await;
+        timeout(
+            Duration::from_secs(1),
+            facade.enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-2"),
+                /*projection_history_cursor*/ None,
+            ),
+        )
+        .await
+        .expect("queue-full handling must not wait for outgoing capacity");
+
+        timeout(
+            Duration::from_secs(1),
+            facade.enqueue_notification(
+                tx,
+                thread_id,
+                &turn_started_notification(thread_id, "turn-3"),
+                /*projection_history_cursor*/ None,
+            ),
+        )
+        .await
+        .expect("queue-full handling must not wait for outgoing capacity");
     }
 
     #[tokio::test]
