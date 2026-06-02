@@ -320,6 +320,10 @@ if [[ -n "${CODEX_BAZEL_EXECUTION_LOG_COMPACT_DIR:-}" ]]; then
   )
 fi
 
+if [[ -n "${CODEX_BAZEL_JOBS:-}" ]]; then
+  post_config_bazel_args+=("--jobs=${CODEX_BAZEL_JOBS}")
+fi
+
 if [[ "${RUNNER_OS:-}" == "Windows" ]]; then
   pass_windows_build_env=1
   if [[ $windows_cross_compile -eq 1 && -n "${BUILDBUDDY_API_KEY:-}" ]]; then
