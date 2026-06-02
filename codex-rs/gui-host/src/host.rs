@@ -282,7 +282,9 @@ mod tests {
         let (mut websocket, _response) = connect_websocket(&handle).await;
 
         websocket
-            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
             .await
             .expect("auth frame should send");
 
@@ -315,7 +317,9 @@ mod tests {
         let (mut websocket, _response) = connect_websocket(&handle).await;
 
         websocket
-            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
             .await
             .expect("auth frame should send");
         let _ = websocket.next().await.expect("auth response should arrive");
@@ -434,7 +438,9 @@ mod tests {
         let (mut websocket, _response) = connect_websocket(&handle).await;
 
         websocket
-            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
             .await
             .expect("auth frame should send");
         let _ = websocket.next().await.expect("auth response should arrive");
@@ -499,7 +505,9 @@ mod tests {
         let (mut websocket, _response) = connect_websocket(&handle).await;
 
         websocket
-            .send(Message::Text(authenticate_request(&handle, 1).into()))
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
             .await
             .expect("auth frame should send");
         let _ = websocket.next().await.expect("auth response should arrive");

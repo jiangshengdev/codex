@@ -352,7 +352,7 @@ mod tests {
         assert!(!super::validate_host_and_origin(
             local_addr,
             "127.0.0.1:4567",
-            None
+            /*origin*/ None
         ));
     }
 
