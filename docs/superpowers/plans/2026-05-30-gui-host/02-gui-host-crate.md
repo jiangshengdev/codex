@@ -72,7 +72,7 @@
 - Verify: `codex-rs/Cargo.toml`
 - Verify: `codex-rs/gui-host/**`
 
-- [ ] **Step 1: Confirm prior gate recommends this plan**
+- [x] **Step 1: Confirm prior gate recommends this plan**
 
 Run from repo root:
 
@@ -83,7 +83,7 @@ rg -n "Recommended next plan: `02-gui-host-crate.md`|Not allowed yet: app-server
 
 Expected: output includes both the `02-gui-host-crate.md` recommendation and the app-server bridge prohibition.
 
-- [ ] **Step 2: Confirm expected host crate files are present**
+- [x] **Step 2: Confirm expected host crate files are present**
 
 Run from repo root:
 
@@ -106,7 +106,7 @@ done
 
 Expected: every line starts with `ok`.
 
-- [ ] **Step 3: Confirm workspace wiring exists**
+- [x] **Step 3: Confirm workspace wiring exists**
 
 Run from repo root:
 
@@ -116,7 +116,7 @@ rg -n '"gui-host"|codex-gui-host = \{ path = "gui-host" \}|tower-http|tokio-tung
 
 Expected: output shows `gui-host` in workspace members, `codex-gui-host` in workspace dependencies, and the dependencies used by the host crate.
 
-- [ ] **Step 4: Confirm host crate does not depend on app-server**
+- [x] **Step 4: Confirm host crate does not depend on app-server**
 
 Run from repo root:
 
@@ -134,7 +134,7 @@ If this command returns matches outside comments or plan text, stop and remove t
 - Modify: `codex-rs/gui-host/src/lib.rs`
 - Modify: `codex-rs/gui-host/src/backend.rs`
 
-- [ ] **Step 1: Confirm public exports are explicit**
+- [x] **Step 1: Confirm public exports are explicit**
 
 Run from repo root:
 
@@ -144,7 +144,7 @@ sed -n '1,80p' codex-rs/gui-host/src/lib.rs
 
 Expected: modules are private except `pub(crate) mod ws`, and public API is exported with explicit `pub use` statements for `AuthenticatedGuiConnection`, `GuiBackend`, config types, filter helpers, `GuiHost`, `GuiHostHandle`, `LaunchToken`, and `launch_url_for_thread`.
 
-- [ ] **Step 2: If exports are missing, update `lib.rs` to this shape**
+- [x] **Step 2: If exports are missing, update `lib.rs` to this shape**
 
 ```rust
 mod assets;
@@ -171,7 +171,7 @@ pub use token::LaunchToken;
 pub use url::launch_url_for_thread;
 ```
 
-- [ ] **Step 3: Confirm `GuiBackend` uses RPITIT with explicit `Send` future bound**
+- [x] **Step 3: Confirm `GuiBackend` uses RPITIT with explicit `Send` future bound**
 
 Run from repo root:
 
@@ -192,7 +192,7 @@ pub trait GuiBackend: Send + Sync + 'static {
 
 Do not use `#[async_trait]`. Do not add `#[allow(async_fn_in_trait)]`.
 
-- [ ] **Step 4: Run the focused backend contract test**
+- [x] **Step 4: Run the focused backend contract test**
 
 Run from `codex-rs`:
 
@@ -209,7 +209,7 @@ Expected: the selected test passes.
 - Modify: `codex-rs/gui-host/src/config.rs`
 - Modify: `codex-rs/gui-host/src/url.rs`
 
-- [ ] **Step 1: Confirm launch token API and entropy source**
+- [x] **Step 1: Confirm launch token API and entropy source**
 
 Run from repo root:
 
@@ -219,7 +219,7 @@ sed -n '1,120p' codex-rs/gui-host/src/token.rs
 
 Expected: `LaunchToken::generate() -> std::io::Result<Self>` fills 32 random bytes with `OsRng.try_fill_bytes`, encodes with `URL_SAFE_NO_PAD`, and exposes `as_str()`.
 
-- [ ] **Step 2: Confirm config mode behavior**
+- [x] **Step 2: Confirm config mode behavior**
 
 Run from repo root:
 
@@ -236,7 +236,7 @@ Expected:
 - debug builds default to dev, release builds default to prod.
 - `CODEX_GUI_PACKAGE_ROOT` is required only for prod.
 
-- [ ] **Step 3: If config tests are incomplete, add these tests**
+- [x] **Step 3: If config tests are incomplete, add these tests**
 
 Add to `codex-rs/gui-host/src/config.rs` tests:
 
@@ -257,7 +257,7 @@ fn invalid_mode_returns_error() {
 
 Do not mutate process environment in tests.
 
-- [ ] **Step 4: Confirm launch URL shape**
+- [x] **Step 4: Confirm launch URL shape**
 
 Run from repo root:
 
@@ -267,7 +267,7 @@ sed -n '1,120p' codex-rs/gui-host/src/url.rs
 
 Expected: launch URLs use `http://127.0.0.1:<port>/?threadId=<encoded>#token=<token>`. Token must stay in the fragment, not the query string.
 
-- [ ] **Step 5: Run focused token/config/url tests**
+- [x] **Step 5: Run focused token/config/url tests**
 
 Run from `codex-rs`:
 
@@ -287,7 +287,7 @@ Expected: all selected tests pass. If `invalid_mode_returns_error` was already c
 - Modify: `codex-rs/gui-host/src/host.rs`
 - Modify: `codex-rs/gui-host/tests/prod_serves_hashed_asset.rs`
 
-- [ ] **Step 1: Confirm prod assets use `package_root/dist`**
+- [x] **Step 1: Confirm prod assets use `package_root/dist`**
 
 Run from repo root:
 
@@ -297,7 +297,7 @@ sed -n '1,80p' codex-rs/gui-host/src/assets.rs
 
 Expected: `prod_dist_dir` and `prod_assets_service` derive paths from `ProdAssetConfig::dist_dir()`, and `ProdAssetConfig::dist_dir()` joins `package_root/dist`.
 
-- [ ] **Step 2: Confirm security headers are applied to prod root and static fallback**
+- [x] **Step 2: Confirm security headers are applied to prod root and static fallback**
 
 Run from repo root:
 
@@ -309,7 +309,7 @@ rg -n "with_security_headers|add_security_headers|X_FRAME_OPTIONS|CONTENT_SECURI
 
 Expected: prod root responses and `ServeDir` fallback responses receive `X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'`.
 
-- [ ] **Step 3: Confirm dev mode remains a GUI-host origin proxy**
+- [x] **Step 3: Confirm dev mode remains a GUI-host origin proxy**
 
 Run from repo root:
 
@@ -321,7 +321,7 @@ rg -n "proxy_vite|vite_origin|fallback|get\\(move \\|uri: Uri\\|" \
 
 Expected: browser URL remains the GUI host URL, while dev assets proxy to `CODEX_GUI_VITE_URL` or `http://127.0.0.1:5173`.
 
-- [ ] **Step 4: Run focused asset tests**
+- [x] **Step 4: Run focused asset tests**
 
 Run from `codex-rs`:
 
@@ -341,7 +341,7 @@ Expected: all selected tests pass.
 - Modify: `codex-rs/gui-host/src/ws.rs`
 - Modify: `codex-rs/gui-host/src/host.rs`
 
-- [ ] **Step 1: Confirm request and notification allowlists**
+- [x] **Step 1: Confirm request and notification allowlists**
 
 Run from repo root:
 
@@ -356,7 +356,7 @@ Expected:
 - server notification allowlist contains `thread/projection/event`.
 - `gui/authenticate` is not in the app-server allowlist because it is local first-frame auth.
 
-- [ ] **Step 2: Confirm Host / Origin validation**
+- [x] **Step 2: Confirm Host / Origin validation**
 
 Run from repo root:
 
@@ -366,7 +366,7 @@ rg -n "validate_host_and_origin|expected_host|expected_origin|StatusCode::FORBID
 
 Expected: Host must be exactly `127.0.0.1:<port>` and Origin must be exactly `http://127.0.0.1:<port>`; missing or mismatched values return `403`.
 
-- [ ] **Step 3: Confirm first-frame authentication**
+- [x] **Step 3: Confirm first-frame authentication**
 
 Run from repo root:
 
@@ -382,7 +382,7 @@ Expected:
 - invalid/missing/wrong-token auth closes with policy violation `1008`.
 - failed auth does not construct `AuthenticatedGuiConnection` and does not call `GuiBackend::connect`.
 
-- [ ] **Step 4: Confirm post-auth browser filtering semantics**
+- [x] **Step 4: Confirm post-auth browser filtering semantics**
 
 Run from repo root:
 
@@ -396,7 +396,7 @@ Expected:
 - non-allowlisted browser notifications are dropped without closing.
 - browser Response/Error frames and malformed JSON-RPC close with policy violation.
 
-- [ ] **Step 5: Confirm backend-to-browser filtering semantics**
+- [x] **Step 5: Confirm backend-to-browser filtering semantics**
 
 Run from repo root:
 
@@ -411,7 +411,7 @@ Expected:
 - other backend notifications are dropped.
 - malformed backend text is dropped.
 
-- [ ] **Step 6: Run focused WebSocket tests**
+- [x] **Step 6: Run focused WebSocket tests**
 
 Run from `codex-rs`:
 
@@ -438,7 +438,7 @@ Expected: all selected tests pass. Do not rewrite allowlist rejection into close
 - Verify: `codex-rs/Cargo.lock`
 - Verify: `MODULE.bazel.lock`
 
-- [ ] **Step 1: Confirm no out-of-scope source files changed**
+- [x] **Step 1: Confirm no out-of-scope source files changed**
 
 Run from repo root:
 
@@ -448,7 +448,7 @@ git diff --name-only | rg -v '^(codex-rs/Cargo.toml|codex-rs/Cargo.lock|MODULE.b
 
 Expected: no output.
 
-- [ ] **Step 2: Format Rust changes**
+- [x] **Step 2: Format Rust changes**
 
 Run from `codex-rs`:
 
@@ -458,7 +458,7 @@ just fmt
 
 Expected: command exits successfully. Do not rerun tests solely because `fmt` ran.
 
-- [ ] **Step 3: Run full gui-host crate tests**
+- [x] **Step 3: Run full gui-host crate tests**
 
 Run from `codex-rs`:
 
@@ -468,7 +468,7 @@ just test -p codex-gui-host
 
 Expected: all `codex-gui-host` tests pass.
 
-- [ ] **Step 4: Run scoped fix for gui-host**
+- [x] **Step 4: Run scoped fix for gui-host**
 
 Run from `codex-rs`:
 
@@ -488,7 +488,7 @@ Expected fallback: clippy exits successfully.
 
 Do not rerun tests after `fix` or `fmt`.
 
-- [ ] **Step 5: If dependency files changed, refresh and check Bazel lock**
+- [x] **Step 5: If dependency files changed, refresh and check Bazel lock**
 
 Only run this step if `codex-rs/Cargo.toml` or `codex-rs/Cargo.lock` changed in this task.
 
@@ -506,7 +506,7 @@ Expected: both commands exit successfully, and `MODULE.bazel.lock` is included i
 **Files:**
 - Modify: `docs/superpowers/plans/2026-05-30-gui-host/02-gui-host-crate.md`
 
-- [ ] **Step 1: Record verification evidence in the implementation summary**
+- [x] **Step 1: Record verification evidence in the implementation summary**
 
 At execution time, the implementer must report:
 
@@ -515,7 +515,7 @@ At execution time, the implementer must report:
 - exact verification commands run and their pass/fail status.
 - if `just fix -p codex-gui-host` used the fallback clippy path, include the exact failure text that triggered the fallback.
 
-- [ ] **Step 2: Stop before bridge work**
+- [x] **Step 2: Stop before bridge work**
 
 After this plan is complete, stop. Do not create or execute app-server bridge changes in the same task.
 
@@ -531,3 +531,14 @@ Not allowed as part of this plan:
 - changes to `codex-rs/app-server-client/src/gui.rs`
 - changes to `codex-rs/tui/**`
 
+## Implementation Summary
+
+- Task 1 baseline confirmed: `01-gui-host-crate.md` gate output recommends `02-gui-host-crate.md` and still forbids app-server bridge implementation; expected gui-host files and workspace wiring exist; `codex-rs/gui-host` has no app-server, TUI, or core dependency matches.
+- Task 2 required no code changes: `lib.rs` / `backend.rs` already satisfy explicit public exports and the RPITIT `GuiBackend` contract. `cd codex-rs && just test -p codex-gui-host authenticated_connection_channels_round_trip_text` passed; `just fmt` passed.
+- Task 3 changed `codex-rs/gui-host/src/config.rs` and `codex-rs/gui-host/src/token.rs`; `url.rs` required no changes. Focused token/config/url tests passed: `generated_token_is_url_safe_and_has_entropy_length`, `generate_returns_io_result`, `invalid_mode_returns_error`, and `launch_url_uses_thread_query_and_fragment_token`. Follow-up config verification also passed: `invalid_mode_returns_error`, `non_unicode_mode_is_treated_like_unset`, and `unset_mode_resolves_for_build_profile`.
+- Task 4 changed `codex-rs/gui-host/tests/prod_serves_hashed_asset.rs` to assert `x-frame-options` and `content-security-policy` on hashed asset responses; `assets.rs` / `host.rs` required no changes. Focused asset tests passed: `prod_dist_dir_requires_existing_dist`, `prod_root_serves_index_with_security_headers`, `prod_static_index_serves_security_headers`, and `prod_serves_hashed_asset_from_package_root`.
+- Task 5 required no code changes: `filter.rs` / `ws.rs` / `host.rs` already satisfy allowlist, auth, and filtering semantics. All Task 5 focused WebSocket tests passed; `just fmt` passed.
+- Task 6 fresh verification passed: `cd codex-rs && just fmt`; `cd codex-rs && just test -p codex-gui-host` with 43 tests run, 43 passed, 0 skipped, and bench smoke completed; `cd codex-rs && just fix -p codex-gui-host` passed without fallback clippy; `git diff --check` passed.
+- Dependency files were not modified: `codex-rs/Cargo.toml`, `codex-rs/Cargo.lock`, and `MODULE.bazel.lock` stayed unchanged, so `just bazel-lock-update` and `just bazel-lock-check` were not run.
+- Final code change set for this plan is limited to `codex-rs/gui-host/src/config.rs`, `codex-rs/gui-host/src/token.rs`, and `codex-rs/gui-host/tests/prod_serves_hashed_asset.rs`.
+- Stop boundary preserved: no app-server bridge, app-server-client, TUI, or frontend work was executed.
