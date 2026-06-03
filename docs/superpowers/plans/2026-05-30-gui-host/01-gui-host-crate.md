@@ -330,3 +330,45 @@ Expected: no output.
 - `### DROP` 表：至少包含 `open_extra_jsonrpc_connection`、`ExtraJsonRpcConnectionFactory`、old `02-in-process-extra-connection.md`、runtime refactor to fit old branch。
 - `### Frontend Boundary` 小节：记录 `guiHostClient.ts`、`App.tsx`、`projectionSlice.ts` 的当前边界。
 - `## Next Plan Recommendation` 小节：只能推荐 `02-gui-host-crate.md` 或 `02-bridge-boundary-decision.md` 之一，并说明另一个为什么不能先做。
+
+## Audit Results
+
+### KEEP
+
+| Decision | Status | Evidence | Notes |
+| --- | --- | --- | --- |
+| `/gui` only displays local URL; it does not open the browser. | KEEP | `2026-05-11-codex-gui-host-redesign.md:292-304`; `2026-05-30-codex-gui-host-dev-adaptation-design.md:139-142`; `00-roadmap.md:60` | Applies to later TUI plan. |
+| `gui/authenticate` is GUI host local first-frame auth, not app-server v2 API. | KEEP | `2026-05-11-codex-gui-host-redesign.md:325-339`; `2026-05-30-codex-gui-host-dev-adaptation-design.md:98-100`; `00-roadmap.md:61` | Applies to gui-host crate and bridge plans. |
+| Browser traffic must pass Host / Origin / token / allowlist checks before app-server handling. | KEEP | `2026-05-11-codex-gui-host-redesign.md:351-400`; `2026-05-30-codex-gui-host-dev-adaptation-design.md:176-178`; `00-roadmap.md:73-81` | Applies to gui-host shell. |
+| `codex-gui-host` must not depend on `codex-app-server`. | KEEP | `2026-05-11-codex-gui-host-redesign.md:78-86`; `00-roadmap.md:58`; `00-roadmap.md:181-185` | Keeps host shell independent of app-server business logic. |
+| TUI does not forward browser JSON-RPC traffic. | KEEP | `2026-05-11-codex-gui-host-redesign.md:125-127`; `2026-05-13-gui-host-low-intrusion-refactor-design.md:28-29`; `2026-05-13-gui-host-extra-open-hook-thinning-design.md:35-36`; `00-roadmap.md:70-71` | Applies to TUI plan and ownership boundary. |
+
+### RECHECK
+
+| Decision | Status | Evidence | Required Recheck |
+| --- | --- | --- | --- |
+| Authenticated GUI `/ws` enters app-server through an in-process bridge. | RECHECK | Current in-process path already runs `MessageProcessor` plus `route_outgoing_envelope` through `IN_PROCESS_CONNECTION_ID`: `codex-rs/app-server/src/in_process.rs:395`, `:407`, `:424`, `:452`. | Future bridge plan must choose whether to adapt this existing low-level boundary or add the narrowest neutral hook; do not restore old extra connection APIs. |
+| `in_process.rs` keeps only neutral hook code. | RECHECK | `in_process.rs` is currently transport-local runtime glue with no GUI/browser/token concepts, and it passes `remote_control_handle: None`: `codex-rs/app-server/src/in_process.rs:34`, `:438`. | Future bridge plan must prove any hook is transport-neutral and does not copy remote-control maps/routing/cleanup into `in_process.rs`. |
+| app-server-client exposes a GUI launch facade. | RECHECK | `InProcessAppServerClient` owns `command_tx`, `event_rx`, `worker_handle`, starts runtime via `codex_app_server::in_process::start`, and explicit shutdown drops `event_rx` before worker shutdown: `codex-rs/app-server-client/src/lib.rs:463`, `:491`, `:763`, `:774`. | Future facade plan should add a separate GUI module/facade and keep `lib.rs` to minimal wiring/re-export/drop ordering. |
+| Projection attach/event payloads match GUI expectations. | RECHECK | Attach/event flow is current-source specific: `MessageProcessor` dispatches `ThreadProjectionAttach`/`Detach` at `codex-rs/app-server/src/message_processor.rs:1009`, projection manager/fanout emits events and closed notifications at `codex-rs/app-server/src/projection_fanout.rs:255`, `:292`. | Future frontend/source audit must compare current protocol payloads and Redux/React store handling before assuming older GUI projection designs still match. |
+
+### DROP
+
+| Route | Status | Evidence | Replacement |
+| --- | --- | --- | --- |
+| Restore `open_extra_jsonrpc_connection`. | DROP | `2026-05-11-codex-gui-host-redesign.md:13,25` identifies this as duplicate parallel JSON-RPC connection direction; `00-roadmap.md:52-55` forbids restoring it; current `codex-rs` / `codex-gui` source has no matches. | Use future `03-bridge-boundary-decision.md` to choose the smallest adapter against current runtime. |
+| Restore `ExtraJsonRpcConnectionFactory`. | DROP | Same duplicate direction: `2026-05-11-codex-gui-host-redesign.md:13,25`; `00-roadmap.md:52-55` forbids restoring it; current source has no matches. | Use future bridge boundary decision; do not reintroduce the old factory abstraction. |
+| Execute old `02-in-process-extra-connection.md`. | DROP | `00-roadmap.md:107-111` marks old `02` as deleted and not to restore; git evidence `f728c406c` deleted the file; current `git ls-files` no longer lists it. | Write a new bridge decision plan after this audit; do not restore old `02`. |
+| Refactor current `rust-v0.136.0` runtime to fit old GUI branch. | DROP | `00-roadmap.md:7`, `:52`, `:199-203`, `:226`, `:314-329`, `:366`; `01-gui-host-crate.md:72-80` forbid current runtime/projection restructuring. | Add only a minimal adapter/hook if future source audit proves it fits current `rust-v0.136.0` boundaries. |
+
+### Frontend Boundary
+
+- `guiHostClient.ts`: no Redux/store import; imports protocol types at `codex-gui/src/features/guiHost/guiHostClient.ts:1`, exposes callbacks at `:20`, connects `/ws` and sends `gui/authenticate` / `initialize` / `thread/projection/attach` around `:81`, parses JSON-RPC at `:268`, sends `jsonrpc: "2.0"` requests around `:390`.
+- `App.tsx`: React boundary imports `useAppDispatch` and projection actions at `codex-gui/src/App.tsx:2`; callbacks dispatch `projectionAttached` / `projectionEventReceived` around `:20`.
+- `projectionSlice.ts`: reducers accept `ThreadProjectionAttachResponse` and `ThreadProjectionEventNotification` at `codex-gui/src/features/projection/projectionSlice.ts:97`; state tracks `subscriptionId`, thread snapshot, `headCommitId`, `reattach` at `:16`; event reducer has subscription/duplicate/parent guards at `:113`; MVP events listed around `:75`. Note risk: current slice marks `reattach` but lacks automatic reattach flow and closed/backpressure terminal handling.
+
+## Next Plan Recommendation
+
+- Recommended next plan: `02-gui-host-crate.md`.
+- Reason: audit confirms host shell recovery can stay independent: gui-host owns Host/Origin/token/allowlist/local auth and must not depend on app-server; bridge/runtime decisions remain RECHECK, so host shell can be recovered first without app-server/projection changes.
+- Not allowed yet: app-server bridge implementation. `02-bridge-boundary-decision.md` should wait until host shell boundary exists or until a later explicit decision gate; it cannot be used to start Rust bridge work from `01`.
