@@ -161,6 +161,37 @@ GUI WebSocket 不是另起一套 transport，而是作为额外的 in-process co
 `TransportEvent` 只作为远程/未来连接模型的语义参考。
 MVP 不复刻它，不把 GUI host 迁成 transport producer。
 
+## 计划防漂移锁
+
+后续 plan 只能把本文和 source-of-truth 设计落成可执行步骤，不能重新选择 bridge 架构。若 plan 需要改变下列决策，必须停止并回到 design 讨论。
+
+### 已锁定决策
+
+- 采用方案 A：薄 hook + 旁路模块。
+- 认证后的 GUI `/ws` 作为 extra in-process connection 接入当前 in-process app-server runtime。
+- `in_process.rs` 只保留中性 runtime hook，不承载 GUI 专属实现。
+- `in_process_extra.rs` 承担 extra connection 生命周期、outbound state、writer bridge、ID 分配和 close cleanup 细节。
+- `gui_transport.rs` 承担认证后 browser WebSocket 到 extra connection 的 bridge。
+- `gui_host.rs` 承担 GUI host 生命周期、lazy start / reuse / shutdown。
+- `app-server-client/src/gui.rs` 承担 GUI facade；`app-server-client/src/lib.rs` 只保留导出、构造和必要 drop ordering。
+- `TransportEvent` 不进入 MVP in-process 路径。
+
+### 禁止方向
+
+- 不恢复 `open_extra_jsonrpc_connection` 或 `ExtraJsonRpcConnectionFactory`。
+- 不把被 revert 的 extra-connection commits 作为实现模板；它们只可作为负面证据。
+- 不为了 GUI host 重构 `rust-v0.136.0` 的 app-server runtime、client facade、projection fanout 或 remote-control 路径。
+- 不在 `in_process.rs` 中引入 GUI、WebSocket、browser、token、Host、Origin、allowlist 等概念。
+- 不把 remote-control 的 `TransportEvent` connection map / outbound router / close cleanup 复刻进 in-process runtime。
+- 不把 `InProcessAppServerClient` 改成 GUI-aware 状态机；尤其不为 GUI facade 把主字段散改成多个 `Option<_>`。
+
+### 停止条件
+
+- 如果最小 hook 仍要求大面积改写 `rust-v0.136.0` 上游结构，停止。
+- 如果 app-server-client facade 需要改变 request / notify / next_event 的主路径语义，停止。
+- 如果 extra connection 细节无法隔离到 fork-only 模块，停止。
+- 如果计划文件开始根据当前代码重新选择设计，而不是执行本文设计，停止。
+
 ## 迁移顺序
 
 1. 先把 GUI launch facade 收敛到 `app-server-client/src/gui.rs`。
