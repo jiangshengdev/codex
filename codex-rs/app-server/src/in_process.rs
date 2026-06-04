@@ -526,8 +526,12 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     created = thread_created_rx.recv(), if listen_for_threads => {
                         match created {
                             Ok(thread_id) => {
-                                let connection_ids =
-                                    extra_connections.initialized_connection_ids(session.initialized());
+                                let mut connection_ids = if session.initialized() {
+                                    vec![IN_PROCESS_CONNECTION_ID]
+                                } else {
+                                    Vec::<ConnectionId>::new()
+                                };
+                                extra_connections.extend_initialized_connection_ids(&mut connection_ids);
                                 processor
                                     .try_attach_thread_listener(thread_id, connection_ids)
                                     .await;

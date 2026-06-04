@@ -328,15 +328,10 @@ impl ExtraConnectionState {
         );
     }
 
-    pub(crate) fn initialized_connection_ids(&self, include_main: bool) -> Vec<ConnectionId> {
-        let mut connection_ids = Vec::new();
-        if include_main {
-            connection_ids.push(crate::in_process::IN_PROCESS_CONNECTION_ID);
-        }
+    pub(crate) fn extend_initialized_connection_ids(&self, connection_ids: &mut Vec<ConnectionId>) {
         connection_ids.extend(self.entries.iter().filter_map(|(connection_id, entry)| {
             entry.session.initialized().then_some(*connection_id)
         }));
-        connection_ids
     }
 
     pub(crate) async fn handle_processor_command(
