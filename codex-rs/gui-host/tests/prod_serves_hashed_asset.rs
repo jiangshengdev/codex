@@ -52,6 +52,20 @@ async fn prod_serves_hashed_asset_from_package_root() {
     .await
     .expect("asset request should succeed");
     assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("x-frame-options")
+            .expect("x-frame-options header should be present"),
+        "DENY"
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("content-security-policy")
+            .expect("content-security-policy header should be present"),
+        "frame-ancestors 'none'"
+    );
     let body = response.text().await.expect("body should be readable");
     assert!(!body.is_empty());
 

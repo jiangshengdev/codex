@@ -28,6 +28,7 @@ impl LaunchToken {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     fn requires_io_result(_: std::io::Result<LaunchToken>) {}
 
@@ -35,7 +36,7 @@ mod tests {
     fn generated_token_is_url_safe_and_has_entropy_length() {
         let token = LaunchToken::generate().expect("token should generate");
 
-        assert!(token.as_str().len() >= 22);
+        assert_eq!(token.as_str().len(), 43);
         assert!(
             token
                 .as_str()

@@ -55,6 +55,7 @@ use crate::config_manager::ConfigManager;
 use crate::error_code::OVERLOADED_ERROR_CODE;
 use crate::error_code::internal_error;
 use crate::error_code::invalid_request;
+use crate::in_process_extra;
 use crate::message_processor::ConnectionSessionState;
 use crate::message_processor::MessageProcessor;
 use crate::message_processor::MessageProcessorArgs;
@@ -94,7 +95,7 @@ use tokio::time::timeout;
 use toml::Value as TomlValue;
 use tracing::warn;
 
-const IN_PROCESS_CONNECTION_ID: ConnectionId = ConnectionId(0);
+pub(crate) const IN_PROCESS_CONNECTION_ID: ConnectionId = ConnectionId(0);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 /// Default bounded channel capacity for in-process runtime queues.
 pub const DEFAULT_IN_PROCESS_CHANNEL_CAPACITY: usize = CHANNEL_CAPACITY;
@@ -167,7 +168,7 @@ pub enum InProcessServerEvent {
 /// Requests carry a oneshot sender for the response; notifications and server-request
 /// replies are fire-and-forget from the caller's perspective (transport errors are
 /// caught by `try_send` on the outer channel).
-enum InProcessClientMessage {
+pub(crate) enum InProcessClientMessage {
     Request {
         request: Box<ClientRequest>,
         response_tx: oneshot::Sender<PendingClientRequestResponse>,
@@ -175,6 +176,7 @@ enum InProcessClientMessage {
     Notification {
         notification: ClientNotification,
     },
+    Extra(Box<in_process_extra::ExtraConnectionCommand>),
     ServerRequestResponse {
         request_id: RequestId,
         result: Result,
@@ -191,6 +193,7 @@ enum InProcessClientMessage {
 enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
+    Extra(Box<in_process_extra::ExtraProcessorCommand>),
 }
 
 #[derive(Clone)]
@@ -215,6 +218,14 @@ impl InProcessClientSender {
 
     pub fn notify(&self, notification: ClientNotification) -> IoResult<()> {
         self.try_send_client_message(InProcessClientMessage::Notification { notification })
+    }
+
+    pub(crate) fn register_extra_connection(
+        &self,
+        outgoing_tx: mpsc::Sender<String>,
+    ) -> IoResult<in_process_extra::ExtraConnectionHandle> {
+        in_process_extra::ExtraConnectionCommandSender::new(self.client_tx.clone())
+            .open(outgoing_tx)
     }
 
     pub fn respond_to_server_request(&self, request_id: RequestId, result: Result) -> IoResult<()> {
@@ -386,6 +397,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             outgoing_tx,
             analytics_events_client.clone(),
         ));
+        let (outbound_control_tx, mut outbound_control_rx) =
+            mpsc::channel::<in_process_extra::OutboundControl>(channel_capacity);
 
         let (writer_tx, mut writer_rx) = mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
         let outbound_initialized = Arc::new(AtomicBool::new(false));
@@ -404,8 +417,28 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             ),
         );
         let mut outbound_handle = tokio::spawn(async move {
-            while let Some(envelope) = outgoing_rx.recv().await {
-                route_outgoing_envelope(&mut outbound_connections, envelope).await;
+            loop {
+                tokio::select! {
+                    biased;
+
+                    control = outbound_control_rx.recv() => {
+                        if let Some(control) = control {
+                            in_process_extra::handle_outbound_control(
+                                &mut outbound_connections,
+                                control,
+                            );
+                        } else {
+                            break;
+                        }
+                    }
+                    envelope = outgoing_rx.recv() => {
+                        if let Some(envelope) = envelope {
+                            route_outgoing_envelope(&mut outbound_connections, envelope).await;
+                        } else {
+                            break;
+                        }
+                    }
+                }
             }
         });
 
@@ -441,6 +474,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             }));
             let mut thread_created_rx = processor.thread_created_receiver();
             let session = Arc::new(ConnectionSessionState::new());
+            let mut extra_connections = in_process_extra::ExtraConnectionState::default();
             let mut listen_for_threads = true;
 
             loop {
@@ -481,6 +515,11 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             Some(ProcessorCommand::Notification(notification)) => {
                                 processor.process_client_notification(notification).await;
                             }
+                            Some(ProcessorCommand::Extra(command)) => {
+                                extra_connections
+                                    .handle_processor_command(&processor, *command)
+                                    .await;
+                            }
                             None => {
                                 break;
                             }
@@ -489,11 +528,12 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     created = thread_created_rx.recv(), if listen_for_threads => {
                         match created {
                             Ok(thread_id) => {
-                                let connection_ids = if session.initialized() {
+                                let mut connection_ids = if session.initialized() {
                                     vec![IN_PROCESS_CONNECTION_ID]
                                 } else {
                                     Vec::<ConnectionId>::new()
                                 };
+                                extra_connections.extend_initialized_connection_ids(&mut connection_ids);
                                 processor
                                     .try_attach_thread_listener(thread_id, connection_ids)
                                     .await;
@@ -575,6 +615,71 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 }
                                 Err(mpsc::error::TrySendError::Closed(_)) => {
                                     break;
+                                }
+                            }
+                        }
+                        Some(InProcessClientMessage::Extra(command)) => {
+                            match in_process_extra::prepare_client_command(*command, channel_capacity) {
+                                in_process_extra::PreparedExtraClientCommand::Opened(prepared) => {
+                                    let connection_id = prepared.connection_id;
+                                    if outbound_control_tx
+                                        .send(prepared.outbound_control)
+                                        .await
+                                        .is_err()
+                                    {
+                                        warn!("failed to register extra outbound state: {connection_id:?}");
+                                        break;
+                                    }
+                                    if processor_tx
+                                        .send(ProcessorCommand::Extra(Box::new(
+                                            prepared.processor_command,
+                                        )))
+                                        .await
+                                        .is_err()
+                                    {
+                                        warn!("failed to register extra processor state: {connection_id:?}");
+                                        break;
+                                    }
+                                }
+                                in_process_extra::PreparedExtraClientCommand::Request {
+                                    connection_id,
+                                    request_id,
+                                    processor_command,
+                                } => {
+                                    match processor_tx.try_send(ProcessorCommand::Extra(Box::new(
+                                        processor_command,
+                                    ))) {
+                                        Ok(()) => {}
+                                        Err(mpsc::error::TrySendError::Full(_)) => {
+                                            in_process_extra::try_send_request_queue_full_error(
+                                                &outbound_control_tx,
+                                                connection_id,
+                                                request_id,
+                                            );
+                                        }
+                                        Err(mpsc::error::TrySendError::Closed(_)) => {
+                                            break;
+                                        }
+                                    }
+                                }
+                                in_process_extra::PreparedExtraClientCommand::Notification(command) => {
+                                    if processor_tx
+                                        .try_send(ProcessorCommand::Extra(Box::new(command)))
+                                        .is_err()
+                                    {
+                                        warn!("dropping extra connection message (processor queue unavailable)");
+                                    }
+                                }
+                                in_process_extra::PreparedExtraClientCommand::Closed {
+                                    processor_command,
+                                    outbound_control,
+                                } => {
+                                    if outbound_control_tx.send(outbound_control).await.is_err() {
+                                        break;
+                                    }
+                                    let _ = processor_tx
+                                        .send(ProcessorCommand::Extra(Box::new(processor_command)))
+                                        .await;
                                 }
                             }
                         }
@@ -725,7 +830,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use codex_app_server_protocol::ClientInfo;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
@@ -800,6 +905,10 @@ mod tests {
         start_test_client_with_capacity(session_source, DEFAULT_IN_PROCESS_CHANNEL_CAPACITY).await
     }
 
+    pub(crate) async fn start_test_client_for_bridge() -> InProcessClientHandle {
+        start_test_client(SessionSource::Cli).await
+    }
+
     #[tokio::test]
     async fn in_process_start_initializes_and_handles_typed_v2_request() {
         let client = start_test_client(SessionSource::Cli).await;
@@ -815,6 +924,43 @@ mod tests {
 
         let _parsed: ConfigRequirementsReadResponse =
             serde_json::from_value(response).expect("response should match v2 schema");
+        client
+            .shutdown()
+            .await
+            .expect("in-process runtime should shutdown cleanly");
+    }
+
+    #[tokio::test]
+    async fn register_extra_connection_after_shutdown_returns_broken_pipe() {
+        let sender = {
+            let client = start_test_client(SessionSource::Cli).await;
+            let sender = client.sender();
+            client
+                .shutdown()
+                .await
+                .expect("in-process runtime should shutdown cleanly");
+            sender
+        };
+        let (outgoing_tx, _outgoing_rx) = mpsc::channel(1);
+        let error = match sender.register_extra_connection(outgoing_tx) {
+            Ok(_) => panic!("closed runtime should reject extra registration"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ErrorKind::BrokenPipe);
+    }
+
+    #[tokio::test]
+    async fn main_connection_still_handles_typed_request_after_extra_hooks() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let response = client
+            .request(ClientRequest::ConfigRequirementsRead {
+                request_id: RequestId::Integer(41),
+                params: None,
+            })
+            .await
+            .expect("request transport should work")
+            .expect("request should succeed");
+        assert!(response.is_object());
         client
             .shutdown()
             .await
