@@ -565,8 +565,12 @@ mod tests {
     async fn prepared_open_registers_outbound_and_processor_payloads() {
         let (outgoing_tx, _outgoing_rx) = mpsc::channel(1);
         let connection_id = ConnectionId(42);
-        let prepared =
-            prepare_opened_connection(connection_id, outgoing_tx, CancellationToken::new(), 1);
+        let prepared = prepare_opened_connection(
+            connection_id,
+            outgoing_tx,
+            CancellationToken::new(),
+            /*channel_capacity*/ 1,
+        );
         assert_eq!(prepared.connection_id, connection_id);
         match prepared.outbound_control {
             OutboundControl::Register {
