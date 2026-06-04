@@ -88,7 +88,10 @@ mod extensions;
 mod filters;
 mod fs_watch;
 mod fuzzy_file_search;
+mod gui_host;
+mod gui_transport;
 pub mod in_process;
+mod in_process_extra;
 mod mcp_refresh;
 mod message_processor;
 mod models;
@@ -107,6 +110,7 @@ mod transport;
 
 pub use crate::error_code::INPUT_TOO_LARGE_ERROR_CODE;
 pub use crate::error_code::INVALID_PARAMS_ERROR_CODE;
+pub use crate::gui_host::GuiHostManager;
 pub use crate::transport::AppServerTransport;
 pub use crate::transport::app_server_control_socket_path;
 pub use crate::transport::auth::AppServerWebsocketAuthArgs;
