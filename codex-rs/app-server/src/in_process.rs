@@ -422,19 +422,21 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     biased;
 
                     control = outbound_control_rx.recv() => {
-                        let Some(control) = control else {
+                        if let Some(control) = control {
+                            in_process_extra::handle_outbound_control(
+                                &mut outbound_connections,
+                                control,
+                            );
+                        } else {
                             break;
-                        };
-                        in_process_extra::handle_outbound_control(
-                            &mut outbound_connections,
-                            control,
-                        );
+                        }
                     }
                     envelope = outgoing_rx.recv() => {
-                        let Some(envelope) = envelope else {
+                        if let Some(envelope) = envelope {
+                            route_outgoing_envelope(&mut outbound_connections, envelope).await;
+                        } else {
                             break;
-                        };
-                        route_outgoing_envelope(&mut outbound_connections, envelope).await;
+                        }
                     }
                 }
             }
