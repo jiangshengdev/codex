@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn primary_thread_for_gui_requires_primary_thread() {
         assert_eq!(
-            primary_thread_for_gui(None),
+            primary_thread_for_gui(/*primary_thread_id*/ None),
             Err(GUI_NO_PRIMARY_THREAD_MESSAGE)
         );
     }
