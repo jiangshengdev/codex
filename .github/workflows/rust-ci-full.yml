@@ -158,9 +158,10 @@ jobs:
         working-directory: codex-rs
     env:
       # Speed up repeated builds across CI runs by caching compiled objects, except on
-      # arm64 macOS runners cross-targeting x86_64 where ring/cc-rs can produce
-      # mixed-architecture archives under sccache.
-      USE_SCCACHE: ${{ (startsWith(matrix.runner, 'windows') || (matrix.runner == 'macos-15' && matrix.target == 'x86_64-apple-darwin')) && 'false' || 'true' }}
+      # Windows, arm64 macOS runners cross-targeting x86_64 where ring/cc-rs can
+      # produce mixed-architecture archives under sccache, and ubuntu arm64 where
+      # the local sccache fallback can exhaust runner disk.
+      USE_SCCACHE: ${{ (startsWith(matrix.runner, 'windows') || matrix.runner == 'ubuntu-24.04-arm' || (matrix.runner == 'macos-15' && matrix.target == 'x86_64-apple-darwin')) && 'false' || 'true' }}
       CARGO_INCREMENTAL: "0"
       SCCACHE_CACHE_SIZE: 10G
       # In rust-ci, representative release-profile checks use thin LTO for faster feedback.
@@ -464,7 +465,7 @@ jobs:
       profile: ci-test
       artifact_id: linux-arm64
       cargo_build_jobs: 1
-      use_sccache: true
+      use_sccache: false
     secrets: inherit
 
   tests_windows_x64:
