@@ -95,6 +95,7 @@ pub(crate) enum AppCommand {
         force_reload: bool,
     },
     Compact,
+    LaunchGui,
     SetThreadName {
         name: String,
     },
@@ -253,6 +254,10 @@ impl AppCommand {
 
     pub(crate) fn compact() -> Self {
         Self::Compact
+    }
+
+    pub(crate) fn launch_gui() -> Self {
+        Self::LaunchGui
     }
 
     pub(crate) fn set_thread_name(name: String) -> Self {

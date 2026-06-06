@@ -1996,6 +1996,7 @@ dependencies = [
  "codex-core",
  "codex-exec-server",
  "codex-feedback",
+ "codex-gui-host",
  "codex-protocol",
  "codex-uds",
  "codex-utils-absolute-path",

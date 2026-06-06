@@ -1667,6 +1667,15 @@ async fn slash_stop_submits_background_terminal_cleanup() {
 }
 
 #[tokio::test]
+async fn slash_gui_submits_launch_gui_op() {
+    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+
+    chat.dispatch_command(SlashCommand::Gui);
+
+    assert_matches!(op_rx.try_recv(), Ok(Op::LaunchGui));
+}
+
+#[tokio::test]
 async fn slash_clear_requests_ui_clear_when_idle() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 

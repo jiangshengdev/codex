@@ -414,6 +414,9 @@ impl ChatWidget {
                     );
                 }
             }
+            SlashCommand::Gui => {
+                self.submit_op(AppCommand::launch_gui());
+            }
             SlashCommand::Ide => {
                 self.handle_ide_command();
             }
@@ -961,6 +964,7 @@ impl ChatWidget {
         match cmd {
             SlashCommand::Ide
             | SlashCommand::Status
+            | SlashCommand::Gui
             | SlashCommand::DebugConfig
             | SlashCommand::Ps
             | SlashCommand::Stop

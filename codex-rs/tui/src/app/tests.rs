@@ -186,6 +186,32 @@ fn bypass_hook_trust_startup_warning_snapshot() {
 
     assert_app_snapshot!("bypass_hook_trust_startup_warning", rendered);
 }
+
+#[test]
+fn gui_launch_url_message_snapshot() {
+    let rendered = lines_to_single_string(
+        &history_cell::new_info_event(
+            gui::gui_launch_success_message(
+                "http://127.0.0.1:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test",
+            ),
+            /*hint*/ None,
+        )
+        .display_lines(/*width*/ 100),
+    );
+
+    assert_app_snapshot!("gui_launch_url_message", rendered);
+}
+
+#[test]
+fn gui_launch_missing_primary_thread_message_snapshot() {
+    let rendered = lines_to_single_string(
+        &history_cell::new_error_event(gui::GUI_NO_PRIMARY_THREAD_MESSAGE.to_string())
+            .display_lines(/*width*/ 100),
+    );
+
+    assert_app_snapshot!("gui_launch_missing_primary_thread_message", rendered);
+}
+
 #[tokio::test]
 async fn enqueue_primary_thread_session_replays_buffered_approval_after_attach() -> Result<()> {
     let (mut app, mut app_event_rx, _op_rx) = make_test_app_with_channels().await;
