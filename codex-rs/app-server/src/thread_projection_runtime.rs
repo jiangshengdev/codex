@@ -283,7 +283,7 @@ mod tests {
     use codex_app_server_protocol::TurnStartedNotification;
     use codex_app_server_protocol::TurnStatus;
     use codex_arg0::Arg0DispatchPaths;
-    use codex_config::CloudRequirementsLoader;
+    use codex_config::CloudConfigBundleLoader;
     use codex_config::LoaderOverrides;
     use codex_config::NoopThreadConfigLoader;
     use codex_core::ThreadManager;
@@ -381,7 +381,7 @@ mod tests {
                 Vec::new(),
                 loader_overrides,
                 /*strict_config*/ false,
-                CloudRequirementsLoader::default(),
+                CloudConfigBundleLoader::default(),
                 Arg0DispatchPaths::default(),
                 Arc::new(NoopThreadConfigLoader),
             ),
