@@ -741,6 +741,20 @@ Append execution results here when this plan is run. Keep this section append-on
 - PASS: Replaced exact Vite script tag marker parsing with module-script attribute parsing that tolerates attribute order changes.
 - PASS: Re-ran focused Chromium e2e, full Playwright e2e, GUI host prod tests with `CODEX_GUI_PACKAGE_ROOT`, and the module-script parser unit test after review fixes.
 
+### Task 5 Rerun Result: Manual Full-Stack `/gui` Smoke With Projectable Stimulus
+
+- PASS: Vite served dev GUI assets on `127.0.0.1:5173`.
+- PASS: TUI `/gui` displayed a loopback URL with `threadId=019e9b3d-917d-7d40-ae7b-3b78e573417a` and a launch token.
+- PASS: Browser loaded the GUI host page, authenticated, attached, and cleared `#token`; before stimulus it showed `status=attached`, `events=0`, and `last event=none`.
+- PASS: A real local shell stimulus after attach (`!printf 'gui-projection-smoke\n'`) produced projection events in the browser; final observed state was `status=received event`, `events=4`, and `last event=turnCompleted`.
+- PASS: Browser close did not break the TUI primary thread; the TUI accepted `/quit` and exited normally.
+- PASS: Dev processes were stopped after verification, with no leftover Vite or TUI process found.
+
+### Final Result Update
+
+- PASS: Corrected manual `/gui` full-stack smoke passed with a real projectable shell stimulus after attach.
+- PASS: The earlier `BLOCKED` was caused by an invalid `/debug-config` stimulus, not by a demonstrated `/gui` attach or projection fanout failure.
+
 ## Self-Review Checklist
 
 - [ ] This plan executes `08` and does not create a `09`.
