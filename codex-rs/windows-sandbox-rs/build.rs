@@ -11,11 +11,10 @@ fn main() {
         return;
     }
 
-    let manifest_path = PathBuf::from(
-        env::var_os("CARGO_MANIFEST_DIR")
-            .expect("CARGO_MANIFEST_DIR should be set for build scripts"),
-    )
-    .join(SETUP_MANIFEST);
+    let Some(manifest_dir) = env::var_os("CARGO_MANIFEST_DIR") else {
+        panic!("CARGO_MANIFEST_DIR should be set for build scripts");
+    };
+    let manifest_path = PathBuf::from(manifest_dir).join(SETUP_MANIFEST);
     let manifest_path = manifest_path.display();
 
     // Keep this scoped to the setup helper so Codex binaries that link the
