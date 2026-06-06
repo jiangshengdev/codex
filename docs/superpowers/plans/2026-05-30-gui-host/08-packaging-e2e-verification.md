@@ -665,6 +665,56 @@ Do not stage unrelated local changes.
 
 Append execution results here when this plan is run. Keep this section append-only.
 
+### Task 1 Result: Gates And Inputs
+
+- PASS: `00-roadmap.md` places `08` after completed frontend verification and defines the final `/gui -> /ws -> projection event` e2e path.
+- PASS: `07-frontend-handshake-store-verification.md` completed and explicitly stopped before packaging/e2e.
+- PASS: `codex-gui/e2e/app.spec.ts` still contains stale counter template tests and needs replacement.
+- PASS: `codex-gui` exposes build/e2e scripts and `codex-gui-host` prod mode uses `CODEX_GUI_PACKAGE_ROOT/dist`.
+
+### Task 2 Result: Playwright GUI Host E2E
+
+- PASS: Replaced stale counter Playwright tests with GUI host launch-param and WebSocket handshake e2e coverage.
+- PASS: Focused Chromium Playwright e2e passed.
+- PASS: `pnpm --dir codex-gui run test:e2e` passed with the configured Playwright projects.
+
+### Task 3 Result: Real Prod Dist Smoke
+
+- PASS: Added an env-driven `CODEX_GUI_PACKAGE_ROOT` prod smoke for the real `codex-gui/dist` build.
+- PASS: `just fmt` passed after Rust test changes.
+- PASS: `pnpm --dir codex-gui run build` produced `dist/index.html` and built assets.
+- PASS: Focused real-dist GUI host prod smoke passed with `CODEX_GUI_PACKAGE_ROOT` set.
+- PASS: Existing GUI host prod/static tests passed.
+
+### Task 4 Result: Cross-Layer Regression Checks
+
+- PASS: Focused `codex-app-server-client` GUI launch tests passed.
+- PASS: Focused `codex-tui` GUI launch tests passed.
+- PASS: Focused frontend unit/browser/type/format checks passed.
+- PASS: Changed files stayed within the `08` allowed scope.
+
+### Task 5 Result: Manual Full-Stack `/gui` Smoke
+
+- PASS: Vite served dev GUI assets on `127.0.0.1:5173`.
+- PASS: TUI `/gui` displayed a loopback URL with `threadId` and launch token.
+- BLOCKED: Browser loaded the GUI host page, authenticated, attached, and cleared `#token`, but did not display a projection event; after a local `/debug-config` transcript update, the page remained `status=attached`, `events=0`, and `last event=none`.
+- PASS: Browser close did not break the TUI primary thread; the TUI remained running and accepted `/quit`.
+- PASS: Dev processes were stopped after verification.
+
+### Final Result
+
+- PASS: Stale counter e2e tests were replaced by GUI host launch-param and WebSocket handshake e2e coverage.
+- PASS: Real `codex-gui/dist` build was served through `codex-gui-host` prod mode with `CODEX_GUI_PACKAGE_ROOT`.
+- PASS: Focused Rust and frontend regressions passed.
+- BLOCKED: Manual `/gui` full-stack smoke did not observe a projection event; the browser remained attached with `events=0` after a local transcript update.
+- PASS: `08` did not reopen bridge, TUI command, app-server-client facade, or frontend store boundaries.
+
+### Review Follow-up Result
+
+- PASS: Tightened Playwright WebSocket mock to reject missing launch tokens and unexpected `threadId` values before sending the projection event.
+- PASS: Replaced exact Vite script tag marker parsing with module-script attribute parsing that tolerates attribute order changes.
+- PASS: Re-ran focused Chromium e2e, full Playwright e2e, GUI host prod tests with `CODEX_GUI_PACKAGE_ROOT`, and the module-script parser unit test after review fixes.
+
 ## Self-Review Checklist
 
 - [ ] This plan executes `08` and does not create a `09`.
