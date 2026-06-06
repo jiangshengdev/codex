@@ -107,7 +107,7 @@ rg -n '不自动打开浏览器|gui/authenticate|thread/projection/attach|thread
 
 Expected: output confirms the frontend must prove `gui/authenticate -> initialize -> thread/projection/attach -> thread/projection/event`, and must not become a full projection viewer.
 
-- [ ] **Step 3: Confirm adaptation design keeps frontend work after backend/TUI**
+- [ ] **Step 3: Confirm adaptation design locks backend/TUI boundaries for migrated frontend verification**
 
 Run from repo root:
 
@@ -116,7 +116,7 @@ rg -n '方案 A|薄 hook \\+ 旁路模块|app-server-client/src/gui.rs|/gui` 首
   docs/superpowers/specs/2026-05-30-codex-gui-host-dev-adaptation-design.md
 ```
 
-Expected: output confirms `07` must execute the locked design and must not reopen backend bridge shape.
+Expected: output confirms migrated frontend verification must follow the locked backend bridge/TUI design and must not reopen backend bridge shape.
 
 - [ ] **Step 4: Confirm `06` stopped before frontend**
 
@@ -138,7 +138,7 @@ Append this exact result shape under `Execution Notes` in this file:
 
 - PASS: `00-roadmap.md` places `07` between TUI `/gui` and packaging/e2e.
 - PASS: `2026-05-11` design defines frontend scope as projection transport MVP, not projection viewer.
-- PASS: `2026-05-30` adaptation design keeps bridge shape locked and leaves frontend verification as a separate step.
+- PASS: `2026-05-30` adaptation design keeps backend bridge/TUI boundaries locked for migrated frontend verification.
 - PASS: `06-tui-gui-command.md` stopped before frontend handshake/store verification.
 ```
 
@@ -464,6 +464,62 @@ Do not commit unrelated local changes.
 ## Execution Notes
 
 Append execution results here when this plan is run. Keep this section append-only.
+
+### Task 1 Result: Design Inputs
+
+- PASS: `00-roadmap.md` places `07` between TUI `/gui` and packaging/e2e.
+- PASS: `2026-05-11` design defines frontend scope as projection transport MVP, not projection viewer.
+- BLOCKED: `2026-05-30` adaptation design supports bridge shape locked, but missing pattern `frontend|handshake|store verification|07` in `docs/superpowers/specs/2026-05-30-codex-gui-host-dev-adaptation-design.md` for frontend verification as a separate step.
+- PASS: `06-tui-gui-command.md` stopped before frontend handshake/store verification.
+
+### Task 1 Result Correction: Design Inputs
+
+- PASS: `2026-05-30` adaptation design keeps backend bridge/TUI boundaries locked for migrated frontend verification; the earlier `BLOCKED` result came from an over-broad Step 3 expectation that incorrectly required this adaptation design to prove frontend verification was a separate roadmap step.
+
+### Task 1 Re-run Result: Design Inputs
+
+- PASS: `00-roadmap.md` places `07` between TUI `/gui` and packaging/e2e.
+- PASS: `2026-05-11` design defines frontend scope as projection transport MVP, not projection viewer.
+- PASS: `2026-05-30` adaptation design keeps backend bridge/TUI boundaries locked for migrated frontend verification.
+- PASS: `06-tui-gui-command.md` stopped before frontend handshake/store verification.
+
+### Task 2 Result: guiHostClient Store-Free Transport Boundary
+
+- PASS: Step 1 confirmed `guiHostClient.ts` has no Redux store, React hook, React import, or projection slice action dependency.
+- PASS: Step 2 confirmed launch params read `threadId` and fragment token, clear the URL fragment with `replaceState`, restore token from storage, expose explicit missing `threadId` / token errors, and cover storage write failure.
+- PASS: Step 3 confirmed same-origin `/ws`, `gui/authenticate -> initialize -> thread/projection/attach` request order, and test assertions for the exact outgoing methods.
+- PASS: Step 4 confirmed projection attach/event payloads are validated before callbacks fire, with malformed payload tests asserting callbacks are not invoked.
+- PASS: Step 5 confirmed terminal error handling for malformed JSON-RPC, JSON-RPC errors, non-1000 close, cleanup, and terminal error ordering.
+- ADDED: Step 6 added missing unit coverage in `codex-gui/src/features/guiHost/guiHostClient.test.ts` for missing `threadId` and missing launch token error branches.
+- PASS: `pnpm --dir codex-gui exec vitest --run src/features/guiHost/guiHostClient.test.ts` passed with 12 tests and no type errors.
+
+### Task 3 Result: React/Redux Boundary
+
+- PASS: Step 1 confirmed `App.tsx` owns Redux dispatch for `projectionAttached` and `projectionEventReceived` through `startGuiHostConnection` callbacks, with no `JSON.parse`, `sendRequest`, `gui/authenticate`, projection JSON-RPC method strings, `new WebSocket`, or `socket.send`.
+- PASS: Step 2 confirmed `App.browser.test.tsx` covers GUI host status panel rendering, status callback updates, Redux projection dispatch via `selectProjectionByThreadId`, and connection cleanup on unmount via `cleanupConnectionCallCount`.
+- PASS: Step 3 confirmed `projectionSlice.ts` and `projectionSlice.test.ts` cover attach replacement, event head advancement, mismatched subscription ignore, duplicate commit ignore, `commitChainMismatch`, `missingTurn`, and MVP event kinds.
+- SKIPPED: Step 4 did not edit tests because existing App/projection tests cover the React boundary.
+
+### Task 4 Result: Focused Frontend Verification
+
+- PASS: Step 1 confirmed `codex-gui/package.json` defines `format`, `lint`, `type-check`, `test`, and `test:browser` scripts.
+- PASS: Step 2 `pnpm exec vitest --run src/features/guiHost/guiHostClient.test.ts src/features/projection/__tests__/projectionSlice.test.ts` passed with 2 test files, 22 tests, and no type errors.
+- PASS: Step 3 `pnpm exec vitest --config=vitest.browser.config.ts --run src/__tests__/App.browser.test.tsx` passed with 3 browser test files, 12 tests, and no type errors.
+- PASS: Step 4 `pnpm run type-check` passed.
+- PASS: Step 5 `pnpm run format` passed with all matched files using Prettier code style.
+- PASS: Step 6 did not run packaging/e2e commands; `pnpm run build` and `pnpm run test:e2e` were not executed.
+- FIXED: No code or test fixes were needed.
+- FORMATTED: No format fix was needed.
+
+### Final Result
+
+- PASS: `guiHostClient.ts` remains store-free and owns browser JSON-RPC handshake details.
+- PASS: `App.tsx` remains the React/Redux boundary for projection attach/event dispatch.
+- PASS: focused guiHost/projection unit tests passed.
+- PASS: focused App browser-mode test passed.
+- PASS: `07` did not enter packaging/e2e scope.
+
+Ready next plan: `08-packaging-e2e-verification.md`.
 
 ## Self-Review Checklist
 
