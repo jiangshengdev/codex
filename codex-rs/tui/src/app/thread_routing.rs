@@ -632,6 +632,10 @@ impl App {
                 app_server.thread_compact_start(thread_id).await?;
                 Ok(true)
             }
+            AppCommand::LaunchGui => {
+                self.launch_gui_for_primary_thread(app_server).await;
+                Ok(true)
+            }
             AppCommand::SetThreadName { name } => {
                 app_server
                     .thread_set_name(thread_id, name.to_string())

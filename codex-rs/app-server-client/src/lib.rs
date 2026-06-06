@@ -15,6 +15,7 @@
 //! bridging async `mpsc` channels on both sides. Queues are bounded so overload
 //! surfaces as channel-full errors rather than unbounded memory growth.
 
+mod gui;
 mod remote;
 
 use std::error::Error;
@@ -52,6 +53,7 @@ use codex_core::config::Config;
 pub use codex_exec_server::EnvironmentManager;
 pub use codex_exec_server::ExecServerRuntimePaths;
 use codex_feedback::CodexFeedback;
+use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
@@ -60,6 +62,9 @@ use tokio::time::timeout;
 use toml::Value as TomlValue;
 use tracing::warn;
 
+pub use crate::gui::AppServerClientGuiExt;
+pub use crate::gui::GuiLaunchError;
+pub use crate::gui::GuiLaunchUrl;
 pub use crate::remote::RemoteAppServerClient;
 pub use crate::remote::RemoteAppServerConnectArgs;
 pub use crate::remote::RemoteAppServerEndpoint;
@@ -434,6 +439,16 @@ enum ClientCommand {
         notification: ClientNotification,
         response_tx: oneshot::Sender<IoResult<()>>,
     },
+    LaunchGui {
+        thread_id: ThreadId,
+        response_tx: oneshot::Sender<Result<GuiLaunchUrl, GuiLaunchError>>,
+    },
+    #[cfg(test)]
+    LaunchGuiForTest {
+        thread_id: ThreadId,
+        mode_result: Result<codex_gui_host::GuiHostMode, String>,
+        response_tx: oneshot::Sender<Result<GuiLaunchUrl, GuiLaunchError>>,
+    },
     ResolveServerRequest {
         request_id: RequestId,
         result: JsonRpcResult,
@@ -493,11 +508,13 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let request_sender = handle.sender();
+        let gui_sender = request_sender.clone();
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
         let worker_handle = tokio::spawn(async move {
             let mut event_stream_enabled = true;
+            let mut gui_host_manager = None::<codex_app_server::GuiHostManager>;
             let mut skipped_events = 0usize;
             loop {
                 tokio::select! {
@@ -520,6 +537,44 @@ impl InProcessAppServerClient {
                                 let result = request_sender.notify(notification);
                                 let _ = response_tx.send(result);
                             }
+                            Some(ClientCommand::LaunchGui {
+                                thread_id,
+                                response_tx,
+                            }) => {
+                                let result = async {
+                                    let url = if let Some(manager) = gui_host_manager.as_ref() {
+                                        manager.launch_url_for_thread(thread_id).await?
+                                    } else {
+                                        let manager = crate::gui::new_gui_host_manager(
+                                            gui_sender.clone(),
+                                        )?;
+                                        let url = manager.launch_url_for_thread(thread_id).await?;
+                                        gui_host_manager = Some(manager);
+                                        url
+                                    };
+                                    Ok(GuiLaunchUrl::new(url))
+                                }
+                                .await;
+                                let _ = response_tx.send(result);
+                            }
+                            #[cfg(test)]
+                            Some(ClientCommand::LaunchGuiForTest {
+                                thread_id,
+                                mode_result,
+                                response_tx,
+                            }) => {
+                                let result = async {
+                                    let manager = crate::gui::new_gui_host_manager_for_test(
+                                        gui_sender.clone(),
+                                        mode_result,
+                                    )?;
+                                    let url = manager.launch_url_for_thread(thread_id).await?;
+                                    manager.shutdown().await;
+                                    Ok(GuiLaunchUrl::new(url))
+                                }
+                                .await;
+                                let _ = response_tx.send(result);
+                            }
                             Some(ClientCommand::ResolveServerRequest {
                                 request_id,
                                 result,
@@ -538,11 +593,17 @@ impl InProcessAppServerClient {
                                 let _ = response_tx.send(send_result);
                             }
                             Some(ClientCommand::Shutdown { response_tx }) => {
+                                if let Some(manager) = gui_host_manager.take() {
+                                    manager.shutdown().await;
+                                }
                                 let shutdown_result = handle.shutdown().await;
                                 let _ = response_tx.send(shutdown_result);
                                 break;
                             }
                             None => {
+                                if let Some(manager) = gui_host_manager.take() {
+                                    manager.shutdown().await;
+                                }
                                 let _ = handle.shutdown().await;
                                 break;
                             }
@@ -611,6 +672,34 @@ impl InProcessAppServerClient {
         InProcessAppServerRequestHandle {
             command_tx: self.command_tx.clone(),
         }
+    }
+
+    #[cfg(test)]
+    async fn launch_gui_for_thread_with_mode_result_for_test(
+        &self,
+        thread_id: ThreadId,
+        mode_result: Result<codex_gui_host::GuiHostMode, String>,
+    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.command_tx
+            .send(ClientCommand::LaunchGuiForTest {
+                thread_id,
+                mode_result,
+                response_tx,
+            })
+            .await
+            .map_err(|_| {
+                GuiLaunchError::Io(IoError::new(
+                    ErrorKind::BrokenPipe,
+                    "in-process app-server worker channel is closed",
+                ))
+            })?;
+        response_rx.await.map_err(|_| {
+            GuiLaunchError::Io(IoError::new(
+                ErrorKind::BrokenPipe,
+                "in-process GUI launch response channel is closed",
+            ))
+        })?
     }
 
     /// Sends a typed client request and returns raw JSON-RPC result.
@@ -944,6 +1033,7 @@ pub(crate) fn request_method_name(request: &ClientRequest) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AppServerClientGuiExt;
     use codex_app_server_protocol::AccountUpdatedNotification;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
     use codex_app_server_protocol::GetAccountResponse;
@@ -958,6 +1048,7 @@ mod tests {
     use codex_app_server_protocol::ToolRequestUserInputQuestion;
     use codex_core::config::ConfigBuilder;
     use codex_core::init_state_db;
+    use codex_protocol::ThreadId;
     use codex_uds::UnixListener;
     use codex_utils_absolute_path::AbsolutePathBuf;
     use futures::SinkExt;
@@ -1330,6 +1421,91 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn in_process_launch_gui_for_thread_returns_loopback_url() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+
+        let url = <InProcessAppServerClient as AppServerClientGuiExt>::launch_gui_for_thread(
+            &*client, thread_id,
+        )
+        .await
+        .expect("GUI launch URL should be created");
+
+        assert!(url.as_str().starts_with("http://127.0.0.1:"));
+        assert!(
+            url.as_str()
+                .contains("threadId=00000000-0000-0000-0000-000000000505")
+        );
+        assert!(url.as_str().contains("#token="));
+
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn in_process_launch_gui_reports_config_errors_at_launch_time() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+
+        let error = client
+            .launch_gui_for_thread_with_mode_result_for_test(
+                thread_id,
+                Err("invalid test GUI host mode".to_string()),
+            )
+            .await
+            .expect_err("GUI launch should report config error");
+
+        assert_eq!(
+            error.to_string(),
+            "GUI host config error: invalid test GUI host mode"
+        );
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn in_process_launch_gui_reuses_same_host_for_multiple_threads() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_a =
+            ThreadId::from_string("00000000-0000-0000-0000-0000000005a1").expect("valid thread id");
+        let thread_b =
+            ThreadId::from_string("00000000-0000-0000-0000-0000000005b2").expect("valid thread id");
+
+        let url_a = client
+            .launch_gui_for_thread(thread_a)
+            .await
+            .expect("first GUI launch URL should be created");
+        let url_b = client
+            .launch_gui_for_thread(thread_b)
+            .await
+            .expect("second GUI launch URL should be created");
+        let origin_a = url_a
+            .as_str()
+            .split("/?")
+            .next()
+            .expect("URL should contain query");
+        let origin_b = url_b
+            .as_str()
+            .split("/?")
+            .next()
+            .expect("URL should contain query");
+
+        assert_eq!(origin_a, origin_b);
+        assert!(
+            url_a
+                .as_str()
+                .contains("threadId=00000000-0000-0000-0000-0000000005a1")
+        );
+        assert!(
+            url_b
+                .as_str()
+                .contains("threadId=00000000-0000-0000-0000-0000000005b2")
+        );
+
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
     async fn tiny_channel_capacity_still_supports_request_roundtrip() {
         let client =
             start_test_client_with_capacity(SessionSource::Exec, /*channel_capacity*/ 1).await;
@@ -1471,6 +1647,31 @@ mod tests {
             .expect("typed request should succeed");
         assert_eq!(response.account, None);
 
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn remote_launch_gui_for_thread_is_unsupported() {
+        let websocket_url = start_test_remote_server(|mut websocket| async move {
+            expect_remote_initialize(&mut websocket).await;
+            websocket.close(None).await.expect("close should succeed");
+        })
+        .await;
+        let client = RemoteAppServerClient::connect(test_remote_connect_args(websocket_url))
+            .await
+            .expect("remote client should connect");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+
+        let error = client
+            .launch_gui_for_thread(thread_id)
+            .await
+            .expect_err("remote GUI launch should be unsupported");
+
+        assert_eq!(
+            error.to_string(),
+            "GUI launch is only supported for in-process app-server sessions"
+        );
         client.shutdown().await.expect("shutdown should complete");
     }
 
@@ -2270,6 +2471,22 @@ mod tests {
     #[tokio::test]
     async fn shutdown_completes_promptly_without_retained_managers() {
         let client = start_test_client(SessionSource::Cli).await;
+
+        timeout(Duration::from_secs(1), client.shutdown())
+            .await
+            .expect("shutdown should not wait for the 5s fallback timeout")
+            .expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn shutdown_after_gui_launch_completes_promptly() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+        let _url = client
+            .launch_gui_for_thread(thread_id)
+            .await
+            .expect("GUI launch URL should be created before shutdown");
 
         timeout(Duration::from_secs(1), client.shutdown())
             .await

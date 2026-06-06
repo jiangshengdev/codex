@@ -75,6 +75,15 @@ describe("guiHostClient", () => {
     expect(replacedUrl).toContain("threadId=thread-abc");
   });
 
+  it("throws when launch URL is missing required launch params", () => {
+    expect(() =>
+      readLaunchParams(new URL("http://127.0.0.1:4567/#token=secret"), new MemoryStorage()),
+    ).toThrow("Missing threadId query parameter");
+    expect(() =>
+      readLaunchParams(new URL("http://127.0.0.1:4567/?threadId=thread-abc"), new MemoryStorage()),
+    ).toThrow("Missing launch token fragment");
+  });
+
   it("sends authenticate, initialize, attach, and forwards projection payloads", () => {
     const socket = new RecordingWebSocket();
     const statuses: string[] = [];
