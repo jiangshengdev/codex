@@ -15,6 +15,7 @@ CODEX_CLI_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = CODEX_CLI_ROOT.parent
 RESPONSES_API_PROXY_NPM_ROOT = REPO_ROOT / "codex-rs" / "responses-api-proxy" / "npm"
 CODEX_SDK_ROOT = REPO_ROOT / "sdk" / "typescript"
+CODEX_GUI_ROOT = REPO_ROOT / "codex-gui"
 CODEX_NPM_NAME = "@jiangshengdev/codex"
 CODEX_PACKAGE_COMPONENT = "codex-package"
 
@@ -239,6 +240,8 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         if readme_src.exists():
             shutil.copy2(readme_src, staging_dir / "README.md")
 
+        stage_codex_gui_dist(staging_dir)
+
         package_json_path = CODEX_CLI_ROOT / "package.json"
     elif package in CODEX_PLATFORM_PACKAGES:
         platform_package = CODEX_PLATFORM_PACKAGES[package]
@@ -292,7 +295,7 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         package_json["version"] = version
 
     if package == "codex":
-        package_json["files"] = ["bin/codex.js"]
+        package_json["files"] = ["bin/codex.js", "dist"]
         package_json["optionalDependencies"] = {
             CODEX_PLATFORM_PACKAGES[platform_package]["npm_name"]: (
                 f"npm:{CODEX_NPM_NAME}@"
@@ -327,6 +330,23 @@ def compute_platform_package_version(version: str, platform_tag: str) -> str:
 def run_command(cmd: list[str], cwd: Path | None = None) -> None:
     print("+", " ".join(cmd), flush=True)
     subprocess.run(cmd, cwd=cwd, check=True)
+
+
+def stage_codex_gui_dist(staging_dir: Path) -> None:
+    run_command(["pnpm", "--dir", str(CODEX_GUI_ROOT), "run", "build"], cwd=REPO_ROOT)
+
+    dist_src = CODEX_GUI_ROOT / "dist"
+    index_html = dist_src / "index.html"
+    if not index_html.is_file():
+        raise RuntimeError(
+            "codex-gui build did not produce dist/index.html. "
+            "Run `pnpm --dir codex-gui run build` and check the Vite output."
+        )
+
+    dist_dest = staging_dir / "dist"
+    if dist_dest.exists():
+        shutil.rmtree(dist_dest)
+    shutil.copytree(dist_src, dist_dest)
 
 
 def stage_codex_sdk_sources(staging_dir: Path) -> None:
