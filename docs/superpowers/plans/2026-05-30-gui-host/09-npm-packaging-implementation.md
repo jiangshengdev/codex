@@ -42,6 +42,7 @@ Do not modify:
 ## Task 1: Wire Runtime Package Root Default
 
 **Files:**
+
 - Modify: `codex-cli/bin/codex.js`
 - Modify: `codex-cli/package.json`
 
@@ -109,6 +110,7 @@ Expected: diff shows `packageRoot`, conditional `CODEX_GUI_PACKAGE_ROOT`, and `d
 ## Task 2: Stage GUI Dist Into Root NPM Package
 
 **Files:**
+
 - Modify: `codex-cli/scripts/build_npm_package.py`
 
 - [ ] **Step 1: Add the GUI package root constant**
@@ -219,6 +221,7 @@ Expected: command exits 0.
 ## Task 3: Verify Staged Root Package Contents
 
 **Files:**
+
 - Verify: `codex-cli/scripts/build_npm_package.py`
 - Verify: `codex-gui/dist/**`
 - Verify: staged temp directory
@@ -290,6 +293,7 @@ Expected: temp staging directory is removed.
 ## Task 4: Verify NPM Tarball Contents
 
 **Files:**
+
 - Verify: `codex-cli/scripts/build_npm_package.py`
 - Verify: generated npm tarball
 
@@ -336,6 +340,7 @@ Expected: temp directory is removed.
 ## Task 5: Verify Wrapper Env Behavior With A Fake Native Binary
 
 **Files:**
+
 - Verify: `codex-cli/bin/codex.js`
 - Verify: staged temp directory
 
@@ -422,6 +427,7 @@ Expected: temp directory is removed.
 ## Task 6: Run Focused Final Checks
 
 **Files:**
+
 - Verify: `codex-cli/bin/codex.js`
 - Verify: `codex-cli/package.json`
 - Verify: `codex-cli/scripts/build_npm_package.py`
@@ -472,3 +478,10 @@ Expected: diff is limited to npm packaging implementation, the new packaging des
 ## Execution Notes
 
 Append task results here during execution. Use `PASS` / `BLOCKED` lines with exact command output summaries and file paths.
+
+- PASS Task 1: updated `codex-cli/bin/codex.js` and `codex-cli/package.json`; pre-edit wrapper env check captured empty `CODEX_GUI_PACKAGE_ROOT`, post-edit check captured staged package root by default and preserved `/custom/gui-root` override; `pnpm prettier --write codex-cli/bin/codex.js codex-cli/package.json` exited 0.
+- PASS Task 2: updated `codex-cli/scripts/build_npm_package.py`; pre-edit AST check confirmed `CODEX_GUI_ROOT` and `stage_codex_gui_dist` were absent and staged root `files` was only `["bin/codex.js"]`; `python3 -m py_compile codex-cli/scripts/build_npm_package.py` and `git diff --check -- codex-cli/scripts/build_npm_package.py` exited 0.
+- PASS Task 3: `pnpm install --frozen-lockfile` exited 0; `build_npm_package.py --package codex --version 0.0.0-gui-packaging-test --staging-dir "$STAGING_DIR"` exited 0; staged package contained `bin/codex.js`, `dist/index.html`, `dist/assets/*`, and package metadata files including `bin/codex.js` and `dist`.
+- PASS Task 4: `build_npm_package.py --package codex --version 0.0.0-gui-packaging-test --staging-dir "$STAGING_DIR" --pack-output "$PACK_OUTPUT"` exited 0; tarball entries included `package/bin/codex.js`, `package/dist/index.html`, and `package/dist/assets/*`.
+- PASS Task 5: staged wrapper with fake native binary exited 0; default run with `env -u CODEX_GUI_PACKAGE_ROOT` captured staged package realpath; override run captured `/tmp/codex-gui-override`.
+- PASS Task 6: `pnpm prettier --check codex-cli/bin/codex.js codex-cli/package.json docs/superpowers/specs/2026-06-06-codex-gui-host-npm-packaging-design.md docs/superpowers/plans/2026-05-30-gui-host/09-npm-packaging-implementation.md` exited 0 after formatting the two docs files; `python3 -m py_compile codex-cli/scripts/build_npm_package.py` exited 0; unintended Rust/frontend source/lockfile diff check exited 0.

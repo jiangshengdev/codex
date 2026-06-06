@@ -179,7 +179,11 @@ const packageManagerEnvVar =
     ? "CODEX_MANAGED_BY_BUN"
     : "CODEX_MANAGED_BY_NPM";
 env[packageManagerEnvVar] = "1";
-env.CODEX_MANAGED_PACKAGE_ROOT = realpathSync(path.join(__dirname, ".."));
+const packageRoot = realpathSync(path.join(__dirname, ".."));
+env.CODEX_MANAGED_PACKAGE_ROOT = packageRoot;
+if (!env.CODEX_GUI_PACKAGE_ROOT) {
+  env.CODEX_GUI_PACKAGE_ROOT = packageRoot;
+}
 
 const child = spawn(binaryPath, process.argv.slice(2), {
   stdio: "inherit",

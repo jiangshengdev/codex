@@ -85,10 +85,7 @@ $CODEX_GUI_PACKAGE_ROOT/dist/
 root package 的 `package.json` `files` 必须包含：
 
 ```json
-[
-  "bin/codex.js",
-  "dist"
-]
+["bin/codex.js", "dist"]
 ```
 
 ## Runtime Environment
