@@ -565,32 +565,56 @@ GUI URL: http://127.0.0.1:
 
 The URL must include `?threadId=` and `#token=`.
 
-- [ ] **Step 4: Open the URL in a browser**
+- [ ] **Step 4: Open the URL in a browser and confirm attach**
 
 Open the exact URL from Step 3 in a browser.
 
 Expected:
 
 - Page heading is `GUI host`.
-- `status` eventually becomes `received event`.
+- `status` eventually becomes `attached`.
 - `attached` is `yes`.
-- `events` is at least `1`.
-- `last event` is a projection event type such as `turnStarted`.
+- `events` may still be `0` immediately after attach.
+- `last event` may still be `none` immediately after attach.
 - Browser location no longer contains `#token=`.
 
-- [ ] **Step 5: Close or refresh the browser**
+- [ ] **Step 5: Trigger a real projectable notification**
+
+After the browser is attached, trigger one real notification that `thread/projection/event` can wrap. Prefer a local shell stimulus because it does not depend on model output. In the same TUI primary thread, submit:
+
+```text
+!printf 'gui-projection-smoke\n'
+```
+
+Expected:
+
+- Browser `status` becomes `received event`.
+- Browser `events` is at least `1`.
+- Browser `last event` is a projection event type such as `itemStarted` or `itemCompleted`.
+
+If the local shell stimulus cannot run in the current environment, use a normal real turn as the fallback stimulus:
+
+```text
+Reply with OK only.
+```
+
+Expected fallback result: browser `status` becomes `received event`, `events` is at least `1`, and `last event` is a projection event type such as `turnStarted`, `itemStarted`, or `turnCompleted`.
+
+Do not use `/debug-config` for this step. `/debug-config` only updates local TUI transcript history and does not guarantee an app-server `ServerNotification::{TurnStarted, TurnCompleted, ItemStarted, ItemCompleted}` after projection attach.
+
+- [ ] **Step 6: Close or refresh the browser**
 
 Close the tab or refresh it.
 
 Expected: TUI remains usable, the primary thread is still active, and there is no visible panic or app-server shutdown.
 
-- [ ] **Step 6: Stop dev processes**
+- [ ] **Step 7: Stop dev processes**
 
 Stop the TUI and Vite process.
 
 Expected: both processes exit cleanly. Do not leave background dev servers running.
 
-- [ ] **Step 7: Record manual smoke result**
+- [ ] **Step 8: Record manual smoke result**
 
 Append this exact result shape under `Execution Notes`:
 
@@ -599,7 +623,8 @@ Append this exact result shape under `Execution Notes`:
 
 - PASS: Vite served dev GUI assets on `127.0.0.1:5173`.
 - PASS: TUI `/gui` displayed a loopback URL with `threadId` and launch token.
-- PASS: Browser loaded the GUI host page, authenticated, attached, and displayed at least one projection event.
+- PASS: Browser loaded the GUI host page, authenticated, attached, and cleared the launch token.
+- PASS: A real shell or turn stimulus after attach produced at least one projection event in the browser.
 - PASS: Browser close/refresh did not break the TUI primary thread.
 - PASS: Dev processes were stopped after verification.
 ```
@@ -697,7 +722,8 @@ Append execution results here when this plan is run. Keep this section append-on
 
 - PASS: Vite served dev GUI assets on `127.0.0.1:5173`.
 - PASS: TUI `/gui` displayed a loopback URL with `threadId` and launch token.
-- BLOCKED: Browser loaded the GUI host page, authenticated, attached, and cleared `#token`, but did not display a projection event; after a local `/debug-config` transcript update, the page remained `status=attached`, `events=0`, and `last event=none`.
+- PASS: Browser loaded the GUI host page, authenticated, attached, and cleared `#token`; the page remained usable at `status=attached`, `events=0`, and `last event=none`.
+- BLOCKED: Manual projection-event verification used `/debug-config`, which only updates local TUI transcript history and is not a valid projectable notification stimulus; rerun this smoke with a real shell or turn stimulus after attach.
 - PASS: Browser close did not break the TUI primary thread; the TUI remained running and accepted `/quit`.
 - PASS: Dev processes were stopped after verification.
 
@@ -706,7 +732,7 @@ Append execution results here when this plan is run. Keep this section append-on
 - PASS: Stale counter e2e tests were replaced by GUI host launch-param and WebSocket handshake e2e coverage.
 - PASS: Real `codex-gui/dist` build was served through `codex-gui-host` prod mode with `CODEX_GUI_PACKAGE_ROOT`.
 - PASS: Focused Rust and frontend regressions passed.
-- BLOCKED: Manual `/gui` full-stack smoke did not observe a projection event; the browser remained attached with `events=0` after a local transcript update.
+- BLOCKED: Manual `/gui` full-stack projection-event smoke used an invalid or insufficient stimulus (`/debug-config`); attach/auth succeeded, but projection-event verification must be rerun with a real shell or turn stimulus after attach.
 - PASS: `08` did not reopen bridge, TUI command, app-server-client facade, or frontend store boundaries.
 
 ### Review Follow-up Result
