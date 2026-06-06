@@ -321,7 +321,7 @@ async fn enqueue_projection_attach_response(
 mod tests {
     use super::*;
     use anyhow::Result;
-    use codex_config::CloudRequirementsLoader;
+    use codex_config::CloudConfigBundleLoader;
     use codex_config::LoaderOverrides;
     use codex_config::NoopThreadConfigLoader;
     use codex_core::config::ConfigBuilder;
@@ -392,7 +392,7 @@ mod tests {
                 Vec::new(),
                 loader_overrides,
                 /*strict_config*/ false,
-                CloudRequirementsLoader::default(),
+                CloudConfigBundleLoader::default(),
                 Arg0DispatchPaths::default(),
                 Arc::new(NoopThreadConfigLoader),
             ),
@@ -636,7 +636,7 @@ mod tests {
                 Vec::new(),
                 loader_overrides,
                 /*strict_config*/ false,
-                CloudRequirementsLoader::default(),
+                CloudConfigBundleLoader::default(),
                 Arg0DispatchPaths::default(),
                 Arc::new(NoopThreadConfigLoader),
             ),
