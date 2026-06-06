@@ -333,7 +333,8 @@ def run_command(cmd: list[str], cwd: Path | None = None) -> None:
 
 
 def stage_codex_gui_dist(staging_dir: Path) -> None:
-    run_command(["pnpm", "--dir", str(CODEX_GUI_ROOT), "run", "build"], cwd=REPO_ROOT)
+    run_command(["pnpm", "install", "--frozen-lockfile"], cwd=CODEX_GUI_ROOT)
+    run_command(["pnpm", "run", "build"], cwd=CODEX_GUI_ROOT)
 
     dist_src = CODEX_GUI_ROOT / "dist"
     index_html = dist_src / "index.html"

@@ -20,12 +20,6 @@ on:
       AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME:
         required: false
 
-env:
-  # Cargo's libgit2 transport has been flaky when fetching git dependencies
-  # with nested submodules. Use the system git CLI, which has better
-  # network/proxy behavior and matches Cargo's own suggested fallback.
-  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-
 # Cargo's libgit2 transport has been flaky when fetching git dependencies with
 # nested submodules. Prefer the system git CLI across every Cargo invocation.
 env:
