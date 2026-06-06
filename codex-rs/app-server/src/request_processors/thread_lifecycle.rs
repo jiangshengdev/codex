@@ -1,8 +1,7 @@
 use super::*;
 use crate::thread_projection_cut::ProjectionHistoryCursor;
 use codex_protocol::protocol::RolloutItem;
-use codex_rollout::EventPersistenceMode;
-use codex_rollout::persisted_rollout_item_count;
+use codex_rollout::persisted_rollout_items;
 
 pub(super) const THREAD_UNLOADING_DELAY: Duration = Duration::from_secs(30 * 60);
 
@@ -459,7 +458,7 @@ fn projection_persisted_rollout_item_count_for_event(event: &EventMsg) -> usize 
         ));
     }
     items.push(RolloutItem::EventMsg(event.clone()));
-    persisted_rollout_item_count(&items, EventPersistenceMode::Limited)
+    persisted_rollout_items(&items).len()
 }
 
 pub(super) async fn wait_for_thread_shutdown(thread: &Arc<CodexThread>) -> ThreadShutdownResult {
