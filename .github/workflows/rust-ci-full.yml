@@ -460,10 +460,11 @@ jobs:
     uses: ./.github/workflows/rust-ci-full-nextest-platform.yml
     with:
       runner: ubuntu-24.04-arm
+      archive_runner: oci-ubuntu-arm64-large
       target: aarch64-unknown-linux-gnu
       profile: ci-test
       artifact_id: linux-arm64
-      cargo_build_jobs: 1
+      cargo_build_jobs: 2
       use_sccache: true
     secrets: inherit
 

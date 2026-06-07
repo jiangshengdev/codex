@@ -306,6 +306,9 @@ mod tests {
     use tokio::time::Duration;
     use tokio::time::timeout;
 
+    const CREATED_THREAD_HISTORY_ITEM_COUNT: usize = 1;
+    const VISIBLE_TURN_HISTORY_ITEM_COUNT: usize = CREATED_THREAD_HISTORY_ITEM_COUNT + 1;
+
     fn turn_started_notification(thread_id: ThreadId) -> ServerNotification {
         ServerNotification::TurnStarted(TurnStartedNotification {
             thread_id: thread_id.to_string(),
@@ -681,7 +684,9 @@ stream_max_retries = 0
     async fn attach_snapshot_cut_excludes_persisted_event_not_processed_by_projection()
     -> anyhow::Result<()> {
         let mut harness = ProjectionAttachHarness::new().await?;
-        harness.set_history_cursor(/*item_count*/ 1).await;
+        harness
+            .set_history_cursor(VISIBLE_TURN_HISTORY_ITEM_COUNT)
+            .await;
         harness
             .append_history(vec![visible_turn_started(), pending_turn_started()])
             .await?;
