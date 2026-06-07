@@ -27,9 +27,9 @@
 
 ## 当前基线
 
-当前 `codex-gui` 入口主要展示 GUI host 连接状态：连接、鉴权、initialize、attach、事件计数和最后事件类型。现有 Redux projection slice 可以接收 `thread/projection/attach` snapshot，并用 `thread/projection/event` 增量更新 thread projection。
+当前 `codex-gui` 入口主要展示 GUI host 连接状态：连接、鉴权、initialize、attach、事件计数和最后事件类型。现有 Redux projection slice 可以接收 `thread/projection/attach` snapshot，并用 `thread/projection/event` 增量更新 thread projection，同时维护 `commitId` / `parentCommitId` 连续性并在 `commitChainMismatch`、`missingTurn` 时判定需要 reattach。
 
-这只是临时调试实现。它可以说明 GUI 现在如何收到 app-server projection 输出，但不能作为 YOHO GUI 的基础模型。
+这仍然是临时调试实现。它可以说明 GUI 现在如何收到 app-server projection 输出，但不能作为 YOHO GUI 的基础模型。调试 UI 和直接以 projection state 驱动界面的做法应丢弃；commit-chain 连续性校验和 reattach 判定是协议逻辑，后续必须迁移保留。
 
 TUI 侧已有 `/gui` 命令，负责为 primary thread 生成本地 GUI URL。这个目标继续沿用该入口，不扩大到独立 GUI 启动器或远程 GUI 会话。
 
@@ -37,13 +37,17 @@ TUI 侧已有 `/gui` 命令，负责为 primary thread 生成本地 GUI URL。�
 
 `projection` 的含义是：app-server 将 thread 事件流投影成 GUI 可消费的 snapshot/event 流。
 
-因此 projection 是 GUI 接入 app-server thread 数据的输入面，不是 GUI 自己的核心状态边界。GUI 可以消费：
+因此 projection 是 GUI 第一版接入 app-server thread 数据的输入面，不是 GUI 自己的核心状态边界。第一版 GUI 消费 projection 三件套：
 
 - `thread/projection/attach` 返回的 snapshot。
 - `thread/projection/event` 后续增量事件。
-- `thread/projection/closed` 终止信号。
+- `thread/projection/closed` 背压断开信号。
 
-但 GUI 不应把 projection 输出直接等同于自己的长期状态模型。projection snapshot/event 进入 GUI 后，下一层应该是 GUI thread runtime，而不是直接从 projection state 派生 chat view model。
+`thread/projection/closed` 当前只有 `backpressure` reason，表示 server 端 fanout 积压导致订阅被强制断开。它不是会话结束，也不是 chat runtime 的终止信号；GUI 收到后应重新 attach，并用新的 snapshot 重建 runtime。
+
+Streaming 是已知的后续扩展点。当前 projection event 只覆盖 `turnStarted`、`turnCompleted`、`itemStarted`、`itemCompleted`，不会投影逐字增量的 `item/agentMessage/delta`。因此 projection ingress 与 thread runtime 的边界不能设计成封闭的唯一输入流；它需要容纳将来并联订阅普通 notification 形成第二条输入流，例如 item delta。
+
+GUI 不应把 projection 输出直接等同于自己的长期状态模型。projection snapshot/event 进入 GUI 后，下一层应该是 GUI thread runtime，而不是直接从 projection state 派生 chat view model。
 
 ## TUI 参考分层
 
@@ -66,22 +70,26 @@ GUI 的长期方向是：
 ```text
 TUI /gui launch URL
   -> GUI host WebSocket handshake
-  -> app-server projection input
+  -> app-server input ingress
+     -> projection attach/event/closed
+     -> future streaming notifications
   -> GUI thread identity shell
   -> GUI thread runtime store
   -> snapshot replay
   -> live event handling
+  -> streaming-ready assistant message model
   -> chat surface view model
   -> React UI
 ```
 
 这条链路里的职责边界：
 
-- `guiHostClient` 只负责 URL 参数、token、WebSocket、JSON-RPC handshake、projection attach/event/closed 输入。
+- `guiHostClient` 第一版负责 URL 参数、token、WebSocket、JSON-RPC handshake、projection attach/event/closed 输入，但 ingress 形状要能扩展到后续普通 notification streaming 输入。
 - thread identity shell 只负责确认 launch thread id 和 attached thread id 是同一个线程。
 - thread runtime store 负责保存可 replay/live 处理的 thread runtime 状态。
 - snapshot replay 负责把 attach snapshot 转成初始 UI 状态。
 - live event handling 负责把后续事件应用到当前 runtime。
+- streaming-ready assistant message model 负责把 assistant 文本建模成可增量 append 的 buffer。
 - chat surface view model 只从 runtime 派生展示模型，不直接拥有协议事实。
 - React UI 只渲染 view model 和提交用户操作。
 
@@ -97,6 +105,7 @@ YOHO single-session chat GUI
 ├─ 03 thread runtime store
 ├─ 04 snapshot replay
 ├─ 05 live event handling
+├─ 05a streaming readiness
 ├─ 06 basic chat surface
 ├─ 07 composer turn control
 ├─ 08 tool activity
@@ -125,6 +134,7 @@ type GuiThreadIdentityState = {
 - `thread/projection/attach` snapshot 的 `thread.id` 写入 `attachedThreadId`。
 - 两者一致时进入 `attached`。
 - 两者不一致时进入 `mismatch`，停止继续推进 chat runtime。
+- `mismatch` 是异常状态，不自动切换到 attached thread。UI 应显示阻塞错误，说明 launch thread 和 attached thread 不一致；用户可以重试当前 URL 的 attach，若仍不一致，则需要从 TUI 重新打开 `/gui`。
 
 非目标：
 
@@ -143,9 +153,15 @@ type GuiThreadIdentityState = {
 
 把 `thread/projection/attach`、`thread/projection/event`、`thread/projection/closed` 变成 GUI runtime 可消费的输入事件。这里仍然不设计聊天 UI。
 
+这是 `thread/projection/closed` 的新增处理工作；当前 `guiHostClient` 只有 WebSocket closed 生命周期状态，没有接好 projection closed notification。`closed(backpressure)` 应转换成 reattach 请求，而不是会话关闭状态。
+
+这一层保留 projection event 的 `commitId` / `parentCommitId` 连续性校验。出现 `commitChainMismatch` 或 `missingTurn` 时，adapter 应触发 reattach，用新 snapshot 修复本地 runtime。GUI URL 中 `threadId` 来自 query string，启动 token 来自 fragment `#token=...`，不要从 query string 读取 token。
+
 ### 03 Thread Runtime Store
 
-建立浏览器环境下的 per-thread runtime store。单会话第一版可以只有一个 runtime，但模型必须能表达 TUI 同类职责：session、turns、buffer、active turn、closed/error 状态。
+建立浏览器环境下的 per-thread runtime store。单会话第一版可以只有一个 runtime，但模型必须能表达 TUI 同类职责：session、turns、buffer、active turn、subscription interrupted/error 状态。
+
+runtime store 接收已通过 ingress 校验的 projection 输入，并保留 reattach 判定结果对 runtime 的影响：正常 event 进入 live 路径，`commitChainMismatch`、`missingTurn`、`closed(backpressure)` 进入 reattach 路径。建立 runtime 后，现有 Redux `projectionSlice` 的去向是删除，而不是降级或保留；它的调试 UI 职责删除，必要的 commit-chain 校验和 reattach 判定迁移到 projection ingress / runtime 边界。
 
 ### 04 Snapshot Replay
 
@@ -153,15 +169,23 @@ type GuiThreadIdentityState = {
 
 ### 05 Live Event Handling
 
-处理 attach 之后的增量事件，更新 runtime，并维持 active turn / streaming / closed 状态。
+处理 attach 之后的增量事件，更新 runtime，并维持 active turn / live update / subscription interrupted 状态。
+
+`closed(backpressure)` 的处理路径必须是触发 re-attach，并用新的 attach snapshot 重建 runtime。UI 可以短暂显示 reconnecting/status 行，但不能把它呈现为“会话已关闭”的死胡同。
+
+### 05a Streaming Readiness
+
+当前 projection 不支持逐字流式：projection event 只包含 turn/item 的 started/completed，逐字增量的 `item/agentMessage/delta` 不会进入 projection。后端 Rust streaming 设计推迟到实现到该处时再补。
+
+GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时整段呈现。但 assistant message 的 view model 必须按可增量 append 的 buffer 建模，而不是只有完成态的整段 final string。这样将来接入 delta 时，UI 和 view model 形状不需要重做。
 
 ### 06 Basic Chat Surface
 
-从 runtime 派生普通聊天 view model。只覆盖 user message、assistant text、基础 Markdown 和基础状态行。
+从 runtime 派生普通聊天 view model。只覆盖 user message、assistant text、基础 Markdown 和基础状态行。assistant 文本内部表示使用可 append buffer，渲染层只读取当前 buffer 内容。
 
 ### 07 Composer Turn Control
 
-接入纯文本 composer、`turn/start`、`turn/interrupt`，并处理发送失败、中断中、运行中状态。
+接入纯文本 composer、`turn/start`、`turn/interrupt`，并处理发送失败、中断中、运行中状态。`turn/start.input` 是 `Vec<UserInput>`，纯文本输入要包装成单个 `Text` variant，而不是直接发送 string。
 
 ### 08 Tool Activity
 
@@ -207,12 +231,14 @@ type GuiThreadIdentityState = {
 - `03` 只验收 runtime store，不验收 UI。
 - `04` 只验收 snapshot replay。
 - `05` 只验收 live event handling。
+- `05a` 只验收 streaming-ready message model，不验收真实 delta 输入。
 - `06` 之后才开始验收聊天展示。
 
 ## 设计原则
 
 - TUI 是主要参考，不是背景材料。
 - Projection 是 app-server 的投影输出，不是 GUI 状态真理。
-- 当前 GUI store 是临时调试代码，不作为后续设计依据。
+- 当前 GUI store 是临时调试代码，不作为后续设计依据；其中 commit-chain 连续性校验和 reattach 判定属于协议逻辑，必须迁移保留。
+- 第一版 projection 三件套是输入面起点，不是封闭边界；后续 streaming notification 输入必须能并入同一个 runtime。
 - 先做线程，再做事件，再做 replay/live，再做 chat。
 - 每个子设计必须足够小，可以独立实现、独立回退、独立验收。
