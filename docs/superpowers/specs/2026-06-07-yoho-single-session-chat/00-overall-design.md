@@ -2,7 +2,9 @@
 
 ## 目标
 
-在 1 个月内，把当前 GUI 从连接状态验证面板推进为 YOHO 风格的单会话普通聊天界面。用户通过 TUI 的 `/gui` 打开当前 primary thread 后，可以在 GUI 中查看已有历史、继续发送消息、看到 assistant 流式回复、查看简化 tool activity，并在需要时中断当前 turn。
+把当前 GUI 从连接状态验证面板推进为 YOHO 风格的单会话普通聊天界面。用户通过 TUI 的 `/gui` 打开当前 primary thread 后，可以在 GUI 中查看已有历史、继续发送消息、看到 assistant 流式回复、查看简化 tool activity，并在需要时中断当前 turn。
+
+这个目标必须以 TUI 的真实分层为参考进行 GUI 侧重建。凡是 TUI 已经有明确分层的地方，GUI 只做浏览器环境下的等价实现；只有 TUI 无法直接映射的地方，才做 GUI 侧决策。
 
 ## 已确认范围
 
@@ -21,30 +23,157 @@
 - 不做 `@file` mention、图片、文件附件或粘贴附件。
 - 不做 TUI keymap、Vim 模式、composer 历史搜索。
 - 不做 TUI transcript renderer 的完整迁移。
-- 不把 GUI 做成 projection/debug 面板；projection 只是数据来源。
+- 不把现有 `codex-gui` 的临时 projection store 当成设计真理或实现 seed。
 
 ## 当前基线
 
-当前 `codex-gui` 入口主要展示 GUI host 连接状态：连接、鉴权、initialize、attach、事件计数和最后事件类型。已有 Redux projection slice 可以接收 `thread/projection/attach` snapshot，并用 `thread/projection/event` 增量更新 thread projection。
+当前 `codex-gui` 入口主要展示 GUI host 连接状态：连接、鉴权、initialize、attach、事件计数和最后事件类型。现有 Redux projection slice 可以接收 `thread/projection/attach` snapshot，并用 `thread/projection/event` 增量更新 thread projection。
+
+这只是临时调试实现。它可以说明 GUI 现在如何收到 app-server projection 输出，但不能作为 YOHO GUI 的基础模型。
 
 TUI 侧已有 `/gui` 命令，负责为 primary thread 生成本地 GUI URL。这个目标继续沿用该入口，不扩大到独立 GUI 启动器或远程 GUI 会话。
 
+## Projection 的位置
+
+`projection` 的含义是：app-server 将 thread 事件流投影成 GUI 可消费的 snapshot/event 流。
+
+因此 projection 是 GUI 接入 app-server thread 数据的输入面，不是 GUI 自己的核心状态边界。GUI 可以消费：
+
+- `thread/projection/attach` 返回的 snapshot。
+- `thread/projection/event` 后续增量事件。
+- `thread/projection/closed` 终止信号。
+
+但 GUI 不应把 projection 输出直接等同于自己的长期状态模型。projection snapshot/event 进入 GUI 后，下一层应该是 GUI thread runtime，而不是直接从 projection state 派生 chat view model。
+
+## TUI 参考分层
+
+TUI 的关键分层是：
+
+- App 层持有 `primary_thread_id`、`active_thread_id`、`thread_event_channels`、`active_thread_rx`。
+- 每个 thread 有自己的 `ThreadEventChannel`。
+- 每个 channel 持有 `ThreadEventStore`。
+- `ThreadEventStore` 保存 replay/live 所需材料：`session`、`turns`、`buffer`、`active_turn_id`、`input_state`、`active`。
+- thread 切换或恢复时，TUI 生成 `ThreadEventSnapshot`，再 replay 到 `ChatWidget`。
+- live event 和 replay event 最终都进入 `ChatWidget`，但带有不同 replay kind。
+- TUI 不把 `ThreadProjectionEvent` / `ThreadProjectionClosed` 当作主线程路由或 ChatWidget 渲染基础。
+
+GUI 第一版只支持单会话，因此不需要完整复刻 TUI 的多线程切换能力。但它仍然需要保留同样的核心边界：输入协议、thread runtime、snapshot replay、live event handling、chat surface 分开。
+
 ## 推荐架构
 
-GUI 保持以 app-server projection 为主要数据源：
+GUI 的长期方向是：
 
-1. `startGuiHostConnection` 从 URL 读取 `threadId` 和 launch token。
-2. WebSocket 完成 `gui/authenticate` 和 `initialize`。
-3. GUI 发送 `thread/projection/attach`，用返回 snapshot 渲染已有历史。
-4. 后续 `thread/projection/event` 进入 Redux，更新当前会话。
-5. Chat UI 从 projection state 派生普通聊天视图模型。
-6. Composer 通过 app-server JSON-RPC 发送 `turn/start`，Stop 按钮发送 `turn/interrupt`。
+```text
+TUI /gui launch URL
+  -> GUI host WebSocket handshake
+  -> app-server projection input
+  -> GUI thread identity shell
+  -> GUI thread runtime store
+  -> snapshot replay
+  -> live event handling
+  -> chat surface view model
+  -> React UI
+```
 
-关键原则：projection state 保存协议事实，chat view model 负责把协议 item 映射成普通聊天 UI。不要把 UI 展示字段混入 projection slice。
+这条链路里的职责边界：
+
+- `guiHostClient` 只负责 URL 参数、token、WebSocket、JSON-RPC handshake、projection attach/event/closed 输入。
+- thread identity shell 只负责确认 launch thread id 和 attached thread id 是同一个线程。
+- thread runtime store 负责保存可 replay/live 处理的 thread runtime 状态。
+- snapshot replay 负责把 attach snapshot 转成初始 UI 状态。
+- live event handling 负责把后续事件应用到当前 runtime。
+- chat surface view model 只从 runtime 派生展示模型，不直接拥有协议事实。
+- React UI 只渲染 view model 和提交用户操作。
+
+## 分层拆分
+
+这个任务必须拆成极小任务，按金字塔推进：
+
+```text
+YOHO single-session chat GUI
+├─ 00 overall design
+├─ 01 thread identity shell
+├─ 02 projection ingress adapter
+├─ 03 thread runtime store
+├─ 04 snapshot replay
+├─ 05 live event handling
+├─ 06 basic chat surface
+├─ 07 composer turn control
+├─ 08 tool activity
+└─ 09 verification and smoke
+```
+
+每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
+
+## 第一阶段：Thread Identity Shell
+
+第一阶段只做线程身份外壳，不做消息、不做 turns、不做 items、不做 replay。
+
+状态只需要表达：
+
+```ts
+type GuiThreadIdentityState = {
+  launchThreadId: string | null;
+  attachedThreadId: string | null;
+  attachStatus: "none" | "attached" | "mismatch";
+};
+```
+
+行为：
+
+- URL `/gui` 的 `threadId` 写入 `launchThreadId`。
+- `thread/projection/attach` snapshot 的 `thread.id` 写入 `attachedThreadId`。
+- 两者一致时进入 `attached`。
+- 两者不一致时进入 `mismatch`，停止继续推进 chat runtime。
+
+非目标：
+
+- 不保存 `Thread`。
+- 不保存 `turns`。
+- 不保存 `items`。
+- 不设计 chat view model。
+- 不设计 composer。
+- 不设计 tool activity。
+
+第一阶段的价值是把 GUI 从临时 projection debug panel 里拆出来，先建立和 TUI 一致的 thread identity 边界。
+
+## 后续阶段
+
+### 02 Projection Ingress Adapter
+
+把 `thread/projection/attach`、`thread/projection/event`、`thread/projection/closed` 变成 GUI runtime 可消费的输入事件。这里仍然不设计聊天 UI。
+
+### 03 Thread Runtime Store
+
+建立浏览器环境下的 per-thread runtime store。单会话第一版可以只有一个 runtime，但模型必须能表达 TUI 同类职责：session、turns、buffer、active turn、closed/error 状态。
+
+### 04 Snapshot Replay
+
+将 attach snapshot 作为 runtime 初始化材料，并明确 replay 路径和 live 路径不同。replay 不应触发 live-only UI 副作用。
+
+### 05 Live Event Handling
+
+处理 attach 之后的增量事件，更新 runtime，并维持 active turn / streaming / closed 状态。
+
+### 06 Basic Chat Surface
+
+从 runtime 派生普通聊天 view model。只覆盖 user message、assistant text、基础 Markdown 和基础状态行。
+
+### 07 Composer Turn Control
+
+接入纯文本 composer、`turn/start`、`turn/interrupt`，并处理发送失败、中断中、运行中状态。
+
+### 08 Tool Activity
+
+从 runtime 派生 tool activity 展示。第一版只做简化详情和展开，不实现 approval/review 控制流。
+
+### 09 Verification And Smoke
+
+补 browser/e2e smoke，覆盖 `/gui` 打开、attach 身份一致、snapshot 初始化、live event 更新、发送 turn、中断 turn、错误状态。
 
 ## UI 形态
 
-第一版页面使用三段式结构：
+最终聊天界面仍然是三段式：
 
 - 顶部：当前会话标题、连接状态、turn 状态。
 - 中部：聊天消息列表，默认滚动到最新消息。
@@ -52,77 +181,16 @@ GUI 保持以 app-server projection 为主要数据源：
 
 消息列表按普通聊天产品展示：
 
-- User message：右侧或主色气泡。
-- Assistant message：左侧或中性色气泡，支持基础 Markdown。
+- User message：用户消息。
+- Assistant message：assistant 文本，支持基础 Markdown。
 - Tool activity：嵌入 assistant 区域的活动块，默认显示简化详情。
 - Error/status：轻量提示行，不进入复杂 transcript 样式。
 
-## ThreadItem 映射策略
-
-第一版只定义稳定的 UI 语义，不追求覆盖所有 TUI transcript 细节：
-
-- 用户输入 item 映射为 user message。
-- Assistant 文本 item 映射为 assistant message。
-- Tool call、shell、patch、file read 等 item 映射为 tool activity block。
-- Tool 输出优先提取短摘要；完整输出通过展开区域查看。
-- 未识别 item 映射为低噪声 activity block，显示类型和可读摘要。
-- 审核、approval、review 相关 item 暂不做交互 UI；如果出现，只显示为只读 activity。
-
-## Composer 行为
-
-Composer 只负责单个会话的普通文本 turn：
-
-- 空输入不能发送。
-- Enter 发送，Shift+Enter 换行。
-- 发送后清空输入。
-- 当前 turn 进行中时显示 Stop。
-- Stop 调用 `turn/interrupt`，并把 UI 状态切到中断中，等待 projection 或 app-server 事件确认。
-- 发送失败时恢复输入文本，并显示错误提示。
-
-## 状态与错误
-
-GUI 至少需要区分这些状态：
-
-- Connecting：WebSocket 尚未 attach。
-- Attached：已有 snapshot 可用。
-- Streaming：当前 turn 正在更新。
-- Interrupting：用户已请求中断。
-- Disconnected：WebSocket 正常关闭或断开。
-- Error：鉴权、attach、协议解析或发送失败。
-
-错误展示保持短句、可恢复优先。断连后第一版可以提示刷新页面，不要求自动重连。
-
-## 周计划
-
-### 第 1 周：聊天视图模型和历史渲染
-
-- 从 projection snapshot 派生 chat message view model。
-- 渲染 user/assistant 基础消息列表。
-- 支持基础 Markdown。
-- 加入已有历史加载验收。
-
-### 第 2 周：Composer 和 turn 控制
-
-- 实现纯文本 composer。
-- 接入 `turn/start`。
-- 接入 `turn/interrupt`。
-- 补发送失败、中断中、turn 进行中状态。
-
-### 第 3 周：Tool activity 简化详情
-
-- 把 tool/shell/patch/file read item 映射为 activity block。
-- 默认显示工具名、状态、关键输出片段。
-- 支持展开更多详情。
-- 补未知 item 的兜底展示。
-
-### 第 4 周：打磨和验收
-
-- 补空状态、错误状态、断连状态。
-- 做桌面和窄屏布局验证。
-- 增加 browser tests 和 e2e smoke。
-- 用 `/gui` 打开真实单会话完成一次普通聊天验收。
+这些 UI 形态不反向约束底层 runtime。只有在 thread identity、projection ingress、runtime、replay/live 层稳定后，才进入具体渲染。
 
 ## 验收标准
+
+总体验收：
 
 - 从 TUI 运行 `/gui` 打开的 GUI 能显示当前会话已有历史。
 - 用户可以在 GUI 输入普通文本并发送到当前会话。
@@ -130,14 +198,21 @@ GUI 至少需要区分这些状态：
 - 当前 turn 运行时，用户可以点击 Stop 发起中断。
 - 至少一种 tool activity 能以简化详情展示，并可展开查看更多内容。
 - GUI 不要求 review/approval 能力，也不要求多会话能力。
-- Browser/e2e 覆盖 attach snapshot、projection event、发送 turn、中断 turn 和错误状态。
 
-## 后续设计拆分
+分阶段验收：
 
-这份文件只定义总目标和边界。后续设计应继续放在同一目录下，按实现边界拆分：
+- 每个阶段只能验收该阶段自己的边界。
+- `01` 只验收 thread identity，不验收 chat。
+- `02` 只验收 projection 输入适配，不验收 runtime。
+- `03` 只验收 runtime store，不验收 UI。
+- `04` 只验收 snapshot replay。
+- `05` 只验收 live event handling。
+- `06` 之后才开始验收聊天展示。
 
-- `01-chat-view-model.md`
-- `02-message-rendering.md`
-- `03-composer-turn-control.md`
-- `04-tool-activity.md`
-- `05-verification-plan.md`
+## 设计原则
+
+- TUI 是主要参考，不是背景材料。
+- Projection 是 app-server 的投影输出，不是 GUI 状态真理。
+- 当前 GUI store 是临时调试代码，不作为后续设计依据。
+- 先做线程，再做事件，再做 replay/live，再做 chat。
+- 每个子设计必须足够小，可以独立实现、独立回退、独立验收。
