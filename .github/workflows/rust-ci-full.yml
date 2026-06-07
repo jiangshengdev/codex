@@ -464,6 +464,7 @@ jobs:
       target: aarch64-unknown-linux-gnu
       profile: ci-test
       artifact_id: linux-arm64
+      cargo_build_jobs: 2
       use_sccache: true
     secrets: inherit
 
