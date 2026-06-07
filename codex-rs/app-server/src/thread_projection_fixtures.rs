@@ -231,7 +231,7 @@ fn event_turn_started() -> Result<ThreadProjectionEventNotification> {
     projection_event(
         SUBSCRIPTION_ID,
         "commit-turn-started",
-        None,
+        /*parent_commit_id*/ None,
         ThreadProjectionEvent::TurnStarted {
             notification: TurnStartedNotification {
                 thread_id: THREAD_ID.to_string(),
