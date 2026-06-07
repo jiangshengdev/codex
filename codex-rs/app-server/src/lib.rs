@@ -103,6 +103,8 @@ mod server_request_error;
 mod skills_watcher;
 mod thread_projection;
 mod thread_projection_cut;
+#[cfg(unix)]
+mod thread_projection_fixtures;
 mod thread_projection_runtime;
 mod thread_state;
 mod thread_status;
@@ -116,6 +118,12 @@ pub use crate::transport::app_server_control_socket_path;
 pub use crate::transport::auth::AppServerWebsocketAuthArgs;
 pub use crate::transport::auth::AppServerWebsocketAuthSettings;
 pub use crate::transport::auth::WebsocketAuthCliMode;
+
+#[cfg(unix)]
+#[doc(hidden)]
+pub fn write_gui_projection_fixtures(out_dir: &std::path::Path) -> anyhow::Result<()> {
+    thread_projection_fixtures::write(out_dir)
+}
 
 const LOG_FORMAT_ENV_VAR: &str = "LOG_FORMAT";
 const OTEL_SERVICE_NAME: &str = "codex-app-server";
