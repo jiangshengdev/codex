@@ -1,8 +1,8 @@
-# YOHO Single-Session Chat GUI Overall Design
+# YOLO Single-Session Chat GUI Overall Design
 
 ## 目标
 
-把当前 GUI 从连接状态验证面板推进为 YOHO 风格的单会话普通聊天界面。用户通过 TUI 的 `/gui` 打开当前 primary thread 后，可以在 GUI 中查看已有历史、继续发送消息、看到 assistant 流式回复、查看简化 tool activity，并在需要时中断当前 turn。
+把当前 GUI 从连接状态验证面板推进为 YOLO 风格的单会话普通聊天界面。用户通过 TUI 的 `/gui` 打开当前 primary thread 后，可以在 GUI 中查看已有历史、继续发送消息、看到 assistant 流式回复、查看简化 tool activity，并在需要时中断当前 turn。
 
 这个目标必须以 TUI 的真实分层为参考进行 GUI 侧重建。凡是 TUI 已经有明确分层的地方，GUI 只做浏览器环境下的等价实现；只有 TUI 无法直接映射的地方，才做 GUI 侧决策。
 
@@ -29,7 +29,7 @@
 
 当前 `codex-gui` 入口主要展示 GUI host 连接状态：连接、鉴权、initialize、attach、事件计数和最后事件类型。现有 Redux projection slice 可以接收 `thread/projection/attach` snapshot，并用 `thread/projection/event` 增量更新 thread projection，同时维护 `commitId` / `parentCommitId` 连续性并在 `commitChainMismatch`、`missingTurn` 时判定需要 reattach。
 
-这仍然是临时调试实现。它可以说明 GUI 现在如何收到 app-server projection 输出，但不能作为 YOHO GUI 的基础模型。调试 UI 和直接以 projection state 驱动界面的做法应丢弃；commit-chain 连续性校验和 reattach 判定是协议逻辑，后续必须迁移保留。
+这仍然是临时调试实现。它可以说明 GUI 现在如何收到 app-server projection 输出，但不能作为 YOLO GUI 的基础模型。调试 UI 和直接以 projection state 驱动界面的做法应丢弃；commit-chain 连续性校验和 reattach 判定是协议逻辑，后续必须迁移保留。
 
 TUI 侧已有 `/gui` 命令，负责为 primary thread 生成本地 GUI URL。这个目标继续沿用该入口，不扩大到独立 GUI 启动器或远程 GUI 会话。
 
@@ -98,7 +98,7 @@ TUI /gui launch URL
 这个任务必须拆成极小任务，按金字塔推进：
 
 ```text
-YOHO single-session chat GUI
+YOLO single-session chat GUI
 ├─ 00 overall design
 ├─ 01 thread identity shell
 ├─ 02 projection ingress adapter
