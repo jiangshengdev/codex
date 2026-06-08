@@ -7,6 +7,7 @@ export default defineConfig({
     {
       path: "src/locales/{locale}",
       include: ["src"],
+      exclude: ["src/**/__screenshots__/**"],
     },
   ],
 });
