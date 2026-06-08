@@ -61,17 +61,27 @@ pub fn launch_url_for_thread(
     thread_id: impl std::fmt::Display,
     token: &LaunchToken,
 ) -> String {
+    let thread_id = thread_id.to_string();
     let hosts = [AdvertisedHost::new(
         GuiLaunchUrlKind::Local,
         "Local",
         "127.0.0.1",
     )];
-    launch_urls_for_thread(addr.port(), &hosts, thread_id, token)
+    launch_urls_for_thread(addr.port(), &hosts, &thread_id, token)
         .entries
         .into_iter()
         .next()
-        .expect("local host should always produce a launch URL")
-        .url
+        .map_or_else(
+            || {
+                let port = addr.port();
+                let thread_id = urlencoding::encode(&thread_id);
+                format!(
+                    "http://127.0.0.1:{port}/?threadId={thread_id}#token={}",
+                    token.as_str()
+                )
+            },
+            |entry| entry.url,
+        )
 }
 
 pub fn launch_urls_for_thread(
