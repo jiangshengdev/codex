@@ -233,4 +233,3 @@ just fix -p codex-app-server
 - 风险：后续 upstream merge 改了 persistence 规则。
   - 缓解：helper 位于规则 owner 附近，merge 冲突集中在小范围；测试用 projection attach race 保护最终
     observable contract。
-

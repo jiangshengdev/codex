@@ -287,4 +287,3 @@ projection 在 0.131 上的正确实现不是旧 diff 的机械搬运，而是�
 3. 在 0.131 的 listener、outgoing、unload、connection close 结构上重新接线。
 4. 保证 projection lifecycle 不污染 ordinary thread subscription lifecycle。
 5. 让 generated schema 后置生成。
-

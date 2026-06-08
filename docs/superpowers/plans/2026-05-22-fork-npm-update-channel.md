@@ -83,7 +83,7 @@ In `codex-rs/tui/src/snapshots/codex_tui__update_prompt__tests__update_prompt_mo
 ```text
   Release notes: https://github.com/jiangshengdev/codex/releases/latest
 
-› 1. Update now (runs `npm install -g @jiangshengdev/codex@latest`)                
+› 1. Update now (runs `npm install -g @jiangshengdev/codex@latest`)
 ```
 
 Keep the surrounding snapshot content unchanged.
