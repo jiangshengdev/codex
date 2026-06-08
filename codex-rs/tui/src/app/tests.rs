@@ -208,10 +208,7 @@ fn gui_launch_url_message_snapshot() {
             ),
         ],
     };
-    let rendered = lines_to_single_string(
-        &history_cell::new_info_event(gui::gui_launch_success_message(&urls), /*hint*/ None)
-            .display_lines(/*width*/ 100),
-    );
+    let rendered = lines_to_single_string(&gui::gui_launch_success_lines(&urls));
 
     assert_app_snapshot!("gui_launch_url_message", rendered);
 }
