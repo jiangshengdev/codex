@@ -3023,6 +3023,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "futures",
+ "libc",
  "pretty_assertions",
  "rand 0.9.3",
  "reqwest 0.12.28",
@@ -3035,6 +3036,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "urlencoding",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

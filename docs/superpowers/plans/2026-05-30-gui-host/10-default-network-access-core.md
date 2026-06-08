@@ -6,7 +6,7 @@
 
 **Architecture:** This plan is limited to `codex-gui-host`. It adds structured launch URL entries, private-interface address discovery, `0.0.0.0` binding, HTTP Host validation, and WebSocket Host / Origin validation. Upper-layer app-server/client/TUI propagation stays in `11-default-network-launch-integration.md`.
 
-**Tech Stack:** Rust 2024, axum, tokio, libc `getifaddrs`, reqwest, tokio-tungstenite, pretty_assertions.
+**Tech Stack:** Rust 2024, axum, tokio, libc `getifaddrs` on Unix, `windows-sys` Win32 IP Helper API on Windows, reqwest, tokio-tungstenite, pretty_assertions.
 
 ---
 
@@ -144,15 +144,23 @@ Expected: PASS.
 - Create: `codex-rs/gui-host/src/net.rs`
 - Modify: `codex-rs/gui-host/src/lib.rs`
 
-- [ ] **Step 1: Add libc dependency**
+- [ ] **Step 1: Add platform-specific network dependencies**
 
 In `codex-rs/gui-host/Cargo.toml`, add:
 
 ```toml
+[target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
+] }
 ```
 
-Expected: no `Cargo.lock` version change because `libc` is already a workspace dependency.
+Expected: `Cargo.lock` may add these dependencies to the `codex-gui-host` package dependency list, but should not introduce new resolved versions already present elsewhere in the workspace lockfile.
 
 - [ ] **Step 2: Create `net.rs` with pure classification tests**
 
@@ -173,6 +181,12 @@ fn rejects_public_and_link_local_addresses() { /* 8.8.8.8, 169.254.1.1, fe80::1 
 
 #[test]
 fn selects_one_lan_and_one_vpn_candidate() { /* Local -> LAN -> VPN */ }
+
+#[test]
+fn selects_lan_fallback_when_default_route_unknown() { /* first active RFC1918 IPv4 */ }
+
+#[test]
+fn does_not_advertise_ula_when_ipv6_disabled() { /* ULA classified but no URL */ }
 ```
 
 - [ ] **Step 3: Implement pure classification**
@@ -186,6 +200,7 @@ pub(crate) struct InterfaceAddress {
     pub(crate) ip: std::net::IpAddr,
     pub(crate) is_default_route: bool,
     pub(crate) is_active: bool,
+    pub(crate) is_loopback: bool,
 }
 ```
 
@@ -202,12 +217,19 @@ Rules:
 
 - Always include `Local`.
 - Pick LAN from `is_default_route == true` and RFC1918 IPv4.
-- Pick VPN from CGNAT IPv4 first, then ULA IPv6 only when `include_ipv6` is true.
+- If no default-route LAN is available, pick the first active RFC1918 IPv4 as LAN.
+- Pick VPN from CGNAT IPv4 first. ULA IPv6 is only eligible when `include_ipv6` is true.
 - Return entries sorted Local -> LAN -> VPN.
 
-- [ ] **Step 4: Implement Unix discovery**
+- [ ] **Step 4: Implement platform discovery collectors**
 
-Use `libc::getifaddrs` behind `#[cfg(unix)]` to gather active IPv4/IPv6 interface addresses. For MVP default-route detection on Unix, use a small helper that marks the first RFC1918 IPv4 as LAN when a platform-specific default route is not available; tests must cover selection via injected `InterfaceAddress` so real host networking is not required for correctness.
+Add platform collectors that return `Vec<InterfaceAddress>`:
+
+- `#[cfg(unix)]`: use `libc::getifaddrs` to gather active IPv4/IPv6 interface addresses.
+- `#[cfg(windows)]`: use Win32 IP Helper API `GetAdaptersAddresses` to gather active adapter IPv4/IPv6 addresses.
+- Other platforms or collector errors: return an empty list and let selection fall back to Local.
+
+For MVP default-route detection, collectors may leave `is_default_route = false` when reliable platform route lookup is not available. The pure selector must then choose the first active RFC1918 IPv4 as LAN. Tests must cover selection via injected `InterfaceAddress` so real host networking is not required for correctness.
 
 Expose:
 
@@ -442,6 +464,7 @@ Expected paths for this plan only:
 
 ```text
 MODULE.bazel.lock
+codex-rs/Cargo.lock
 codex-rs/gui-host/Cargo.toml
 codex-rs/gui-host/src/lib.rs
 codex-rs/gui-host/src/net.rs
@@ -453,6 +476,6 @@ codex-rs/gui-host/src/ws.rs
 - [ ] **Step 6: Commit**
 
 ```bash
-git add MODULE.bazel.lock codex-rs/gui-host/Cargo.toml codex-rs/gui-host/src/lib.rs codex-rs/gui-host/src/net.rs codex-rs/gui-host/src/url.rs codex-rs/gui-host/src/host.rs codex-rs/gui-host/src/ws.rs
+git add MODULE.bazel.lock codex-rs/Cargo.lock codex-rs/gui-host/Cargo.toml codex-rs/gui-host/src/lib.rs codex-rs/gui-host/src/net.rs codex-rs/gui-host/src/url.rs codex-rs/gui-host/src/host.rs codex-rs/gui-host/src/ws.rs
 git commit -m "feat(gui-host): add default network access core"
 ```
