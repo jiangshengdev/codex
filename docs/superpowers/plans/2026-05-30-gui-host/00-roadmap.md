@@ -57,7 +57,7 @@
 - 不新增 GUI 代码到 `codex-core`。
 - 不让 `codex-gui-host` 依赖 `codex-app-server`。
 - 不让 `codex-tui` 直接依赖 `codex-app-server` 或 `codex-gui-host`。
-- 不自动打开浏览器；`/gui` 首版只显示本机 URL。
+- 不自动打开浏览器；`/gui` 默认显示结构化 GUI URLs，包含 Local / 默认 LAN / VPN URL。
 - 不把 `gui/authenticate` 加进 app-server v2 API；它只是 GUI host 本地首帧认证。
 - 不修改 `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR` 或 `CODEX_SANDBOX_ENV_VAR` 相关代码。
 
@@ -68,13 +68,13 @@
 这些决策直接复用：
 
 - GUI 是从 TUI 启动的 companion surface。
-- TUI 只请求 launch URL 并显示，不转发 browser JSON-RPC traffic。
+- TUI 只请求结构化 GUI URLs 并显示，不转发 browser JSON-RPC traffic。
 - 浏览器不直连 existing app-server remote WebSocket。
 - `codex-gui-host` 是 browser-safe 本机入口，负责 HTTP assets、same-origin `/ws`、Host / Origin 校验、launch token 和 allowlist。
 - `codex-gui-host` 只定义 host shell 和 backend contract，不拥有 app-server business logic。
 - app-server runtime owns GUI host lifecycle。
 - `/gui` 首版使用 primary thread。
-- `/gui` 首版不支持 LAN、mobile、公网 relay、approval、interrupt、user turn、subagent switching、projection viewer。
+- `/gui` 默认支持 Local / 默认 LAN / VPN URL；仍不支持 mobile-specific pairing、公网 relay、approval、interrupt、user turn、subagent switching、projection viewer。
 - 认证成功后，browser traffic 才能进入 app-server 侧处理链。
 - 认证失败不得在 app-server runtime 留下 connection / session / outbound state。
 - 入方向 allowlist 首版只允许 projection transport MVP 需要的 JSON-RPC 方法。
@@ -227,17 +227,17 @@
 
 ### `05-app-server-client-facade.md`
 
-目标：把 launch URL 暴露给 TUI。
+目标：把结构化 GUI launch URLs 暴露给 TUI。
 
 边界：
 
-- `codex-rs/app-server-client/src/gui.rs` 承担 GUI facade。
+- `codex-rs/app-server-client/src/gui.rs` 承担 GUI facade，并输出 Local / LAN / VPN URL entries。
 - `codex-rs/app-server-client/src/lib.rs` 只做最小 wiring / re-export / construction / drop ordering。
 - remote client 返回 unsupported，不尝试远程 GUI。
 
 预期类型：
 
-- `GuiLaunchUrl`
+- `GuiLaunchUrls`
 - `GuiLaunchError`
 - `AppServerClientGuiExt`
 
@@ -248,7 +248,7 @@
 边界：
 
 - TUI 只调用 app-server-client facade。
-- TUI 只显示 URL 或错误。
+- TUI 只显示 Local / LAN / VPN URLs 或错误。
 - TUI 不持有 GUI host。
 - TUI 不转发 JSON-RPC。
 - TUI 不直接依赖 `codex-app-server` 或 `codex-gui-host`。
@@ -284,7 +284,7 @@
 
 ```text
 TUI /gui
-  -> local URL displayed
+  -> structured Local / LAN / VPN URLs displayed
   -> browser opens GUI host page
   -> same-origin /ws
   -> gui/authenticate
@@ -295,7 +295,7 @@ TUI /gui
 
 边界：
 
-- 不引入 LAN/mobile/public relay。
+- 不引入 mobile-specific pairing 或 public relay。
 - 不新增 browser control。
 - 不新增 user turn / approval / tool 调用。
 
@@ -352,7 +352,7 @@ TUI /gui
 
 最终 MVP 成立时必须满足：
 
-- `/gui` 在 in-process TUI session 中显示真实本机 URL。
+- `/gui` 在 in-process TUI session 中显示真实结构化 GUI URLs，默认包含 Local / LAN / VPN 入口。
 - 浏览器打开 URL 后连接 same-origin `/ws`。
 - `gui/authenticate` 成功后才进入 app-server 侧 bridge。
 - `gui/authenticate` 失败不会创建 app-server state。

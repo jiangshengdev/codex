@@ -18,7 +18,7 @@
 
 把 GUI host 设计稳定地落到当前 `dev` 的代码边界里，同时保持旧设计的核心决策不变：
 
-- `/gui` 只显示本机 URL，不自动打开浏览器。
+- `/gui` 请求结构化 GUI URLs，TUI 默认展示 Local / LAN / VPN 入口，不自动打开浏览器。
 - 认证后的 GUI `/ws` 作为 extra in-process connection 接入现有 `MessageProcessor` / `outbound_connections`。
 - `TransportEvent` 只作语义参考，不作为 MVP in-process 路径。
 - `in_process.rs`、`app-server-client/src/lib.rs` 只保留 thin hook。
@@ -77,7 +77,7 @@ GUI host 迁移不应把这些文件改成 GUI 专用实现；它们只提供必
 
 - `codex-gui-host`：browser host shell、安全边界、launch token、Host / Origin 校验、`/ws` 首帧认证、allowlist、静态资源服务。
 - `codex-app-server`：GUI host 生命周期、认证后的 extra connection 注册、接入 `MessageProcessor` / `outbound_connections`。
-- `codex-app-server-client`：GUI launch URL facade。
+- `codex-app-server-client`：GUI launch URLs facade。
 - `codex-tui`：`/gui` 命令、primary thread 选择、URL 展示。
 
 ### 运行时路径
@@ -86,8 +86,8 @@ GUI host 迁移不应把这些文件改成 GUI 专用实现；它们只提供必
 TUI /gui
   -> app-server-client gui facade
   -> GuiHostManager lazy-start / reuse
-  -> GUI host launch URL
-  -> 浏览器手动打开本机 URL
+  -> GUI host launch URLs
+  -> 用户手动打开其中一个 URL
   -> /ws 首帧 gui/authenticate
   -> 认证后的 WebSocket 注册为 extra in-process connection
   -> MessageProcessor / outbound_connections
@@ -138,8 +138,8 @@ TUI /gui
 
 ### 1. `/gui` 的行为
 
-`/gui` 首版只返回本机 GUI host URL，不主动调用系统浏览器。
-TUI transcript 里显示完整 URL，由用户自己打开。
+`/gui` 首版返回结构化 GUI URLs，不主动调用系统浏览器。
+TUI transcript 里默认显示 Local / LAN / VPN 入口，由用户自己选择并打开。
 
 ### 2. 认证后的 `/ws`
 
@@ -215,7 +215,7 @@ MVP 不复刻它，不把 GUI host 迁成 transport producer。
 
 - `in_process.rs` 不再承载 GUI 专属实现。
 - `app-server-client/src/lib.rs` 不再因为 GUI 接入扩散成一堆 scattered 改动。
-- `codex-app-server-client` 通过 `gui.rs` 输出 launch URL。
+- `codex-app-server-client` 通过 `gui.rs` 输出 launch URLs。
 - `codex-app-server` 通过 extra connection 接入现有 runtime。
 
 ## 结论
