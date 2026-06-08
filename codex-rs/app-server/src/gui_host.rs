@@ -3,6 +3,7 @@ use std::io;
 use codex_gui_host::GuiHost;
 use codex_gui_host::GuiHostConfig;
 use codex_gui_host::GuiHostHandle;
+use codex_gui_host::GuiLaunchUrls;
 use codex_protocol::ThreadId;
 use tokio::sync::Mutex;
 
@@ -24,26 +25,26 @@ impl GuiHostManager {
         }
     }
 
-    pub async fn launch_url_for_thread(&self, thread_id: ThreadId) -> io::Result<String> {
-        if let Some(url) = {
+    pub async fn launch_urls_for_thread(&self, thread_id: ThreadId) -> io::Result<GuiLaunchUrls> {
+        if let Some(urls) = {
             let guard = self.handle.lock().await;
             guard
                 .as_ref()
-                .map(|handle| handle.launch_url_for_thread(thread_id))
+                .map(|handle| handle.launch_urls_for_thread(thread_id))
         } {
-            return Ok(url);
+            return Ok(urls);
         }
 
         let backend = GuiTransportBackend::new(self.sender.clone());
         let new_handle = GuiHost::start(self.config.clone(), backend).await?;
-        let (url, redundant_handle) = {
+        let (urls, redundant_handle) = {
             let mut guard = self.handle.lock().await;
             match guard.as_ref() {
-                Some(handle) => (handle.launch_url_for_thread(thread_id), Some(new_handle)),
+                Some(handle) => (handle.launch_urls_for_thread(thread_id), Some(new_handle)),
                 None => {
-                    let url = new_handle.launch_url_for_thread(thread_id);
+                    let urls = new_handle.launch_urls_for_thread(thread_id);
                     *guard = Some(new_handle);
-                    (url, None)
+                    (urls, None)
                 }
             }
         };
@@ -52,7 +53,7 @@ impl GuiHostManager {
             handle.shutdown().await;
         }
 
-        Ok(url)
+        Ok(urls)
     }
 
     pub async fn shutdown(&self) {
@@ -98,32 +99,40 @@ mod tests {
             ThreadId::from_string("00000000-0000-0000-0000-0000000000a1").expect("valid thread id");
         let thread_b =
             ThreadId::from_string("00000000-0000-0000-0000-0000000000b2").expect("valid thread id");
-        let url_a = manager
-            .launch_url_for_thread(thread_a)
+        let urls_a = manager
+            .launch_urls_for_thread(thread_a)
             .await
-            .expect("first launch URL should be created");
-        let url_b = manager
-            .launch_url_for_thread(thread_b)
+            .expect("first launch URLs should be created");
+        let urls_b = manager
+            .launch_urls_for_thread(thread_b)
             .await
-            .expect("second launch URL should reuse host");
-        let origin_a = url_a
+            .expect("second launch URLs should reuse host");
+        let origin_a = urls_a.entries[0]
+            .url
             .as_str()
             .split("/?")
             .next()
             .expect("URL should contain query");
-        let origin_b = url_b
+        let origin_b = urls_b.entries[0]
+            .url
             .as_str()
             .split("/?")
             .next()
             .expect("URL should contain query");
         assert_eq!(origin_a, origin_b);
+        assert_eq!(
+            urls_a.entries[0].kind,
+            codex_gui_host::GuiLaunchUrlKind::Local
+        );
         assert!(
-            url_a
+            urls_a.entries[0]
+                .url
                 .as_str()
                 .contains("threadId=00000000-0000-0000-0000-0000000000a1")
         );
         assert!(
-            url_b
+            urls_b.entries[0]
+                .url
                 .as_str()
                 .contains("threadId=00000000-0000-0000-0000-0000000000b2")
         );

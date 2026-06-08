@@ -16,7 +16,7 @@ use codex_app_server_client::AppServerClientGuiExt;
 use codex_app_server_client::AppServerEvent;
 use codex_app_server_client::AppServerRequestHandle;
 use codex_app_server_client::GuiLaunchError;
-use codex_app_server_client::GuiLaunchUrl;
+use codex_app_server_client::GuiLaunchUrls;
 use codex_app_server_client::TypedRequestError;
 use codex_app_server_protocol::Account;
 use codex_app_server_protocol::AskForApproval;
@@ -378,7 +378,7 @@ impl AppServerSession {
     pub(crate) async fn launch_gui_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
+    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
         AppServerClientGuiExt::launch_gui_for_thread(&self.client, thread_id).await
     }
 
