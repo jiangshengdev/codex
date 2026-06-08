@@ -71,12 +71,16 @@ impl GuiHostHandle {
     }
 
     pub fn launch_url_for_thread(&self, thread_id: impl Display) -> String {
-        self.launch_urls_for_thread(thread_id)
+        let thread_id = thread_id.to_string();
+
+        self.launch_urls_for_thread(&thread_id)
             .entries
             .into_iter()
             .next()
             .map(|entry| entry.url)
-            .unwrap_or_else(|| launch_url_for_thread(self.local_addr, "", &self.launch_token))
+            .unwrap_or_else(|| {
+                launch_url_for_thread(self.local_addr, &thread_id, &self.launch_token)
+            })
     }
 
     pub fn launch_urls_for_thread(&self, thread_id: impl Display) -> GuiLaunchUrls {
@@ -366,6 +370,24 @@ mod tests {
             )]
         );
 
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn launch_url_fallback_preserves_thread_id_when_entries_are_empty() {
+        let (shutdown_tx, _shutdown_rx) = tokio::sync::oneshot::channel();
+        let handle = super::GuiHostHandle {
+            local_addr: std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 1234)),
+            launch_token: crate::LaunchToken::generate().expect("launch token should generate"),
+            advertised_hosts: Vec::new(),
+            shutdown_tx,
+            cancel_token: tokio_util::sync::CancellationToken::new(),
+            server_task: tokio::spawn(async { Ok::<(), std::io::Error>(()) }),
+        };
+
+        let url = handle.launch_url_for_thread("thread abc/#");
+
+        assert!(url.contains("threadId=thread%20abc%2F%23"));
         handle.shutdown().await;
     }
 
