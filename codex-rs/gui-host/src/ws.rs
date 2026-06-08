@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,10 +18,12 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 
+use crate::AdvertisedHost;
 use crate::AuthenticatedGuiConnection;
 use crate::GuiBackend;
 use crate::LaunchToken;
 use crate::host::GuiHostState;
+use crate::host::is_advertised_host;
 use crate::is_allowed_client_notification_method;
 use crate::is_allowed_client_request_method;
 use crate::is_allowed_server_notification_method;
@@ -79,7 +80,12 @@ where
         return StatusCode::FORBIDDEN.into_response();
     };
 
-    if !validate_host_and_origin(state.local_addr, host, origin) {
+    if !validate_host_and_origin(
+        &state.advertised_hosts,
+        state.local_addr.port(),
+        host,
+        origin,
+    ) {
         return StatusCode::FORBIDDEN.into_response();
     }
 
@@ -87,14 +93,18 @@ where
 }
 
 pub(crate) fn validate_host_and_origin(
-    local_addr: SocketAddr,
+    advertised_hosts: &[AdvertisedHost],
+    port: u16,
     host: &str,
     origin: Option<&str>,
 ) -> bool {
-    let expected_host = format!("127.0.0.1:{}", local_addr.port());
-    let expected_origin = format!("http://{expected_host}");
+    if !is_advertised_host(advertised_hosts, port, host) {
+        return false;
+    }
 
-    host == expected_host && origin == Some(expected_origin.as_str())
+    advertised_hosts.iter().any(|advertised| {
+        host == advertised.authority(port) && origin == Some(advertised.origin(port).as_str())
+    })
 }
 
 pub(crate) fn parse_authenticate_request(
@@ -332,27 +342,53 @@ mod tests {
 
     #[test]
     fn validates_exact_host_and_origin() {
-        let local_addr = "127.0.0.1:4567".parse().unwrap();
+        let advertised_hosts = vec![
+            crate::AdvertisedHost::new(crate::GuiLaunchUrlKind::Local, "Local", "127.0.0.1"),
+            crate::AdvertisedHost::new(crate::GuiLaunchUrlKind::Lan, "LAN", "192.168.3.165"),
+            crate::AdvertisedHost::new(crate::GuiLaunchUrlKind::Vpn, "VPN", "100.88.28.119"),
+        ];
 
         assert!(super::validate_host_and_origin(
-            local_addr,
+            &advertised_hosts,
+            4567,
             "127.0.0.1:4567",
             Some("http://127.0.0.1:4567")
         ));
+        assert!(super::validate_host_and_origin(
+            &advertised_hosts,
+            4567,
+            "192.168.3.165:4567",
+            Some("http://192.168.3.165:4567")
+        ));
         assert!(!super::validate_host_and_origin(
-            local_addr,
+            &advertised_hosts,
+            4567,
             "localhost:4567",
             Some("http://127.0.0.1:4567")
         ));
         assert!(!super::validate_host_and_origin(
-            local_addr,
+            &advertised_hosts,
+            4567,
             "127.0.0.1:4567",
             Some("http://localhost:4567")
         ));
         assert!(!super::validate_host_and_origin(
-            local_addr,
+            &advertised_hosts,
+            4567,
             "127.0.0.1:4567",
             /*origin*/ None
+        ));
+        assert!(!super::validate_host_and_origin(
+            &advertised_hosts,
+            4567,
+            "192.168.3.165:4567",
+            Some("http://100.88.28.119:4567")
+        ));
+        assert!(!super::validate_host_and_origin(
+            &advertised_hosts,
+            4567,
+            "10.0.0.88:4567",
+            Some("http://10.0.0.88:4567")
         ));
     }
 
