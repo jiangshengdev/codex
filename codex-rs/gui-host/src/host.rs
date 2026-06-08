@@ -71,12 +71,16 @@ impl GuiHostHandle {
     }
 
     pub fn launch_url_for_thread(&self, thread_id: impl Display) -> String {
-        self.launch_urls_for_thread(thread_id)
+        let thread_id = thread_id.to_string();
+
+        self.launch_urls_for_thread(&thread_id)
             .entries
             .into_iter()
             .next()
             .map(|entry| entry.url)
-            .unwrap_or_else(|| launch_url_for_thread(self.local_addr, "", &self.launch_token))
+            .unwrap_or_else(|| {
+                launch_url_for_thread(self.local_addr, &thread_id, &self.launch_token)
+            })
     }
 
     pub fn launch_urls_for_thread(&self, thread_id: impl Display) -> GuiLaunchUrls {
@@ -108,74 +112,6 @@ impl GuiHostHandle {
             }
         }
     }
-}
-
-async fn start_with_advertised_hosts<B>(
-    config: GuiHostConfig,
-    backend: B,
-    advertised_hosts: Vec<AdvertisedHost>,
-) -> io::Result<GuiHostHandle>
-where
-    B: GuiBackend + Clone,
-{
-    let advertised_hosts = ensure_advertised_hosts(advertised_hosts);
-    let listener = TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, 0)).await?;
-    let local_addr = listener.local_addr()?;
-    let launch_token = LaunchToken::generate().map_err(io::Error::other)?;
-    let state = Arc::new(GuiHostState {
-        local_addr,
-        launch_token: launch_token.clone(),
-        advertised_hosts: advertised_hosts.clone(),
-        mode: config.mode,
-        backend,
-    });
-    let app = router_for_state(state).map_err(io::Error::other)?;
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let cancel_token = CancellationToken::new();
-    let server_cancel = cancel_token.clone();
-    let server_task = tokio::spawn(async move {
-        axum::serve(listener, app)
-            .with_graceful_shutdown(async move {
-                tokio::select! {
-                    _ = shutdown_rx => {}
-                    _ = server_cancel.cancelled() => {}
-                }
-            })
-            .await
-    });
-
-    Ok(GuiHostHandle {
-        local_addr,
-        launch_token,
-        advertised_hosts,
-        shutdown_tx,
-        cancel_token,
-        server_task,
-    })
-}
-
-fn ensure_advertised_hosts(advertised_hosts: Vec<AdvertisedHost>) -> Vec<AdvertisedHost> {
-    if advertised_hosts.is_empty() {
-        vec![AdvertisedHost::new(
-            crate::GuiLaunchUrlKind::Local,
-            "Local",
-            "127.0.0.1",
-        )]
-    } else {
-        advertised_hosts
-    }
-}
-
-#[cfg(test)]
-async fn start_with_advertised_hosts_for_test<B>(
-    config: GuiHostConfig,
-    backend: B,
-    advertised_hosts: Vec<AdvertisedHost>,
-) -> io::Result<GuiHostHandle>
-where
-    B: GuiBackend + Clone,
-{
-    start_with_advertised_hosts(config, backend, advertised_hosts).await
 }
 
 fn router_for_state<B>(state: Arc<GuiHostState<B>>) -> anyhow::Result<Router>
@@ -254,6 +190,74 @@ pub(crate) fn is_advertised_host(
         .any(|advertised| host == advertised.authority(port))
 }
 
+async fn start_with_advertised_hosts<B>(
+    config: GuiHostConfig,
+    backend: B,
+    advertised_hosts: Vec<AdvertisedHost>,
+) -> io::Result<GuiHostHandle>
+where
+    B: GuiBackend + Clone,
+{
+    let advertised_hosts = ensure_advertised_hosts(advertised_hosts);
+    let listener = TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, 0)).await?;
+    let local_addr = listener.local_addr()?;
+    let launch_token = LaunchToken::generate().map_err(io::Error::other)?;
+    let state = Arc::new(GuiHostState {
+        local_addr,
+        launch_token: launch_token.clone(),
+        advertised_hosts: advertised_hosts.clone(),
+        mode: config.mode,
+        backend,
+    });
+    let app = router_for_state(state).map_err(io::Error::other)?;
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let cancel_token = CancellationToken::new();
+    let server_cancel = cancel_token.clone();
+    let server_task = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                tokio::select! {
+                    _ = shutdown_rx => {}
+                    _ = server_cancel.cancelled() => {}
+                }
+            })
+            .await
+    });
+
+    Ok(GuiHostHandle {
+        local_addr,
+        launch_token,
+        advertised_hosts,
+        shutdown_tx,
+        cancel_token,
+        server_task,
+    })
+}
+
+fn ensure_advertised_hosts(advertised_hosts: Vec<AdvertisedHost>) -> Vec<AdvertisedHost> {
+    if advertised_hosts.is_empty() {
+        vec![AdvertisedHost::new(
+            crate::GuiLaunchUrlKind::Local,
+            "Local",
+            "127.0.0.1",
+        )]
+    } else {
+        advertised_hosts
+    }
+}
+
+#[cfg(test)]
+async fn start_with_advertised_hosts_for_test<B>(
+    config: GuiHostConfig,
+    backend: B,
+    advertised_hosts: Vec<AdvertisedHost>,
+) -> io::Result<GuiHostHandle>
+where
+    B: GuiBackend + Clone,
+{
+    start_with_advertised_hosts(config, backend, advertised_hosts).await
+}
+
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
@@ -291,80 +295,6 @@ mod tests {
 
         assert_eq!(handle.local_addr().ip(), std::net::Ipv4Addr::UNSPECIFIED);
         assert_ne!(handle.local_addr().port(), 0);
-
-        handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn launch_urls_for_thread_uses_advertised_hosts() {
-        let handle = start_with_advertised_hosts_for_test(
-            dev_config(),
-            NoopBackend,
-            advertised_hosts_for_test(),
-        )
-        .await
-        .expect("host should start");
-
-        let urls = handle.launch_urls_for_thread("thread abc/#");
-        let port = handle.local_addr().port();
-
-        assert_eq!(
-            urls.entries,
-            vec![
-                crate::GuiLaunchUrlEntry::new(
-                    GuiLaunchUrlKind::Local,
-                    "Local",
-                    format!(
-                        "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
-                        handle.launch_token().as_str()
-                    ),
-                ),
-                crate::GuiLaunchUrlEntry::new(
-                    GuiLaunchUrlKind::Lan,
-                    "LAN",
-                    format!(
-                        "http://192.168.3.165:{port}/?threadId=thread%20abc%2F%23#token={}",
-                        handle.launch_token().as_str()
-                    ),
-                ),
-                crate::GuiLaunchUrlEntry::new(
-                    GuiLaunchUrlKind::Vpn,
-                    "VPN",
-                    format!(
-                        "http://100.88.28.119:{port}/?threadId=thread%20abc%2F%23#token={}",
-                        handle.launch_token().as_str()
-                    ),
-                ),
-            ]
-        );
-        assert_eq!(
-            handle.launch_url_for_thread("thread abc/#"),
-            urls.entries[0].url
-        );
-
-        handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn launch_urls_fall_back_to_local_when_no_hosts_are_advertised() {
-        let handle = start_with_advertised_hosts_for_test(dev_config(), NoopBackend, Vec::new())
-            .await
-            .expect("host should start");
-
-        let urls = handle.launch_urls_for_thread("thread abc/#");
-        let port = handle.local_addr().port();
-
-        assert_eq!(
-            urls.entries,
-            vec![crate::GuiLaunchUrlEntry::new(
-                GuiLaunchUrlKind::Local,
-                "Local",
-                format!(
-                    "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
-                    handle.launch_token().as_str()
-                ),
-            )]
-        );
 
         handle.shutdown().await;
     }
@@ -414,36 +344,6 @@ mod tests {
         let body = response.text().await.expect("body should be readable");
         assert!(body.contains("<h1>prod-static-test</h1>"));
 
-        handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn host_rejects_unadvertised_http_host() {
-        let (package_root, config) = prod_config().await;
-        let handle =
-            start_with_advertised_hosts_for_test(config, NoopBackend, advertised_hosts_for_test())
-                .await
-                .expect("host should start");
-        let client = reqwest::Client::new();
-        let port = handle.local_addr().port();
-
-        let allowed = client
-            .get(format!("http://127.0.0.1:{port}/"))
-            .header("Host", format!("127.0.0.1:{port}"))
-            .send()
-            .await
-            .expect("allowed request should complete");
-        assert_eq!(allowed.status(), StatusCode::OK);
-
-        let rejected = client
-            .get(format!("http://127.0.0.1:{port}/"))
-            .header("Host", format!("localhost:{port}"))
-            .send()
-            .await
-            .expect("rejected request should complete");
-        assert_eq!(rejected.status(), StatusCode::FORBIDDEN);
-
-        drop(package_root);
         handle.shutdown().await;
     }
 
@@ -654,66 +554,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ws_accepts_matching_advertised_host_and_origin() {
-        let handle = start_advertised_host(NoopBackend).await;
-        let port = handle.local_addr().port();
-        let url = format!("ws://127.0.0.1:{port}/ws");
-        let mut request = url.into_client_request().expect("request should build");
-        request
-            .headers_mut()
-            .insert("Host", format!("192.168.3.165:{port}").parse().unwrap());
-        request.headers_mut().insert(
-            "Origin",
-            format!("http://192.168.3.165:{port}").parse().unwrap(),
-        );
-
-        let (_websocket, response) = connect_async(request)
-            .await
-            .expect("websocket should connect");
-
-        assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
-        handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn ws_rejects_unadvertised_origin() {
-        let handle = start_advertised_host(NoopBackend).await;
-        let port = handle.local_addr().port();
-        let url = format!("ws://127.0.0.1:{port}/ws");
-        let mut request = url.into_client_request().expect("request should build");
-        request
-            .headers_mut()
-            .insert("Host", format!("10.0.0.88:{port}").parse().unwrap());
-        request.headers_mut().insert(
-            "Origin",
-            format!("http://10.0.0.88:{port}").parse().unwrap(),
-        );
-
-        assert_forbidden_connection(connect_async(request).await);
-
-        handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn ws_rejects_host_origin_mismatch_between_advertised_entries() {
-        let handle = start_advertised_host(NoopBackend).await;
-        let port = handle.local_addr().port();
-        let url = format!("ws://127.0.0.1:{port}/ws");
-        let mut request = url.into_client_request().expect("request should build");
-        request
-            .headers_mut()
-            .insert("Host", format!("192.168.3.165:{port}").parse().unwrap());
-        request.headers_mut().insert(
-            "Origin",
-            format!("http://100.88.28.119:{port}").parse().unwrap(),
-        );
-
-        assert_forbidden_connection(connect_async(request).await);
-
-        handle.shutdown().await;
-    }
-
-    #[tokio::test]
     async fn browser_non_allowlisted_request_never_reaches_backend() {
         let backend = RecordingBackend::new();
         let handle = start_host(backend.clone()).await;
@@ -845,6 +685,188 @@ mod tests {
                 .expect("auth response should be valid");
             assert!(message.is_text());
         }
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn launch_urls_for_thread_uses_advertised_hosts() {
+        let handle = start_with_advertised_hosts_for_test(
+            dev_config(),
+            NoopBackend,
+            advertised_hosts_for_test(),
+        )
+        .await
+        .expect("host should start");
+
+        let urls = handle.launch_urls_for_thread("thread abc/#");
+        let port = handle.local_addr().port();
+
+        assert_eq!(
+            urls.entries,
+            vec![
+                crate::GuiLaunchUrlEntry::new(
+                    GuiLaunchUrlKind::Local,
+                    "Local",
+                    format!(
+                        "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        handle.launch_token().as_str()
+                    ),
+                ),
+                crate::GuiLaunchUrlEntry::new(
+                    GuiLaunchUrlKind::Lan,
+                    "LAN",
+                    format!(
+                        "http://192.168.3.165:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        handle.launch_token().as_str()
+                    ),
+                ),
+                crate::GuiLaunchUrlEntry::new(
+                    GuiLaunchUrlKind::Vpn,
+                    "VPN",
+                    format!(
+                        "http://100.88.28.119:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        handle.launch_token().as_str()
+                    ),
+                ),
+            ]
+        );
+        assert_eq!(
+            handle.launch_url_for_thread("thread abc/#"),
+            urls.entries[0].url
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn launch_urls_fall_back_to_local_when_no_hosts_are_advertised() {
+        let handle = start_with_advertised_hosts_for_test(dev_config(), NoopBackend, Vec::new())
+            .await
+            .expect("host should start");
+
+        let urls = handle.launch_urls_for_thread("thread abc/#");
+        let port = handle.local_addr().port();
+
+        assert_eq!(
+            urls.entries,
+            vec![crate::GuiLaunchUrlEntry::new(
+                GuiLaunchUrlKind::Local,
+                "Local",
+                format!(
+                    "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                    handle.launch_token().as_str()
+                ),
+            )]
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn launch_url_fallback_preserves_thread_id_when_entries_are_empty() {
+        let (shutdown_tx, _shutdown_rx) = tokio::sync::oneshot::channel();
+        let handle = super::GuiHostHandle {
+            local_addr: std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 1234)),
+            launch_token: crate::LaunchToken::generate().expect("launch token should generate"),
+            advertised_hosts: Vec::new(),
+            shutdown_tx,
+            cancel_token: tokio_util::sync::CancellationToken::new(),
+            server_task: tokio::spawn(async { Ok::<(), std::io::Error>(()) }),
+        };
+
+        let url = handle.launch_url_for_thread("thread abc/#");
+
+        assert!(url.contains("threadId=thread%20abc%2F%23"));
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn host_rejects_unadvertised_http_host() {
+        let (package_root, config) = prod_config().await;
+        let handle =
+            start_with_advertised_hosts_for_test(config, NoopBackend, advertised_hosts_for_test())
+                .await
+                .expect("host should start");
+        let client = reqwest::Client::new();
+        let port = handle.local_addr().port();
+
+        let allowed = client
+            .get(format!("http://127.0.0.1:{port}/"))
+            .header("Host", format!("127.0.0.1:{port}"))
+            .send()
+            .await
+            .expect("allowed request should complete");
+        assert_eq!(allowed.status(), StatusCode::OK);
+
+        let rejected = client
+            .get(format!("http://127.0.0.1:{port}/"))
+            .header("Host", format!("localhost:{port}"))
+            .send()
+            .await
+            .expect("rejected request should complete");
+        assert_eq!(rejected.status(), StatusCode::FORBIDDEN);
+
+        drop(package_root);
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn ws_accepts_matching_advertised_host_and_origin() {
+        let handle = start_advertised_host(NoopBackend).await;
+        let port = handle.local_addr().port();
+        let url = format!("ws://127.0.0.1:{port}/ws");
+        let mut request = url.into_client_request().expect("request should build");
+        request
+            .headers_mut()
+            .insert("Host", format!("192.168.3.165:{port}").parse().unwrap());
+        request.headers_mut().insert(
+            "Origin",
+            format!("http://192.168.3.165:{port}").parse().unwrap(),
+        );
+
+        let (_websocket, response) = connect_async(request)
+            .await
+            .expect("websocket should connect");
+
+        assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn ws_rejects_unadvertised_origin() {
+        let handle = start_advertised_host(NoopBackend).await;
+        let port = handle.local_addr().port();
+        let url = format!("ws://127.0.0.1:{port}/ws");
+        let mut request = url.into_client_request().expect("request should build");
+        request
+            .headers_mut()
+            .insert("Host", format!("10.0.0.88:{port}").parse().unwrap());
+        request.headers_mut().insert(
+            "Origin",
+            format!("http://10.0.0.88:{port}").parse().unwrap(),
+        );
+
+        assert_forbidden_connection(connect_async(request).await);
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn ws_rejects_host_origin_mismatch_between_advertised_entries() {
+        let handle = start_advertised_host(NoopBackend).await;
+        let port = handle.local_addr().port();
+        let url = format!("ws://127.0.0.1:{port}/ws");
+        let mut request = url.into_client_request().expect("request should build");
+        request
+            .headers_mut()
+            .insert("Host", format!("192.168.3.165:{port}").parse().unwrap());
+        request.headers_mut().insert(
+            "Origin",
+            format!("http://100.88.28.119:{port}").parse().unwrap(),
+        );
+
+        assert_forbidden_connection(connect_async(request).await);
 
         handle.shutdown().await;
     }

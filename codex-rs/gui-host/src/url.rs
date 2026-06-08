@@ -70,14 +70,8 @@ pub fn launch_url_for_thread(
         .entries
         .into_iter()
         .next()
-        .map(|entry| entry.url)
-        .unwrap_or_else(|| {
-            let port = addr.port();
-            format!(
-                "http://127.0.0.1:{port}/?threadId=#token={}",
-                token.as_str()
-            )
-        })
+        .expect("local host should always produce a launch URL")
+        .url
 }
 
 pub fn launch_urls_for_thread(
