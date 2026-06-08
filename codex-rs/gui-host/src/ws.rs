@@ -350,43 +350,43 @@ mod tests {
 
         assert!(super::validate_host_and_origin(
             &advertised_hosts,
-            4567,
+            /*port*/ 4567,
             "127.0.0.1:4567",
             Some("http://127.0.0.1:4567")
         ));
         assert!(super::validate_host_and_origin(
             &advertised_hosts,
-            4567,
+            /*port*/ 4567,
             "192.168.3.165:4567",
             Some("http://192.168.3.165:4567")
         ));
         assert!(!super::validate_host_and_origin(
             &advertised_hosts,
-            4567,
+            /*port*/ 4567,
             "localhost:4567",
             Some("http://127.0.0.1:4567")
         ));
         assert!(!super::validate_host_and_origin(
             &advertised_hosts,
-            4567,
+            /*port*/ 4567,
             "127.0.0.1:4567",
             Some("http://localhost:4567")
         ));
         assert!(!super::validate_host_and_origin(
             &advertised_hosts,
-            4567,
+            /*port*/ 4567,
             "127.0.0.1:4567",
             /*origin*/ None
         ));
         assert!(!super::validate_host_and_origin(
             &advertised_hosts,
-            4567,
+            /*port*/ 4567,
             "192.168.3.165:4567",
             Some("http://100.88.28.119:4567")
         ));
         assert!(!super::validate_host_and_origin(
             &advertised_hosts,
-            4567,
+            /*port*/ 4567,
             "10.0.0.88:4567",
             Some("http://10.0.0.88:4567")
         ));

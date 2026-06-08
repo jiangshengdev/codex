@@ -140,7 +140,7 @@ mod tests {
             AdvertisedHost::new(GuiLaunchUrlKind::Vpn, "VPN", "100.88.28.119"),
         ];
 
-        let urls = launch_urls_for_thread(4567, &hosts, "thread abc/#", &token);
+        let urls = launch_urls_for_thread(/*port*/ 4567, &hosts, "thread abc/#", &token);
 
         assert_eq!(
             urls.entries,
