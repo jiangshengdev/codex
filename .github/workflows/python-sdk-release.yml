@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   resolve-python-release:
-    if: github.repository == 'jiangshengdev/codex'
+    if: github.repository == 'openai/codex'
     name: resolve-python-release
     runs-on: ubuntu-latest
     permissions:
