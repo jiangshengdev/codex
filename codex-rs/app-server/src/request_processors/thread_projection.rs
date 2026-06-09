@@ -9,6 +9,8 @@ use codex_app_server_protocol::ThreadProjectionDetachParams;
 use codex_app_server_protocol::ThreadProjectionDetachResponse;
 use codex_app_server_protocol::ThreadProjectionDetachStatus;
 use codex_app_server_protocol::ThreadProjectionSnapshot;
+#[cfg(test)]
+use codex_goal_extension::GoalService;
 use std::sync::Arc;
 #[cfg(test)]
 use std::sync::OnceLock;
@@ -382,6 +384,7 @@ mod tests {
             config.clone(),
             thread_state_manager.clone(),
             /*state_db*/ None,
+            Arc::new(GoalService::new()),
         );
         let skills_watcher = SkillsWatcher::new(thread_manager.skills_manager(), outgoing.clone());
         let processor = ThreadRequestProcessor::new(
@@ -626,6 +629,7 @@ mod tests {
             config.clone(),
             thread_state_manager.clone(),
             /*state_db*/ None,
+            Arc::new(GoalService::new()),
         );
         let skills_watcher = SkillsWatcher::new(thread_manager.skills_manager(), outgoing.clone());
         let processor = ThreadRequestProcessor::new(
