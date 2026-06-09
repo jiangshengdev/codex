@@ -193,7 +193,7 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 
 ### 09 Verification And Smoke
 
-补 browser/e2e smoke，覆盖 `/gui` 打开、attach 身份一致、snapshot 初始化、live event 更新、发送 turn、中断 turn、错误状态。
+补 Playwright CLI smoke，覆盖 `/gui` 打开、attach 身份一致、snapshot 初始化、live event 更新、发送 turn、中断 turn、错误状态。浏览器行为验收默认通过 Playwright CLI 执行，不再使用泛化的 browser/e2e 表述。
 
 ## UI 形态
 
@@ -202,6 +202,10 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 - 顶部：当前会话标题、连接状态、turn 状态。
 - 中部：聊天消息列表，默认滚动到最新消息。
 - 底部：纯文本 composer、发送按钮、Stop 按钮。
+
+布局必须使用全局页面滚动，而不是内部消息列表滚动。顶部和底部是常驻区域，不随着消息内容滚动而滚动消失；中部消息列表仍然是主体内容，但它不应该成为独立 `overflow-y-auto` 滚动容器。历史消息变长时，滚动应体现在整个页面 / window 上。底部 composer 固定可见时，主体内容需要预留底部空间，避免最后一条消息被 composer 覆盖。
+
+视觉风格必须保持单一白色界面。User message、assistant message、tool activity、status row、composer、代码块和后续新增模块都必须沿用浅色背景与深色文字，不能嵌入暗黑风格区块。禁止为了区分用户消息、代码片段或 primary action 引入 `bg-black`、`bg-slate-900`、`bg-slate-950`、`bg-zinc-900`、`text-white`、`text-slate-50` 等暗色/反白组合，避免白色界面中混入暗黑界面。
 
 消息列表按普通聊天产品展示：
 
@@ -221,6 +225,8 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 - Assistant 回复能在 GUI 中更新，并以基础 Markdown 呈现。
 - 当前 turn 运行时，用户可以点击 Stop 发起中断。
 - 至少一种 tool activity 能以简化详情展示，并可展开查看更多内容。
+- 历史消息很长时，顶部会话状态区和底部 composer / Stop 控制仍然固定可见；滚动发生在全局页面 / window，而不是发生在内部消息列表容器。
+- 整个聊天界面保持白色风格；用户消息、代码块、composer 和后续模块没有暗黑风格嵌块。
 - GUI 不要求 review/approval 能力，也不要求多会话能力。
 
 分阶段验收：
