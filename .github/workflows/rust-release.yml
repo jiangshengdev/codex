@@ -19,6 +19,7 @@ env:
   # dependencies with nested submodules. Use the system git CLI, which has
   # better network/proxy behavior and matches Cargo's own suggested fallback.
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  IS_UPSTREAM_REPO: ${{ github.repository == 'openai/codex' && 'true' || 'false' }}
 
 concurrency:
   group: ${{ github.workflow }}
@@ -481,6 +482,7 @@ jobs:
           path: ${{ runner.temp }}/unsigned-macos
 
       - name: Set up AKV PKCS11 macOS signing
+        if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
         uses: ./.github/actions/setup-akv-pkcs11-codesigning
         with:
           rcodesign-blob-uri: ${{ secrets.AKV_CODESIGN_RCODESIGN_BLOB_URI }}
@@ -522,22 +524,24 @@ jobs:
             zstd -d --stdout "$unsigned_path" >"$signed_path"
             chmod 0755 "$signed_path"
 
-            .github/scripts/macos-signing/sign_macos_code.sh \
-              --target "$signed_path" \
-              --identity unused \
-              --deep false \
-              --identifier "$binary" \
-              --options runtime \
-              --timestamp true \
-              --entitlements .github/scripts/macos-signing/codex.entitlements.plist
+            if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+              .github/scripts/macos-signing/sign_macos_code.sh \
+                --target "$signed_path" \
+                --identity unused \
+                --deep false \
+                --identifier "$binary" \
+                --options runtime \
+                --timestamp true \
+                --entitlements .github/scripts/macos-signing/codex.entitlements.plist
 
-            mkdir -p "${report_dir}/${binary}"
-            rcodesign print-signature-info "$signed_path" \
-              >"${report_dir}/${binary}/signature-info.yaml"
+              mkdir -p "${report_dir}/${binary}"
+              rcodesign print-signature-info "$signed_path" \
+                >"${report_dir}/${binary}/signature-info.yaml"
 
-            .github/scripts/macos-signing/notarize_macos_binary_with_rcodesign.sh \
-              --binary "$signed_path" \
-              --report-dir "${report_dir}/${binary}"
+              .github/scripts/macos-signing/notarize_macos_binary_with_rcodesign.sh \
+                --binary "$signed_path" \
+                --report-dir "${report_dir}/${binary}"
+            fi
           done
 
       - name: Upload signed macOS binaries
@@ -548,7 +552,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload binary signing verification
-        if: ${{ always() }}
+        if: ${{ always() && env.IS_UPSTREAM_REPO == 'true' }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ matrix.artifact_name }}-binary-signing-verification
@@ -609,7 +613,9 @@ jobs:
           for binary in ${{ matrix.binaries }}; do
             binary_path="target/${{ matrix.target }}/release/${binary}"
             chmod 0755 "$binary_path"
-            codesign --verify --strict --verbose=2 "$binary_path"
+            if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+              codesign --verify --strict --verbose=2 "$binary_path"
+            fi
           done
 
       - name: Build unsigned macOS DMG
@@ -777,6 +783,7 @@ jobs:
           path: ${{ runner.temp }}/unsigned-dmg
 
       - name: Set up AKV PKCS11 macOS signing
+        if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
         uses: ./.github/actions/setup-akv-pkcs11-codesigning
         with:
           rcodesign-blob-uri: ${{ secrets.AKV_CODESIGN_RCODESIGN_BLOB_URI }}
@@ -792,6 +799,7 @@ jobs:
           certificate-sha256: ${{ secrets.AKV_CODESIGN_CERTIFICATE_SHA256 || '' }}
 
       - name: Sign, notarize, and staple macOS DMG
+        if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
@@ -833,7 +841,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload DMG signing verification
-        if: ${{ always() }}
+        if: ${{ always() && env.IS_UPSTREAM_REPO == 'true' }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ matrix.artifact_name }}-dmg-signing-verification
@@ -916,6 +924,10 @@ jobs:
             local actual_entitlements normalized_actual normalized_expected
 
             chmod 0755 "$path"
+            if [[ "${IS_UPSTREAM_REPO}" != "true" ]]; then
+              return 0
+            fi
+
             codesign --verify --strict --verbose=2 "$path"
 
             actual_entitlements="$(mktemp)"
@@ -976,8 +988,10 @@ jobs:
           fi
 
           hdiutil verify "$dmg_path"
-          codesign --verify --strict --verbose=2 "$dmg_path"
-          xcrun stapler validate "$dmg_path"
+          if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+            codesign --verify --strict --verbose=2 "$dmg_path"
+            xcrun stapler validate "$dmg_path"
+          fi
 
           rm -rf "$mount_dir"
           mkdir -p "$mount_dir"
@@ -1197,21 +1211,24 @@ jobs:
           # (e.g. -alpha, -beta). Otherwise publish a normal release.
           prerelease: ${{ contains(steps.release_name.outputs.name, '-') }}
 
-      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+      - if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
+        uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag: ${{ github.ref_name }}
           config: .github/dotslash-config.json
 
-      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+      - if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
+        uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag: ${{ github.ref_name }}
           config: .github/dotslash-zsh-config.json
 
-      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+      - if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
+        uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -1389,6 +1406,7 @@ jobs:
       ${{
         !cancelled() &&
         needs.release.result == 'success' &&
+        github.repository == 'openai/codex' &&
         !contains(needs.release.outputs.version, '-')
       }}
     runs-on: ubuntu-latest
@@ -1418,6 +1436,7 @@ jobs:
       ${{
         !cancelled() &&
         needs.release.result == 'success' &&
+        github.repository == 'openai/codex' &&
         !contains(needs.release.outputs.version, '-')
       }}
     # This job only invokes a GitHub Action to open/update the winget-pkgs PR;
@@ -1445,7 +1464,8 @@ jobs:
     if: >-
       ${{
         !cancelled() &&
-        needs.release.result == 'success'
+        needs.release.result == 'success' &&
+        github.repository == 'openai/codex'
       }}
     permissions:
       contents: write
