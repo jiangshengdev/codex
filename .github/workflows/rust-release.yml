@@ -246,7 +246,11 @@ jobs:
           for binary in ${{ matrix.binaries }}; do
             build_args+=(--bin "$binary")
           done
-          cargo build --target "$target" --release --timings "${build_args[@]}"
+          cargo_args=()
+          if [[ -n "${{ matrix.cargo_build_jobs }}" ]]; then
+            cargo_args+=(-j "${{ matrix.cargo_build_jobs }}")
+          fi
+          cargo build "${cargo_args[@]}" --target "$target" --release --timings "${build_args[@]}"
 
       - name: Upload Cargo timings
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
