@@ -621,6 +621,121 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn browser_composer_requests_reach_backend() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
+            .await
+            .expect("auth frame should send");
+        let _ = websocket.next().await.expect("auth response should arrive");
+
+        for (id, method, params) in [
+            (
+                2,
+                "turn/start",
+                serde_json::json!({
+                    "threadId": "thread-abc",
+                    "clientUserMessageId": null,
+                    "input": [{ "type": "text", "text": "Hello", "text_elements": [] }],
+                }),
+            ),
+            (
+                3,
+                "turn/interrupt",
+                serde_json::json!({
+                    "threadId": "thread-abc",
+                    "turnId": "turn-1",
+                }),
+            ),
+        ] {
+            websocket
+                .send(Message::Text(
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": method,
+                        "params": params,
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await
+                .expect("composer request should send");
+        }
+
+        assert_eq!(
+            backend
+                .wait_for_received(&["turn/start", "turn/interrupt"])
+                .await,
+            vec!["turn/start", "turn/interrupt"]
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn browser_current_frontend_thread_requests_reach_backend() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
+            .await
+            .expect("auth frame should send");
+        let _ = websocket.next().await.expect("auth response should arrive");
+
+        for (id, method, params) in [
+            (
+                2,
+                "thread/read",
+                serde_json::json!({
+                    "threadId": "thread-agent-1",
+                    "includeTurns": true,
+                }),
+            ),
+            (
+                3,
+                "thread/loaded/list",
+                serde_json::json!({
+                    "cursor": null,
+                    "limit": null,
+                }),
+            ),
+        ] {
+            websocket
+                .send(Message::Text(
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "method": method,
+                        "params": params,
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await
+                .expect("frontend thread request should send");
+        }
+
+        assert_eq!(
+            backend
+                .wait_for_received(&["thread/read", "thread/loaded/list"])
+                .await,
+            vec!["thread/read", "thread/loaded/list"]
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn websocket_drops_disallowed_client_notification_without_closing() {
         let backend = RecordingBackend::new();
         let handle = start_host(backend.clone()).await;
