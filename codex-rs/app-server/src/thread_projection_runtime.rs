@@ -7,6 +7,8 @@ use crate::thread_projection::ProjectionAttachAttempt;
 use crate::thread_projection::ProjectionGeneration;
 use crate::thread_state::ThreadStateManager;
 use codex_app_server_protocol::ThreadProjectionAttachResponse;
+#[cfg(test)]
+use codex_goal_extension::GoalService;
 use codex_protocol::ThreadId;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -372,6 +374,7 @@ mod tests {
             config.clone(),
             thread_state_manager.clone(),
             /*state_db*/ None,
+            Arc::new(GoalService::new()),
         );
         let processor = ThreadRequestProcessor::new(
             auth_manager,
