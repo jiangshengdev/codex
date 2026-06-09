@@ -64,7 +64,9 @@ use tracing::warn;
 
 pub use crate::gui::AppServerClientGuiExt;
 pub use crate::gui::GuiLaunchError;
-pub use crate::gui::GuiLaunchUrl;
+pub use crate::gui::GuiLaunchUrlEntry;
+pub use crate::gui::GuiLaunchUrlKind;
+pub use crate::gui::GuiLaunchUrls;
 pub use crate::remote::RemoteAppServerClient;
 pub use crate::remote::RemoteAppServerConnectArgs;
 pub use crate::remote::RemoteAppServerEndpoint;
@@ -441,13 +443,13 @@ enum ClientCommand {
     },
     LaunchGui {
         thread_id: ThreadId,
-        response_tx: oneshot::Sender<Result<GuiLaunchUrl, GuiLaunchError>>,
+        response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
     },
     #[cfg(test)]
     LaunchGuiForTest {
         thread_id: ThreadId,
         mode_result: Result<codex_gui_host::GuiHostMode, String>,
-        response_tx: oneshot::Sender<Result<GuiLaunchUrl, GuiLaunchError>>,
+        response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
     },
     ResolveServerRequest {
         request_id: RequestId,
@@ -542,17 +544,22 @@ impl InProcessAppServerClient {
                                 response_tx,
                             }) => {
                                 let result = async {
-                                    let url = if let Some(manager) = gui_host_manager.as_ref() {
-                                        manager.launch_url_for_thread(thread_id).await?
+                                    if let Some(manager) = gui_host_manager.as_ref() {
+                                        manager
+                                            .launch_urls_for_thread(thread_id)
+                                            .await
+                                            .map_err(GuiLaunchError::from)
                                     } else {
                                         let manager = crate::gui::new_gui_host_manager(
                                             gui_sender.clone(),
                                         )?;
-                                        let url = manager.launch_url_for_thread(thread_id).await?;
+                                        let urls = manager
+                                            .launch_urls_for_thread(thread_id)
+                                            .await
+                                            .map_err(GuiLaunchError::from)?;
                                         gui_host_manager = Some(manager);
-                                        url
-                                    };
-                                    Ok(GuiLaunchUrl::new(url))
+                                        Ok(urls)
+                                    }
                                 }
                                 .await;
                                 let _ = response_tx.send(result);
@@ -568,9 +575,12 @@ impl InProcessAppServerClient {
                                         gui_sender.clone(),
                                         mode_result,
                                     )?;
-                                    let url = manager.launch_url_for_thread(thread_id).await?;
+                                    let urls = manager
+                                        .launch_urls_for_thread(thread_id)
+                                        .await
+                                        .map_err(GuiLaunchError::from)?;
                                     manager.shutdown().await;
-                                    Ok(GuiLaunchUrl::new(url))
+                                    Ok(urls)
                                 }
                                 .await;
                                 let _ = response_tx.send(result);
@@ -679,7 +689,7 @@ impl InProcessAppServerClient {
         &self,
         thread_id: ThreadId,
         mode_result: Result<codex_gui_host::GuiHostMode, String>,
-    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
+    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
         let (response_tx, response_rx) = oneshot::channel();
         self.command_tx
             .send(ClientCommand::LaunchGuiForTest {
@@ -1421,23 +1431,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn in_process_launch_gui_for_thread_returns_loopback_url() {
+    async fn in_process_launch_gui_for_thread_returns_loopback_url_entry() {
         let client = start_test_client(SessionSource::Cli).await;
         let thread_id =
             ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
 
-        let url = <InProcessAppServerClient as AppServerClientGuiExt>::launch_gui_for_thread(
+        let urls = <InProcessAppServerClient as AppServerClientGuiExt>::launch_gui_for_thread(
             &*client, thread_id,
         )
         .await
-        .expect("GUI launch URL should be created");
+        .expect("GUI launch URLs should be created");
 
-        assert!(url.as_str().starts_with("http://127.0.0.1:"));
+        assert_eq!(urls.entries[0].kind, GuiLaunchUrlKind::Local);
         assert!(
-            url.as_str()
+            urls.entries[0]
+                .url
+                .as_str()
+                .starts_with("http://127.0.0.1:")
+        );
+        assert!(
+            urls.entries[0]
+                .url
+                .as_str()
                 .contains("threadId=00000000-0000-0000-0000-000000000505")
         );
-        assert!(url.as_str().contains("#token="));
+        assert!(urls.entries[0].url.as_str().contains("#token="));
 
         client.shutdown().await.expect("shutdown should complete");
     }
@@ -1471,20 +1489,22 @@ mod tests {
         let thread_b =
             ThreadId::from_string("00000000-0000-0000-0000-0000000005b2").expect("valid thread id");
 
-        let url_a = client
+        let urls_a = client
             .launch_gui_for_thread(thread_a)
             .await
-            .expect("first GUI launch URL should be created");
-        let url_b = client
+            .expect("first GUI launch URLs should be created");
+        let urls_b = client
             .launch_gui_for_thread(thread_b)
             .await
-            .expect("second GUI launch URL should be created");
-        let origin_a = url_a
+            .expect("second GUI launch URLs should be created");
+        let origin_a = urls_a.entries[0]
+            .url
             .as_str()
             .split("/?")
             .next()
             .expect("URL should contain query");
-        let origin_b = url_b
+        let origin_b = urls_b.entries[0]
+            .url
             .as_str()
             .split("/?")
             .next()
@@ -1492,12 +1512,14 @@ mod tests {
 
         assert_eq!(origin_a, origin_b);
         assert!(
-            url_a
+            urls_a.entries[0]
+                .url
                 .as_str()
                 .contains("threadId=00000000-0000-0000-0000-0000000005a1")
         );
         assert!(
-            url_b
+            urls_b.entries[0]
+                .url
                 .as_str()
                 .contains("threadId=00000000-0000-0000-0000-0000000005b2")
         );

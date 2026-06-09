@@ -189,15 +189,26 @@ fn bypass_hook_trust_startup_warning_snapshot() {
 
 #[test]
 fn gui_launch_url_message_snapshot() {
-    let rendered = lines_to_single_string(
-        &history_cell::new_info_event(
-            gui::gui_launch_success_message(
+    let urls = codex_app_server_client::GuiLaunchUrls {
+        entries: vec![
+            codex_app_server_client::GuiLaunchUrlEntry::new(
+                codex_app_server_client::GuiLaunchUrlKind::Local,
+                "Local",
                 "http://127.0.0.1:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test",
             ),
-            /*hint*/ None,
-        )
-        .display_lines(/*width*/ 100),
-    );
+            codex_app_server_client::GuiLaunchUrlEntry::new(
+                codex_app_server_client::GuiLaunchUrlKind::Lan,
+                "LAN",
+                "http://192.168.3.165:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test",
+            ),
+            codex_app_server_client::GuiLaunchUrlEntry::new(
+                codex_app_server_client::GuiLaunchUrlKind::Vpn,
+                "VPN",
+                "http://100.88.28.119:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test",
+            ),
+        ],
+    };
+    let rendered = lines_to_single_string(&gui::gui_launch_success_lines(&urls));
 
     assert_app_snapshot!("gui_launch_url_message", rendered);
 }

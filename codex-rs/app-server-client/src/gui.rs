@@ -19,28 +19,9 @@ use crate::ClientCommand;
 use crate::InProcessAppServerClient;
 use crate::RemoteAppServerClient;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GuiLaunchUrl(String);
-
-impl GuiLaunchUrl {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn into_string(self) -> String {
-        self.0
-    }
-
-    pub(crate) fn new(url: String) -> Self {
-        Self(url)
-    }
-}
-
-impl fmt::Display for GuiLaunchUrl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
+pub use codex_gui_host::GuiLaunchUrlEntry;
+pub use codex_gui_host::GuiLaunchUrlKind;
+pub use codex_gui_host::GuiLaunchUrls;
 
 #[derive(Debug)]
 pub enum GuiLaunchError {
@@ -104,15 +85,15 @@ pub(crate) fn new_gui_host_manager_for_test(
     Ok(GuiHostManager::new(sender, GuiHostConfig { mode }))
 }
 
-/// Extension facade for surfaces that need a local GUI launch URL.
+/// Extension facade for surfaces that need local GUI launch URLs.
 ///
-/// Implementations should return a usable GUI URL for in-process app-server
+/// Implementations should return usable GUI URLs for in-process app-server
 /// sessions and a clear unsupported error for remote sessions.
 pub trait AppServerClientGuiExt {
     fn launch_gui_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> impl Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send;
+    ) -> impl Future<Output = Result<GuiLaunchUrls, GuiLaunchError>> + Send;
 }
 
 pub(crate) fn new_gui_host_manager(
@@ -126,7 +107,7 @@ impl InProcessAppServerClient {
     pub async fn launch_gui_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
+    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
         let (response_tx, response_rx) = oneshot::channel();
         self.command_tx
             .send(ClientCommand::LaunchGui {
@@ -153,7 +134,7 @@ impl RemoteAppServerClient {
     pub async fn launch_gui_for_thread(
         &self,
         _thread_id: ThreadId,
-    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
+    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
         Err(GuiLaunchError::UnsupportedRemote)
     }
 }
@@ -162,7 +143,7 @@ impl AppServerClient {
     pub async fn launch_gui_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> Result<GuiLaunchUrl, GuiLaunchError> {
+    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
         match self {
             Self::InProcess(client) => client.launch_gui_for_thread(thread_id).await,
             Self::Remote(client) => client.launch_gui_for_thread(thread_id).await,
@@ -174,7 +155,7 @@ impl AppServerClientGuiExt for InProcessAppServerClient {
     fn launch_gui_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> impl Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+    ) -> impl Future<Output = Result<GuiLaunchUrls, GuiLaunchError>> + Send {
         InProcessAppServerClient::launch_gui_for_thread(self, thread_id)
     }
 }
@@ -183,7 +164,7 @@ impl AppServerClientGuiExt for RemoteAppServerClient {
     fn launch_gui_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> impl Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+    ) -> impl Future<Output = Result<GuiLaunchUrls, GuiLaunchError>> + Send {
         RemoteAppServerClient::launch_gui_for_thread(self, thread_id)
     }
 }
@@ -192,7 +173,7 @@ impl AppServerClientGuiExt for AppServerClient {
     fn launch_gui_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> impl Future<Output = Result<GuiLaunchUrl, GuiLaunchError>> + Send {
+    ) -> impl Future<Output = Result<GuiLaunchUrls, GuiLaunchError>> + Send {
         AppServerClient::launch_gui_for_thread(self, thread_id)
     }
 }
@@ -204,13 +185,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn gui_launch_url_display() {
-        let url = GuiLaunchUrl::new("http://127.0.0.1:1234/?threadId=t#token=x".to_string());
+    fn gui_launch_urls_expose_entries() {
+        let urls = GuiLaunchUrls {
+            entries: vec![GuiLaunchUrlEntry::new(
+                GuiLaunchUrlKind::Local,
+                "Local",
+                "http://127.0.0.1:1234/?threadId=t#token=x",
+            )],
+        };
 
-        assert_eq!(url.as_str(), "http://127.0.0.1:1234/?threadId=t#token=x");
-        assert_eq!(url.to_string(), "http://127.0.0.1:1234/?threadId=t#token=x");
+        assert_eq!(urls.entries[0].label, "Local");
         assert_eq!(
-            url.into_string(),
+            urls.entries[0].url,
             "http://127.0.0.1:1234/?threadId=t#token=x"
         );
     }

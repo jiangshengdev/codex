@@ -3,6 +3,7 @@ mod backend;
 mod config;
 mod filter;
 mod host;
+mod net;
 mod token;
 mod url;
 pub(crate) mod ws;
@@ -19,7 +20,12 @@ pub use filter::is_allowed_server_notification_method;
 pub use host::GuiHost;
 pub use host::GuiHostHandle;
 pub use token::LaunchToken;
+pub use url::AdvertisedHost;
+pub use url::GuiLaunchUrlEntry;
+pub use url::GuiLaunchUrlKind;
+pub use url::GuiLaunchUrls;
 pub use url::launch_url_for_thread;
+pub use url::launch_urls_for_thread;
 
 #[cfg(test)]
 pub(crate) mod test_support {

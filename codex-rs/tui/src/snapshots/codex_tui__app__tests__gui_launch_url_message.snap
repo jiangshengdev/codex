@@ -2,4 +2,7 @@
 source: tui/src/app/tests.rs
 expression: rendered
 ---
-• GUI URL: http://127.0.0.1:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test
+• GUI URLs:
+  Local: http://127.0.0.1:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test
+  LAN:   http://192.168.3.165:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test
+  VPN:   http://100.88.28.119:12345/?threadId=00000000-0000-0000-0000-000000000606#token=test

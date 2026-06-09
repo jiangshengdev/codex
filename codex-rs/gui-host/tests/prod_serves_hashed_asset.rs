@@ -46,12 +46,9 @@ async fn prod_serves_hashed_asset_from_package_root() {
     .await
     .expect("host should start");
 
-    let response = reqwest::get(format!(
-        "http://{}/assets/index-abc123.js",
-        handle.local_addr()
-    ))
-    .await
-    .expect("asset request should succeed");
+    let response = reqwest::get(format!("{}/assets/index-abc123.js", local_origin(&handle)))
+        .await
+        .expect("asset request should succeed");
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         response
@@ -134,7 +131,7 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
     .await
     .expect("host should start with real codex-gui dist");
 
-    let root_response = reqwest::get(format!("http://{}/", handle.local_addr()))
+    let root_response = reqwest::get(format!("{}/", local_origin(&handle)))
         .await
         .expect("root request should succeed");
     assert_eq!(root_response.status(), StatusCode::OK);
@@ -145,7 +142,7 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
     assert!(html.contains(r#"<div id="root"></div>"#));
     let script_src = first_module_script_src(&html).expect("Vite module script should exist");
 
-    let asset_response = reqwest::get(format!("http://{}{}", handle.local_addr(), script_src))
+    let asset_response = reqwest::get(format!("{}{}", local_origin(&handle), script_src))
         .await
         .expect("built asset request should succeed");
     assert_eq!(asset_response.status(), StatusCode::OK);
@@ -159,4 +156,12 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
     );
 
     handle.shutdown().await;
+}
+
+fn local_origin(handle: &codex_gui_host::GuiHostHandle) -> String {
+    let url = handle.launch_url_for_thread("test-thread");
+    match url.split("/?").next() {
+        Some(origin) => origin.to_string(),
+        None => panic!("launch URL should include query"),
+    }
 }
