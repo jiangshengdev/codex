@@ -146,6 +146,9 @@ const env = {
   [packageManagerEnvVar]: "1",
   CODEX_MANAGED_PACKAGE_ROOT: realpathSync(path.join(__dirname, "..")),
 };
+if (!env.CODEX_GUI_PACKAGE_ROOT) {
+  env.CODEX_GUI_PACKAGE_ROOT = env.CODEX_MANAGED_PACKAGE_ROOT;
+}
 
 const child = spawn(binaryPath, process.argv.slice(2), {
   stdio: "inherit",
