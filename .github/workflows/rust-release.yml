@@ -88,6 +88,7 @@ jobs:
             bundle: primary
             artifact_name: aarch64-apple-darwin
             binaries: "codex codex-responses-api-proxy"
+            cargo_build_jobs: 2
             build_dmg: "true"
           - runner: macos-15
             target: aarch64-apple-darwin
@@ -100,6 +101,7 @@ jobs:
             bundle: primary
             artifact_name: x86_64-apple-darwin
             binaries: "codex codex-responses-api-proxy"
+            cargo_build_jobs: 2
             build_dmg: "true"
           - runner: macos-15-intel
             target: x86_64-apple-darwin
