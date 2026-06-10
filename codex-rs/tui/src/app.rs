@@ -130,6 +130,7 @@ use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnError as AppServerTurnError;
 use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::WriteStatus;
+use codex_config::CloudConfigBundleLoader;
 use codex_config::ConfigLayerStackOrdering;
 use codex_config::LoaderOverrides;
 use codex_config::types::ApprovalsReviewer;
@@ -491,6 +492,7 @@ pub(crate) struct App {
     cli_kv_overrides: Vec<(String, TomlValue)>,
     harness_overrides: ConfigOverrides,
     loader_overrides: LoaderOverrides,
+    cloud_config_bundle: CloudConfigBundleLoader,
     runtime_approval_policy_override: Option<AskForApproval>,
     runtime_permission_profile_override: Option<RuntimePermissionProfileOverride>,
 
@@ -721,6 +723,7 @@ impl App {
         cli_kv_overrides: Vec<(String, TomlValue)>,
         harness_overrides: ConfigOverrides,
         loader_overrides: LoaderOverrides,
+        cloud_config_bundle: CloudConfigBundleLoader,
         initial_prompt: Option<String>,
         initial_images: Vec<PathBuf>,
         session_selection: SessionSelection,
@@ -755,6 +758,7 @@ impl App {
                 &mut config,
                 &cli_kv_overrides,
                 &harness_overrides,
+                &cloud_config_bundle,
                 entered_trust_nux,
             )
             .await?;
@@ -1004,6 +1008,7 @@ See the Codex keymap documentation for supported actions and examples."
             cli_kv_overrides,
             harness_overrides,
             loader_overrides,
+            cloud_config_bundle,
             runtime_approval_policy_override: None,
             runtime_permission_profile_override: None,
             file_search,
