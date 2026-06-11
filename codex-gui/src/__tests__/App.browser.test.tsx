@@ -5,6 +5,7 @@ import type {
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import {
   selectProjectionByThreadId,
@@ -141,11 +142,7 @@ test("App records mismatched attach identity without advancing projection state"
 test("App stops forwarding projection events after backpressure requires manual reconnect", async () => {
   const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
-  const projectionClosed: ThreadProjectionClosedNotification = {
-    threadId: launchThreadId,
-    subscriptionId: attachResponse.subscriptionId,
-    reason: "backpressure",
-  };
+  const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
 
   const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
   options?.onProjectionAttached?.(attachResponse);

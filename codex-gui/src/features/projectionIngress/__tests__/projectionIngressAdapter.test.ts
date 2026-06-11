@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import attachReplacementJson from "@/features/projection/__fixtures__/attach-replacement.json";
+import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
 import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
 import eventSubscriptionReplacementJson from "@/features/projection/__fixtures__/event-subscription-replacement.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
@@ -18,6 +19,7 @@ const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotificati
 const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
 const eventSubscriptionReplacement =
   eventSubscriptionReplacementJson as ThreadProjectionEventNotification;
+const closedBackpressure = closedBackpressureJson as ThreadProjectionClosedNotification;
 const projectionThreadId = attachBaseline.snapshot.thread.id;
 
 const deriveEvent = (
@@ -46,9 +48,7 @@ const attachWithTurnsAndHead = (
 const closed = (
   overrides: Partial<ThreadProjectionClosedNotification> = {},
 ): ThreadProjectionClosedNotification => ({
-  threadId: projectionThreadId,
-  subscriptionId: attachBaseline.subscriptionId,
-  reason: "backpressure",
+  ...closedBackpressure,
   ...overrides,
 });
 

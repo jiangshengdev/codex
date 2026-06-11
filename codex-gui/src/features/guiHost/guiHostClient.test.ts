@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import type {
   ThreadProjectionAttachResponse,
@@ -95,11 +96,7 @@ describe("guiHostClient", () => {
     const launchParams: LaunchParams[] = [];
     const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
     const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
-    const projectionClosed: ThreadProjectionClosedNotification = {
-      threadId: attachResponse.snapshot.thread.id,
-      subscriptionId: attachResponse.subscriptionId,
-      reason: "backpressure",
-    };
+    const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
 
     startGuiHostConnection({
       location: new URL(
