@@ -5,6 +5,7 @@ import type {
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import {
   selectProjectionByThreadId,
@@ -14,6 +15,7 @@ import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdent
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
   ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 
@@ -134,6 +136,23 @@ test("App records mismatched attach identity without advancing projection state"
   });
   expect(selectProjectionByThreadId(store.getState(), launchThreadId)).toBeNull();
   expect(selectProjectionByThreadId(store.getState(), mismatchedThreadId)).toBeNull();
+  expect(selectProjectionReattachByThreadId(store.getState(), launchThreadId)).toBeNull();
+});
+
+test("App stops forwarding projection events after backpressure requires manual reconnect", async () => {
+  const { store } = await renderWithProviders(<App />);
+  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onProjectionClosed?.(projectionClosed);
+  options?.onProjectionEvent?.(projectionEvent);
+
+  const projection = selectProjectionByThreadId(store.getState(), launchThreadId);
+  expect(projection?.subscriptionId).toBe(attachResponse.subscriptionId);
+  expect(projection?.headCommitId).toBe(attachResponse.snapshot.headCommitId);
+  expect(projection?.thread.turns).toStrictEqual(attachResponse.snapshot.thread.turns);
   expect(selectProjectionReattachByThreadId(store.getState(), launchThreadId)).toBeNull();
 });
 

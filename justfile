@@ -148,6 +148,10 @@ write-config-schema:
 write-app-server-schema *args:
     cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- {args}
 
+# Regenerate GUI projection JSON fixtures.
+write-gui-projection-fixtures *args:
+    cargo run -p codex-app-server --bin write_gui_projection_fixtures -- {args}
+
 [no-cd]
 write-hooks-schema:
     cargo run --manifest-path {{ justfile_directory() }}/codex-rs/Cargo.toml -p codex-hooks --bin write_hooks_schema_fixtures

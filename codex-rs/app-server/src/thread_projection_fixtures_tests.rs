@@ -1,6 +1,8 @@
 use super::*;
 
 use anyhow::Context;
+use codex_app_server_protocol::ThreadProjectionClosedNotification;
+use codex_app_server_protocol::ThreadProjectionClosedReason;
 use pretty_assertions::assert_eq;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -30,6 +32,7 @@ fn generated_fixtures_match_current_projection_shape() -> Result<()> {
     let fixtures = generate_fixture_files()?;
     let attach: Value = serde_json::from_str(&fixtures["attach-baseline.json"])?;
     let event: Value = serde_json::from_str(&fixtures["event-turn-started.json"])?;
+    let closed: Value = serde_json::from_str(&fixtures["closed-backpressure.json"])?;
 
     assert!(attach.get("subscriptionId").is_some());
     assert!(attach.get("snapshot").is_some());
@@ -43,6 +46,10 @@ fn generated_fixtures_match_current_projection_shape() -> Result<()> {
     assert_eq!(event["commitId"], "commit-turn-started");
     assert_eq!(event["parentCommitId"], Value::Null);
     assert_eq!(event["event"]["type"], "turnStarted");
+
+    assert_eq!(closed["threadId"], THREAD_ID);
+    assert_eq!(closed["subscriptionId"], SUBSCRIPTION_ID);
+    assert_eq!(closed["reason"], "backpressure");
 
     for contents in fixtures.values() {
         let value: Value = serde_json::from_str(contents)?;
@@ -83,6 +90,9 @@ fn generated_fixtures_round_trip_through_protocol_types() -> Result<()> {
 
     assert_round_trips::<ThreadProjectionAttachResponse>(&fixtures["attach-baseline.json"])?;
     assert_round_trips::<ThreadProjectionAttachResponse>(&fixtures["attach-replacement.json"])?;
+    assert_round_trips::<ThreadProjectionClosedNotification>(
+        &fixtures["closed-backpressure.json"],
+    )?;
 
     for name in [
         "event-turn-started.json",
@@ -93,6 +103,24 @@ fn generated_fixtures_round_trip_through_protocol_types() -> Result<()> {
     ] {
         assert_round_trips::<ThreadProjectionEventNotification>(&fixtures[name])?;
     }
+
+    Ok(())
+}
+
+#[test]
+fn generated_closed_backpressure_fixture_uses_current_subscription() -> Result<()> {
+    let fixtures = generate_fixture_files()?;
+    let closed: ThreadProjectionClosedNotification =
+        serde_json::from_str(&fixtures["closed-backpressure.json"])?;
+
+    assert_eq!(
+        closed,
+        ThreadProjectionClosedNotification {
+            thread_id: THREAD_ID.to_string(),
+            subscription_id: SUBSCRIPTION_ID.to_string(),
+            reason: ThreadProjectionClosedReason::Backpressure,
+        }
+    );
 
     Ok(())
 }

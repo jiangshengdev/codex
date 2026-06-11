@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import type {
   ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 import {
@@ -90,9 +92,11 @@ describe("guiHostClient", () => {
     const statuses: string[] = [];
     const attached: ThreadProjectionAttachResponse[] = [];
     const projectionEvents: ThreadProjectionEventNotification[] = [];
+    const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
     const launchParams: LaunchParams[] = [];
     const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
     const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+    const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
 
     startGuiHostConnection({
       location: new URL(
@@ -113,6 +117,9 @@ describe("guiHostClient", () => {
       onProjectionEvent: (notification) => {
         projectionEvents.push(notification);
       },
+      onProjectionClosed: (notification) => {
+        projectionClosedNotifications.push(notification);
+      },
     });
 
     socket.onopen?.();
@@ -132,6 +139,13 @@ describe("guiHostClient", () => {
         params: projectionEvent,
       }),
     });
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/projection/closed",
+        params: projectionClosed,
+      }),
+    });
 
     expect(socket.sent.map(readRpcMethod)).toEqual([
       "gui/authenticate",
@@ -147,6 +161,7 @@ describe("guiHostClient", () => {
     ]);
     expect(attached).toEqual([attachResponse]);
     expect(projectionEvents).toEqual([projectionEvent]);
+    expect(projectionClosedNotifications).toEqual([projectionClosed]);
   });
 
   it("reports malformed projection attach payloads without forwarding them", () => {
@@ -240,6 +255,59 @@ describe("guiHostClient", () => {
     expect(statuses.at(-1)).toEqual({
       label: "error",
       message: "thread/projection/event returned malformed params payload",
+    });
+  });
+
+  it("reports malformed projection closed payloads without forwarding them", () => {
+    const socket = new RecordingWebSocket();
+    const statuses: { label: string; message?: string }[] = [];
+    const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
+    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+
+    startGuiHostConnection({
+      location: new URL(
+        `http://127.0.0.1:4567/?threadId=${attachResponse.snapshot.thread.id}#token=secret`,
+      ),
+      replaceState: vi.fn(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: (status) => {
+        statuses.push({
+          label: status.label,
+          message: "message" in status ? status.message : undefined,
+        });
+      },
+      onProjectionClosed: (notification) => {
+        projectionClosedNotifications.push(notification);
+      },
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/projection/closed",
+        params: {
+          threadId: attachResponse.snapshot.thread.id,
+          subscriptionId: attachResponse.subscriptionId,
+          reason: "unexpected",
+        },
+      }),
+    });
+
+    expect(projectionClosedNotifications).toEqual([]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "thread/projection/closed returned malformed params payload",
     });
   });
 
