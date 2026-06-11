@@ -14,6 +14,8 @@ use crate::ProdAssetConfig;
 
 const X_FRAME_OPTIONS: &str = "x-frame-options";
 const CONTENT_SECURITY_POLICY: &str = "content-security-policy";
+const DEV_PROXY_ERROR_HTML: &str = include_str!("embedded_pages/dev_proxy_error.html");
+const DEV_PROXY_ERROR_CSS: &str = include_str!("embedded_pages/assets/style.css");
 
 pub fn prod_dist_dir(config: &ProdAssetConfig) -> anyhow::Result<PathBuf> {
     let dist_dir = config.dist_dir();
@@ -53,7 +55,12 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
         path_and_query
     );
 
-    match reqwest::get(upstream_url).await {
+    let client = match reqwest::Client::builder().no_proxy().build() {
+        Ok(client) => client,
+        Err(error) => return dev_proxy_error_response(&config.vite_origin, &error.to_string()),
+    };
+
+    match client.get(upstream_url).send().await {
         Ok(upstream) => {
             let status = upstream.status();
             let content_type = upstream.headers().get(CONTENT_TYPE).cloned();
@@ -75,14 +82,51 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
                 ),
             }
         }
-        Err(_) => with_security_headers(
-            (
-                StatusCode::BAD_GATEWAY,
-                format!("Start Vite at {}", config.vite_origin),
-            )
-                .into_response(),
-        ),
+        Err(error) => dev_proxy_error_response(&config.vite_origin, &error.to_string()),
     }
+}
+
+fn dev_proxy_error_response(vite_origin: &str, error: &str) -> Response {
+    let mut response = (
+        StatusCode::BAD_GATEWAY,
+        dev_proxy_error_page(vite_origin, error),
+    )
+        .into_response();
+    response
+        .headers_mut()
+        .insert(CONTENT_TYPE, HeaderValue::from_static("text/html"));
+    with_security_headers(response)
+}
+
+fn dev_proxy_error_page(vite_origin: &str, error: &str) -> String {
+    let error = capitalize_first_char(error);
+    DEV_PROXY_ERROR_HTML
+        .replace("/* {{CODEX_GUI_HOST_CSS}} */", DEV_PROXY_ERROR_CSS)
+        .replace("{{CODEX_GUI_HOST_VITE_ORIGIN}}", &html_escape(vite_origin))
+        .replace("{{CODEX_GUI_HOST_ERROR}}", &html_escape(&error))
+}
+
+fn capitalize_first_char(input: &str) -> String {
+    let mut chars = input.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+fn html_escape(input: &str) -> String {
+    let mut escaped = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 pub fn with_security_headers(mut response: Response) -> Response {
@@ -102,6 +146,13 @@ pub async fn add_security_headers(response: Response) -> Response {
 
 #[cfg(test)]
 mod tests {
+    use axum::body;
+    use axum::http::StatusCode;
+    use axum::http::Uri;
+    use pretty_assertions::assert_eq;
+    use tokio::net::TcpListener;
+
+    use crate::DevAssetProxyConfig;
     use crate::ProdAssetConfig;
 
     #[test]
@@ -117,5 +168,68 @@ mod tests {
             error.to_string().contains("GUI dist directory is missing"),
             "{error:#}"
         );
+    }
+
+    #[test]
+    fn html_escape_escapes_dynamic_page_values() {
+        assert_eq!(
+            super::html_escape("<script data-x=\"1\">'&'</script>"),
+            "&lt;script data-x=&quot;1&quot;&gt;&#39;&amp;&#39;&lt;/script&gt;"
+        );
+    }
+
+    #[test]
+    fn dev_proxy_error_page_capitalizes_error_sentence() {
+        let page = super::dev_proxy_error_page(
+            "http://127.0.0.1:5173",
+            "error sending request for url (http://127.0.0.1:5173/)",
+        );
+
+        assert!(page.contains("Error sending request for url"));
+        assert!(!page.contains("error sending request for url"));
+    }
+
+    #[tokio::test]
+    async fn proxy_vite_returns_embedded_html_when_upstream_is_unavailable() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("port should be reserved");
+        let vite_origin = format!(
+            "http://{}?unsafe=<script>",
+            listener
+                .local_addr()
+                .expect("local addr should be available")
+        );
+        drop(listener);
+
+        let config = DevAssetProxyConfig { vite_origin };
+        let response = super::proxy_vite(
+            config,
+            "/?threadId=test"
+                .parse::<Uri>()
+                .expect("URI should be valid"),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        assert_eq!(
+            response
+                .headers()
+                .get(super::CONTENT_TYPE)
+                .expect("content-type should be present"),
+            "text/html"
+        );
+
+        let body = body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should be readable");
+        let body = String::from_utf8(body.to_vec()).expect("body should be UTF-8");
+
+        assert!(body.contains("Waiting for Vite"));
+        assert!(body.contains("pnpm --dir codex-gui dev"));
+        assert!(body.contains("NO_PROXY=127.0.0.1,localhost"));
+        assert!(body.contains("?unsafe=&lt;script&gt;"));
+        assert!(body.contains("Connection error"));
+        assert!(!body.contains("{{CODEX_GUI_HOST_"));
     }
 }

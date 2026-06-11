@@ -6,7 +6,11 @@ import type {
 } from "@/features/guiHost/guiHostClient";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
-import { selectProjectionByThreadId } from "@/features/projection/projectionSlice";
+import {
+  selectProjectionByThreadId,
+  selectProjectionReattachByThreadId,
+} from "@/features/projection/projectionSlice";
+import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
   ThreadProjectionAttachResponse,
@@ -34,6 +38,9 @@ type StartGuiHostConnectionMock = {
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
+const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+const launchThreadId = attachResponse.snapshot.thread.id;
+
 let emitStatus: ((status: GuiHostStatus) => void) | undefined;
 let cleanupConnectionCallCount: number;
 
@@ -42,6 +49,7 @@ beforeEach(() => {
   cleanupConnectionCallCount = 0;
   startGuiHostConnectionMock.mockReset();
   startGuiHostConnectionMock.mockImplementation((options) => {
+    options.onLaunchParams?.({ threadId: launchThreadId, token: "secret" });
     emitStatus = options.onStatus;
     return () => {
       cleanupConnectionCallCount += 1;
@@ -77,7 +85,6 @@ test("App reflects GUI host status callback updates", async () => {
 
 test("App dispatches GUI host projection payloads into Redux", async () => {
   const { store } = await renderWithProviders(<App />);
-  const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
   const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
   const threadId = attachResponse.snapshot.thread.id;
   if (projectionEvent.event.type !== "turnStarted") {
@@ -88,6 +95,12 @@ test("App dispatches GUI host projection payloads into Redux", async () => {
   options?.onProjectionAttached?.(attachResponse);
   options?.onProjectionEvent?.(projectionEvent);
 
+  expect(selectThreadIdentityState(store.getState())).toStrictEqual({
+    launchThreadId: threadId,
+    attachedThreadId: threadId,
+    attachStatus: "attached",
+  });
+
   const projection = selectProjectionByThreadId(store.getState(), threadId);
   expect(projection?.subscriptionId).toBe(attachResponse.subscriptionId);
   expect(projection?.headCommitId).toBe(projectionEvent.commitId);
@@ -95,6 +108,33 @@ test("App dispatches GUI host projection payloads into Redux", async () => {
     ...attachResponse.snapshot.thread.turns,
     projectionEvent.event.notification.turn,
   ]);
+});
+
+test("App records mismatched attach identity without advancing projection state", async () => {
+  const { store } = await renderWithProviders(<App />);
+  const mismatchedThreadId = "00000000-0000-0000-0000-000000000999";
+  const mismatchedAttachResponse: ThreadProjectionAttachResponse = {
+    ...attachResponse,
+    snapshot: {
+      ...attachResponse.snapshot,
+      thread: {
+        ...attachResponse.snapshot.thread,
+        id: mismatchedThreadId,
+      },
+    },
+  };
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(mismatchedAttachResponse);
+
+  expect(selectThreadIdentityState(store.getState())).toStrictEqual({
+    launchThreadId,
+    attachedThreadId: mismatchedThreadId,
+    attachStatus: "mismatch",
+  });
+  expect(selectProjectionByThreadId(store.getState(), launchThreadId)).toBeNull();
+  expect(selectProjectionByThreadId(store.getState(), mismatchedThreadId)).toBeNull();
+  expect(selectProjectionReattachByThreadId(store.getState(), launchThreadId)).toBeNull();
 });
 
 test("App closes the GUI host connection when unmounted", async () => {
