@@ -61,9 +61,7 @@ export class ProjectionIngressAdapter {
     };
   }
 
-  handleAttach(
-    response: ThreadProjectionAttachResponse,
-  ): ProjectionIngressOutcome {
+  handleAttach(response: ThreadProjectionAttachResponse): ProjectionIngressOutcome {
     const thread = response.snapshot.thread;
     if (thread.id !== this.cursor.threadId) {
       return { type: "ignored", reason: "wrongThread" };
@@ -80,9 +78,7 @@ export class ProjectionIngressAdapter {
     return { type: "attachAccepted", response };
   }
 
-  handleEvent(
-    notification: ThreadProjectionEventNotification,
-  ): ProjectionIngressOutcome {
+  handleEvent(notification: ThreadProjectionEventNotification): ProjectionIngressOutcome {
     const ignored = this.ignoreReasonForNotification(
       notification.threadId,
       notification.subscriptionId,
@@ -109,9 +105,7 @@ export class ProjectionIngressAdapter {
     return { type: "eventAccepted", notification };
   }
 
-  handleClosed(
-    notification: ThreadProjectionClosedNotification,
-  ): ProjectionIngressOutcome {
+  handleClosed(notification: ThreadProjectionClosedNotification): ProjectionIngressOutcome {
     const ignored = this.ignoreReasonForNotification(
       notification.threadId,
       notification.subscriptionId,

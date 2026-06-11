@@ -181,9 +181,7 @@ describe("ProjectionIngressAdapter", () => {
     adapter.handleAttach(attachBaseline);
 
     expect(
-      adapter.handleClosed(
-        closed({ threadId: "00000000-0000-0000-0000-000000000099" }),
-      ),
+      adapter.handleClosed(closed({ threadId: "00000000-0000-0000-0000-000000000099" })),
     ).toStrictEqual({ type: "ignored", reason: "wrongThread" });
     expect(
       adapter.handleClosed(
