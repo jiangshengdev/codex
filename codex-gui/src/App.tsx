@@ -3,6 +3,7 @@ import { useAppDispatch } from "./app/hooks";
 import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
 import { projectionAttached, projectionEventReceived } from "./features/projection/projectionSlice";
+import { ProjectionIngressAdapter } from "./features/projectionIngress/projectionIngressAdapter";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
@@ -21,6 +22,7 @@ function App() {
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
     let launchThreadId: string | null = null;
+    let projectionIngress: ProjectionIngressAdapter | null = null;
 
     try {
       cleanupConnection = startGuiHostConnection({
@@ -29,24 +31,34 @@ function App() {
         onStatus: setStatus,
         onLaunchParams: (params) => {
           launchThreadId = params.threadId;
+          projectionIngress = new ProjectionIngressAdapter(params.threadId);
           dispatch(launchThreadIdRecorded(params.threadId));
         },
         onProjectionAttached: (response) => {
           const attachedThreadId = response.snapshot.thread.id;
           dispatch(attachedThreadIdObserved(attachedThreadId));
 
-          if (launchThreadId !== attachedThreadId) {
+          if (launchThreadId !== attachedThreadId || projectionIngress == null) {
             return;
           }
 
-          dispatch(projectionAttached(response));
+          const outcome = projectionIngress.handleAttach(response);
+          if (outcome.type === "attachAccepted") {
+            dispatch(projectionAttached(outcome.response));
+          }
         },
         onProjectionEvent: (notification) => {
-          if (launchThreadId !== notification.threadId) {
+          if (projectionIngress == null) {
             return;
           }
 
-          dispatch(projectionEventReceived(notification));
+          const outcome = projectionIngress.handleEvent(notification);
+          if (outcome.type === "eventAccepted") {
+            dispatch(projectionEventReceived(outcome.notification));
+          }
+        },
+        onProjectionClosed: (notification) => {
+          projectionIngress?.handleClosed(notification);
         },
       });
     } catch (error: unknown) {

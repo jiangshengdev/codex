@@ -1,5 +1,6 @@
 import type {
   ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 
@@ -26,6 +27,7 @@ export type StartGuiHostConnectionOptions = {
   onLaunchParams?: (params: LaunchParams) => void;
   onProjectionAttached?: (response: ThreadProjectionAttachResponse) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
+  onProjectionClosed?: (notification: ThreadProjectionClosedNotification) => void;
 };
 
 export type GuiHostConnectionCleanup = () => void;
@@ -76,6 +78,7 @@ export function startGuiHostConnection({
   onLaunchParams,
   onProjectionAttached,
   onProjectionEvent,
+  onProjectionClosed,
 }: StartGuiHostConnectionOptions): GuiHostConnectionCleanup {
   clearLaunchTokenFragment(location, replaceState);
   const launchParams = readLaunchParams(location, tokenStorage ?? readSessionStorage());
@@ -237,6 +240,27 @@ export function startGuiHostConnection({
         lastEventType: notification.event.type,
       });
     }
+
+    if (message.method === "thread/projection/closed") {
+      if (!isThreadProjectionClosedNotification(message.params)) {
+        emit({
+          label: "error",
+          eventCount,
+          lastEventType: null,
+          message: "thread/projection/closed returned malformed params payload",
+        });
+        return;
+      }
+
+      const notification = message.params;
+      eventCount += 1;
+      onProjectionClosed?.(notification);
+      emit({
+        label: "received event",
+        eventCount,
+        lastEventType: "projectionClosed",
+      });
+    }
   };
 
   return () => {
@@ -331,6 +355,17 @@ function isThreadProjectionEventNotification(
 
   const event = value.event;
   return isThreadProjectionEvent(event);
+}
+
+function isThreadProjectionClosedNotification(
+  value: unknown,
+): value is ThreadProjectionClosedNotification {
+  return (
+    isRecord(value) &&
+    typeof value.threadId === "string" &&
+    typeof value.subscriptionId === "string" &&
+    value.reason === "backpressure"
+  );
 }
 
 function isThreadProjectionEvent(value: unknown): boolean {
