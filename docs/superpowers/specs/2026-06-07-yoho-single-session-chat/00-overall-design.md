@@ -27,9 +27,9 @@
 
 ## 当前基线
 
-当前 `codex-gui` 入口主要展示 GUI host 连接状态：连接、鉴权、initialize、attach、事件计数和最后事件类型。现有 Redux projection slice 可以接收 `thread/projection/attach` snapshot，并用 `thread/projection/event` 增量更新 thread projection，同时维护 `commitId` / `parentCommitId` 连续性并在 `commitChainMismatch`、`missingTurn` 时判定需要 reattach。
+当前 `codex-gui` 入口主要展示 GUI host 连接状态：连接、鉴权、initialize、attach、事件计数和最后事件类型。现有 Redux projection slice 可以接收 `thread/projection/attach` snapshot，并用 `thread/projection/event` 增量更新 thread projection，同时维护 `commitId` / `parentCommitId` 连续性并在 `commitChainMismatch`、`missingTurn` 时判定需要重连。
 
-这仍然是临时调试实现。它可以说明 GUI 现在如何收到 app-server projection 输出，但不能作为 YOLO GUI 的基础模型。调试 UI 和直接以 projection state 驱动界面的做法应丢弃；commit-chain 连续性校验和 reattach 判定是协议逻辑，后续必须迁移保留。
+这仍然是临时调试实现。它可以说明 GUI 现在如何收到 app-server projection 输出，但不能作为 YOLO GUI 的基础模型。调试 UI 和直接以 projection state 驱动界面的做法应丢弃；commit-chain 连续性校验和重连判定是协议逻辑，后续必须迁移保留。
 
 TUI 侧已有 `/gui` 命令，负责为 primary thread 生成本地 GUI URL。这个目标继续沿用该入口，不扩大到独立 GUI 启动器或远程 GUI 会话。
 
@@ -43,7 +43,7 @@ TUI 侧已有 `/gui` 命令，负责为 primary thread 生成本地 GUI URL。�
 - `thread/projection/event` 后续增量事件。
 - `thread/projection/closed` 背压断开信号。
 
-`thread/projection/closed` 当前只有 `backpressure` reason，表示 server 端 fanout 积压导致订阅被强制断开。它不是会话结束，也不是 chat runtime 的终止信号；GUI 收到后应重新 attach，并用新的 snapshot 重建 runtime。
+`thread/projection/closed` 当前只有 `backpressure` reason，表示 server 端 fanout 积压导致订阅被强制断开。它不是会话结束，也不是 chat runtime 的终止信号；GUI 收到后应进入需要用户手动重连的状态。用户确认重连后，客户端再重新 attach，并用新的 snapshot 重建 runtime。
 
 Streaming 是已知的后续扩展点。当前 projection event 只覆盖 `turnStarted`、`turnCompleted`、`itemStarted`、`itemCompleted`，不会投影逐字增量的 `item/agentMessage/delta`。因此 projection ingress 与 thread runtime 的边界不能设计成封闭的唯一输入流；它需要容纳将来并联订阅普通 notification 形成第二条输入流，例如 item delta。
 
@@ -153,15 +153,15 @@ type GuiThreadIdentityState = {
 
 把 `thread/projection/attach`、`thread/projection/event`、`thread/projection/closed` 变成 GUI runtime 可消费的输入事件。这里仍然不设计聊天 UI。
 
-这是 `thread/projection/closed` 的新增处理工作；当前 `guiHostClient` 只有 WebSocket closed 生命周期状态，没有接好 projection closed notification。`closed(backpressure)` 应转换成 reattach 请求，而不是会话关闭状态。
+这是 `thread/projection/closed` 的新增处理工作；当前 `guiHostClient` 只有 WebSocket closed 生命周期状态，没有接好 projection closed notification。`closed(backpressure)` 应转换成需要手动重连的状态，而不是会话关闭状态或自动重连命令。
 
-这一层保留 projection event 的 `commitId` / `parentCommitId` 连续性校验。出现 `commitChainMismatch` 或 `missingTurn` 时，adapter 应触发 reattach，用新 snapshot 修复本地 runtime。GUI URL 中 `threadId` 来自 query string，启动 token 来自 fragment `#token=...`，不要从 query string 读取 token。
+这一层保留 projection event 的 `commitId` / `parentCommitId` 连续性校验。出现 `commitChainMismatch` 或 `missingTurn` 时，adapter 应产出需要手动重连的结果；用户确认重连后，再用新 snapshot 修复本地 runtime。GUI URL 中 `threadId` 来自 query string，启动 token 来自 fragment `#token=...`，不要从 query string 读取 token。
 
 ### 03 Thread Runtime Store
 
 建立浏览器环境下的 per-thread runtime store。单会话第一版可以只有一个 runtime，但模型必须能表达 TUI 同类职责：session、turns、buffer、active turn、subscription interrupted/error 状态。
 
-runtime store 接收已通过 ingress 校验的 projection 输入，并保留 reattach 判定结果对 runtime 的影响：正常 event 进入 live 路径，`commitChainMismatch`、`missingTurn`、`closed(backpressure)` 进入 reattach 路径。建立 runtime 后，现有 Redux `projectionSlice` 的去向是删除，而不是降级或保留；它的调试 UI 职责删除，必要的 commit-chain 校验和 reattach 判定迁移到 projection ingress / runtime 边界。
+runtime store 接收已通过 ingress 校验的 projection 输入，并保留需要手动重连的判定结果对 runtime 的影响：正常 event 进入 live 路径，`commitChainMismatch`、`missingTurn`、`closed(backpressure)` 进入手动重连路径。建立 runtime 后，现有 Redux `projectionSlice` 的去向是删除，而不是降级或保留；它的调试 UI 职责删除，必要的 commit-chain 校验和重连判定迁移到 projection ingress / runtime 边界。
 
 ### 04 Snapshot Replay
 
@@ -171,7 +171,7 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留 re
 
 处理 attach 之后的增量事件，更新 runtime，并维持 active turn / live update / subscription interrupted 状态。
 
-`closed(backpressure)` 的处理路径必须是触发 re-attach，并用新的 attach snapshot 重建 runtime。UI 可以短暂显示 reconnecting/status 行，但不能把它呈现为“会话已关闭”的死胡同。
+`closed(backpressure)` 的处理路径必须是进入需要用户手动重连的状态。UI 应显示连接中断或状态已过期，并提供明确的 `Reconnect` 动作；用户触发后才重新 attach，并用新的 attach snapshot 重建 runtime。它不能被呈现为“会话已关闭”的死胡同，也不能默认进入自动重连循环。
 
 ### 05a Streaming Readiness
 
@@ -244,7 +244,7 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 
 - TUI 是主要参考，不是背景材料。
 - Projection 是 app-server 的投影输出，不是 GUI 状态真理。
-- 当前 GUI store 是临时调试代码，不作为后续设计依据；其中 commit-chain 连续性校验和 reattach 判定属于协议逻辑，必须迁移保留。
+- 当前 GUI store 是临时调试代码，不作为后续设计依据；其中 commit-chain 连续性校验和重连判定属于协议逻辑，必须迁移保留。
 - 第一版 projection 三件套是输入面起点，不是封闭边界；后续 streaming notification 输入必须能并入同一个 runtime。
 - 先做线程，再做事件，再做 replay/live，再做 chat。
 - 每个子设计必须足够小，可以独立实现、独立回退、独立验收。
