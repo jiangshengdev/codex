@@ -93,7 +93,7 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
 
 fn dev_proxy_error_page(vite_origin: &str, error: &str) -> String {
     DEV_PROXY_ERROR_HTML
-        .replace("{{CODEX_GUI_HOST_CSS}}", DEV_PROXY_ERROR_CSS)
+        .replace("/* {{CODEX_GUI_HOST_CSS}} */", DEV_PROXY_ERROR_CSS)
         .replace("{{CODEX_GUI_HOST_VITE_ORIGIN}}", &html_escape(vite_origin))
         .replace("{{CODEX_GUI_HOST_ERROR}}", &html_escape(error))
 }
