@@ -2,6 +2,7 @@
 
 mod common;
 
+use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::symlink;
@@ -21,11 +22,16 @@ use codex_exec_server::FileSystemSandboxContext;
 use codex_exec_server::LocalFileSystem;
 use codex_exec_server::ReadDirectoryEntry;
 use codex_exec_server::RemoveOptions;
+use codex_protocol::models::AdditionalPermissionProfile;
 use codex_protocol::models::FileSystemPermissions;
 use codex_protocol::models::PermissionProfile;
-use codex_protocol::protocol::ReadOnlyAccess;
-use codex_protocol::protocol::SandboxPolicy;
-use codex_sandboxing::policy_transforms::merge_permission_profiles;
+use codex_protocol::permissions::FileSystemAccessMode;
+use codex_protocol::permissions::FileSystemPath;
+use codex_protocol::permissions::FileSystemSandboxEntry;
+use codex_protocol::permissions::FileSystemSandboxPolicy;
+use codex_protocol::permissions::NetworkSandboxPolicy;
+use codex_sandboxing::policy_transforms::effective_file_system_sandbox_policy;
+use codex_sandboxing::policy_transforms::effective_network_sandbox_policy;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
@@ -80,38 +86,42 @@ fn absolute_path(path: std::path::PathBuf) -> AbsolutePathBuf {
 }
 
 fn read_only_sandbox(readable_root: std::path::PathBuf) -> FileSystemSandboxContext {
-    FileSystemSandboxContext::new(SandboxPolicy::ReadOnly {
-        access: ReadOnlyAccess::Restricted {
-            include_platform_defaults: false,
-            readable_roots: vec![absolute_path(readable_root)],
+    let readable_root = absolute_path(readable_root);
+    sandbox_context(vec![FileSystemSandboxEntry {
+        path: FileSystemPath::Path {
+            path: readable_root,
         },
-        network_access: false,
-    })
+        access: FileSystemAccessMode::Read,
+    }])
 }
 
 fn workspace_write_sandbox(writable_root: std::path::PathBuf) -> FileSystemSandboxContext {
-    FileSystemSandboxContext::new(SandboxPolicy::WorkspaceWrite {
-        writable_roots: vec![absolute_path(writable_root)],
-        read_only_access: ReadOnlyAccess::Restricted {
-            include_platform_defaults: false,
-            readable_roots: vec![],
+    let writable_root = absolute_path(writable_root);
+    sandbox_context(vec![FileSystemSandboxEntry {
+        path: FileSystemPath::Path {
+            path: writable_root,
         },
-        network_access: false,
-        exclude_tmpdir_env_var: true,
-        exclude_slash_tmp: true,
-    })
+        access: FileSystemAccessMode::Write,
+    }])
+}
+
+fn sandbox_context(entries: Vec<FileSystemSandboxEntry>) -> FileSystemSandboxContext {
+    FileSystemSandboxContext::from_permission_profile(PermissionProfile::from_runtime_permissions(
+        &FileSystemSandboxPolicy::restricted(entries),
+        NetworkSandboxPolicy::Restricted,
+    ))
 }
 
 #[test]
-fn sandbox_context_new_preserves_legacy_workspace_write_read_only_subpaths() -> Result<()> {
+fn sandbox_context_from_profile_preserves_workspace_write_read_only_subpaths() -> Result<()> {
     let tmp = TempDir::new()?;
     let writable_dir = tmp.path().join("writable");
     let git_dir = writable_dir.join(".git");
     std::fs::create_dir_all(&git_dir)?;
 
     let sandbox = workspace_write_sandbox(writable_dir.clone());
-    let cwd = sandbox.cwd.as_ref().expect("sandbox cwd");
     let policy = sandbox.permissions.file_system_sandbox_policy();
+    let cwd = absolute_path(writable_dir.clone());
     let writable_roots = policy.get_writable_roots_with_cwd(cwd.as_path());
     let writable_dir = absolute_path(std::fs::canonicalize(writable_dir)?);
     let git_dir = absolute_path(std::fs::canonicalize(git_dir)?);
@@ -189,7 +199,7 @@ set -euo pipefail
 
 for arg in "$@"; do
   if [[ "${arg}" == "--help" ]]; then
-    echo "Usage: bwrap --argv0"
+    echo "Usage: bwrap --argv0 --perms"
     exit 0
   fi
 done
@@ -354,6 +364,49 @@ async fn file_system_methods_cover_surface_area(use_remote: bool) -> Result<()> 
         )
         .await
         .with_context(|| format!("mode={use_remote}"))?;
+
+    let source_link = tmp.path().join("source-link");
+    symlink(&source_dir, &source_link)?;
+    let joined_nested = file_system
+        .join(
+            &absolute_path(source_link.clone()),
+            Path::new("nested/note.txt"),
+        )
+        .await
+        .with_context(|| format!("mode={use_remote}"))?;
+    assert_eq!(
+        joined_nested,
+        absolute_path(source_link.join("nested").join("note.txt"))
+    );
+    let joined_parent = file_system
+        .parent(&joined_nested)
+        .await
+        .with_context(|| format!("mode={use_remote}"))?;
+    assert_eq!(
+        joined_parent,
+        Some(absolute_path(source_link.join("nested")))
+    );
+    let joined_parent_traversal = file_system
+        .join(&absolute_path(source_dir.clone()), Path::new("../outside"))
+        .await
+        .with_context(|| format!("mode={use_remote}"))?;
+    assert_eq!(
+        joined_parent_traversal,
+        absolute_path(source_dir.join("../outside"))
+    );
+    let canonical_nested = file_system
+        .canonicalize(
+            &absolute_path(source_link.join("nested").join("note.txt")),
+            /*sandbox*/ None,
+        )
+        .await
+        .with_context(|| format!("mode={use_remote}"))?;
+    assert_eq!(
+        canonical_nested,
+        absolute_path(std::fs::canonicalize(
+            source_dir.join("nested").join("note.txt")
+        )?)
+    );
 
     let nested_file_contents = file_system
         .read_file(&absolute_path(nested_file.clone()), /*sandbox*/ None)
@@ -523,6 +576,32 @@ async fn file_system_sandboxed_read_allows_readable_root(use_remote: bool) -> Re
 #[test_case(false ; "local")]
 #[test_case(true ; "remote")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn file_system_sandboxed_canonicalize_allows_readable_root(use_remote: bool) -> Result<()> {
+    let context = create_file_system_context(use_remote).await?;
+    let file_system = context.file_system;
+
+    let tmp = TempDir::new()?;
+    let allowed_dir = tmp.path().join("allowed");
+    let file_path = allowed_dir.join("note.txt");
+    std::fs::create_dir_all(&allowed_dir)?;
+    std::fs::write(&file_path, "sandboxed hello")?;
+    let sandbox = read_only_sandbox(allowed_dir);
+
+    let canonical_path = file_system
+        .canonicalize(&absolute_path(file_path.clone()), Some(&sandbox))
+        .await
+        .with_context(|| format!("mode={use_remote}"))?;
+    assert_eq!(
+        canonical_path,
+        absolute_path(std::fs::canonicalize(file_path)?)
+    );
+
+    Ok(())
+}
+
+#[test_case(false ; "local")]
+#[test_case(true ; "remote")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn file_system_sandboxed_write_rejects_unwritable_path(use_remote: bool) -> Result<()> {
     let context = create_file_system_context(use_remote).await?;
     let file_system = context.file_system;
@@ -593,19 +672,26 @@ async fn file_system_sandboxed_write_allows_additional_write_root(use_remote: bo
     std::fs::create_dir_all(&writable_dir)?;
 
     let mut sandbox = read_only_sandbox(readable_dir);
-    let additional_permissions = PermissionProfile {
+    let additional_permissions = AdditionalPermissionProfile {
         network: None,
         file_system: Some(FileSystemPermissions::from_read_write_roots(
             /*read*/ None,
             Some(vec![absolute_path(writable_dir)]),
         )),
     };
-    let Some(permissions) =
-        merge_permission_profiles(Some(&sandbox.permissions), Some(&additional_permissions))
-    else {
-        panic!("merged permissions should not be empty");
-    };
-    sandbox.permissions = permissions;
+    let file_system_policy = effective_file_system_sandbox_policy(
+        &sandbox.permissions.file_system_sandbox_policy(),
+        Some(&additional_permissions),
+    );
+    let network_policy = effective_network_sandbox_policy(
+        sandbox.permissions.network_sandbox_policy(),
+        Some(&additional_permissions),
+    );
+    sandbox.permissions = PermissionProfile::from_runtime_permissions_with_enforcement(
+        sandbox.permissions.enforcement(),
+        &file_system_policy,
+        network_policy,
+    );
 
     file_system
         .write_file(
@@ -712,6 +798,53 @@ async fn file_system_sandboxed_write_rejects_symlink_escape(use_remote: bool) ->
     };
     assert_sandbox_denied(&error);
     assert!(!outside_dir.join("blocked.txt").exists());
+
+    Ok(())
+}
+
+#[test_case(false ; "local")]
+#[test_case(true ; "remote")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn file_system_sandboxed_write_preserves_existing_hard_link(use_remote: bool) -> Result<()> {
+    let context = create_file_system_context(use_remote).await?;
+    let file_system = context.file_system;
+
+    let tmp = TempDir::new()?;
+    let allowed_dir = tmp.path().join("allowed");
+    let outside_dir = tmp.path().join("outside");
+    std::fs::create_dir_all(&allowed_dir)?;
+    std::fs::create_dir_all(&outside_dir)?;
+
+    let outside_file = outside_dir.join("outside.txt");
+    let hard_link = allowed_dir.join("hard-link.txt");
+    std::fs::write(&outside_file, "outside\n")?;
+    std::fs::hard_link(&outside_file, &hard_link)?;
+
+    let sandbox = workspace_write_sandbox(allowed_dir);
+    file_system
+        .write_file(
+            &absolute_path(hard_link.clone()),
+            b"updated through existing hard link\n".to_vec(),
+            Some(&sandbox),
+        )
+        .await
+        .with_context(|| format!("mode={use_remote}"))?;
+
+    assert_eq!(
+        std::fs::read_to_string(&outside_file)?,
+        "updated through existing hard link\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&hard_link)?,
+        "updated through existing hard link\n"
+    );
+
+    let outside_metadata = std::fs::metadata(&outside_file)?;
+    let link_metadata = std::fs::metadata(&hard_link)?;
+    assert_eq!(
+        (link_metadata.dev(), link_metadata.ino()),
+        (outside_metadata.dev(), outside_metadata.ino())
+    );
 
     Ok(())
 }

@@ -6,18 +6,8 @@ use serde::Deserialize;
 use std::time::Duration;
 use url::Url;
 
-const DEFAULT_REMOTE_MARKETPLACE_NAME: &str = "openai-curated";
-const REMOTE_PLUGIN_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
 const REMOTE_FEATURED_PLUGIN_FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 const REMOTE_PLUGIN_MUTATION_TIMEOUT: Duration = Duration::from_secs(30);
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct RemotePluginStatusSummary {
-    pub name: String,
-    #[serde(default = "default_remote_marketplace_name")]
-    pub marketplace_name: String,
-    pub enabled: bool,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,81 +73,26 @@ pub enum RemotePluginMutationError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum RemotePluginFetchError {
-    #[error("chatgpt authentication required to sync remote plugins")]
-    AuthRequired,
-
-    #[error(
-        "chatgpt authentication required to sync remote plugins; api key auth is not supported"
-    )]
-    UnsupportedAuthMode,
-
-    #[error("failed to read auth token for remote plugin sync: {0}")]
-    AuthToken(#[source] std::io::Error),
-
-    #[error("failed to send remote plugin sync request to {url}: {source}")]
+    #[error("failed to send remote featured plugin request to {url}: {source}")]
     Request {
         url: String,
         #[source]
         source: reqwest::Error,
     },
 
-    #[error("remote plugin sync request to {url} failed with status {status}: {body}")]
+    #[error("remote featured plugin request to {url} failed with status {status}: {body}")]
     UnexpectedStatus {
         url: String,
         status: reqwest::StatusCode,
         body: String,
     },
 
-    #[error("failed to parse remote plugin sync response from {url}: {source}")]
+    #[error("failed to parse remote featured plugin response from {url}: {source}")]
     Decode {
         url: String,
         #[source]
         source: serde_json::Error,
     },
-}
-
-pub async fn fetch_remote_plugin_status(
-    config: &RemotePluginServiceConfig,
-    auth: Option<&CodexAuth>,
-) -> Result<Vec<RemotePluginStatusSummary>, RemotePluginFetchError> {
-    let Some(auth) = auth else {
-        return Err(RemotePluginFetchError::AuthRequired);
-    };
-    if !auth.is_chatgpt_auth() {
-        return Err(RemotePluginFetchError::UnsupportedAuthMode);
-    }
-
-    let base_url = config.chatgpt_base_url.trim_end_matches('/');
-    let url = format!("{base_url}/plugins/list");
-    let client = build_reqwest_client();
-    let token = auth
-        .get_token()
-        .map_err(RemotePluginFetchError::AuthToken)?;
-    let mut request = client
-        .get(&url)
-        .timeout(REMOTE_PLUGIN_FETCH_TIMEOUT)
-        .bearer_auth(token);
-    if let Some(account_id) = auth.get_account_id() {
-        request = request.header("chatgpt-account-id", account_id);
-    }
-
-    let response = request
-        .send()
-        .await
-        .map_err(|source| RemotePluginFetchError::Request {
-            url: url.clone(),
-            source,
-        })?;
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(RemotePluginFetchError::UnexpectedStatus { url, status, body });
-    }
-
-    serde_json::from_str(&body).map_err(|source| RemotePluginFetchError::Decode {
-        url: url.clone(),
-        source,
-    })
 }
 
 pub async fn fetch_remote_featured_plugin_ids(
@@ -176,14 +111,9 @@ pub async fn fetch_remote_featured_plugin_ids(
         )])
         .timeout(REMOTE_FEATURED_PLUGIN_FETCH_TIMEOUT);
 
-    if let Some(auth) = auth.filter(|auth| auth.is_chatgpt_auth()) {
-        let token = auth
-            .get_token()
-            .map_err(RemotePluginFetchError::AuthToken)?;
-        request = request.bearer_auth(token);
-        if let Some(account_id) = auth.get_account_id() {
-            request = request.header("chatgpt-account-id", account_id);
-        }
+    if let Some(auth) = auth.filter(|auth| auth.uses_codex_backend()) {
+        request =
+            request.headers(codex_model_provider::auth_provider_from_auth(auth).to_auth_headers());
     }
 
     let response = request
@@ -223,18 +153,16 @@ pub async fn uninstall_remote_plugin(
     Ok(())
 }
 
-fn ensure_chatgpt_auth(auth: Option<&CodexAuth>) -> Result<&CodexAuth, RemotePluginMutationError> {
+fn ensure_codex_backend_auth(
+    auth: Option<&CodexAuth>,
+) -> Result<&CodexAuth, RemotePluginMutationError> {
     let Some(auth) = auth else {
         return Err(RemotePluginMutationError::AuthRequired);
     };
-    if !auth.is_chatgpt_auth() {
+    if !auth.uses_codex_backend() {
         return Err(RemotePluginMutationError::UnsupportedAuthMode);
     }
     Ok(auth)
-}
-
-fn default_remote_marketplace_name() -> String {
-    DEFAULT_REMOTE_MARKETPLACE_NAME.to_string()
 }
 
 async fn post_remote_plugin_mutation(
@@ -243,19 +171,13 @@ async fn post_remote_plugin_mutation(
     plugin_id: &str,
     action: &str,
 ) -> Result<RemotePluginMutationResponse, RemotePluginMutationError> {
-    let auth = ensure_chatgpt_auth(auth)?;
+    let auth = ensure_codex_backend_auth(auth)?;
     let url = remote_plugin_mutation_url(config, plugin_id, action)?;
     let client = build_reqwest_client();
-    let token = auth
-        .get_token()
-        .map_err(RemotePluginMutationError::AuthToken)?;
-    let mut request = client
+    let request = client
         .post(url.clone())
         .timeout(REMOTE_PLUGIN_MUTATION_TIMEOUT)
-        .bearer_auth(token);
-    if let Some(account_id) = auth.get_account_id() {
-        request = request.header("chatgpt-account-id", account_id);
-    }
+        .headers(codex_model_provider::auth_provider_from_auth(auth).to_auth_headers());
 
     let response = request
         .send()

@@ -2,7 +2,7 @@
 // Unified entry point for the Codex CLI.
 
 import { spawn } from "node:child_process";
-import { existsSync } from "fs";
+import { existsSync, realpathSync } from "fs";
 import { createRequire } from "node:module";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -13,12 +13,12 @@ const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
 const PLATFORM_PACKAGE_BY_TARGET = {
-  "x86_64-unknown-linux-musl": "@openai/codex-linux-x64",
-  "aarch64-unknown-linux-musl": "@openai/codex-linux-arm64",
-  "x86_64-apple-darwin": "@openai/codex-darwin-x64",
-  "aarch64-apple-darwin": "@openai/codex-darwin-arm64",
-  "x86_64-pc-windows-msvc": "@openai/codex-win32-x64",
-  "aarch64-pc-windows-msvc": "@openai/codex-win32-arm64",
+  "x86_64-unknown-linux-musl": "@jiangshengdev/codex-linux-x64",
+  "aarch64-unknown-linux-musl": "@jiangshengdev/codex-linux-arm64",
+  "x86_64-apple-darwin": "@jiangshengdev/codex-darwin-x64",
+  "aarch64-apple-darwin": "@jiangshengdev/codex-darwin-arm64",
+  "x86_64-pc-windows-msvc": "@jiangshengdev/codex-win32-x64",
+  "aarch64-pc-windows-msvc": "@jiangshengdev/codex-win32-arm64",
 };
 
 const { platform, arch } = process;
@@ -75,63 +75,42 @@ if (!platformPackage) {
   throw new Error(`Unsupported target triple: ${targetTriple}`);
 }
 
-const codexBinaryName = process.platform === "win32" ? "codex.exe" : "codex";
-const localVendorRoot = path.join(__dirname, "..", "vendor");
-const localBinaryPath = path.join(
-  localVendorRoot,
-  targetTriple,
-  "codex",
-  codexBinaryName,
-);
-
-let vendorRoot;
-try {
-  const packageJsonPath = require.resolve(`${platformPackage}/package.json`);
-  vendorRoot = path.join(path.dirname(packageJsonPath), "vendor");
-} catch {
-  if (existsSync(localBinaryPath)) {
-    vendorRoot = localVendorRoot;
-  } else {
-    const packageManager = detectPackageManager();
-    const updateCommand =
-      packageManager === "bun"
-        ? "bun install -g @openai/codex@latest"
-        : "npm install -g @openai/codex@latest";
-    throw new Error(
-      `Missing optional dependency ${platformPackage}. Reinstall Codex: ${updateCommand}`,
-    );
+function findCodexExecutable() {
+  let vendorRoot;
+  try {
+    const packageJsonPath = require.resolve(`${platformPackage}/package.json`);
+    vendorRoot = path.join(path.dirname(packageJsonPath), "vendor");
+  } catch {
+    vendorRoot = path.join(__dirname, "..", "vendor");
   }
-}
 
-if (!vendorRoot) {
+  const codexExecutable = path.join(
+    vendorRoot,
+    targetTriple,
+    "bin",
+    process.platform === "win32" ? "codex.exe" : "codex",
+  );
+  if (existsSync(codexExecutable)) {
+    return codexExecutable;
+  }
+
   const packageManager = detectPackageManager();
   const updateCommand =
     packageManager === "bun"
-      ? "bun install -g @openai/codex@latest"
-      : "npm install -g @openai/codex@latest";
+      ? "bun install -g @jiangshengdev/codex@latest"
+      : "npm install -g @jiangshengdev/codex@latest";
   throw new Error(
     `Missing optional dependency ${platformPackage}. Reinstall Codex: ${updateCommand}`,
   );
 }
 
-const archRoot = path.join(vendorRoot, targetTriple);
-const binaryPath = path.join(archRoot, "codex", codexBinaryName);
+const binaryPath = findCodexExecutable();
 
 // Use an asynchronous spawn instead of spawnSync so that Node is able to
 // respond to signals (e.g. Ctrl-C / SIGINT) while the native binary is
 // executing. This allows us to forward those signals to the child process
 // and guarantees that when either the child terminates or the parent
 // receives a fatal signal, both processes exit in a predictable manner.
-
-function getUpdatedPath(newDirs) {
-  const pathSep = process.platform === "win32" ? ";" : ":";
-  const existingPath = process.env.PATH || "";
-  const updatedPath = [
-    ...newDirs,
-    ...existingPath.split(pathSep).filter(Boolean),
-  ].join(pathSep);
-  return updatedPath;
-}
 
 /**
  * Use heuristics to detect the package manager that was used to install Codex
@@ -158,19 +137,18 @@ function detectPackageManager() {
   return userAgent ? "npm" : null;
 }
 
-const additionalDirs = [];
-const pathDir = path.join(archRoot, "path");
-if (existsSync(pathDir)) {
-  additionalDirs.push(pathDir);
-}
-const updatedPath = getUpdatedPath(additionalDirs);
-
-const env = { ...process.env, PATH: updatedPath };
 const packageManagerEnvVar =
   detectPackageManager() === "bun"
     ? "CODEX_MANAGED_BY_BUN"
     : "CODEX_MANAGED_BY_NPM";
-env[packageManagerEnvVar] = "1";
+const env = {
+  ...process.env,
+  [packageManagerEnvVar]: "1",
+  CODEX_MANAGED_PACKAGE_ROOT: realpathSync(path.join(__dirname, "..")),
+};
+if (!env.CODEX_GUI_PACKAGE_ROOT) {
+  env.CODEX_GUI_PACKAGE_ROOT = env.CODEX_MANAGED_PACKAGE_ROOT;
+}
 
 const child = spawn(binaryPath, process.argv.slice(2), {
   stdio: "inherit",

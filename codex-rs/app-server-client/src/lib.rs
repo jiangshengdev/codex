@@ -15,6 +15,7 @@
 //! bridging async `mpsc` channels on both sides. Queues are bounded so overload
 //! surfaces as channel-full errors rather than unbounded memory growth.
 
+mod gui;
 mod remote;
 
 use std::error::Error;
@@ -25,10 +26,12 @@ use std::io::Result as IoResult;
 use std::sync::Arc;
 use std::time::Duration;
 
+pub use codex_app_server::app_server_control_socket_path;
 pub use codex_app_server::in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
 pub use codex_app_server::in_process::InProcessServerEvent;
 use codex_app_server::in_process::InProcessStartArgs;
 use codex_app_server::in_process::LogDbLayer;
+pub use codex_app_server::in_process::StateDbHandle;
 use codex_app_server_protocol::ClientInfo;
 use codex_app_server_protocol::ClientNotification;
 use codex_app_server_protocol::ClientRequest;
@@ -41,14 +44,16 @@ use codex_app_server_protocol::Result as JsonRpcResult;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_arg0::Arg0DispatchPaths;
+use codex_config::CloudConfigBundleLoader;
+use codex_config::LoaderOverrides;
 use codex_config::NoopThreadConfigLoader;
+use codex_config::RemoteThreadConfigLoader;
+use codex_config::ThreadConfigLoader;
 use codex_core::config::Config;
-use codex_core::config_loader::CloudRequirementsLoader;
-use codex_core::config_loader::LoaderOverrides;
 pub use codex_exec_server::EnvironmentManager;
-pub use codex_exec_server::EnvironmentManagerArgs;
 pub use codex_exec_server::ExecServerRuntimePaths;
 use codex_feedback::CodexFeedback;
+use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
@@ -57,8 +62,14 @@ use tokio::time::timeout;
 use toml::Value as TomlValue;
 use tracing::warn;
 
+pub use crate::gui::AppServerClientGuiExt;
+pub use crate::gui::GuiLaunchError;
+pub use crate::gui::GuiLaunchUrlEntry;
+pub use crate::gui::GuiLaunchUrlKind;
+pub use crate::gui::GuiLaunchUrls;
 pub use crate::remote::RemoteAppServerClient;
 pub use crate::remote::RemoteAppServerConnectArgs;
+pub use crate::remote::RemoteAppServerEndpoint;
 
 /// Transitional access to core-only embedded app-server types.
 ///
@@ -69,12 +80,9 @@ pub mod legacy_core {
     pub use codex_core::DEFAULT_AGENTS_MD_FILENAME;
     pub use codex_core::LOCAL_AGENTS_MD_FILENAME;
     pub use codex_core::McpManager;
-    pub use codex_core::append_message_history_entry;
     pub use codex_core::check_execpolicy_for_warnings;
     pub use codex_core::format_exec_policy_error_with_source;
     pub use codex_core::grant_read_root_non_elevated;
-    pub use codex_core::lookup_message_history_entry;
-    pub use codex_core::message_history_metadata;
     pub use codex_core::web_search_detail;
 
     pub mod config {
@@ -95,10 +103,6 @@ pub mod legacy_core {
 
     pub mod personality_migration {
         pub use codex_core::personality_migration::*;
-    }
-
-    pub mod plugins {
-        pub use codex_core::plugins::*;
     }
 
     pub mod review_format {
@@ -179,6 +183,7 @@ pub(crate) fn server_notification_requires_delivery(notification: &ServerNotific
     matches!(
         notification,
         ServerNotification::TurnCompleted(_)
+            | ServerNotification::ThreadSettingsUpdated(_)
             | ServerNotification::ItemCompleted(_)
             | ServerNotification::AgentMessageDelta(_)
             | ServerNotification::PlanDelta(_)
@@ -302,7 +307,15 @@ impl fmt::Display for TypedRequestError {
                 write!(f, "{method} transport error: {source}")
             }
             Self::Server { method, source } => {
-                write!(f, "{method} failed: {}", source.message)
+                write!(
+                    f,
+                    "{method} failed: {} (code {})",
+                    source.message, source.code
+                )?;
+                if let Some(data) = source.data.as_ref() {
+                    write!(f, ", data: {data}")?;
+                }
+                Ok(())
             }
             Self::Deserialize { method, source } => {
                 write!(f, "{method} response decode error: {source}")
@@ -331,12 +344,16 @@ pub struct InProcessClientStartArgs {
     pub cli_overrides: Vec<(String, TomlValue)>,
     /// Loader override knobs used by config API paths.
     pub loader_overrides: LoaderOverrides,
-    /// Preloaded cloud requirements provider.
-    pub cloud_requirements: CloudRequirementsLoader,
+    /// Whether config API paths should reject unknown config fields.
+    pub strict_config: bool,
+    /// Preloaded cloud config bundle provider.
+    pub cloud_config_bundle: CloudConfigBundleLoader,
     /// Feedback sink used by app-server/core telemetry and logs.
     pub feedback: CodexFeedback,
     /// SQLite tracing layer used to flush recently emitted logs before feedback upload.
     pub log_db: Option<LogDbLayer>,
+    /// Process-wide SQLite state handle shared with the embedded app-server.
+    pub state_db: Option<StateDbHandle>,
     /// Environment manager used by core execution and filesystem operations.
     pub environment_manager: Arc<EnvironmentManager>,
     /// Startup warnings emitted after initialize succeeds.
@@ -357,11 +374,19 @@ pub struct InProcessClientStartArgs {
     pub channel_capacity: usize,
 }
 
+fn configured_thread_config_loader(config: &Config) -> Arc<dyn ThreadConfigLoader> {
+    match config.experimental_thread_config_endpoint.as_deref() {
+        Some(endpoint) => Arc::new(RemoteThreadConfigLoader::new(endpoint)),
+        None => Arc::new(NoopThreadConfigLoader),
+    }
+}
+
 impl InProcessClientStartArgs {
     /// Builds initialize params from caller-provided metadata.
     pub fn initialize_params(&self) -> InitializeParams {
         let capabilities = InitializeCapabilities {
             experimental_api: self.experimental_api,
+            request_attestation: false,
             opt_out_notification_methods: if self.opt_out_notification_methods.is_empty() {
                 None
             } else {
@@ -381,15 +406,18 @@ impl InProcessClientStartArgs {
 
     fn into_runtime_start_args(self) -> InProcessStartArgs {
         let initialize = self.initialize_params();
+        let thread_config_loader = configured_thread_config_loader(&self.config);
         InProcessStartArgs {
             arg0_paths: self.arg0_paths,
             config: self.config,
             cli_overrides: self.cli_overrides,
             loader_overrides: self.loader_overrides,
-            cloud_requirements: self.cloud_requirements,
-            thread_config_loader: Arc::new(NoopThreadConfigLoader),
+            strict_config: self.strict_config,
+            cloud_config_bundle: self.cloud_config_bundle,
+            thread_config_loader,
             feedback: self.feedback,
             log_db: self.log_db,
+            state_db: self.state_db,
             environment_manager: self.environment_manager,
             config_warnings: self.config_warnings,
             session_source: self.session_source,
@@ -412,6 +440,16 @@ enum ClientCommand {
     Notify {
         notification: ClientNotification,
         response_tx: oneshot::Sender<IoResult<()>>,
+    },
+    LaunchGui {
+        thread_id: ThreadId,
+        response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
+    },
+    #[cfg(test)]
+    LaunchGuiForTest {
+        thread_id: ThreadId,
+        mode_result: Result<codex_gui_host::GuiHostMode, String>,
+        response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
     },
     ResolveServerRequest {
         request_id: RequestId,
@@ -472,11 +510,13 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let request_sender = handle.sender();
+        let gui_sender = request_sender.clone();
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
         let worker_handle = tokio::spawn(async move {
             let mut event_stream_enabled = true;
+            let mut gui_host_manager = None::<codex_app_server::GuiHostManager>;
             let mut skipped_events = 0usize;
             loop {
                 tokio::select! {
@@ -499,6 +539,52 @@ impl InProcessAppServerClient {
                                 let result = request_sender.notify(notification);
                                 let _ = response_tx.send(result);
                             }
+                            Some(ClientCommand::LaunchGui {
+                                thread_id,
+                                response_tx,
+                            }) => {
+                                let result = async {
+                                    if let Some(manager) = gui_host_manager.as_ref() {
+                                        manager
+                                            .launch_urls_for_thread(thread_id)
+                                            .await
+                                            .map_err(GuiLaunchError::from)
+                                    } else {
+                                        let manager = crate::gui::new_gui_host_manager(
+                                            gui_sender.clone(),
+                                        )?;
+                                        let urls = manager
+                                            .launch_urls_for_thread(thread_id)
+                                            .await
+                                            .map_err(GuiLaunchError::from)?;
+                                        gui_host_manager = Some(manager);
+                                        Ok(urls)
+                                    }
+                                }
+                                .await;
+                                let _ = response_tx.send(result);
+                            }
+                            #[cfg(test)]
+                            Some(ClientCommand::LaunchGuiForTest {
+                                thread_id,
+                                mode_result,
+                                response_tx,
+                            }) => {
+                                let result = async {
+                                    let manager = crate::gui::new_gui_host_manager_for_test(
+                                        gui_sender.clone(),
+                                        mode_result,
+                                    )?;
+                                    let urls = manager
+                                        .launch_urls_for_thread(thread_id)
+                                        .await
+                                        .map_err(GuiLaunchError::from)?;
+                                    manager.shutdown().await;
+                                    Ok(urls)
+                                }
+                                .await;
+                                let _ = response_tx.send(result);
+                            }
                             Some(ClientCommand::ResolveServerRequest {
                                 request_id,
                                 result,
@@ -517,11 +603,17 @@ impl InProcessAppServerClient {
                                 let _ = response_tx.send(send_result);
                             }
                             Some(ClientCommand::Shutdown { response_tx }) => {
+                                if let Some(manager) = gui_host_manager.take() {
+                                    manager.shutdown().await;
+                                }
                                 let shutdown_result = handle.shutdown().await;
                                 let _ = response_tx.send(shutdown_result);
                                 break;
                             }
                             None => {
+                                if let Some(manager) = gui_host_manager.take() {
+                                    manager.shutdown().await;
+                                }
                                 let _ = handle.shutdown().await;
                                 break;
                             }
@@ -590,6 +682,34 @@ impl InProcessAppServerClient {
         InProcessAppServerRequestHandle {
             command_tx: self.command_tx.clone(),
         }
+    }
+
+    #[cfg(test)]
+    async fn launch_gui_for_thread_with_mode_result_for_test(
+        &self,
+        thread_id: ThreadId,
+        mode_result: Result<codex_gui_host::GuiHostMode, String>,
+    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.command_tx
+            .send(ClientCommand::LaunchGuiForTest {
+                thread_id,
+                mode_result,
+                response_tx,
+            })
+            .await
+            .map_err(|_| {
+                GuiLaunchError::Io(IoError::new(
+                    ErrorKind::BrokenPipe,
+                    "in-process app-server worker channel is closed",
+                ))
+            })?;
+        response_rx.await.map_err(|_| {
+            GuiLaunchError::Io(IoError::new(
+                ErrorKind::BrokenPipe,
+                "in-process GUI launch response channel is closed",
+            ))
+        })?
     }
 
     /// Sends a typed client request and returns raw JSON-RPC result.
@@ -923,6 +1043,7 @@ pub(crate) fn request_method_name(request: &ClientRequest) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AppServerClientGuiExt;
     use codex_app_server_protocol::AccountUpdatedNotification;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
     use codex_app_server_protocol::GetAccountResponse;
@@ -936,12 +1057,20 @@ mod tests {
     use codex_app_server_protocol::ToolRequestUserInputParams;
     use codex_app_server_protocol::ToolRequestUserInputQuestion;
     use codex_core::config::ConfigBuilder;
+    use codex_core::init_state_db;
+    use codex_protocol::ThreadId;
+    use codex_uds::UnixListener;
+    use codex_utils_absolute_path::AbsolutePathBuf;
     use futures::SinkExt;
     use futures::StreamExt;
     use pretty_assertions::assert_eq;
+    use std::ops::Deref;
+    use std::path::Path;
+    use tempfile::TempDir;
     use tokio::net::TcpListener;
     use tokio::time::Duration;
     use tokio::time::timeout;
+    use tokio_tungstenite::accept_async;
     use tokio_tungstenite::accept_hdr_async;
     use tokio_tungstenite::tungstenite::Message;
     use tokio_tungstenite::tungstenite::handshake::server::Request as WebSocketRequest;
@@ -957,18 +1086,60 @@ mod tests {
         }
     }
 
+    async fn build_test_config_for_codex_home(codex_home: &Path) -> Config {
+        match ConfigBuilder::default()
+            .codex_home(codex_home.to_path_buf())
+            .build()
+            .await
+        {
+            Ok(config) => config,
+            Err(_) => Config::load_default_with_cli_overrides_for_codex_home(
+                codex_home.to_path_buf(),
+                Vec::new(),
+            )
+            .await
+            .expect("default config should load"),
+        }
+    }
+
+    struct TestClient {
+        _codex_home: TempDir,
+        client: InProcessAppServerClient,
+    }
+
+    impl Deref for TestClient {
+        type Target = InProcessAppServerClient;
+
+        fn deref(&self) -> &Self::Target {
+            &self.client
+        }
+    }
+
+    impl TestClient {
+        async fn shutdown(self) -> IoResult<()> {
+            self.client.shutdown().await
+        }
+    }
+
     async fn start_test_client_with_capacity(
         session_source: SessionSource,
         channel_capacity: usize,
-    ) -> InProcessAppServerClient {
-        InProcessAppServerClient::start(InProcessClientStartArgs {
+    ) -> TestClient {
+        let codex_home = TempDir::new().expect("temp dir");
+        let config = Arc::new(build_test_config_for_codex_home(codex_home.path()).await);
+        let state_db = init_state_db(config.as_ref())
+            .await
+            .expect("state db should initialize for in-process test");
+        let client = InProcessAppServerClient::start(InProcessClientStartArgs {
             arg0_paths: Arg0DispatchPaths::default(),
-            config: Arc::new(build_test_config().await),
+            config,
             cli_overrides: Vec::new(),
             loader_overrides: LoaderOverrides::default(),
-            cloud_requirements: CloudRequirementsLoader::default(),
+            strict_config: false,
+            cloud_config_bundle: CloudConfigBundleLoader::default(),
             feedback: CodexFeedback::new(),
             log_db: None,
+            state_db: Some(state_db),
             environment_manager: Arc::new(EnvironmentManager::default_for_tests()),
             config_warnings: Vec::new(),
             session_source,
@@ -980,10 +1151,15 @@ mod tests {
             channel_capacity,
         })
         .await
-        .expect("in-process app-server client should start")
+        .expect("in-process app-server client should start");
+
+        TestClient {
+            _codex_home: codex_home,
+            client,
+        }
     }
 
-    async fn start_test_client(session_source: SessionSource) -> InProcessAppServerClient {
+    async fn start_test_client(session_source: SessionSource) -> TestClient {
         start_test_client_with_capacity(session_source, DEFAULT_IN_PROCESS_CHANNEL_CAPACITY).await
     }
 
@@ -1035,9 +1211,10 @@ mod tests {
         format!("ws://{addr}")
     }
 
-    async fn expect_remote_initialize(
-        websocket: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
-    ) {
+    async fn expect_remote_initialize<S>(websocket: &mut tokio_tungstenite::WebSocketStream<S>)
+    where
+        S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+    {
         let JSONRPCMessage::Request(request) = read_websocket_message(websocket).await else {
             panic!("expected initialize request");
         };
@@ -1046,7 +1223,9 @@ mod tests {
             websocket,
             JSONRPCMessage::Response(JSONRPCResponse {
                 id: request.id,
-                result: serde_json::json!({}),
+                result: serde_json::json!({
+                    "userAgent": "codex_cli_rs/9.8.7-test (Test OS; x86_64) rust",
+                }),
             }),
         )
         .await;
@@ -1058,9 +1237,12 @@ mod tests {
         assert_eq!(notification.method, "initialized");
     }
 
-    async fn read_websocket_message(
-        websocket: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
-    ) -> JSONRPCMessage {
+    async fn read_websocket_message<S>(
+        websocket: &mut tokio_tungstenite::WebSocketStream<S>,
+    ) -> JSONRPCMessage
+    where
+        S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+    {
         loop {
             let frame = websocket
                 .next()
@@ -1080,10 +1262,12 @@ mod tests {
         }
     }
 
-    async fn write_websocket_message(
-        websocket: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+    async fn write_websocket_message<S>(
+        websocket: &mut tokio_tungstenite::WebSocketStream<S>,
         message: JSONRPCMessage,
-    ) {
+    ) where
+        S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+    {
         websocket
             .send(Message::Text(
                 serde_json::to_string(&message)
@@ -1120,6 +1304,7 @@ mod tests {
         ServerNotification::ItemCompleted(codex_app_server_protocol::ItemCompletedNotification {
             thread_id: "thread".to_string(),
             turn_id: "turn".to_string(),
+            completed_at_ms: 0,
             item: codex_app_server_protocol::ThreadItem::AgentMessage {
                 id: "item".to_string(),
                 text: text.to_string(),
@@ -1134,6 +1319,7 @@ mod tests {
             thread_id: "thread".to_string(),
             turn: codex_app_server_protocol::Turn {
                 id: "turn".to_string(),
+                items_view: codex_app_server_protocol::TurnItemsView::Full,
                 items: Vec::new(),
                 status: codex_app_server_protocol::TurnStatus::Completed,
                 error: None,
@@ -1146,8 +1332,10 @@ mod tests {
 
     fn test_remote_connect_args(websocket_url: String) -> RemoteAppServerConnectArgs {
         RemoteAppServerConnectArgs {
-            websocket_url,
-            auth_token: None,
+            endpoint: RemoteAppServerEndpoint::WebSocket {
+                websocket_url,
+                auth_token: None,
+            },
             client_name: "codex-app-server-client-test".to_string(),
             client_version: "0.0.0-test".to_string(),
             experimental_api: true,
@@ -1238,6 +1426,103 @@ mod tests {
             .await
             .expect("thread/read should return the newly started thread");
         assert_eq!(read.thread.id, response.thread.id);
+
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn in_process_launch_gui_for_thread_returns_loopback_url_entry() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+
+        let urls = <InProcessAppServerClient as AppServerClientGuiExt>::launch_gui_for_thread(
+            &*client, thread_id,
+        )
+        .await
+        .expect("GUI launch URLs should be created");
+
+        assert_eq!(urls.entries[0].kind, GuiLaunchUrlKind::Local);
+        assert!(
+            urls.entries[0]
+                .url
+                .as_str()
+                .starts_with("http://127.0.0.1:")
+        );
+        assert!(
+            urls.entries[0]
+                .url
+                .as_str()
+                .contains("threadId=00000000-0000-0000-0000-000000000505")
+        );
+        assert!(urls.entries[0].url.as_str().contains("#token="));
+
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn in_process_launch_gui_reports_config_errors_at_launch_time() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+
+        let error = client
+            .launch_gui_for_thread_with_mode_result_for_test(
+                thread_id,
+                Err("invalid test GUI host mode".to_string()),
+            )
+            .await
+            .expect_err("GUI launch should report config error");
+
+        assert_eq!(
+            error.to_string(),
+            "GUI host config error: invalid test GUI host mode"
+        );
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn in_process_launch_gui_reuses_same_host_for_multiple_threads() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_a =
+            ThreadId::from_string("00000000-0000-0000-0000-0000000005a1").expect("valid thread id");
+        let thread_b =
+            ThreadId::from_string("00000000-0000-0000-0000-0000000005b2").expect("valid thread id");
+
+        let urls_a = client
+            .launch_gui_for_thread(thread_a)
+            .await
+            .expect("first GUI launch URLs should be created");
+        let urls_b = client
+            .launch_gui_for_thread(thread_b)
+            .await
+            .expect("second GUI launch URLs should be created");
+        let origin_a = urls_a.entries[0]
+            .url
+            .as_str()
+            .split("/?")
+            .next()
+            .expect("URL should contain query");
+        let origin_b = urls_b.entries[0]
+            .url
+            .as_str()
+            .split("/?")
+            .next()
+            .expect("URL should contain query");
+
+        assert_eq!(origin_a, origin_b);
+        assert!(
+            urls_a.entries[0]
+                .url
+                .as_str()
+                .contains("threadId=00000000-0000-0000-0000-0000000005a1")
+        );
+        assert!(
+            urls_b.entries[0]
+                .url
+                .as_str()
+                .contains("threadId=00000000-0000-0000-0000-0000000005b2")
+        );
 
         client.shutdown().await.expect("shutdown should complete");
     }
@@ -1372,6 +1657,7 @@ mod tests {
             .await
             .expect("remote client should connect");
 
+        assert_eq!(client.server_version(), Some("9.8.7-test"));
         let response: GetAccountResponse = client
             .request_typed(ClientRequest::GetAccount {
                 request_id: RequestId::Integer(1),
@@ -1382,6 +1668,138 @@ mod tests {
             .await
             .expect("typed request should succeed");
         assert_eq!(response.account, None);
+
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn remote_launch_gui_for_thread_is_unsupported() {
+        let websocket_url = start_test_remote_server(|mut websocket| async move {
+            expect_remote_initialize(&mut websocket).await;
+            websocket.close(None).await.expect("close should succeed");
+        })
+        .await;
+        let client = RemoteAppServerClient::connect(test_remote_connect_args(websocket_url))
+            .await
+            .expect("remote client should connect");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+
+        let error = client
+            .launch_gui_for_thread(thread_id)
+            .await
+            .expect_err("remote GUI launch should be unsupported");
+
+        assert_eq!(
+            error.to_string(),
+            "GUI launch is only supported for in-process app-server sessions"
+        );
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn remote_unix_socket_typed_request_roundtrip_works() {
+        let socket_dir = TempDir::new().expect("socket dir");
+        let socket_path = AbsolutePathBuf::from_absolute_path(socket_dir.path().join("codex.sock"))
+            .expect("socket path should resolve");
+        let mut listener = UnixListener::bind(socket_path.as_path())
+            .await
+            .expect("listener should bind");
+        tokio::spawn(async move {
+            let stream = listener.accept().await.expect("accept should succeed");
+            let mut websocket = accept_async(stream)
+                .await
+                .expect("websocket upgrade should succeed");
+            expect_remote_initialize(&mut websocket).await;
+            let JSONRPCMessage::Request(request) = read_websocket_message(&mut websocket).await
+            else {
+                panic!("expected account/read request");
+            };
+            assert_eq!(request.method, "account/read");
+            write_websocket_message(
+                &mut websocket,
+                JSONRPCMessage::Response(JSONRPCResponse {
+                    id: request.id,
+                    result: serde_json::to_value(GetAccountResponse {
+                        account: None,
+                        requires_openai_auth: false,
+                    })
+                    .expect("response should serialize"),
+                }),
+            )
+            .await;
+            websocket.close(None).await.expect("close should succeed");
+        });
+        let client = RemoteAppServerClient::connect(RemoteAppServerConnectArgs {
+            endpoint: RemoteAppServerEndpoint::UnixSocket { socket_path },
+            client_name: "codex-app-server-client-test".to_string(),
+            client_version: "0.0.0-test".to_string(),
+            experimental_api: true,
+            opt_out_notification_methods: Vec::new(),
+            channel_capacity: 8,
+        })
+        .await
+        .expect("remote client should connect");
+
+        let response: GetAccountResponse = client
+            .request_typed(ClientRequest::GetAccount {
+                request_id: RequestId::Integer(1),
+                params: codex_app_server_protocol::GetAccountParams {
+                    refresh_token: false,
+                },
+            })
+            .await
+            .expect("typed request should succeed");
+        assert_eq!(response.account, None);
+
+        client.shutdown().await.expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn remote_typed_request_accepts_large_single_frame_response() {
+        let padding = "x".repeat((17 << 20) + 1024);
+        let websocket_url = start_test_remote_server(move |mut websocket| async move {
+            expect_remote_initialize(&mut websocket).await;
+            let JSONRPCMessage::Request(request) = read_websocket_message(&mut websocket).await
+            else {
+                panic!("expected account/read request");
+            };
+            assert_eq!(request.method, "account/read");
+            write_websocket_message(
+                &mut websocket,
+                JSONRPCMessage::Response(JSONRPCResponse {
+                    id: request.id,
+                    result: serde_json::json!({
+                        "account": null,
+                        "requiresOpenaiAuth": false,
+                        "padding": padding,
+                    }),
+                }),
+            )
+            .await;
+            websocket.close(None).await.expect("close should succeed");
+        })
+        .await;
+        let client = RemoteAppServerClient::connect(test_remote_connect_args(websocket_url))
+            .await
+            .expect("remote client should connect");
+
+        let response: GetAccountResponse = client
+            .request_typed(ClientRequest::GetAccount {
+                request_id: RequestId::Integer(1),
+                params: codex_app_server_protocol::GetAccountParams {
+                    refresh_token: false,
+                },
+            })
+            .await
+            .expect("large typed request should succeed");
+        assert_eq!(
+            response,
+            GetAccountResponse {
+                account: None,
+                requires_openai_auth: false,
+            }
+        );
 
         client.shutdown().await.expect("shutdown should complete");
     }
@@ -1398,8 +1816,15 @@ mod tests {
         )
         .await;
         let client = RemoteAppServerClient::connect(RemoteAppServerConnectArgs {
-            auth_token: Some(auth_token),
-            ..test_remote_connect_args(websocket_url)
+            endpoint: RemoteAppServerEndpoint::WebSocket {
+                websocket_url,
+                auth_token: Some(auth_token),
+            },
+            client_name: "codex-app-server-client-test".to_string(),
+            client_version: "0.0.0-test".to_string(),
+            experimental_api: true,
+            opt_out_notification_methods: Vec::new(),
+            channel_capacity: 8,
         })
         .await
         .expect("remote client should connect");
@@ -1410,9 +1835,15 @@ mod tests {
     #[tokio::test]
     async fn remote_connect_rejects_non_loopback_ws_when_auth_configured() {
         let result = RemoteAppServerClient::connect(RemoteAppServerConnectArgs {
-            websocket_url: "ws://example.com:4500".to_string(),
-            auth_token: Some("remote-bearer-token".to_string()),
-            ..test_remote_connect_args("ws://127.0.0.1:1".to_string())
+            endpoint: RemoteAppServerEndpoint::WebSocket {
+                websocket_url: "ws://example.com:4500".to_string(),
+                auth_token: Some("remote-bearer-token".to_string()),
+            },
+            client_name: "codex-app-server-client-test".to_string(),
+            client_version: "0.0.0-test".to_string(),
+            experimental_api: true,
+            opt_out_notification_methods: Vec::new(),
+            channel_capacity: 8,
         })
         .await;
         let err = match result {
@@ -1590,13 +2021,8 @@ mod tests {
         })
         .await;
         let mut client = RemoteAppServerClient::connect(RemoteAppServerConnectArgs {
-            websocket_url,
-            auth_token: None,
-            client_name: "codex-app-server-client-test".to_string(),
-            client_version: "0.0.0-test".to_string(),
-            experimental_api: true,
-            opt_out_notification_methods: Vec::new(),
             channel_capacity: 1,
+            ..test_remote_connect_args(websocket_url)
         })
         .await
         .expect("remote client should connect");
@@ -1860,11 +2286,15 @@ mod tests {
             method: "thread/read".to_string(),
             source: JSONRPCErrorError {
                 code: -32603,
-                data: None,
+                data: Some(serde_json::json!({"detail": "config lock mismatch"})),
                 message: "internal".to_string(),
             },
         };
         assert_eq!(std::error::Error::source(&server).is_some(), false);
+        assert_eq!(
+            server.to_string(),
+            "thread/read failed: internal (code -32603), data: {\"detail\":\"config lock mismatch\"}"
+        );
 
         let deserialize = TypedRequestError::Deserialize {
             method: "thread/start".to_string(),
@@ -1911,6 +2341,7 @@ mod tests {
                         thread_id: "thread".to_string(),
                         turn: codex_app_server_protocol::Turn {
                             id: "turn".to_string(),
+                            items_view: codex_app_server_protocol::TurnItemsView::Full,
                             items: Vec::new(),
                             status: codex_app_server_protocol::TurnStatus::Completed,
                             error: None,
@@ -1940,6 +2371,7 @@ mod tests {
                     codex_app_server_protocol::ItemCompletedNotification {
                         thread_id: "thread".to_string(),
                         turn_id: "turn".to_string(),
+                        completed_at_ms: 0,
                         item: codex_app_server_protocol::ThreadItem::AgentMessage {
                             id: "item".to_string(),
                             text: "hello".to_string(),
@@ -1970,23 +2402,30 @@ mod tests {
     #[tokio::test]
     async fn runtime_start_args_forward_environment_manager() {
         let config = Arc::new(build_test_config().await);
-        let environment_manager = Arc::new(EnvironmentManager::new(EnvironmentManagerArgs {
-            exec_server_url: Some("ws://127.0.0.1:8765".to_string()),
-            local_runtime_paths: ExecServerRuntimePaths::new(
-                std::env::current_exe().expect("current exe"),
-                /*codex_linux_sandbox_exe*/ None,
+        let environment_manager = Arc::new(
+            EnvironmentManager::create_for_tests(
+                Some("ws://127.0.0.1:8765".to_string()),
+                Some(
+                    ExecServerRuntimePaths::new(
+                        std::env::current_exe().expect("current exe"),
+                        /*codex_linux_sandbox_exe*/ None,
+                    )
+                    .expect("runtime paths"),
+                ),
             )
-            .expect("runtime paths"),
-        }));
+            .await,
+        );
 
         let runtime_args = InProcessClientStartArgs {
             arg0_paths: Arg0DispatchPaths::default(),
             config: config.clone(),
             cli_overrides: Vec::new(),
             loader_overrides: LoaderOverrides::default(),
-            cloud_requirements: CloudRequirementsLoader::default(),
+            strict_config: false,
+            cloud_config_bundle: CloudConfigBundleLoader::default(),
             feedback: CodexFeedback::new(),
             log_db: None,
+            state_db: None,
             environment_manager: environment_manager.clone(),
             config_warnings: Vec::new(),
             session_source: SessionSource::Exec,
@@ -2014,8 +2453,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn runtime_start_args_use_remote_thread_config_loader_when_configured() {
+        let mut config = build_test_config().await;
+        config.experimental_thread_config_endpoint = Some("not-a-valid-endpoint".to_string());
+
+        let runtime_args = InProcessClientStartArgs {
+            arg0_paths: Arg0DispatchPaths::default(),
+            config: Arc::new(config),
+            cli_overrides: Vec::new(),
+            loader_overrides: LoaderOverrides::default(),
+            strict_config: false,
+            cloud_config_bundle: CloudConfigBundleLoader::default(),
+            feedback: CodexFeedback::new(),
+            log_db: None,
+            state_db: None,
+            environment_manager: Arc::new(EnvironmentManager::default_for_tests()),
+            config_warnings: Vec::new(),
+            session_source: SessionSource::Exec,
+            enable_codex_api_key_env: false,
+            client_name: "codex-app-server-client-test".to_string(),
+            client_version: "0.0.0-test".to_string(),
+            experimental_api: true,
+            opt_out_notification_methods: Vec::new(),
+            channel_capacity: DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
+        }
+        .into_runtime_start_args();
+
+        let err = runtime_args
+            .thread_config_loader
+            .load(Default::default())
+            .await
+            .expect_err("configured remote loader should try to connect");
+        assert_eq!(
+            err.code(),
+            codex_config::ThreadConfigLoadErrorCode::RequestFailed
+        );
+    }
+
+    #[tokio::test]
     async fn shutdown_completes_promptly_without_retained_managers() {
         let client = start_test_client(SessionSource::Cli).await;
+
+        timeout(Duration::from_secs(1), client.shutdown())
+            .await
+            .expect("shutdown should not wait for the 5s fallback timeout")
+            .expect("shutdown should complete");
+    }
+
+    #[tokio::test]
+    async fn shutdown_after_gui_launch_completes_promptly() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+        let _url = client
+            .launch_gui_for_thread(thread_id)
+            .await
+            .expect("GUI launch URL should be created before shutdown");
 
         timeout(Duration::from_secs(1), client.shutdown())
             .await

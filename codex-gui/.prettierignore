@@ -1,0 +1,9 @@
+# Ignore artifacts:
+build
+coverage
+
+# Ignore lockfiles:
+pnpm-lock.yaml
+
+# Rust-generated projection fixtures:
+src/features/projection/__fixtures__/

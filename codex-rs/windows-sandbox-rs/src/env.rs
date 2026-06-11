@@ -1,10 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
+use anyhow::anyhow;
 use dirs_next::home_dir;
 use std::collections::HashMap;
 use std::env;
-use std::fs::{self, File};
+use std::fs::File;
+use std::fs::{self};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 pub fn normalize_null_device_env(env_map: &mut HashMap<String, String>) {
     let keys: Vec<String> = env_map.keys().cloned().collect();
@@ -26,6 +29,39 @@ pub fn ensure_non_interactive_pager(env_map: &mut HashMap<String, String>) {
         .entry("PAGER".into())
         .or_insert_with(|| "more.com".into());
     env_map.entry("LESS".into()).or_insert_with(|| "".into());
+}
+
+fn existing_env_key(env_map: &HashMap<String, String>, name: &str) -> Option<String> {
+    env_map
+        .keys()
+        .find(|key| key.eq_ignore_ascii_case(name))
+        .cloned()
+}
+
+fn parent_system_root() -> Option<String> {
+    ["SystemRoot", "WINDIR"].into_iter().find_map(|key| {
+        env::var(key)
+            .ok()
+            .and_then(|value| (!value.is_empty()).then_some(value))
+    })
+}
+
+pub fn inherit_system_root_env(env_map: &mut HashMap<String, String>) {
+    let Some(system_root) = parent_system_root() else {
+        return;
+    };
+
+    if let Some(existing_key) = existing_env_key(env_map, "SystemRoot") {
+        if env_map
+            .get(&existing_key)
+            .is_some_and(|value| !value.is_empty())
+        {
+            return;
+        }
+        env_map.insert(existing_key, system_root);
+    } else {
+        env_map.insert("SystemRoot".into(), system_root);
+    }
 }
 
 // Keep PATH and PATHEXT stable for callers that rely on inheriting the parent process env.

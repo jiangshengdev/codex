@@ -1,0 +1,28 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "subscriptionId": "projection-fixture-subscription",
+  "commitId": "commit-turn-completed",
+  "parentCommitId": "commit-item-completed",
+  "event": {
+    "type": "turnCompleted",
+    "notification": {
+      "threadId": "00000000-0000-0000-0000-000000000001",
+      "turn": {
+        "id": "turn-in-progress",
+        "items": [
+          {
+            "type": "plan",
+            "id": "plan-item",
+            "text": "Implementation plan ready"
+          }
+        ],
+        "itemsView": "full",
+        "status": "completed",
+        "error": null,
+        "startedAt": 1700000010,
+        "completedAt": 1700000016,
+        "durationMs": 6000
+      }
+    }
+  }
+}

@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use std::path::Path;
 use tokio::io;
 use tracing::trace;
 
@@ -15,9 +16,12 @@ use crate::FileSystemSandboxContext;
 use crate::ReadDirectoryEntry;
 use crate::RemoveOptions;
 use crate::client::LazyRemoteExecServerClient;
+use crate::protocol::FsCanonicalizeParams;
 use crate::protocol::FsCopyParams;
 use crate::protocol::FsCreateDirectoryParams;
 use crate::protocol::FsGetMetadataParams;
+use crate::protocol::FsJoinParams;
+use crate::protocol::FsParentParams;
 use crate::protocol::FsReadDirectoryParams;
 use crate::protocol::FsReadFileParams;
 use crate::protocol::FsRemoveParams;
@@ -26,7 +30,6 @@ use crate::protocol::FsWriteFileParams;
 const INVALID_REQUEST_ERROR_CODE: i64 = -32600;
 const NOT_FOUND_ERROR_CODE: i64 = -32004;
 
-#[derive(Clone)]
 pub(crate) struct RemoteFileSystem {
     client: LazyRemoteExecServerClient,
 }
@@ -40,6 +43,50 @@ impl RemoteFileSystem {
 
 #[async_trait]
 impl ExecutorFileSystem for RemoteFileSystem {
+    async fn canonicalize(
+        &self,
+        path: &AbsolutePathBuf,
+        sandbox: Option<&FileSystemSandboxContext>,
+    ) -> FileSystemResult<AbsolutePathBuf> {
+        trace!("remote fs canonicalize");
+        let client = self.client.get().await.map_err(map_remote_error)?;
+        let response = client
+            .fs_canonicalize(FsCanonicalizeParams {
+                path: path.clone(),
+                sandbox: remote_sandbox_context(sandbox),
+            })
+            .await
+            .map_err(map_remote_error)?;
+        Ok(response.path)
+    }
+
+    async fn join(
+        &self,
+        base_path: &AbsolutePathBuf,
+        path: &Path,
+    ) -> FileSystemResult<AbsolutePathBuf> {
+        trace!("remote fs join");
+        let client = self.client.get().await.map_err(map_remote_error)?;
+        let response = client
+            .fs_join(FsJoinParams {
+                base_path: base_path.clone(),
+                path: path.to_path_buf(),
+            })
+            .await
+            .map_err(map_remote_error)?;
+        Ok(response.path)
+    }
+
+    async fn parent(&self, path: &AbsolutePathBuf) -> FileSystemResult<Option<AbsolutePathBuf>> {
+        trace!("remote fs parent");
+        let client = self.client.get().await.map_err(map_remote_error)?;
+        let response = client
+            .fs_parent(FsParentParams { path: path.clone() })
+            .await
+            .map_err(map_remote_error)?;
+        Ok(response.path)
+    }
+
     async fn read_file(
         &self,
         path: &AbsolutePathBuf,
@@ -50,7 +97,7 @@ impl ExecutorFileSystem for RemoteFileSystem {
         let response = client
             .fs_read_file(FsReadFileParams {
                 path: path.clone(),
-                sandbox: sandbox.cloned(),
+                sandbox: remote_sandbox_context(sandbox),
             })
             .await
             .map_err(map_remote_error)?;
@@ -74,7 +121,7 @@ impl ExecutorFileSystem for RemoteFileSystem {
             .fs_write_file(FsWriteFileParams {
                 path: path.clone(),
                 data_base64: STANDARD.encode(contents),
-                sandbox: sandbox.cloned(),
+                sandbox: remote_sandbox_context(sandbox),
             })
             .await
             .map_err(map_remote_error)?;
@@ -93,7 +140,7 @@ impl ExecutorFileSystem for RemoteFileSystem {
             .fs_create_directory(FsCreateDirectoryParams {
                 path: path.clone(),
                 recursive: Some(options.recursive),
-                sandbox: sandbox.cloned(),
+                sandbox: remote_sandbox_context(sandbox),
             })
             .await
             .map_err(map_remote_error)?;
@@ -110,7 +157,7 @@ impl ExecutorFileSystem for RemoteFileSystem {
         let response = client
             .fs_get_metadata(FsGetMetadataParams {
                 path: path.clone(),
-                sandbox: sandbox.cloned(),
+                sandbox: remote_sandbox_context(sandbox),
             })
             .await
             .map_err(map_remote_error)?;
@@ -133,7 +180,7 @@ impl ExecutorFileSystem for RemoteFileSystem {
         let response = client
             .fs_read_directory(FsReadDirectoryParams {
                 path: path.clone(),
-                sandbox: sandbox.cloned(),
+                sandbox: remote_sandbox_context(sandbox),
             })
             .await
             .map_err(map_remote_error)?;
@@ -161,7 +208,7 @@ impl ExecutorFileSystem for RemoteFileSystem {
                 path: path.clone(),
                 recursive: Some(options.recursive),
                 force: Some(options.force),
-                sandbox: sandbox.cloned(),
+                sandbox: remote_sandbox_context(sandbox),
             })
             .await
             .map_err(map_remote_error)?;
@@ -182,12 +229,20 @@ impl ExecutorFileSystem for RemoteFileSystem {
                 source_path: source_path.clone(),
                 destination_path: destination_path.clone(),
                 recursive: options.recursive,
-                sandbox: sandbox.cloned(),
+                sandbox: remote_sandbox_context(sandbox),
             })
             .await
             .map_err(map_remote_error)?;
         Ok(())
     }
+}
+
+fn remote_sandbox_context(
+    sandbox: Option<&FileSystemSandboxContext>,
+) -> Option<FileSystemSandboxContext> {
+    sandbox
+        .cloned()
+        .map(FileSystemSandboxContext::drop_cwd_if_unused)
 }
 
 fn map_remote_error(error: ExecServerError) -> io::Error {
@@ -208,9 +263,57 @@ fn map_remote_error(error: ExecServerError) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    use codex_protocol::models::PermissionProfile;
+    use codex_protocol::permissions::FileSystemAccessMode;
+    use codex_protocol::permissions::FileSystemPath;
+    use codex_protocol::permissions::FileSystemSandboxEntry;
+    use codex_protocol::permissions::FileSystemSandboxPolicy;
+    use codex_protocol::permissions::FileSystemSpecialPath;
+    use codex_protocol::permissions::NetworkSandboxPolicy;
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn remote_sandbox_context_drops_unused_cwd() {
+        let policy = FileSystemSandboxPolicy::restricted(vec![FileSystemSandboxEntry {
+            path: FileSystemPath::Path {
+                path: absolute_test_path("remote-root"),
+            },
+            access: FileSystemAccessMode::Read,
+        }]);
+        let permissions =
+            PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted);
+        let sandbox_context = FileSystemSandboxContext::from_permission_profile_with_cwd(
+            permissions,
+            absolute_test_path("host-checkout"),
+        );
+
+        let remote_context =
+            remote_sandbox_context(Some(&sandbox_context)).expect("remote sandbox context");
+
+        assert_eq!(remote_context.cwd, None);
+    }
+
+    #[test]
+    fn remote_sandbox_context_preserves_required_cwd() {
+        let policy = FileSystemSandboxPolicy::restricted(vec![FileSystemSandboxEntry {
+            path: FileSystemPath::Special {
+                value: FileSystemSpecialPath::project_roots(/*subpath*/ None),
+            },
+            access: FileSystemAccessMode::Write,
+        }]);
+        let permissions =
+            PermissionProfile::from_runtime_permissions(&policy, NetworkSandboxPolicy::Restricted);
+        let cwd = absolute_test_path("host-checkout");
+        let sandbox_context =
+            FileSystemSandboxContext::from_permission_profile_with_cwd(permissions, cwd.clone());
+
+        let remote_context =
+            remote_sandbox_context(Some(&sandbox_context)).expect("remote sandbox context");
+
+        assert_eq!(remote_context.cwd, Some(cwd));
+    }
 
     #[test]
     fn transport_errors_map_to_broken_pipe() {
@@ -240,5 +343,10 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    fn absolute_test_path(name: &str) -> AbsolutePathBuf {
+        let path = std::env::temp_dir().join(name);
+        AbsolutePathBuf::from_absolute_path(&path).expect("absolute path")
     }
 }

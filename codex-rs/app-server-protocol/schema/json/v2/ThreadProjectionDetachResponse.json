@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ThreadProjectionDetachStatus": {
+      "enum": [
+        "detached",
+        "notSubscribed",
+        "notLoaded"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "status": {
+      "$ref": "#/definitions/ThreadProjectionDetachStatus"
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "ThreadProjectionDetachResponse",
+  "type": "object"
+}

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
-use app_test_support::McpProcess;
+use app_test_support::TestAppServer;
 use app_test_support::create_final_assistant_message_sse_response;
 use app_test_support::create_mock_responses_server_sequence_unchecked;
 use app_test_support::create_shell_command_sse_response;
@@ -72,6 +72,7 @@ use wiremock::matchers::path;
 use wiremock::matchers::path_regex;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+const DELEGATED_SHELL_TOOL_TIMEOUT_MS: u64 = 30_000;
 const STARTUP_CONTEXT_HEADER: &str = "Startup context from Codex.";
 const V2_STEERING_ACKNOWLEDGEMENT: &str =
     "This was sent to steer the previous background agent task.";
@@ -190,7 +191,7 @@ struct RealtimeSidebandScript {
 }
 
 struct RealtimeE2eHarness {
-    mcp: McpProcess,
+    mcp: TestAppServer,
     _codex_home: TempDir,
     main_loop_responses_server: MockServer,
     realtime_server: WebSocketTestServer,
@@ -279,8 +280,8 @@ impl RealtimeE2eHarness {
             sandbox,
         )?;
 
-        let mut mcp = McpProcess::new(codex_home.path()).await?;
-        mcp.initialize().await?;
+        let mut mcp = TestAppServer::new(codex_home.path()).await?;
+        timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
         login_with_api_key(&mut mcp, "sk-test-key").await?;
 
         let thread_start_request_id = mcp
@@ -312,7 +313,7 @@ impl RealtimeE2eHarness {
                 thread_id: self.thread_id.clone(),
                 output_modality: RealtimeOutputModality::Audio,
                 prompt: Some(Some("backend prompt".to_string())),
-                session_id: None,
+                realtime_session_id: None,
                 transport: Some(ThreadRealtimeStartTransport::Webrtc {
                     sdp: offer_sdp.to_string(),
                 }),
@@ -344,10 +345,16 @@ impl RealtimeE2eHarness {
     /// Returns the nth JSON message app-server wrote to the fake Realtime API
     /// sideband websocket.
     async fn sideband_outbound_request(&self, request_index: usize) -> Value {
-        self.realtime_server
-            .wait_for_request(/*connection_index*/ 0, request_index)
-            .await
-            .body_json()
+        timeout(
+            DEFAULT_TIMEOUT,
+            self.realtime_server
+                .wait_for_request(/*connection_index*/ 0, request_index),
+        )
+        .await
+        .unwrap_or_else(|_| {
+            panic!("timed out waiting for realtime sideband request {request_index}")
+        })
+        .body_json()
     }
 
     async fn append_audio(&mut self, thread_id: String) -> Result<()> {
@@ -433,10 +440,10 @@ fn open_realtime_sideband_connection(
     }
 }
 
-fn session_updated(session_id: &str) -> Value {
+fn session_updated(realtime_session_id: &str) -> Value {
     json!({
         "type": "session.updated",
-        "session": { "id": session_id, "instructions": "backend prompt" }
+        "session": { "id": realtime_session_id, "instructions": "backend prompt" }
     })
 }
 
@@ -532,8 +539,8 @@ async fn realtime_conversation_streams_v2_notifications() -> Result<()> {
         StartupContextConfig::Generated,
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    mcp.initialize().await?;
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
     login_with_api_key(&mut mcp, "sk-test-key").await?;
 
     let thread_start_request_id = mcp
@@ -551,7 +558,7 @@ async fn realtime_conversation_streams_v2_notifications() -> Result<()> {
             thread_id: thread_start.thread.id.clone(),
             output_modality: RealtimeOutputModality::Audio,
             prompt: None,
-            session_id: None,
+            realtime_session_id: None,
             transport: None,
             voice: Some(RealtimeVoice::Cedar),
         })
@@ -567,7 +574,7 @@ async fn realtime_conversation_streams_v2_notifications() -> Result<()> {
         read_notification::<ThreadRealtimeStartedNotification>(&mut mcp, "thread/realtime/started")
             .await?;
     assert_eq!(started.thread_id, thread_start.thread.id);
-    assert!(started.session_id.is_some());
+    assert!(started.realtime_session_id.is_some());
     assert_eq!(started.version, RealtimeConversationVersion::V2);
 
     let startup_context_request = realtime_server
@@ -781,8 +788,8 @@ async fn realtime_text_output_modality_requests_text_output_and_final_transcript
         StartupContextConfig::Generated,
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    mcp.initialize().await?;
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
     login_with_api_key(&mut mcp, "sk-test-key").await?;
 
     let thread_start_request_id = mcp
@@ -800,7 +807,7 @@ async fn realtime_text_output_modality_requests_text_output_and_final_transcript
             thread_id: thread_start.thread.id.clone(),
             output_modality: RealtimeOutputModality::Text,
             prompt: None,
-            session_id: None,
+            realtime_session_id: None,
             transport: None,
             voice: None,
         })
@@ -883,8 +890,8 @@ async fn realtime_list_voices_returns_supported_names() -> Result<()> {
         StartupContextConfig::Generated,
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    mcp.initialize().await?;
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
 
     let request_id = mcp
         .send_thread_realtime_list_voices_request(ThreadRealtimeListVoicesParams {})
@@ -955,8 +962,8 @@ async fn realtime_conversation_stop_emits_closed_notification() -> Result<()> {
         StartupContextConfig::Generated,
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    mcp.initialize().await?;
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
     login_with_api_key(&mut mcp, "sk-test-key").await?;
 
     let thread_start_request_id = mcp
@@ -974,7 +981,7 @@ async fn realtime_conversation_stop_emits_closed_notification() -> Result<()> {
             thread_id: thread_start.thread.id.clone(),
             output_modality: RealtimeOutputModality::Audio,
             prompt: Some(Some("backend prompt".to_string())),
-            session_id: None,
+            realtime_session_id: None,
             transport: None,
             voice: None,
         })
@@ -1051,8 +1058,8 @@ async fn realtime_webrtc_start_emits_sdp_notification() -> Result<()> {
         StartupContextConfig::Override("startup context"),
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    mcp.initialize().await?;
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
     login_with_api_key(&mut mcp, "sk-test-key").await?;
 
     let thread_start_request_id = mcp
@@ -1071,7 +1078,7 @@ async fn realtime_webrtc_start_emits_sdp_notification() -> Result<()> {
             thread_id: thread_id.clone(),
             output_modality: RealtimeOutputModality::Audio,
             prompt: Some(Some("backend prompt".to_string())),
-            session_id: None,
+            realtime_session_id: None,
             transport: Some(ThreadRealtimeStartTransport::Webrtc {
                 sdp: "v=offer\r\n".to_string(),
             }),
@@ -1201,7 +1208,7 @@ async fn webrtc_v1_start_posts_offer_returns_sdp_and_joins_sideband() -> Result<
         StartedWebrtcRealtime {
             started: ThreadRealtimeStartedNotification {
                 thread_id: harness.thread_id.clone(),
-                session_id: Some(harness.thread_id.clone()),
+                realtime_session_id: Some(harness.thread_id.clone()),
                 version: RealtimeConversationVersion::V1,
             },
             sdp: ThreadRealtimeSdpNotification {
@@ -1218,13 +1225,13 @@ async fn webrtc_v1_start_posts_offer_returns_sdp_and_joins_sideband() -> Result<
         "v=offer\r\n",
         v1_session_create_json(),
     )?;
+
+    let session_update = harness.sideband_outbound_request(/*request_index*/ 0).await;
+    assert_v1_session_update(&session_update)?;
     assert_eq!(
         harness.realtime_server.single_handshake().uri(),
         "/v1/realtime?intent=quicksilver&call_id=rtc_e2e"
     );
-
-    let session_update = harness.sideband_outbound_request(/*request_index*/ 0).await;
-    assert_v1_session_update(&session_update)?;
 
     let closed = timeout(
         Duration::from_millis(100),
@@ -1781,7 +1788,9 @@ async fn webrtc_v2_tool_call_delegated_turn_can_execute_shell_tool() -> Result<(
         create_shell_command_sse_response(
             realtime_tool_ok_command(),
             /*workdir*/ None,
-            Some(5000),
+            // Windows CI can spend several seconds starting the nested PowerShell command. This
+            // test verifies delegated shell-tool plumbing, not timeout enforcement.
+            Some(DELEGATED_SHELL_TOOL_TIMEOUT_MS),
             "shell_call",
         )?,
         create_final_assistant_message_sse_response("shell tool finished")?,
@@ -1964,8 +1973,8 @@ async fn realtime_webrtc_start_surfaces_backend_error() -> Result<()> {
         StartupContextConfig::Override("startup context"),
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    mcp.initialize().await?;
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
     login_with_api_key(&mut mcp, "sk-test-key").await?;
 
     // Phase 2: start a normal app-server thread and request realtime over WebRTC.
@@ -1984,7 +1993,7 @@ async fn realtime_webrtc_start_surfaces_backend_error() -> Result<()> {
             thread_id: thread_start.thread.id,
             output_modality: RealtimeOutputModality::Audio,
             prompt: Some(Some("backend prompt".to_string())),
-            session_id: None,
+            realtime_session_id: None,
             transport: Some(ThreadRealtimeStartTransport::Webrtc {
                 sdp: "v=offer\r\n".to_string(),
             }),
@@ -2025,8 +2034,8 @@ async fn realtime_conversation_requires_feature_flag() -> Result<()> {
         StartupContextConfig::Generated,
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
-    mcp.initialize().await?;
+    let mut mcp = TestAppServer::new(codex_home.path()).await?;
+    timeout(DEFAULT_TIMEOUT, mcp.initialize()).await??;
 
     let thread_start_request_id = mcp
         .send_thread_start_request(ThreadStartParams::default())
@@ -2043,7 +2052,7 @@ async fn realtime_conversation_requires_feature_flag() -> Result<()> {
             thread_id: thread_start.thread.id.clone(),
             output_modality: RealtimeOutputModality::Audio,
             prompt: Some(Some("backend prompt".to_string())),
-            session_id: None,
+            realtime_session_id: None,
             transport: None,
             voice: None,
         })
@@ -2065,7 +2074,10 @@ async fn realtime_conversation_requires_feature_flag() -> Result<()> {
     Ok(())
 }
 
-async fn read_notification<T: DeserializeOwned>(mcp: &mut McpProcess, method: &str) -> Result<T> {
+async fn read_notification<T: DeserializeOwned>(
+    mcp: &mut TestAppServer,
+    method: &str,
+) -> Result<T> {
     let notification = timeout(
         DEFAULT_TIMEOUT,
         mcp.read_stream_until_notification_message(method),
@@ -2077,7 +2089,7 @@ async fn read_notification<T: DeserializeOwned>(mcp: &mut McpProcess, method: &s
     Ok(serde_json::from_value(params)?)
 }
 
-async fn login_with_api_key(mcp: &mut McpProcess, api_key: &str) -> Result<()> {
+async fn login_with_api_key(mcp: &mut TestAppServer, api_key: &str) -> Result<()> {
     let request_id = mcp.send_login_account_api_key_request(api_key).await?;
     let response: JSONRPCResponse = timeout(
         DEFAULT_TIMEOUT,
@@ -2091,7 +2103,7 @@ async fn login_with_api_key(mcp: &mut McpProcess, api_key: &str) -> Result<()> {
 }
 
 async fn wait_for_started_command_execution(
-    mcp: &mut McpProcess,
+    mcp: &mut TestAppServer,
 ) -> Result<ItemStartedNotification> {
     loop {
         let started = read_notification::<ItemStartedNotification>(mcp, "item/started").await?;
@@ -2102,7 +2114,7 @@ async fn wait_for_started_command_execution(
 }
 
 async fn wait_for_completed_command_execution(
-    mcp: &mut McpProcess,
+    mcp: &mut TestAppServer,
 ) -> Result<ItemCompletedNotification> {
     loop {
         let completed =

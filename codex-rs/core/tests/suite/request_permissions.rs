@@ -5,15 +5,16 @@ use codex_core::config::Constrained;
 use codex_core::sandboxing::SandboxPermissions;
 use codex_features::Feature;
 use codex_protocol::config_types::ApprovalsReviewer;
+use codex_protocol::models::AdditionalPermissionProfile as PermissionProfile;
 use codex_protocol::models::FileSystemPermissions;
-use codex_protocol::models::PermissionProfile;
+use codex_protocol::models::PermissionProfile as CorePermissionProfile;
+use codex_protocol::permissions::NetworkSandboxPolicy;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::ExecApprovalRequestEvent;
 use codex_protocol::protocol::GranularApprovalConfig;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::ReviewDecision;
-use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::request_permissions::PermissionGrantScope;
 use codex_protocol::request_permissions::RequestPermissionProfile;
 use codex_protocol::request_permissions::RequestPermissionsResponse;
@@ -30,7 +31,9 @@ use core_test_support::responses::start_mock_server;
 use core_test_support::skip_if_no_network;
 use core_test_support::skip_if_sandbox;
 use core_test_support::test_codex::TestCodex;
+use core_test_support::test_codex::local_selections;
 use core_test_support::test_codex::test_codex;
+use core_test_support::test_codex::turn_permission_fields;
 use core_test_support::wait_for_event;
 use pretty_assertions::assert_eq;
 use regex_lite::Regex;
@@ -182,27 +185,36 @@ async fn submit_turn(
     test: &TestCodex,
     prompt: &str,
     approval_policy: AskForApproval,
-    sandbox_policy: SandboxPolicy,
+    permission_profile: CorePermissionProfile,
 ) -> Result<()> {
     let session_model = test.session_configured.model.clone();
+    let (sandbox_policy, permission_profile) =
+        turn_permission_fields(permission_profile, test.cwd.path());
     test.codex
-        .submit(Op::UserTurn {
-            environments: None,
+        .submit(Op::UserInput {
             items: vec![UserInput::Text {
                 text: prompt.into(),
                 text_elements: Vec::new(),
             }],
             final_output_json_schema: None,
-            cwd: test.cwd.path().to_path_buf(),
-            approval_policy,
-            approvals_reviewer: Some(ApprovalsReviewer::User),
-            sandbox_policy,
-            model: session_model,
-            effort: None,
-            summary: None,
-            service_tier: None,
-            collaboration_mode: None,
-            personality: None,
+            responsesapi_client_metadata: None,
+            additional_context: Default::default(),
+            thread_settings: codex_protocol::protocol::ThreadSettingsOverrides {
+                environments: Some(local_selections(test.config.cwd.clone())),
+                approval_policy: Some(approval_policy),
+                approvals_reviewer: Some(ApprovalsReviewer::User),
+                sandbox_policy: Some(sandbox_policy),
+                permission_profile,
+                collaboration_mode: Some(codex_protocol::config_types::CollaborationMode {
+                    mode: codex_protocol::config_types::ModeKind::Default,
+                    settings: codex_protocol::config_types::Settings {
+                        model: session_model,
+                        reasoning_effort: None,
+                        developer_instructions: None,
+                    },
+                }),
+                ..Default::default()
+            },
         })
         .await?;
     Ok(())
@@ -282,14 +294,13 @@ async fn expect_request_permissions_event(
     }
 }
 
-fn workspace_write_excluding_tmp() -> SandboxPolicy {
-    SandboxPolicy::WorkspaceWrite {
-        writable_roots: vec![],
-        read_only_access: Default::default(),
-        network_access: false,
-        exclude_tmpdir_env_var: true,
-        exclude_slash_tmp: true,
-    }
+fn workspace_write_excluding_tmp() -> CorePermissionProfile {
+    CorePermissionProfile::workspace_write_with(
+        &[],
+        NetworkSandboxPolicy::Restricted,
+        /*exclude_tmpdir_env_var*/ true,
+        /*exclude_slash_tmp*/ true,
+    )
 }
 
 fn requested_directory_write_permissions(path: &Path) -> RequestPermissionProfile {
@@ -319,12 +330,15 @@ async fn with_additional_permissions_requires_approval_under_on_request() -> Res
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = SandboxPolicy::new_read_only_policy();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = CorePermissionProfile::read_only();
+    let permission_profile_for_config = CorePermissionProfile::read_only();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -370,7 +384,7 @@ async fn with_additional_permissions_requires_approval_under_on_request() -> Res
     )
     .await;
 
-    submit_turn(&test, call_id, approval_policy, sandbox_policy.clone()).await?;
+    submit_turn(&test, call_id, approval_policy, permission_profile.clone()).await?;
     let approval = expect_exec_approval(&test, command).await;
     assert_eq!(
         approval.additional_permissions,
@@ -414,12 +428,15 @@ async fn request_permissions_tool_is_auto_denied_when_granular_request_permissio
         request_permissions: false,
         mcp_elicitations: true,
     });
-    let sandbox_policy = SandboxPolicy::new_read_only_policy();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = CorePermissionProfile::read_only();
+    let permission_profile_for_config = CorePermissionProfile::read_only();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::RequestPermissionsTool)
@@ -459,7 +476,7 @@ async fn request_permissions_tool_is_auto_denied_when_granular_request_permissio
         &test,
         "request permissions under granular.request_permissions = false",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
 
@@ -483,6 +500,7 @@ async fn request_permissions_tool_is_auto_denied_when_granular_request_permissio
         RequestPermissionsResponse {
             permissions: RequestPermissionProfile::default(),
             scope: PermissionGrantScope::Turn,
+            strict_auto_review: false,
         }
     );
 
@@ -496,12 +514,15 @@ async fn relative_additional_permissions_resolve_against_tool_workdir() -> Resul
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = SandboxPolicy::new_read_only_policy();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = CorePermissionProfile::read_only();
+    let permission_profile_for_config = CorePermissionProfile::read_only();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -557,7 +578,7 @@ async fn relative_additional_permissions_resolve_against_tool_workdir() -> Resul
     )
     .await;
 
-    submit_turn(&test, call_id, approval_policy, sandbox_policy.clone()).await?;
+    submit_turn(&test, call_id, approval_policy, permission_profile.clone()).await?;
 
     let approval = expect_exec_approval(&test, command).await;
     assert_eq!(
@@ -597,12 +618,15 @@ async fn read_only_with_additional_permissions_does_not_widen_to_unrequested_cwd
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = SandboxPolicy::new_read_only_policy();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = CorePermissionProfile::read_only();
+    let permission_profile_for_config = CorePermissionProfile::read_only();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -651,7 +675,7 @@ async fn read_only_with_additional_permissions_does_not_widen_to_unrequested_cwd
     )
     .await;
 
-    submit_turn(&test, call_id, approval_policy, sandbox_policy.clone()).await?;
+    submit_turn(&test, call_id, approval_policy, permission_profile.clone()).await?;
 
     let approval = expect_exec_approval(&test, &command).await;
     assert_eq!(
@@ -697,12 +721,15 @@ async fn read_only_with_additional_permissions_does_not_widen_to_unrequested_tmp
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = SandboxPolicy::new_read_only_policy();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = CorePermissionProfile::read_only();
+    let permission_profile_for_config = CorePermissionProfile::read_only();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -752,7 +779,7 @@ async fn read_only_with_additional_permissions_does_not_widen_to_unrequested_tmp
     )
     .await;
 
-    submit_turn(&test, call_id, approval_policy, sandbox_policy.clone()).await?;
+    submit_turn(&test, call_id, approval_policy, permission_profile.clone()).await?;
 
     let approval = expect_exec_approval(&test, &command).await;
     assert_eq!(
@@ -796,12 +823,15 @@ async fn workspace_write_with_additional_permissions_can_write_outside_cwd() -> 
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -860,7 +890,7 @@ async fn workspace_write_with_additional_permissions_can_write_outside_cwd() -> 
     )
     .await;
 
-    submit_turn(&test, call_id, approval_policy, sandbox_policy.clone()).await?;
+    submit_turn(&test, call_id, approval_policy, permission_profile.clone()).await?;
 
     let approval = expect_exec_approval(&test, &command).await;
     assert_eq!(
@@ -900,12 +930,15 @@ async fn with_additional_permissions_denied_approval_blocks_execution() -> Resul
     skip_if_no_network!(Ok(()));
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -962,7 +995,7 @@ async fn with_additional_permissions_denied_approval_blocks_execution() -> Resul
     )
     .await;
 
-    submit_turn(&test, call_id, approval_policy, sandbox_policy.clone()).await?;
+    submit_turn(&test, call_id, approval_policy, permission_profile.clone()).await?;
 
     let approval = expect_exec_approval(&test, &command).await;
     assert_eq!(
@@ -1005,12 +1038,15 @@ async fn request_permissions_grants_apply_to_later_exec_command_calls() -> Resul
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -1074,7 +1110,7 @@ async fn request_permissions_grants_apply_to_later_exec_command_calls() -> Resul
         &test,
         "write outside the workspace",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
 
@@ -1089,6 +1125,7 @@ async fn request_permissions_grants_apply_to_later_exec_command_calls() -> Resul
             response: RequestPermissionsResponse {
                 permissions: normalized_requested_permissions.clone(),
                 scope: PermissionGrantScope::Turn,
+                strict_auto_review: false,
             },
         })
         .await?;
@@ -1128,12 +1165,15 @@ async fn request_permissions_preapprove_explicit_exec_permissions_outside_on_req
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -1188,7 +1228,7 @@ async fn request_permissions_preapprove_explicit_exec_permissions_outside_on_req
         &test,
         "write outside the workspace",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
 
@@ -1203,6 +1243,7 @@ async fn request_permissions_preapprove_explicit_exec_permissions_outside_on_req
             response: RequestPermissionsResponse {
                 permissions: normalized_requested_permissions,
                 scope: PermissionGrantScope::Turn,
+                strict_auto_review: false,
             },
         })
         .await?;
@@ -1245,12 +1286,15 @@ async fn request_permissions_grants_apply_to_later_shell_command_calls() -> Resu
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -1301,7 +1345,7 @@ async fn request_permissions_grants_apply_to_later_shell_command_calls() -> Resu
         &test,
         "write outside the workspace",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
 
@@ -1316,6 +1360,7 @@ async fn request_permissions_grants_apply_to_later_shell_command_calls() -> Resu
             response: RequestPermissionsResponse {
                 permissions: normalized_requested_permissions.clone(),
                 scope: PermissionGrantScope::Turn,
+                strict_auto_review: false,
             },
         })
         .await?;
@@ -1356,12 +1401,15 @@ async fn request_permissions_grants_apply_to_later_shell_command_calls_without_i
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::RequestPermissionsTool)
@@ -1410,7 +1458,7 @@ async fn request_permissions_grants_apply_to_later_shell_command_calls_without_i
         &test,
         "write outside the workspace without inline permission feature",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
 
@@ -1425,6 +1473,7 @@ async fn request_permissions_grants_apply_to_later_shell_command_calls_without_i
             response: RequestPermissionsResponse {
                 permissions: normalized_requested_permissions.clone(),
                 scope: PermissionGrantScope::Turn,
+                strict_auto_review: false,
             },
         })
         .await?;
@@ -1467,12 +1516,15 @@ async fn partial_request_permissions_grants_do_not_preapprove_new_permissions() 
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -1559,7 +1611,7 @@ async fn partial_request_permissions_grants_do_not_preapprove_new_permissions() 
         &test,
         "write outside the workspace",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
 
@@ -1571,6 +1623,7 @@ async fn partial_request_permissions_grants_do_not_preapprove_new_permissions() 
             response: RequestPermissionsResponse {
                 permissions: granted_permissions.clone(),
                 scope: PermissionGrantScope::Turn,
+                strict_auto_review: false,
             },
         })
         .await?;
@@ -1630,12 +1683,15 @@ async fn request_permissions_grants_do_not_carry_across_turns() -> Result<()> {
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -1677,7 +1733,7 @@ async fn request_permissions_grants_do_not_carry_across_turns() -> Result<()> {
         &test,
         "request permissions for later use",
         approval_policy,
-        sandbox_policy.clone(),
+        permission_profile.clone(),
     )
     .await?;
 
@@ -1692,6 +1748,7 @@ async fn request_permissions_grants_do_not_carry_across_turns() -> Result<()> {
             response: RequestPermissionsResponse {
                 permissions: normalized_requested_permissions,
                 scope: PermissionGrantScope::Turn,
+                strict_auto_review: false,
             },
         })
         .await?;
@@ -1721,7 +1778,7 @@ async fn request_permissions_grants_do_not_carry_across_turns() -> Result<()> {
         &test,
         "try to reuse permissions in a later turn",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
     wait_for_completion(&test).await;
@@ -1742,12 +1799,15 @@ async fn request_permissions_session_grants_carry_across_turns() -> Result<()> {
 
     let server = start_mock_server().await;
     let approval_policy = AskForApproval::OnRequest;
-    let sandbox_policy = workspace_write_excluding_tmp();
-    let sandbox_policy_for_config = sandbox_policy.clone();
+    let permission_profile = workspace_write_excluding_tmp();
+    let permission_profile_for_config = workspace_write_excluding_tmp();
 
     let mut builder = test_codex().with_config(move |config| {
         config.permissions.approval_policy = Constrained::allow_any(approval_policy);
-        config.permissions.sandbox_policy = Constrained::allow_any(sandbox_policy_for_config);
+        config
+            .permissions
+            .set_permission_profile(permission_profile_for_config)
+            .expect("set permission profile");
         config
             .features
             .enable(Feature::ExecPermissionApprovals)
@@ -1794,7 +1854,7 @@ async fn request_permissions_session_grants_carry_across_turns() -> Result<()> {
         &test,
         "request session permissions for later use",
         approval_policy,
-        sandbox_policy.clone(),
+        permission_profile.clone(),
     )
     .await?;
 
@@ -1809,6 +1869,7 @@ async fn request_permissions_session_grants_carry_across_turns() -> Result<()> {
             response: RequestPermissionsResponse {
                 permissions: normalized_requested_permissions,
                 scope: PermissionGrantScope::Session,
+                strict_auto_review: false,
             },
         })
         .await?;
@@ -1835,7 +1896,7 @@ async fn request_permissions_session_grants_carry_across_turns() -> Result<()> {
         &test,
         "reuse session permissions in a later turn",
         approval_policy,
-        sandbox_policy,
+        permission_profile,
     )
     .await?;
 

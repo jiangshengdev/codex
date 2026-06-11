@@ -50,10 +50,12 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use crate::analytics_utils::analytics_events_client_from_config;
 use crate::config_manager::ConfigManager;
-use crate::error_code::INTERNAL_ERROR_CODE;
-use crate::error_code::INVALID_REQUEST_ERROR_CODE;
 use crate::error_code::OVERLOADED_ERROR_CODE;
+use crate::error_code::internal_error;
+use crate::error_code::invalid_request;
+use crate::in_process_extra;
 use crate::message_processor::ConnectionSessionState;
 use crate::message_processor::MessageProcessor;
 use crate::message_processor::MessageProcessorArgs;
@@ -63,7 +65,6 @@ use crate::outgoing_message::OutgoingMessage;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::outgoing_message::QueuedOutgoingMessage;
 use crate::transport::CHANNEL_CAPACITY;
-use crate::transport::ConnectionOrigin;
 use crate::transport::OutboundConnectionState;
 use crate::transport::route_outgoing_envelope;
 use codex_analytics::AppServerRpcTransport;
@@ -77,14 +78,16 @@ use codex_app_server_protocol::Result;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_arg0::Arg0DispatchPaths;
+use codex_config::CloudConfigBundleLoader;
+use codex_config::LoaderOverrides;
 use codex_config::ThreadConfigLoader;
 use codex_core::config::Config;
-use codex_core::config_loader::CloudRequirementsLoader;
-use codex_core::config_loader::LoaderOverrides;
+use codex_core::resolve_installation_id;
 use codex_exec_server::EnvironmentManager;
 use codex_feedback::CodexFeedback;
 use codex_login::AuthManager;
 use codex_protocol::protocol::SessionSource;
+pub use codex_rollout::StateDbHandle;
 pub use codex_state::log_db::LogDbLayer;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -92,7 +95,7 @@ use tokio::time::timeout;
 use toml::Value as TomlValue;
 use tracing::warn;
 
-const IN_PROCESS_CONNECTION_ID: ConnectionId = ConnectionId(0);
+pub(crate) const IN_PROCESS_CONNECTION_ID: ConnectionId = ConnectionId(0);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 /// Default bounded channel capacity for in-process runtime queues.
 pub const DEFAULT_IN_PROCESS_CHANNEL_CAPACITY: usize = CHANNEL_CAPACITY;
@@ -100,7 +103,10 @@ pub const DEFAULT_IN_PROCESS_CHANNEL_CAPACITY: usize = CHANNEL_CAPACITY;
 type PendingClientRequestResponse = std::result::Result<Result, JSONRPCErrorError>;
 
 fn server_notification_requires_delivery(notification: &ServerNotification) -> bool {
-    matches!(notification, ServerNotification::TurnCompleted(_))
+    matches!(
+        notification,
+        ServerNotification::TurnCompleted(_) | ServerNotification::ThreadSettingsUpdated(_)
+    )
 }
 
 /// Input needed to start an in-process app-server runtime.
@@ -117,14 +123,18 @@ pub struct InProcessStartArgs {
     pub cli_overrides: Vec<(String, TomlValue)>,
     /// Loader override knobs used by config API paths.
     pub loader_overrides: LoaderOverrides,
-    /// Preloaded cloud requirements provider.
-    pub cloud_requirements: CloudRequirementsLoader,
+    /// Whether config API paths should reject unknown config fields.
+    pub strict_config: bool,
+    /// Preloaded cloud config bundle provider.
+    pub cloud_config_bundle: CloudConfigBundleLoader,
     /// Loader used to fetch typed thread config sources before a thread starts.
     pub thread_config_loader: Arc<dyn ThreadConfigLoader>,
     /// Feedback sink used by app-server/core telemetry and logs.
     pub feedback: CodexFeedback,
     /// SQLite tracing layer used to flush recently emitted logs before feedback upload.
     pub log_db: Option<LogDbLayer>,
+    /// Process-wide SQLite state handle shared with embedded app-server consumers.
+    pub state_db: Option<StateDbHandle>,
     /// Environment manager used by core execution and filesystem operations.
     pub environment_manager: Arc<EnvironmentManager>,
     /// Startup warnings emitted after initialize succeeds.
@@ -158,7 +168,7 @@ pub enum InProcessServerEvent {
 /// Requests carry a oneshot sender for the response; notifications and server-request
 /// replies are fire-and-forget from the caller's perspective (transport errors are
 /// caught by `try_send` on the outer channel).
-enum InProcessClientMessage {
+pub(crate) enum InProcessClientMessage {
     Request {
         request: Box<ClientRequest>,
         response_tx: oneshot::Sender<PendingClientRequestResponse>,
@@ -166,6 +176,7 @@ enum InProcessClientMessage {
     Notification {
         notification: ClientNotification,
     },
+    Extra(Box<in_process_extra::ExtraConnectionCommand>),
     ServerRequestResponse {
         request_id: RequestId,
         result: Result,
@@ -182,6 +193,7 @@ enum InProcessClientMessage {
 enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
+    Extra(Box<in_process_extra::ExtraProcessorCommand>),
 }
 
 #[derive(Clone)]
@@ -206,6 +218,14 @@ impl InProcessClientSender {
 
     pub fn notify(&self, notification: ClientNotification) -> IoResult<()> {
         self.try_send_client_message(InProcessClientMessage::Notification { notification })
+    }
+
+    pub(crate) fn register_extra_connection(
+        &self,
+        outgoing_tx: mpsc::Sender<String>,
+    ) -> IoResult<in_process_extra::ExtraConnectionHandle> {
+        in_process_extra::ExtraConnectionCommandSender::new(self.client_tx.clone())
+            .open(outgoing_tx)
     }
 
     pub fn respond_to_server_request(&self, request_id: RequestId, result: Result) -> IoResult<()> {
@@ -250,6 +270,8 @@ pub struct InProcessClientHandle {
     client: InProcessClientSender,
     event_rx: mpsc::Receiver<InProcessServerEvent>,
     runtime_handle: tokio::task::JoinHandle<()>,
+    #[cfg(test)]
+    _test_codex_home: Option<tempfile::TempDir>,
 }
 
 impl InProcessClientHandle {
@@ -338,7 +360,7 @@ impl InProcessClientHandle {
 /// the runtime is shut down and an `InvalidData` error is returned.
 pub async fn start(args: InProcessStartArgs) -> IoResult<InProcessClientHandle> {
     let initialize = args.initialize.clone();
-    let client = start_uninitialized(args);
+    let client = start_uninitialized(args).await?;
 
     let initialize_response = client
         .request(ClientRequest::Initialize {
@@ -358,14 +380,25 @@ pub async fn start(args: InProcessStartArgs) -> IoResult<InProcessClientHandle> 
     Ok(client)
 }
 
-fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
+async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClientHandle> {
     let channel_capacity = args.channel_capacity.max(1);
+    let installation_id = resolve_installation_id(&args.config.codex_home).await?;
     let (client_tx, mut client_rx) = mpsc::channel::<InProcessClientMessage>(channel_capacity);
     let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
     let runtime_handle = tokio::spawn(async move {
         let (outgoing_tx, mut outgoing_rx) = mpsc::channel::<OutgoingEnvelope>(channel_capacity);
-        let outgoing_message_sender = Arc::new(OutgoingMessageSender::new(outgoing_tx));
+        let auth_manager =
+            AuthManager::shared_from_config(args.config.as_ref(), args.enable_codex_api_key_env)
+                .await;
+        let analytics_events_client =
+            analytics_events_client_from_config(Arc::clone(&auth_manager), args.config.as_ref());
+        let outgoing_message_sender = Arc::new(OutgoingMessageSender::new(
+            outgoing_tx,
+            analytics_events_client.clone(),
+        ));
+        let (outbound_control_tx, mut outbound_control_rx) =
+            mpsc::channel::<in_process_extra::OutboundControl>(channel_capacity);
 
         let (writer_tx, mut writer_rx) = mpsc::channel::<QueuedOutgoingMessage>(channel_capacity);
         let outbound_initialized = Arc::new(AtomicBool::new(false));
@@ -384,19 +417,38 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
             ),
         );
         let mut outbound_handle = tokio::spawn(async move {
-            while let Some(envelope) = outgoing_rx.recv().await {
-                route_outgoing_envelope(&mut outbound_connections, envelope).await;
+            loop {
+                tokio::select! {
+                    biased;
+
+                    control = outbound_control_rx.recv() => {
+                        if let Some(control) = control {
+                            in_process_extra::handle_outbound_control(
+                                &mut outbound_connections,
+                                control,
+                            );
+                        } else {
+                            break;
+                        }
+                    }
+                    envelope = outgoing_rx.recv() => {
+                        if let Some(envelope) = envelope {
+                            route_outgoing_envelope(&mut outbound_connections, envelope).await;
+                        } else {
+                            break;
+                        }
+                    }
+                }
             }
         });
 
         let processor_outgoing = Arc::clone(&outgoing_message_sender);
-        let auth_manager =
-            AuthManager::shared_from_config(args.config.as_ref(), args.enable_codex_api_key_env);
         let config_manager = ConfigManager::new(
             args.config.codex_home.to_path_buf(),
             args.cli_overrides,
             args.loader_overrides,
-            args.cloud_requirements,
+            args.strict_config,
+            args.cloud_config_bundle,
             args.arg0_paths.clone(),
             args.thread_config_loader,
         );
@@ -404,20 +456,25 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
         let mut processor_handle = tokio::spawn(async move {
             let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
                 outgoing: Arc::clone(&processor_outgoing),
+                analytics_events_client,
                 arg0_paths: args.arg0_paths,
                 config: args.config,
                 config_manager,
                 environment_manager: args.environment_manager,
                 feedback: args.feedback,
                 log_db: args.log_db,
+                state_db: args.state_db,
                 config_warnings: args.config_warnings,
                 session_source: args.session_source,
                 auth_manager,
+                installation_id,
                 rpc_transport: AppServerRpcTransport::InProcess,
                 remote_control_handle: None,
+                plugin_startup_tasks: crate::PluginStartupTasks::Start,
             }));
             let mut thread_created_rx = processor.thread_created_receiver();
-            let session = Arc::new(ConnectionSessionState::new(ConnectionOrigin::InProcess));
+            let session = Arc::new(ConnectionSessionState::new());
+            let mut extra_connections = in_process_extra::ExtraConnectionState::default();
             let mut listen_for_threads = true;
 
             loop {
@@ -458,6 +515,11 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                             Some(ProcessorCommand::Notification(notification)) => {
                                 processor.process_client_notification(notification).await;
                             }
+                            Some(ProcessorCommand::Extra(command)) => {
+                                extra_connections
+                                    .handle_processor_command(&processor, *command)
+                                    .await;
+                            }
                             None => {
                                 break;
                             }
@@ -466,11 +528,12 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                     created = thread_created_rx.recv(), if listen_for_threads => {
                         match created {
                             Ok(thread_id) => {
-                                let connection_ids = if session.initialized() {
+                                let mut connection_ids = if session.initialized() {
                                     vec![IN_PROCESS_CONNECTION_ID]
                                 } else {
                                     Vec::<ConnectionId>::new()
                                 };
+                                extra_connections.extend_initialized_connection_ids(&mut connection_ids);
                                 processor
                                     .try_attach_thread_listener(thread_id, connection_ids)
                                     .await;
@@ -488,7 +551,9 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
 
             processor.clear_runtime_references();
             processor.cancel_active_login().await;
-            processor.connection_closed(IN_PROCESS_CONNECTION_ID).await;
+            processor
+                .connection_closed(IN_PROCESS_CONNECTION_ID, &session)
+                .await;
             processor.clear_all_thread_listeners().await;
             processor.drain_background_tasks().await;
             processor.shutdown_threads().await;
@@ -509,11 +574,9 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                                     entry.insert(response_tx);
                                 }
                                 Entry::Occupied(_) => {
-                                    let _ = response_tx.send(Err(JSONRPCErrorError {
-                                        code: INVALID_REQUEST_ERROR_CODE,
-                                        message: format!("duplicate request id: {request_id:?}"),
-                                        data: None,
-                                    }));
+                                    let _ = response_tx.send(Err(invalid_request(format!(
+                                        "duplicate request id: {request_id:?}"
+                                    ))));
                                     continue;
                                 }
                             }
@@ -536,13 +599,9 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                                     if let Some(response_tx) =
                                         pending_request_responses.remove(&request_id)
                                     {
-                                        let _ = response_tx.send(Err(JSONRPCErrorError {
-                                            code: INTERNAL_ERROR_CODE,
-                                            message:
-                                                "in-process app-server request processor is closed"
-                                                    .to_string(),
-                                            data: None,
-                                        }));
+                                        let _ = response_tx.send(Err(internal_error(
+                                            "in-process app-server request processor is closed",
+                                        )));
                                     }
                                     break;
                                 }
@@ -556,6 +615,71 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                                 }
                                 Err(mpsc::error::TrySendError::Closed(_)) => {
                                     break;
+                                }
+                            }
+                        }
+                        Some(InProcessClientMessage::Extra(command)) => {
+                            match in_process_extra::prepare_client_command(*command, channel_capacity) {
+                                in_process_extra::PreparedExtraClientCommand::Opened(prepared) => {
+                                    let connection_id = prepared.connection_id;
+                                    if outbound_control_tx
+                                        .send(prepared.outbound_control)
+                                        .await
+                                        .is_err()
+                                    {
+                                        warn!("failed to register extra outbound state: {connection_id:?}");
+                                        break;
+                                    }
+                                    if processor_tx
+                                        .send(ProcessorCommand::Extra(Box::new(
+                                            prepared.processor_command,
+                                        )))
+                                        .await
+                                        .is_err()
+                                    {
+                                        warn!("failed to register extra processor state: {connection_id:?}");
+                                        break;
+                                    }
+                                }
+                                in_process_extra::PreparedExtraClientCommand::Request {
+                                    connection_id,
+                                    request_id,
+                                    processor_command,
+                                } => {
+                                    match processor_tx.try_send(ProcessorCommand::Extra(Box::new(
+                                        processor_command,
+                                    ))) {
+                                        Ok(()) => {}
+                                        Err(mpsc::error::TrySendError::Full(_)) => {
+                                            in_process_extra::try_send_request_queue_full_error(
+                                                &outbound_control_tx,
+                                                connection_id,
+                                                request_id,
+                                            );
+                                        }
+                                        Err(mpsc::error::TrySendError::Closed(_)) => {
+                                            break;
+                                        }
+                                    }
+                                }
+                                in_process_extra::PreparedExtraClientCommand::Notification(command) => {
+                                    if processor_tx
+                                        .try_send(ProcessorCommand::Extra(Box::new(command)))
+                                        .is_err()
+                                    {
+                                        warn!("dropping extra connection message (processor queue unavailable)");
+                                    }
+                                }
+                                in_process_extra::PreparedExtraClientCommand::Closed {
+                                    processor_command,
+                                    outbound_control,
+                                } => {
+                                    if outbound_control_tx.send(outbound_control).await.is_err() {
+                                        break;
+                                    }
+                                    let _ = processor_tx
+                                        .send(ProcessorCommand::Extra(Box::new(processor_command)))
+                                        .await;
                                 }
                             }
                         }
@@ -610,15 +734,20 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                             if let Err(send_error) = event_tx
                                 .try_send(InProcessServerEvent::ServerRequest(request))
                             {
-                                let (code, message, inner) = match send_error {
+                                let (error, inner) = match send_error {
                                     mpsc::error::TrySendError::Full(inner) => (
-                                        OVERLOADED_ERROR_CODE,
-                                        "in-process server request queue is full",
+                                        JSONRPCErrorError {
+                                            code: OVERLOADED_ERROR_CODE,
+                                            message:
+                                                "in-process server request queue is full".to_string(),
+                                            data: None,
+                                        },
                                         inner,
                                     ),
                                     mpsc::error::TrySendError::Closed(inner) => (
-                                        INTERNAL_ERROR_CODE,
-                                        "in-process server request consumer is closed",
+                                        internal_error(
+                                            "in-process server request consumer is closed",
+                                        ),
                                         inner,
                                     ),
                                 };
@@ -627,14 +756,7 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                                     _ => unreachable!("we just sent a ServerRequest variant"),
                                 };
                                 outgoing_message_sender
-                                    .notify_client_error(
-                                        request_id,
-                                        JSONRPCErrorError {
-                                            code,
-                                            message: message.to_string(),
-                                            data: None,
-                                        },
-                                    )
+                                    .notify_client_error(request_id, error)
                                     .await;
                             }
                         }
@@ -671,21 +793,17 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
         drop(writer_rx);
         drop(processor_tx);
         outgoing_message_sender
-            .cancel_all_requests(Some(JSONRPCErrorError {
-                code: INTERNAL_ERROR_CODE,
-                message: "in-process app-server runtime is shutting down".to_string(),
-                data: None,
-            }))
+            .cancel_all_requests(Some(internal_error(
+                "in-process app-server runtime is shutting down",
+            )))
             .await;
         // Drop the runtime's last sender before awaiting the router task so
         // `outgoing_rx.recv()` can observe channel closure and exit cleanly.
         drop(outgoing_message_sender);
         for (_, response_tx) in pending_request_responses {
-            let _ = response_tx.send(Err(JSONRPCErrorError {
-                code: INTERNAL_ERROR_CODE,
-                message: "in-process app-server runtime is shutting down".to_string(),
-                data: None,
-            }));
+            let _ = response_tx.send(Err(internal_error(
+                "in-process app-server runtime is shutting down",
+            )));
         }
 
         if let Err(_elapsed) = timeout(SHUTDOWN_TIMEOUT, &mut processor_handle).await {
@@ -702,38 +820,45 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
         }
     });
 
-    InProcessClientHandle {
+    Ok(InProcessClientHandle {
         client: InProcessClientSender { client_tx },
         event_rx,
         runtime_handle,
-    }
+        #[cfg(test)]
+        _test_codex_home: None,
+    })
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use codex_app_server_protocol::ClientInfo;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
-    use codex_app_server_protocol::DeviceKeyPublicParams;
-    use codex_app_server_protocol::DeviceKeySignParams;
-    use codex_app_server_protocol::DeviceKeySignPayload;
-    use codex_app_server_protocol::RemoteControlClientConnectionAudience;
-    use codex_app_server_protocol::RemoteControlClientEnrollmentAudience;
     use codex_app_server_protocol::SessionSource as ApiSessionSource;
     use codex_app_server_protocol::ThreadStartParams;
     use codex_app_server_protocol::ThreadStartResponse;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnCompletedNotification;
+    use codex_app_server_protocol::TurnItemsView;
     use codex_app_server_protocol::TurnStatus;
     use codex_core::config::ConfigBuilder;
     use pretty_assertions::assert_eq;
+    use std::path::Path;
+    use tempfile::TempDir;
 
-    async fn build_test_config() -> Config {
-        match ConfigBuilder::default().build().await {
+    async fn build_test_config(codex_home: &Path) -> Config {
+        match ConfigBuilder::default()
+            .codex_home(codex_home.to_path_buf())
+            .build()
+            .await
+        {
             Ok(config) => config,
-            Err(_) => Config::load_default_with_cli_overrides(Vec::new())
-                .await
-                .expect("default config should load"),
+            Err(_) => Config::load_default_with_cli_overrides_for_codex_home(
+                codex_home.to_path_buf(),
+                Vec::new(),
+            )
+            .await
+            .expect("default config should load"),
         }
     }
 
@@ -741,15 +866,22 @@ mod tests {
         session_source: SessionSource,
         channel_capacity: usize,
     ) -> InProcessClientHandle {
+        let codex_home = TempDir::new().expect("temp dir");
+        let config = Arc::new(build_test_config(codex_home.path()).await);
+        let state_db = codex_rollout::state_db::try_init(config.as_ref())
+            .await
+            .expect("state db should initialize for in-process test");
         let args = InProcessStartArgs {
             arg0_paths: Arg0DispatchPaths::default(),
-            config: Arc::new(build_test_config().await),
+            config,
             cli_overrides: Vec::new(),
             loader_overrides: LoaderOverrides::default(),
-            cloud_requirements: CloudRequirementsLoader::default(),
+            strict_config: false,
+            cloud_config_bundle: CloudConfigBundleLoader::default(),
             thread_config_loader: Arc::new(codex_config::NoopThreadConfigLoader),
             feedback: CodexFeedback::new(),
             log_db: None,
+            state_db: Some(state_db),
             environment_manager: Arc::new(EnvironmentManager::default_for_tests()),
             config_warnings: Vec::new(),
             session_source,
@@ -764,11 +896,17 @@ mod tests {
             },
             channel_capacity,
         };
-        start(args).await.expect("in-process runtime should start")
+        let mut client = start(args).await.expect("in-process runtime should start");
+        client._test_codex_home = Some(codex_home);
+        client
     }
 
     async fn start_test_client(session_source: SessionSource) -> InProcessClientHandle {
         start_test_client_with_capacity(session_source, DEFAULT_IN_PROCESS_CHANNEL_CAPACITY).await
+    }
+
+    pub(crate) async fn start_test_client_for_bridge() -> InProcessClientHandle {
+        start_test_client(SessionSource::Cli).await
     }
 
     #[tokio::test]
@@ -793,80 +931,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn in_process_allows_device_key_requests_to_reach_device_key_api() {
-        let client = start_test_client(SessionSource::Cli).await;
-        const MALFORMED_KEY_ID_MESSAGE: &str = concat!(
-            "invalid device key payload: keyId must be dk_hse_, dk_tpm_, or dk_osn_ ",
-            "followed by unpadded base64url-encoded 32 bytes"
-        );
-        let requests = [
-            (
-                ClientRequest::DeviceKeyPublic {
-                    request_id: RequestId::Integer(11),
-                    params: DeviceKeyPublicParams {
-                        key_id: String::new(),
-                    },
-                },
-                MALFORMED_KEY_ID_MESSAGE,
-            ),
-            (
-                ClientRequest::DeviceKeySign {
-                    request_id: RequestId::Integer(12),
-                    params: DeviceKeySignParams {
-                        key_id: String::new(),
-                        payload: DeviceKeySignPayload::RemoteControlClientConnection {
-                            nonce: "nonce-123".to_string(),
-                            audience:
-                                RemoteControlClientConnectionAudience::RemoteControlClientWebsocket,
-                            session_id: "wssess_123".to_string(),
-                            target_origin: "https://chatgpt.com".to_string(),
-                            target_path: "/api/codex/remote/control/client".to_string(),
-                            account_user_id: "acct_123".to_string(),
-                            client_id: "cli_123".to_string(),
-                            token_expires_at: 4_102_444_800,
-                            token_sha256_base64url: "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU"
-                                .to_string(),
-                            scopes: vec!["remote_control_controller_websocket".to_string()],
-                        },
-                    },
-                },
-                MALFORMED_KEY_ID_MESSAGE,
-            ),
-            (
-                ClientRequest::DeviceKeySign {
-                    request_id: RequestId::Integer(13),
-                    params: DeviceKeySignParams {
-                        key_id: String::new(),
-                        payload: DeviceKeySignPayload::RemoteControlClientEnrollment {
-                            nonce: "nonce-123".to_string(),
-                            audience:
-                                RemoteControlClientEnrollmentAudience::RemoteControlClientEnrollment,
-                            challenge_id: "rch_123".to_string(),
-                            target_origin: "https://chatgpt.com".to_string(),
-                            target_path: "/wham/remote/control/client/enroll".to_string(),
-                            account_user_id: "acct_123".to_string(),
-                            client_id: "cli_123".to_string(),
-                            device_identity_sha256_base64url:
-                                "47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU".to_string(),
-                            challenge_expires_at: 4_102_444_800,
-                        },
-                    },
-                },
-                MALFORMED_KEY_ID_MESSAGE,
-            ),
-        ];
-
-        for (request, expected_message) in requests {
-            let error = client
-                .request(request)
+    async fn register_extra_connection_after_shutdown_returns_broken_pipe() {
+        let sender = {
+            let client = start_test_client(SessionSource::Cli).await;
+            let sender = client.sender();
+            client
+                .shutdown()
                 .await
-                .expect("request transport should work")
-                .expect_err("request should be rejected");
+                .expect("in-process runtime should shutdown cleanly");
+            sender
+        };
+        let (outgoing_tx, _outgoing_rx) = mpsc::channel(1);
+        let error = match sender.register_extra_connection(outgoing_tx) {
+            Ok(_) => panic!("closed runtime should reject extra registration"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), ErrorKind::BrokenPipe);
+    }
 
-            assert_eq!(error.code, INVALID_REQUEST_ERROR_CODE);
-            assert_eq!(error.message, expected_message);
-        }
-
+    #[tokio::test]
+    async fn main_connection_still_handles_typed_request_after_extra_hooks() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let response = client
+            .request(ClientRequest::ConfigRequirementsRead {
+                request_id: RequestId::Integer(41),
+                params: None,
+            })
+            .await
+            .expect("request transport should work")
+            .expect("request should succeed");
+        assert!(response.is_object());
         client
             .shutdown()
             .await
@@ -936,6 +1030,7 @@ mod tests {
                 turn: Turn {
                     id: "turn-1".to_string(),
                     items: Vec::new(),
+                    items_view: TurnItemsView::NotLoaded,
                     status: TurnStatus::Completed,
                     error: None,
                     started_at: None,

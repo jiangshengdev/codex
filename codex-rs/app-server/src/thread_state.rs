@@ -1,18 +1,24 @@
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
+use crate::thread_projection::ProjectionGeneration;
 use codex_app_server_protocol::RequestId;
+use codex_app_server_protocol::ThreadGoal;
 use codex_app_server_protocol::ThreadHistoryBuilder;
+use codex_app_server_protocol::ThreadSettings;
 use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnError;
 use codex_core::CodexThread;
 use codex_core::ThreadConfigSnapshot;
+use codex_file_watcher::WatchRegistration;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EventMsg;
+use codex_protocol::protocol::RolloutItem;
+use codex_rollout::state_db::StateDbHandle;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 use std::sync::Weak;
 use tokio::sync::Mutex;
 use tokio::sync::mpsc;
@@ -20,27 +26,48 @@ use tokio::sync::oneshot;
 use tokio::sync::watch;
 use tracing::error;
 
-type PendingInterruptQueue = Vec<(
-    ConnectionRequestId,
-    crate::codex_message_processor::ApiVersion,
-)>;
+type PendingInterruptQueue = Vec<ConnectionRequestId>;
 
 pub(crate) struct PendingThreadResumeRequest {
     pub(crate) request_id: ConnectionRequestId,
-    pub(crate) rollout_path: PathBuf,
+    pub(crate) history_items: Vec<RolloutItem>,
     pub(crate) config_snapshot: ThreadConfigSnapshot,
     pub(crate) instruction_sources: Vec<AbsolutePathBuf>,
     pub(crate) thread_summary: codex_app_server_protocol::Thread,
+    pub(crate) emit_thread_goal_update: bool,
+    pub(crate) thread_goal_state_db: Option<StateDbHandle>,
+    pub(crate) include_turns: bool,
+    pub(crate) initial_turns_page:
+        Option<codex_app_server_protocol::ThreadResumeInitialTurnsPageParams>,
+    pub(crate) redact_resume_payloads: bool,
 }
 
 // ThreadListenerCommand is used to perform operations in the context of the thread listener, for serialization purposes.
 pub(crate) enum ThreadListenerCommand {
     // SendThreadResumeResponse is used to resume an already running thread by sending the thread's history to the client and atomically subscribing for new updates.
     SendThreadResumeResponse(Box<PendingThreadResumeRequest>),
+    // EmitThreadGoalUpdated is used to order goal updates with running-thread resume responses and goal clears.
+    EmitThreadGoalUpdated {
+        turn_id: Option<String>,
+        goal: ThreadGoal,
+    },
+    // EmitThreadGoalCleared is used to order app-server goal clears with running-thread resume responses.
+    EmitThreadGoalCleared,
+    // EmitThreadGoalSnapshot is used to read and emit the latest goal state in the listener order.
+    EmitThreadGoalSnapshot {
+        state_db: StateDbHandle,
+    },
     // ResolveServerRequest is used to notify the client that the request has been resolved.
     // It is executed in the thread listener's context to ensure that the resolved notification is ordered with regard to the request itself.
     ResolveServerRequest {
         request_id: RequestId,
+        completion_tx: oneshot::Sender<()>,
+    },
+    SendThreadProjectionAttachResponse {
+        request_id: ConnectionRequestId,
+        connection_id: ConnectionId,
+        projection_generation: ProjectionGeneration,
+        snapshot_processor: Box<crate::request_processors::ThreadRequestProcessor>,
         completion_tx: oneshot::Sender<()>,
     },
 }
@@ -49,7 +76,6 @@ pub(crate) enum ThreadListenerCommand {
 #[derive(Default, Clone)]
 pub(crate) struct TurnSummary {
     pub(crate) started_at: Option<i64>,
-    pub(crate) file_change_started: HashSet<String>,
     pub(crate) command_execution_started: HashSet<String>,
     pub(crate) last_error: Option<TurnError>,
 }
@@ -59,12 +85,15 @@ pub(crate) struct ThreadState {
     pub(crate) pending_interrupts: PendingInterruptQueue,
     pub(crate) pending_rollbacks: Option<ConnectionRequestId>,
     pub(crate) turn_summary: TurnSummary,
+    pub(crate) last_terminal_turn_id: Option<String>,
     pub(crate) cancel_tx: Option<oneshot::Sender<()>>,
     pub(crate) experimental_raw_events: bool,
     pub(crate) listener_generation: u64,
+    last_thread_settings: Option<ThreadSettings>,
     listener_command_tx: Option<mpsc::UnboundedSender<ThreadListenerCommand>>,
     current_turn_history: ThreadHistoryBuilder,
     listener_thread: Option<Weak<CodexThread>>,
+    watch_registration: WatchRegistration,
 }
 
 impl ThreadState {
@@ -79,14 +108,18 @@ impl ThreadState {
         &mut self,
         cancel_tx: oneshot::Sender<()>,
         conversation: &Arc<CodexThread>,
+        watch_registration: WatchRegistration,
+        thread_settings_baseline: ThreadSettings,
     ) -> (mpsc::UnboundedReceiver<ThreadListenerCommand>, u64) {
         if let Some(previous) = self.cancel_tx.replace(cancel_tx) {
             let _ = previous.send(());
         }
         self.listener_generation = self.listener_generation.wrapping_add(1);
+        self.last_thread_settings = Some(thread_settings_baseline);
         let (listener_command_tx, listener_command_rx) = mpsc::unbounded_channel();
         self.listener_command_tx = Some(listener_command_tx);
         self.listener_thread = Some(Arc::downgrade(conversation));
+        self.watch_registration = watch_registration;
         (listener_command_rx, self.listener_generation)
     }
 
@@ -97,6 +130,7 @@ impl ThreadState {
         self.listener_command_tx = None;
         self.current_turn_history.reset();
         self.listener_thread = None;
+        self.watch_registration = WatchRegistration::default();
     }
 
     pub(crate) fn set_experimental_raw_events(&mut self, enabled: bool) {
@@ -113,7 +147,7 @@ impl ThreadState {
         self.current_turn_history.active_turn_snapshot()
     }
 
-    pub(crate) fn track_current_turn_event(&mut self, event: &EventMsg) {
+    pub(crate) fn track_current_turn_event(&mut self, event_turn_id: &str, event: &EventMsg) {
         if let EventMsg::TurnStarted(payload) = event {
             self.turn_summary.started_at = payload.started_at;
         }
@@ -121,8 +155,15 @@ impl ThreadState {
         if matches!(event, EventMsg::TurnAborted(_) | EventMsg::TurnComplete(_))
             && !self.current_turn_history.has_active_turn()
         {
+            self.last_terminal_turn_id = Some(event_turn_id.to_string());
             self.current_turn_history.reset();
         }
+    }
+
+    pub(crate) fn note_thread_settings(&mut self, thread_settings: ThreadSettings) -> bool {
+        let changed = self.last_thread_settings.as_ref() != Some(&thread_settings);
+        self.last_thread_settings = Some(thread_settings);
+        changed
     }
 }
 
@@ -158,9 +199,306 @@ pub(crate) async fn resolve_server_request_on_thread_listener(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use codex_app_server_protocol::ApprovalsReviewer;
+    use codex_app_server_protocol::AskForApproval;
+    use codex_app_server_protocol::SandboxPolicy;
+    use codex_protocol::config_types::CollaborationMode;
+    use codex_protocol::config_types::ModeKind;
+    use codex_protocol::config_types::Settings;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn note_thread_settings_reports_only_effective_changes() {
+        let mut state = ThreadState::default();
+        let initial = thread_settings("mock-model");
+        let updated = thread_settings("mock-model-2");
+
+        let results = vec![
+            state.note_thread_settings(initial.clone()),
+            state.note_thread_settings(initial),
+            state.note_thread_settings(updated.clone()),
+            state.note_thread_settings(updated),
+        ];
+
+        assert_eq!(results, vec![true, false, true, false]);
+    }
+
+    fn thread_settings(model: &str) -> ThreadSettings {
+        ThreadSettings {
+            cwd: AbsolutePathBuf::from_absolute_path("/tmp").expect("absolute path"),
+            approval_policy: AskForApproval::OnRequest,
+            approvals_reviewer: ApprovalsReviewer::User,
+            sandbox_policy: SandboxPolicy::ReadOnly {
+                network_access: false,
+            },
+            active_permission_profile: None,
+            model: model.to_string(),
+            model_provider: "mock_provider".to_string(),
+            service_tier: None,
+            effort: None,
+            summary: None,
+            collaboration_mode: CollaborationMode {
+                mode: ModeKind::Default,
+                settings: Settings {
+                    model: model.to_string(),
+                    reasoning_effort: None,
+                    developer_instructions: None,
+                },
+            },
+            personality: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn projection_attach_lease_does_not_subscribe_connection() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+
+        let thread_state = manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            thread_state.lock().await.listener_generation,
+            ThreadState::default().listener_generation
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            Vec::<ConnectionId>::new()
+        );
+        assert!(!manager.has_subscribers(thread_id).await);
+        assert!(
+            manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+    }
+
+    #[tokio::test]
+    async fn projection_attach_lease_does_not_update_has_connections_watcher() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let projection_connection_id = ConnectionId(1);
+        let ordinary_connection_id = ConnectionId(2);
+        manager.thread_state(thread_id).await;
+        let mut has_connections = manager
+            .subscribe_to_has_connections(thread_id)
+            .await
+            .expect("thread should have a has-connections watcher");
+        assert!(!*has_connections.borrow_and_update());
+
+        manager
+            .connection_initialized(projection_connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, projection_connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert!(
+            !has_connections
+                .has_changed()
+                .expect("has-connections watcher should remain open")
+        );
+
+        manager
+            .release_projection_attach_lease(thread_id, projection_connection_id)
+            .await;
+
+        assert!(
+            !has_connections
+                .has_changed()
+                .expect("has-connections watcher should remain open")
+        );
+
+        manager
+            .connection_initialized(ordinary_connection_id, ConnectionCapabilities::default())
+            .await;
+        assert!(
+            manager
+                .try_add_connection_to_thread(thread_id, ordinary_connection_id)
+                .await
+        );
+        assert!(
+            has_connections
+                .has_changed()
+                .expect("has-connections watcher should remain open")
+        );
+        assert!(*has_connections.borrow_and_update());
+    }
+
+    #[tokio::test]
+    async fn projection_attach_lease_requires_live_connection() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+
+        let thread_state = manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await;
+
+        assert!(thread_state.is_none());
+        assert!(!manager.has_thread_entry(thread_id).await);
+    }
+
+    #[tokio::test]
+    async fn release_projection_attach_lease_is_idempotent() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        manager
+            .release_projection_attach_lease(thread_id, connection_id)
+            .await;
+        manager
+            .release_projection_attach_lease(thread_id, connection_id)
+            .await;
+
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(manager.remove_connection(connection_id).await, Vec::new());
+    }
+
+    #[tokio::test]
+    async fn remove_connection_cleans_projection_attach_lease() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            manager.remove_connection(connection_id).await,
+            vec![thread_id]
+        );
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            Vec::<ConnectionId>::new()
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_connection_deduplicates_ordinary_and_projection_cleanup() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        assert!(
+            manager
+                .try_add_connection_to_thread(thread_id, connection_id)
+                .await
+        );
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            manager.remove_connection(connection_id).await,
+            vec![thread_id]
+        );
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            Vec::<ConnectionId>::new()
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_connection_keeps_thread_with_other_ordinary_subscribers_out_of_reconciliation()
+    {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let projection_connection_id = ConnectionId(1);
+        let ordinary_connection_id = ConnectionId(2);
+        manager
+            .connection_initialized(projection_connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .connection_initialized(ordinary_connection_id, ConnectionCapabilities::default())
+            .await;
+        assert!(
+            manager
+                .try_add_connection_to_thread(thread_id, ordinary_connection_id)
+                .await
+        );
+        manager
+            .try_begin_projection_attach(thread_id, projection_connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        assert_eq!(
+            manager.remove_connection(projection_connection_id).await,
+            Vec::<ThreadId>::new()
+        );
+        assert_eq!(
+            manager.subscribed_connection_ids(thread_id).await,
+            vec![ordinary_connection_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn remove_thread_state_cleans_projection_attach_lease_index() {
+        let manager = ThreadStateManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        manager
+            .connection_initialized(connection_id, ConnectionCapabilities::default())
+            .await;
+        manager
+            .try_begin_projection_attach(thread_id, connection_id)
+            .await
+            .expect("live connection should begin projection attach");
+
+        manager.remove_thread_state(thread_id).await;
+
+        assert!(
+            !manager
+                .has_projection_attach_lease(thread_id, connection_id)
+                .await
+        );
+        assert_eq!(manager.remove_connection(connection_id).await, Vec::new());
+    }
+}
+
 struct ThreadEntry {
     state: Arc<Mutex<ThreadState>>,
     connection_ids: HashSet<ConnectionId>,
+    projection_attach_leases: HashSet<ConnectionId>,
     has_connections_watcher: watch::Sender<bool>,
 }
 
@@ -169,6 +507,7 @@ impl Default for ThreadEntry {
         Self {
             state: Arc::new(Mutex::new(ThreadState::default())),
             connection_ids: HashSet::new(),
+            projection_attach_leases: HashSet::new(),
             has_connections_watcher: watch::channel(false).0,
         }
     }
@@ -186,14 +525,24 @@ impl ThreadEntry {
 
 #[derive(Default)]
 struct ThreadStateManagerInner {
-    live_connections: HashSet<ConnectionId>,
+    live_connections: HashMap<ConnectionId, ConnectionCapabilities>,
     threads: HashMap<ThreadId, ThreadEntry>,
     thread_ids_by_connection: HashMap<ConnectionId, HashSet<ThreadId>>,
+    projection_attach_thread_ids_by_connection: HashMap<ConnectionId, HashSet<ThreadId>>,
+}
+
+#[derive(Clone, Copy, Default)]
+pub(crate) struct ConnectionCapabilities {
+    pub(crate) request_attestation: bool,
 }
 
 #[derive(Clone, Default)]
 pub(crate) struct ThreadStateManager {
     state: Arc<Mutex<ThreadStateManagerInner>>,
+    // Extension event sinks are synchronous, so they need an await-free way to
+    // enqueue work on the active per-thread listener.
+    listener_commands:
+        Arc<StdMutex<HashMap<ThreadId, mpsc::UnboundedSender<ThreadListenerCommand>>>>,
 }
 
 impl ThreadStateManager {
@@ -201,12 +550,36 @@ impl ThreadStateManager {
         Self::default()
     }
 
-    pub(crate) async fn connection_initialized(&self, connection_id: ConnectionId) {
+    pub(crate) async fn connection_initialized(
+        &self,
+        connection_id: ConnectionId,
+        capabilities: ConnectionCapabilities,
+    ) {
         self.state
             .lock()
             .await
             .live_connections
-            .insert(connection_id);
+            .insert(connection_id, capabilities);
+    }
+
+    pub(crate) async fn first_attestation_capable_connection_for_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> Option<ConnectionId> {
+        let state = self.state.lock().await;
+        state
+            .threads
+            .get(&thread_id)?
+            .connection_ids
+            .iter()
+            .filter_map(|connection_id| {
+                state
+                    .live_connections
+                    .get(connection_id)?
+                    .request_attestation
+                    .then_some(*connection_id)
+            })
+            .min_by_key(|connection_id| connection_id.0)
     }
 
     pub(crate) async fn subscribed_connection_ids(&self, thread_id: ThreadId) -> Vec<ConnectionId> {
@@ -218,9 +591,46 @@ impl ThreadStateManager {
             .unwrap_or_default()
     }
 
+    pub(crate) async fn is_live_connection(&self, connection_id: ConnectionId) -> bool {
+        self.state
+            .lock()
+            .await
+            .live_connections
+            .contains_key(&connection_id)
+    }
+
     pub(crate) async fn thread_state(&self, thread_id: ThreadId) -> Arc<Mutex<ThreadState>> {
         let mut state = self.state.lock().await;
         state.threads.entry(thread_id).or_default().state.clone()
+    }
+
+    pub(crate) fn current_listener_command_tx(
+        &self,
+        thread_id: ThreadId,
+    ) -> Option<mpsc::UnboundedSender<ThreadListenerCommand>> {
+        self.listener_commands
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&thread_id)
+            .cloned()
+    }
+
+    pub(crate) fn register_listener_command_tx(
+        &self,
+        thread_id: ThreadId,
+        tx: mpsc::UnboundedSender<ThreadListenerCommand>,
+    ) {
+        self.listener_commands
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(thread_id, tx);
+    }
+
+    pub(crate) fn unregister_listener_command_tx(&self, thread_id: ThreadId) {
+        self.listener_commands
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&thread_id);
     }
 
     pub(crate) async fn remove_thread_state(&self, thread_id: ThreadId) {
@@ -234,8 +644,15 @@ impl ThreadStateManager {
                 thread_ids.remove(&thread_id);
                 !thread_ids.is_empty()
             });
+            state
+                .projection_attach_thread_ids_by_connection
+                .retain(|_, thread_ids| {
+                    thread_ids.remove(&thread_id);
+                    !thread_ids.is_empty()
+                });
             thread_state
         };
+        self.unregister_listener_command_tx(thread_id);
 
         if let Some(thread_state) = thread_state {
             let mut thread_state = thread_state.lock().await;
@@ -261,6 +678,7 @@ impl ThreadStateManager {
         };
 
         for (thread_id, thread_state) in thread_states {
+            self.unregister_listener_command_tx(thread_id);
             let mut thread_state = thread_state.lock().await;
             tracing::debug!(
                 thread_id = %thread_id,
@@ -325,7 +743,7 @@ impl ThreadStateManager {
     ) -> Option<Arc<Mutex<ThreadState>>> {
         let thread_state = {
             let mut state = self.state.lock().await;
-            if !state.live_connections.contains(&connection_id) {
+            if !state.live_connections.contains_key(&connection_id) {
                 return None;
             }
             state
@@ -347,13 +765,54 @@ impl ThreadStateManager {
         Some(thread_state)
     }
 
+    pub(crate) async fn try_begin_projection_attach(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) -> Option<Arc<Mutex<ThreadState>>> {
+        let mut state = self.state.lock().await;
+        if !state.live_connections.contains_key(&connection_id) {
+            return None;
+        }
+        state
+            .projection_attach_thread_ids_by_connection
+            .entry(connection_id)
+            .or_default()
+            .insert(thread_id);
+        let thread_entry = state.threads.entry(thread_id).or_default();
+        thread_entry.projection_attach_leases.insert(connection_id);
+        Some(thread_entry.state.clone())
+    }
+
+    pub(crate) async fn release_projection_attach_lease(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) {
+        let mut state = self.state.lock().await;
+        if let Some(thread_entry) = state.threads.get_mut(&thread_id) {
+            thread_entry.projection_attach_leases.remove(&connection_id);
+        }
+        if let Some(thread_ids) = state
+            .projection_attach_thread_ids_by_connection
+            .get_mut(&connection_id)
+        {
+            thread_ids.remove(&thread_id);
+            if thread_ids.is_empty() {
+                state
+                    .projection_attach_thread_ids_by_connection
+                    .remove(&connection_id);
+            }
+        }
+    }
+
     pub(crate) async fn try_add_connection_to_thread(
         &self,
         thread_id: ThreadId,
         connection_id: ConnectionId,
     ) -> bool {
         let mut state = self.state.lock().await;
-        if !state.live_connections.contains(&connection_id) {
+        if !state.live_connections.contains_key(&connection_id) {
             return false;
         }
         state
@@ -375,13 +834,24 @@ impl ThreadStateManager {
                 .thread_ids_by_connection
                 .remove(&connection_id)
                 .unwrap_or_default();
+            let projection_attach_thread_ids = state
+                .projection_attach_thread_ids_by_connection
+                .remove(&connection_id)
+                .unwrap_or_default();
             for thread_id in &thread_ids {
                 if let Some(thread_entry) = state.threads.get_mut(thread_id) {
                     thread_entry.connection_ids.remove(&connection_id);
                     thread_entry.update_has_connections();
                 }
             }
-            thread_ids
+            for thread_id in &projection_attach_thread_ids {
+                if let Some(thread_entry) = state.threads.get_mut(thread_id) {
+                    thread_entry.projection_attach_leases.remove(&connection_id);
+                }
+            }
+            let mut cleanup_thread_ids = thread_ids;
+            cleanup_thread_ids.extend(projection_attach_thread_ids);
+            cleanup_thread_ids
                 .into_iter()
                 .filter(|thread_id| {
                     state
@@ -402,5 +872,28 @@ impl ThreadStateManager {
             .threads
             .get(&thread_id)
             .map(|thread_entry| thread_entry.has_connections_watcher.subscribe())
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn has_thread_entry(&self, thread_id: ThreadId) -> bool {
+        self.state.lock().await.threads.contains_key(&thread_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn has_projection_attach_lease(
+        &self,
+        thread_id: ThreadId,
+        connection_id: ConnectionId,
+    ) -> bool {
+        self.state
+            .lock()
+            .await
+            .threads
+            .get(&thread_id)
+            .is_some_and(|thread_entry| {
+                thread_entry
+                    .projection_attach_leases
+                    .contains(&connection_id)
+            })
     }
 }
