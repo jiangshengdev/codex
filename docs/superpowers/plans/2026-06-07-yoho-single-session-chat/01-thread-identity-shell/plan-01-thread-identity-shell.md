@@ -41,7 +41,7 @@ It does not replace `projectionSlice`, design projection ingress, add reattach b
 - Create: `codex-gui/src/features/threadIdentity/threadIdentitySlice.ts`
 - Create: `codex-gui/src/features/threadIdentity/__tests__/threadIdentitySlice.test.ts`
 
-- [ ] **Step 1: Write the failing reducer tests**
+- [x] **Step 1: Write the failing reducer tests**
 
 Create `codex-gui/src/features/threadIdentity/__tests__/threadIdentitySlice.test.ts`:
 
@@ -109,7 +109,7 @@ describe("thread identity reducer", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm it fails**
+- [x] **Step 2: Run the focused test and confirm it fails**
 
 Run from `codex-gui`:
 
@@ -119,7 +119,7 @@ pnpm vitest --run src/features/threadIdentity/__tests__/threadIdentitySlice.test
 
 Expected result: FAIL because `../threadIdentitySlice` does not exist yet.
 
-- [ ] **Step 3: Add the minimal slice implementation**
+- [x] **Step 3: Add the minimal slice implementation**
 
 Create `codex-gui/src/features/threadIdentity/threadIdentitySlice.ts`:
 
@@ -181,7 +181,7 @@ export const { selectThreadIdentityState, selectCanAdvanceThreadIdentity } =
 export default threadIdentitySlice;
 ```
 
-- [ ] **Step 4: Run the focused test and confirm it passes**
+- [x] **Step 4: Run the focused test and confirm it passes**
 
 Run from `codex-gui`:
 
@@ -191,7 +191,7 @@ pnpm vitest --run src/features/threadIdentity/__tests__/threadIdentitySlice.test
 
 Expected result: PASS.
 
-- [ ] **Step 5: Commit the slice**
+- [x] **Step 5: Commit the slice**
 
 Run from repo root:
 
@@ -210,7 +210,7 @@ git commit -m "feat(gui): add thread identity state"
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.ts`
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.test.ts`
 
-- [ ] **Step 1: Write failing tests for launch param emission and store registration**
+- [x] **Step 1: Write failing tests for launch param emission and store registration**
 
 In `codex-gui/src/features/guiHost/guiHostClient.test.ts`, update the imports:
 
@@ -264,7 +264,7 @@ it("is registered in the app store", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm they fail**
+- [x] **Step 2: Run focused tests and confirm they fail**
 
 Run from `codex-gui`:
 
@@ -276,7 +276,7 @@ pnpm vitest --run \
 
 Expected result: FAIL because `onLaunchParams` is not part of `StartGuiHostConnectionOptions`, and `threadIdentitySlice` is not registered in the store.
 
-- [ ] **Step 3: Register the identity slice in the app store**
+- [x] **Step 3: Register the identity slice in the app store**
 
 Update `codex-gui/src/app/store.ts`:
 
@@ -294,7 +294,7 @@ const rootReducer = combineSlices(counterSlice, projectionSlice, threadIdentityS
 
 Leave the rest of the file unchanged.
 
-- [ ] **Step 4: Emit parsed launch params from guiHostClient**
+- [x] **Step 4: Emit parsed launch params from guiHostClient**
 
 Update `codex-gui/src/features/guiHost/guiHostClient.ts`.
 
@@ -342,7 +342,7 @@ const { threadId, token } = launchParams;
 onLaunchParams?.(launchParams);
 ```
 
-- [ ] **Step 5: Run focused tests and confirm they pass**
+- [x] **Step 5: Run focused tests and confirm they pass**
 
 Run from `codex-gui`:
 
@@ -354,7 +354,7 @@ pnpm vitest --run \
 
 Expected result: PASS.
 
-- [ ] **Step 6: Commit launch/store wiring**
+- [x] **Step 6: Commit launch/store wiring**
 
 Run from repo root:
 
@@ -374,7 +374,7 @@ git commit -m "feat(gui): record launch thread identity"
 - Modify: `codex-gui/src/App.tsx`
 - Modify: `codex-gui/src/__tests__/App.browser.test.tsx`
 
-- [ ] **Step 1: Write failing App browser tests for identity gate behavior**
+- [x] **Step 1: Write failing App browser tests for identity gate behavior**
 
 Update imports in `codex-gui/src/__tests__/App.browser.test.tsx`:
 
@@ -453,7 +453,7 @@ test("App records mismatched attach identity without advancing projection state"
 });
 ```
 
-- [ ] **Step 2: Run the App browser test and confirm it fails**
+- [x] **Step 2: Run the App browser test and confirm it fails**
 
 Run from `codex-gui`:
 
@@ -463,7 +463,7 @@ pnpm vitest --config=vitest.browser.config.ts --run src/__tests__/App.browser.te
 
 Expected result: FAIL because `App` does not record launch identity, does not record attached identity, and forwards mismatched attach snapshots into `projectionSlice`.
 
-- [ ] **Step 3: Gate projection attach in App**
+- [x] **Step 3: Gate projection attach in App**
 
 Update `codex-gui/src/App.tsx` imports:
 
@@ -539,7 +539,7 @@ onProjectionEvent: (notification) => {
 
 Do not add retry, detach, reattach, chat UI, or composer behavior in this task.
 
-- [ ] **Step 4: Run the App browser test and confirm it passes**
+- [x] **Step 4: Run the App browser test and confirm it passes**
 
 Run from `codex-gui`:
 
@@ -549,7 +549,7 @@ pnpm vitest --config=vitest.browser.config.ts --run src/__tests__/App.browser.te
 
 Expected result: PASS.
 
-- [ ] **Step 5: Commit App gate behavior**
+- [x] **Step 5: Commit App gate behavior**
 
 Run from repo root:
 
@@ -570,7 +570,7 @@ git commit -m "feat(gui): gate projection attach by thread identity"
 - Verify only: `codex-gui/src/App.tsx`
 - Verify only: `codex-gui/src/__tests__/App.browser.test.tsx`
 
-- [ ] **Step 1: Run format check**
+- [x] **Step 1: Run format check**
 
 Run from `codex-gui`:
 
@@ -580,7 +580,7 @@ pnpm run format
 
 Expected result: PASS.
 
-- [ ] **Step 2: Run lint**
+- [x] **Step 2: Run lint**
 
 Run from `codex-gui`:
 
@@ -590,7 +590,7 @@ pnpm run lint
 
 Expected result: PASS.
 
-- [ ] **Step 3: Run type check**
+- [x] **Step 3: Run type check**
 
 Run from `codex-gui`:
 
@@ -600,7 +600,7 @@ pnpm run type-check
 
 Expected result: PASS.
 
-- [ ] **Step 4: Run focused Vitest suite**
+- [x] **Step 4: Run focused Vitest suite**
 
 Run from `codex-gui`:
 
@@ -613,7 +613,7 @@ pnpm vitest --run \
 
 Expected result: PASS.
 
-- [ ] **Step 5: Run App browser test**
+- [x] **Step 5: Run App browser test**
 
 Run from `codex-gui`:
 
@@ -623,7 +623,7 @@ pnpm vitest --config=vitest.browser.config.ts --run src/__tests__/App.browser.te
 
 Expected result: PASS.
 
-- [ ] **Step 6: Confirm the implementation stayed inside 01 scope**
+- [x] **Step 6: Confirm the implementation stayed inside 01 scope**
 
 Run from repo root:
 
@@ -654,7 +654,7 @@ Cargo.lock
 uv.lock
 ```
 
-- [ ] **Step 7: Commit verification cleanup if formatting changed files**
+- [x] **Step 7: Commit verification cleanup if formatting changed files**
 
 If `pnpm run format` reports files that need formatting, run from `codex-gui`:
 
@@ -670,3 +670,13 @@ git commit -m "chore(gui): format thread identity changes"
 ```
 
 If `pnpm run format` passes without changes, do not create a formatting commit.
+
+Execution note: not needed because the format check passed without changes.
+
+## Execution Results
+
+- Task 1 completed in commit `b13e3b121` (`feat(gui): add thread identity state`).
+- Task 2 completed in commit `e2503bf32` (`feat(gui): record launch thread identity`).
+- Task 3 completed in commit `6806f341c` (`feat(gui): gate projection attach by thread identity`).
+- Task 4 verification commands all passed; no cleanup commit was needed.
+- Scope stayed inside the expected 7 `codex-gui` files and did not touch `codex-rs`, `projectionSlice`, lockfiles, or package/lock files.
