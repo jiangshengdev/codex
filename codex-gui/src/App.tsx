@@ -3,6 +3,10 @@ import { useAppDispatch } from "./app/hooks";
 import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
 import { projectionAttached, projectionEventReceived } from "./features/projection/projectionSlice";
+import {
+  attachedThreadIdObserved,
+  launchThreadIdRecorded,
+} from "./features/threadIdentity/threadIdentitySlice";
 
 function App() {
   const dispatch = useAppDispatch();
@@ -16,16 +20,32 @@ function App() {
   useEffect(() => {
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
+    let launchThreadId: string | null = null;
 
     try {
       cleanupConnection = startGuiHostConnection({
         location: new URL(window.location.href),
         replaceState: window.history.replaceState.bind(window.history),
         onStatus: setStatus,
+        onLaunchParams: (params) => {
+          launchThreadId = params.threadId;
+          dispatch(launchThreadIdRecorded(params.threadId));
+        },
         onProjectionAttached: (response) => {
+          const attachedThreadId = response.snapshot.thread.id;
+          dispatch(attachedThreadIdObserved(attachedThreadId));
+
+          if (launchThreadId !== attachedThreadId) {
+            return;
+          }
+
           dispatch(projectionAttached(response));
         },
         onProjectionEvent: (notification) => {
+          if (launchThreadId !== notification.threadId) {
+            return;
+          }
+
           dispatch(projectionEventReceived(notification));
         },
       });
