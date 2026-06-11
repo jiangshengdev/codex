@@ -55,7 +55,12 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
         path_and_query
     );
 
-    match reqwest::get(upstream_url).await {
+    let client = match reqwest::Client::builder().no_proxy().build() {
+        Ok(client) => client,
+        Err(error) => return dev_proxy_error_response(&config.vite_origin, &error.to_string()),
+    };
+
+    match client.get(upstream_url).send().await {
         Ok(upstream) => {
             let status = upstream.status();
             let content_type = upstream.headers().get(CONTENT_TYPE).cloned();
@@ -77,18 +82,20 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
                 ),
             }
         }
-        Err(error) => {
-            let mut response = (
-                StatusCode::BAD_GATEWAY,
-                dev_proxy_error_page(&config.vite_origin, &error.to_string()),
-            )
-                .into_response();
-            response
-                .headers_mut()
-                .insert(CONTENT_TYPE, HeaderValue::from_static("text/html"));
-            with_security_headers(response)
-        }
+        Err(error) => dev_proxy_error_response(&config.vite_origin, &error.to_string()),
     }
+}
+
+fn dev_proxy_error_response(vite_origin: &str, error: &str) -> Response {
+    let mut response = (
+        StatusCode::BAD_GATEWAY,
+        dev_proxy_error_page(vite_origin, error),
+    )
+        .into_response();
+    response
+        .headers_mut()
+        .insert(CONTENT_TYPE, HeaderValue::from_static("text/html"));
+    with_security_headers(response)
 }
 
 fn dev_proxy_error_page(vite_origin: &str, error: &str) -> String {
@@ -134,6 +141,7 @@ mod tests {
     use axum::http::StatusCode;
     use axum::http::Uri;
     use pretty_assertions::assert_eq;
+    use tokio::net::TcpListener;
 
     use crate::DevAssetProxyConfig;
     use crate::ProdAssetConfig;
@@ -163,9 +171,18 @@ mod tests {
 
     #[tokio::test]
     async fn proxy_vite_returns_embedded_html_when_upstream_is_unavailable() {
-        let config = DevAssetProxyConfig {
-            vite_origin: "http://[::1/?unsafe=<script>".to_string(),
-        };
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("port should be reserved");
+        let vite_origin = format!(
+            "http://{}?unsafe=<script>",
+            listener
+                .local_addr()
+                .expect("local addr should be available")
+        );
+        drop(listener);
+
+        let config = DevAssetProxyConfig { vite_origin };
         let response = super::proxy_vite(
             config,
             "/?threadId=test"
@@ -191,7 +208,7 @@ mod tests {
         assert!(body.contains("Waiting for Vite"));
         assert!(body.contains("pnpm --dir codex-gui dev"));
         assert!(body.contains("NO_PROXY=127.0.0.1,localhost"));
-        assert!(body.contains("http://[::1/?unsafe=&lt;script&gt;"));
+        assert!(body.contains("?unsafe=&lt;script&gt;"));
         assert!(body.contains("Connection error"));
         assert!(!body.contains("{{CODEX_GUI_HOST_"));
     }
