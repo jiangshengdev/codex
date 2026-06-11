@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { makeStore } from "@/app/store";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
+  selectThreadIdentityState,
   threadIdentitySlice,
   type GuiThreadIdentityState,
 } from "../threadIdentitySlice";
@@ -54,6 +56,16 @@ describe("thread identity reducer", () => {
 
     expect(state).toStrictEqual({
       launchThreadId: "thread-2",
+      attachedThreadId: null,
+      attachStatus: "none",
+    });
+  });
+
+  it("registers thread identity state in the app store", () => {
+    const store = makeStore();
+
+    expect(selectThreadIdentityState(store.getState())).toStrictEqual({
+      launchThreadId: null,
       attachedThreadId: null,
       attachStatus: "none",
     });

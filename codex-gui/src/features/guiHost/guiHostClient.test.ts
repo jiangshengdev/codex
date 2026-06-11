@@ -9,6 +9,7 @@ import {
   clearLaunchTokenFragment,
   readLaunchParams,
   startGuiHostConnection,
+  type LaunchParams,
 } from "./guiHostClient";
 
 class MemoryStorage {
@@ -89,6 +90,7 @@ describe("guiHostClient", () => {
     const statuses: string[] = [];
     const attached: ThreadProjectionAttachResponse[] = [];
     const projectionEvents: ThreadProjectionEventNotification[] = [];
+    const launchParams: LaunchParams[] = [];
     const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
     const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
 
@@ -101,6 +103,9 @@ describe("guiHostClient", () => {
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
         statuses.push(status.label);
+      },
+      onLaunchParams: (params) => {
+        launchParams.push(params);
       },
       onProjectionAttached: (response) => {
         attached.push(response);
@@ -137,6 +142,9 @@ describe("guiHostClient", () => {
     expect(statuses).toContain("initialized");
     expect(statuses).toContain("attached");
     expect(statuses).toContain("received event");
+    expect(launchParams).toEqual([
+      { threadId: attachResponse.snapshot.thread.id, token: "secret" },
+    ]);
     expect(attached).toEqual([attachResponse]);
     expect(projectionEvents).toEqual([projectionEvent]);
   });

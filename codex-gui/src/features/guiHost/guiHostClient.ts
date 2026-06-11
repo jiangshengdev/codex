@@ -23,6 +23,7 @@ export type StartGuiHostConnectionOptions = {
   tokenStorage?: Pick<Storage, "getItem" | "setItem">;
   createWebSocket?: (url: string) => WebSocket;
   onStatus?: (status: GuiHostStatus) => void;
+  onLaunchParams?: (params: LaunchParams) => void;
   onProjectionAttached?: (response: ThreadProjectionAttachResponse) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
 };
@@ -72,11 +73,14 @@ export function startGuiHostConnection({
   tokenStorage,
   createWebSocket = (url) => new WebSocket(url),
   onStatus,
+  onLaunchParams,
   onProjectionAttached,
   onProjectionEvent,
 }: StartGuiHostConnectionOptions): GuiHostConnectionCleanup {
   clearLaunchTokenFragment(location, replaceState);
-  const { threadId, token } = readLaunchParams(location, tokenStorage ?? readSessionStorage());
+  const launchParams = readLaunchParams(location, tokenStorage ?? readSessionStorage());
+  const { threadId, token } = launchParams;
+  onLaunchParams?.(launchParams);
 
   const socket = createWebSocket(`${webSocketProtocol(location)}://${location.host}/ws`);
   let eventCount = 0;
