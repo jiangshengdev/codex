@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex GUI dev server unavailable</title>
+    <style>
+{{CODEX_GUI_HOST_CSS}}
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <section id="center">
+        <div>
+          <h1>Waiting for Vite</h1>
+          <p>
+            Codex GUI host is running, but it could not connect to
+            <code>{{CODEX_GUI_HOST_VITE_ORIGIN}}</code>.
+          </p>
+        </div>
+      </section>
+
+      <div class="ticks"></div>
+
+      <section id="next-steps">
+        <div id="docs">
+          <h2>Start dev server</h2>
+          <p>Run the frontend dev server and refresh this page.</p>
+          <code>pnpm --dir codex-gui dev</code>
+        </div>
+
+        <div id="social">
+          <h2>If Vite is already running</h2>
+          <p>Check whether proxy environment variables are intercepting localhost.</p>
+          <code>NO_PROXY=127.0.0.1,localhost</code>
+        </div>
+      </section>
+
+      <div class="ticks"></div>
+
+      <section id="spacer">
+        <h2>Connection error</h2>
+        <p>{{CODEX_GUI_HOST_ERROR}}</p>
+      </section>
+    </div>
+  </body>
+</html>
