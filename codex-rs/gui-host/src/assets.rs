@@ -99,10 +99,19 @@ fn dev_proxy_error_response(vite_origin: &str, error: &str) -> Response {
 }
 
 fn dev_proxy_error_page(vite_origin: &str, error: &str) -> String {
+    let error = capitalize_first_char(error);
     DEV_PROXY_ERROR_HTML
         .replace("/* {{CODEX_GUI_HOST_CSS}} */", DEV_PROXY_ERROR_CSS)
         .replace("{{CODEX_GUI_HOST_VITE_ORIGIN}}", &html_escape(vite_origin))
-        .replace("{{CODEX_GUI_HOST_ERROR}}", &html_escape(error))
+        .replace("{{CODEX_GUI_HOST_ERROR}}", &html_escape(&error))
+}
+
+fn capitalize_first_char(input: &str) -> String {
+    let mut chars = input.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
 }
 
 fn html_escape(input: &str) -> String {
@@ -167,6 +176,17 @@ mod tests {
             super::html_escape("<script data-x=\"1\">'&'</script>"),
             "&lt;script data-x=&quot;1&quot;&gt;&#39;&amp;&#39;&lt;/script&gt;"
         );
+    }
+
+    #[test]
+    fn dev_proxy_error_page_capitalizes_error_sentence() {
+        let page = super::dev_proxy_error_page(
+            "http://127.0.0.1:5173",
+            "error sending request for url (http://127.0.0.1:5173/)",
+        );
+
+        assert!(page.contains("Error sending request for url"));
+        assert!(!page.contains("error sending request for url"));
     }
 
     #[tokio::test]
