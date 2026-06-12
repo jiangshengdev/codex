@@ -38,7 +38,7 @@ It does not delete `projectionSlice`, build snapshot replay, interpret live item
 - Create: `codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts`
 - Create: `codex-gui/src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts`
 
-- [ ] **Step 1: Write the failing reducer tests**
+- [x] **Step 1: Write the failing reducer tests**
 
 Create `codex-gui/src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts`:
 
@@ -258,7 +258,7 @@ describe("thread runtime reducer", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused reducer test and confirm it fails**
+- [x] **Step 2: Run the focused reducer test and confirm it fails**
 
 Run from the repo root:
 
@@ -268,7 +268,7 @@ pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/thre
 
 Expected result: FAIL because `../threadRuntimeSlice` does not exist yet.
 
-- [ ] **Step 3: Add the runtime slice implementation**
+- [x] **Step 3: Add the runtime slice implementation**
 
 Create `codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts`:
 
@@ -416,7 +416,7 @@ export const {
 export default threadRuntimeSlice;
 ```
 
-- [ ] **Step 4: Run the focused reducer test and confirm it passes**
+- [x] **Step 4: Run the focused reducer test and confirm it passes**
 
 Run:
 
@@ -426,7 +426,7 @@ pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/thre
 
 Expected result: PASS.
 
-- [ ] **Step 5: Commit the runtime slice**
+- [x] **Step 5: Commit the runtime slice**
 
 Run from repo root:
 
@@ -444,7 +444,7 @@ git commit -m "feat(gui): add thread runtime store"
 - Modify: `codex-gui/src/app/store.ts`
 - Modify: `codex-gui/src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts`
 
-- [ ] **Step 1: Add a failing store registration test**
+- [x] **Step 1: Add a failing store registration test**
 
 In `codex-gui/src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts`, add this import:
 
@@ -465,7 +465,7 @@ it("registers thread runtime state in the app store", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused reducer test and confirm it fails**
+- [x] **Step 2: Run the focused reducer test and confirm it fails**
 
 Run:
 
@@ -475,7 +475,7 @@ pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/thre
 
 Expected result: FAIL because `threadRuntimeSlice` is not registered in the app store.
 
-- [ ] **Step 3: Register the slice**
+- [x] **Step 3: Register the slice**
 
 Modify `codex-gui/src/app/store.ts`:
 
@@ -521,7 +521,7 @@ export type AppThunk<ThunkReturnType = void> = ThunkAction<
 >;
 ```
 
-- [ ] **Step 4: Run the focused reducer test and confirm it passes**
+- [x] **Step 4: Run the focused reducer test and confirm it passes**
 
 Run:
 
@@ -531,7 +531,7 @@ pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/thre
 
 Expected result: PASS.
 
-- [ ] **Step 5: Commit store registration**
+- [x] **Step 5: Commit store registration**
 
 Run:
 
@@ -549,7 +549,7 @@ git commit -m "feat(gui): register thread runtime store"
 - Modify: `codex-gui/src/App.tsx`
 - Modify: `codex-gui/src/__tests__/App.browser.test.tsx`
 
-- [ ] **Step 1: Add failing App browser assertions**
+- [x] **Step 1: Add failing App browser assertions**
 
 Update imports in `codex-gui/src/__tests__/App.browser.test.tsx`.
 
@@ -616,7 +616,7 @@ test("App records manual reconnect when a projection event breaks the baseline",
 });
 ```
 
-- [ ] **Step 2: Run the focused App browser test and confirm it fails**
+- [x] **Step 2: Run the focused App browser test and confirm it fails**
 
 Run:
 
@@ -626,7 +626,7 @@ pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__t
 
 Expected result: FAIL because `App.tsx` does not dispatch projection ingress outcomes into `threadRuntimeSlice` yet.
 
-- [ ] **Step 3: Wire App outcomes to runtime actions**
+- [x] **Step 3: Wire App outcomes to runtime actions**
 
 Modify `codex-gui/src/App.tsx`.
 
@@ -727,7 +727,7 @@ onProjectionClosed: (notification) => {
 },
 ```
 
-- [ ] **Step 4: Run the focused App browser test and confirm it passes**
+- [x] **Step 4: Run the focused App browser test and confirm it passes**
 
 Run:
 
@@ -737,7 +737,7 @@ pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__t
 
 Expected result: PASS.
 
-- [ ] **Step 5: Run the runtime reducer test again**
+- [x] **Step 5: Run the runtime reducer test again**
 
 Run:
 
@@ -747,7 +747,7 @@ pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/thre
 
 Expected result: PASS.
 
-- [ ] **Step 6: Commit App runtime wiring**
+- [x] **Step 6: Commit App runtime wiring**
 
 Run:
 
@@ -764,7 +764,7 @@ git commit -m "feat(gui): wire projection ingress to runtime store"
 **Files:**
 - No source edits expected.
 
-- [ ] **Step 1: Run focused runtime tests**
+- [x] **Step 1: Run focused runtime tests**
 
 Run:
 
@@ -774,7 +774,7 @@ pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/thre
 
 Expected result: PASS.
 
-- [ ] **Step 2: Run focused App browser wiring tests**
+- [x] **Step 2: Run focused App browser wiring tests**
 
 Run:
 
@@ -784,7 +784,7 @@ pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__t
 
 Expected result: PASS.
 
-- [ ] **Step 3: Run type check**
+- [x] **Step 3: Run type check**
 
 Run:
 
@@ -794,7 +794,7 @@ pnpm --dir codex-gui run type-check
 
 Expected result: PASS.
 
-- [ ] **Step 4: Review the committed diff**
+- [x] **Step 4: Review the committed diff**
 
 Run:
 
@@ -815,7 +815,7 @@ Expected result:
   - `codex-gui/src/App.tsx`
   - `codex-gui/src/__tests__/App.browser.test.tsx`
 
-- [ ] **Step 5: Confirm non-goals stayed out of scope**
+- [x] **Step 5: Confirm non-goals stayed out of scope**
 
 Check the diff manually and verify:
 
@@ -827,3 +827,15 @@ Check the diff manually and verify:
 - No composer or tool activity changes.
 
 If any of those appear, revert that part before considering this plan complete.
+
+## Execution Results
+
+- Task 1 completed in commits `1f08b7e0d` (`feat(gui): add thread runtime store`) and `24c33d612` (`fix(gui): stabilize empty thread runtime buffer selector`).
+- Task 2 completed in commit `8494943cb` (`feat(gui): register thread runtime store`).
+- Task 3 completed in commit `49adaa133` (`feat(gui): wire projection ingress to runtime store`).
+- Follow-up lint cleanup completed in commit `22d4cfb5c` (`fix(gui): satisfy thread runtime lint`).
+- Final status update completed on 2026-06-12. Focused verification passed:
+  - `pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts`
+  - `pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__tests__/App.browser.test.tsx`
+  - `pnpm --dir codex-gui run type-check`
+- Scope check: implementation stayed within the planned `threadRuntime`, store registration, `App` wiring, and App browser test surface. It did not delete `projectionSlice`, add snapshot replay, add live item interpretation, add chat view model selectors, add visible reconnect UI, or touch composer/tool activity behavior.

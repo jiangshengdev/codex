@@ -105,6 +105,7 @@ YOLO single-session chat GUI
 ├─ 02 projection ingress adapter
 ├─ 03 thread runtime store
 ├─ 04 snapshot replay
+├─ 04a projectionSlice cleanup
 ├─ 05 live event handling
 ├─ 05a streaming readiness
 ├─ 06 basic chat surface
@@ -176,6 +177,12 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 将 attach snapshot 作为 runtime 初始化材料，并明确 replay 路径和 live 路径不同。replay 不应触发 live-only UI 副作用。
 
+### 04a ProjectionSlice Cleanup
+
+清理旧的临时 `projectionSlice` truth model。`04` 只允许从 `threadRuntimeSlice` 的 snapshot baseline 派生 replay material，不依赖也不删除旧 `projectionSlice`；`04a` 专门负责切断 `App` 对 `projectionSlice` 的临时 dispatch、移除 store 注册和旧 projection slice 测试，并确认后续 `05/06` 不能再从旧 projection state 取数据。
+
+这一层不新增 snapshot replay 行为，不解释 live event，不派生 chat view model，也不做 UI。它只负责把 `03` 之后残留的兼容路径清理出后续主线。
+
 ### 05 Live Event Handling
 
 处理 attach 之后的增量事件，更新 runtime，并维持 active turn / live update / subscription interrupted 状态。
@@ -245,6 +252,7 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 - `02` 只验收 projection 输入适配，不验收 runtime。
 - `03` 只验收 runtime store，不验收 UI。
 - `04` 只验收 snapshot replay。
+- `04a` 只验收旧 `projectionSlice` 兼容路径清理。
 - `05` 只验收 live event handling。
 - `05a` 只验收 streaming-ready message model，不验收真实 delta 输入。
 - `06` 之后才开始验收聊天展示。
@@ -255,7 +263,7 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 - Projection 是 app-server 的投影输出，不是 GUI 状态真理。
 - 当前 GUI store 是临时调试代码，不作为后续设计依据；其中 commit-chain 连续性校验和重连判定属于协议逻辑，必须迁移保留。
 - `03` 的 runtime store 只做 TUI-aligned buffer 和 active turn tracking；不能把 `projectionSlice` 的 turn/item upsert 行为迁移成新的 truth model。
-- `projectionSlice` 从 `03` 开始必须被切断为临时兼容路径，最晚在 `05 Live Event Handling` 前删除，不能进入 `06 Basic Chat Surface`。
+- `projectionSlice` 从 `03` 开始必须被切断为临时兼容路径；`04a ProjectionSlice Cleanup` 专门删除这条旧路径，不能让它进入 `05 Live Event Handling` 或 `06 Basic Chat Surface`。
 - 第一版 projection 三件套是输入面起点，不是封闭边界；后续 streaming notification 输入必须能并入同一个 runtime。
 - 先做线程，再做事件，再做 replay/live，再做 chat。
 - 每个子设计必须足够小，可以独立实现、独立回退、独立验收。
