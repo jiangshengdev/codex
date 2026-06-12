@@ -39,7 +39,7 @@ It does not build the real reconnect button, runtime store, replay, chat UI, com
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.ts`
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.test.ts`
 
-- [ ] **Step 1: Write the failing transport test**
+- [x] **Step 1: Write the failing transport test**
 
 In `codex-gui/src/features/guiHost/guiHostClient.test.ts`, update the protocol import:
 
@@ -146,7 +146,7 @@ it("reports malformed projection closed payloads without forwarding them", () =>
 });
 ```
 
-- [ ] **Step 2: Run the focused transport test and confirm it fails**
+- [x] **Step 2: Run the focused transport test and confirm it fails**
 
 Run:
 
@@ -156,7 +156,7 @@ pnpm --dir codex-gui exec vitest --run src/features/guiHost/guiHostClient.test.t
 
 Expected: FAIL because `ThreadProjectionClosedNotification` is not imported or handled by `guiHostClient.ts`, and `onProjectionClosed` is not part of `StartGuiHostConnectionOptions`.
 
-- [ ] **Step 3: Add closed notification support in `guiHostClient.ts`**
+- [x] **Step 3: Add closed notification support in `guiHostClient.ts`**
 
 Update the import:
 
@@ -233,7 +233,7 @@ function isThreadProjectionClosedNotification(
 }
 ```
 
-- [ ] **Step 4: Run the focused transport test and confirm it passes**
+- [x] **Step 4: Run the focused transport test and confirm it passes**
 
 Run:
 
@@ -243,7 +243,7 @@ pnpm --dir codex-gui exec vitest --run src/features/guiHost/guiHostClient.test.t
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit transport closed forwarding**
+- [x] **Step 5: Commit transport closed forwarding**
 
 Run:
 
@@ -261,7 +261,7 @@ git commit -m "feat(gui): forward projection closed notifications"
 - Create: `codex-gui/src/features/projectionIngress/projectionIngressAdapter.ts`
 - Create: `codex-gui/src/features/projectionIngress/__tests__/projectionIngressAdapter.test.ts`
 
-- [ ] **Step 1: Write the failing adapter tests**
+- [x] **Step 1: Write the failing adapter tests**
 
 Create `codex-gui/src/features/projectionIngress/__tests__/projectionIngressAdapter.test.ts`:
 
@@ -458,7 +458,7 @@ describe("ProjectionIngressAdapter", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused adapter test and confirm it fails**
+- [x] **Step 2: Run the focused adapter test and confirm it fails**
 
 Run:
 
@@ -468,7 +468,7 @@ pnpm --dir codex-gui exec vitest --run src/features/projectionIngress/__tests__/
 
 Expected: FAIL because `../projectionIngressAdapter` does not exist yet.
 
-- [ ] **Step 3: Add the adapter implementation**
+- [x] **Step 3: Add the adapter implementation**
 
 Create `codex-gui/src/features/projectionIngress/projectionIngressAdapter.ts`:
 
@@ -649,7 +649,7 @@ export class ProjectionIngressAdapter {
 }
 ```
 
-- [ ] **Step 4: Run the focused adapter test and confirm it passes**
+- [x] **Step 4: Run the focused adapter test and confirm it passes**
 
 Run:
 
@@ -659,7 +659,7 @@ pnpm --dir codex-gui exec vitest --run src/features/projectionIngress/__tests__/
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the adapter**
+- [x] **Step 5: Commit the adapter**
 
 Run:
 
@@ -677,7 +677,7 @@ git commit -m "feat(gui): add projection ingress adapter"
 - Modify: `codex-gui/src/App.tsx`
 - Modify: `codex-gui/src/__tests__/App.browser.test.tsx`
 
-- [ ] **Step 1: Write the failing App browser test**
+- [x] **Step 1: Write the failing App browser test**
 
 Update the protocol import in `codex-gui/src/__tests__/App.browser.test.tsx`:
 
@@ -714,7 +714,7 @@ test("App stops forwarding projection events after backpressure requires manual 
 });
 ```
 
-- [ ] **Step 2: Run the focused App browser test and confirm it fails**
+- [x] **Step 2: Run the focused App browser test and confirm it fails**
 
 Run:
 
@@ -724,7 +724,7 @@ pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__t
 
 Expected: FAIL because `StartGuiHostConnectionOptions` may not yet expose `onProjectionClosed` if Task 1 was not completed, and because `App` does not create or use `ProjectionIngressAdapter`.
 
-- [ ] **Step 3: Wire `App` through the adapter**
+- [x] **Step 3: Wire `App` through the adapter**
 
 Update imports in `codex-gui/src/App.tsx`:
 
@@ -792,7 +792,7 @@ onProjectionClosed: (notification) => {
 
 This task intentionally does not add a visible reconnect UI. The adapter outcome blocks later event forwarding; the runtime/UI state for `manualReconnectRequired` belongs to the next layer.
 
-- [ ] **Step 4: Run the focused App browser test and confirm it passes**
+- [x] **Step 4: Run the focused App browser test and confirm it passes**
 
 Run:
 
@@ -802,7 +802,7 @@ pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__t
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit App adapter wiring**
+- [x] **Step 5: Commit App adapter wiring**
 
 Run:
 
@@ -823,7 +823,7 @@ git commit -m "feat(gui): gate projection dispatch through ingress adapter"
 - Verify: `codex-gui/src/features/guiHost/guiHostClient.ts`
 - Verify: `codex-gui/src/features/projectionIngress/projectionIngressAdapter.ts`
 
-- [ ] **Step 1: Format changed frontend files**
+- [x] **Step 1: Format changed frontend files**
 
 Run:
 
@@ -839,7 +839,7 @@ pnpm --dir codex-gui exec prettier --write \
 
 Expected: Prettier rewrites files or reports them unchanged.
 
-- [ ] **Step 2: Run focused unit tests**
+- [x] **Step 2: Run focused unit tests**
 
 Run:
 
@@ -851,7 +851,7 @@ pnpm --dir codex-gui exec vitest --run \
 
 Expected: PASS.
 
-- [ ] **Step 3: Run focused browser test**
+- [x] **Step 3: Run focused browser test**
 
 Run:
 
@@ -861,7 +861,7 @@ pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__t
 
 Expected: PASS.
 
-- [ ] **Step 4: Run type-check**
+- [x] **Step 4: Run type-check**
 
 Run:
 
@@ -871,7 +871,7 @@ pnpm --dir codex-gui run type-check
 
 Expected: PASS.
 
-- [ ] **Step 5: Inspect final diff**
+- [x] **Step 5: Inspect final diff**
 
 Run:
 
@@ -887,7 +887,7 @@ Expected:
 - Diff is limited to the files listed in this plan.
 - No lockfile changes.
 
-- [ ] **Step 6: Commit verification cleanup if formatting changed files**
+- [x] **Step 6: Commit verification cleanup if formatting changed files**
 
 If Step 1 changed files after Task 3's commit, run:
 
@@ -902,6 +902,15 @@ git commit -m "style(gui): format projection ingress adapter changes"
 ```
 
 Expected: A commit is created only when formatting produced unstaged changes.
+
+## Execution Results
+
+- Task 1 completed in commit `90fdf3985` (`feat(gui): forward projection closed notifications`).
+- Task 2 completed in commit `91fd0bf8c` (`feat(gui): add projection ingress adapter`).
+- Task 3 completed in commit `62faa0aef` (`feat(gui): gate projection dispatch through ingress adapter`).
+- Task 4 formatting cleanup completed in commit `13efffd4a` (`style(gui): format projection ingress adapter changes`).
+- Projection closed fixture generation completed in commit `9d850f807` (`feat(gui): generate projection closed fixture`).
+- Final verification covered the focused transport tests, adapter tests, App browser test, type-check, diff check, and scope check. No lockfile changes were included.
 
 ---
 
