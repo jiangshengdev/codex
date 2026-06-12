@@ -103,6 +103,70 @@ describe("snapshot replay", () => {
     ] satisfies SnapshotReplayMaterial[]);
   });
 
+  it("expands multiple snapshot turns in snapshot order", () => {
+    const firstTurn = attachBaseline.snapshot.thread.turns[0];
+    const secondTurn: Turn = {
+      ...firstTurn,
+      id: "second-turn",
+      items: [
+        { type: "plan", id: "second-plan", text: "Second replayed item" },
+        { type: "plan", id: "third-plan", text: "Third replayed item" },
+      ],
+      startedAt: 1700000010,
+      completedAt: 1700000016,
+      durationMs: 6000,
+    };
+    const runtime = runtimeFromAttach(attachWithTurns([firstTurn, secondTurn]));
+
+    expect(buildSnapshotReplayMaterials(runtime)).toStrictEqual([
+      {
+        type: "turnStarted",
+        source: "snapshotReplay",
+        threadId: attachBaseline.snapshot.thread.id,
+        turn: firstTurn,
+      },
+      {
+        type: "itemReplayed",
+        source: "snapshotReplay",
+        threadId: attachBaseline.snapshot.thread.id,
+        turnId: firstTurn.id,
+        item: firstTurn.items[0],
+      },
+      {
+        type: "turnCompleted",
+        source: "snapshotReplay",
+        threadId: attachBaseline.snapshot.thread.id,
+        turn: turnWithoutItems(firstTurn),
+      },
+      {
+        type: "turnStarted",
+        source: "snapshotReplay",
+        threadId: attachBaseline.snapshot.thread.id,
+        turn: secondTurn,
+      },
+      {
+        type: "itemReplayed",
+        source: "snapshotReplay",
+        threadId: attachBaseline.snapshot.thread.id,
+        turnId: secondTurn.id,
+        item: secondTurn.items[0],
+      },
+      {
+        type: "itemReplayed",
+        source: "snapshotReplay",
+        threadId: attachBaseline.snapshot.thread.id,
+        turnId: secondTurn.id,
+        item: secondTurn.items[1],
+      },
+      {
+        type: "turnCompleted",
+        source: "snapshotReplay",
+        threadId: attachBaseline.snapshot.thread.id,
+        turn: turnWithoutItems(secondTurn),
+      },
+    ] satisfies SnapshotReplayMaterial[]);
+  });
+
   it("keeps in-progress turns open and preserves item order", () => {
     if (eventTurnStarted.event.type !== "turnStarted") {
       throw new Error("fixture must contain a turnStarted projection event");
