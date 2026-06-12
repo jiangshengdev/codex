@@ -31,7 +31,7 @@ It does not delete `projectionSlice`, wire replay material into `App.tsx`, inter
 - Create: `codex-gui/src/features/snapshotReplay/snapshotReplay.ts`
 - Create: `codex-gui/src/features/snapshotReplay/__tests__/snapshotReplay.test.ts`
 
-- [ ] **Step 1: Write the failing snapshot replay tests**
+- [x] **Step 1: Write the failing snapshot replay tests**
 
 Create `codex-gui/src/features/snapshotReplay/__tests__/snapshotReplay.test.ts`:
 
@@ -197,7 +197,7 @@ describe("snapshot replay", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused snapshot replay test and confirm it fails**
+- [x] **Step 2: Run the focused snapshot replay test and confirm it fails**
 
 Run from the repo root:
 
@@ -207,7 +207,7 @@ pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/sna
 
 Expected result: FAIL because `../snapshotReplay` does not exist yet.
 
-- [ ] **Step 3: Add the snapshot replay implementation**
+- [x] **Step 3: Add the snapshot replay implementation**
 
 Create `codex-gui/src/features/snapshotReplay/snapshotReplay.ts`:
 
@@ -311,7 +311,7 @@ export const selectSnapshotReplayMaterials = (state: RootState): SnapshotReplayM
   buildSnapshotReplayMaterials(selectThreadRuntimeRecord(state));
 ```
 
-- [ ] **Step 4: Run the focused snapshot replay test and confirm it passes**
+- [x] **Step 4: Run the focused snapshot replay test and confirm it passes**
 
 Run:
 
@@ -321,7 +321,7 @@ pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/sna
 
 Expected result: PASS.
 
-- [ ] **Step 5: Run formatter before committing**
+- [x] **Step 5: Run formatter before committing**
 
 Run:
 
@@ -331,7 +331,7 @@ pnpm --dir codex-gui run format
 
 Expected result: PASS and no unexpected non-`snapshotReplay` source changes.
 
-- [ ] **Step 6: Commit snapshot replay materials**
+- [x] **Step 6: Commit snapshot replay materials**
 
 Run:
 
@@ -348,7 +348,7 @@ git commit -m "feat(gui): add snapshot replay materials"
 **Files:**
 - No source edits expected.
 
-- [ ] **Step 1: Run focused snapshot replay tests**
+- [x] **Step 1: Run focused snapshot replay tests**
 
 Run:
 
@@ -358,7 +358,7 @@ pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/sna
 
 Expected result: PASS.
 
-- [ ] **Step 2: Run focused thread runtime tests**
+- [x] **Step 2: Run focused thread runtime tests**
 
 Run:
 
@@ -368,7 +368,7 @@ pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/thre
 
 Expected result: PASS.
 
-- [ ] **Step 3: Run type check**
+- [x] **Step 3: Run type check**
 
 Run:
 
@@ -378,7 +378,7 @@ pnpm --dir codex-gui run type-check
 
 Expected result: PASS.
 
-- [ ] **Step 4: Review the committed diff**
+- [x] **Step 4: Review the committed diff**
 
 Run:
 
@@ -397,7 +397,7 @@ Expected result:
   - `codex-gui/src/features/snapshotReplay/snapshotReplay.ts`
   - `codex-gui/src/features/snapshotReplay/__tests__/snapshotReplay.test.ts`
 
-- [ ] **Step 5: Confirm non-goals stayed out of scope**
+- [x] **Step 5: Confirm non-goals stayed out of scope**
 
 Check the diff manually and verify:
 
@@ -411,3 +411,17 @@ Check the diff manually and verify:
 - No composer or tool activity changes.
 
 If any of those appear, revert that part before considering this plan complete.
+
+## Execution Results
+
+- Task 1 completed in commit `2820987cc` (`feat(gui): add snapshot replay materials`).
+- Follow-up snapshot replay test coverage completed in commit `23d0ccba5` (`test(gui): cover snapshot replay turn order`).
+- Follow-up fixture typing cleanup completed in commit `fdbc46cb8` (`test(gui): type snapshot replay fixtures safely`).
+- Final verification on 2026-06-12:
+  - `pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/snapshotReplay.test.ts` passed with 5 tests.
+  - `pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts` passed with 10 tests.
+  - `pnpm --dir codex-gui run type-check` passed.
+- Scope check confirmed the `04` implementation commits only touched:
+  - `codex-gui/src/features/snapshotReplay/snapshotReplay.ts`
+  - `codex-gui/src/features/snapshotReplay/__tests__/snapshotReplay.test.ts`
+- Non-goals stayed out of scope: no `projectionSlice` deletion, no `App.tsx` changes, no store registration changes, no chat view model, no live event handling, no visible UI, and no composer or tool activity changes.
