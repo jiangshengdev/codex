@@ -48,9 +48,7 @@ const initialState: ThreadRuntimeState = {
 const EMPTY_EVENT_BUFFER: ThreadRuntimeBufferedEvent[] = [];
 
 const activeTurnIdFromSnapshot = (turns: Turn[]): string | null =>
-  turns
-    .toReversed()
-    .find((turn) => turn.status === "inProgress")?.id ?? null;
+  turns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null;
 
 export const threadRuntimeSlice = createAppSlice({
   name: "threadRuntime",
@@ -74,7 +72,7 @@ export const threadRuntimeSlice = createAppSlice({
     threadRuntimeEventBuffered: create.reducer(
       (state, action: PayloadAction<ThreadProjectionEventNotification>) => {
         const runtime = state.current;
-        if (runtime == null || runtime.subscription.state !== "active") {
+        if (runtime?.subscription.state !== "active") {
           return;
         }
 
@@ -101,7 +99,7 @@ export const threadRuntimeSlice = createAppSlice({
     threadRuntimeManualReconnectRequired: create.reducer(
       (state, action: PayloadAction<ThreadRuntimeManualReconnectPayload>) => {
         const runtime = state.current;
-        if (runtime == null || runtime.threadId !== action.payload.threadId) {
+        if (runtime?.threadId !== action.payload.threadId) {
           return;
         }
 
@@ -115,10 +113,8 @@ export const threadRuntimeSlice = createAppSlice({
   }),
   selectors: {
     selectThreadRuntimeRecord: (threadRuntime) => threadRuntime.current,
-    selectThreadRuntimeActiveTurnId: (threadRuntime) =>
-      threadRuntime.current?.activeTurnId ?? null,
-    selectThreadRuntimeSubscription: (threadRuntime) =>
-      threadRuntime.current?.subscription ?? null,
+    selectThreadRuntimeActiveTurnId: (threadRuntime) => threadRuntime.current?.activeTurnId ?? null,
+    selectThreadRuntimeSubscription: (threadRuntime) => threadRuntime.current?.subscription ?? null,
     selectThreadRuntimeEventBuffer: (threadRuntime) =>
       threadRuntime.current?.eventBuffer ?? EMPTY_EVENT_BUFFER,
   },
