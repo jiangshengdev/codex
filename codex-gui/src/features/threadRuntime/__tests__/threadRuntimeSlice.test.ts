@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeStore } from "@/app/store";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import attachReplacementJson from "@/features/projection/__fixtures__/attach-replacement.json";
 import eventItemCompletedJson from "@/features/projection/__fixtures__/event-item-completed.json";
@@ -51,6 +52,15 @@ const attachWithTurns = (turns: Turn[]): ThreadProjectionAttachResponse => ({
 const runtimeRoot = (state: ThreadRuntimeState) => ({ threadRuntime: state });
 
 describe("thread runtime reducer", () => {
+  it("registers thread runtime state in the app store", () => {
+    const store = makeStore();
+
+    expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
+    expect(selectThreadRuntimeActiveTurnId(store.getState())).toBeNull();
+    expect(selectThreadRuntimeSubscription(store.getState())).toBeNull();
+    expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
+  });
+
   it("returns a stable empty event buffer when no runtime exists", () => {
     const root = runtimeRoot({ current: null });
 
