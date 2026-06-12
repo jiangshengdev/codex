@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useAppDispatch } from "./app/hooks";
 import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
-import { projectionAttached, projectionEventReceived } from "./features/projection/projectionSlice";
 import {
   ProjectionIngressAdapter,
   type ProjectionIngressOutcome,
@@ -35,11 +34,9 @@ function App() {
       switch (outcome.type) {
         case "attachAccepted":
           dispatch(threadRuntimeAttached(outcome.response));
-          dispatch(projectionAttached(outcome.response));
           return;
         case "eventAccepted":
           dispatch(threadRuntimeEventBuffered(outcome.notification));
-          dispatch(projectionEventReceived(outcome.notification));
           return;
         case "manualReconnectRequired":
           dispatch(
