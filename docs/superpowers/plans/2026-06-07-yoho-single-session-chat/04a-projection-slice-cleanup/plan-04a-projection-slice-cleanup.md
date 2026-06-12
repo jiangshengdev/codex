@@ -55,7 +55,7 @@ It does not implement live event handling, chat UI, reconnect UI, composer behav
 **Files:**
 - Modify: `codex-gui/src/__tests__/App.browser.test.tsx`
 
-- [ ] **Step 1: Update imports away from `projectionSlice`**
+- [x] **Step 1: Update imports away from `projectionSlice`**
 
 In `codex-gui/src/__tests__/App.browser.test.tsx`, remove this import:
 
@@ -75,7 +75,7 @@ import {
 } from "@/features/snapshotReplay/snapshotReplay";
 ```
 
-- [ ] **Step 2: Replace the accepted attach/event browser test assertions**
+- [x] **Step 2: Replace the accepted attach/event browser test assertions**
 
 In `codex-gui/src/__tests__/App.browser.test.tsx`, replace the entire test named `"App dispatches GUI host projection payloads into Redux"` with:
 
@@ -115,7 +115,7 @@ test("App dispatches accepted GUI host projection payloads into thread runtime",
 });
 ```
 
-- [ ] **Step 3: Replace the mismatched attach test assertions**
+- [x] **Step 3: Replace the mismatched attach test assertions**
 
 In `codex-gui/src/__tests__/App.browser.test.tsx`, replace the entire test named `"App records mismatched attach identity without advancing projection state"` with:
 
@@ -149,7 +149,7 @@ test("App records mismatched attach identity without advancing runtime state", a
 });
 ```
 
-- [ ] **Step 4: Replace the backpressure browser test assertions**
+- [x] **Step 4: Replace the backpressure browser test assertions**
 
 In `codex-gui/src/__tests__/App.browser.test.tsx`, replace the entire test named `"App stops forwarding projection events after backpressure requires manual reconnect"` with:
 
@@ -179,7 +179,7 @@ test("App stops forwarding runtime events after backpressure requires manual rec
 });
 ```
 
-- [ ] **Step 5: Run the focused App browser test and confirm it still passes before deleting the slice**
+- [x] **Step 5: Run the focused App browser test and confirm it still passes before deleting the slice**
 
 Run:
 
@@ -189,7 +189,7 @@ pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__t
 
 Expected result: PASS. The test still passes because `projectionSlice` remains registered for now, but `App.browser.test.tsx` no longer imports or asserts through it.
 
-- [ ] **Step 6: Commit the browser test retargeting**
+- [x] **Step 6: Commit the browser test retargeting**
 
 Run:
 
@@ -210,7 +210,7 @@ Expected result: one commit that only modifies `codex-gui/src/__tests__/App.brow
 - Delete: `codex-gui/src/features/projection/projectionSlice.ts`
 - Delete: `codex-gui/src/features/projection/__tests__/projectionSlice.test.ts`
 
-- [ ] **Step 1: Remove duplicate projection dispatches from App**
+- [x] **Step 1: Remove duplicate projection dispatches from App**
 
 In `codex-gui/src/App.tsx`, delete this import:
 
@@ -231,7 +231,7 @@ In `dispatchProjectionOutcome`, change the accepted attach and event cases to:
 
 Leave the `manualReconnectRequired` and `ignored` cases unchanged.
 
-- [ ] **Step 2: Remove projection reducer registration from the app store**
+- [x] **Step 2: Remove projection reducer registration from the app store**
 
 In `codex-gui/src/app/store.ts`, delete this import:
 
@@ -245,7 +245,7 @@ Change the `rootReducer` declaration to:
 const rootReducer = combineSlices(counterSlice, threadIdentitySlice, threadRuntimeSlice);
 ```
 
-- [ ] **Step 3: Delete the legacy projection slice files**
+- [x] **Step 3: Delete the legacy projection slice files**
 
 Run:
 
@@ -256,7 +256,7 @@ rm codex-gui/src/features/projection/__tests__/projectionSlice.test.ts
 
 Expected result: the old projection Redux truth model and its reducer tests are removed. Do not delete `codex-gui/src/features/projection/__fixtures__` or `codex-gui/src/features/projection/__tests__/projectionFixtures.test.ts`.
 
-- [ ] **Step 4: Run TypeScript and focused tests for the deletion**
+- [x] **Step 4: Run TypeScript and focused tests for the deletion**
 
 Run:
 
@@ -271,7 +271,7 @@ pnpm --dir codex-gui run type-check
 
 Expected result: all commands PASS. If TypeScript reports any remaining `projectionSlice` import, remove that import instead of adding a replacement projection abstraction.
 
-- [ ] **Step 5: Format changed frontend files**
+- [x] **Step 5: Format changed frontend files**
 
 Run:
 
@@ -281,7 +281,7 @@ pnpm --dir codex-gui run format
 
 Expected result: PASS. If formatting changes files, include only the files in this task's scope.
 
-- [ ] **Step 6: Commit the cleanup**
+- [x] **Step 6: Commit the cleanup**
 
 Run:
 
@@ -302,7 +302,7 @@ Expected result: one implementation commit removing the old slice and app/store 
 **Files:**
 - No source edits expected unless verification finds a narrow issue in Task 2 scope.
 
-- [ ] **Step 1: Confirm only protocol fixtures remain under `features/projection`**
+- [x] **Step 1: Confirm only protocol fixtures remain under `features/projection`**
 
 Run:
 
@@ -324,7 +324,7 @@ codex-gui/src/features/projection/__fixtures__/event-turn-started.json
 codex-gui/src/features/projection/__tests__/projectionFixtures.test.ts
 ```
 
-- [ ] **Step 2: Confirm the remaining `projectionSlice` references are gone**
+- [x] **Step 2: Confirm the remaining `projectionSlice` references are gone**
 
 Run:
 
@@ -334,7 +334,7 @@ rg -n "projectionSlice|projectionAttached|projectionEventReceived|selectProjecti
 
 Expected result: no output and exit code 1.
 
-- [ ] **Step 3: Run the focused verification suite again**
+- [x] **Step 3: Run the focused verification suite again**
 
 Run:
 
@@ -349,7 +349,7 @@ pnpm --dir codex-gui run type-check
 
 Expected result: all commands PASS.
 
-- [ ] **Step 4: Review committed diff**
+- [x] **Step 4: Review committed diff**
 
 Run:
 
@@ -370,7 +370,7 @@ Expected result:
 - `codex-gui/src/features/projection/__fixtures__/*.json` remain unchanged.
 - `codex-gui/src/features/projection/__tests__/projectionFixtures.test.ts` remains unchanged.
 
-- [ ] **Step 5: Commit plan completion separately after implementation**
+- [x] **Step 5: Commit plan completion separately after implementation**
 
 After Tasks 1-3 pass, update this plan file's checkboxes and add an `Execution Results` section with the commits and verification outcomes.
 
@@ -382,3 +382,28 @@ git commit -m "docs(gui): mark projection slice cleanup plan complete"
 ```
 
 Expected result: a docs-only completion commit. Do not mix this plan-status commit with source changes.
+
+## Execution Results
+
+Implementation commits:
+
+- `468858f6e test(gui): retarget app projection assertions to runtime`
+- `7784630f1 refactor(gui): remove legacy projection slice`
+
+Review results:
+
+- Task 1 spec compliance review passed.
+- Task 1 code quality review passed with no issues.
+- Task 2 spec compliance review passed.
+- Task 2 code quality review passed with no issues.
+
+Final verification:
+
+- `find codex-gui/src/features/projection -maxdepth 3 -type f | sort` shows only protocol fixtures and `projectionFixtures.test.ts`.
+- `rg -n "projectionSlice|projectionAttached|projectionEventReceived|selectProjection" codex-gui/src` returns no matches.
+- `pnpm --dir codex-gui exec vitest --config=vitest.browser.config.ts --run src/__tests__/App.browser.test.tsx` passed: 3 files, 21 tests.
+- `pnpm --dir codex-gui exec vitest --run src/features/projectionIngress/__tests__/projectionIngressAdapter.test.ts` passed: 1 file, 10 tests.
+- `pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts` passed: 1 file, 10 tests.
+- `pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/snapshotReplay.test.ts` passed: 1 file, 5 tests.
+- `pnpm --dir codex-gui exec vitest --run src/features/projection/__tests__/projectionFixtures.test.ts` passed: 1 file, 6 tests.
+- `pnpm --dir codex-gui run type-check` passed.
