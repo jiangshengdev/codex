@@ -9,6 +9,7 @@ import {
   type ThreadRuntimeRecord,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import type {
+  ThreadItem,
   ThreadProjectionAttachResponse,
   ThreadProjectionEventNotification,
   Turn,
@@ -40,6 +41,22 @@ const turnWithoutItems = ({
   completedAt,
   durationMs,
 });
+
+const fixtureTurn = (turn: Turn | undefined, label: string): Turn => {
+  if (turn == null) {
+    throw new Error(`missing ${label} fixture turn`);
+  }
+
+  return turn;
+};
+
+const fixtureItem = (item: ThreadItem | undefined, label: string): ThreadItem => {
+  if (item == null) {
+    throw new Error(`missing ${label} fixture item`);
+  }
+
+  return item;
+};
 
 const attachWithTurns = (turns: Turn[]): ThreadProjectionAttachResponse => ({
   ...attachBaseline,
@@ -77,8 +94,8 @@ describe("snapshot replay", () => {
 
   it("expands snapshot turns into ordered replay material", () => {
     const runtime = runtimeFromAttach(attachBaseline);
-    const turn = attachBaseline.snapshot.thread.turns[0];
-    const item = turn.items[0];
+    const turn = fixtureTurn(attachBaseline.snapshot.thread.turns[0], "baseline");
+    const item = fixtureItem(turn.items[0], "baseline");
 
     expect(buildSnapshotReplayMaterials(runtime)).toStrictEqual([
       {
@@ -104,7 +121,7 @@ describe("snapshot replay", () => {
   });
 
   it("expands multiple snapshot turns in snapshot order", () => {
-    const firstTurn = attachBaseline.snapshot.thread.turns[0];
+    const firstTurn = fixtureTurn(attachBaseline.snapshot.thread.turns[0], "first");
     const secondTurn: Turn = {
       ...firstTurn,
       id: "second-turn",
@@ -116,6 +133,9 @@ describe("snapshot replay", () => {
       completedAt: 1700000016,
       durationMs: 6000,
     };
+    const firstItem = fixtureItem(firstTurn.items[0], "first turn");
+    const secondFirstItem = fixtureItem(secondTurn.items[0], "second turn first");
+    const secondSecondItem = fixtureItem(secondTurn.items[1], "second turn second");
     const runtime = runtimeFromAttach(attachWithTurns([firstTurn, secondTurn]));
 
     expect(buildSnapshotReplayMaterials(runtime)).toStrictEqual([
@@ -130,7 +150,7 @@ describe("snapshot replay", () => {
         source: "snapshotReplay",
         threadId: attachBaseline.snapshot.thread.id,
         turnId: firstTurn.id,
-        item: firstTurn.items[0],
+        item: firstItem,
       },
       {
         type: "turnCompleted",
@@ -149,14 +169,14 @@ describe("snapshot replay", () => {
         source: "snapshotReplay",
         threadId: attachBaseline.snapshot.thread.id,
         turnId: secondTurn.id,
-        item: secondTurn.items[0],
+        item: secondFirstItem,
       },
       {
         type: "itemReplayed",
         source: "snapshotReplay",
         threadId: attachBaseline.snapshot.thread.id,
         turnId: secondTurn.id,
-        item: secondTurn.items[1],
+        item: secondSecondItem,
       },
       {
         type: "turnCompleted",
@@ -182,6 +202,8 @@ describe("snapshot replay", () => {
         eventItemStarted.event.notification.item,
       ],
     };
+    const firstItem = fixtureItem(inProgressTurn.items[0], "in-progress first");
+    const secondItem = fixtureItem(inProgressTurn.items[1], "in-progress second");
     const runtime = runtimeFromAttach(attachWithTurns([inProgressTurn]));
 
     expect(buildSnapshotReplayMaterials(runtime)).toStrictEqual([
@@ -196,14 +218,14 @@ describe("snapshot replay", () => {
         source: "snapshotReplay",
         threadId: attachBaseline.snapshot.thread.id,
         turnId: inProgressTurn.id,
-        item: inProgressTurn.items[0],
+        item: firstItem,
       },
       {
         type: "itemReplayed",
         source: "snapshotReplay",
         threadId: attachBaseline.snapshot.thread.id,
         turnId: inProgressTurn.id,
-        item: inProgressTurn.items[1],
+        item: secondItem,
       },
     ] satisfies SnapshotReplayMaterial[]);
   });
