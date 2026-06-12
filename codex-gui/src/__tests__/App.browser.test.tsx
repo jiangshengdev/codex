@@ -6,12 +6,18 @@ import type {
 } from "@/features/guiHost/guiHostClient";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
+import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import {
-  selectProjectionByThreadId,
-  selectProjectionReattachByThreadId,
-} from "@/features/projection/projectionSlice";
+  buildSnapshotReplayMaterials,
+  selectSnapshotReplayMaterials,
+} from "@/features/snapshotReplay/snapshotReplay";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
+import {
+  selectThreadRuntimeEventBuffer,
+  selectThreadRuntimeRecord,
+  selectThreadRuntimeSubscription,
+} from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
   ThreadProjectionAttachResponse,
@@ -85,7 +91,7 @@ test("App reflects GUI host status callback updates", async () => {
   await expect.element(screen.getByText("turnStarted")).toBeVisible();
 });
 
-test("App dispatches GUI host projection payloads into Redux", async () => {
+test("App dispatches accepted GUI host projection payloads into thread runtime", async () => {
   const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
   const threadId = attachResponse.snapshot.thread.id;
@@ -103,16 +109,23 @@ test("App dispatches GUI host projection payloads into Redux", async () => {
     attachStatus: "attached",
   });
 
-  const projection = selectProjectionByThreadId(store.getState(), threadId);
-  expect(projection?.subscriptionId).toBe(attachResponse.subscriptionId);
-  expect(projection?.headCommitId).toBe(projectionEvent.commitId);
-  expect(projection?.thread.turns).toEqual([
-    ...attachResponse.snapshot.thread.turns,
-    projectionEvent.event.notification.turn,
+  const runtime = selectThreadRuntimeRecord(store.getState());
+  expect(runtime?.threadId).toBe(threadId);
+  expect(runtime?.sessionId).toBe(attachResponse.snapshot.thread.sessionId);
+  expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
+  expect(runtime?.activeTurnId).toBe(projectionEvent.event.notification.turn.id);
+  expect(runtime?.eventBuffer).toStrictEqual([
+    { type: "projectionEvent", notification: projectionEvent },
   ]);
+  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
+    state: "active",
+  });
+  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
+    buildSnapshotReplayMaterials(runtime),
+  );
 });
 
-test("App records mismatched attach identity without advancing projection state", async () => {
+test("App records mismatched attach identity without advancing runtime state", async () => {
   const { store } = await renderWithProviders(<App />);
   const mismatchedThreadId = "00000000-0000-0000-0000-000000000999";
   const mismatchedAttachResponse: ThreadProjectionAttachResponse = {
@@ -134,12 +147,13 @@ test("App records mismatched attach identity without advancing projection state"
     attachedThreadId: mismatchedThreadId,
     attachStatus: "mismatch",
   });
-  expect(selectProjectionByThreadId(store.getState(), launchThreadId)).toBeNull();
-  expect(selectProjectionByThreadId(store.getState(), mismatchedThreadId)).toBeNull();
-  expect(selectProjectionReattachByThreadId(store.getState(), launchThreadId)).toBeNull();
+  expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
+  expect(selectThreadRuntimeSubscription(store.getState())).toBeNull();
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
+  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual([]);
 });
 
-test("App stops forwarding projection events after backpressure requires manual reconnect", async () => {
+test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
   const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
   const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
@@ -149,11 +163,34 @@ test("App stops forwarding projection events after backpressure requires manual 
   options?.onProjectionClosed?.(projectionClosed);
   options?.onProjectionEvent?.(projectionEvent);
 
-  const projection = selectProjectionByThreadId(store.getState(), launchThreadId);
-  expect(projection?.subscriptionId).toBe(attachResponse.subscriptionId);
-  expect(projection?.headCommitId).toBe(attachResponse.snapshot.headCommitId);
-  expect(projection?.thread.turns).toStrictEqual(attachResponse.snapshot.thread.turns);
-  expect(selectProjectionReattachByThreadId(store.getState(), launchThreadId)).toBeNull();
+  const runtime = selectThreadRuntimeRecord(store.getState());
+  expect(runtime?.threadId).toBe(launchThreadId);
+  expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
+  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
+    state: "manualReconnectRequired",
+    reason: "backpressure",
+    subscriptionId: attachResponse.subscriptionId,
+  });
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
+  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
+    buildSnapshotReplayMaterials(runtime),
+  );
+});
+
+test("App records manual reconnect when a projection event breaks the baseline", async () => {
+  const { store } = await renderWithProviders(<App />);
+  const projectionEvent = eventItemStartedJson as ThreadProjectionEventNotification;
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onProjectionEvent?.(projectionEvent);
+
+  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
+    state: "manualReconnectRequired",
+    reason: "commitChainMismatch",
+    subscriptionId: attachResponse.subscriptionId,
+  });
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
 });
 
 test("App closes the GUI host connection when unmounted", async () => {
