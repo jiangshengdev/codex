@@ -45,6 +45,8 @@ const initialState: ThreadRuntimeState = {
   current: null,
 };
 
+const EMPTY_EVENT_BUFFER: ThreadRuntimeBufferedEvent[] = [];
+
 const activeTurnIdFromSnapshot = (turns: Turn[]): string | null =>
   turns
     .toReversed()
@@ -117,7 +119,8 @@ export const threadRuntimeSlice = createAppSlice({
       threadRuntime.current?.activeTurnId ?? null,
     selectThreadRuntimeSubscription: (threadRuntime) =>
       threadRuntime.current?.subscription ?? null,
-    selectThreadRuntimeEventBuffer: (threadRuntime) => threadRuntime.current?.eventBuffer ?? [],
+    selectThreadRuntimeEventBuffer: (threadRuntime) =>
+      threadRuntime.current?.eventBuffer ?? EMPTY_EVENT_BUFFER,
   },
 });
 

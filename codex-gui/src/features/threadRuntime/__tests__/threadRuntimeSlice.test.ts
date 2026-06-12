@@ -51,6 +51,12 @@ const attachWithTurns = (turns: Turn[]): ThreadProjectionAttachResponse => ({
 const runtimeRoot = (state: ThreadRuntimeState) => ({ threadRuntime: state });
 
 describe("thread runtime reducer", () => {
+  it("returns a stable empty event buffer when no runtime exists", () => {
+    const root = runtimeRoot({ current: null });
+
+    expect(selectThreadRuntimeEventBuffer(root)).toBe(selectThreadRuntimeEventBuffer(root));
+  });
+
   it("creates a runtime baseline from an accepted attach", () => {
     const state = reduce(undefined, threadRuntimeAttached(attachBaseline));
     const { turns: snapshotTurns, ...threadMetadata } = attachBaseline.snapshot.thread;
