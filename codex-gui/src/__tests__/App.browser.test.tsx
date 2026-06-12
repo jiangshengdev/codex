@@ -6,12 +6,18 @@ import type {
 } from "@/features/guiHost/guiHostClient";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
+import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import {
   selectProjectionByThreadId,
   selectProjectionReattachByThreadId,
 } from "@/features/projection/projectionSlice";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
+import {
+  selectThreadRuntimeEventBuffer,
+  selectThreadRuntimeRecord,
+  selectThreadRuntimeSubscription,
+} from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
   ThreadProjectionAttachResponse,
@@ -110,6 +116,18 @@ test("App dispatches GUI host projection payloads into Redux", async () => {
     ...attachResponse.snapshot.thread.turns,
     projectionEvent.event.notification.turn,
   ]);
+
+  const runtime = selectThreadRuntimeRecord(store.getState());
+  expect(runtime?.threadId).toBe(threadId);
+  expect(runtime?.sessionId).toBe(attachResponse.snapshot.thread.sessionId);
+  expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
+  expect(runtime?.activeTurnId).toBe(projectionEvent.event.notification.turn.id);
+  expect(runtime?.eventBuffer).toStrictEqual([
+    { type: "projectionEvent", notification: projectionEvent },
+  ]);
+  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
+    state: "active",
+  });
 });
 
 test("App records mismatched attach identity without advancing projection state", async () => {
@@ -154,6 +172,28 @@ test("App stops forwarding projection events after backpressure requires manual 
   expect(projection?.headCommitId).toBe(attachResponse.snapshot.headCommitId);
   expect(projection?.thread.turns).toStrictEqual(attachResponse.snapshot.thread.turns);
   expect(selectProjectionReattachByThreadId(store.getState(), launchThreadId)).toBeNull();
+  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
+    state: "manualReconnectRequired",
+    reason: "backpressure",
+    subscriptionId: attachResponse.subscriptionId,
+  });
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
+});
+
+test("App records manual reconnect when a projection event breaks the baseline", async () => {
+  const { store } = await renderWithProviders(<App />);
+  const projectionEvent = eventItemStartedJson as ThreadProjectionEventNotification;
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onProjectionEvent?.(projectionEvent);
+
+  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
+    state: "manualReconnectRequired",
+    reason: "commitChainMismatch",
+    subscriptionId: attachResponse.subscriptionId,
+  });
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
 });
 
 test("App closes the GUI host connection when unmounted", async () => {

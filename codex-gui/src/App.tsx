@@ -3,11 +3,19 @@ import { useAppDispatch } from "./app/hooks";
 import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
 import { projectionAttached, projectionEventReceived } from "./features/projection/projectionSlice";
-import { ProjectionIngressAdapter } from "./features/projectionIngress/projectionIngressAdapter";
+import {
+  ProjectionIngressAdapter,
+  type ProjectionIngressOutcome,
+} from "./features/projectionIngress/projectionIngressAdapter";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
 } from "./features/threadIdentity/threadIdentitySlice";
+import {
+  threadRuntimeAttached,
+  threadRuntimeEventBuffered,
+  threadRuntimeManualReconnectRequired,
+} from "./features/threadRuntime/threadRuntimeSlice";
 
 function App() {
   const dispatch = useAppDispatch();
@@ -23,6 +31,29 @@ function App() {
     let cleanupConnection: (() => void) | undefined;
     let launchThreadId: string | null = null;
     let projectionIngress: ProjectionIngressAdapter | null = null;
+    const dispatchProjectionOutcome = (outcome: ProjectionIngressOutcome) => {
+      switch (outcome.type) {
+        case "attachAccepted":
+          dispatch(threadRuntimeAttached(outcome.response));
+          dispatch(projectionAttached(outcome.response));
+          return;
+        case "eventAccepted":
+          dispatch(threadRuntimeEventBuffered(outcome.notification));
+          dispatch(projectionEventReceived(outcome.notification));
+          return;
+        case "manualReconnectRequired":
+          dispatch(
+            threadRuntimeManualReconnectRequired({
+              reason: outcome.reason,
+              threadId: outcome.threadId,
+              subscriptionId: outcome.subscriptionId,
+            }),
+          );
+          return;
+        case "ignored":
+          return;
+      }
+    };
 
     try {
       cleanupConnection = startGuiHostConnection({
@@ -42,23 +73,21 @@ function App() {
             return;
           }
 
-          const outcome = projectionIngress.handleAttach(response);
-          if (outcome.type === "attachAccepted") {
-            dispatch(projectionAttached(outcome.response));
-          }
+          dispatchProjectionOutcome(projectionIngress.handleAttach(response));
         },
         onProjectionEvent: (notification) => {
           if (projectionIngress == null) {
             return;
           }
 
-          const outcome = projectionIngress.handleEvent(notification);
-          if (outcome.type === "eventAccepted") {
-            dispatch(projectionEventReceived(outcome.notification));
-          }
+          dispatchProjectionOutcome(projectionIngress.handleEvent(notification));
         },
         onProjectionClosed: (notification) => {
-          projectionIngress?.handleClosed(notification);
+          if (projectionIngress == null) {
+            return;
+          }
+
+          dispatchProjectionOutcome(projectionIngress.handleClosed(notification));
         },
       });
     } catch (error: unknown) {
