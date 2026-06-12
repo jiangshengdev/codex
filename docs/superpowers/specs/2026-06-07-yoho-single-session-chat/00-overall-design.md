@@ -57,8 +57,9 @@ TUI 的关键分层是：
 - 每个 thread 有自己的 `ThreadEventChannel`。
 - 每个 channel 持有 `ThreadEventStore`。
 - `ThreadEventStore` 保存 replay/live 所需材料：`session`、`turns`、`buffer`、`active_turn_id`、`input_state`、`active`。
+- `ThreadEventStore` 对 live notification 的核心职责是写入 buffer 并维护 `active_turn_id`。`TurnStarted` 设置 active turn，匹配当前 active turn 的 `TurnCompleted` 清空 active turn；`ItemStarted` / `ItemCompleted` 只作为 notification 留在 buffer，item 的语义解释不属于这一层。
 - thread 切换或恢复时，TUI 生成 `ThreadEventSnapshot`，再 replay 到 `ChatWidget`。
-- live event 和 replay event 最终都进入 `ChatWidget`，但带有不同 replay kind。
+- live event 和 replay event 最终都进入 `ChatWidget`，但带有不同 replay kind。`ChatWidget` 才负责解释 `ItemStarted` / `ItemCompleted`，并把它们转换成具体聊天、tool activity 或状态展示行为。
 - TUI 不把 `ThreadProjectionEvent` / `ThreadProjectionClosed` 当作主线程路由或 ChatWidget 渲染基础。
 
 GUI 第一版只支持单会话，因此不需要完整复刻 TUI 的多线程切换能力。但它仍然需要保留同样的核心边界：输入协议、thread runtime、snapshot replay、live event handling、chat surface 分开。
@@ -161,7 +162,15 @@ type GuiThreadIdentityState = {
 
 建立浏览器环境下的 per-thread runtime store。单会话第一版可以只有一个 runtime，但模型必须能表达 TUI 同类职责：session、turns、buffer、active turn、subscription interrupted/error 状态。
 
-runtime store 接收已通过 ingress 校验的 projection 输入，并保留需要手动重连的判定结果对 runtime 的影响：正常 event 进入 live 路径，`commitChainMismatch`、`missingTurn`、`closed(backpressure)` 进入手动重连路径。建立 runtime 后，现有 Redux `projectionSlice` 的去向是删除，而不是降级或保留；它的调试 UI 职责删除，必要的 commit-chain 校验和重连判定迁移到 projection ingress / runtime 边界。
+runtime store 接收已通过 ingress 校验的 projection 输入，并保留需要手动重连的判定结果对 runtime 的影响：正常 event 进入 runtime buffer，`commitChainMismatch`、`missingTurn`、`closed(backpressure)` 进入手动重连路径。建立 runtime 后，现有 Redux `projectionSlice` 的去向是删除，而不是降级或保留；它的调试 UI 职责删除，必要的 commit-chain 校验和重连判定迁移到 projection ingress / runtime 边界。
+
+`03` 必须对齐 TUI `ThreadEventStore`，不能沿用旧 `projectionSlice` 的 upsert 模型。attach snapshot 的 turns 只作为 runtime baseline；accepted live event 先进入 runtime buffer，并只维护 active turn：
+
+- `turnStarted`：写入 buffer，并把该 turn 设为 active turn。
+- `turnCompleted`：写入 buffer；只有当 completed turn 匹配当前 active turn 时，才清空 active turn。
+- `itemStarted` / `itemCompleted`：只写入 buffer，不在 `03` 直接 upsert 到 turns/items。
+
+`03` 不解释 item，不派生 chat view model，不触发 replay/live UI 副作用。item interpretation 必须留给 `04 Snapshot Replay` 和 `05 Live Event Handling` 之后的边界。
 
 ### 04 Snapshot Replay
 
@@ -245,6 +254,8 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 - TUI 是主要参考，不是背景材料。
 - Projection 是 app-server 的投影输出，不是 GUI 状态真理。
 - 当前 GUI store 是临时调试代码，不作为后续设计依据；其中 commit-chain 连续性校验和重连判定属于协议逻辑，必须迁移保留。
+- `03` 的 runtime store 只做 TUI-aligned buffer 和 active turn tracking；不能把 `projectionSlice` 的 turn/item upsert 行为迁移成新的 truth model。
+- `projectionSlice` 从 `03` 开始必须被切断为临时兼容路径，最晚在 `05 Live Event Handling` 前删除，不能进入 `06 Basic Chat Surface`。
 - 第一版 projection 三件套是输入面起点，不是封闭边界；后续 streaming notification 输入必须能并入同一个 runtime。
 - 先做线程，再做事件，再做 replay/live，再做 chat。
 - 每个子设计必须足够小，可以独立实现、独立回退、独立验收。
