@@ -170,13 +170,18 @@ impl SharedGuiHostLauncher {
             let notified = self.launches_drained.notified();
             tokio::pin!(notified);
             notified.as_mut().enable();
-            let mut state = self.state.lock().await;
-            state.shutdown = true;
-            if self.active_launches.load(Ordering::Acquire) == 0 {
-                break state.manager.take();
+            let drained_manager = {
+                let mut state = self.state.lock().await;
+                state.shutdown = true;
+                if self.active_launches.load(Ordering::Acquire) == 0 {
+                    Some(state.manager.take())
+                } else {
+                    None
+                }
+            };
+            if let Some(manager) = drained_manager {
+                break manager;
             }
-
-            drop(state);
             notified.await;
         };
 
