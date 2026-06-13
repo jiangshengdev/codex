@@ -637,11 +637,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                             }
                         }
                         Some(InProcessClientMessage::LaunchGui { thread_id, response_tx }) => {
-                            let gui_launcher = Arc::clone(&gui_launcher);
-                            tokio::spawn(async move {
-                                let result = gui_launcher.launch_urls_for_thread(thread_id).await;
-                                let _ = response_tx.send(result);
-                            });
+                            let _ = response_tx
+                                .send(gui_launcher.launch_urls_for_thread(thread_id).await);
                         }
                         Some(InProcessClientMessage::Notification { notification }) => {
                             match processor_tx.try_send(ProcessorCommand::Notification(notification)) {
