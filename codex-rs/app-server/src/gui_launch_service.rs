@@ -156,7 +156,10 @@ impl codex_gui_agent_extension::GuiLaunchToolService for AppServerGuiLaunchServi
     ) -> Pin<
         Box<
             dyn Future<
-                    Output = Result<GuiLaunchUrls, codex_gui_agent_extension::GuiLaunchToolError>,
+                    Output = Result<
+                        codex_gui_agent_extension::GuiLaunchToolUrls,
+                        codex_gui_agent_extension::GuiLaunchToolError,
+                    >,
                 > + Send
                 + '_,
         >,
@@ -164,8 +167,41 @@ impl codex_gui_agent_extension::GuiLaunchToolService for AppServerGuiLaunchServi
         Box::pin(async move {
             AppServerGuiLaunchService::launch_urls_for_thread(self, thread_id)
                 .await
+                .map(gui_launch_tool_urls_from_host)
                 .map_err(Into::into)
         })
+    }
+}
+
+fn gui_launch_tool_urls_from_host(
+    urls: GuiLaunchUrls,
+) -> codex_gui_agent_extension::GuiLaunchToolUrls {
+    codex_gui_agent_extension::GuiLaunchToolUrls {
+        entries: urls
+            .entries
+            .into_iter()
+            .map(|entry| codex_gui_agent_extension::GuiLaunchToolUrlEntry {
+                kind: gui_launch_tool_kind_from_host(entry.kind),
+                label: entry.label,
+                url: entry.url,
+            })
+            .collect(),
+    }
+}
+
+fn gui_launch_tool_kind_from_host(
+    kind: codex_gui_host::GuiLaunchUrlKind,
+) -> codex_gui_agent_extension::GuiLaunchToolEntryKind {
+    match kind {
+        codex_gui_host::GuiLaunchUrlKind::Local => {
+            codex_gui_agent_extension::GuiLaunchToolEntryKind::Local
+        }
+        codex_gui_host::GuiLaunchUrlKind::Lan => {
+            codex_gui_agent_extension::GuiLaunchToolEntryKind::Lan
+        }
+        codex_gui_host::GuiLaunchUrlKind::Vpn => {
+            codex_gui_agent_extension::GuiLaunchToolEntryKind::Vpn
+        }
     }
 }
 

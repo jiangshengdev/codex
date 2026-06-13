@@ -3078,7 +3078,6 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "codex-extension-api",
- "codex-gui-host",
  "codex-protocol",
  "codex-tools",
  "pretty_assertions",

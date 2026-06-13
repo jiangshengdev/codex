@@ -16,7 +16,6 @@ workspace = true
 [dependencies]
 async-trait = { workspace = true }
 codex-extension-api = { workspace = true }
-codex-gui-host = { workspace = true }
 codex-protocol = { workspace = true }
 codex-tools = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

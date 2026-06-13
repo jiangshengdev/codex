@@ -10,8 +10,6 @@ use codex_extension_api::ToolExecutor;
 use codex_extension_api::ToolName;
 use codex_extension_api::ToolOutput;
 use codex_extension_api::ToolSpec;
-use codex_gui_host::GuiLaunchUrlKind;
-use codex_gui_host::GuiLaunchUrls;
 use codex_protocol::ThreadId;
 use serde::Serialize;
 use serde_json::json;
@@ -24,7 +22,26 @@ pub trait GuiLaunchToolService: Send + Sync {
     fn launch_urls_for_thread(
         &self,
         thread_id: ThreadId,
-    ) -> Pin<Box<dyn Future<Output = Result<GuiLaunchUrls, GuiLaunchToolError>> + Send + '_>>;
+    ) -> Pin<Box<dyn Future<Output = Result<GuiLaunchToolUrls, GuiLaunchToolError>> + Send + '_>>;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GuiLaunchToolEntryKind {
+    Local,
+    Lan,
+    Vpn,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GuiLaunchToolUrlEntry {
+    pub kind: GuiLaunchToolEntryKind,
+    pub label: String,
+    pub url: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GuiLaunchToolUrls {
+    pub entries: Vec<GuiLaunchToolUrlEntry>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -124,7 +141,7 @@ fn parse_empty_arguments(arguments: &str) -> Result<(), FunctionCallError> {
     }
 }
 
-fn launch_urls_response(urls: GuiLaunchUrls) -> Vec<LaunchUrlResponse> {
+fn launch_urls_response(urls: GuiLaunchToolUrls) -> Vec<LaunchUrlResponse> {
     urls.entries
         .into_iter()
         .map(|entry| LaunchUrlResponse {
@@ -135,10 +152,10 @@ fn launch_urls_response(urls: GuiLaunchUrls) -> Vec<LaunchUrlResponse> {
         .collect()
 }
 
-fn launch_url_kind(kind: GuiLaunchUrlKind) -> &'static str {
+fn launch_url_kind(kind: GuiLaunchToolEntryKind) -> &'static str {
     match kind {
-        GuiLaunchUrlKind::Local => "local",
-        GuiLaunchUrlKind::Lan => "lan",
-        GuiLaunchUrlKind::Vpn => "vpn",
+        GuiLaunchToolEntryKind::Local => "local",
+        GuiLaunchToolEntryKind::Lan => "lan",
+        GuiLaunchToolEntryKind::Vpn => "vpn",
     }
 }

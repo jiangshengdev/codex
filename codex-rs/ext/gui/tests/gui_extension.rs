@@ -6,17 +6,20 @@ use codex_extension_api::ThreadStartInput;
 use codex_extension_api::ToolCall;
 use codex_extension_api::ToolExecutor;
 use codex_extension_api::ToolName;
+use codex_extension_api::ToolOutput;
 use codex_extension_api::ToolPayload;
+use codex_gui_agent_extension::GuiLaunchToolEntryKind;
 use codex_gui_agent_extension::GuiLaunchToolError;
 use codex_gui_agent_extension::GuiLaunchToolErrorKind;
 use codex_gui_agent_extension::GuiLaunchToolService;
+use codex_gui_agent_extension::GuiLaunchToolUrlEntry;
+use codex_gui_agent_extension::GuiLaunchToolUrls;
 use codex_gui_agent_extension::LAUNCH_GUI_TOOL_NAME;
 use codex_gui_agent_extension::LaunchGuiToolExecutor;
 use codex_gui_agent_extension::create_launch_gui_tool;
-use codex_gui_host::GuiLaunchUrlEntry;
-use codex_gui_host::GuiLaunchUrlKind;
-use codex_gui_host::GuiLaunchUrls;
 use codex_protocol::ThreadId;
+use codex_protocol::models::FunctionCallOutputBody;
+use codex_protocol::models::ResponseInputItem;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::TruncationPolicy;
 use codex_tools::ToolSpec;
@@ -38,18 +41,28 @@ fn launch_gui_tool_schema_is_stable() {
 
 #[tokio::test]
 async fn launch_gui_tool_returns_urls_json() {
-    let tool = launch_gui_tool_with_urls(vec![(
-        "local",
-        "Local",
-        "http://127.0.0.1:1234/?threadId=t#token=x",
-    )]);
+    let tool = launch_gui_tool_with_urls(vec![GuiLaunchToolUrlEntry {
+        kind: GuiLaunchToolEntryKind::Local,
+        label: "Local".to_string(),
+        url: "http://127.0.0.1:1234/?threadId=t#token=x".to_string(),
+    }]);
     let output = tool
         .invoke_for_test("{}")
         .await
         .expect("tool should succeed");
     let value: serde_json::Value = serde_json::from_str(&output).expect("json output");
-    assert_eq!(value["urls"][0]["kind"], "local");
-    assert_eq!(value["urls"][0]["label"], "Local");
+    assert_eq!(
+        serde_json::json!({
+            "urls": [
+                {
+                    "kind": "local",
+                    "label": "Local",
+                    "url": "http://127.0.0.1:1234/?threadId=t#token=x",
+                },
+            ],
+        }),
+        value
+    );
 }
 
 #[tokio::test]
@@ -60,8 +73,34 @@ async fn launch_gui_tool_returns_structured_unavailable_error() {
         .await
         .expect("tool returns model-readable error JSON");
     let value: serde_json::Value = serde_json::from_str(&output).expect("json output");
-    assert_eq!(value["error"]["kind"], "unavailable");
-    assert_eq!(value["error"]["message"], "no active thread");
+    assert_eq!(
+        serde_json::json!({
+            "error": {
+                "kind": "unavailable",
+                "message": "no active thread",
+            },
+        }),
+        value
+    );
+
+    let response = tool
+        .invoke_response_for_test("{}")
+        .await
+        .expect("tool returns model-readable error JSON");
+    assert_eq!(Some(false), response.success);
+}
+
+#[tokio::test]
+async fn launch_gui_tool_rejects_invalid_arguments() {
+    let tool = launch_gui_tool_with_urls(Vec::new());
+
+    for arguments in [r#"{"x":1}"#, "[]", "{"] {
+        let error = tool
+            .invoke_for_test(arguments)
+            .await
+            .expect_err("invalid arguments should be reported to the model");
+        assert!(matches!(error, FunctionCallError::RespondToModel(_)));
+    }
 }
 
 #[tokio::test]
@@ -95,6 +134,19 @@ async fn installed_extension_hides_launch_gui_for_invalid_thread_id() {
     let harness = GuiExtensionHarness::start(TestConfig { enabled: true }, "not-a-thread-id").await;
 
     assert_eq!(tool_names(&harness), Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn config_change_can_hide_and_show_launch_gui_tool() {
+    let thread_id = ThreadId::default().to_string();
+    let harness = GuiExtensionHarness::start(TestConfig { enabled: true }, &thread_id).await;
+    assert_eq!(tool_names(&harness), vec!["launch_gui".to_string()]);
+
+    harness.change_config(TestConfig { enabled: true }, TestConfig { enabled: false });
+    assert_eq!(tool_names(&harness), Vec::<String>::new());
+
+    harness.change_config(TestConfig { enabled: false }, TestConfig { enabled: true });
+    assert_eq!(tool_names(&harness), vec!["launch_gui".to_string()]);
 }
 
 #[derive(Clone, Copy)]
@@ -139,6 +191,17 @@ impl GuiExtensionHarness {
             thread_store,
         }
     }
+
+    fn change_config(&self, previous_config: TestConfig, new_config: TestConfig) {
+        for contributor in self.registry.config_contributors() {
+            contributor.on_config_changed(
+                &self.session_store,
+                &self.thread_store,
+                &previous_config,
+                &new_config,
+            );
+        }
+    }
 }
 
 fn tool_names(harness: &GuiExtensionHarness) -> Vec<String> {
@@ -160,15 +223,23 @@ impl codex_gui_agent_extension::GuiLaunchToolService for EmptyGuiLaunchToolServi
     ) -> Pin<
         Box<
             dyn Future<
-                    Output = Result<GuiLaunchUrls, codex_gui_agent_extension::GuiLaunchToolError>,
+                    Output = Result<
+                        GuiLaunchToolUrls,
+                        codex_gui_agent_extension::GuiLaunchToolError,
+                    >,
                 > + Send
                 + '_,
         >,
     > {
-        Box::pin(std::future::ready(Ok(GuiLaunchUrls {
+        Box::pin(std::future::ready(Ok(GuiLaunchToolUrls {
             entries: Vec::new(),
         })))
     }
+}
+
+struct TestToolResponse {
+    text: String,
+    success: Option<bool>,
 }
 
 struct TestLaunchGuiTool {
@@ -177,6 +248,13 @@ struct TestLaunchGuiTool {
 
 impl TestLaunchGuiTool {
     async fn invoke_for_test(&self, arguments: &str) -> Result<String, FunctionCallError> {
+        Ok(self.invoke_response_for_test(arguments).await?.text)
+    }
+
+    async fn invoke_response_for_test(
+        &self,
+        arguments: &str,
+    ) -> Result<TestToolResponse, FunctionCallError> {
         let payload = ToolPayload::Function {
             arguments: arguments.to_string(),
         };
@@ -194,22 +272,34 @@ impl TestLaunchGuiTool {
             })
             .await?;
 
-        Ok(output.code_mode_result(&payload).to_string())
+        Ok(response_from_tool_output(output, &payload))
     }
 }
 
-fn launch_gui_tool_with_urls(urls: Vec<(&str, &str, &str)>) -> TestLaunchGuiTool {
-    let entries = urls
-        .into_iter()
-        .map(|(kind, label, url)| {
-            GuiLaunchUrlEntry::new(kind_from_str(kind), label.to_string(), url.to_string())
-        })
-        .collect();
+fn response_from_tool_output(
+    output: Box<dyn ToolOutput>,
+    payload: &ToolPayload,
+) -> TestToolResponse {
+    match output.to_response_item("call-test", payload) {
+        ResponseInputItem::FunctionCallOutput { output, .. } => {
+            let FunctionCallOutputBody::Text(text) = output.body else {
+                panic!("expected text function output");
+            };
+            TestToolResponse {
+                text,
+                success: output.success,
+            }
+        }
+        other => panic!("unexpected response item: {other:?}"),
+    }
+}
+
+fn launch_gui_tool_with_urls(entries: Vec<GuiLaunchToolUrlEntry>) -> TestLaunchGuiTool {
     TestLaunchGuiTool {
         executor: LaunchGuiToolExecutor::new(
             ThreadId::default(),
             Arc::new(FakeGuiLaunchToolService {
-                result: Ok(GuiLaunchUrls { entries }),
+                result: Ok(GuiLaunchToolUrls { entries }),
             }),
         ),
     }
@@ -231,23 +321,15 @@ fn launch_gui_tool_with_error(
 
 #[derive(Clone)]
 struct FakeGuiLaunchToolService {
-    result: Result<GuiLaunchUrls, GuiLaunchToolError>,
+    result: Result<GuiLaunchToolUrls, GuiLaunchToolError>,
 }
 
 impl GuiLaunchToolService for FakeGuiLaunchToolService {
     fn launch_urls_for_thread(
         &self,
         _thread_id: ThreadId,
-    ) -> Pin<Box<dyn Future<Output = Result<GuiLaunchUrls, GuiLaunchToolError>> + Send + '_>> {
+    ) -> Pin<Box<dyn Future<Output = Result<GuiLaunchToolUrls, GuiLaunchToolError>> + Send + '_>>
+    {
         Box::pin(std::future::ready(self.result.clone()))
-    }
-}
-
-fn kind_from_str(kind: &str) -> GuiLaunchUrlKind {
-    match kind {
-        "local" => GuiLaunchUrlKind::Local,
-        "lan" => GuiLaunchUrlKind::Lan,
-        "vpn" => GuiLaunchUrlKind::Vpn,
-        other => panic!("unsupported test URL kind: {other}"),
     }
 }
