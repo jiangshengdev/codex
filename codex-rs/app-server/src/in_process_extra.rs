@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io;
 use std::io::ErrorKind;
-use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
@@ -84,6 +83,7 @@ pub(crate) struct ExtraConnectionHandle {
     connection_id: ConnectionId,
     command_sender: ExtraConnectionCommandSender,
     disconnect_token: CancellationToken,
+    close_on_drop: bool,
 }
 
 impl ExtraConnectionHandle {
@@ -103,24 +103,26 @@ impl ExtraConnectionHandle {
     }
 
     pub(crate) fn into_parts(
-        self,
+        mut self,
     ) -> (
         ConnectionId,
         ExtraConnectionCommandSender,
         CancellationToken,
     ) {
-        let handle = ManuallyDrop::new(self);
+        self.close_on_drop = false;
         (
-            handle.connection_id,
-            handle.command_sender.clone(),
-            handle.disconnect_token.clone(),
+            self.connection_id,
+            self.command_sender.clone(),
+            self.disconnect_token.clone(),
         )
     }
 }
 
 impl Drop for ExtraConnectionHandle {
     fn drop(&mut self) {
-        self.command_sender.close_best_effort(self.connection_id);
+        if self.close_on_drop {
+            self.command_sender.close_best_effort(self.connection_id);
+        }
     }
 }
 
@@ -155,6 +157,7 @@ impl ExtraConnectionCommandSender {
             connection_id,
             command_sender: self.clone(),
             disconnect_token,
+            close_on_drop: true,
         })
     }
 

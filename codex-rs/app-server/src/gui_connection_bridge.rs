@@ -134,9 +134,13 @@ mod tests {
     use codex_gui_host::AuthenticatedGuiConnection;
     use codex_gui_host::GuiBackend;
     use pretty_assertions::assert_eq;
+    use tokio::sync::mpsc;
     use tokio::time::Duration;
 
     use super::*;
+    use crate::in_process::InProcessClientMessage;
+    use crate::in_process_extra::ExtraConnectionCommand;
+    use crate::in_process_extra::ExtraConnectionCommandSender;
 
     #[tokio::test]
     async fn local_gui_connection_round_trips_initialize() {
@@ -174,5 +178,54 @@ mod tests {
             .expect("backend task should join")
             .expect("backend should finish cleanly");
         bridge.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn dropping_local_gui_handle_closes_and_releases_extra_connection() {
+        let (client_tx, mut client_rx) = mpsc::channel(4);
+        let opener =
+            ExtraConnectionLocalGuiOpener::new(ExtraConnectionCommandSender::new(client_tx));
+        let (outgoing_tx, _outgoing_rx) = mpsc::channel(1);
+
+        let handle = opener
+            .open_gui_connection(outgoing_tx)
+            .expect("local GUI connection should open");
+        let connection_id = handle.connection_id();
+        drop(handle);
+
+        let opened = client_rx
+            .recv()
+            .await
+            .expect("opened command should be sent");
+        match opened {
+            InProcessClientMessage::Extra(command) => match *command {
+                ExtraConnectionCommand::Opened {
+                    connection_id: opened_id,
+                    ..
+                } => assert_eq!(opened_id, connection_id),
+                _ => panic!("expected opened command"),
+            },
+            _ => panic!("expected extra command"),
+        }
+
+        let closed = client_rx
+            .recv()
+            .await
+            .expect("closed command should be sent when handle drops");
+        match closed {
+            InProcessClientMessage::Extra(command) => match *command {
+                ExtraConnectionCommand::Closed {
+                    connection_id: closed_id,
+                } => assert_eq!(closed_id, connection_id),
+                _ => panic!("expected closed command"),
+            },
+            _ => panic!("expected extra command"),
+        }
+
+        drop(opener);
+        let channel_close = tokio::time::timeout(Duration::from_millis(100), client_rx.recv())
+            .await
+            .expect("command channel should close after all senders drop");
+        assert!(channel_close.is_none());
     }
 }
