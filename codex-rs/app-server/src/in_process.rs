@@ -173,6 +173,10 @@ pub(crate) enum InProcessClientMessage {
         request: Box<ClientRequest>,
         response_tx: oneshot::Sender<PendingClientRequestResponse>,
     },
+    LaunchGui {
+        thread_id: codex_protocol::ThreadId,
+        response_tx: oneshot::Sender<IoResult<codex_gui_host::GuiLaunchUrls>>,
+    },
     Notification {
         notification: ClientNotification,
     },
@@ -214,6 +218,23 @@ impl InProcessClientSender {
                 format!("in-process request response channel closed: {err}"),
             )
         })
+    }
+
+    pub async fn launch_gui_for_thread(
+        &self,
+        thread_id: codex_protocol::ThreadId,
+    ) -> IoResult<codex_gui_host::GuiLaunchUrls> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.try_send_client_message(InProcessClientMessage::LaunchGui {
+            thread_id,
+            response_tx,
+        })?;
+        response_rx.await.map_err(|err| {
+            IoError::new(
+                ErrorKind::BrokenPipe,
+                format!("in-process GUI launch response channel closed: {err}"),
+            )
+        })?
     }
 
     pub fn notify(&self, notification: ClientNotification) -> IoResult<()> {
@@ -614,6 +635,10 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     break;
                                 }
                             }
+                        }
+                        Some(InProcessClientMessage::LaunchGui { thread_id, response_tx }) => {
+                            let _ = response_tx
+                                .send(gui_launcher.launch_urls_for_thread(thread_id).await);
                         }
                         Some(InProcessClientMessage::Notification { notification }) => {
                             match processor_tx.try_send(ProcessorCommand::Notification(notification)) {
