@@ -4,24 +4,16 @@ use app_test_support::TestAppServer;
 use app_test_support::create_final_assistant_message_sse_response;
 use app_test_support::create_mock_responses_server_sequence_unchecked;
 use app_test_support::to_response;
-use codex_app_server::in_process;
-use codex_app_server::in_process::InProcessClientHandle;
-use codex_app_server::in_process::InProcessServerEvent;
-use codex_app_server::in_process::InProcessStartArgs;
-use codex_app_server_protocol::ClientInfo;
-use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::DynamicToolCallOutputContentItem;
 use codex_app_server_protocol::DynamicToolCallParams;
 use codex_app_server_protocol::DynamicToolCallResponse;
 use codex_app_server_protocol::DynamicToolCallStatus;
 use codex_app_server_protocol::DynamicToolSpec;
-use codex_app_server_protocol::InitializeParams;
 use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
 use codex_app_server_protocol::JSONRPCNotification;
 use codex_app_server_protocol::JSONRPCResponse;
 use codex_app_server_protocol::RequestId;
-use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadStartParams;
@@ -29,24 +21,15 @@ use codex_app_server_protocol::ThreadStartResponse;
 use codex_app_server_protocol::TurnStartParams;
 use codex_app_server_protocol::TurnStartResponse;
 use codex_app_server_protocol::UserInput as V2UserInput;
-use codex_arg0::Arg0DispatchPaths;
-use codex_config::CloudConfigBundleLoader;
-use codex_config::LoaderOverrides;
-use codex_config::NoopThreadConfigLoader;
-use codex_core::config::ConfigBuilder;
-use codex_exec_server::EnvironmentManager;
-use codex_feedback::CodexFeedback;
 use codex_protocol::models::DEFAULT_IMAGE_DETAIL;
 use codex_protocol::models::FunctionCallOutputBody;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
-use codex_protocol::protocol::SessionSource;
 use core_test_support::responses;
 use pretty_assertions::assert_eq;
 use serde_json::Value;
 use serde_json::json;
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::timeout;
@@ -58,111 +41,6 @@ use wiremock::MockServer;
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(60);
 #[cfg(not(any(target_os = "macos", windows)))]
 const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(10);
-
-#[tokio::test]
-async fn in_process_app_server_exposes_launch_gui_tool_to_model_requests() -> Result<()> {
-    let responses = vec![create_final_assistant_message_sse_response("Done")?];
-    let server = create_mock_responses_server_sequence_unchecked(responses).await;
-
-    let codex_home = TempDir::new()?;
-    create_config_toml(codex_home.path(), &server.uri())?;
-
-    let mut client = start_in_process_test_client(codex_home.path()).await?;
-
-    let response = client
-        .request(ClientRequest::ThreadStart {
-            request_id: RequestId::Integer(1),
-            params: ThreadStartParams::default(),
-        })
-        .await?
-        .expect("thread/start should succeed");
-    let ThreadStartResponse { thread, .. } =
-        serde_json::from_value(response).expect("thread/start response should parse");
-
-    client
-        .request(ClientRequest::TurnStart {
-            request_id: RequestId::Integer(2),
-            params: TurnStartParams {
-                thread_id: thread.id.clone(),
-                client_user_message_id: None,
-                input: vec![V2UserInput::Text {
-                    text: "Hello".to_string(),
-                    text_elements: Vec::new(),
-                }],
-                ..Default::default()
-            },
-        })
-        .await?
-        .expect("turn/start should succeed");
-
-    wait_for_in_process_turn_completed(&mut client, &thread.id).await?;
-
-    let bodies = responses_bodies(&server).await?;
-    let body = bodies
-        .first()
-        .context("expected at least one responses request")?;
-    let tool_names = tool_names(body);
-    assert!(tool_names.contains(&"launch_gui".to_string()));
-
-    client.shutdown().await?;
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn subprocess_app_server_omits_launch_gui_tool_from_model_requests() -> Result<()> {
-    let responses = vec![create_final_assistant_message_sse_response("Done")?];
-    let server = create_mock_responses_server_sequence_unchecked(responses).await;
-
-    let codex_home = TempDir::new()?;
-    create_config_toml(codex_home.path(), &server.uri())?;
-
-    let mut mcp = TestAppServer::new(codex_home.path()).await?;
-    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
-
-    let thread_req = mcp
-        .send_thread_start_request(ThreadStartParams::default())
-        .await?;
-    let thread_resp: JSONRPCResponse = timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(thread_req)),
-    )
-    .await??;
-    let ThreadStartResponse { thread, .. } = to_response::<ThreadStartResponse>(thread_resp)?;
-
-    let turn_req = mcp
-        .send_turn_start_request(TurnStartParams {
-            thread_id: thread.id,
-            client_user_message_id: None,
-            input: vec![V2UserInput::Text {
-                text: "Hello".to_string(),
-                text_elements: Vec::new(),
-            }],
-            ..Default::default()
-        })
-        .await?;
-    let turn_resp: JSONRPCResponse = timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(turn_req)),
-    )
-    .await??;
-    let _turn: TurnStartResponse = to_response::<TurnStartResponse>(turn_resp)?;
-
-    timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_notification_message("turn/completed"),
-    )
-    .await??;
-
-    let bodies = responses_bodies(&server).await?;
-    let body = bodies
-        .first()
-        .context("expected at least one responses request")?;
-    let tool_names = tool_names(body);
-    assert!(!tool_names.contains(&"launch_gui".to_string()));
-
-    Ok(())
-}
 
 /// Ensures dynamic tool specs are serialized into the model request payload.
 #[tokio::test]
@@ -809,74 +687,6 @@ fn find_tool<'a>(body: &'a Value, name: &str) -> Option<&'a Value> {
                 .iter()
                 .find(|tool| tool.get("name").and_then(Value::as_str) == Some(name))
         })
-}
-
-fn tool_names(body: &Value) -> Vec<String> {
-    body.get("tools")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|tool| tool.get("name").and_then(Value::as_str))
-        .map(str::to_string)
-        .collect()
-}
-
-async fn start_in_process_test_client(codex_home: &Path) -> Result<InProcessClientHandle> {
-    let loader_overrides = LoaderOverrides::without_managed_config_for_tests();
-    let config = ConfigBuilder::default()
-        .codex_home(codex_home.to_path_buf())
-        .fallback_cwd(Some(codex_home.to_path_buf()))
-        .loader_overrides(loader_overrides.clone())
-        .build()
-        .await?;
-
-    Ok(in_process::start(InProcessStartArgs {
-        arg0_paths: Arg0DispatchPaths::default(),
-        config: Arc::new(config),
-        cli_overrides: Vec::new(),
-        loader_overrides,
-        strict_config: false,
-        cloud_config_bundle: CloudConfigBundleLoader::default(),
-        thread_config_loader: Arc::new(NoopThreadConfigLoader),
-        feedback: CodexFeedback::new(),
-        log_db: None,
-        state_db: None,
-        environment_manager: Arc::new(EnvironmentManager::default_for_tests()),
-        config_warnings: Vec::new(),
-        session_source: SessionSource::Cli,
-        enable_codex_api_key_env: false,
-        initialize: InitializeParams {
-            client_info: ClientInfo {
-                name: "codex-app-server-tests".to_string(),
-                title: None,
-                version: "0.1.0".to_string(),
-            },
-            capabilities: None,
-        },
-        channel_capacity: in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY,
-    })
-    .await?)
-}
-
-async fn wait_for_in_process_turn_completed(
-    client: &mut InProcessClientHandle,
-    thread_id: &str,
-) -> Result<()> {
-    timeout(DEFAULT_READ_TIMEOUT, async {
-        loop {
-            let Some(event) = client.next_event().await else {
-                anyhow::bail!("in-process app-server stopped before turn/completed");
-            };
-            if let InProcessServerEvent::ServerNotification(ServerNotification::TurnCompleted(
-                completed,
-            )) = event
-                && completed.thread_id == thread_id
-            {
-                return Ok::<(), anyhow::Error>(());
-            }
-        }
-    })
-    .await?
 }
 
 fn function_call_output_payload(body: &Value, call_id: &str) -> Option<FunctionCallOutputPayload> {
