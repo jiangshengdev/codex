@@ -91,7 +91,7 @@ app-server 的 extension registry 安装 GUI extension 时注入 launcher，类�
 
 ### TUI `/gui`
 
-现有 `/gui` 路径保持不变。它仍然是用户输入层 shortcut，不作为模型 tool 的实现依赖。后续如果需要统一展示格式，可以共享 URL formatting helper，但初版不强制重构。
+`/gui` 的用户可见行为保持不变：它仍然是用户输入层 shortcut，不作为模型 tool 的实现依赖。内部实现可以迁移到 app-server shared launcher，以便 slash command 和 `codex-gui-extension` 共用同一 GUI launch 能力。
 
 ## 错误处理
 
@@ -115,6 +115,8 @@ app-server 的 extension registry 安装 GUI extension 时注入 launcher，类�
 - GUI launch 是本地 side effect。tool 描述和安装条件必须保守，避免普通任务中误触发。
 - URL 包含 launch token。tool response 必须只面向当前对话结果，不应写入长期记忆或额外日志。
 - crate 依赖边界需要控制：extension 不应反向依赖 TUI，也不应把 app-server-client worker 细节泄漏到 core extension API。
+- 以上游 `rust-v0.139.0` TAG 为对比基准：允许对上游已有文件做必要的、低侵入 additive hook，例如新增可选参数、注册入口、能力注入字段或窄范围转发；禁止为了代码结构更好而重构上游已有逻辑、搬迁上游职责或重排通用 runtime 架构。
+- 当前分支新增的 GUI 相关代码不受上游重构限制，可以按实现需要迁移、合并或重组。实现应优先让新增 GUI extension 和 GUI launcher 贴附到现有 app-server extension 机制上，避免改变上游代码的主干形状，方便后续逐个 TAG 合并到当前分支。
 - 初版不处理自动打开浏览器，避免扩大权限和测试矩阵。
 
 ## 成功标准
