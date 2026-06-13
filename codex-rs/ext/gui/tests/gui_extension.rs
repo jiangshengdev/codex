@@ -1,11 +1,24 @@
 use codex_extension_api::ExtensionData;
 use codex_extension_api::ExtensionRegistryBuilder;
+use codex_extension_api::FunctionCallError;
+use codex_extension_api::NoopTurnItemEmitter;
 use codex_extension_api::ThreadStartInput;
+use codex_extension_api::ToolCall;
+use codex_extension_api::ToolExecutor;
+use codex_extension_api::ToolName;
+use codex_extension_api::ToolPayload;
+use codex_gui_agent_extension::GuiLaunchToolError;
+use codex_gui_agent_extension::GuiLaunchToolErrorKind;
+use codex_gui_agent_extension::GuiLaunchToolService;
 use codex_gui_agent_extension::LAUNCH_GUI_TOOL_NAME;
+use codex_gui_agent_extension::LaunchGuiToolExecutor;
 use codex_gui_agent_extension::create_launch_gui_tool;
+use codex_gui_host::GuiLaunchUrlEntry;
+use codex_gui_host::GuiLaunchUrlKind;
 use codex_gui_host::GuiLaunchUrls;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
+use codex_protocol::protocol::TruncationPolicy;
 use codex_tools::ToolSpec;
 use pretty_assertions::assert_eq;
 use std::future::Future;
@@ -25,7 +38,7 @@ fn launch_gui_tool_schema_is_stable() {
 
 #[tokio::test]
 async fn launch_gui_tool_returns_urls_json() {
-    let tool = codex_gui_agent_extension::test_support::launch_gui_tool_with_urls(vec![(
+    let tool = launch_gui_tool_with_urls(vec![(
         "local",
         "Local",
         "http://127.0.0.1:1234/?threadId=t#token=x",
@@ -41,10 +54,7 @@ async fn launch_gui_tool_returns_urls_json() {
 
 #[tokio::test]
 async fn launch_gui_tool_returns_structured_unavailable_error() {
-    let tool = codex_gui_agent_extension::test_support::launch_gui_tool_with_error(
-        codex_gui_agent_extension::GuiLaunchToolErrorKind::Unavailable,
-        "no active thread",
-    );
+    let tool = launch_gui_tool_with_error(GuiLaunchToolErrorKind::Unavailable, "no active thread");
     let output = tool
         .invoke_for_test("{}")
         .await
@@ -158,5 +168,86 @@ impl codex_gui_agent_extension::GuiLaunchToolService for EmptyGuiLaunchToolServi
         Box::pin(std::future::ready(Ok(GuiLaunchUrls {
             entries: Vec::new(),
         })))
+    }
+}
+
+struct TestLaunchGuiTool {
+    executor: LaunchGuiToolExecutor,
+}
+
+impl TestLaunchGuiTool {
+    async fn invoke_for_test(&self, arguments: &str) -> Result<String, FunctionCallError> {
+        let payload = ToolPayload::Function {
+            arguments: arguments.to_string(),
+        };
+        let output = self
+            .executor
+            .handle(ToolCall {
+                turn_id: "turn-test".to_string(),
+                call_id: "call-test".to_string(),
+                tool_name: ToolName::plain(LAUNCH_GUI_TOOL_NAME),
+                model: "test-model".to_string(),
+                truncation_policy: TruncationPolicy::Bytes(4096),
+                conversation_history: codex_extension_api::ConversationHistory::default(),
+                turn_item_emitter: Arc::new(NoopTurnItemEmitter),
+                payload: payload.clone(),
+            })
+            .await?;
+
+        Ok(output.code_mode_result(&payload).to_string())
+    }
+}
+
+fn launch_gui_tool_with_urls(urls: Vec<(&str, &str, &str)>) -> TestLaunchGuiTool {
+    let entries = urls
+        .into_iter()
+        .map(|(kind, label, url)| {
+            GuiLaunchUrlEntry::new(kind_from_str(kind), label.to_string(), url.to_string())
+        })
+        .collect();
+    TestLaunchGuiTool {
+        executor: LaunchGuiToolExecutor::new(
+            ThreadId::default(),
+            Arc::new(FakeGuiLaunchToolService {
+                result: Ok(GuiLaunchUrls { entries }),
+            }),
+        ),
+    }
+}
+
+fn launch_gui_tool_with_error(
+    kind: GuiLaunchToolErrorKind,
+    message: impl Into<String>,
+) -> TestLaunchGuiTool {
+    TestLaunchGuiTool {
+        executor: LaunchGuiToolExecutor::new(
+            ThreadId::default(),
+            Arc::new(FakeGuiLaunchToolService {
+                result: Err(GuiLaunchToolError::new(kind, message)),
+            }),
+        ),
+    }
+}
+
+#[derive(Clone)]
+struct FakeGuiLaunchToolService {
+    result: Result<GuiLaunchUrls, GuiLaunchToolError>,
+}
+
+impl GuiLaunchToolService for FakeGuiLaunchToolService {
+    fn launch_urls_for_thread(
+        &self,
+        _thread_id: ThreadId,
+    ) -> Pin<Box<dyn Future<Output = Result<GuiLaunchUrls, GuiLaunchToolError>> + Send + '_>> {
+        Box::pin(std::future::ready(self.result.clone()))
+    }
+}
+
+fn kind_from_str(kind: &str) -> GuiLaunchUrlKind {
+    match kind {
+        "local" => GuiLaunchUrlKind::Local,
+        "lan" => GuiLaunchUrlKind::Lan,
+        "vpn" => GuiLaunchUrlKind::Vpn,
+        other => panic!("unsupported test URL kind: {other}"),
     }
 }

@@ -71,6 +71,10 @@ impl AppServerGuiLaunchService {
         }
     }
 
+    pub(crate) fn is_available(&self) -> bool {
+        matches!(self.state, GuiLaunchState::Available(_))
+    }
+
     pub(crate) fn new_with_default_config(opener: Arc<dyn LocalGuiConnectionOpener>) -> Self {
         match GuiHostMode::default_for_profile() {
             Ok(mode) => Self::new(GuiHostManager::new_with_opener(

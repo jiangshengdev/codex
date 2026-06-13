@@ -14,7 +14,6 @@ use codex_extension_api::ExtensionEventSink;
 use codex_extension_api::ExtensionRegistry;
 use codex_extension_api::ExtensionRegistryBuilder;
 use codex_goal_extension::GoalService;
-use codex_gui_agent_extension::GuiLaunchToolService;
 use codex_login::AuthManager;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
@@ -22,6 +21,7 @@ use codex_protocol::protocol::Event;
 use codex_protocol::protocol::EventMsg;
 use codex_rollout::state_db::StateDbHandle;
 
+use crate::gui_launch_service::AppServerGuiLaunchService;
 use crate::outgoing_message::OutgoingMessageSender;
 use crate::thread_state::ThreadListenerCommand;
 use crate::thread_state::ThreadStateManager;
@@ -33,7 +33,7 @@ pub(crate) fn thread_extensions<S>(
     state_db: Option<StateDbHandle>,
     thread_manager: Weak<ThreadManager>,
     goal_service: Arc<GoalService>,
-    gui_launch_service: Arc<dyn GuiLaunchToolService>,
+    gui_launch_service: Arc<AppServerGuiLaunchService>,
 ) -> Arc<ExtensionRegistry<Config>>
 where
     S: AgentSpawner<StartThreadOptions, Spawned = NewThread, Error = CodexErr> + 'static,
@@ -50,10 +50,11 @@ where
         );
     }
     codex_guardian::install(&mut builder, guardian_agent_spawner);
+    let gui_launch_availability = Arc::clone(&gui_launch_service);
     codex_gui_agent_extension::install_with_service(
         &mut builder,
         gui_launch_service,
-        |_config: &Config| true,
+        move |_config: &Config| gui_launch_availability.is_available(),
     );
     codex_memories_extension::install(&mut builder, codex_otel::global());
     codex_web_search_extension::install(&mut builder, auth_manager.clone());
@@ -144,6 +145,9 @@ mod tests {
     use codex_extension_api::ExtensionData;
     use codex_extension_api::NoopExtensionEventSink;
     use codex_extension_api::ThreadStartInput;
+    use codex_gui_host::DevAssetProxyConfig;
+    use codex_gui_host::GuiHostConfig;
+    use codex_gui_host::GuiHostMode;
     use codex_login::AuthManager;
     use codex_protocol::protocol::SessionSource;
     use codex_protocol::protocol::ThreadGoal as CoreThreadGoal;
@@ -204,24 +208,59 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn thread_extensions_install_launch_gui_tool() {
+    async fn thread_extensions_hide_launch_gui_tool_when_gui_service_unavailable() {
         let codex_home = tempfile::TempDir::new().expect("tempdir");
         let config = load_default_config_for_test(&codex_home).await;
-        let auth_manager =
-            AuthManager::shared_from_config(&config, /*enable_codex_api_key_env*/ false).await;
         let gui_launch_service = Arc::new(
             crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
                 "GUI launch is unavailable in this test",
             ),
         );
-        let goal_service = Arc::new(GoalService::new());
+
+        assert_eq!(
+            Vec::<String>::new(),
+            launch_gui_tool_names_for_service(&config, gui_launch_service).await
+        );
+    }
+
+    #[tokio::test]
+    async fn thread_extensions_install_launch_gui_tool_when_gui_service_available() {
+        let codex_home = tempfile::TempDir::new().expect("tempdir");
+        let config = load_default_config_for_test(&codex_home).await;
+        let gui_bridge =
+            crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
+        let gui_launch_service =
+            Arc::new(crate::gui_launch_service::AppServerGuiLaunchService::new(
+                crate::gui_host::GuiHostManager::new_with_opener(
+                    gui_bridge.opener(),
+                    GuiHostConfig {
+                        mode: GuiHostMode::Dev(DevAssetProxyConfig {
+                            vite_origin: "http://127.0.0.1:5173".to_string(),
+                        }),
+                    },
+                ),
+            ));
+
+        assert_eq!(
+            vec!["launch_gui".to_string()],
+            launch_gui_tool_names_for_service(&config, gui_launch_service).await
+        );
+        gui_bridge.shutdown().await;
+    }
+
+    async fn launch_gui_tool_names_for_service(
+        config: &Config,
+        gui_launch_service: Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
+    ) -> Vec<String> {
+        let auth_manager =
+            AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false).await;
         let registry = thread_extensions(
             guardian_agent_spawner(Weak::new()),
             Arc::new(NoopExtensionEventSink),
             auth_manager,
             /*state_db*/ None,
             Weak::new(),
-            goal_service,
+            Arc::new(GoalService::new()),
             gui_launch_service,
         );
         let session_store = ExtensionData::new("session-test");
@@ -241,14 +280,13 @@ mod tests {
                 .await;
         }
 
-        let tool_names = registry
+        registry
             .tool_contributors()
             .iter()
             .flat_map(|contributor| contributor.tools(&session_store, &thread_store))
             .map(|tool| tool.tool_name().name)
-            .collect::<Vec<_>>();
-
-        assert!(tool_names.contains(&"launch_gui".to_string()));
+            .filter(|name| name == "launch_gui")
+            .collect()
     }
 
     fn thread_goal_updated_event(thread_id: ThreadId, turn_id: &str) -> Event {

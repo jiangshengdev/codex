@@ -3081,7 +3081,6 @@ dependencies = [
  "codex-gui-host",
  "codex-protocol",
  "codex-tools",
- "codex-utils-output-truncation",
  "pretty_assertions",
  "serde",
  "serde_json",

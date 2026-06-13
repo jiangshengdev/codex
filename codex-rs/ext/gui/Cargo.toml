@@ -19,7 +19,6 @@ codex-extension-api = { workspace = true }
 codex-gui-host = { workspace = true }
 codex-protocol = { workspace = true }
 codex-tools = { workspace = true }
-codex-utils-output-truncation = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
