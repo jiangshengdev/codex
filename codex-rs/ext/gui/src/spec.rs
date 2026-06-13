@@ -21,8 +21,10 @@ pub fn create_launch_gui_tool() -> ToolSpec {
 
 #[cfg(test)]
 mod tests {
+    use codex_tools::JsonSchema;
     use codex_tools::ToolSpec;
     use pretty_assertions::assert_eq;
+    use std::collections::BTreeMap;
 
     use super::LAUNCH_GUI_TOOL_NAME;
     use super::create_launch_gui_tool;
@@ -39,5 +41,17 @@ mod tests {
                 .contains("only when the user explicitly requests")
         );
         assert!(tool.description.contains("Do not infer GUI launch"));
+        assert_eq!(
+            &tool.parameters,
+            &JsonSchema::object(BTreeMap::new(), Some(Vec::new()), Some(false.into()))
+        );
+        assert!(
+            !tool
+                .parameters
+                .properties
+                .as_ref()
+                .expect("launch_gui should use object params")
+                .contains_key("thread_id")
+        );
     }
 }
