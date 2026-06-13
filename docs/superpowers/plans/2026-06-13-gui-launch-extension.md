@@ -4,23 +4,11 @@
 
 **Goal:** Add a model-callable `launch_gui` extension tool that only responds to explicit user requests and returns GUI URLs for the current thread.
 
-**Architecture:** Add a focused `codex-gui-extension` crate following the `codex-goal-extension` pattern, then install it from app-server through an injected `GuiLauncher` capability. Move current-branch GUI launch ownership to an app-server shared launcher so `/gui` and the extension share the same `GuiHostManager` behavior, while keeping changes to `rust-v0.139.0` upstream files as low-intrusion additive hooks only.
+**Architecture:** Add a focused `codex-gui-extension` crate that owns the Responses API tool spec and executor. Move GUI launch ownership into the in-process app-server runtime as a shared launcher so both the extension tool and existing `/gui` command use the same `GuiHostManager` path. Install the extension only when the runtime can provide that launcher.
 
-**Tech Stack:** Rust 2024, `codex-extension-api`, `codex-tools`, `codex-gui-host`, app-server extension registry, in-process app-server runtime, existing `just` test/fmt workflow.
+**Tech Stack:** Rust 2024, `codex-extension-api`, `codex-gui-host`, in-process app-server runtime, existing `just` test/fmt workflow.
 
 ---
-
-## Hard Constraints
-
-- Use `rust-v0.139.0` as the upstream comparison baseline before implementation and before final review.
-- Additive hooks to upstream-existing files are allowed: optional fields, optional parameters, narrow forwarding methods, and extension registration calls.
-- Refactoring upstream-existing logic is prohibited. Do not move upstream responsibilities, rewrite runtime structure, or improve upstream code organization just because it looks cleaner.
-- Current-branch GUI code can be moved, merged, or reshaped as needed. The current branch will not merge back upstream.
-- Preserve `/gui` user-visible behavior: same command semantics, same no-browser-open behavior, same thread requirement, same remote unsupported behavior.
-- The model tool must not accept `thread_id`; it always uses the current thread from extension runtime state.
-- Do not add an app-server v2 RPC for GUI launch.
-- Do not run full `just test` without explicit user approval.
-- Do not push commits.
 
 ## File Structure
 
@@ -32,56 +20,14 @@
 - Create `codex-rs/ext/gui/src/extension.rs`: thread lifecycle and tool contribution wiring.
 - Modify `codex-rs/Cargo.toml`: add `ext/gui` workspace member and `codex-gui-extension` workspace dependency.
 - Modify `codex-rs/app-server/Cargo.toml`: depend on `codex-gui-extension`.
-- Modify `codex-rs/app-server/src/gui_host.rs`: add `SharedGuiHostLauncher` beside current-branch `GuiHostManager`.
-- Modify `codex-rs/app-server/src/in_process.rs`: create the shared launcher, pass it to `MessageProcessor`, and expose a narrow `launch_gui_for_thread` sender method for `/gui`.
+- Modify `codex-rs/app-server/src/gui_host.rs`: add shared launcher wrapper that lazily creates and reuses `GuiHostManager`.
+- Modify `codex-rs/app-server/src/in_process.rs`: expose an in-process `LaunchGui` runtime command and pass the shared launcher into `MessageProcessor`.
 - Modify `codex-rs/app-server/src/message_processor.rs`: carry optional GUI launcher into extension registry setup.
 - Modify `codex-rs/app-server/src/extensions.rs`: install `codex-gui-extension` when a launcher is present.
 - Modify `codex-rs/app-server/src/lib.rs`: pass `None` for GUI launcher in non in-process transports.
-- Modify `codex-rs/app-server/src/mcp_refresh.rs`: pass `None` to `thread_extensions` in test-only setup.
-- Modify `codex-rs/app-server-client/src/lib.rs`: forward `/gui` launch requests to the in-process runtime sender instead of owning `GuiHostManager`.
-- Modify `codex-rs/app-server-client/src/gui.rs`: keep public facade/error types and remove production `GuiHostManager` construction after app-server owns the shared launcher.
-
-## Task 0: Preflight Baseline And Scope Guard
-
-**Files:**
-- Read: `docs/superpowers/specs/2026-06-13-gui-launch-extension-design.md`
-- Read: `codex-rs/ext/goal/src/extension.rs`
-- Read: `codex-rs/ext/goal/src/tool.rs`
-- Read: `codex-rs/app-server/src/extensions.rs`
-- Read: `codex-rs/app-server/src/gui_host.rs`
-- Read: `codex-rs/app-server-client/src/lib.rs`
-
-- [ ] **Step 1: Confirm working tree and upstream baseline**
-
-Run:
-
-```bash
-git status --short --branch
-git tag --list rust-v0.139.0
-git diff --name-status rust-v0.139.0..HEAD -- codex-rs/app-server/src/gui_host.rs codex-rs/app-server-client/src/gui.rs codex-rs/tui/src/app/gui.rs
-```
-
-Expected:
-
-```text
-rust-v0.139.0
-```
-
-The diff should show the GUI files as current-branch additions or current-branch-owned edits. If unrelated user changes are present, keep them untouched.
-
-- [ ] **Step 2: Identify upstream-existing hot files**
-
-Run:
-
-```bash
-git ls-tree -r --name-only rust-v0.139.0 -- codex-rs/app-server/src/in_process.rs codex-rs/app-server/src/message_processor.rs codex-rs/app-server/src/extensions.rs codex-rs/app-server/src/lib.rs codex-rs/app-server-client/src/lib.rs
-```
-
-Expected: the command lists these upstream-existing files. During implementation, only add narrow hooks in these files.
-
-- [ ] **Step 3: Commit nothing**
-
-This task is an inspection gate. Do not commit after Task 0.
+- Modify `codex-rs/app-server/src/mcp_refresh.rs`: pass `None` in test-only thread manager setup.
+- Modify `codex-rs/app-server-client/src/lib.rs`: forward GUI launch requests to the in-process runtime instead of owning a separate `GuiHostManager`.
+- Modify `codex-rs/app-server-client/src/gui.rs`: keep public facade and remote unsupported behavior; remove client-owned manager construction after runtime ownership moves.
 
 ## Task 1: Scaffold `codex-gui-extension`
 
@@ -92,9 +38,9 @@ This task is an inspection gate. Do not commit after Task 0.
 - Create: `codex-rs/ext/gui/src/spec.rs`
 - Modify: `codex-rs/Cargo.toml`
 
-- [ ] **Step 1: Create the tool spec**
+- [ ] **Step 1: Write the failing spec tests**
 
-Create `codex-rs/ext/gui/src/spec.rs`:
+Create `codex-rs/ext/gui/src/spec.rs` with the tool definition and tests. The first run should fail because the crate is not yet wired into the workspace.
 
 ```rust
 //! Responses API tool definition for launching the local GUI.
@@ -197,15 +143,15 @@ pub use tool::GuiLaunchFuture;
 pub use tool::GuiLauncher;
 ```
 
-- [ ] **Step 3: Add workspace membership**
+- [ ] **Step 3: Add workspace membership and dependency**
 
 Modify `codex-rs/Cargo.toml`:
 
 ```toml
-# Add in [workspace].members near other ext crates:
+# Add in [workspace].members near the other ext crates:
 "ext/gui",
 
-# Add in [workspace.dependencies] near other extension crates:
+# Add in [workspace.dependencies] near the other extension crates:
 codex-gui-extension = { path = "ext/gui" }
 ```
 
@@ -227,20 +173,21 @@ git add codex-rs/Cargo.toml codex-rs/ext/gui
 git commit -m "feat(gui): scaffold gui extension"
 ```
 
-## Task 2: Implement The `launch_gui` Executor
+## Task 2: Implement the `launch_gui` executor
 
 **Files:**
 - Create: `codex-rs/ext/gui/src/tool.rs`
 - Modify: `codex-rs/ext/gui/src/lib.rs`
 
-- [ ] **Step 1: Create executor implementation and tests**
+- [ ] **Step 1: Write executor tests with a fake launcher**
 
-Create `codex-rs/ext/gui/src/tool.rs`:
+Create `codex-rs/ext/gui/src/tool.rs` with tests first. The first test should fail until the executor implementation is completed in the next step.
 
 ```rust
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use async_trait::async_trait;
 use codex_extension_api::FunctionCallError;
@@ -264,8 +211,8 @@ pub type GuiLaunchFuture<'a> =
 
 /// Launches or reuses the local GUI host for a specific thread.
 ///
-/// Implementations are host-owned. They receive the current thread from the
-/// extension runtime and must not derive it from model input.
+/// Implementations are host-owned. They must not infer a thread from model
+/// input; callers pass the current thread explicitly.
 pub trait GuiLauncher: Send + Sync {
     fn launch_gui_for_thread(&self, thread_id: ThreadId) -> GuiLaunchFuture<'_>;
 }
@@ -354,8 +301,6 @@ fn gui_launch_url_kind(kind: GuiLaunchUrlKind) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use codex_extension_api::ToolCall;
     use codex_tools::ToolOutput;
     use pretty_assertions::assert_eq;
@@ -390,11 +335,18 @@ mod tests {
     async fn executor_launches_current_thread_and_serializes_urls() {
         let thread_id = ThreadId::new();
         let launcher = Arc::new(FakeLauncher::with_result(Ok(GuiLaunchUrls {
-            entries: vec![GuiLaunchUrlEntry::new(
-                GuiLaunchUrlKind::Local,
-                "Local",
-                "http://127.0.0.1:1111/?threadId=t#token=x",
-            )],
+            entries: vec![
+                GuiLaunchUrlEntry::new(
+                    GuiLaunchUrlKind::Local,
+                    "Local",
+                    "http://127.0.0.1:1111/?threadId=t#token=x",
+                ),
+                GuiLaunchUrlEntry::new(
+                    GuiLaunchUrlKind::Lan,
+                    "LAN",
+                    "http://192.168.1.10:1111/?threadId=t#token=x",
+                ),
+            ],
         })));
         let executor = GuiToolExecutor::new(thread_id, launcher.clone());
 
@@ -415,6 +367,11 @@ mod tests {
                         "kind": "local",
                         "label": "Local",
                         "url": "http://127.0.0.1:1111/?threadId=t#token=x"
+                    },
+                    {
+                        "kind": "lan",
+                        "label": "LAN",
+                        "url": "http://192.168.1.10:1111/?threadId=t#token=x"
                     }
                 ]
             })
@@ -450,7 +407,22 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run executor tests**
+- [ ] **Step 2: Export the executor only inside the crate**
+
+Ensure `codex-rs/ext/gui/src/lib.rs` exports only the public host-facing pieces:
+
+```rust
+mod extension;
+mod spec;
+mod tool;
+
+pub use extension::install;
+pub use spec::LAUNCH_GUI_TOOL_NAME;
+pub use tool::GuiLaunchFuture;
+pub use tool::GuiLauncher;
+```
+
+- [ ] **Step 3: Run executor tests**
 
 Run:
 
@@ -459,21 +431,22 @@ cd codex-rs
 just test -p codex-gui-extension
 ```
 
-Expected: PASS for spec and executor tests.
+Expected: PASS for the spec and executor tests.
 
-- [ ] **Step 3: Commit executor**
+- [ ] **Step 4: Commit executor**
 
 ```bash
-git add codex-rs/ext/gui/src/tool.rs codex-rs/ext/gui/src/lib.rs
+git add codex-rs/ext/gui/src
 git commit -m "feat(gui): add launch gui tool executor"
 ```
 
-## Task 3: Add GUI Extension Wiring
+## Task 3: Add GUI extension wiring
 
 **Files:**
 - Create: `codex-rs/ext/gui/src/extension.rs`
+- Modify: `codex-rs/ext/gui/src/lib.rs`
 
-- [ ] **Step 1: Create extension contributor**
+- [ ] **Step 1: Write extension contribution tests**
 
 Create `codex-rs/ext/gui/src/extension.rs`:
 
@@ -553,21 +526,11 @@ where
     registry.thread_lifecycle_contributor(extension.clone());
     registry.tool_contributor(extension);
 }
-```
 
-- [ ] **Step 2: Add extension tests**
-
-Append this test module to `codex-rs/ext/gui/src/extension.rs`:
-
-```rust
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use codex_extension_api::ExtensionRegistryBuilder;
     use codex_extension_api::ToolName;
-    use codex_gui_host::GuiLaunchUrlEntry;
-    use codex_gui_host::GuiLaunchUrlKind;
     use codex_gui_host::GuiLaunchUrls;
     use pretty_assertions::assert_eq;
 
@@ -575,30 +538,18 @@ mod tests {
 
     use super::*;
 
-    #[derive(Default)]
-    struct RecordingLauncher {
-        seen_thread_ids: Mutex<Vec<ThreadId>>,
-    }
+    struct NoopLauncher;
 
-    impl GuiLauncher for RecordingLauncher {
-        fn launch_gui_for_thread(&self, thread_id: ThreadId) -> crate::GuiLaunchFuture<'_> {
-            self.seen_thread_ids.lock().expect("lock").push(thread_id);
-            Box::pin(async {
-                Ok(GuiLaunchUrls {
-                    entries: vec![GuiLaunchUrlEntry::new(
-                        GuiLaunchUrlKind::Local,
-                        "Local",
-                        "http://127.0.0.1:1234/?threadId=t#token=x",
-                    )],
-                })
-            })
+    impl GuiLauncher for NoopLauncher {
+        fn launch_gui_for_thread(&self, _thread_id: ThreadId) -> crate::GuiLaunchFuture<'_> {
+            Box::pin(async { Ok(GuiLaunchUrls { entries: Vec::new() }) })
         }
     }
 
     #[test]
     fn installed_extension_contributes_launch_gui_for_normal_thread() {
         let mut builder = ExtensionRegistryBuilder::<()>::new();
-        install(&mut builder, Arc::new(RecordingLauncher::default()));
+        install(&mut builder, Arc::new(NoopLauncher));
         let registry = builder.build();
         let session_store = ExtensionData::new("session");
         let thread_id = ThreadId::new();
@@ -621,7 +572,7 @@ mod tests {
     #[test]
     fn installed_extension_contributes_no_tool_when_unavailable() {
         let mut builder = ExtensionRegistryBuilder::<()>::new();
-        install(&mut builder, Arc::new(RecordingLauncher::default()));
+        install(&mut builder, Arc::new(NoopLauncher));
         let registry = builder.build();
         let session_store = ExtensionData::new("session");
         let thread_id = ThreadId::new();
@@ -640,46 +591,10 @@ mod tests {
 
         assert_eq!(tool_names, Vec::<ToolName>::new());
     }
-
-    #[tokio::test]
-    async fn contributed_tool_launches_with_current_thread_id() {
-        let thread_id = ThreadId::new();
-        let launcher = Arc::new(RecordingLauncher::default());
-        let mut builder = ExtensionRegistryBuilder::<()>::new();
-        install(&mut builder, launcher.clone());
-        let registry = builder.build();
-        let session_store = ExtensionData::new("session");
-        let thread_store = ExtensionData::new(thread_id.to_string());
-        thread_store.insert(GuiExtensionConfig {
-            available: true,
-            thread_id,
-        });
-
-        let tool = registry
-            .tool_contributors()
-            .iter()
-            .flat_map(|contributor| contributor.tools(&session_store, &thread_store))
-            .next()
-            .expect("launch_gui tool should be contributed");
-
-        let _ = tool
-            .handle(ToolCall {
-                call_id: "call-1".to_string(),
-                name: LAUNCH_GUI_TOOL_NAME.to_string(),
-                arguments: "{}".to_string(),
-            })
-            .await
-            .expect("launch should succeed");
-
-        assert_eq!(
-            launcher.seen_thread_ids.lock().expect("lock").as_slice(),
-            &[thread_id]
-        );
-    }
 }
 ```
 
-- [ ] **Step 3: Run extension tests**
+- [ ] **Step 2: Run extension tests**
 
 Run:
 
@@ -690,18 +605,21 @@ just test -p codex-gui-extension
 
 Expected: PASS for spec, executor, and extension tests.
 
-- [ ] **Step 4: Commit extension wiring**
+- [ ] **Step 3: Commit extension wiring**
 
 ```bash
 git add codex-rs/ext/gui/src/extension.rs codex-rs/ext/gui/src/lib.rs
 git commit -m "feat(gui): expose launch gui extension"
 ```
 
-## Task 4: Add App-Server Shared GUI Launcher
+## Task 4: Move GUI host ownership into the in-process runtime
 
 **Files:**
 - Modify: `codex-rs/app-server/Cargo.toml`
 - Modify: `codex-rs/app-server/src/gui_host.rs`
+- Modify: `codex-rs/app-server/src/in_process.rs`
+- Modify: `codex-rs/app-server-client/src/lib.rs`
+- Modify: `codex-rs/app-server-client/src/gui.rs`
 
 - [ ] **Step 1: Add app-server dependency**
 
@@ -711,76 +629,61 @@ Modify `codex-rs/app-server/Cargo.toml`:
 codex-gui-extension = { workspace = true }
 ```
 
-- [ ] **Step 2: Add shared launcher beside current GUI host manager**
+- [ ] **Step 2: Add a shared runtime launcher**
 
-Modify `codex-rs/app-server/src/gui_host.rs`. Add imports:
+Modify `codex-rs/app-server/src/gui_host.rs` by adding `SharedGuiHostLauncher` below `GuiHostManager`.
 
 ```rust
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use codex_gui_host::GuiHostMode;
-```
 
-Add `SharedGuiHostLauncher` below `GuiHostManager`:
-
-```rust
 pub struct SharedGuiHostLauncher {
     sender: InProcessClientSender,
-    config: Result<GuiHostConfig, String>,
-    manager: Mutex<Option<Arc<GuiHostManager>>>,
+    handle: Mutex<Option<GuiHostManager>>,
+    mode_override: Option<GuiHostMode>,
 }
 
 impl SharedGuiHostLauncher {
-    pub fn new(sender: InProcessClientSender, config: GuiHostConfig) -> Self {
+    pub fn new(sender: InProcessClientSender) -> Self {
         Self {
             sender,
-            config: Ok(config),
-            manager: Mutex::new(None),
+            handle: Mutex::new(None),
+            mode_override: None,
         }
     }
 
-    pub fn default_for_profile(sender: InProcessClientSender) -> Self {
-        let config = GuiHostMode::default_for_profile()
-            .map(|mode| GuiHostConfig { mode })
-            .map_err(|error| error.to_string());
+    #[cfg(test)]
+    pub fn new_for_test(sender: InProcessClientSender, mode: GuiHostMode) -> Self {
         Self {
             sender,
-            config,
-            manager: Mutex::new(None),
+            handle: Mutex::new(None),
+            mode_override: Some(mode),
         }
     }
 
     pub async fn launch_urls_for_thread(&self, thread_id: ThreadId) -> io::Result<GuiLaunchUrls> {
-        let manager = {
-            let mut guard = self.manager.lock().await;
-            match guard.as_ref() {
-                Some(manager) => Arc::clone(manager),
-                None => {
-                    let config = self.config.clone().map_err(|message| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            format!("GUI host config error: {message}"),
-                        )
-                    })?;
-                    let manager = Arc::new(GuiHostManager::new(
-                        self.sender.clone(),
-                        config,
-                    ));
-                    *guard = Some(Arc::clone(&manager));
-                    manager
-                }
-            }
-        };
-        manager.launch_urls_for_thread(thread_id).await
-    }
-
-    pub async fn shutdown(&self) {
-        let manager = self.manager.lock().await.take();
-        if let Some(manager) = manager {
-            manager.shutdown().await;
+        let mut guard = self.handle.lock().await;
+        if guard.is_none() {
+            let mode = match self.mode_override.clone() {
+                Some(mode) => mode,
+                None => GuiHostMode::default_for_profile().map_err(|error| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("GUI host config error: {error}"),
+                    )
+                })?,
+            };
+            *guard = Some(GuiHostManager::new(
+                self.sender.clone(),
+                GuiHostConfig { mode },
+            ));
         }
+        let manager = guard
+            .as_ref()
+            .expect("GUI host manager should be initialized");
+        manager.launch_urls_for_thread(thread_id).await
     }
 }
 
@@ -798,76 +701,129 @@ impl codex_gui_extension::GuiLauncher for SharedGuiHostLauncher {
 }
 ```
 
-- [ ] **Step 3: Add shared launcher reuse test**
+- [ ] **Step 3: Add in-process runtime command**
 
-Add this test to the existing test module in `codex-rs/app-server/src/gui_host.rs`:
+Modify `codex-rs/app-server/src/in_process.rs`:
 
 ```rust
-#[tokio::test]
-async fn shared_launcher_reuses_same_host_for_manager_lifetime() {
-    let client = crate::in_process::tests::start_test_client_for_bridge().await;
-    let launcher = SharedGuiHostLauncher::new(
-        client.sender(),
-        GuiHostConfig {
-            mode: GuiHostMode::Dev(DevAssetProxyConfig {
-                vite_origin: "http://127.0.0.1:5173".to_string(),
-            }),
-        },
-    );
-    let thread_a =
-        ThreadId::from_string("00000000-0000-0000-0000-0000000004a1").expect("valid thread id");
-    let thread_b =
-        ThreadId::from_string("00000000-0000-0000-0000-0000000004b2").expect("valid thread id");
-
-    let urls_a = launcher
-        .launch_urls_for_thread(thread_a)
-        .await
-        .expect("first launch URLs should be created");
-    let urls_b = launcher
-        .launch_urls_for_thread(thread_b)
-        .await
-        .expect("second launch URLs should reuse host");
-
-    let origin_a = urls_a.entries[0]
-        .url
-        .as_str()
-        .split("/?")
-        .next()
-        .expect("URL should contain query");
-    let origin_b = urls_b.entries[0]
-        .url
-        .as_str()
-        .split("/?")
-        .next()
-        .expect("URL should contain query");
-    assert_eq!(origin_a, origin_b);
-    launcher.shutdown().await;
+pub(crate) enum InProcessClientMessage {
+    Request {
+        request: Box<ClientRequest>,
+        response_tx: oneshot::Sender<PendingClientRequestResponse>,
+    },
+    Notification {
+        notification: ClientNotification,
+    },
+    LaunchGui {
+        thread_id: codex_protocol::ThreadId,
+        response_tx: oneshot::Sender<io::Result<codex_gui_host::GuiLaunchUrls>>,
+    },
+    Extra(Box<in_process_extra::ExtraConnectionCommand>),
+    ServerRequestResponse {
+        request_id: RequestId,
+        result: Result,
+    },
+    ServerRequestError {
+        request_id: RequestId,
+        error: JSONRPCErrorError,
+    },
+    Shutdown {
+        done_tx: oneshot::Sender<()>,
+    },
 }
 ```
 
-- [ ] **Step 4: Run app-server GUI host tests**
+Add a public sender method:
+
+```rust
+impl InProcessClientSender {
+    pub async fn launch_gui_for_thread(
+        &self,
+        thread_id: codex_protocol::ThreadId,
+    ) -> io::Result<codex_gui_host::GuiLaunchUrls> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.try_send_client_message(InProcessClientMessage::LaunchGui {
+            thread_id,
+            response_tx,
+        })?;
+        response_rx.await.map_err(|err| {
+            IoError::new(
+                ErrorKind::BrokenPipe,
+                format!("in-process GUI launch response channel closed: {err}"),
+            )
+        })?
+    }
+}
+```
+
+In `start_uninitialized`, create the shared launcher before `MessageProcessor::new`:
+
+```rust
+let runtime_sender = InProcessClientSender {
+    client_tx: client_tx.clone(),
+};
+let gui_launcher = Arc::new(crate::gui_host::SharedGuiHostLauncher::new(runtime_sender));
+```
+
+Handle the new command in the runtime loop:
+
+```rust
+InProcessClientMessage::LaunchGui {
+    thread_id,
+    response_tx,
+} => {
+    let result = gui_launcher.launch_urls_for_thread(thread_id).await;
+    let _ = response_tx.send(result);
+}
+```
+
+- [ ] **Step 4: Update app-server-client facade**
+
+Modify `codex-rs/app-server-client/src/lib.rs` so `ClientCommand::LaunchGui` forwards to the low-level in-process sender instead of holding `gui_host_manager`.
+
+```rust
+Some(ClientCommand::LaunchGui {
+    thread_id,
+    response_tx,
+}) => {
+    let request_sender = request_sender.clone();
+    tokio::spawn(async move {
+        let result = request_sender
+            .launch_gui_for_thread(thread_id)
+            .await
+            .map_err(GuiLaunchError::from);
+        let _ = response_tx.send(result);
+    });
+}
+```
+
+Remove the worker-local `let mut gui_host_manager = None::<codex_app_server::GuiHostManager>;` because the shared app-server runtime owns the manager now.
+
+Modify `codex-rs/app-server-client/src/gui.rs` to remove `new_gui_host_manager` from production code if it is no longer used. Keep `RemoteAppServerClient::launch_gui_for_thread` returning `GuiLaunchError::UnsupportedRemote`.
+
+- [ ] **Step 5: Run focused GUI facade tests**
 
 Run:
 
 ```bash
 cd codex-rs
-just test -p codex-app-server gui_host
+just test -p codex-app-server-client gui
 ```
 
-Expected: PASS for existing and new GUI host tests.
+Expected: PASS for existing GUI launch facade tests, including remote unsupported behavior and host reuse.
 
-- [ ] **Step 5: Commit shared launcher**
+- [ ] **Step 6: Commit runtime ownership move**
 
 ```bash
-git add codex-rs/app-server/Cargo.toml codex-rs/app-server/src/gui_host.rs
-git commit -m "feat(gui): add app server gui launcher"
+git add codex-rs/app-server/Cargo.toml codex-rs/app-server/src/gui_host.rs codex-rs/app-server/src/in_process.rs codex-rs/app-server-client/src/lib.rs codex-rs/app-server-client/src/gui.rs
+git commit -m "refactor(gui): share gui launcher in app server runtime"
 ```
 
-## Task 5: Install GUI Extension From App-Server
+## Task 5: Install the GUI extension from app-server
 
 **Files:**
-- Modify: `codex-rs/app-server/src/message_processor.rs`
 - Modify: `codex-rs/app-server/src/extensions.rs`
+- Modify: `codex-rs/app-server/src/message_processor.rs`
 - Modify: `codex-rs/app-server/src/in_process.rs`
 - Modify: `codex-rs/app-server/src/lib.rs`
 - Modify: `codex-rs/app-server/src/mcp_refresh.rs`
@@ -898,7 +854,7 @@ pub(crate) struct MessageProcessorArgs {
 }
 ```
 
-Destructure `gui_launcher` in `MessageProcessor::new` and pass it to `thread_extensions`:
+Pass `gui_launcher` into `thread_extensions`:
 
 ```rust
 thread_extensions(
@@ -951,46 +907,37 @@ where
 }
 ```
 
-- [ ] **Step 3: Pass launcher from in-process runtime and `None` elsewhere**
+- [ ] **Step 3: Pass launcher from in-process runtime and None elsewhere**
 
-In `codex-rs/app-server/src/in_process.rs`, create the shared launcher after `client_tx` is available and before `MessageProcessor::new` receives arguments:
-
-```rust
-let runtime_sender = InProcessClientSender {
-    client_tx: client_tx.clone(),
-};
-let gui_launcher = Arc::new(crate::gui_host::SharedGuiHostLauncher::default_for_profile(
-    runtime_sender,
-));
-```
-
-Pass it into `MessageProcessorArgs`:
+In `codex-rs/app-server/src/in_process.rs`, pass `Some(gui_launcher.clone())` into `MessageProcessorArgs`.
 
 ```rust
-gui_launcher: Some(gui_launcher.clone()),
+let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
+    outgoing: Arc::clone(&processor_outgoing),
+    analytics_events_client,
+    arg0_paths: args.arg0_paths,
+    config: args.config,
+    config_manager,
+    environment_manager: args.environment_manager,
+    feedback: args.feedback,
+    log_db: args.log_db,
+    state_db: args.state_db,
+    config_warnings: args.config_warnings,
+    session_source: args.session_source,
+    auth_manager,
+    installation_id,
+    rpc_transport: AppServerRpcTransport::InProcess,
+    remote_control_handle: None,
+    plugin_startup_tasks: crate::PluginStartupTasks::Start,
+    gui_launcher: Some(gui_launcher.clone()),
+}));
 ```
 
-In `codex-rs/app-server/src/lib.rs`, pass:
+In `codex-rs/app-server/src/lib.rs`, pass `gui_launcher: None` when constructing `MessageProcessorArgs` for socket/stdout transports.
 
-```rust
-gui_launcher: None,
-```
+In `codex-rs/app-server/src/mcp_refresh.rs`, pass `None` to `thread_extensions`.
 
-In `codex-rs/app-server/src/mcp_refresh.rs`, pass `None` to `thread_extensions`:
-
-```rust
-thread_extensions(
-    guardian_agent_spawner(thread_manager.clone()),
-    Arc::new(NoopExtensionEventSink),
-    auth_manager.clone(),
-    Some(state_db.clone()),
-    thread_manager.clone(),
-    Arc::new(codex_goal_extension::GoalService::new()),
-    None,
-)
-```
-
-- [ ] **Step 4: Run focused app-server tests**
+- [ ] **Step 4: Run focused app-server compile/tests**
 
 Run:
 
@@ -999,214 +946,163 @@ cd codex-rs
 just test -p codex-app-server extensions
 ```
 
-Expected: PASS if the filter matches tests. If the filter reports no tests, run:
+Expected: PASS for extension-related tests. If no test filter matches, run:
 
 ```bash
 cd codex-rs
-just test -p codex-app-server gui_host
+just test -p codex-app-server
 ```
 
-Expected: PASS.
+Expected: PASS for `codex-app-server`.
 
 - [ ] **Step 5: Commit extension installation**
 
 ```bash
-git add codex-rs/app-server/src/message_processor.rs codex-rs/app-server/src/extensions.rs codex-rs/app-server/src/in_process.rs codex-rs/app-server/src/lib.rs codex-rs/app-server/src/mcp_refresh.rs
+git add codex-rs/app-server/src/extensions.rs codex-rs/app-server/src/message_processor.rs codex-rs/app-server/src/in_process.rs codex-rs/app-server/src/lib.rs codex-rs/app-server/src/mcp_refresh.rs
 git commit -m "feat(gui): install gui launch extension"
 ```
 
-## Task 6: Route Existing `/gui` Through App-Server Launcher
+## Task 6: Add integration coverage for tool visibility and launch behavior
 
 **Files:**
-- Modify: `codex-rs/app-server/src/in_process.rs`
 - Modify: `codex-rs/app-server-client/src/lib.rs`
-- Modify: `codex-rs/app-server-client/src/gui.rs`
+- Modify: `codex-rs/app-server/src/gui_host.rs`
+- Test: existing app-server-client tests in `codex-rs/app-server-client/src/lib.rs`
+- Test: existing extension tests in `codex-rs/ext/gui/src/extension.rs`
 
-- [ ] **Step 1: Add a narrow in-process launch command**
+- [ ] **Step 1: Add app-server-client regression test for single shared host**
 
-Modify `codex-rs/app-server/src/in_process.rs`. Add a message variant:
+Add or update a test in `codex-rs/app-server-client/src/lib.rs` near existing GUI tests:
 
 ```rust
-pub(crate) enum InProcessClientMessage {
-    Request {
-        request: Box<ClientRequest>,
-        response_tx: oneshot::Sender<PendingClientRequestResponse>,
-    },
-    Notification {
-        notification: ClientNotification,
-    },
-    LaunchGui {
-        thread_id: codex_protocol::ThreadId,
-        response_tx: oneshot::Sender<io::Result<codex_gui_host::GuiLaunchUrls>>,
-    },
-    Extra(Box<in_process_extra::ExtraConnectionCommand>),
-    ServerRequestResponse {
-        request_id: RequestId,
-        result: Result,
-    },
-    ServerRequestError {
-        request_id: RequestId,
-        error: JSONRPCErrorError,
-    },
-    Shutdown {
-        done_tx: oneshot::Sender<()>,
-    },
+#[tokio::test]
+async fn in_process_launch_gui_reuses_runtime_host_for_multiple_threads() {
+    let client = start_test_client(SessionSource::Cli).await;
+    let thread_a =
+        ThreadId::from_string("00000000-0000-0000-0000-0000000005a1").expect("valid thread id");
+    let thread_b =
+        ThreadId::from_string("00000000-0000-0000-0000-0000000005b2").expect("valid thread id");
+
+    let urls_a = client
+        .launch_gui_for_thread(thread_a)
+        .await
+        .expect("first launch should start GUI host");
+    let urls_b = client
+        .launch_gui_for_thread(thread_b)
+        .await
+        .expect("second launch should reuse GUI host");
+
+    let local_a = urls_a
+        .entries
+        .iter()
+        .find(|entry| entry.kind == GuiLaunchUrlKind::Local)
+        .expect("local URL for first thread");
+    let local_b = urls_b
+        .entries
+        .iter()
+        .find(|entry| entry.kind == GuiLaunchUrlKind::Local)
+        .expect("local URL for second thread");
+
+    assert!(local_a.url.contains(&thread_a.to_string()));
+    assert!(local_b.url.contains(&thread_b.to_string()));
+    assert_eq!(
+        local_a.url.split('/').nth(2),
+        local_b.url.split('/').nth(2),
+        "runtime should reuse the same host authority"
+    );
+    client.shutdown().await.expect("shutdown should complete");
 }
 ```
 
-Add this method to `InProcessClientSender`:
+- [ ] **Step 2: Add extension launch behavior test**
+
+Add a test in `codex-rs/ext/gui/src/extension.rs` that obtains the contributed tool and calls it with a fake launcher:
 
 ```rust
-pub async fn launch_gui_for_thread(
-    &self,
-    thread_id: codex_protocol::ThreadId,
-) -> io::Result<codex_gui_host::GuiLaunchUrls> {
-    let (response_tx, response_rx) = oneshot::channel();
-    self.try_send_client_message(InProcessClientMessage::LaunchGui {
+#[tokio::test]
+async fn contributed_tool_launches_with_current_thread_id() {
+    let thread_id = ThreadId::new();
+    let launcher = Arc::new(RecordingLauncher::default());
+    let mut builder = ExtensionRegistryBuilder::<()>::new();
+    install(&mut builder, launcher.clone());
+    let registry = builder.build();
+    let session_store = ExtensionData::new("session");
+    let thread_store = ExtensionData::new(thread_id.to_string());
+    thread_store.insert(GuiExtensionConfig {
+        available: true,
         thread_id,
-        response_tx,
-    })?;
-    response_rx.await.map_err(|err| {
-        IoError::new(
-            ErrorKind::BrokenPipe,
-            format!("in-process GUI launch response channel closed: {err}"),
-        )
-    })?
-}
-```
-
-Handle the new message in the `client_rx.recv()` loop by calling the same `gui_launcher` used by extensions:
-
-```rust
-Some(InProcessClientMessage::LaunchGui {
-    thread_id,
-    response_tx,
-}) => {
-    let result = gui_launcher.launch_urls_for_thread(thread_id).await;
-    let _ = response_tx.send(result);
-}
-```
-
-When shutdown begins, shut down the shared launcher before exiting the runtime task:
-
-```rust
-gui_launcher.shutdown().await;
-```
-
-- [ ] **Step 2: Forward app-server-client `/gui` command to the runtime**
-
-Modify `codex-rs/app-server-client/src/lib.rs` so the worker no longer owns `GuiHostManager`. Remove:
-
-```rust
-let mut gui_host_manager = None::<codex_app_server::GuiHostManager>;
-```
-
-Replace the production `ClientCommand::LaunchGui` branch with:
-
-```rust
-Some(ClientCommand::LaunchGui {
-    thread_id,
-    response_tx,
-}) => {
-    let request_sender = request_sender.clone();
-    tokio::spawn(async move {
-        let result = request_sender
-            .launch_gui_for_thread(thread_id)
-            .await
-            .map_err(GuiLaunchError::from);
-        let _ = response_tx.send(result);
     });
+
+    let tool = registry
+        .tool_contributors()
+        .iter()
+        .flat_map(|contributor| contributor.tools(&session_store, &thread_store))
+        .next()
+        .expect("launch_gui tool should be contributed");
+
+    let _ = tool
+        .handle(ToolCall {
+            call_id: "call-1".to_string(),
+            name: LAUNCH_GUI_TOOL_NAME.to_string(),
+            arguments: "{}".to_string(),
+        })
+        .await
+        .expect("launch should succeed");
+
+    assert_eq!(
+        launcher.seen_thread_ids.lock().expect("lock").as_slice(),
+        &[thread_id]
+    );
 }
 ```
 
-Remove production shutdown calls that take `gui_host_manager`. The runtime now owns and shuts down the shared launcher.
+Define `RecordingLauncher` in the same test module:
 
-- [ ] **Step 3: Keep remote unsupported and remove production manager construction**
+```rust
+#[derive(Default)]
+struct RecordingLauncher {
+    seen_thread_ids: Mutex<Vec<ThreadId>>,
+}
 
-Modify `codex-rs/app-server-client/src/gui.rs`:
+impl GuiLauncher for RecordingLauncher {
+    fn launch_gui_for_thread(&self, thread_id: ThreadId) -> crate::GuiLaunchFuture<'_> {
+        self.seen_thread_ids.lock().expect("lock").push(thread_id);
+        Box::pin(async {
+            Ok(GuiLaunchUrls {
+                entries: vec![GuiLaunchUrlEntry::new(
+                    GuiLaunchUrlKind::Local,
+                    "Local",
+                    "http://127.0.0.1:1234/?threadId=t#token=x",
+                )],
+            })
+        })
+    }
+}
+```
 
-- Keep `GuiLaunchError`.
-- Keep `AppServerClientGuiExt`.
-- Keep `RemoteAppServerClient::launch_gui_for_thread` returning `GuiLaunchError::UnsupportedRemote`.
-- Remove production imports and helpers that construct `GuiHostManager`.
-- Keep test-only helpers only if existing app-server-client tests still use `LaunchGuiForTest`; otherwise remove `LaunchGuiForTest` and its helper together.
-
-The production `InProcessAppServerClient::launch_gui_for_thread` method should still send `ClientCommand::LaunchGui`.
-
-- [ ] **Step 4: Run focused `/gui` facade tests**
+- [ ] **Step 3: Run focused tests**
 
 Run:
 
 ```bash
 cd codex-rs
+just test -p codex-gui-extension
 just test -p codex-app-server-client gui
 ```
 
-Expected: PASS for GUI launch facade tests, including remote unsupported behavior.
+Expected: both commands pass.
 
-- [ ] **Step 5: Commit `/gui` routing**
+- [ ] **Step 4: Commit integration coverage**
 
 ```bash
-git add codex-rs/app-server/src/in_process.rs codex-rs/app-server-client/src/lib.rs codex-rs/app-server-client/src/gui.rs
-git commit -m "refactor(gui): route gui launch through app server"
+git add codex-rs/ext/gui/src/extension.rs codex-rs/app-server-client/src/lib.rs codex-rs/app-server/src/gui_host.rs
+git commit -m "test(gui): cover launch gui extension"
 ```
 
-## Task 7: Add End-To-End Tool Visibility Coverage
+## Task 7: Final formatting, linting, and lockfile checks
 
 **Files:**
-- Test: `codex-rs/app-server/tests/suite/v2/turn_start.rs` or an existing app-server suite file that already asserts model tool names.
-- Modify: `codex-rs/app-server/tests/suite/v2/mod.rs` only if a new test module is created.
-
-- [ ] **Step 1: Locate the existing tool-name assertion helper**
-
-Run:
-
-```bash
-rg -n "tool_names|tools|CREATE_GOAL_TOOL_NAME|GET_GOAL_TOOL_NAME|UPDATE_GOAL_TOOL_NAME|function_call" codex-rs/app-server/tests codex-rs/core/suite
-```
-
-Expected: locate an existing test helper that inspects outbound Responses API tool specs. Reuse that helper instead of adding a parallel JSON parser.
-
-- [ ] **Step 2: Add app-server visibility assertion**
-
-Add a focused test that starts an in-process app-server-backed thread and asserts that the outbound model request includes `launch_gui` only when the app-server receives a GUI launcher. The assertion should compare the collected tool names as a whole object when possible:
-
-```rust
-assert!(tool_names.contains(&"launch_gui".to_string()));
-```
-
-If the suite already has a full expected tool-name vector, add `"launch_gui".to_string()` to that vector.
-
-- [ ] **Step 3: Verify non in-process path does not expose the tool**
-
-Add or update the closest existing app-server setup that constructs `MessageProcessorArgs` with `gui_launcher: None`, then assert `launch_gui` is absent:
-
-```rust
-assert!(!tool_names.contains(&"launch_gui".to_string()));
-```
-
-- [ ] **Step 4: Run focused app-server test**
-
-Run the exact test selected in Step 1. Example command:
-
-```bash
-cd codex-rs
-just test -p codex-app-server launch_gui
-```
-
-Expected: PASS for the new launch GUI extension visibility test.
-
-- [ ] **Step 5: Commit coverage**
-
-```bash
-git add codex-rs/app-server/tests
-git commit -m "test(gui): cover launch gui extension visibility"
-```
-
-## Task 8: Final Formatting, Lockfile, And Scope Review
-
-**Files:**
-- Modify only files changed by formatting or generated lock update commands.
+- Modify only generated or formatting changes produced by commands.
 
 - [ ] **Step 1: Format Rust code**
 
@@ -1242,19 +1138,18 @@ just bazel-lock-update
 just bazel-lock-check
 ```
 
-Expected: lock update succeeds and lock check reports no drift. Do not edit lockfiles manually.
+Expected: lock update succeeds and lock check reports no drift.
 
-- [ ] **Step 4: Check final diff hygiene against upstream baseline**
+- [ ] **Step 4: Check final diff hygiene**
 
 Run:
 
 ```bash
 git status --short
 git diff --check
-git diff --stat rust-v0.139.0..HEAD -- codex-rs/app-server/src/in_process.rs codex-rs/app-server/src/message_processor.rs codex-rs/app-server/src/extensions.rs codex-rs/app-server/src/lib.rs codex-rs/app-server-client/src/lib.rs
 ```
 
-Expected: `git diff --check` succeeds. The upstream-existing files should show additive hook scale, not broad rewrites.
+Expected: only intended Rust/Bazel/Cargo files are modified, and `git diff --check` exits successfully.
 
 - [ ] **Step 5: Commit final mechanical updates**
 
@@ -1269,11 +1164,9 @@ If no files changed, do not create an empty commit.
 
 ## Execution Notes
 
-- Follow `codex-goal-extension` patterns for extension installation and tool contribution.
-- `GuiLauncher` is the new host capability boundary. Do not put TUI or slash-command dependencies in `codex-gui-extension`.
-- `codex-gui-extension` can use `async_trait` where it implements existing extension/tool traits that already require it. Do not define the new `GuiLauncher` trait with `async_trait`; use `GuiLaunchFuture`.
-- Keep `launch_gui` parameters empty.
-- Keep tool description explicit-request-only.
-- Keep URL response structured and avoid logging launch tokens.
-- Do not run the complete workspace test suite without explicit user approval.
+- Do not run the full `just test` suite unless the user explicitly authorizes it.
 - Do not push commits.
+- Do not modify `Cargo.lock` manually. If lockfiles change, they must be produced by the documented commands.
+- Keep `/gui` slash command behavior unchanged from the user's perspective.
+- The model tool must not accept a `thread_id` argument.
+- The tool description must remain explicit-request-only.
