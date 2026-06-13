@@ -5,11 +5,13 @@ use std::io;
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 
+#[cfg(test)]
 use codex_app_server::GuiHostManager;
+#[cfg(test)]
 use codex_app_server::in_process::InProcessClientSender;
 #[cfg(test)]
-use codex_gui_host::DevAssetProxyConfig;
 use codex_gui_host::GuiHostConfig;
+#[cfg(test)]
 use codex_gui_host::GuiHostMode;
 use codex_protocol::ThreadId;
 use tokio::sync::oneshot;
@@ -58,25 +60,6 @@ impl From<io::Error> for GuiLaunchError {
 }
 
 #[cfg(test)]
-fn default_gui_host_mode() -> Result<GuiHostMode, GuiLaunchError> {
-    Ok(test_dev_mode())
-}
-
-#[cfg(not(test))]
-fn default_gui_host_mode() -> Result<GuiHostMode, GuiLaunchError> {
-    GuiHostMode::default_for_profile().map_err(|error| GuiLaunchError::Config {
-        message: error.to_string(),
-    })
-}
-
-#[cfg(test)]
-pub(crate) fn test_dev_mode() -> GuiHostMode {
-    GuiHostMode::Dev(DevAssetProxyConfig {
-        vite_origin: "http://127.0.0.1:5173".to_string(),
-    })
-}
-
-#[cfg(test)]
 pub(crate) fn new_gui_host_manager_for_test(
     sender: InProcessClientSender,
     mode_result: Result<GuiHostMode, String>,
@@ -94,13 +77,6 @@ pub trait AppServerClientGuiExt {
         &self,
         thread_id: ThreadId,
     ) -> impl Future<Output = Result<GuiLaunchUrls, GuiLaunchError>> + Send;
-}
-
-pub(crate) fn new_gui_host_manager(
-    sender: InProcessClientSender,
-) -> Result<GuiHostManager, GuiLaunchError> {
-    let mode = default_gui_host_mode()?;
-    Ok(GuiHostManager::new(sender, GuiHostConfig { mode }))
 }
 
 impl InProcessAppServerClient {

@@ -173,6 +173,10 @@ pub(crate) enum InProcessClientMessage {
         request: Box<ClientRequest>,
         response_tx: oneshot::Sender<PendingClientRequestResponse>,
     },
+    LaunchGui {
+        thread_id: codex_protocol::ThreadId,
+        response_tx: oneshot::Sender<IoResult<codex_gui_host::GuiLaunchUrls>>,
+    },
     Notification {
         notification: ClientNotification,
     },
@@ -214,6 +218,23 @@ impl InProcessClientSender {
                 format!("in-process request response channel closed: {err}"),
             )
         })
+    }
+
+    pub async fn launch_gui_for_thread(
+        &self,
+        thread_id: codex_protocol::ThreadId,
+    ) -> IoResult<codex_gui_host::GuiLaunchUrls> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.try_send_client_message(InProcessClientMessage::LaunchGui {
+            thread_id,
+            response_tx,
+        })?;
+        response_rx.await.map_err(|err| {
+            IoError::new(
+                ErrorKind::BrokenPipe,
+                format!("in-process GUI launch response channel closed: {err}"),
+            )
+        })?
     }
 
     pub fn notify(&self, notification: ClientNotification) -> IoResult<()> {
@@ -385,6 +406,12 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
     let installation_id = resolve_installation_id(&args.config.codex_home).await?;
     let (client_tx, mut client_rx) = mpsc::channel::<InProcessClientMessage>(channel_capacity);
     let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
+    let runtime_sender = InProcessClientSender {
+        client_tx: client_tx.clone(),
+    };
+    let gui_launcher = Arc::new(crate::gui_host::SharedGuiHostLauncher::default_for_profile(
+        runtime_sender,
+    ));
 
     let runtime_handle = tokio::spawn(async move {
         let (outgoing_tx, mut outgoing_rx) = mpsc::channel::<OutgoingEnvelope>(channel_capacity);
@@ -453,6 +480,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             args.thread_config_loader,
         );
         let (processor_tx, mut processor_rx) = mpsc::channel::<ProcessorCommand>(channel_capacity);
+        let processor_gui_launcher = Arc::clone(&gui_launcher);
         let mut processor_handle = tokio::spawn(async move {
             let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
                 outgoing: Arc::clone(&processor_outgoing),
@@ -467,6 +495,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 config_warnings: args.config_warnings,
                 session_source: args.session_source,
                 auth_manager,
+                gui_launcher: Some(processor_gui_launcher),
                 installation_id,
                 rpc_transport: AppServerRpcTransport::InProcess,
                 remote_control_handle: None,
@@ -606,6 +635,13 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     break;
                                 }
                             }
+                        }
+                        Some(InProcessClientMessage::LaunchGui { thread_id, response_tx }) => {
+                            let gui_launcher = Arc::clone(&gui_launcher);
+                            tokio::spawn(async move {
+                                let result = gui_launcher.launch_urls_for_thread(thread_id).await;
+                                let _ = response_tx.send(result);
+                            });
                         }
                         Some(InProcessClientMessage::Notification { notification }) => {
                             match processor_tx.try_send(ProcessorCommand::Notification(notification)) {
@@ -810,6 +846,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
             processor_handle.abort();
             let _ = processor_handle.await;
         }
+        gui_launcher.shutdown().await;
         if let Err(_elapsed) = timeout(SHUTDOWN_TIMEOUT, &mut outbound_handle).await {
             outbound_handle.abort();
             let _ = outbound_handle.await;
