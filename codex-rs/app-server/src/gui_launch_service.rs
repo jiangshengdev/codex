@@ -10,7 +10,7 @@ use codex_protocol::ThreadId;
 use crate::gui_connection_bridge::LocalGuiConnectionOpener;
 use crate::gui_host::GuiHostManager;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum GuiLaunchServiceError {
     Config { message: String },
     Launch { message: String },
@@ -38,22 +38,35 @@ pub trait GuiLaunchService: Send + Sync {
 }
 
 pub struct AppServerGuiLaunchService {
-    manager: Option<GuiHostManager>,
-    unavailable_message: Option<String>,
+    state: GuiLaunchState,
+}
+
+enum GuiLaunchState {
+    Available(GuiHostManager),
+    Unavailable(GuiLaunchServiceError),
 }
 
 impl AppServerGuiLaunchService {
     pub fn new(manager: GuiHostManager) -> Self {
         Self {
-            manager: Some(manager),
-            unavailable_message: None,
+            state: GuiLaunchState::Available(manager),
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn unavailable(message: impl Into<String>) -> Self {
         Self {
-            manager: None,
-            unavailable_message: Some(message.into()),
+            state: GuiLaunchState::Unavailable(GuiLaunchServiceError::Unavailable {
+                message: message.into(),
+            }),
+        }
+    }
+
+    pub(crate) fn config_error(message: impl Into<String>) -> Self {
+        Self {
+            state: GuiLaunchState::Unavailable(GuiLaunchServiceError::Config {
+                message: message.into(),
+            }),
         }
     }
 
@@ -63,7 +76,7 @@ impl AppServerGuiLaunchService {
                 opener,
                 GuiHostConfig { mode },
             )),
-            Err(error) => Self::unavailable(error.to_string()),
+            Err(error) => Self::config_error(error.to_string()),
         }
     }
 
@@ -75,22 +88,22 @@ impl AppServerGuiLaunchService {
     }
 
     pub async fn shutdown(&self) {
-        if let Some(manager) = &self.manager {
+        if let GuiLaunchState::Available(manager) = &self.state {
             manager.shutdown().await;
         }
     }
 
     pub fn shutdown_best_effort(&self) {
-        if let Some(manager) = &self.manager {
+        if let GuiLaunchState::Available(manager) = &self.state {
             manager.cancel();
         }
     }
 
     #[cfg(test)]
     pub(crate) async fn has_active_host_for_test(&self) -> bool {
-        match &self.manager {
-            Some(manager) => manager.has_active_host_for_test().await,
-            None => false,
+        match &self.state {
+            GuiLaunchState::Available(manager) => manager.has_active_host_for_test().await,
+            GuiLaunchState::Unavailable(_) => false,
         }
     }
 }
@@ -100,20 +113,15 @@ impl GuiLaunchService for AppServerGuiLaunchService {
         &self,
         thread_id: ThreadId,
     ) -> Result<GuiLaunchUrls, GuiLaunchServiceError> {
-        let Some(manager) = &self.manager else {
-            return Err(GuiLaunchServiceError::Config {
-                message: self
-                    .unavailable_message
-                    .clone()
-                    .unwrap_or_else(|| "GUI launch service is unavailable".to_string()),
-            });
-        };
-        manager
-            .launch_urls_for_thread(thread_id)
-            .await
-            .map_err(|error| GuiLaunchServiceError::Launch {
-                message: error.to_string(),
-            })
+        match &self.state {
+            GuiLaunchState::Available(manager) => manager
+                .launch_urls_for_thread(thread_id)
+                .await
+                .map_err(|error| GuiLaunchServiceError::Launch {
+                    message: error.to_string(),
+                }),
+            GuiLaunchState::Unavailable(error) => Err(error.clone()),
+        }
     }
 }
 
@@ -164,6 +172,26 @@ mod tests {
                 service: AppServerGuiLaunchService::new(manager),
                 bridge: Mutex::new(Some(bridge)),
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn unavailable_service_returns_unavailable_error() {
+        let service = AppServerGuiLaunchService::unavailable("not available");
+        let error = service
+            .launch_urls_for_thread(ThreadId::default())
+            .await
+            .expect_err("unavailable service should not launch");
+
+        match error {
+            GuiLaunchServiceError::Unavailable { message } => {
+                assert_eq!(message, "not available");
+                assert_eq!(
+                    GuiLaunchServiceError::Unavailable { message }.to_string(),
+                    "GUI launch unavailable: not available"
+                );
+            }
+            other => panic!("expected unavailable error, got {other:?}"),
         }
     }
 
