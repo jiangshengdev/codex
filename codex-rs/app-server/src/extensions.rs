@@ -32,7 +32,6 @@ pub(crate) fn thread_extensions<S>(
     state_db: Option<StateDbHandle>,
     thread_manager: Weak<ThreadManager>,
     goal_service: Arc<GoalService>,
-    gui_launcher: Option<Arc<dyn codex_gui_extension::GuiLauncher>>,
 ) -> Arc<ExtensionRegistry<Config>>
 where
     S: AgentSpawner<StartThreadOptions, Spawned = NewThread, Error = CodexErr> + 'static,
@@ -47,9 +46,6 @@ where
             goal_service,
             |config: &Config| config.features.enabled(codex_features::Feature::Goals),
         );
-    }
-    if let Some(gui_launcher) = gui_launcher {
-        codex_gui_extension::install(&mut builder, gui_launcher);
     }
     codex_guardian::install(&mut builder, guardian_agent_spawner);
     codex_memories_extension::install(&mut builder, codex_otel::global());

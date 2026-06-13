@@ -829,7 +829,6 @@ pub async fn run_main_with_transport_options(
             config_warnings,
             session_source,
             auth_manager,
-            gui_launcher: None,
             installation_id,
             rpc_transport: analytics_rpc_transport(&transport),
             remote_control_handle: Some(remote_control_handle.clone()),

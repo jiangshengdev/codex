@@ -510,11 +510,13 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let request_sender = handle.sender();
+        let gui_sender = request_sender.clone();
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
         let worker_handle = tokio::spawn(async move {
             let mut event_stream_enabled = true;
+            let mut gui_host_manager = None::<codex_app_server::GuiHostManager>;
             let mut skipped_events = 0usize;
             loop {
                 tokio::select! {
@@ -541,14 +543,26 @@ impl InProcessAppServerClient {
                                 thread_id,
                                 response_tx,
                             }) => {
-                                let request_sender = request_sender.clone();
-                                tokio::spawn(async move {
-                                    let result = request_sender
-                                        .launch_gui_for_thread(thread_id)
-                                        .await
-                                        .map_err(GuiLaunchError::from);
-                                    let _ = response_tx.send(result);
-                                });
+                                let result = async {
+                                    if let Some(manager) = gui_host_manager.as_ref() {
+                                        manager
+                                            .launch_urls_for_thread(thread_id)
+                                            .await
+                                            .map_err(GuiLaunchError::from)
+                                    } else {
+                                        let manager = crate::gui::new_gui_host_manager(
+                                            gui_sender.clone(),
+                                        )?;
+                                        let urls = manager
+                                            .launch_urls_for_thread(thread_id)
+                                            .await
+                                            .map_err(GuiLaunchError::from)?;
+                                        gui_host_manager = Some(manager);
+                                        Ok(urls)
+                                    }
+                                }
+                                .await;
+                                let _ = response_tx.send(result);
                             }
                             #[cfg(test)]
                             Some(ClientCommand::LaunchGuiForTest {
@@ -558,7 +572,7 @@ impl InProcessAppServerClient {
                             }) => {
                                 let result = async {
                                     let manager = crate::gui::new_gui_host_manager_for_test(
-                                        request_sender.clone(),
+                                        gui_sender.clone(),
                                         mode_result,
                                     )?;
                                     let urls = manager
@@ -589,11 +603,17 @@ impl InProcessAppServerClient {
                                 let _ = response_tx.send(send_result);
                             }
                             Some(ClientCommand::Shutdown { response_tx }) => {
+                                if let Some(manager) = gui_host_manager.take() {
+                                    manager.shutdown().await;
+                                }
                                 let shutdown_result = handle.shutdown().await;
                                 let _ = response_tx.send(shutdown_result);
                                 break;
                             }
                             None => {
+                                if let Some(manager) = gui_host_manager.take() {
+                                    manager.shutdown().await;
+                                }
                                 let _ = handle.shutdown().await;
                                 break;
                             }
