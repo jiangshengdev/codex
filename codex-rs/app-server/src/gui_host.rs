@@ -9,19 +9,32 @@ use codex_protocol::ThreadId;
 use tokio::sync::Mutex;
 
 use crate::gui_connection_bridge::ExtraConnectionLocalGuiOpener;
+use crate::gui_connection_bridge::LocalGuiConnectionOpener;
 use crate::gui_transport::GuiTransportBackend;
 use crate::in_process::InProcessClientSender;
 
 pub struct GuiHostManager {
-    sender: InProcessClientSender,
+    opener: Arc<dyn LocalGuiConnectionOpener>,
     config: GuiHostConfig,
     handle: Mutex<Option<GuiHostHandle>>,
 }
 
 impl GuiHostManager {
     pub fn new(sender: InProcessClientSender, config: GuiHostConfig) -> Self {
+        Self::new_with_opener(
+            Arc::new(ExtraConnectionLocalGuiOpener::new(
+                sender.extra_connection_sender(),
+            )),
+            config,
+        )
+    }
+
+    pub(crate) fn new_with_opener(
+        opener: Arc<dyn LocalGuiConnectionOpener>,
+        config: GuiHostConfig,
+    ) -> Self {
         Self {
-            sender,
+            opener,
             config,
             handle: Mutex::new(None),
         }
@@ -37,9 +50,7 @@ impl GuiHostManager {
             return Ok(urls);
         }
 
-        let backend = GuiTransportBackend::new(Arc::new(ExtraConnectionLocalGuiOpener::new(
-            self.sender.extra_connection_sender(),
-        )));
+        let backend = GuiTransportBackend::new(Arc::clone(&self.opener));
         let new_handle = GuiHost::start(self.config.clone(), backend).await?;
         let (urls, redundant_handle) = {
             let mut guard = self.handle.lock().await;
