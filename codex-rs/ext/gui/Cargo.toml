@@ -1,0 +1,29 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "codex-gui-agent-extension"
+version.workspace = true
+
+[lib]
+name = "codex_gui_agent_extension"
+path = "src/lib.rs"
+test = false
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+codex-extension-api = { workspace = true }
+codex-gui-host = { workspace = true }
+codex-protocol = { workspace = true }
+codex-tools = { workspace = true }
+codex-utils-output-truncation = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

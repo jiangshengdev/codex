@@ -1,5 +1,6 @@
 use std::fmt;
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use codex_gui_host::GuiHostConfig;
@@ -122,6 +123,45 @@ impl GuiLaunchService for AppServerGuiLaunchService {
                 }),
             GuiLaunchState::Unavailable(error) => Err(error.clone()),
         }
+    }
+}
+
+impl From<GuiLaunchServiceError> for codex_gui_agent_extension::GuiLaunchToolError {
+    fn from(value: GuiLaunchServiceError) -> Self {
+        match value {
+            GuiLaunchServiceError::Config { message } => Self::new(
+                codex_gui_agent_extension::GuiLaunchToolErrorKind::ConfigError,
+                message,
+            ),
+            GuiLaunchServiceError::Launch { message } => Self::new(
+                codex_gui_agent_extension::GuiLaunchToolErrorKind::LaunchError,
+                message,
+            ),
+            GuiLaunchServiceError::Unavailable { message } => Self::new(
+                codex_gui_agent_extension::GuiLaunchToolErrorKind::Unavailable,
+                message,
+            ),
+        }
+    }
+}
+
+impl codex_gui_agent_extension::GuiLaunchToolService for AppServerGuiLaunchService {
+    fn launch_urls_for_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                    Output = Result<GuiLaunchUrls, codex_gui_agent_extension::GuiLaunchToolError>,
+                > + Send
+                + '_,
+        >,
+    > {
+        Box::pin(async move {
+            AppServerGuiLaunchService::launch_urls_for_thread(self, thread_id)
+                .await
+                .map_err(Into::into)
+        })
     }
 }
 

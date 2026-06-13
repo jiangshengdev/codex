@@ -14,6 +14,7 @@ use codex_extension_api::ExtensionEventSink;
 use codex_extension_api::ExtensionRegistry;
 use codex_extension_api::ExtensionRegistryBuilder;
 use codex_goal_extension::GoalService;
+use codex_gui_agent_extension::GuiLaunchToolService;
 use codex_login::AuthManager;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
@@ -32,6 +33,7 @@ pub(crate) fn thread_extensions<S>(
     state_db: Option<StateDbHandle>,
     thread_manager: Weak<ThreadManager>,
     goal_service: Arc<GoalService>,
+    gui_launch_service: Arc<dyn GuiLaunchToolService>,
 ) -> Arc<ExtensionRegistry<Config>>
 where
     S: AgentSpawner<StartThreadOptions, Spawned = NewThread, Error = CodexErr> + 'static,
@@ -48,6 +50,11 @@ where
         );
     }
     codex_guardian::install(&mut builder, guardian_agent_spawner);
+    codex_gui_agent_extension::install_with_service(
+        &mut builder,
+        gui_launch_service,
+        |_config: &Config| true,
+    );
     codex_memories_extension::install(&mut builder, codex_otel::global());
     codex_web_search_extension::install(&mut builder, auth_manager.clone());
     codex_image_generation_extension::install(&mut builder, auth_manager);
@@ -134,9 +141,15 @@ mod tests {
     use std::time::Duration;
 
     use codex_analytics::AnalyticsEventsClient;
+    use codex_extension_api::ExtensionData;
+    use codex_extension_api::NoopExtensionEventSink;
+    use codex_extension_api::ThreadStartInput;
+    use codex_login::AuthManager;
+    use codex_protocol::protocol::SessionSource;
     use codex_protocol::protocol::ThreadGoal as CoreThreadGoal;
     use codex_protocol::protocol::ThreadGoalStatus;
     use codex_protocol::protocol::ThreadGoalUpdatedEvent;
+    use core_test_support::load_default_config_for_test;
     use pretty_assertions::assert_eq;
     use tokio::sync::mpsc;
     use tokio::time::timeout;
@@ -188,6 +201,54 @@ mod tests {
             ],
             observed
         );
+    }
+
+    #[tokio::test]
+    async fn thread_extensions_install_launch_gui_tool() {
+        let codex_home = tempfile::TempDir::new().expect("tempdir");
+        let config = load_default_config_for_test(&codex_home).await;
+        let auth_manager =
+            AuthManager::shared_from_config(&config, /*enable_codex_api_key_env*/ false).await;
+        let gui_launch_service = Arc::new(
+            crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
+                "GUI launch is unavailable in this test",
+            ),
+        );
+        let goal_service = Arc::new(GoalService::new());
+        let registry = thread_extensions(
+            guardian_agent_spawner(Weak::new()),
+            Arc::new(NoopExtensionEventSink),
+            auth_manager,
+            /*state_db*/ None,
+            Weak::new(),
+            goal_service,
+            gui_launch_service,
+        );
+        let session_store = ExtensionData::new("session-test");
+        let thread_id = ThreadId::default();
+        let thread_store = ExtensionData::new(thread_id.to_string());
+        let source = SessionSource::Cli;
+
+        for contributor in registry.thread_lifecycle_contributors() {
+            contributor
+                .on_thread_start(ThreadStartInput {
+                    config: &config,
+                    session_source: &source,
+                    persistent_thread_state_available: true,
+                    session_store: &session_store,
+                    thread_store: &thread_store,
+                })
+                .await;
+        }
+
+        let tool_names = registry
+            .tool_contributors()
+            .iter()
+            .flat_map(|contributor| contributor.tools(&session_store, &thread_store))
+            .map(|tool| tool.tool_name().name)
+            .collect::<Vec<_>>();
+
+        assert!(tool_names.contains(&"launch_gui".to_string()));
     }
 
     fn thread_goal_updated_event(thread_id: ThreadId, turn_id: &str) -> Event {

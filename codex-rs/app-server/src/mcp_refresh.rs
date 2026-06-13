@@ -194,6 +194,11 @@ mod tests {
                     Some(state_db.clone()),
                     thread_manager.clone(),
                     Arc::new(codex_goal_extension::GoalService::new()),
+                    Arc::new(
+                        crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
+                            "GUI launch service is not needed for this test",
+                        ),
+                    ),
                 ),
                 /*analytics_events_client*/ None,
                 Arc::clone(&thread_store),

@@ -1978,6 +1978,7 @@ dependencies = [
  "codex-git-utils",
  "codex-goal-extension",
  "codex-guardian",
+ "codex-gui-agent-extension",
  "codex-gui-host",
  "codex-hooks",
  "codex-image-generation-extension",
@@ -3069,6 +3070,22 @@ dependencies = [
  "codex-core",
  "codex-extension-api",
  "codex-protocol",
+]
+
+[[package]]
+name = "codex-gui-agent-extension"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "codex-extension-api",
+ "codex-gui-host",
+ "codex-protocol",
+ "codex-tools",
+ "codex-utils-output-truncation",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
