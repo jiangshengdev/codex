@@ -14,6 +14,8 @@ use codex_protocol::protocol::SubAgentSource;
 use crate::tool::GuiLauncher;
 use crate::tool::GuiToolExecutor;
 
+const GUARDIAN_REVIEWER_NAME: &str = "guardian";
+
 #[derive(Clone)]
 struct GuiExtension {
     launcher: Arc<dyn GuiLauncher>,
@@ -34,10 +36,7 @@ where
         let Ok(thread_id) = ThreadId::from_string(input.thread_store.level_id()) else {
             return;
         };
-        let available = !matches!(
-            input.session_source,
-            SessionSource::SubAgent(SubAgentSource::Review)
-        );
+        let available = !is_review_subagent_source(input.session_source);
         input.thread_store.insert(GuiExtensionConfig {
             available,
             thread_id,
@@ -62,6 +61,14 @@ impl ToolContributor for GuiExtension {
             config.thread_id,
             Arc::clone(&self.launcher),
         ))]
+    }
+}
+
+fn is_review_subagent_source(session_source: &SessionSource) -> bool {
+    match session_source {
+        SessionSource::SubAgent(SubAgentSource::Review) => true,
+        SessionSource::SubAgent(SubAgentSource::Other(name)) => name == GUARDIAN_REVIEWER_NAME,
+        _ => false,
     }
 }
 
@@ -125,6 +132,48 @@ mod tests {
         assert_eq!(tool_names, Vec::<ToolName>::new());
     }
 
+    #[tokio::test]
+    async fn installed_extension_contributes_no_tool_for_guardian_reviewer_subagent() {
+        let registry = installed_registry();
+        let session_store = ExtensionData::new("session");
+        let thread_store = ExtensionData::new(test_thread_id().to_string());
+        start_thread(
+            &registry,
+            &session_store,
+            &thread_store,
+            SessionSource::SubAgent(SubAgentSource::Other("guardian".to_string())),
+        )
+        .await;
+
+        let tool_names = tool_names(&registry, &session_store, &thread_store);
+
+        assert_eq!(tool_names, Vec::<ToolName>::new());
+    }
+
+    #[tokio::test]
+    async fn installed_extension_contributes_launch_gui_for_thread_spawn_subagent() {
+        let registry = installed_registry();
+        let session_store = ExtensionData::new("session");
+        let thread_store = ExtensionData::new(test_thread_id().to_string());
+        start_thread(
+            &registry,
+            &session_store,
+            &thread_store,
+            SessionSource::SubAgent(SubAgentSource::ThreadSpawn {
+                parent_thread_id: test_thread_id(),
+                depth: 1,
+                agent_path: None,
+                agent_nickname: None,
+                agent_role: None,
+            }),
+        )
+        .await;
+
+        let tool_names = tool_names(&registry, &session_store, &thread_store);
+
+        assert_eq!(tool_names, vec![ToolName::plain(LAUNCH_GUI_TOOL_NAME)]);
+    }
+
     #[test]
     fn installed_extension_contributes_no_tool_when_unavailable() {
         let registry = installed_registry();
@@ -149,14 +198,8 @@ mod tests {
         let session_store = ExtensionData::new("session");
         let thread_id = test_thread_id();
         let thread_store = ExtensionData::new(thread_id.to_string());
-        thread_store.insert(GuiExtensionConfig {
-            available: true,
-            thread_id,
-        });
-        let tool = registry.tool_contributors()[0]
-            .tools(&session_store, &thread_store)
-            .into_iter()
-            .next()
+        start_thread(&registry, &session_store, &thread_store, SessionSource::Cli).await;
+        let tool = launch_gui_tool(&registry, &session_store, &thread_store)
             .expect("launch_gui tool should be contributed");
 
         let output = tool
@@ -207,6 +250,18 @@ mod tests {
             .flat_map(|contributor| contributor.tools(session_store, thread_store))
             .map(|tool| tool.tool_name())
             .collect()
+    }
+
+    fn launch_gui_tool(
+        registry: &codex_extension_api::ExtensionRegistry<()>,
+        session_store: &ExtensionData,
+        thread_store: &ExtensionData,
+    ) -> Option<Arc<dyn ToolExecutor<ToolCall>>> {
+        registry
+            .tool_contributors()
+            .iter()
+            .flat_map(|contributor| contributor.tools(session_store, thread_store))
+            .find(|tool| tool.tool_name() == ToolName::plain(LAUNCH_GUI_TOOL_NAME))
     }
 
     #[derive(Debug, Default)]
