@@ -90,6 +90,7 @@ mod extensions;
 mod filters;
 mod fs_watch;
 mod fuzzy_file_search;
+mod gui_connection_bridge;
 mod gui_host;
 mod gui_transport;
 pub mod in_process;

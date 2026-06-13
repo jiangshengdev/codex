@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io;
 use std::io::ErrorKind;
+use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
@@ -86,16 +87,34 @@ pub(crate) struct ExtraConnectionHandle {
 }
 
 impl ExtraConnectionHandle {
+    #[allow(dead_code)]
     pub(crate) fn connection_id(&self) -> ConnectionId {
         self.connection_id
     }
 
+    #[allow(dead_code)]
     pub(crate) fn command_sender(&self) -> ExtraConnectionCommandSender {
         self.command_sender.clone()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn disconnect_token(&self) -> CancellationToken {
         self.disconnect_token.clone()
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        ConnectionId,
+        ExtraConnectionCommandSender,
+        CancellationToken,
+    ) {
+        let handle = ManuallyDrop::new(self);
+        (
+            handle.connection_id,
+            handle.command_sender.clone(),
+            handle.disconnect_token.clone(),
+        )
     }
 }
 
@@ -161,7 +180,7 @@ impl ExtraConnectionCommandSender {
         })
     }
 
-    fn close_best_effort(&self, connection_id: ConnectionId) {
+    pub(crate) fn close_best_effort(&self, connection_id: ConnectionId) {
         let message = crate::in_process::InProcessClientMessage::Extra(Box::new(
             ExtraConnectionCommand::Closed { connection_id },
         ));

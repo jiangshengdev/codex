@@ -1,4 +1,5 @@
 use std::io;
+use std::sync::Arc;
 
 use codex_gui_host::GuiHost;
 use codex_gui_host::GuiHostConfig;
@@ -7,6 +8,7 @@ use codex_gui_host::GuiLaunchUrls;
 use codex_protocol::ThreadId;
 use tokio::sync::Mutex;
 
+use crate::gui_connection_bridge::ExtraConnectionLocalGuiOpener;
 use crate::gui_transport::GuiTransportBackend;
 use crate::in_process::InProcessClientSender;
 
@@ -35,7 +37,9 @@ impl GuiHostManager {
             return Ok(urls);
         }
 
-        let backend = GuiTransportBackend::new(self.sender.clone());
+        let backend = GuiTransportBackend::new(Arc::new(ExtraConnectionLocalGuiOpener::new(
+            self.sender.extra_connection_sender(),
+        )));
         let new_handle = GuiHost::start(self.config.clone(), backend).await?;
         let (urls, redundant_handle) = {
             let mut guard = self.handle.lock().await;

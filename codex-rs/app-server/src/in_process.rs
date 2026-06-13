@@ -220,12 +220,16 @@ impl InProcessClientSender {
         self.try_send_client_message(InProcessClientMessage::Notification { notification })
     }
 
+    #[allow(dead_code)]
     pub(crate) fn register_extra_connection(
         &self,
         outgoing_tx: mpsc::Sender<String>,
     ) -> IoResult<in_process_extra::ExtraConnectionHandle> {
+        self.extra_connection_sender().open(outgoing_tx)
+    }
+
+    pub(crate) fn extra_connection_sender(&self) -> in_process_extra::ExtraConnectionCommandSender {
         in_process_extra::ExtraConnectionCommandSender::new(self.client_tx.clone())
-            .open(outgoing_tx)
     }
 
     pub fn respond_to_server_request(&self, request_id: RequestId, result: Result) -> IoResult<()> {
