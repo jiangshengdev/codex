@@ -109,7 +109,6 @@ impl Drop for ActiveLaunchGuard<'_> {
 }
 
 impl SharedGuiHostLauncher {
-    #[cfg(test)]
     pub fn new(sender: InProcessClientSender, config: GuiHostConfig) -> Self {
         Self {
             sender,
