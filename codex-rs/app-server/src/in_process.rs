@@ -55,6 +55,7 @@ use crate::config_manager::ConfigManager;
 use crate::error_code::OVERLOADED_ERROR_CODE;
 use crate::error_code::internal_error;
 use crate::error_code::invalid_request;
+use crate::gui_launch_service::GuiLaunchServiceError;
 use crate::in_process_extra;
 use crate::message_processor::ConnectionSessionState;
 use crate::message_processor::MessageProcessor;
@@ -85,7 +86,9 @@ use codex_core::config::Config;
 use codex_core::resolve_installation_id;
 use codex_exec_server::EnvironmentManager;
 use codex_feedback::CodexFeedback;
+use codex_gui_host::GuiLaunchUrls;
 use codex_login::AuthManager;
+use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
 pub use codex_rollout::StateDbHandle;
 pub use codex_state::log_db::LogDbLayer;
@@ -101,6 +104,7 @@ const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 pub const DEFAULT_IN_PROCESS_CHANNEL_CAPACITY: usize = CHANNEL_CAPACITY;
 
 type PendingClientRequestResponse = std::result::Result<Result, JSONRPCErrorError>;
+type PendingGuiLaunchResponse = std::result::Result<GuiLaunchUrls, GuiLaunchServiceError>;
 
 fn server_notification_requires_delivery(notification: &ServerNotification) -> bool {
     matches!(
@@ -177,6 +181,10 @@ pub(crate) enum InProcessClientMessage {
         notification: ClientNotification,
     },
     Extra(Box<in_process_extra::ExtraConnectionCommand>),
+    LaunchGui {
+        thread_id: ThreadId,
+        response_tx: oneshot::Sender<PendingGuiLaunchResponse>,
+    },
     ServerRequestResponse {
         request_id: RequestId,
         result: Result,
@@ -194,6 +202,10 @@ enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
     Extra(Box<in_process_extra::ExtraProcessorCommand>),
+    LaunchGui {
+        thread_id: ThreadId,
+        response_tx: oneshot::Sender<PendingGuiLaunchResponse>,
+    },
 }
 
 #[derive(Clone)]
@@ -230,6 +242,23 @@ impl InProcessClientSender {
 
     pub(crate) fn extra_connection_sender(&self) -> in_process_extra::ExtraConnectionCommandSender {
         in_process_extra::ExtraConnectionCommandSender::new(self.client_tx.clone())
+    }
+
+    pub async fn launch_gui_for_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> IoResult<std::result::Result<GuiLaunchUrls, GuiLaunchServiceError>> {
+        let (response_tx, response_rx) = oneshot::channel();
+        self.try_send_client_message(InProcessClientMessage::LaunchGui {
+            thread_id,
+            response_tx,
+        })?;
+        response_rx.await.map_err(|err| {
+            IoError::new(
+                ErrorKind::BrokenPipe,
+                format!("in-process GUI launch response channel closed: {err}"),
+            )
+        })
     }
 
     pub fn respond_to_server_request(&self, request_id: RequestId, result: Result) -> IoResult<()> {
@@ -317,6 +346,17 @@ impl InProcessClientHandle {
         error: JSONRPCErrorError,
     ) -> IoResult<()> {
         self.client.fail_server_request(request_id, error)
+    }
+
+    /// Requests GUI launch URLs from the app-server-owned GUI launch service.
+    ///
+    /// This keeps local embedders on the same host lifecycle used by app-server
+    /// extension tools instead of letting clients construct their own GUI host.
+    pub async fn launch_gui_for_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> IoResult<std::result::Result<GuiLaunchUrls, GuiLaunchServiceError>> {
+        self.client.launch_gui_for_thread(thread_id).await
     }
 
     /// Receives the next server event from the in-process runtime.
@@ -470,6 +510,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                     ),
                 ),
             );
+            let processor_gui_launch_service = Arc::clone(&gui_launch_service);
             let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
                 outgoing: Arc::clone(&processor_outgoing),
                 analytics_events_client,
@@ -487,7 +528,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 rpc_transport: AppServerRpcTransport::InProcess,
                 remote_control_handle: None,
                 plugin_startup_tasks: crate::PluginStartupTasks::Start,
-                gui_launch_service,
+                gui_launch_service: processor_gui_launch_service,
             }));
             let mut thread_created_rx = processor.thread_created_receiver();
             let session = Arc::new(ConnectionSessionState::new());
@@ -536,6 +577,15 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 extra_connections
                                     .handle_processor_command(&processor, *command)
                                     .await;
+                            }
+                            Some(ProcessorCommand::LaunchGui {
+                                thread_id,
+                                response_tx,
+                            }) => {
+                                let result = gui_launch_service
+                                    .launch_urls_for_thread(thread_id)
+                                    .await;
+                                let _ = response_tx.send(result);
                             }
                             None => {
                                 break;
@@ -697,6 +747,50 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                     let _ = processor_tx
                                         .send(ProcessorCommand::Extra(Box::new(processor_command)))
                                         .await;
+                                }
+                            }
+                        }
+                        Some(InProcessClientMessage::LaunchGui { thread_id, response_tx }) => {
+                            match processor_tx.try_send(ProcessorCommand::LaunchGui {
+                                thread_id,
+                                response_tx,
+                            }) {
+                                Ok(()) => {}
+                                Err(mpsc::error::TrySendError::Full(
+                                    ProcessorCommand::LaunchGui { response_tx, .. },
+                                )) => {
+                                    let _ = response_tx.send(Err(
+                                        GuiLaunchServiceError::Unavailable {
+                                            message: "in-process app-server request queue is full"
+                                                .to_string(),
+                                        },
+                                    ));
+                                }
+                                Err(mpsc::error::TrySendError::Full(
+                                    ProcessorCommand::Request(_)
+                                    | ProcessorCommand::Notification(_)
+                                    | ProcessorCommand::Extra(_),
+                                )) => {
+                                    unreachable!("GUI launch send returned a different command")
+                                }
+                                Err(mpsc::error::TrySendError::Closed(
+                                    ProcessorCommand::LaunchGui { response_tx, .. },
+                                )) => {
+                                    let _ = response_tx.send(Err(
+                                        GuiLaunchServiceError::Unavailable {
+                                            message:
+                                                "in-process app-server request processor is closed"
+                                                    .to_string(),
+                                        },
+                                    ));
+                                    break;
+                                }
+                                Err(mpsc::error::TrySendError::Closed(
+                                    ProcessorCommand::Request(_)
+                                    | ProcessorCommand::Notification(_)
+                                    | ProcessorCommand::Extra(_),
+                                )) => {
+                                    unreachable!("GUI launch send returned a different command")
                                 }
                             }
                         }
@@ -978,6 +1072,34 @@ pub(crate) mod tests {
             .expect("request transport should work")
             .expect("request should succeed");
         assert!(response.is_object());
+        client
+            .shutdown()
+            .await
+            .expect("in-process runtime should shutdown cleanly");
+    }
+
+    #[tokio::test]
+    async fn in_process_launch_gui_for_thread_uses_app_server_service() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            codex_protocol::ThreadId::from_string("00000000-0000-0000-0000-0000000000a1")
+                .expect("valid thread id");
+
+        let urls = client
+            .launch_gui_for_thread(thread_id)
+            .await
+            .expect("GUI launch transport should work")
+            .expect("launch should succeed");
+
+        assert_eq!(
+            urls.entries[0].kind,
+            codex_gui_host::GuiLaunchUrlKind::Local
+        );
+        assert!(
+            urls.entries[0]
+                .url
+                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
+        );
         client
             .shutdown()
             .await
