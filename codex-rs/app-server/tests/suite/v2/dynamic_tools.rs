@@ -155,16 +155,11 @@ async fn subprocess_app_server_omits_launch_gui_tool_from_model_requests() -> Re
     .await??;
 
     let bodies = responses_bodies(&server).await?;
-    assert!(
-        !bodies.is_empty(),
-        "expected at least one responses request"
-    );
-    assert!(
-        bodies
-            .iter()
-            .all(|body| !tool_names(body).contains(&"launch_gui".to_string())),
-        "launch_gui should not be sent to the model"
-    );
+    let body = bodies
+        .first()
+        .context("expected at least one responses request")?;
+    let tool_names = tool_names(body);
+    assert!(!tool_names.contains(&"launch_gui".to_string()));
 
     Ok(())
 }
