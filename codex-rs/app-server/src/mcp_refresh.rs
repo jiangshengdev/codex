@@ -194,7 +194,7 @@ mod tests {
                     Some(state_db.clone()),
                     thread_manager.clone(),
                     Arc::new(codex_goal_extension::GoalService::new()),
-                    None,
+                    /*gui_launcher*/ None,
                 ),
                 /*analytics_events_client*/ None,
                 Arc::clone(&thread_store),
