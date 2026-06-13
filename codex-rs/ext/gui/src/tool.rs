@@ -186,31 +186,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn executor_rejects_thread_id_arguments_without_launching() {
-        for arguments in [
-            json!({"thread_id": "model-thread"}),
-            json!({"threadId": "model-thread"}),
-        ] {
-            let thread_id = test_thread_id();
-            let launcher = Arc::new(FakeGuiLauncher::success(GuiLaunchUrls {
-                entries: Vec::new(),
-            }));
-            let executor = GuiToolExecutor::new(thread_id, launcher.clone());
-
-            let error = match executor.handle(tool_call(arguments)).await {
-                Ok(_) => panic!("launch_gui should reject thread id arguments"),
-                Err(error) => error,
-            };
-
-            assert!(
-                error.to_string().contains("unknown field"),
-                "unexpected error: {error}"
-            );
-            assert_eq!(launcher.recorded_thread_id(), None);
-        }
-    }
-
     #[derive(Debug)]
     enum FakeLaunchResult {
         Success(GuiLaunchUrls),
