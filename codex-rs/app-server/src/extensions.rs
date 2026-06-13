@@ -310,7 +310,7 @@ mod tests {
         for contributor in registry.thread_lifecycle_contributors() {
             contributor
                 .on_thread_start(ThreadStartInput {
-                    config: &config,
+                    config,
                     session_source: &source,
                     persistent_thread_state_available: true,
                     session_store: &session_store,

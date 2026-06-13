@@ -228,7 +228,8 @@ mod tests {
         impl TestGuiLaunchService {
             pub(crate) async fn shutdown(&self) {
                 self.service.shutdown().await;
-                if let Some(bridge) = self.bridge.lock().await.take() {
+                let bridge = self.bridge.lock().await.take();
+                if let Some(bridge) = bridge {
                     bridge.shutdown().await;
                 }
             }

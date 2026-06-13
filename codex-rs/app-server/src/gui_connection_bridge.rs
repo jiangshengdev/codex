@@ -261,7 +261,7 @@ impl LocalGuiConnectionOpener for ExtraConnectionLocalGuiOpener {
                 }
             }),
             close: Arc::new({
-                let command_sender = command_sender.clone();
+                let command_sender = command_sender;
                 move |connection_id| command_sender.close_best_effort(connection_id)
             }),
         })
