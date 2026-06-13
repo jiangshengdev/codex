@@ -29,7 +29,11 @@ use codex_core::config::Config;
 use codex_core::config::ConfigBuilder;
 use codex_exec_server::EnvironmentManager;
 use codex_feedback::CodexFeedback;
+use codex_gui_host::DevAssetProxyConfig;
+use codex_gui_host::GuiHostConfig;
+use codex_gui_host::GuiHostMode;
 use codex_login::AuthManager;
+use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::W3cTraceContext;
 use opentelemetry::global;
@@ -232,6 +236,49 @@ async fn build_test_processor(
     Arc<MessageProcessor>,
     mpsc::Receiver<crate::outgoing_message::OutgoingEnvelope>,
 ) {
+    let gui_launch_service = Arc::new(
+        crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
+            "GUI launch service is not needed for this test",
+        ),
+    );
+    let (processor, outgoing_rx, _gui_launch_service) =
+        build_test_processor_with_service(config, gui_launch_service).await;
+    (processor, outgoing_rx)
+}
+
+async fn build_test_processor_with_gui_bridge(
+    config: Arc<Config>,
+) -> (
+    Arc<MessageProcessor>,
+    mpsc::Receiver<crate::outgoing_message::OutgoingEnvelope>,
+    Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
+    crate::gui_connection_bridge::test_support::TestLocalGuiBridge,
+) {
+    let gui_bridge =
+        crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
+    let gui_launch_service = Arc::new(crate::gui_launch_service::AppServerGuiLaunchService::new(
+        crate::gui_host::GuiHostManager::new_with_opener(
+            gui_bridge.opener(),
+            GuiHostConfig {
+                mode: GuiHostMode::Dev(DevAssetProxyConfig {
+                    vite_origin: "http://127.0.0.1:5173".to_string(),
+                }),
+            },
+        ),
+    ));
+    let (processor, outgoing_rx, gui_launch_service) =
+        build_test_processor_with_service(config, gui_launch_service).await;
+    (processor, outgoing_rx, gui_launch_service, gui_bridge)
+}
+
+async fn build_test_processor_with_service(
+    config: Arc<Config>,
+    gui_launch_service: Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
+) -> (
+    Arc<MessageProcessor>,
+    mpsc::Receiver<crate::outgoing_message::OutgoingEnvelope>,
+    Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
+) {
     let (outgoing_tx, outgoing_rx) = mpsc::channel(16);
     let auth_manager =
         AuthManager::shared_from_config(config.as_ref(), /*enable_codex_api_key_env*/ false).await;
@@ -267,8 +314,32 @@ async fn build_test_processor(
         rpc_transport: AppServerRpcTransport::Stdio,
         remote_control_handle: None,
         plugin_startup_tasks: crate::PluginStartupTasks::Start,
+        gui_launch_service: Arc::clone(&gui_launch_service),
     }));
-    (processor, outgoing_rx)
+    (processor, outgoing_rx, gui_launch_service)
+}
+
+#[tokio::test]
+async fn clear_runtime_references_cancels_gui_launch_service() -> Result<()> {
+    let server = create_mock_responses_server_repeating_assistant("Done").await;
+    let codex_home = TempDir::new()?;
+    let config = Arc::new(build_test_config(codex_home.path(), &server.uri()).await?);
+    let (processor, _outgoing_rx, gui_launch_service, gui_bridge) =
+        build_test_processor_with_gui_bridge(config).await;
+    let thread_id =
+        ThreadId::from_string("00000000-0000-0000-0000-0000000000c3").expect("valid thread id");
+
+    gui_launch_service
+        .launch_urls_for_thread(thread_id)
+        .await
+        .expect("launch should succeed");
+    assert!(gui_launch_service.has_active_host_for_test().await);
+
+    processor.clear_runtime_references();
+
+    assert!(!gui_launch_service.has_active_host_for_test().await);
+    gui_bridge.shutdown().await;
+    Ok(())
 }
 
 fn run_current_thread_test_with_stack<F>(name: &str, future: F) -> Result<()>

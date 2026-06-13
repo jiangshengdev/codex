@@ -1,9 +1,13 @@
 use std::fmt;
 use std::future::Future;
+use std::sync::Arc;
 
+use codex_gui_host::GuiHostConfig;
+use codex_gui_host::GuiHostMode;
 use codex_gui_host::GuiLaunchUrls;
 use codex_protocol::ThreadId;
 
+use crate::gui_connection_bridge::LocalGuiConnectionOpener;
 use crate::gui_host::GuiHostManager;
 
 #[derive(Debug)]
@@ -34,12 +38,33 @@ pub trait GuiLaunchService: Send + Sync {
 }
 
 pub struct AppServerGuiLaunchService {
-    manager: GuiHostManager,
+    manager: Option<GuiHostManager>,
+    unavailable_message: Option<String>,
 }
 
 impl AppServerGuiLaunchService {
     pub fn new(manager: GuiHostManager) -> Self {
-        Self { manager }
+        Self {
+            manager: Some(manager),
+            unavailable_message: None,
+        }
+    }
+
+    pub(crate) fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            manager: None,
+            unavailable_message: Some(message.into()),
+        }
+    }
+
+    pub(crate) fn new_with_default_config(opener: Arc<dyn LocalGuiConnectionOpener>) -> Self {
+        match GuiHostMode::default_for_profile() {
+            Ok(mode) => Self::new(GuiHostManager::new_with_opener(
+                opener,
+                GuiHostConfig { mode },
+            )),
+            Err(error) => Self::unavailable(error.to_string()),
+        }
     }
 
     pub async fn launch_urls_for_thread(
@@ -50,7 +75,23 @@ impl AppServerGuiLaunchService {
     }
 
     pub async fn shutdown(&self) {
-        self.manager.shutdown().await;
+        if let Some(manager) = &self.manager {
+            manager.shutdown().await;
+        }
+    }
+
+    pub fn shutdown_best_effort(&self) {
+        if let Some(manager) = &self.manager {
+            manager.cancel();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn has_active_host_for_test(&self) -> bool {
+        match &self.manager {
+            Some(manager) => manager.has_active_host_for_test().await,
+            None => false,
+        }
     }
 }
 
@@ -59,7 +100,15 @@ impl GuiLaunchService for AppServerGuiLaunchService {
         &self,
         thread_id: ThreadId,
     ) -> Result<GuiLaunchUrls, GuiLaunchServiceError> {
-        self.manager
+        let Some(manager) = &self.manager else {
+            return Err(GuiLaunchServiceError::Config {
+                message: self
+                    .unavailable_message
+                    .clone()
+                    .unwrap_or_else(|| "GUI launch service is unavailable".to_string()),
+            });
+        };
+        manager
             .launch_urls_for_thread(thread_id)
             .await
             .map_err(|error| GuiLaunchServiceError::Launch {

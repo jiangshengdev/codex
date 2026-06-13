@@ -77,6 +77,19 @@ impl GuiHostManager {
             handle.shutdown().await;
         }
     }
+
+    pub(crate) fn cancel(&self) {
+        if let Ok(mut handle) = self.handle.try_lock()
+            && let Some(handle) = handle.take()
+        {
+            handle.cancel_token().cancel();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn has_active_host_for_test(&self) -> bool {
+        self.handle.lock().await.is_some()
+    }
 }
 
 impl Drop for GuiHostManager {
