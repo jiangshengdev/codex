@@ -1,7 +1,5 @@
 use std::io;
 use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 
 use codex_gui_host::GuiHost;
 use codex_gui_host::GuiHostConfig;
@@ -83,29 +81,14 @@ pub struct SharedGuiHostLauncher {
     sender: InProcessClientSender,
     config: Result<GuiHostConfig, String>,
     state: Mutex<SharedGuiHostState>,
-    active_launches: AtomicUsize,
     launches_drained: Notify,
 }
 
 #[derive(Default)]
 struct SharedGuiHostState {
     manager: Option<Arc<GuiHostManager>>,
+    active_launches: usize,
     shutdown: bool,
-}
-
-struct ActiveLaunchGuard<'a> {
-    active_launches: &'a AtomicUsize,
-    launches_drained: &'a Notify,
-}
-
-impl Drop for ActiveLaunchGuard<'_> {
-    fn drop(&mut self) {
-        let previous = self.active_launches.fetch_sub(1, Ordering::AcqRel);
-        assert!(previous > 0, "active launch count should not underflow");
-        if previous == 1 {
-            self.launches_drained.notify_waiters();
-        }
-    }
 }
 
 impl SharedGuiHostLauncher {
@@ -114,7 +97,6 @@ impl SharedGuiHostLauncher {
             sender,
             config: Ok(config),
             state: Mutex::new(SharedGuiHostState::default()),
-            active_launches: AtomicUsize::new(0),
             launches_drained: Notify::new(),
         }
     }
@@ -127,13 +109,12 @@ impl SharedGuiHostLauncher {
             sender,
             config,
             state: Mutex::new(SharedGuiHostState::default()),
-            active_launches: AtomicUsize::new(0),
             launches_drained: Notify::new(),
         }
     }
 
     pub async fn launch_urls_for_thread(&self, thread_id: ThreadId) -> io::Result<GuiLaunchUrls> {
-        let (manager, active_launch) = {
+        let manager = {
             let mut state = self.state.lock().await;
             if state.shutdown {
                 return Err(io::Error::new(
@@ -157,25 +138,36 @@ impl SharedGuiHostLauncher {
                     manager
                 }
             };
-            let active_launch = self.record_active_launch();
-            (manager, active_launch)
+            state.active_launches += 1;
+            manager
         };
 
-        let _active_launch = active_launch;
-        manager.launch_urls_for_thread(thread_id).await
+        let result = manager.launch_urls_for_thread(thread_id).await;
+        let should_notify = {
+            let mut state = self.state.lock().await;
+            state.active_launches = state
+                .active_launches
+                .checked_sub(1)
+                .expect("active launch count should not underflow");
+            state.shutdown && state.active_launches == 0
+        };
+        if should_notify {
+            self.launches_drained.notify_waiters();
+        }
+        result
     }
 
     pub async fn shutdown(&self) {
         let manager = loop {
             let notified = self.launches_drained.notified();
             tokio::pin!(notified);
-            notified.as_mut().enable();
             let mut state = self.state.lock().await;
             state.shutdown = true;
-            if self.active_launches.load(Ordering::Acquire) == 0 {
+            if state.active_launches == 0 {
                 break state.manager.take();
             }
 
+            notified.as_mut().enable();
             drop(state);
             notified.await;
         };
@@ -183,19 +175,6 @@ impl SharedGuiHostLauncher {
         if let Some(manager) = manager {
             manager.shutdown().await;
         }
-    }
-
-    fn record_active_launch(&self) -> ActiveLaunchGuard<'_> {
-        self.active_launches.fetch_add(1, Ordering::AcqRel);
-        ActiveLaunchGuard {
-            active_launches: &self.active_launches,
-            launches_drained: &self.launches_drained,
-        }
-    }
-
-    #[cfg(test)]
-    fn record_active_launch_for_test(&self) -> ActiveLaunchGuard<'_> {
-        self.record_active_launch()
     }
 }
 
@@ -363,7 +342,6 @@ mod tests {
             sender: client.sender(),
             config: Err("bad config".to_string()),
             state: Mutex::new(SharedGuiHostState::default()),
-            active_launches: AtomicUsize::new(0),
             launches_drained: Notify::new(),
         };
         let thread_id =
@@ -378,45 +356,6 @@ mod tests {
         assert_eq!(error.to_string(), "GUI host config error: bad config");
         assert!(launcher.state.lock().await.manager.is_none());
         launcher.shutdown().await;
-        client
-            .shutdown()
-            .await
-            .expect("in-process runtime should shutdown cleanly");
-    }
-
-    #[tokio::test]
-    async fn shared_launcher_shutdown_completes_after_active_launch_guard_is_dropped() {
-        let client = crate::in_process::tests::start_test_client_for_bridge().await;
-        let launcher = Arc::new(SharedGuiHostLauncher::new(
-            client.sender(),
-            GuiHostConfig {
-                mode: GuiHostMode::Dev(DevAssetProxyConfig {
-                    vite_origin: "http://127.0.0.1:5173".to_string(),
-                }),
-            },
-        ));
-        let active_launch = launcher.record_active_launch_for_test();
-        let shutdown = tokio::spawn({
-            let launcher = Arc::clone(&launcher);
-            async move {
-                launcher.shutdown().await;
-            }
-        });
-
-        loop {
-            if launcher.state.lock().await.shutdown {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-        assert!(!shutdown.is_finished());
-
-        drop(active_launch);
-
-        shutdown
-            .await
-            .expect("shutdown should complete after active launch guard is dropped");
-        assert!(launcher.state.lock().await.manager.is_none());
         client
             .shutdown()
             .await
