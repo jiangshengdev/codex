@@ -95,6 +95,7 @@ codex-rs/app-server/src/gui_connection_bridge.rs
 codex-rs/app-server/src/gui_host.rs
 codex-rs/app-server/src/gui_transport.rs
 codex-rs/app-server/src/in_process_extra.rs
+codex-rs/app-server/src/in_process.rs
 codex-rs/app-server/src/extensions.rs
 codex-rs/app-server/src/message_processor.rs
 codex-rs/app-server/src/lib.rs
@@ -114,6 +115,13 @@ MODULE.bazel.lock
 ```
 
 Any implementation plan that needs files outside this list must stop and ask for design review.
+
+Audit note: `codex-rs/app-server/src/in_process.rs` is included as a thin
+compatibility hook because the current extra-connection bridge is driven by
+`InProcessClientMessage::Extra` / `ProcessorCommand::Extra` there. Follow-up
+implementation may need to preserve the in-process TUI path while moving GUI
+browser registration to an app-server-local bridge. GUI-specific host, token,
+URL, browser, or WebSocket logic should still stay out of `in_process.rs`.
 
 - [ ] **Step 2: Use this forbidden direction list**
 
