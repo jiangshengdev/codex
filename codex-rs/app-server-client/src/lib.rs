@@ -445,12 +445,6 @@ enum ClientCommand {
         thread_id: ThreadId,
         response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
     },
-    #[cfg(test)]
-    LaunchGuiForTest {
-        thread_id: ThreadId,
-        mode_result: Result<codex_gui_host::GuiHostMode, String>,
-        response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
-    },
     ResolveServerRequest {
         request_id: RequestId,
         result: JsonRpcResult,
@@ -510,13 +504,11 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let request_sender = handle.sender();
-        let gui_sender = request_sender.clone();
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
         let worker_handle = tokio::spawn(async move {
             let mut event_stream_enabled = true;
-            let mut gui_host_manager = None::<codex_app_server::GuiHostManager>;
             let mut skipped_events = 0usize;
             loop {
                 tokio::select! {
@@ -543,47 +535,18 @@ impl InProcessAppServerClient {
                                 thread_id,
                                 response_tx,
                             }) => {
-                                let result = async {
-                                    if let Some(manager) = gui_host_manager.as_ref() {
-                                        manager
-                                            .launch_urls_for_thread(thread_id)
-                                            .await
-                                            .map_err(GuiLaunchError::from)
-                                    } else {
-                                        let manager = crate::gui::new_gui_host_manager(
-                                            gui_sender.clone(),
-                                        )?;
-                                        let urls = manager
-                                            .launch_urls_for_thread(thread_id)
-                                            .await
-                                            .map_err(GuiLaunchError::from)?;
-                                        gui_host_manager = Some(manager);
-                                        Ok(urls)
-                                    }
-                                }
-                                .await;
-                                let _ = response_tx.send(result);
-                            }
-                            #[cfg(test)]
-                            Some(ClientCommand::LaunchGuiForTest {
-                                thread_id,
-                                mode_result,
-                                response_tx,
-                            }) => {
-                                let result = async {
-                                    let manager = crate::gui::new_gui_host_manager_for_test(
-                                        gui_sender.clone(),
-                                        mode_result,
-                                    )?;
-                                    let urls = manager
-                                        .launch_urls_for_thread(thread_id)
+                                let request_sender = request_sender.clone();
+                                tokio::spawn(async move {
+                                    let result = match request_sender
+                                        .launch_gui_for_thread(thread_id)
                                         .await
-                                        .map_err(GuiLaunchError::from)?;
-                                    manager.shutdown().await;
-                                    Ok(urls)
-                                }
-                                .await;
-                                let _ = response_tx.send(result);
+                                    {
+                                        Ok(Ok(urls)) => Ok(urls),
+                                        Ok(Err(error)) => Err(GuiLaunchError::from(error)),
+                                        Err(error) => Err(GuiLaunchError::from(error)),
+                                    };
+                                    let _ = response_tx.send(result);
+                                });
                             }
                             Some(ClientCommand::ResolveServerRequest {
                                 request_id,
@@ -603,17 +566,11 @@ impl InProcessAppServerClient {
                                 let _ = response_tx.send(send_result);
                             }
                             Some(ClientCommand::Shutdown { response_tx }) => {
-                                if let Some(manager) = gui_host_manager.take() {
-                                    manager.shutdown().await;
-                                }
                                 let shutdown_result = handle.shutdown().await;
                                 let _ = response_tx.send(shutdown_result);
                                 break;
                             }
                             None => {
-                                if let Some(manager) = gui_host_manager.take() {
-                                    manager.shutdown().await;
-                                }
                                 let _ = handle.shutdown().await;
                                 break;
                             }
@@ -682,34 +639,6 @@ impl InProcessAppServerClient {
         InProcessAppServerRequestHandle {
             command_tx: self.command_tx.clone(),
         }
-    }
-
-    #[cfg(test)]
-    async fn launch_gui_for_thread_with_mode_result_for_test(
-        &self,
-        thread_id: ThreadId,
-        mode_result: Result<codex_gui_host::GuiHostMode, String>,
-    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx
-            .send(ClientCommand::LaunchGuiForTest {
-                thread_id,
-                mode_result,
-                response_tx,
-            })
-            .await
-            .map_err(|_| {
-                GuiLaunchError::Io(IoError::new(
-                    ErrorKind::BrokenPipe,
-                    "in-process app-server worker channel is closed",
-                ))
-            })?;
-        response_rx.await.map_err(|_| {
-            GuiLaunchError::Io(IoError::new(
-                ErrorKind::BrokenPipe,
-                "in-process GUI launch response channel is closed",
-            ))
-        })?
     }
 
     /// Sends a typed client request and returns raw JSON-RPC result.
@@ -1461,22 +1390,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn in_process_launch_gui_reports_config_errors_at_launch_time() {
+    async fn in_process_launch_gui_uses_app_server_service() {
         let client = start_test_client(SessionSource::Cli).await;
         let thread_id =
-            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+            ThreadId::from_string("00000000-0000-0000-0000-0000000000a1").expect("valid thread id");
 
-        let error = client
-            .launch_gui_for_thread_with_mode_result_for_test(
-                thread_id,
-                Err("invalid test GUI host mode".to_string()),
-            )
+        let urls = client
+            .launch_gui_for_thread(thread_id)
             .await
-            .expect_err("GUI launch should report config error");
+            .expect("launch should succeed");
 
-        assert_eq!(
-            error.to_string(),
-            "GUI host config error: invalid test GUI host mode"
+        assert!(
+            urls.entries[0]
+                .url
+                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
         );
         client.shutdown().await.expect("shutdown should complete");
     }

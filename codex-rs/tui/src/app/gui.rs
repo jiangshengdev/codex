@@ -141,6 +141,18 @@ mod tests {
         );
     }
 
+    #[test]
+    fn gui_launch_error_message_preserves_unavailable_text() {
+        let error = codex_app_server_client::GuiLaunchError::Unavailable {
+            message: "session does not expose GUI launch".to_string(),
+        };
+
+        assert_eq!(
+            gui_launch_error_message(&error),
+            "Failed to launch GUI: GUI launch unavailable: session does not expose GUI launch"
+        );
+    }
+
     fn line_texts(lines: Vec<Line<'static>>) -> Vec<String> {
         lines
             .into_iter()

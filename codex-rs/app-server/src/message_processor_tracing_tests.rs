@@ -232,6 +232,11 @@ async fn build_test_processor(
     Arc<MessageProcessor>,
     mpsc::Receiver<crate::outgoing_message::OutgoingEnvelope>,
 ) {
+    let gui_launch_service = Arc::new(
+        crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
+            "GUI launch service is not needed for tracing tests",
+        ),
+    );
     let (outgoing_tx, outgoing_rx) = mpsc::channel(16);
     let auth_manager =
         AuthManager::shared_from_config(config.as_ref(), /*enable_codex_api_key_env*/ false).await;
@@ -267,6 +272,7 @@ async fn build_test_processor(
         rpc_transport: AppServerRpcTransport::Stdio,
         remote_control_handle: None,
         plugin_startup_tasks: crate::PluginStartupTasks::Start,
+        gui_launch_service,
     }));
     (processor, outgoing_rx)
 }

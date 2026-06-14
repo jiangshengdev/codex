@@ -21,6 +21,7 @@ use std::sync::atomic::AtomicBool;
 use crate::analytics_utils::analytics_events_client_from_config;
 use crate::config_manager::ConfigManager;
 use crate::connection_cleanup::ConnectionCleanupTasks;
+use crate::gui_connection_bridge::TransportLocalGuiOpener;
 use crate::message_processor::MessageProcessor;
 use crate::message_processor::MessageProcessorArgs;
 use crate::outgoing_message::ConnectionId;
@@ -90,7 +91,9 @@ mod extensions;
 mod filters;
 mod fs_watch;
 mod fuzzy_file_search;
+mod gui_connection_bridge;
 mod gui_host;
+mod gui_launch_service;
 mod gui_transport;
 pub mod in_process;
 mod in_process_extra;
@@ -115,6 +118,8 @@ mod transport;
 pub use crate::error_code::INPUT_TOO_LARGE_ERROR_CODE;
 pub use crate::error_code::INVALID_PARAMS_ERROR_CODE;
 pub use crate::gui_host::GuiHostManager;
+pub use crate::gui_launch_service::AppServerGuiLaunchService;
+pub use crate::gui_launch_service::GuiLaunchServiceError;
 pub use crate::transport::AppServerTransport;
 pub use crate::transport::app_server_control_socket_path;
 pub use crate::transport::auth::AppServerWebsocketAuthArgs;
@@ -814,6 +819,14 @@ pub async fn run_main_with_transport_options(
             outgoing_tx,
             analytics_events_client.clone(),
         ));
+        let gui_launch_service = Arc::new(
+            crate::gui_launch_service::AppServerGuiLaunchService::new_with_default_config(
+                Arc::new(TransportLocalGuiOpener::new(
+                    transport_event_tx.clone(),
+                    CHANNEL_CAPACITY,
+                )),
+            ),
+        );
         let initialize_notification_sender = outgoing_message_sender.clone();
         let outbound_control_tx = outbound_control_tx;
         let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
@@ -833,6 +846,7 @@ pub async fn run_main_with_transport_options(
             rpc_transport: analytics_rpc_transport(&transport),
             remote_control_handle: Some(remote_control_handle.clone()),
             plugin_startup_tasks: runtime_options.plugin_startup_tasks,
+            gui_launch_service,
         }));
         let mut thread_created_rx = processor.thread_created_receiver();
         let mut running_turn_count_rx = processor.subscribe_running_assistant_turn_count();
