@@ -22,6 +22,7 @@ pub use codex_gui_host::GuiLaunchUrls;
 pub enum GuiLaunchError {
     Config { message: String },
     Io(io::Error),
+    Unavailable { message: String },
     UnsupportedRemote,
 }
 
@@ -30,6 +31,7 @@ impl fmt::Display for GuiLaunchError {
         match self {
             Self::Config { message } => write!(f, "GUI host config error: {message}"),
             Self::Io(error) => write!(f, "GUI host launch error: {error}"),
+            Self::Unavailable { message } => write!(f, "GUI launch unavailable: {message}"),
             Self::UnsupportedRemote => {
                 f.write_str("GUI launch is only supported for in-process app-server sessions")
             }
@@ -41,7 +43,7 @@ impl Error for GuiLaunchError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io(error) => Some(error),
-            Self::Config { .. } | Self::UnsupportedRemote => None,
+            Self::Config { .. } | Self::Unavailable { .. } | Self::UnsupportedRemote => None,
         }
     }
 }
@@ -56,8 +58,8 @@ impl From<GuiLaunchServiceError> for GuiLaunchError {
     fn from(value: GuiLaunchServiceError) -> Self {
         match value {
             GuiLaunchServiceError::Config { message } => Self::Config { message },
-            GuiLaunchServiceError::Launch { message }
-            | GuiLaunchServiceError::Unavailable { message } => Self::Io(IoError::other(message)),
+            GuiLaunchServiceError::Launch { message } => Self::Io(IoError::other(message)),
+            GuiLaunchServiceError::Unavailable { message } => Self::Unavailable { message },
         }
     }
 }
@@ -177,5 +179,31 @@ mod tests {
             GuiLaunchError::UnsupportedRemote.to_string(),
             "GUI launch is only supported for in-process app-server sessions"
         );
+    }
+
+    #[test]
+    fn unavailable_service_error_message_is_stable() {
+        let error = GuiLaunchError::from(GuiLaunchServiceError::Unavailable {
+            message: "session does not expose GUI launch".to_string(),
+        });
+
+        assert_eq!(
+            error.to_string(),
+            "GUI launch unavailable: session does not expose GUI launch"
+        );
+        assert!(error.source().is_none());
+    }
+
+    #[test]
+    fn launch_service_error_remains_launch_error() {
+        let error = GuiLaunchError::from(GuiLaunchServiceError::Launch {
+            message: "port is already in use".to_string(),
+        });
+
+        assert_eq!(
+            error.to_string(),
+            "GUI host launch error: port is already in use"
+        );
+        assert!(error.source().is_some());
     }
 }

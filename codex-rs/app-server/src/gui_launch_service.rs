@@ -31,7 +31,7 @@ impl fmt::Display for GuiLaunchServiceError {
 impl std::error::Error for GuiLaunchServiceError {}
 
 /// Launches GUI URLs for app-server threads without opening a browser.
-pub trait GuiLaunchService: Send + Sync {
+pub(crate) trait GuiLaunchService: Send + Sync {
     fn launch_urls_for_thread(
         &self,
         thread_id: ThreadId,
@@ -206,55 +206,70 @@ fn gui_launch_tool_kind_from_host(
 }
 
 #[cfg(test)]
+pub(crate) mod test_support {
+    use codex_gui_host::GuiHostConfig;
+    use codex_gui_host::GuiHostMode;
+    use codex_protocol::ThreadId;
+    use tokio::sync::Mutex;
+
+    use super::*;
+
+    pub(crate) struct TestGuiLaunchService {
+        service: AppServerGuiLaunchService,
+        bridge: Mutex<Option<crate::gui_connection_bridge::test_support::TestLocalGuiBridge>>,
+    }
+
+    impl TestGuiLaunchService {
+        pub(crate) async fn shutdown(&self) {
+            self.service.shutdown().await;
+            let bridge = self.bridge.lock().await.take();
+            if let Some(bridge) = bridge {
+                bridge.shutdown().await;
+            }
+        }
+    }
+
+    impl std::ops::Deref for TestGuiLaunchService {
+        type Target = AppServerGuiLaunchService;
+
+        fn deref(&self) -> &Self::Target {
+            &self.service
+        }
+    }
+
+    impl GuiLaunchService for TestGuiLaunchService {
+        async fn launch_urls_for_thread(
+            &self,
+            thread_id: ThreadId,
+        ) -> Result<GuiLaunchUrls, GuiLaunchServiceError> {
+            self.service.launch_urls_for_thread(thread_id).await
+        }
+    }
+
+    pub(crate) async fn new_test_gui_launch_service(mode: GuiHostMode) -> TestGuiLaunchService {
+        let bridge =
+            crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
+        let manager = GuiHostManager::new_with_opener(bridge.opener(), GuiHostConfig { mode });
+
+        TestGuiLaunchService {
+            service: AppServerGuiLaunchService::new(manager),
+            bridge: Mutex::new(Some(bridge)),
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "gui_launch_service_tests.rs"]
+mod gui_launch_service_tests;
+
+#[cfg(test)]
 mod tests {
     use codex_gui_host::DevAssetProxyConfig;
-    use codex_gui_host::GuiHostConfig;
     use codex_gui_host::GuiHostMode;
     use codex_protocol::ThreadId;
     use pretty_assertions::assert_eq;
 
     use super::*;
-
-    mod test_support {
-        use tokio::sync::Mutex;
-
-        use super::*;
-
-        pub(crate) struct TestGuiLaunchService {
-            service: AppServerGuiLaunchService,
-            bridge: Mutex<Option<crate::gui_connection_bridge::test_support::TestLocalGuiBridge>>,
-        }
-
-        impl TestGuiLaunchService {
-            pub(crate) async fn shutdown(&self) {
-                self.service.shutdown().await;
-                let bridge = self.bridge.lock().await.take();
-                if let Some(bridge) = bridge {
-                    bridge.shutdown().await;
-                }
-            }
-        }
-
-        impl GuiLaunchService for TestGuiLaunchService {
-            async fn launch_urls_for_thread(
-                &self,
-                thread_id: ThreadId,
-            ) -> Result<GuiLaunchUrls, GuiLaunchServiceError> {
-                self.service.launch_urls_for_thread(thread_id).await
-            }
-        }
-
-        pub(crate) async fn new_test_gui_launch_service(mode: GuiHostMode) -> TestGuiLaunchService {
-            let bridge =
-                crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
-            let manager = GuiHostManager::new_with_opener(bridge.opener(), GuiHostConfig { mode });
-
-            TestGuiLaunchService {
-                service: AppServerGuiLaunchService::new(manager),
-                bridge: Mutex::new(Some(bridge)),
-            }
-        }
-    }
 
     #[tokio::test]
     async fn unavailable_service_returns_unavailable_error() {

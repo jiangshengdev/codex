@@ -138,31 +138,17 @@ pub(crate) fn guardian_agent_spawner(
 }
 
 #[cfg(test)]
+#[path = "extensions_gui_tests.rs"]
+mod gui_tests;
+
+#[cfg(test)]
 mod tests {
     use std::time::Duration;
 
     use codex_analytics::AnalyticsEventsClient;
-    use codex_extension_api::ConversationHistory;
-    use codex_extension_api::ExtensionData;
-    use codex_extension_api::NoopExtensionEventSink;
-    use codex_extension_api::NoopTurnItemEmitter;
-    use codex_extension_api::ThreadStartInput;
-    use codex_extension_api::ToolCall;
-    use codex_extension_api::ToolExecutor;
-    use codex_extension_api::ToolName;
-    use codex_extension_api::ToolPayload;
-    use codex_gui_host::DevAssetProxyConfig;
-    use codex_gui_host::GuiHostConfig;
-    use codex_gui_host::GuiHostMode;
-    use codex_login::AuthManager;
-    use codex_protocol::models::FunctionCallOutputBody;
-    use codex_protocol::models::ResponseInputItem;
-    use codex_protocol::protocol::SessionSource;
     use codex_protocol::protocol::ThreadGoal as CoreThreadGoal;
     use codex_protocol::protocol::ThreadGoalStatus;
     use codex_protocol::protocol::ThreadGoalUpdatedEvent;
-    use codex_protocol::protocol::TruncationPolicy;
-    use core_test_support::load_default_config_for_test;
     use pretty_assertions::assert_eq;
     use tokio::sync::mpsc;
     use tokio::time::timeout;
@@ -214,172 +200,6 @@ mod tests {
             ],
             observed
         );
-    }
-
-    #[tokio::test]
-    async fn thread_extensions_hide_launch_gui_tool_when_gui_service_unavailable() {
-        let codex_home = tempfile::TempDir::new().expect("tempdir");
-        let config = load_default_config_for_test(&codex_home).await;
-        let gui_launch_service = Arc::new(
-            crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
-                "GUI launch is unavailable in this test",
-            ),
-        );
-
-        assert_eq!(
-            Vec::<String>::new(),
-            launch_gui_tool_names_for_service(&config, gui_launch_service).await
-        );
-    }
-
-    #[tokio::test]
-    async fn thread_extensions_install_launch_gui_tool_when_gui_service_available() {
-        let codex_home = tempfile::TempDir::new().expect("tempdir");
-        let config = load_default_config_for_test(&codex_home).await;
-        let gui_bridge =
-            crate::gui_connection_bridge::test_support::start_local_bridge_for_test().await;
-        let gui_launch_service =
-            Arc::new(crate::gui_launch_service::AppServerGuiLaunchService::new(
-                crate::gui_host::GuiHostManager::new_with_opener(
-                    gui_bridge.opener(),
-                    GuiHostConfig {
-                        mode: GuiHostMode::Dev(DevAssetProxyConfig {
-                            vite_origin: "http://127.0.0.1:5173".to_string(),
-                        }),
-                    },
-                ),
-            ));
-
-        assert_eq!(
-            vec!["launch_gui".to_string()],
-            launch_gui_tool_names_for_service(&config, Arc::clone(&gui_launch_service)).await
-        );
-        assert!(!gui_launch_service.has_active_host_for_test().await);
-
-        let tool = launch_gui_tool_for_service(&config, Arc::clone(&gui_launch_service))
-            .await
-            .expect("launch_gui tool should be available");
-        let output = tool
-            .handle(test_launch_gui_call())
-            .await
-            .expect("launch_gui should return URLs");
-        let response = output.to_response_item(
-            "call-test",
-            &ToolPayload::Function {
-                arguments: "{}".to_string(),
-            },
-        );
-        let ResponseInputItem::FunctionCallOutput { output, .. } = response else {
-            panic!("expected function call output");
-        };
-        assert_eq!(Some(true), output.success);
-        let FunctionCallOutputBody::Text(text) = output.body else {
-            panic!("expected text output");
-        };
-        let value: serde_json::Value = serde_json::from_str(&text).expect("json output");
-        assert_eq!(value["urls"][0]["kind"], "local");
-        let url = value["urls"][0]["url"]
-            .as_str()
-            .expect("url should be string");
-        assert!(url.starts_with("http://127.0.0.1:"));
-        assert!(url.contains("threadId="));
-        assert!(gui_launch_service.has_active_host_for_test().await);
-        gui_bridge.shutdown().await;
-    }
-
-    async fn launch_gui_tool_names_for_service(
-        config: &Config,
-        gui_launch_service: Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
-    ) -> Vec<String> {
-        let auth_manager =
-            AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false).await;
-        let registry = thread_extensions(
-            guardian_agent_spawner(Weak::new()),
-            Arc::new(NoopExtensionEventSink),
-            auth_manager,
-            /*state_db*/ None,
-            Weak::new(),
-            Arc::new(GoalService::new()),
-            gui_launch_service,
-        );
-        let session_store = ExtensionData::new("session-test");
-        let thread_id = ThreadId::default();
-        let thread_store = ExtensionData::new(thread_id.to_string());
-        let source = SessionSource::Cli;
-
-        for contributor in registry.thread_lifecycle_contributors() {
-            contributor
-                .on_thread_start(ThreadStartInput {
-                    config,
-                    session_source: &source,
-                    persistent_thread_state_available: true,
-                    session_store: &session_store,
-                    thread_store: &thread_store,
-                })
-                .await;
-        }
-
-        registry
-            .tool_contributors()
-            .iter()
-            .flat_map(|contributor| contributor.tools(&session_store, &thread_store))
-            .map(|tool| tool.tool_name().name)
-            .filter(|name| name == "launch_gui")
-            .collect()
-    }
-
-    async fn launch_gui_tool_for_service(
-        config: &Config,
-        gui_launch_service: Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
-    ) -> Option<Arc<dyn ToolExecutor<ToolCall>>> {
-        let auth_manager =
-            AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false).await;
-        let registry = thread_extensions(
-            guardian_agent_spawner(Weak::new()),
-            Arc::new(NoopExtensionEventSink),
-            auth_manager,
-            /*state_db*/ None,
-            Weak::new(),
-            Arc::new(GoalService::new()),
-            gui_launch_service,
-        );
-        let session_store = ExtensionData::new("session-test");
-        let thread_id = ThreadId::default();
-        let thread_store = ExtensionData::new(thread_id.to_string());
-        let source = SessionSource::Cli;
-
-        for contributor in registry.thread_lifecycle_contributors() {
-            contributor
-                .on_thread_start(ThreadStartInput {
-                    config,
-                    session_source: &source,
-                    persistent_thread_state_available: true,
-                    session_store: &session_store,
-                    thread_store: &thread_store,
-                })
-                .await;
-        }
-
-        registry
-            .tool_contributors()
-            .iter()
-            .flat_map(|contributor| contributor.tools(&session_store, &thread_store))
-            .find(|tool| tool.tool_name().name == "launch_gui")
-    }
-
-    fn test_launch_gui_call() -> ToolCall {
-        ToolCall {
-            turn_id: "turn-test".to_string(),
-            call_id: "call-test".to_string(),
-            tool_name: ToolName::plain("launch_gui"),
-            model: "test-model".to_string(),
-            truncation_policy: TruncationPolicy::Bytes(4096),
-            conversation_history: ConversationHistory::default(),
-            turn_item_emitter: Arc::new(NoopTurnItemEmitter),
-            payload: ToolPayload::Function {
-                arguments: "{}".to_string(),
-            },
-        }
     }
 
     fn thread_goal_updated_event(thread_id: ThreadId, turn_id: &str) -> Event {
