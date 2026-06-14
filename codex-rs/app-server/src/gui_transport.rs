@@ -1,37 +1,36 @@
 use std::io;
+use std::sync::Arc;
 
 use codex_app_server_protocol::JSONRPCMessage;
 use codex_gui_host::AuthenticatedGuiConnection;
 use codex_gui_host::GuiBackend;
 use tracing::warn;
 
-use crate::in_process::InProcessClientSender;
+use crate::gui_connection_bridge::LocalGuiConnectionOpener;
 
 #[derive(Clone)]
 pub(crate) struct GuiTransportBackend {
-    sender: InProcessClientSender,
+    opener: Arc<dyn LocalGuiConnectionOpener>,
 }
 
 impl GuiTransportBackend {
-    pub(crate) fn new(sender: InProcessClientSender) -> Self {
-        Self { sender }
+    pub(crate) fn new(opener: Arc<dyn LocalGuiConnectionOpener>) -> Self {
+        Self { opener }
     }
 }
 
 impl GuiBackend for GuiTransportBackend {
     async fn connect(&self, connection: AuthenticatedGuiConnection) -> anyhow::Result<()> {
-        connect_authenticated_gui(self.sender.clone(), connection).await?;
+        connect_authenticated_gui(Arc::clone(&self.opener), connection).await?;
         Ok(())
     }
 }
 
 async fn connect_authenticated_gui(
-    sender: InProcessClientSender,
+    opener: Arc<dyn LocalGuiConnectionOpener>,
     mut connection: AuthenticatedGuiConnection,
 ) -> io::Result<()> {
-    let handle = sender.register_extra_connection(connection.outbound_tx.clone())?;
-    let command_sender = handle.command_sender();
-    let connection_id = handle.connection_id();
+    let handle = opener.open_gui_connection(connection.outbound_tx.clone())?;
     let disconnect_token = handle.disconnect_token();
 
     loop {
@@ -42,10 +41,10 @@ async fn connect_authenticated_gui(
                 };
                 match serde_json::from_str::<JSONRPCMessage>(&text) {
                     Ok(JSONRPCMessage::Request(request)) => {
-                        command_sender.request(connection_id, request)?;
+                        handle.request(request)?;
                     }
                     Ok(JSONRPCMessage::Notification(notification)) => {
-                        command_sender.notification(connection_id, notification)?;
+                        handle.notification(notification)?;
                     }
                     Ok(JSONRPCMessage::Response(_)) | Ok(JSONRPCMessage::Error(_)) => {}
                     Err(error) => {
@@ -68,14 +67,18 @@ mod tests {
     use codex_app_server_protocol::JSONRPC_VERSION;
     use codex_gui_host::AuthenticatedGuiConnection;
     use pretty_assertions::assert_eq;
+    use std::sync::Arc;
     use tokio::time::Duration;
 
     use super::*;
+    use crate::gui_connection_bridge::ExtraConnectionLocalGuiOpener;
 
     #[tokio::test]
     async fn authenticated_gui_initialize_round_trips_with_jsonrpc_version() {
         let client = crate::in_process::tests::start_test_client_for_bridge().await;
-        let backend = GuiTransportBackend::new(client.sender());
+        let backend = GuiTransportBackend::new(Arc::new(ExtraConnectionLocalGuiOpener::new(
+            client.sender().extra_connection_sender(),
+        )));
         let (connection, inbound_tx, mut outbound_rx) = AuthenticatedGuiConnection::new();
         let task = tokio::spawn(async move { backend.connect(connection).await });
 
@@ -120,7 +123,9 @@ mod tests {
     #[tokio::test]
     async fn authenticated_gui_ignores_browser_response_messages() {
         let client = crate::in_process::tests::start_test_client_for_bridge().await;
-        let backend = GuiTransportBackend::new(client.sender());
+        let backend = GuiTransportBackend::new(Arc::new(ExtraConnectionLocalGuiOpener::new(
+            client.sender().extra_connection_sender(),
+        )));
         let (connection, inbound_tx, mut outbound_rx) = AuthenticatedGuiConnection::new();
         let task = tokio::spawn(async move { backend.connect(connection).await });
 

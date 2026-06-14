@@ -83,25 +83,46 @@ pub(crate) struct ExtraConnectionHandle {
     connection_id: ConnectionId,
     command_sender: ExtraConnectionCommandSender,
     disconnect_token: CancellationToken,
+    close_on_drop: bool,
 }
 
 impl ExtraConnectionHandle {
+    #[allow(dead_code)]
     pub(crate) fn connection_id(&self) -> ConnectionId {
         self.connection_id
     }
 
+    #[allow(dead_code)]
     pub(crate) fn command_sender(&self) -> ExtraConnectionCommandSender {
         self.command_sender.clone()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn disconnect_token(&self) -> CancellationToken {
         self.disconnect_token.clone()
+    }
+
+    pub(crate) fn into_parts(
+        mut self,
+    ) -> (
+        ConnectionId,
+        ExtraConnectionCommandSender,
+        CancellationToken,
+    ) {
+        self.close_on_drop = false;
+        (
+            self.connection_id,
+            self.command_sender.clone(),
+            self.disconnect_token.clone(),
+        )
     }
 }
 
 impl Drop for ExtraConnectionHandle {
     fn drop(&mut self) {
-        self.command_sender.close_best_effort(self.connection_id);
+        if self.close_on_drop {
+            self.command_sender.close_best_effort(self.connection_id);
+        }
     }
 }
 
@@ -136,6 +157,7 @@ impl ExtraConnectionCommandSender {
             connection_id,
             command_sender: self.clone(),
             disconnect_token,
+            close_on_drop: true,
         })
     }
 
@@ -161,7 +183,7 @@ impl ExtraConnectionCommandSender {
         })
     }
 
-    fn close_best_effort(&self, connection_id: ConnectionId) {
+    pub(crate) fn close_best_effort(&self, connection_id: ConnectionId) {
         let message = crate::in_process::InProcessClientMessage::Extra(Box::new(
             ExtraConnectionCommand::Closed { connection_id },
         ));
