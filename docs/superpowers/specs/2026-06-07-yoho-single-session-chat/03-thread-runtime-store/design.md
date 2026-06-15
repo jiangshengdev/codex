@@ -49,6 +49,37 @@ GUI `03` 只实现这条边界在浏览器 Redux store 中的等价形状。由�
 单会话，可以先只有一个 runtime record；但 record 内部必须保留 TUI 的职责分离，不能把
 runtime store 做成 chat truth model。
 
+## 已知 TUI 差异与存在问题
+
+`03` 当前设计和实现保留了 TUI `ThreadEventStore` 的核心 active-turn / no-upsert 边界，但还不是
+完整的 TUI store 等价物。差异必须显式记录，避免后续阶段把当前 runtime 当成已完全对齐的
+long-lived thread store。
+
+**问题 1：`eventBuffer` 目前没有本地容量上限。**
+
+TUI `ThreadEventStore` 有固定 `capacity`。notification 或 request 进入 buffer 后，如果超过容量，
+store 会从头部丢弃旧 event，并同步维护 pending interactive replay state。GUI `03` 当前的
+`eventBuffer` 是 unbounded append，只依赖 app-server projection fanout/backpressure 在上游截断。
+
+这意味着当前 GUI runtime 不具备 TUI store 的本地 bounded-buffer 保护。后续实现计划必须二选一：
+
+- 增加 GUI 本地 buffer cap，使 `eventBuffer` 在浏览器内也有硬上限。
+- 或明确接受第一版由 projection backpressure 兜底，并把本地 cap 作为单独后续阶段。
+
+在做出明确决策前，不能声称 `03` 在 buffer 生命周期上完全对齐 TUI。
+
+**问题 2：TUI 的部分 store 字段被第一版有意省略。**
+
+TUI `ThreadEventStore` 还保存 `input_state`、`active` 和 `pending_interactive_replay`。
+GUI `03` 当前不建模这些字段：
+
+- `input_state` 属于 composer / turn control 恢复能力，延后到 `07 Composer Turn Control` 或其前置设计。
+- `active` 在 TUI 中用于多 thread activation；GUI 第一版只支持 `/gui` 打开的单会话，因此暂不需要同等字段。
+- `pending_interactive_replay` 支撑 approval、request_user_input 等交互请求 replay；这些控制流是当前总体设计的非目标。
+
+这些省略是阶段化选择，不代表 GUI runtime 永久不需要相应能力。若后续扩大到多会话、approval/review、
+或 composer state restore，必须重新补齐对应 runtime 字段或建立等价边界。
+
 ## 设计决策
 
 **A. Runtime Store State Boundary**

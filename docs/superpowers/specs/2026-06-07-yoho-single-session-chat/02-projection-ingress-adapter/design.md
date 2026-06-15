@@ -56,6 +56,40 @@ wrong thread、stale subscription、duplicate commit 只产出 `ignored`。
 
 自动重连可作为未来增强，但不属于 02 默认策略。
 
+## TUI Alignment And Known Difference
+
+`02 Projection Ingress Adapter` 没有 TUI 中的直接等价层。TUI 接收的是普通 app-server thread
+notifications，并通过 thread routing 把 notification 放入 `ThreadEventStore` 和 active thread channel。
+TUI 不维护 projection `subscriptionId`、`headCommitId`、`parentCommitId` 或 `knownTurnIds` cursor。
+
+GUI 需要 `02`，是因为 `/gui` 第一版的输入面不是普通 thread notification stream，而是 app-server
+projection API：
+
+```text
+thread/projection/attach
+thread/projection/event
+thread/projection/closed
+```
+
+因此 `02` 对齐的是 TUI routing 之前的输入保护职责：只让同一 thread、同一 subscription、commit
+chain 连续、parent turn 已知的 projection 输入进入后续 runtime。真正对齐 TUI `ThreadEventStore`
+的层是 `03 Thread Runtime Store`，不是 `02`。
+
+Projection cursor 是 GUI-only 协议 cursor：
+
+- `subscriptionId` 只用于识别当前 projection subscription。
+- `headCommitId` / `parentCommitId` 只用于判断 projection event 是否连续。
+- `knownTurnIds` 只用于判断 item event 是否缺少 parent turn。
+- `manualReconnect` 只表示当前 projection baseline 已不可继续增量消费。
+
+这些字段不能流入 `03` 成为 runtime truth model，也不能被 `04/05/06` 当作聊天状态、turn 状态或 UI
+状态。`02` 只能向后输出 accepted attach/event 或 manual reconnect signal。
+
+`thread/projection/closed(backpressure)` 也不是 TUI `ThreadClosed`，不是 WebSocket closed，也不是
+TUI event channel backpressure。它只表示 server 端 projection fanout 已丢弃当前订阅，GUI 不能再用
+当前 snapshot/event baseline 继续增量应用。正确后续语义是进入 manual reconnect path，而不是把 thread
+视为关闭或尝试静默修复。
+
 ## 输入边界
 
 `guiHostClient` 仍负责 WebSocket、JSON-RPC handshake、URL 参数和 launch token。
