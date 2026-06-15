@@ -266,6 +266,7 @@ impl TestLaunchGuiTool {
                 tool_name: ToolName::plain(LAUNCH_GUI_TOOL_NAME),
                 model: "test-model".to_string(),
                 truncation_policy: TruncationPolicy::Bytes(4096),
+                environments: Vec::new(),
                 conversation_history: codex_extension_api::ConversationHistory::default(),
                 turn_item_emitter: Arc::new(NoopTurnItemEmitter),
                 payload: payload.clone(),

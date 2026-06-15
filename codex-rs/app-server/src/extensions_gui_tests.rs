@@ -2,6 +2,8 @@ use std::io;
 use std::sync::Arc;
 use std::sync::Weak;
 
+use codex_analytics::AnalyticsEventsClient;
+use codex_exec_server::EnvironmentManager;
 use codex_extension_api::ExtensionData;
 use codex_extension_api::NoopExtensionEventSink;
 use codex_extension_api::ThreadStartInput;
@@ -15,6 +17,7 @@ use core_test_support::load_default_config_for_test;
 use pretty_assertions::assert_eq;
 use tokio::sync::mpsc;
 
+use super::ThreadExtensionDependencies;
 use super::guardian_agent_spawner;
 use super::thread_extensions;
 
@@ -74,14 +77,26 @@ async fn launch_gui_tool_names_for_service(
 ) -> Vec<String> {
     let auth_manager =
         AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false).await;
+    let environment_manager = Arc::new(EnvironmentManager::default_for_tests());
+    let executor_skill_provider: Arc<dyn codex_skills_extension::SkillProvider> = Arc::new(
+        codex_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
+            environment_manager,
+            SessionSource::Cli.restriction_product(),
+        ),
+    );
     let registry = thread_extensions(
         guardian_agent_spawner(Weak::new()),
-        Arc::new(NoopExtensionEventSink),
-        auth_manager,
-        /*state_db*/ None,
-        Weak::new(),
-        Arc::new(codex_goal_extension::GoalService::new()),
-        gui_launch_service,
+        ThreadExtensionDependencies {
+            event_sink: Arc::new(NoopExtensionEventSink),
+            auth_manager,
+            state_db: None,
+            analytics_events_client: AnalyticsEventsClient::disabled(),
+            thread_manager: Weak::new(),
+            goal_service: Arc::new(codex_goal_extension::GoalService::new()),
+            executor_skill_provider,
+            gui_launch_service,
+            thread_store: codex_core::thread_store_from_config(config, /*state_db*/ None),
+        },
     );
     let session_store = ExtensionData::new("session-test");
     let thread_id = ThreadId::default();
