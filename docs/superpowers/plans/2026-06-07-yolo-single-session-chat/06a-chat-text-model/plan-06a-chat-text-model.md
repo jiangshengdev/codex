@@ -612,7 +612,7 @@ Expected result: package-level GUI CI passes.
 
 This is intentionally package-level, not a full repository test suite.
 
-- [ ] **Step 3: Commit the 06a implementation**
+- [x] **Step 3: Commit the 06a implementation**
 
 Stage only the 06a source, tests, and plan/design docs that belong to this change:
 
