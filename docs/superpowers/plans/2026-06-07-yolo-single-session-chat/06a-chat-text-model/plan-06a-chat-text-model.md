@@ -619,8 +619,8 @@ Stage only the 06a source, tests, and plan/design docs that belong to this chang
 ```bash
 git add codex-gui/src/features/chatTextModel/chatTextModel.ts \
   codex-gui/src/features/chatTextModel/__tests__/chatTextModel.test.ts \
-  docs/superpowers/specs/2026-06-07-yoho-single-session-chat/06a-chat-text-model/design.md \
-  docs/superpowers/plans/2026-06-07-yoho-single-session-chat/06a-chat-text-model/plan-06a-chat-text-model.md
+  docs/superpowers/specs/2026-06-07-yolo-single-session-chat/06a-chat-text-model/design.md \
+  docs/superpowers/plans/2026-06-07-yolo-single-session-chat/06a-chat-text-model/plan-06a-chat-text-model.md
 git commit -m "feat(gui): add chat text model"
 ```
 

@@ -524,7 +524,7 @@ Expected result: one implementation commit that adds the pure selector module an
 **Files:**
 - Verify: `codex-gui/src/features/liveEventHandling/liveEventHandling.ts`
 - Verify: `codex-gui/src/features/liveEventHandling/__tests__/liveEventHandling.test.ts`
-- Verify: `docs/superpowers/specs/2026-06-07-yoho-single-session-chat/05-live-event-handling/design.md`
+- Verify: `docs/superpowers/specs/2026-06-07-yolo-single-session-chat/05-live-event-handling/design.md`
 
 - [x] **Step 1: Run the focused verification suite**
 
@@ -606,7 +606,7 @@ Expected result:
 After all previous steps pass and the plan checkboxes have been updated, run:
 
 ```bash
-git add docs/superpowers/plans/2026-06-07-yoho-single-session-chat/05-live-event-handling/plan-05-live-event-handling.md
+git add docs/superpowers/plans/2026-06-07-yolo-single-session-chat/05-live-event-handling/plan-05-live-event-handling.md
 git commit -m "docs(gui): mark live event handling plan complete"
 ```
 

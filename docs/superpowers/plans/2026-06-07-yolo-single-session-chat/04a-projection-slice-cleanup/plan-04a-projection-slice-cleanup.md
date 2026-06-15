@@ -377,7 +377,7 @@ After Tasks 1-3 pass, update this plan file's checkboxes and add an `Execution R
 Then run:
 
 ```bash
-git add docs/superpowers/plans/2026-06-07-yoho-single-session-chat/04a-projection-slice-cleanup/plan-04a-projection-slice-cleanup.md
+git add docs/superpowers/plans/2026-06-07-yolo-single-session-chat/04a-projection-slice-cleanup/plan-04a-projection-slice-cleanup.md
 git commit -m "docs(gui): mark projection slice cleanup plan complete"
 ```
 
