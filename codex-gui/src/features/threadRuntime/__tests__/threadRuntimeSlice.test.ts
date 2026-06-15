@@ -171,19 +171,21 @@ describe("thread runtime reducer", () => {
 
     let state = attached;
     for (let index = 0; index < 501; index += 1) {
+      const commitIndex = String(index);
+      const parentCommitIndex = String(index - 1);
       state = reduce(
         state,
         threadRuntimeEventBuffered({
           ...eventTurnStarted,
-          commitId: `commit-buffer-${index}`,
-          parentCommitId: index === 0 ? null : `commit-buffer-${index - 1}`,
+          commitId: `commit-buffer-${commitIndex}`,
+          parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
           event: {
             ...eventTurnStarted.event,
             notification: {
               ...eventTurnStarted.event.notification,
               turn: {
                 ...eventTurnStarted.event.notification.turn,
-                id: `turn-buffer-${index}`,
+                id: `turn-buffer-${commitIndex}`,
               },
             },
           },

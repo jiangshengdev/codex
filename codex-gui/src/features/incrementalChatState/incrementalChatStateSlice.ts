@@ -129,10 +129,7 @@ const upsertMessage = (state: IncrementalChatState, message: IncrementalChatMess
   state.messagesByTurnId[message.turnId] = turnMessages;
 };
 
-const materializeItem = (
-  item: ThreadItem,
-  turnId: string,
-): IncrementalChatMessage | null => {
+const materializeItem = (item: ThreadItem, turnId: string): IncrementalChatMessage | null => {
   switch (item.type) {
     case "userMessage": {
       const text = item.content.map(textFromUserInput).join("");
@@ -243,12 +240,9 @@ export const incrementalChatStateSlice = createAppSlice({
           },
         ];
       }),
-    selectIncrementalChatGlobalStatus: (incrementalChatState) =>
-      incrementalChatState.globalStatus,
+    selectIncrementalChatGlobalStatus: (incrementalChatState) => incrementalChatState.globalStatus,
     selectIncrementalChatIsInterrupted: (incrementalChatState) =>
-      incrementalChatState.globalStatus.some(
-        (status) => status.status === "subscriptionInterrupted",
-      ),
+      incrementalChatState.globalStatus.length > 0,
   },
   extraReducers: (builder) => {
     builder

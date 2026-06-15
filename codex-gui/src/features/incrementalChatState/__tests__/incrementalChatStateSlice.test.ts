@@ -132,10 +132,7 @@ const itemStarted = (
   };
 };
 
-const turnStarted = (
-  commitId: string,
-  turn: Turn,
-): ThreadProjectionEventNotification => {
+const turnStarted = (commitId: string, turn: Turn): ThreadProjectionEventNotification => {
   if (eventTurnStarted.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
@@ -153,10 +150,7 @@ const turnStarted = (
   };
 };
 
-const turnCompleted = (
-  commitId: string,
-  turn: Turn,
-): ThreadProjectionEventNotification => {
+const turnCompleted = (commitId: string, turn: Turn): ThreadProjectionEventNotification => {
   if (eventTurnCompleted.event.type !== "turnCompleted") {
     throw new Error("fixture must contain a turnCompleted projection event");
   }
@@ -283,11 +277,7 @@ describe("incremental chat state reducer", () => {
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted(
-          "commit-empty-agent",
-          "turn-live-filtered",
-          agentMessage("empty-agent", ""),
-        ),
+        itemCompleted("commit-empty-agent", "turn-live-filtered", agentMessage("empty-agent", "")),
       ),
     );
     store.dispatch(
@@ -380,7 +370,9 @@ describe("incremental chat state reducer", () => {
     store.dispatch(
       threadRuntimeEventBuffered(turnStarted("commit-start-done", baseTurn("turn-done", []))),
     );
-    store.dispatch(threadRuntimeEventBuffered(turnCompleted("commit-complete-done", completedTurn)));
+    store.dispatch(
+      threadRuntimeEventBuffered(turnCompleted("commit-complete-done", completedTurn)),
+    );
 
     expect(selectIncrementalChatTurns(store.getState())).toStrictEqual([
       {
