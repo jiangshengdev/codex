@@ -1,11 +1,16 @@
 import type { Action, ThunkAction } from "@reduxjs/toolkit";
 import { combineSlices, configureStore } from "@reduxjs/toolkit";
+import incrementalChatStateSlice from "@/features/incrementalChatState/incrementalChatStateSlice";
 import threadIdentitySlice from "@/features/threadIdentity/threadIdentitySlice";
 import threadRuntimeSlice from "@/features/threadRuntime/threadRuntimeSlice";
 
 // `combineSlices` automatically combines the reducers using
 // their `reducerPath`s, therefore we no longer need to call `combineReducers`.
-const rootReducer = combineSlices(threadIdentitySlice, threadRuntimeSlice);
+const rootReducer = combineSlices(
+  threadIdentitySlice,
+  threadRuntimeSlice,
+  incrementalChatStateSlice,
+);
 // Infer the `RootState` type from the root reducer
 export type RootState = ReturnType<typeof rootReducer>;
 
