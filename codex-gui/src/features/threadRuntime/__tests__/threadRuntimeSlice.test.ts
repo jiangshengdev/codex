@@ -163,6 +163,40 @@ describe("thread runtime reducer", () => {
     ]);
   });
 
+  it("caps the event buffer as a bounded replay tail", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
+
+    let state = attached;
+    for (let index = 0; index < 501; index += 1) {
+      state = reduce(
+        state,
+        threadRuntimeEventBuffered({
+          ...eventTurnStarted,
+          commitId: `commit-buffer-${index}`,
+          parentCommitId: index === 0 ? null : `commit-buffer-${index - 1}`,
+          event: {
+            ...eventTurnStarted.event,
+            notification: {
+              ...eventTurnStarted.event.notification,
+              turn: {
+                ...eventTurnStarted.event.notification.turn,
+                id: `turn-buffer-${index}`,
+              },
+            },
+          },
+        }),
+      );
+    }
+
+    expect(state.current?.eventBuffer).toHaveLength(500);
+    expect(state.current?.eventBuffer[0]?.notification.commitId).toBe("commit-buffer-1");
+    expect(state.current?.eventBuffer.at(-1)?.notification.commitId).toBe("commit-buffer-500");
+    expect(state.current?.activeTurnId).toBe("turn-buffer-500");
+  });
+
   it("records manual reconnect state and blocks later events", () => {
     const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
     const interrupted = reduce(
