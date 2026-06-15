@@ -35,7 +35,7 @@ It does not modify `App.tsx`, React components, CSS/Tailwind, Redux store regist
 **Files:**
 - Create: `codex-gui/src/features/chatTextModel/__tests__/chatTextModel.test.ts`
 
-- [ ] **Step 1: Write the failing chat text model tests**
+- [x] **Step 1: Write the failing chat text model tests**
 
 Create `codex-gui/src/features/chatTextModel/__tests__/chatTextModel.test.ts`:
 
@@ -386,7 +386,7 @@ describe("chat text model", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused chat text model test and confirm it fails**
+- [x] **Step 2: Run the focused chat text model test and confirm it fails**
 
 Run from the repo root:
 
@@ -404,7 +404,7 @@ Expected result: FAIL because `@/features/chatTextModel/chatTextModel` does not 
 - Create: `codex-gui/src/features/chatTextModel/chatTextModel.ts`
 - Modify: `codex-gui/src/features/chatTextModel/__tests__/chatTextModel.test.ts` only if TypeScript reveals a fixture/type mismatch during the focused run.
 
-- [ ] **Step 1: Add the pure chat text model implementation**
+- [x] **Step 1: Add the pure chat text model implementation**
 
 Create `codex-gui/src/features/chatTextModel/chatTextModel.ts`:
 
@@ -571,7 +571,7 @@ export const selectChatTextModel = (state: RootState): ChatTextModel =>
   buildChatTextModel(selectThreadTimelineMaterials(state));
 ```
 
-- [ ] **Step 2: Run the focused chat text model test and confirm it passes**
+- [x] **Step 2: Run the focused chat text model test and confirm it passes**
 
 Run:
 
@@ -588,7 +588,7 @@ Expected result: PASS for all tests in `chatTextModel.test.ts`.
 **Files:**
 - No source changes expected.
 
-- [ ] **Step 1: Run 06a focused verification**
+- [x] **Step 1: Run 06a focused verification**
 
 Run:
 
@@ -600,7 +600,7 @@ pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/sna
 
 Expected result: all three focused Vitest commands pass.
 
-- [ ] **Step 2: Run package-level GUI CI if this implementation is part of a source-change PR**
+- [x] **Step 2: Run package-level GUI CI if this implementation is part of a source-change PR**
 
 Run:
 
@@ -630,13 +630,13 @@ Expected result: one focused Conventional Commit for `06a Chat Text Model`.
 
 ## Self-Review Checklist
 
-- [ ] The plan implements only `06a Chat Text Model`.
-- [ ] The implementation consumes `selectThreadTimelineMaterials(state)` and does not read `projectionSlice`.
-- [ ] The output is turn-grouped and does not expose replay/live lifecycle metadata to UI consumers.
-- [ ] Messages are produced only from replay `itemReplayed` and live `itemCompleted`.
-- [ ] `itemStarted` never produces user/assistant message entries.
-- [ ] User text concatenates all text inputs and ignores non-text inputs.
-- [ ] Assistant text is complete `agentMessage.text` and remains plain text.
-- [ ] Non-chat items are silently ignored.
-- [ ] Manual reconnect is represented as turn-external `globalStatus`.
-- [ ] Verification is focused and does not run the full test suite.
+- [x] The plan implements only `06a Chat Text Model`.
+- [x] The implementation consumes `selectThreadTimelineMaterials(state)` and does not read `projectionSlice`.
+- [x] The output is turn-grouped and does not expose replay/live lifecycle metadata to UI consumers.
+- [x] Messages are produced only from replay `itemReplayed` and live `itemCompleted`.
+- [x] `itemStarted` never produces user/assistant message entries.
+- [x] User text concatenates all text inputs and ignores non-text inputs.
+- [x] Assistant text is complete `agentMessage.text` and remains plain text.
+- [x] Non-chat items are silently ignored.
+- [x] Manual reconnect is represented as turn-external `globalStatus`.
+- [x] Verification is focused and does not run the full test suite.
