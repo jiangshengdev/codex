@@ -1954,9 +1954,9 @@ dependencies = [
  "codex-git-utils",
  "codex-goal-extension",
  "codex-guardian",
- "codex-home",
  "codex-gui-agent-extension",
  "codex-gui-host",
+ "codex-home",
  "codex-hooks",
  "codex-image-generation-extension",
  "codex-login",
@@ -3080,7 +3080,6 @@ dependencies = [
 name = "codex-gui-agent-extension"
 version = "0.0.0"
 dependencies = [
- "async-trait",
  "codex-extension-api",
  "codex-protocol",
  "codex-tools",

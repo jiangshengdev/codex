@@ -15,8 +15,8 @@
 //! bridging async `mpsc` channels on both sides. Queues are bounded so overload
 //! surfaces as channel-full errors rather than unbounded memory growth.
 
-mod path;
 mod gui;
+mod path;
 mod remote;
 
 use std::error::Error;
@@ -69,12 +69,12 @@ use tokio::time::timeout;
 use toml::Value as TomlValue;
 use tracing::warn;
 
-pub use crate::path::AppServerPath;
 pub use crate::gui::AppServerClientGuiExt;
 pub use crate::gui::GuiLaunchError;
 pub use crate::gui::GuiLaunchUrlEntry;
 pub use crate::gui::GuiLaunchUrlKind;
 pub use crate::gui::GuiLaunchUrls;
+pub use crate::path::AppServerPath;
 pub use crate::remote::RemoteAppServerClient;
 pub use crate::remote::RemoteAppServerConnectArgs;
 pub use crate::remote::RemoteAppServerEndpoint;
