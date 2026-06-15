@@ -59,7 +59,7 @@ replay material 是后续层解释 snapshot baseline 的输入材料。它必须
 source: "snapshotReplay"
 ```
 
-后续 `05 Live Event Handling` 的 live material 必须使用不同 source，例如 `liveProjection`。这样 replay/live 差异在类型层可见，调用方不能把 snapshot replay 当作 live event 隐式处理。
+后续 `05 Live Event Handling` 的 live material 必须使用不同 source，即 `liveEvent`。这样 replay/live 差异在类型层可见，调用方不能把 snapshot replay 当作 live event 隐式处理。
 
 **D. ProjectionSlice Cleanup 独立阶段**
 
@@ -74,7 +74,9 @@ source: "snapshotReplay"
 TUI 中 snapshot replay 的关键边界是：
 
 - `ThreadEventStore` 保存 `turns` baseline。
+- `ThreadEventSnapshot` 还携带 buffered events 和 input state。
 - thread snapshot replay 时，`ChatWidget::replay_thread_turns(turns, ReplayKind::ThreadSnapshot)` 处理 snapshot turns。
+- snapshot buffered events 之后通过 `handle_thread_event_replay(..., ReplayKind::ThreadSnapshot)` replay。
 - replay item 进入 `handle_thread_item(..., ThreadItemRenderSource::Replay(replay_kind))`。
 - `from_replay` / `ReplayKind::ThreadSnapshot` 用于隔离 live-only 副作用。
 
@@ -84,6 +86,8 @@ GUI `04` 不复刻 `ChatWidget` 的 UI 行为。它只复刻这条边界在数�
 - replay 和 live 必须有不同 source。
 - replay material 可以保留原始 item，但不能触发 live-only 行为。
 - snapshot replay 是从 baseline 重建下游状态的路径，不是新的 protocol ingress。
+
+GUI 的 TUI-equivalent replay 被拆在多个阶段：`04` 只覆盖 `snapshot.turns` 到 replay material 的 turns 半边；`05 Live Event Handling` 才覆盖 accepted/buffered events；composer/input state 由后续 turn control 阶段处理。因此 `04` 不能被理解为完整复刻 TUI 的 `replay_thread_snapshot`。
 
 ## 输入边界
 
@@ -141,7 +145,7 @@ type SnapshotReplayMaterial =
     };
 ```
 
-`turnStarted` 表示一个 snapshot turn replay 开始，不表示 live turn 刚启动。
+`turnStarted` 表示一个 snapshot turn replay boundary，不表示 live turn 刚启动，也不等同于 TUI live `TurnStarted` 或 `ChatWidget::on_task_started()`。TUI 在 snapshot replay 中只对 `inProgress` turn 执行 task-start 行为；GUI `04` 对每个 snapshot turn 输出 `turnStarted`，只是为了给后续 consumer 保留 turn scope 和 ordering。
 
 `itemReplayed` 保留原始 `ThreadItem`，只表达这个 item 属于某个 snapshot turn 并按 baseline 顺序出现。
 
@@ -185,6 +189,7 @@ terminal status 是：
 
 - 不能触发 live-only toast、popup、autosend 或 queued-input side effect。
 - 不能把 `turnStarted` 当成新的 live turn start。
+- 不能把 replay `turnStarted` 直接映射成 TUI `on_task_started()`；只有后续 consumer 在解释 `inProgress` replay turn 时才能表达 running state。
 - 不能把 `turnCompleted` 当成当前 live turn 刚结束。
 - 不能把 replayed item 当作新到达的 projection event。
 
