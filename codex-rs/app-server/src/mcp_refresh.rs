@@ -238,18 +238,13 @@ mod tests {
                         thread_manager: thread_manager.clone(),
                         goal_service: Arc::new(codex_goal_extension::GoalService::new()),
                         executor_skill_provider: Arc::clone(&executor_skill_provider),
+                        gui_launch_service: Arc::new(
+                            crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
+                                "GUI launch service is not needed for this test",
+                            ),
+                        ),
                         thread_store: Arc::clone(&thread_store),
                     },
-                    Arc::new(NoopExtensionEventSink),
-                    auth_manager.clone(),
-                    Some(state_db.clone()),
-                    thread_manager.clone(),
-                    Arc::new(codex_goal_extension::GoalService::new()),
-                    Arc::new(
-                        crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
-                            "GUI launch service is not needed for this test",
-                        ),
-                    ),
                 ),
                 Arc::new(CodexHomeUserInstructionsProvider::new(
                     good_config.codex_home.clone(),
