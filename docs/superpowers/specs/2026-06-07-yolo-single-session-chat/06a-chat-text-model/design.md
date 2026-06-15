@@ -2,15 +2,15 @@
 
 ## 目标
 
-`06a Chat Text Model` 是纯 TypeScript / selector 阶段。它把 `05 Live Event Handling` 产出的 timeline material 派生成普通聊天界面可消费的纯文本 model。
+`06a Chat Text Model` 是纯 TypeScript / selector 阶段。它把 `05b Incremental Chat State Boundary` 已经物化的聊天状态派生成普通聊天界面可消费的纯文本 view model。
 
 这一阶段只建立 model 边界，不渲染 React，不写 HTML/CSS，不替换 `App.tsx`，不实现 composer，不实现 Markdown，不展示 tool activity。
 
-`06a` 完成后，`06b Plain Text Chat Shell` 可以只消费稳定的 chat text model，不需要直接解释 raw timeline material、`ThreadItem` 或 replay/live lifecycle。
+`06a` 完成后，`06b Plain Text Chat Shell` 可以只消费稳定的 chat text model，不需要直接解释 raw notification、`ThreadItem`、replay/live lifecycle、`snapshotTurns` 或 `eventBuffer`。
 
 ## 当前基线
 
-`05` 已经提供：
+旧 `06a` 设计从 `05 Live Event Handling` 的 timeline material 派生 model：
 
 ```text
 selectThreadTimelineMaterials(state)
@@ -19,67 +19,67 @@ selectThreadTimelineMaterials(state)
   + live subscription status material
 ```
 
-Timeline material 的当前来源：
+这个路径会在 steady-state live path 中反复遍历 snapshot replay materials 和 runtime event buffer，和 TUI 的 active live path 不一致。
 
-- `snapshotReplay` 产出 replay `turnStarted`、`itemReplayed`、`turnCompleted`。
-- `liveEventHandling` 产出 live `turnStarted`、`itemStarted`、`itemCompleted`、`turnCompleted`。
-- `liveEventHandling` 也会在 subscription interrupted 时产出 `subscriptionInterrupted` material。
+新的边界是：
 
-`06a` 只能消费这些已完成的 selector 输出。它不能读取旧 `projectionSlice`，不能修改 `threadRuntimeSlice`，不能改变 `snapshotReplay` 或 `liveEventHandling` 的语义。
+```text
+05b incrementalChatStateSlice
+  -> selectIncrementalChatTurns(state)
+  -> selectIncrementalChatGlobalStatus(state)
+  -> 06a chat text model
+```
+
+`06a` 不能 import `TimelineMaterial`，不能调用 `selectThreadTimelineMaterials(state)`，也不能从 `snapshotTurns + eventBuffer` full fold。
 
 ## TUI 对齐依据
 
 TUI 的 `ThreadEventStore` 保存 `turns`、`buffer`、`active_turn_id` 等 runtime material，并只在 notification 进入时维护 active turn。它不解释 item 内容。
 
-TUI 的 item 解释发生在 `ChatWidget`：
+TUI 的 item 解释和 transcript 物化发生在 `ChatWidget`：
 
 - replay path 把 turn items 交给 `handle_thread_item`。
 - live path 对普通 user / assistant 展示主要由 `ItemCompleted` 进入 `handle_thread_item`。
 - live `ItemStarted` 主要用于 command、MCP、file change、web search、image generation、collab agent 等 activity 的 started 状态。
 
-`06a` 是 GUI 侧对 `ChatWidget` 普通聊天解释边界的纯 selector 等价实现，但只覆盖纯文本 user / assistant 消息和轻量状态。
+GUI 的 `05b` 是 `ChatWidget` 物化状态边界。`06a` 只是在该物化状态之上做展示模型投影，不再承担 replay/live item interpretation。
 
 ## 已确认决策
 
-**决策 1：输出 turn-grouped model**
+**决策 1：输入只来自 `05b` selectors**
+
+`06a` 只消费 `05b` 导出的物化状态 selectors，例如：
+
+```ts
+selectIncrementalChatTurns(state)
+selectIncrementalChatGlobalStatus(state)
+```
+
+`06a` 不读取旧 `projectionSlice`，不读取 `threadRuntimeSlice.snapshotTurns`，不读取 `threadRuntimeSlice.eventBuffer`，不调用 `selectThreadTimelineMaterials`。
+
+**决策 2：输出 turn-grouped model**
 
 `06a` 输出按 turn 分组的 model，而不是 flat entries 或 rich timeline model。
 
-`06b` 可以消费 turn groups，但仍不直接解释 raw timeline material。
+`06b` 可以消费 turn groups，但仍不直接解释 raw protocol state。
 
-**决策 2：turn group 内只允许 `message + status`**
+**决策 3：turn group 内只允许普通 message**
 
-每个 turn group 内只放普通 user / assistant message 和轻量 status。tool、reasoning、plan、file change 等非聊天 item 不进入 turn group。
+每个 turn group 内只放普通 user / assistant message。tool、reasoning、plan、file change 等非聊天 item 不进入 turn group。
 
-**决策 3：只从 replay `itemReplayed` 和 live `itemCompleted` 产出 message**
+第一版 turn group 内不产出 lifecycle status；如果后续需要 turn 内 status，必须在对应子设计或后续设计中重新确认。
 
-`itemStarted` 不产出 user / assistant message。turn lifecycle 只用于建立或归属 turn group，以及必要的状态判断。
+**决策 4：manual reconnect 作为 turn 外全局 status**
 
-这保持了与 TUI 的边界一致：普通 user / assistant 内容在 item replay 或 completed 后进入聊天展示；started 状态留给后续 tool activity 或 streaming 阶段。
-
-**决策 4：user 拼接所有 text input；assistant 使用完整 `agentMessage.text`**
-
-`userMessage.content` 中所有 text input 按顺序拼接。非 text input 不进入 `06a` 纯文本内容。
-
-`agentMessage.text` 原样作为纯文本展示内容。Markdown 语法不解析，留给 `06d Basic Markdown Rendering`。
-
-**决策 5：暴露稳定业务 id，不暴露 lifecycle 细节**
-
-Turn group 使用 `turn.id`。Message entry 使用 `item.id`。Status entry 使用确定性 id。
-
-UI 不消费 `source`、`lifecycle`、`itemReplayed`、`itemCompleted` 等底层 timeline 细节。
-
-**决策 6：静默忽略非聊天 item**
-
-`plan`、`reasoning`、`commandExecution`、`fileChange`、`mcpToolCall`、`dynamicToolCall`、`collabAgentToolCall`、`webSearch`、`imageView`、`imageGeneration`、review mode 和 context compaction 等 item 都不产出 `06a` entry。
-
-这些能力留给 `08 Tool Activity` 或后续专门阶段。
-
-**决策 7：manual reconnect 作为 turn 外全局 status**
-
-`subscriptionInterrupted` material 进入 `06a` model，但不归属任何 turn group。
+`05b` 的 `subscriptionInterrupted` global status 进入 `06a` model，但不归属任何 turn group。
 
 它表示 projection subscription 状态，不是某个 turn 或 item 的内容。
+
+**决策 5：输出隐藏 normalized state 细节**
+
+Turn group 使用 `turn.id`。Message entry 使用 `message.id`。Status entry 使用确定性 id。
+
+UI 不消费 `turnsById`、`messagesById`、`messagesByTurnId`、`appliedEventIds` 等 `05b` 内部结构，也不消费 replay/live lifecycle。
 
 ## 推荐模型形状
 
@@ -111,20 +111,30 @@ type ChatTextGlobalStatus = {
 };
 ```
 
-第一版实际产出的 status 只有 turn 外的 `subscriptionInterrupted`。Turn group 内不产出 lifecycle status；如果后续需要 turn 内 status，必须在对应子设计或后续设计中重新确认。
+`06a` 可以保留 `buildChatTextModel(...)` 纯函数，但它的输入必须是 `05b` selector 输出，而不是 timeline materials。
+
+推荐输入形状：
+
+```ts
+type ChatTextModelInput = {
+  turns: IncrementalChatTurnView[];
+  globalStatus: IncrementalChatGlobalStatus[];
+};
+```
 
 ## 数据流
 
 ```text
-selectThreadTimelineMaterials(state)
-  -> buildChatTextModel(materials)
+selectIncrementalChatTurns(state)
+selectIncrementalChatGlobalStatus(state)
+  -> buildChatTextModel(input)
      -> turns[] grouped by turn id
-     -> message entries from itemReplayed / itemCompleted
-     -> globalStatus[] from subscriptionInterrupted
+     -> message entries copied from materialized user/assistant messages
+     -> globalStatus[] from materialized subscriptionInterrupted status
   -> selectChatTextModel(state)
 ```
 
-建议模块：
+建议模块保持：
 
 ```text
 codex-gui/src/features/chatTextModel/chatTextModel.ts
@@ -134,7 +144,7 @@ codex-gui/src/features/chatTextModel/__tests__/chatTextModel.test.ts
 `chatTextModel.ts` 负责导出：
 
 ```ts
-buildChatTextModel(materials): ChatTextModel
+buildChatTextModel(input): ChatTextModel
 selectChatTextModel(state): ChatTextModel
 ```
 
@@ -142,49 +152,26 @@ selectChatTextModel(state): ChatTextModel
 
 ### Turn group
 
-`turnStarted` 可以建立 turn group。遇到 `itemReplayed` 或 `itemCompleted` 时，如果对应 turn group 尚不存在，可以按 `turnId` 创建 group，避免 model 因缺少 started material 而丢消息。
+`06a` 按 `05b` selector 返回的 turn 顺序输出 turn groups。
 
-Turn group 顺序必须遵循 timeline material 顺序，不按 timestamp 重新排序。
+Turn group 顺序来自 `05b` 的 `turnOrder`，不按 timestamp 重新排序。
 
-### User message
+如果某个 turn 没有 messages，第一版可以保留空 turn group；是否隐藏空 turn 留给 `06b` 渲染设计决定。`06a` 不基于 raw lifecycle material 重建或删除 turn。
 
-当 item type 是 `userMessage`：
+### Message entry
 
-- 只读取 content 中的 text input。
-- 多个 text input 按原顺序拼接。
-- 非 text input 静默忽略。
-- 如果拼接后的 text 为空，不产出 message entry。
+`06a` 直接读取 `05b` 已物化的 message：
 
-`06a` 不处理 image、local image、mention、skill 的占位展示。
+- `role: "user"` 输出 user message。
+- `role: "assistant"` 输出 assistant message。
+- text 原样作为纯文本。
+- text 为空的 message 正常情况下不应由 `05b` 生成；如果存在，`06a` 可以选择过滤，避免 UI 出现空消息。
 
-### Assistant message
-
-当 item type 是 `agentMessage`：
-
-- 读取完整 `agentMessage.text`。
-- 原样作为纯文本。
-- 如果 text 为空，不产出 message entry。
-- `phase` 和 `memoryCitation` 不进入第一版 UI model。
-
-### Item lifecycle
-
-Replay:
-
-- `itemReplayed(userMessage | agentMessage)` 产出 message entry。
-
-Live:
-
-- `itemCompleted(userMessage | agentMessage)` 产出 message entry。
-- `itemStarted(userMessage | agentMessage)` 不产出 message entry。
-
-Turn lifecycle:
-
-- `turnStarted` / `turnCompleted` 不直接产出普通 message。
-- 第一版只用于 turn group 建立和归属，不产出 turn 内 status。
+`06a` 不再解析 `ThreadItem.userMessage.content` 或 `ThreadItem.agentMessage.text`。这些映射属于 `05b`。
 
 ### Manual reconnect
 
-`subscriptionInterrupted` 产出一个全局 status。文案应保持轻量，例如表达“connection interrupted; reconnect required”的含义。
+`05b` 的 `subscriptionInterrupted` 产出一个全局 status。文案应保持轻量，例如表达 “connection interrupted; reconnect required” 的含义。
 
 Reason 可以保留在内部用于生成文案或测试，但不要求 `06b` 直接展示 raw reason。
 
@@ -201,20 +188,22 @@ Reason 可以保留在内部用于生成文案或测试，但不要求 `06b` 直
 - 不展示 tool activity。
 - 不为非 text user input 设计占位 UI。
 - 不实现 TUI 本地 prompt echo 去重；这属于 `07 Composer Turn Control`。
+- 不解释 `ThreadItem`。
+- 不读取 `snapshotTurns + eventBuffer`。
+- 不消费 `TimelineMaterial`。
 
 ## 验收标准
 
-- `selectChatTextModel(state)` 只从 `selectThreadTimelineMaterials(state)` 的下层事实派生。
-- replay `itemReplayed(userMessage)` 产出 user message。
-- replay `itemReplayed(agentMessage)` 产出 assistant message。
-- live `itemCompleted(userMessage)` 产出 user message。
-- live `itemCompleted(agentMessage)` 产出 assistant message。
-- live `itemStarted(userMessage | agentMessage)` 不产出 message。
-- 多段 user text input 按顺序拼接。
-- 非 text user input 不进入纯文本 message。
-- 非聊天 item 静默忽略。
+- `selectChatTextModel(state)` 只从 `05b` incremental chat state selectors 派生。
+- `06a` 不 import `liveEventHandling` 的 `TimelineMaterial`。
+- `06a` 不调用 `selectThreadTimelineMaterials(state)`。
+- `06a` 不读取 `threadRuntime.snapshotTurns` 或 `threadRuntime.eventBuffer`。
+- `05b` 物化 user message 后，`06a` 输出 user message entry。
+- `05b` 物化 assistant message 后，`06a` 输出 assistant message entry。
+- Turn group 顺序遵循 `05b` selector 输出顺序。
+- Turn 内 message 顺序遵循 `05b` selector 输出顺序。
 - `subscriptionInterrupted` 产出 turn 外全局 status。
-- 输出 model 不暴露 replay/live lifecycle 给 UI 消费。
+- 输出 model 不暴露 normalized state、replay/live lifecycle 或 protocol item payload 给 UI 消费。
 
 ## Focused Verification
 
@@ -222,17 +211,17 @@ Reason 可以保留在内部用于生成文案或测试，但不要求 `06b` 直
 
 ```text
 pnpm --dir codex-gui exec vitest --run src/features/chatTextModel/__tests__/chatTextModel.test.ts
-pnpm --dir codex-gui exec vitest --run src/features/liveEventHandling/__tests__/liveEventHandling.test.ts
-pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/snapshotReplay.test.ts
+pnpm --dir codex-gui exec vitest --run src/features/incrementalChatState/__tests__/incrementalChatStateSlice.test.ts
+pnpm --dir codex-gui run type-check
 ```
 
 `06a` 是 docs/design 阶段时不运行测试。进入 implementation 后，只运行上述 focused tests，不扩大到全量测试。
 
 ## 后续阶段关系
 
-`06b Plain Text Chat Shell` 消费 `ChatTextModel`，不直接解释 timeline material。
+`06b Plain Text Chat Shell` 消费 `ChatTextModel`，不直接解释 timeline material、normalized chat state 或 raw notification。
 
-`06c App Integration And Browser Coverage` 把 `06a` 和 `06b` 接入 `App.tsx` 并验证真实 App path。
+`06c App Integration And Browser Coverage` 把 `05b`、`06a` 和 `06b` 接入 `App.tsx` 并验证真实 App path。
 
 `06d Basic Markdown Rendering` 才处理 Markdown parse、sanitize、链接和代码块展示。
 

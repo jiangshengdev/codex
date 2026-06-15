@@ -6,11 +6,11 @@
 
 不存在单独的 `06` plan，也不存在单独的 `06` implementation。后续实施必须从 `06a Chat Text Model` 开始，并按 `06a -> 06b -> 06c -> 06d` 严格串行推进。
 
-`06a/06b/06c` 的目标是把 `05 Live Event Handling` 产出的 timeline material 推进为第一版纯文本普通聊天界面。`06d` 才单独设计基础 Markdown 渲染。
+`06a/06b/06c` 的目标是把 `05b Incremental Chat State Boundary` 已经物化的聊天状态推进为第一版纯文本普通聊天界面。`06d` 才单独设计基础 Markdown 渲染。
 
 ## 当前基线
 
-`05` 已经提供组合 timeline：
+旧设计曾把 `05` 提供的组合 timeline 作为聊天模型输入：
 
 ```text
 snapshotReplay materials
@@ -18,21 +18,23 @@ snapshotReplay materials
   + live subscription status material
 ```
 
+这个输入边界已经废弃为 active chat surface 的 steady-state 路径。`05` 的组合 material 只能用于 replay/debug/focused tests；`06a/06b/06c` 不能每次从该 timeline full fold UI。
+
 当前 `App.tsx` 仍然是 GUI host debug panel，只显示连接状态、attach 状态、事件计数和最后事件类型。它已经负责把 GUI host projection callbacks 分发到 thread identity、projection ingress 和 thread runtime。
 
 `06a/06b/06c` 的输入事实只能来自已完成的下层：
 
-- `selectThreadTimelineMaterials(state)`。
+- `05b` 的 incremental chat state selectors。
 - `selectThreadIdentityState(state)`。
 - `selectThreadRuntimeActiveTurnId(state)` / `selectThreadRuntimeSubscription(state)`，如果 UI 状态需要。
 
-`06a/06b/06c` 不能重新读取旧 `projectionSlice`，不能反向修改 `threadRuntimeSlice` 的 buffer 语义，也不能把 tool activity、composer 控制流或 Markdown 渲染提前塞进纯文本聊天链路。
+`06a/06b/06c` 不能重新读取旧 `projectionSlice`，不能从 `snapshotReplay + eventBuffer` full fold，不能反向修改 `threadRuntimeSlice` 的 buffer 语义，也不能把 tool activity、composer 控制流或 Markdown 渲染提前塞进纯文本聊天链路。
 
 ## 已确认决策
 
 **决策 1：`06a/06b/06c` 纯文本，`06d` 专门做 Markdown**
 
-`06a/06b/06c` 只展示纯文本 user / assistant 消息和轻量状态。Assistant 文本只读取现有 projection snapshot/event 中完整的 `agentMessage.text`，Markdown 语法按普通纯文本显示。
+`06a/06b/06c` 只展示纯文本 user / assistant 消息和轻量状态。Assistant 文本来自 `05b` 已物化的完整 `agentMessage.text`，Markdown 语法按普通纯文本显示。
 
 基础 Markdown 渲染由 `06d Basic Markdown Rendering` 单独设计，不进入 `06a/06b/06c` 的验收口径。
 
@@ -65,7 +67,7 @@ snapshotReplay materials
 
 **决策 6：`06c` 只做集成和 browser coverage**
 
-`06c` 负责把 `06a` 和 `06b` 稳定接入 `App.tsx`，并通过 browser coverage 验收真实路径。它不新增 chat model 能力，不新增展示能力，不补齐 `06b` 未完成的 UI 行为。
+`06c` 负责把 `05b`、`06a` 和 `06b` 稳定接入 `App.tsx`，并通过 browser coverage 验收真实路径。它不新增 chat model 能力，不新增展示能力，不补齐 `06b` 未完成的 UI 行为。
 
 **决策 7：`06c` 替换 debug panel 主界面**
 
@@ -87,9 +89,9 @@ snapshotReplay materials
 
 职责：
 
-- 从 `selectThreadTimelineMaterials(state)` 派生普通聊天可消费的纯文本 model。
+- 从 `05b` incremental chat state selectors 派生普通聊天可消费的纯文本 model。
 - 只建立 user / assistant 纯文本消息和轻量状态行的模型边界。
-- 保留 replay/live ordering，不重新按 timestamp 排序。
+- 保留 `05b` 已物化的 turn/message ordering，不重新按 timestamp 排序。
 
 非目标：
 
@@ -99,8 +101,10 @@ snapshotReplay materials
 - 不处理 composer。
 - 不处理 tool activity。
 - 不规定最终页面结构。
+- 不解释 raw timeline material。
+- 不读取 `snapshotTurns + eventBuffer`。
 
-`06a` 的具体输出类型、字段命名、id 策略、ignored item 策略和 status row 文案必须在 `06a` 子设计中单独确认。
+`06a` 的具体输出类型、字段命名、id 策略、empty turn 策略和 status row 文案必须在 `06a` 子设计中单独确认。
 
 ### 06b Plain Text Chat Shell
 
@@ -121,7 +125,7 @@ snapshotReplay materials
 - 不中断 turn。
 - 不渲染 Markdown。
 - 不展示 tool activity 详情。
-- 不直接解释 raw timeline material。
+- 不直接解释 raw timeline material、normalized chat state 或 raw notification。
 
 `06b` 不接入真实 GUI host path；它只定义和验证 shell/UI 自身。
 
@@ -131,7 +135,7 @@ snapshotReplay materials
 
 职责：
 
-- 把 `06a` 和 `06b` 稳定接入 `App.tsx`。
+- 把 `05b`、`06a` 和 `06b` 稳定接入 `App.tsx`。
 - 用聊天界面替换当前 GUI host debug panel 主界面。
 - 保留必要的轻量连接、attach 或 turn 状态。
 - 更新 browser tests，覆盖真实 App 路径。
@@ -159,7 +163,7 @@ snapshotReplay materials
 
 非目标：
 
-- 不回头改变 `05` timeline material 语义。
+- 不回头改变 `05` material/debug 语义或 `05b` incremental state 语义。
 - 不把 Markdown 能力塞回 `06a/06b/06c` 的验收口径。
 - 不顺手实现 composer、Stop 或 tool activity。
 
@@ -224,7 +228,8 @@ snapshotReplay materials
 ## 设计原则
 
 - 不让 UI 直接解释 raw protocol item。
-- 不让 `06a/06b/06c` 反向修改 `05` 的 timeline material 语义。
+- 不让 `06a/06b/06c` 反向修改 `05` 的 material/debug 语义或 `05b` 的 incremental state 语义。
+- 不让 `06a/06b/06c` 从 `snapshotReplay + eventBuffer` full fold。
 - 不在纯文本阶段引入 Markdown 依赖。
 - 不在聊天展示阶段顺手实现 composer 或 tool activity。
 - 每个子设计必须足够小，可以独立实现、独立回退、独立验收。

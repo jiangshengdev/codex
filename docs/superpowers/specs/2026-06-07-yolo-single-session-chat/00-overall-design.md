@@ -226,7 +226,9 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 - accepted live `turnCompleted`：按条更新对应 turn 的完成状态。
 - manual reconnect required：保留当前已物化内容，并追加或更新全局 interrupted status；新的 accepted attach 才重建 baseline。
 
-`05b` 必须有 applied cursor 或等价幂等机制，保证同一个 accepted notification 不会被重复应用。实现可以选择 Redux slice、listener middleware 或其他项目内既有模式，但语义必须是 incremental reducer，而不是 full timeline selector。
+`05b` 必须有 applied cursor 或等价幂等机制，保证同一个 accepted notification 不会被重复应用。语义必须是 incremental reducer，而不是 full timeline selector。
+
+已确认的第一版实现形态是 Redux Toolkit `incrementalChatStateSlice`。该 slice 使用 `extraReducers` 响应 `threadRuntimeAttached`、`threadRuntimeEventBuffered` 和 `threadRuntimeManualReconnectRequired` 等事件 action，让多个 reducers 响应同一个真实事件，避免为同一个 notification 连续 dispatch 多个 setter action。它保存 serializable normalized state，例如 `turnsById`、`turnOrder`、`messagesById`、`messagesByTurnId`、`globalStatus` 和 `appliedEventIds`。纯同步状态转移不引入 listener middleware；listener middleware 只留给后续需要等待、取消、异步 workflow 或后台任务的场景。
 
 ### 05a Streaming Readiness（暂缓）
 
