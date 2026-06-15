@@ -2,11 +2,11 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use codex_extension_api::FunctionCallError;
 use codex_extension_api::JsonToolOutput;
 use codex_extension_api::ToolCall;
 use codex_extension_api::ToolExecutor;
+use codex_extension_api::ToolExecutorFuture;
 use codex_extension_api::ToolName;
 use codex_extension_api::ToolOutput;
 use codex_extension_api::ToolSpec;
@@ -88,7 +88,6 @@ impl LaunchGuiToolExecutor {
     }
 }
 
-#[async_trait]
 impl ToolExecutor<ToolCall> for LaunchGuiToolExecutor {
     fn tool_name(&self) -> ToolName {
         ToolName::plain(LAUNCH_GUI_TOOL_NAME)
@@ -98,23 +97,27 @@ impl ToolExecutor<ToolCall> for LaunchGuiToolExecutor {
         create_launch_gui_tool()
     }
 
-    async fn handle(&self, invocation: ToolCall) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
-        parse_empty_arguments(invocation.function_arguments()?)?;
+    fn handle(&self, invocation: ToolCall) -> ToolExecutorFuture<'_> {
+        Box::pin(async move {
+            parse_empty_arguments(invocation.function_arguments()?)?;
 
-        match self.service.launch_urls_for_thread(self.thread_id).await {
-            Ok(urls) => Ok(Box::new(JsonToolOutput::new(json!({
-                "urls": launch_urls_response(urls),
-            })))),
-            Err(error) => Ok(Box::new(JsonToolOutput::with_success(
-                json!({
-                    "error": {
-                        "kind": error.kind.as_str(),
-                        "message": error.message,
-                    },
-                }),
-                Some(false),
-            ))),
-        }
+            let output: Box<dyn ToolOutput> =
+                match self.service.launch_urls_for_thread(self.thread_id).await {
+                    Ok(urls) => Box::new(JsonToolOutput::new(json!({
+                    "urls": launch_urls_response(urls),
+                    }))),
+                    Err(error) => Box::new(JsonToolOutput::with_success(
+                        json!({
+                            "error": {
+                                "kind": error.kind.as_str(),
+                                "message": error.message,
+                            },
+                        }),
+                        Some(false),
+                    )),
+                };
+            Ok(output)
+        })
     }
 }
 

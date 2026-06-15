@@ -46,6 +46,7 @@ const initialState: ThreadRuntimeState = {
 };
 
 const EMPTY_EVENT_BUFFER: ThreadRuntimeBufferedEvent[] = [];
+const MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH = 500;
 
 const activeTurnIdFromSnapshot = (turns: Turn[]): string | null =>
   turns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null;
@@ -80,6 +81,13 @@ export const threadRuntimeSlice = createAppSlice({
           type: "projectionEvent",
           notification: action.payload,
         });
+
+        if (runtime.eventBuffer.length > MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH) {
+          runtime.eventBuffer.splice(
+            0,
+            runtime.eventBuffer.length - MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH,
+          );
+        }
 
         switch (action.payload.event.type) {
           case "turnStarted":
