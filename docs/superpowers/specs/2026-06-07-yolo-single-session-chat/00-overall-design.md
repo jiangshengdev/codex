@@ -58,11 +58,13 @@ TUI 的关键分层是：
 - 每个 channel 持有 `ThreadEventStore`。
 - `ThreadEventStore` 保存 replay/live 所需材料：`session`、`turns`、`buffer`、`active_turn_id`、`input_state`、`active`。
 - `ThreadEventStore` 对 live notification 的核心职责是写入 buffer 并维护 `active_turn_id`。`TurnStarted` 设置 active turn，匹配当前 active turn 的 `TurnCompleted` 清空 active turn；`ItemStarted` / `ItemCompleted` 只作为 notification 留在 buffer，item 的语义解释不属于这一层。
+- TUI 的 buffer 是有容量上限的 replay tail，不是 active UI 每次更新时从头遍历的输入源。active thread 会通过 `active_thread_rx` 只把新到达的 event 发送给当前 `ChatWidget`。
+- `ChatWidget` 对 live notification 是按条增量处理：每来一条 notification，只处理这一条对当前 UI 状态的影响。只有 thread switch、resume 或 reconnect 类路径才从 snapshot turns 和 buffered events 重建可见状态。
 - thread 切换或恢复时，TUI 生成 `ThreadEventSnapshot`，再 replay 到 `ChatWidget`。
 - live event 和 replay event 最终都进入 `ChatWidget`，但带有不同 replay kind。`ChatWidget` 才负责解释 `ItemStarted` / `ItemCompleted`，并把它们转换成具体聊天、tool activity 或状态展示行为。
 - TUI 不把 `ThreadProjectionEvent` / `ThreadProjectionClosed` 当作主线程路由或 ChatWidget 渲染基础。
 
-GUI 第一版只支持单会话，因此不需要完整复刻 TUI 的多线程切换能力。但它仍然需要保留同样的核心边界：输入协议、thread runtime、snapshot replay、live event handling、chat surface 分开。
+GUI 第一版只支持单会话，因此不需要完整复刻 TUI 的多线程切换能力。但它仍然需要保留同样的核心边界：输入协议、thread runtime、snapshot replay、live event handling、增量聊天状态和 chat surface 分开。
 
 ## 推荐架构
 
@@ -78,6 +80,7 @@ TUI /gui launch URL
   -> GUI thread runtime store
   -> snapshot replay
   -> live event handling
+  -> incremental chat state
   -> chat surface view model
   -> React UI
 ```
@@ -88,9 +91,24 @@ TUI /gui launch URL
 - thread identity shell 只负责确认 launch thread id 和 attached thread id 是同一个线程。
 - thread runtime store 负责保存可 replay/live 处理的 thread runtime 状态。
 - snapshot replay 负责把 attach snapshot 转成初始 UI 状态。
-- live event handling 负责把后续事件应用到当前 runtime。
-- chat surface view model 只从 runtime 派生展示模型，不直接拥有协议事实。
+- live event handling 负责把后续事件应用到当前 runtime，并把可展示 notification 交给增量聊天状态层。
+- incremental chat state 负责把 attach snapshot 初始化结果和 live notification 按条 apply 成物化聊天状态。
+- chat surface view model 只从物化聊天状态派生展示模型，不直接遍历 `snapshotTurns + eventBuffer` 作为长期渲染路径，也不直接拥有协议事实。
 - React UI 只渲染 view model 和提交用户操作。
+
+## Notification 追加与性能边界
+
+GUI 的聊天状态必须按 notification 追加演进，不能在每次 notification 到达后从 `snapshotTurns + eventBuffer` 全量重建聊天 view model。
+
+性能边界：
+
+- attach snapshot 或手动 reconnect 后的新 snapshot 可以全量 replay 一次，用于建立新的 baseline。
+- accepted live notification 必须按条应用到当前物化聊天状态。一次 notification 更新只能处理该 notification 影响的 turn、item、message、status 或 tool activity。
+- `eventBuffer` 是 replay/reconnect 所需的有界 tail，不是 active chat surface 每次 render 或 selector 执行时从头遍历的事实源。
+- selectors 可以读取已经物化的 chat state 生成轻量 view model，但不能在 steady-state live path 中反复 fold 全部 snapshot turns 和全部 event buffer。
+- 如果需要从 event log 重建状态，只能发生在 attach、manual reconnect 后重新 attach、thread switch/resume 等明确 replay 场景。
+
+这条约束覆盖 `05/06/08` 后续设计。`05` 可以保留 replay/live material 边界，但必须避免把 live path 实现成 `eventBuffer.map(...)` 后再让 `06` 每次从头 fold timeline。`06a` 的 chat text model 应是 materialized state 或等价的 incremental reducer 结果，而不是纯粹从完整 timeline 重新计算的 selector。
 
 ## 分层拆分
 
@@ -105,6 +123,7 @@ YOLO single-session chat GUI
 ├─ 04 snapshot replay
 ├─ 04a projectionSlice cleanup
 ├─ 05 live event handling
+├─ 05b incremental chat state boundary
 ├─ 06 basic chat surface (design grouping only)
 │  ├─ 06a chat text model
 │  ├─ 06b plain text chat shell
@@ -115,7 +134,7 @@ YOLO single-session chat GUI
 └─ 09 verification and smoke
 ```
 
-当前主线跳过原 `05a streaming readiness` 代码阶段，从 `05 live event handling` 直接进入 `06a chat text model`。`06 basic chat surface` 只是 `06a/06b/06c/06d` 的总设计目录，不是独立实现任务。每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
+当前主线跳过原 `05a streaming readiness` 代码阶段，但不能从 `05 live event handling` 直接进入 UI 接入。必须先补齐 `05b incremental chat state boundary`，明确 notification 如何按条 apply 到物化聊天状态，避免 `06a/06b/06c` 固化 full recompute selector。`06 basic chat surface` 只是 `06a/06b/06c/06d` 的总设计目录，不是独立实现任务。每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
 
 ## 第一阶段：Thread Identity Shell
 
@@ -172,7 +191,9 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 - `turnCompleted`：写入 buffer；只有当 completed turn 匹配当前 active turn 时，才清空 active turn。
 - `itemStarted` / `itemCompleted`：只写入 buffer，不在 `03` 直接 upsert 到 turns/items。
 
-`03` 不解释 item，不派生 chat view model，不触发 replay/live UI 副作用。item interpretation 必须留给 `04 Snapshot Replay` 和 `05 Live Event Handling` 之后的边界。
+`03` 不解释 item，不派生 chat view model，不触发 replay/live UI 副作用。item interpretation 必须留给 `04 Snapshot Replay`、`05 Live Event Handling` 和 `05b Incremental Chat State Boundary` 之后的边界。
+
+`03` 的 buffer 必须有明确生命周期策略。它可以先作为 bounded replay tail 保存 accepted events，但不能成为 active chat surface 每次更新时全量遍历的输入源。若第一版暂不实现本地 cap，必须在后续设计中明确由 projection backpressure 兜底的风险和补 cap 的阶段。
 
 ### 04 Snapshot Replay
 
@@ -188,7 +209,24 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 处理 attach 之后的增量事件，更新 runtime，并维持 active turn / live update / subscription interrupted 状态。
 
+`05` 的 live path 必须按 notification 追加。它可以把 accepted event 转成 typed live input，但不能要求 `06` 在每次 notification 后重新遍历完整 `snapshotReplay + eventBuffer`。如果 `05` 提供 timeline material selector，该 selector 只能用于 replay/debug/focused tests，不能成为 active chat surface 的 steady-state 数据路径。
+
 `closed(backpressure)` 的处理路径必须是进入需要用户手动重连的状态。UI 应显示连接中断或状态已过期，并提供明确的 `Reconnect` 动作；用户触发后才重新 attach，并用新的 attach snapshot 重建 runtime。它不能被呈现为“会话已关闭”的死胡同，也不能默认进入自动重连循环。
+
+### 05b Incremental Chat State Boundary
+
+`05b` 负责定义 GUI 侧等价于 TUI `ChatWidget` 物化状态的浏览器实现边界。它不渲染 React，不实现 composer，不处理 Markdown，也不实现 tool activity UI；它只规定 replay baseline 和 live notification 如何按条更新聊天状态。
+
+状态演进规则：
+
+- accepted attach snapshot：清空旧 chat state，并从 snapshot turns 全量构建一次 baseline。
+- accepted live `turnStarted`：按条建立或标记对应 turn 的运行状态。
+- accepted live `itemStarted`：按条记录后续 tool activity 或 running item 所需的最小状态；普通 user/assistant 文本第一版可以不展示 started。
+- accepted live `itemCompleted`：按条把当前 item 应用到对应 turn，普通 `userMessage` / `agentMessage` 追加成消息，tool item 留给 `08`。
+- accepted live `turnCompleted`：按条更新对应 turn 的完成状态。
+- manual reconnect required：保留当前已物化内容，并追加或更新全局 interrupted status；新的 accepted attach 才重建 baseline。
+
+`05b` 必须有 applied cursor 或等价幂等机制，保证同一个 accepted notification 不会被重复应用。实现可以选择 Redux slice、listener middleware 或其他项目内既有模式，但语义必须是 incremental reducer，而不是 full timeline selector。
 
 ### 05a Streaming Readiness（暂缓）
 
@@ -196,7 +234,7 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 由于 Rust / app-server 的真实 streaming contract 尚未明确，`05a` 不作为当前主线的前端代码阶段推进。仅在 TS 侧提前设计可 append buffer 会把 delta 顺序、重连恢复、最终文本权威性、订阅来源和去重语义都变成猜测，后续接入真实 `item/agentMessage/delta` 时仍可能回头修改 chat model。
 
-当前主线从 `05 Live Event Handling` 直接进入 `06a Chat Text Model`。`06a/06b/06c` 只消费现有 projection snapshot/event 中的完整 `agentMessage` item 文本，按非流式、纯文本方式展示 assistant 回复。
+当前主线从 `05 Live Event Handling` 先进入 `05b Incremental Chat State Boundary`，再进入 `06a Chat Text Model`。`06a/06b/06c` 只消费已经物化的普通聊天状态中的完整 `agentMessage` item 文本，按非流式、纯文本方式展示 assistant 回复。
 
 真实逐字 streaming 应在 Rust / app-server 方案明确后作为独立端到端阶段推进。该阶段需要同时定义后端通知语义和 TS 消费模型，例如：
 
@@ -219,7 +257,9 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
   -> 06d Basic Markdown Rendering
 ```
 
-`06a/06b/06c` 从 runtime/timeline material 派生普通纯文本聊天 view model 和 UI，只覆盖 user message、assistant 完整文本和基础状态行。assistant 文本只读取现有 projection snapshot/event 中完整 `agentMessage.text`，不提前引入可 append buffer 或真实 delta 语义，也不渲染 Markdown。
+`06a/06b/06c` 从 `05b` 物化的聊天状态派生普通纯文本聊天 view model 和 UI，只覆盖 user message、assistant 完整文本和基础状态行。assistant 文本只读取现有 projection snapshot/event 中完整 `agentMessage.text`，不提前引入可 append buffer 或真实 delta 语义，也不渲染 Markdown。
+
+`06a` 不得把 `snapshotReplay materials + liveEvent materials` 作为 steady-state 输入反复全量 fold。若需要保留纯函数 builder，它只能用于 attach/reconnect replay 或测试；active notification path 必须通过 `05b` 的 incremental state 更新。
 
 `06d` 在纯文本链路稳定后单独设计基础 Markdown 渲染。
 
