@@ -35,7 +35,7 @@ It does not modify `threadRuntimeSlice`, `snapshotReplay`, `App.tsx`, the Redux 
 **Files:**
 - Create: `codex-gui/src/features/liveEventHandling/__tests__/liveEventHandling.test.ts`
 
-- [ ] **Step 1: Write the failing live event handling tests**
+- [x] **Step 1: Write the failing live event handling tests**
 
 Create `codex-gui/src/features/liveEventHandling/__tests__/liveEventHandling.test.ts`:
 
@@ -274,7 +274,7 @@ describe("live event handling", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused live event handling test and confirm it fails**
+- [x] **Step 2: Run the focused live event handling test and confirm it fails**
 
 Run from the repo root:
 
@@ -284,7 +284,7 @@ pnpm --dir codex-gui exec vitest --run src/features/liveEventHandling/__tests__/
 
 Expected result: FAIL because `../liveEventHandling` does not exist yet.
 
-- [ ] **Step 3: Keep the failing test uncommitted until implementation**
+- [x] **Step 3: Keep the failing test uncommitted until implementation**
 
 Run:
 
@@ -302,7 +302,7 @@ Expected result: the failing test file is still uncommitted. Do not commit a red
 - Create: `codex-gui/src/features/liveEventHandling/liveEventHandling.ts`
 - Modify: `codex-gui/src/features/liveEventHandling/__tests__/liveEventHandling.test.ts` only if TypeScript narrowing requires local test cleanup.
 
-- [ ] **Step 1: Add the live event handling implementation**
+- [x] **Step 1: Add the live event handling implementation**
 
 Create `codex-gui/src/features/liveEventHandling/liveEventHandling.ts`:
 
@@ -465,7 +465,7 @@ export const selectThreadTimelineMaterials = (state: RootState): TimelineMateria
 ];
 ```
 
-- [ ] **Step 2: Run the focused live event handling test and confirm it passes**
+- [x] **Step 2: Run the focused live event handling test and confirm it passes**
 
 Run:
 
@@ -475,7 +475,7 @@ pnpm --dir codex-gui exec vitest --run src/features/liveEventHandling/__tests__/
 
 Expected result: PASS.
 
-- [ ] **Step 3: Run focused regression tests for dependencies**
+- [x] **Step 3: Run focused regression tests for dependencies**
 
 Run:
 
@@ -486,7 +486,7 @@ pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/sna
 
 Expected result: both suites PASS. These confirm `05` did not change runtime buffering or snapshot replay semantics.
 
-- [ ] **Step 4: Run type check**
+- [x] **Step 4: Run type check**
 
 Run:
 
@@ -496,7 +496,7 @@ pnpm --dir codex-gui run type-check
 
 Expected result: PASS.
 
-- [ ] **Step 5: Format changed frontend files**
+- [x] **Step 5: Format changed frontend files**
 
 Run:
 
@@ -506,7 +506,7 @@ pnpm --dir codex-gui exec prettier --write src/features/liveEventHandling/liveEv
 
 Expected result: Prettier reports the two live event handling files as written.
 
-- [ ] **Step 6: Commit the implementation**
+- [x] **Step 6: Commit the implementation**
 
 Run:
 
@@ -526,7 +526,7 @@ Expected result: one implementation commit that adds the pure selector module an
 - Verify: `codex-gui/src/features/liveEventHandling/__tests__/liveEventHandling.test.ts`
 - Verify: `docs/superpowers/specs/2026-06-07-yoho-single-session-chat/05-live-event-handling/design.md`
 
-- [ ] **Step 1: Run the focused verification suite**
+- [x] **Step 1: Run the focused verification suite**
 
 Run:
 
@@ -539,7 +539,7 @@ pnpm --dir codex-gui run type-check
 
 Expected result: all commands PASS.
 
-- [ ] **Step 2: Run GUI package CI**
+- [x] **Step 2: Run GUI package CI**
 
 Run:
 
@@ -549,7 +549,7 @@ pnpm --dir codex-gui run ci
 
 Expected result: PASS. This is package-level GUI verification for the frontend change, not a repo-wide full test suite.
 
-- [ ] **Step 3: Confirm no UI or runtime reducers were changed**
+- [x] **Step 3: Confirm no UI or runtime reducers were changed**
 
 Run:
 
@@ -574,7 +574,7 @@ codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts
 codex-gui/src/features/snapshotReplay/snapshotReplay.ts
 ```
 
-- [ ] **Step 4: Confirm design scope stayed intact**
+- [x] **Step 4: Confirm design scope stayed intact**
 
 Run:
 
@@ -584,7 +584,7 @@ rg -n "ChatSurface|composer|turn/start|turn/interrupt|markdown|tool activity|rec
 
 Expected result: no matches. `05` must not implement chat view model, composer behavior, reconnect UI, tool activity, or streaming delta handling.
 
-- [ ] **Step 5: Review the committed diff**
+- [x] **Step 5: Review the committed diff**
 
 Run:
 
@@ -601,7 +601,7 @@ Expected result:
 - Snapshot replay materials still come from `selectSnapshotReplayMaterials`.
 - Manual reconnect status is represented as `subscriptionInterrupted` and is not treated as thread close or turn completion.
 
-- [ ] **Step 6: Commit plan completion separately after implementation**
+- [x] **Step 6: Commit plan completion separately after implementation**
 
 After all previous steps pass and the plan checkboxes have been updated, run:
 
@@ -616,9 +616,10 @@ Expected result: one docs-only commit that updates this plan's checkboxes and re
 
 Record implementation results here after executing the plan:
 
-- Focused live event handling test: not run during plan authoring.
-- Focused thread runtime test: not run during plan authoring.
-- Focused snapshot replay test: not run during plan authoring.
-- Type check: not run during plan authoring.
-- GUI package CI: not run during plan authoring.
-- Commits: none created during plan authoring.
+- Focused live event handling test: PASS, `pnpm --dir codex-gui exec vitest --run src/features/liveEventHandling/__tests__/liveEventHandling.test.ts` reported 1 file and 6 tests passed with no type errors.
+- Focused thread runtime test: PASS, `pnpm --dir codex-gui exec vitest --run src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts` reported 1 file and 10 tests passed with no type errors.
+- Focused snapshot replay test: PASS, `pnpm --dir codex-gui exec vitest --run src/features/snapshotReplay/__tests__/snapshotReplay.test.ts` reported 1 file and 5 tests passed with no type errors.
+- Type check: PASS, `pnpm --dir codex-gui run type-check` completed `tsc -b --noEmit`.
+- GUI package CI: PASS, `pnpm --dir codex-gui run ci` completed format, lint, type-check, and test; Vitest reported 8 files and 59 tests passed with no type errors.
+- Implementation commit: `26ed9462f feat(gui): derive live event timeline materials`.
+- Plan completion commit: recorded by this docs-only update.
