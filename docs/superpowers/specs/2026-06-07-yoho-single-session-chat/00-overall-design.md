@@ -2,7 +2,7 @@
 
 ## 目标
 
-把当前 GUI 从连接状态验证面板推进为 YOLO 风格的单会话普通聊天界面。用户通过 TUI 的 `/gui` 打开当前 primary thread 后，可以在 GUI 中查看已有历史、继续发送消息、看到 assistant 流式回复、查看简化 tool activity，并在需要时中断当前 turn。
+把当前 GUI 从连接状态验证面板推进为 YOLO 风格的单会话普通聊天界面。用户通过 TUI 的 `/gui` 打开当前 primary thread 后，可以在 GUI 中查看已有历史、继续发送消息、看到 assistant 回复更新、查看简化 tool activity，并在需要时中断当前 turn。
 
 这个目标必须以 TUI 的真实分层为参考进行 GUI 侧重建。凡是 TUI 已经有明确分层的地方，GUI 只做浏览器环境下的等价实现；只有 TUI 无法直接映射的地方，才做 GUI 侧决策。
 
@@ -45,7 +45,7 @@ TUI 侧已有 `/gui` 命令，负责为 primary thread 生成本地 GUI URL。�
 
 `thread/projection/closed` 当前只有 `backpressure` reason，表示 server 端 fanout 积压导致订阅被强制断开。它不是会话结束，也不是 chat runtime 的终止信号；GUI 收到后应进入需要用户手动重连的状态。用户确认重连后，客户端再重新 attach，并用新的 snapshot 重建 runtime。
 
-Streaming 是已知的后续扩展点。当前 projection event 只覆盖 `turnStarted`、`turnCompleted`、`itemStarted`、`itemCompleted`，不会投影逐字增量的 `item/agentMessage/delta`。因此 projection ingress 与 thread runtime 的边界不能设计成封闭的唯一输入流；它需要容纳将来并联订阅普通 notification 形成第二条输入流，例如 item delta。
+Streaming 是已知的后续扩展点。当前 projection event 只覆盖 `turnStarted`、`turnCompleted`、`itemStarted`、`itemCompleted`，不会投影逐字增量的 `item/agentMessage/delta`。Rust / app-server 侧真实流式传输方案尚未明确，因此第一版 GUI 不提前实现前端-only 的 streaming-ready message model，避免在协议语义确定后返工。projection ingress 与 thread runtime 的边界仍不能设计成封闭的唯一输入流；它需要容纳将来并联订阅普通 notification 形成第二条输入流，例如 item delta。
 
 GUI 不应把 projection 输出直接等同于自己的长期状态模型。projection snapshot/event 进入 GUI 后，下一层应该是 GUI thread runtime，而不是直接从 projection state 派生 chat view model。
 
@@ -78,7 +78,6 @@ TUI /gui launch URL
   -> GUI thread runtime store
   -> snapshot replay
   -> live event handling
-  -> streaming-ready assistant message model
   -> chat surface view model
   -> React UI
 ```
@@ -90,7 +89,6 @@ TUI /gui launch URL
 - thread runtime store 负责保存可 replay/live 处理的 thread runtime 状态。
 - snapshot replay 负责把 attach snapshot 转成初始 UI 状态。
 - live event handling 负责把后续事件应用到当前 runtime。
-- streaming-ready assistant message model 负责把 assistant 文本建模成可增量 append 的 buffer。
 - chat surface view model 只从 runtime 派生展示模型，不直接拥有协议事实。
 - React UI 只渲染 view model 和提交用户操作。
 
@@ -107,14 +105,13 @@ YOLO single-session chat GUI
 ├─ 04 snapshot replay
 ├─ 04a projectionSlice cleanup
 ├─ 05 live event handling
-├─ 05a streaming readiness
 ├─ 06 basic chat surface
 ├─ 07 composer turn control
 ├─ 08 tool activity
 └─ 09 verification and smoke
 ```
 
-每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
+当前主线跳过原 `05a streaming readiness` 代码阶段，从 `05 live event handling` 直接进入 `06 basic chat surface`。每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
 
 ## 第一阶段：Thread Identity Shell
 
@@ -189,15 +186,25 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 `closed(backpressure)` 的处理路径必须是进入需要用户手动重连的状态。UI 应显示连接中断或状态已过期，并提供明确的 `Reconnect` 动作；用户触发后才重新 attach，并用新的 attach snapshot 重建 runtime。它不能被呈现为“会话已关闭”的死胡同，也不能默认进入自动重连循环。
 
-### 05a Streaming Readiness
+### 05a Streaming Readiness（暂缓）
 
-当前 projection 不支持逐字流式：projection event 只包含 turn/item 的 started/completed，逐字增量的 `item/agentMessage/delta` 不会进入 projection。后端 Rust streaming 设计推迟到实现到该处时再补。
+当前 projection 不支持逐字流式：projection event 只包含 turn/item 的 started/completed，逐字增量的 `item/agentMessage/delta` 不会进入 projection。真实 streaming 设计需要在 Rust / app-server contract 明确后单独补充。
 
-GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时整段呈现。但 assistant message 的 view model 必须按可增量 append 的 buffer 建模，而不是只有完成态的整段 final string。这样将来接入 delta 时，UI 和 view model 形状不需要重做。
+由于 Rust / app-server 的真实 streaming contract 尚未明确，`05a` 不作为当前主线的前端代码阶段推进。仅在 TS 侧提前设计可 append buffer 会把 delta 顺序、重连恢复、最终文本权威性、订阅来源和去重语义都变成猜测，后续接入真实 `item/agentMessage/delta` 时仍可能回头修改 chat model。
+
+当前主线从 `05 Live Event Handling` 直接进入 `06 Basic Chat Surface`。`06` 只消费现有 projection snapshot/event 中的完整 `agentMessage` item 文本，按非流式方式展示 assistant 回复。
+
+真实逐字 streaming 应在 Rust / app-server 方案明确后作为独立端到端阶段推进。该阶段需要同时定义后端通知语义和 TS 消费模型，例如：
+
+- delta 走 projection event 还是普通 notification。
+- delta 是否参与 `commitId` / `parentCommitId` 连续性校验。
+- reconnect 后如何用 snapshot 修复丢失的 delta。
+- `itemStarted`、`item/agentMessage/delta`、`itemCompleted` 的顺序、去重和最终文本权威性。
+- delta 是否只覆盖 `agentMessage`，还是也覆盖 reasoning / plan 等文本型 item。
 
 ### 06 Basic Chat Surface
 
-从 runtime 派生普通聊天 view model。只覆盖 user message、assistant text、基础 Markdown 和基础状态行。assistant 文本内部表示使用可 append buffer，渲染层只读取当前 buffer 内容。
+从 runtime 派生普通聊天 view model。只覆盖 user message、assistant text、基础 Markdown 和基础状态行。assistant 文本第一版只读取现有 projection snapshot/event 中完整 `agentMessage.text`，不提前引入可 append buffer 或真实 delta 语义。
 
 ### 07 Composer Turn Control
 
@@ -254,7 +261,6 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 - `04` 只验收 snapshot replay。
 - `04a` 只验收旧 `projectionSlice` 兼容路径清理。
 - `05` 只验收 live event handling。
-- `05a` 只验收 streaming-ready message model，不验收真实 delta 输入。
 - `06` 之后才开始验收聊天展示。
 
 ## 设计原则
@@ -264,6 +270,6 @@ GUI 第一版先按非流式实现：assistant 回复在 item / turn 完成时�
 - 当前 GUI store 是临时调试代码，不作为后续设计依据；其中 commit-chain 连续性校验和重连判定属于协议逻辑，必须迁移保留。
 - `03` 的 runtime store 只做 TUI-aligned buffer 和 active turn tracking；不能把 `projectionSlice` 的 turn/item upsert 行为迁移成新的 truth model。
 - `projectionSlice` 从 `03` 开始必须被切断为临时兼容路径；`04a ProjectionSlice Cleanup` 专门删除这条旧路径，不能让它进入 `05 Live Event Handling` 或 `06 Basic Chat Surface`。
-- 第一版 projection 三件套是输入面起点，不是封闭边界；后续 streaming notification 输入必须能并入同一个 runtime。
+- 第一版 projection 三件套是输入面起点，不是封闭边界；后续 streaming notification 输入必须在 Rust / app-server contract 明确后再并入同一个 runtime。
 - 先做线程，再做事件，再做 replay/live，再做 chat。
 - 每个子设计必须足够小，可以独立实现、独立回退、独立验收。
