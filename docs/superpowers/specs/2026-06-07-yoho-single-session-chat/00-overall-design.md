@@ -12,7 +12,7 @@
 - 启动后必须加载当前会话已有历史。
 - 使用普通聊天模式，不复刻 TUI 的完整 transcript 模式。
 - Composer 第一版只支持纯文本输入、发送和中断。
-- Assistant 消息第一版只支持基础 Markdown：段落、列表、代码块和链接。
+- Assistant 消息分阶段支持：`06a/06b/06c` 先建立纯文本聊天链路，`06d Basic Markdown Rendering` 再单独支持基础 Markdown：段落、列表、代码块和链接。
 - Tool activity 使用简化详情：显示工具名、状态、关键输出片段，并支持展开查看更多。
 - 先不做审核、review、approval、permissions 弹窗或类似控制流。
 
@@ -105,13 +105,17 @@ YOLO single-session chat GUI
 ├─ 04 snapshot replay
 ├─ 04a projectionSlice cleanup
 ├─ 05 live event handling
-├─ 06 basic chat surface
+├─ 06 basic chat surface (design grouping only)
+│  ├─ 06a chat text model
+│  ├─ 06b plain text chat shell
+│  ├─ 06c app integration and browser coverage
+│  └─ 06d basic markdown rendering
 ├─ 07 composer turn control
 ├─ 08 tool activity
 └─ 09 verification and smoke
 ```
 
-当前主线跳过原 `05a streaming readiness` 代码阶段，从 `05 live event handling` 直接进入 `06 basic chat surface`。每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
+当前主线跳过原 `05a streaming readiness` 代码阶段，从 `05 live event handling` 直接进入 `06a chat text model`。`06 basic chat surface` 只是 `06a/06b/06c/06d` 的总设计目录，不是独立实现任务。每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
 
 ## 第一阶段：Thread Identity Shell
 
@@ -192,7 +196,7 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 由于 Rust / app-server 的真实 streaming contract 尚未明确，`05a` 不作为当前主线的前端代码阶段推进。仅在 TS 侧提前设计可 append buffer 会把 delta 顺序、重连恢复、最终文本权威性、订阅来源和去重语义都变成猜测，后续接入真实 `item/agentMessage/delta` 时仍可能回头修改 chat model。
 
-当前主线从 `05 Live Event Handling` 直接进入 `06 Basic Chat Surface`。`06` 只消费现有 projection snapshot/event 中的完整 `agentMessage` item 文本，按非流式方式展示 assistant 回复。
+当前主线从 `05 Live Event Handling` 直接进入 `06a Chat Text Model`。`06a/06b/06c` 只消费现有 projection snapshot/event 中的完整 `agentMessage` item 文本，按非流式、纯文本方式展示 assistant 回复。
 
 真实逐字 streaming 应在 Rust / app-server 方案明确后作为独立端到端阶段推进。该阶段需要同时定义后端通知语义和 TS 消费模型，例如：
 
@@ -204,7 +208,20 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 ### 06 Basic Chat Surface
 
-从 runtime 派生普通聊天 view model。只覆盖 user message、assistant text、基础 Markdown 和基础状态行。assistant 文本第一版只读取现有 projection snapshot/event 中完整 `agentMessage.text`，不提前引入可 append buffer 或真实 delta 语义。
+`06 Basic Chat Surface` 是 `06a/06b/06c/06d` 的总设计分组，不是独立实现任务。不存在单独的 `06` plan 或 `06` implementation。
+
+推进顺序固定为：
+
+```text
+06a Chat Text Model
+  -> 06b Plain Text Chat Shell
+  -> 06c App Integration And Browser Coverage
+  -> 06d Basic Markdown Rendering
+```
+
+`06a/06b/06c` 从 runtime/timeline material 派生普通纯文本聊天 view model 和 UI，只覆盖 user message、assistant 完整文本和基础状态行。assistant 文本只读取现有 projection snapshot/event 中完整 `agentMessage.text`，不提前引入可 append buffer 或真实 delta 语义，也不渲染 Markdown。
+
+`06d` 在纯文本链路稳定后单独设计基础 Markdown 渲染。
 
 ### 07 Composer Turn Control
 
@@ -233,7 +250,7 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 消息列表按普通聊天产品展示：
 
 - User message：用户消息。
-- Assistant message：assistant 文本，支持基础 Markdown。
+- Assistant message：assistant 文本；`06a/06b/06c` 先按纯文本展示，`06d` 再支持基础 Markdown。
 - Tool activity：嵌入 assistant 区域的活动块，默认显示简化详情。
 - Error/status：轻量提示行，不进入复杂 transcript 样式。
 
@@ -245,7 +262,7 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 - 从 TUI 运行 `/gui` 打开的 GUI 能显示当前会话已有历史。
 - 用户可以在 GUI 输入普通文本并发送到当前会话。
-- Assistant 回复能在 GUI 中更新，并以基础 Markdown 呈现。
+- Assistant 回复能在 GUI 中更新；`06a/06b/06c` 先以纯文本呈现，`06d` 后以基础 Markdown 呈现。
 - 当前 turn 运行时，用户可以点击 Stop 发起中断。
 - 至少一种 tool activity 能以简化详情展示，并可展开查看更多内容。
 - 历史消息很长时，顶部会话状态区和底部 composer / Stop 控制仍然固定可见；滚动发生在全局页面 / window，而不是发生在内部消息列表容器。
@@ -261,7 +278,10 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 - `04` 只验收 snapshot replay。
 - `04a` 只验收旧 `projectionSlice` 兼容路径清理。
 - `05` 只验收 live event handling。
-- `06` 之后才开始验收聊天展示。
+- `06a` 之后才开始验收聊天 text model。
+- `06b` 之后才开始验收纯文本聊天 shell。
+- `06c` 之后才验收 App 集成后的纯文本聊天界面。
+- `06d` 之后才验收基础 Markdown 渲染。
 
 ## 设计原则
 
