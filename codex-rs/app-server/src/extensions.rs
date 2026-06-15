@@ -39,6 +39,7 @@ pub(crate) struct ThreadExtensionDependencies {
     pub(crate) thread_manager: Weak<ThreadManager>,
     pub(crate) goal_service: Arc<GoalService>,
     pub(crate) executor_skill_provider: Arc<dyn codex_skills_extension::SkillProvider>,
+    pub(crate) gui_launch_service: Arc<AppServerGuiLaunchService>,
     /// Process-scoped persistence backend for extensions that need stored thread history.
     pub(crate) thread_store: Arc<dyn ThreadStore>,
 }
@@ -46,7 +47,6 @@ pub(crate) struct ThreadExtensionDependencies {
 pub(crate) fn thread_extensions<S>(
     guardian_agent_spawner: S,
     dependencies: ThreadExtensionDependencies,
-    gui_launch_service: Arc<AppServerGuiLaunchService>,
 ) -> Arc<ExtensionRegistry<Config>>
 where
     S: AgentSpawner<StartThreadOptions, Spawned = NewThread, Error = CodexErr> + 'static,
@@ -59,6 +59,7 @@ where
         thread_manager,
         goal_service,
         executor_skill_provider,
+        gui_launch_service,
         thread_store: _thread_store,
     } = dependencies;
     let mut builder = ExtensionRegistryBuilder::<Config>::with_event_sink(event_sink);
