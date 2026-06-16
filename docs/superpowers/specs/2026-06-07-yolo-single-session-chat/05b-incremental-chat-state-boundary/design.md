@@ -57,7 +57,9 @@ type IncrementalChatState = {
 
 第一版可以手写 normalized shape，不强制使用 `createEntityAdapter`。如果后续 turns/messages 操作增长，再考虑把部分集合迁移到 adapter。
 
-Render-ready ordered view、streaming tail、Markdown render cache 等属于 `06` 之后的 chat surface / transient UI material 边界。它们可以由 selector、React state 或后续专门 UI state owner 管理，但不能反向替代 `05b` 的 chat facts owner。
+`05b` 可以维护 reducer-time read model cache，例如 `turnViews` 和索引表，用来避免 selector 每次从 `turnOrder + messagesByTurnId + messagesById` 重建完整 turn view。这个 cache 必须和 normalized facts 在同一个 reducer helper 中原子更新，不能成为第二套独立事实源。
+
+Render-ready UI object、streaming tail、Markdown render cache 等仍属于 `06` 之后的 chat surface / transient UI material 边界。它们可以由 React state 或后续专门 UI state owner 管理，但不能反向替代 `05b` 的 chat facts owner。
 
 **决策 6：第一版 rebuild 只发生在 attach / manual reconnect 后 attach**
 
@@ -230,7 +232,7 @@ Selectors 可以按 `turnOrder` 和 `messagesByTurnId` 组装轻量 view，但�
 
 `06a` 只能消费这些 selectors 或 `05b` 导出的等价 view builder，不能 import `liveEventHandling` 的 `TimelineMaterial` 作为长期输入。
 
-Selectors 可以返回 ordered turn views，但这些 views 是读取接口，不是 `05b` 的 canonical stored facts。若后续 profiling 证明 selector 组装 turn views 仍然成为瓶颈，应新增 chat surface/transcript state owner 来维护 render-ready material，而不是把 UI view object 下沉成 chat projection facts。
+`selectIncrementalChatTurns` 必须返回 reducer 已维护好的 read model。它不能在每次 selector 调用时遍历所有 turns/messages 来重新组装 `IncrementalChatTurnView[]`。若后续需要真正 render-ready cells、streaming tail 或 Markdown cache，应在 chat surface/transcript 边界新增 owner，而不是把 UI object 混入 `05b` facts。
 
 ## TUI Alignment
 
@@ -276,7 +278,8 @@ TUI replay path 是重建 `ChatWidget` 后 replay snapshot turns 和 filtered bu
 - live `itemStarted` 不生成普通聊天 message。
 - 非聊天 item 第一版不生成普通聊天 message。
 - selectors 从 prepared chat facts 生成轻量 view，不读取 `snapshotTurns + eventBuffer` full fold。
-- render-ready ordered view 不作为 `05b` canonical Redux state。
+- `selectIncrementalChatTurns` 直接返回 reducer-maintained read model，不从 normalized maps 重新 materialize。
+- render-ready UI objects 和 streaming tail 不作为 `05b` canonical Redux state。
 - `06a` 的设计和计划改为消费 `05b` selectors。
 
 ## Focused Verification
