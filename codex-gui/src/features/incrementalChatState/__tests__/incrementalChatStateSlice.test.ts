@@ -328,6 +328,35 @@ describe("incremental chat state reducer", () => {
     ] satisfies IncrementalChatTurnView[]);
   });
 
+  it("keeps applied event id dedupe state bounded", () => {
+    let state = incrementalChatStateSlice.reducer(
+      undefined,
+      threadRuntimeAttached(attachWithTurns([])),
+    );
+
+    for (let index = 0; index < 501; index += 1) {
+      const indexText = String(index);
+
+      state = incrementalChatStateSlice.reducer(
+        state,
+        threadRuntimeEventBuffered(
+          itemCompleted(
+            `commit-window-${indexText}`,
+            `turn-window-${indexText}`,
+            agentMessage(`agent-window-${indexText}`, `Window ${indexText}`),
+          ),
+        ),
+      );
+    }
+
+    expect(state.appliedEventOrder).toHaveLength(500);
+    expect(state.appliedEventOrder[0]).toBe("commit-window-1");
+    expect(state.appliedEventOrder.at(-1)).toBe("commit-window-500");
+    expect(state.appliedEventIdsById["commit-window-0"]).toBeUndefined();
+    expect(state.appliedEventIdsById["commit-window-1"]).toBe(true);
+    expect(state.appliedEventIdsById["commit-window-500"]).toBe(true);
+  });
+
   it("updates an existing message id without duplicating turn order", () => {
     const store = makeStore();
 
