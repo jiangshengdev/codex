@@ -368,7 +368,12 @@ describe("incremental chat state reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns([])));
     store.dispatch(
-      threadRuntimeEventBuffered(turnStarted("commit-start-done", baseTurn("turn-done", []))),
+      threadRuntimeEventBuffered(
+        turnStarted("commit-start-done", {
+          ...baseTurn("turn-done", []),
+          status: "inProgress" as const,
+        }),
+      ),
     );
     store.dispatch(
       threadRuntimeEventBuffered(turnCompleted("commit-complete-done", completedTurn)),
@@ -538,6 +543,140 @@ describe("incremental chat state reducer", () => {
             turnId: "turn-selector",
             role: "assistant",
             text: "Selector assistant",
+          },
+        ],
+      },
+    ] satisfies IncrementalChatTurnView[]);
+  });
+
+  it("returns the prepared turn read model without rebuilding on repeated selector calls", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns([
+          baseTurn("turn-read-model", [
+            userMessage("user-read-model", [textInput("Read model user")]),
+            agentMessage("agent-read-model", "Read model assistant"),
+          ]),
+        ]),
+      ),
+    );
+
+    const firstSelectedTurns = selectIncrementalChatTurns(store.getState());
+    const secondSelectedTurns = selectIncrementalChatTurns(store.getState());
+
+    expect(secondSelectedTurns).toBe(firstSelectedTurns);
+    expect(secondSelectedTurns).toStrictEqual([
+      {
+        id: "turn-read-model",
+        status: "completed",
+        messages: [
+          {
+            id: "user-read-model",
+            turnId: "turn-read-model",
+            role: "user",
+            text: "Read model user",
+          },
+          {
+            id: "agent-read-model",
+            turnId: "turn-read-model",
+            role: "assistant",
+            text: "Read model assistant",
+          },
+        ],
+      },
+    ] satisfies IncrementalChatTurnView[]);
+  });
+
+  it("does not rebuild the turn read model for manual reconnect status updates", () => {
+    const store = makeStore();
+    const attachWithChat = attachWithTurns([
+      baseTurn("turn-before-status", [agentMessage("agent-before-status", "Before status")]),
+    ]);
+
+    store.dispatch(threadRuntimeAttached(attachWithChat));
+
+    const beforeStatusTurns = selectIncrementalChatTurns(store.getState());
+
+    store.dispatch(
+      threadRuntimeManualReconnectRequired({
+        reason: "backpressure",
+        threadId: attachWithChat.snapshot.thread.id,
+        subscriptionId: attachWithChat.subscriptionId,
+      }),
+    );
+
+    const afterStatusTurns = selectIncrementalChatTurns(store.getState());
+
+    expect(afterStatusTurns).toBe(beforeStatusTurns);
+    expect(selectIncrementalChatGlobalStatus(store.getState())).toStrictEqual([
+      {
+        id: `subscriptionInterrupted:${attachWithChat.snapshot.thread.id}:${attachWithChat.subscriptionId}:backpressure`,
+        status: "subscriptionInterrupted",
+        reason: "backpressure",
+        subscriptionId: attachWithChat.subscriptionId,
+      },
+    ]);
+  });
+
+  it("preserves unaffected turn view objects when appending a message to another turn", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns([
+          baseTurn("turn-stable", [agentMessage("agent-stable", "Stable")]),
+          baseTurn("turn-target", [agentMessage("agent-target-before", "Before")]),
+        ]),
+      ),
+    );
+
+    const beforeAppendTurns = selectIncrementalChatTurns(store.getState());
+    const stableTurnBeforeAppend = beforeAppendTurns[0];
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-target-append",
+          "turn-target",
+          agentMessage("agent-target-after", "After"),
+        ),
+      ),
+    );
+
+    const afterAppendTurns = selectIncrementalChatTurns(store.getState());
+
+    expect(afterAppendTurns).not.toBe(beforeAppendTurns);
+    expect(afterAppendTurns[0]).toBe(stableTurnBeforeAppend);
+    expect(afterAppendTurns).toStrictEqual([
+      {
+        id: "turn-stable",
+        status: "completed",
+        messages: [
+          {
+            id: "agent-stable",
+            turnId: "turn-stable",
+            role: "assistant",
+            text: "Stable",
+          },
+        ],
+      },
+      {
+        id: "turn-target",
+        status: "completed",
+        messages: [
+          {
+            id: "agent-target-before",
+            turnId: "turn-target",
+            role: "assistant",
+            text: "Before",
+          },
+          {
+            id: "agent-target-after",
+            turnId: "turn-target",
+            role: "assistant",
+            text: "After",
           },
         ],
       },
