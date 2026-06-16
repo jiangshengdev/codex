@@ -88,13 +88,31 @@ snapshot 的初始化成本高于必要值。
 接 chat 列表 selector。但它是明显的后续接入陷阱,需要在进入 `06a/06b` UI 接入前切断或
 标注为 replay/debug-only。
 
-## 建议方向
+## 已选择方向
 
-- 将 `appliedEventIds` 的去重从无界数组扫描改为常数级查找或有界 cursor 机制。
-  - 若 Redux state 需要保持完全 serializable,可以维护 `appliedEventIdsById:
-    Record<string, true>` 与有界顺序数组组合。
-  - 如果 commit chain 已经保证严格递增且 duplicate 只需防当前/近期 replay,也可以重新评估
-    是否需要保留全量历史 commit id。
+针对 `appliedEventIds` 问题,采用 `Record` 查重表 + 有界顺序数组:
+
+```ts
+appliedEventIdsById: Record<string, true>;
+appliedEventOrder: string[];
+```
+
+选择原因:
+
+- 查重从 `Array.includes(...)` 的 O(N) 改为对象属性读取的 O(1)。
+- Redux state 继续保持普通 serializable object/array,不引入 `Set`。
+- 顺序数组只用于 eviction,不再承担 membership check。
+- cap 建议先与 `threadRuntime.eventBuffer` 对齐为 500。
+
+语义边界:
+
+- 这是 `incrementalChatStateSlice` 的 reducer 幂等窗口,不是协议级完整历史去重。
+- 窗口外旧 commit 如果再次被 dispatch,该 slice 不保证继续拦截。
+- 正常 projection 输入路径的 commit chain / stale subscription / duplicate 判断仍由
+  `ProjectionIngressAdapter` 负责。
+
+后续仍需单独评估:
+
 - 为 `turnOrder` 增加配套 index/fact,避免用顺序数组承担 membership check。
 - 为 `messagesByTurnId` 增加 per-turn membership fact,或在 upsert 时优先依赖
   `messagesById` / view index 来判断是否已存在。
