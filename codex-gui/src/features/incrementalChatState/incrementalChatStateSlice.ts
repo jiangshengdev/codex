@@ -163,6 +163,7 @@ const materializeItem = (item: ThreadItem, turnId: string): IncrementalChatMessa
     case "mcpToolCall":
     case "dynamicToolCall":
     case "collabAgentToolCall":
+    case "subAgentActivity":
     case "webSearch":
     case "imageView":
     case "imageGeneration":
