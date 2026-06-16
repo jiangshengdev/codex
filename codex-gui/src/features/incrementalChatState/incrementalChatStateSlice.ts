@@ -39,6 +39,9 @@ export type IncrementalChatState = {
   turnOrder: string[];
   messagesById: Record<string, IncrementalChatMessage>;
   messagesByTurnId: Record<string, string[]>;
+  turnViews: IncrementalChatTurnView[];
+  turnViewIndexById: Record<string, number>;
+  messageViewIndexById: Record<string, { turnId: string; index: number }>;
   globalStatus: IncrementalChatGlobalStatus[];
   appliedEventIds: string[];
 };
@@ -50,6 +53,9 @@ const initialState: IncrementalChatState = {
   turnOrder: [],
   messagesById: {},
   messagesByTurnId: {},
+  turnViews: [],
+  turnViewIndexById: {},
+  messageViewIndexById: {},
   globalStatus: [],
   appliedEventIds: [],
 };
@@ -61,6 +67,9 @@ const createEmptyState = (): IncrementalChatState => ({
   turnOrder: [],
   messagesById: {},
   messagesByTurnId: {},
+  turnViews: [],
+  turnViewIndexById: {},
+  messageViewIndexById: {},
   globalStatus: [],
   appliedEventIds: [],
 });
@@ -72,13 +81,38 @@ const resetState = (state: IncrementalChatState, nextState: IncrementalChatState
   state.turnOrder = nextState.turnOrder;
   state.messagesById = nextState.messagesById;
   state.messagesByTurnId = nextState.messagesByTurnId;
+  state.turnViews = nextState.turnViews;
+  state.turnViewIndexById = nextState.turnViewIndexById;
+  state.messageViewIndexById = nextState.messageViewIndexById;
   state.globalStatus = nextState.globalStatus;
   state.appliedEventIds = nextState.appliedEventIds;
+};
+
+const syncTurnView = (state: IncrementalChatState, turn: IncrementalChatTurn) => {
+  const existingIndex = state.turnViewIndexById[turn.id];
+  if (existingIndex != null) {
+    const existingView = state.turnViews[existingIndex];
+    if (existingView != null && existingView.status !== turn.status) {
+      state.turnViews[existingIndex] = {
+        ...existingView,
+        status: turn.status,
+      };
+    }
+    return;
+  }
+
+  state.turnViewIndexById[turn.id] = state.turnViews.length;
+  state.turnViews.push({
+    id: turn.id,
+    status: turn.status,
+    messages: [],
+  });
 };
 
 const ensureTurnExists = (state: IncrementalChatState, turnId: string): IncrementalChatTurn => {
   const existingTurn = state.turnsById[turnId];
   if (existingTurn != null) {
+    syncTurnView(state, existingTurn);
     return existingTurn;
   }
 
@@ -90,23 +124,107 @@ const ensureTurnExists = (state: IncrementalChatState, turnId: string): Incremen
   if (!state.turnOrder.includes(turnId)) {
     state.turnOrder.push(turnId);
   }
+  syncTurnView(state, turn);
   return turn;
 };
 
 const upsertTurnFromPayload = (state: IncrementalChatState, turn: Turn) => {
   const existingTurn = state.turnsById[turn.id];
   if (existingTurn == null) {
-    state.turnsById[turn.id] = {
+    const nextTurn: IncrementalChatTurn = {
       id: turn.id,
       status: turn.status,
     };
+    state.turnsById[turn.id] = nextTurn;
     if (!state.turnOrder.includes(turn.id)) {
       state.turnOrder.push(turn.id);
     }
+    syncTurnView(state, nextTurn);
     return;
   }
 
   existingTurn.status = turn.status;
+  syncTurnView(state, existingTurn);
+};
+
+const removeMessageFromTurnView = (
+  state: IncrementalChatState,
+  messageId: string,
+  turnId: string,
+) => {
+  const turnViewIndex = state.turnViewIndexById[turnId];
+  if (turnViewIndex == null) {
+    return;
+  }
+
+  const turnView = state.turnViews[turnViewIndex];
+  if (turnView == null) {
+    return;
+  }
+
+  const messageViewIndex = state.messageViewIndexById[messageId];
+  if (messageViewIndex?.turnId !== turnId) {
+    return;
+  }
+
+  const messages = turnView.messages.filter((message) => message.id !== messageId);
+  state.turnViews[turnViewIndex] = {
+    ...turnView,
+    messages,
+  };
+
+  const remainingMessageViewIndexById = { ...state.messageViewIndexById };
+  Reflect.deleteProperty(remainingMessageViewIndexById, messageId);
+  state.messageViewIndexById = remainingMessageViewIndexById;
+
+  for (const [index, message] of messages.entries()) {
+    state.messageViewIndexById[message.id] = {
+      turnId,
+      index,
+    };
+  }
+};
+
+const upsertMessageIntoTurnView = (
+  state: IncrementalChatState,
+  message: IncrementalChatMessage,
+) => {
+  ensureTurnExists(state, message.turnId);
+
+  const turnViewIndex = state.turnViewIndexById[message.turnId];
+  if (turnViewIndex == null) {
+    return;
+  }
+
+  const turnView = state.turnViews[turnViewIndex];
+  if (turnView == null) {
+    return;
+  }
+
+  const existingMessageIndex = state.messageViewIndexById[message.id];
+  if (existingMessageIndex?.turnId === message.turnId) {
+    const messages = [...turnView.messages];
+    messages[existingMessageIndex.index] = message;
+    state.turnViews[turnViewIndex] = {
+      ...turnView,
+      messages,
+    };
+    return;
+  }
+
+  if (existingMessageIndex != null) {
+    removeMessageFromTurnView(state, message.id, existingMessageIndex.turnId);
+  }
+
+  const messages = [...turnView.messages, message];
+  state.turnViews[turnViewIndex] = {
+    ...turnView,
+    messages,
+  };
+  state.messageViewIndexById[message.id] = {
+    turnId: message.turnId,
+    index: messages.length - 1,
+  };
 };
 
 const upsertMessage = (state: IncrementalChatState, message: IncrementalChatMessage) => {
@@ -127,6 +245,7 @@ const upsertMessage = (state: IncrementalChatState, message: IncrementalChatMess
     turnMessages.push(message.id);
   }
   state.messagesByTurnId[message.turnId] = turnMessages;
+  upsertMessageIntoTurnView(state, message);
 };
 
 const materializeItem = (item: ThreadItem, turnId: string): IncrementalChatMessage | null => {
@@ -221,26 +340,7 @@ export const incrementalChatStateSlice = createAppSlice({
   reducers: () => ({}),
   selectors: {
     selectIncrementalChatTurns: (incrementalChatState): IncrementalChatTurnView[] =>
-      incrementalChatState.turnOrder.flatMap((turnId) => {
-        const turn = incrementalChatState.turnsById[turnId];
-        if (turn == null) {
-          return [];
-        }
-
-        const messageIds = incrementalChatState.messagesByTurnId[turnId] ?? [];
-        const messages = messageIds.flatMap((messageId) => {
-          const message = incrementalChatState.messagesById[messageId];
-          return message == null ? [] : [message];
-        });
-
-        return [
-          {
-            id: turn.id,
-            status: turn.status,
-            messages,
-          },
-        ];
-      }),
+      incrementalChatState.turnViews,
     selectIncrementalChatGlobalStatus: (incrementalChatState) => incrementalChatState.globalStatus,
     selectIncrementalChatIsInterrupted: (incrementalChatState) =>
       incrementalChatState.globalStatus.length > 0,
