@@ -368,7 +368,12 @@ describe("incremental chat state reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns([])));
     store.dispatch(
-      threadRuntimeEventBuffered(turnStarted("commit-start-done", baseTurn("turn-done", []))),
+      threadRuntimeEventBuffered(
+        turnStarted("commit-start-done", {
+          ...baseTurn("turn-done", []),
+          status: "inProgress" as const,
+        }),
+      ),
     );
     store.dispatch(
       threadRuntimeEventBuffered(turnCompleted("commit-complete-done", completedTurn)),
