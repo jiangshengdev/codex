@@ -453,6 +453,7 @@ jobs:
       profile: ci-test
       artifact_id: linux-x64-remote
       remote_env: true
+      cargo_build_jobs: 2
       use_sccache: true
     secrets: inherit
 
