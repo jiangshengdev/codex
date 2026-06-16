@@ -122,6 +122,7 @@ const messageEntryFromThreadItem = (item: ThreadItem): ChatTextMessageEntry | nu
     case "mcpToolCall":
     case "dynamicToolCall":
     case "collabAgentToolCall":
+    case "subAgentActivity":
     case "webSearch":
     case "imageView":
     case "imageGeneration":
