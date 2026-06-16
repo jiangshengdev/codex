@@ -111,9 +111,40 @@ appliedEventOrder: string[];
 - 正常 projection 输入路径的 commit chain / stale subscription / duplicate 判断仍由
   `ProjectionIngressAdapter` 负责。
 
+针对 `turnOrder.includes(...)` 问题,采用删除冗余 membership scan 的方案,不新增
+`turnOrderIndexById`:
+
+```ts
+const existingTurn = state.turnsById[turnId];
+if (existingTurn != null) {
+  syncTurnView(state, existingTurn);
+  return existingTurn;
+}
+
+state.turnsById[turnId] = turn;
+state.turnOrder.push(turnId);
+```
+
+选择原因:
+
+- `turnsById` 已经是 turn membership 的 canonical fact。
+- `ensureTurnExists` 和 `upsertTurnFromPayload` 都是在 `turnsById[id]` 不存在时才进入
+  push 分支,所以 `turnOrder.includes(...)` 是重复防御。
+- 删除 `includes` 后,attach / reconnect snapshot rebuild 不再对每个新 turn 扫描已有
+  `turnOrder`,整体从潜在 O(T^2) 回到 O(T)。
+- 不新增 `turnOrderIndexById`,避免让 `turnOrder`、`turnsById`、`turnViewIndexById` 之外
+  再多一个需要同步维护的重复事实。
+
+语义边界:
+
+- `turnOrder` 只保存展示顺序,不承担 membership check。
+- `turnOrder` 必须继续只通过 `ensureTurnExists` / `upsertTurnFromPayload` 这类 helper 维护;
+  不允许外部直接写入并绕过 `turnsById`。
+- 回归测试应证明 snapshot rebuild 不再为了 turn id 调用数组 membership scan,同时保持
+  `selectIncrementalChatTurns` 输出顺序不变。
+
 后续仍需单独评估:
 
-- 为 `turnOrder` 增加配套 index/fact,避免用顺序数组承担 membership check。
 - 为 `messagesByTurnId` 增加 per-turn membership fact,或在 upsert 时优先依赖
   `messagesById` / view index 来判断是否已存在。
 - 明确 `selectChatTextModel` / `selectThreadTimelineMaterials` 是 legacy 或 replay/debug-only;
