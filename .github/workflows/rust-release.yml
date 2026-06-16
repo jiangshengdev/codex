@@ -1252,7 +1252,6 @@ jobs:
   publish-dotslash:
     name: publish-dotslash
     needs: release
-    if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -1262,21 +1261,24 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+      - if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
+        uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag: ${{ github.ref_name }}
           config: .github/dotslash-config.json
 
-      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+      - if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
+        uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag: ${{ github.ref_name }}
           config: .github/dotslash-zsh-config.json
 
-      - uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
+      - if: ${{ env.IS_UPSTREAM_REPO == 'true' }}
+        uses: facebook/dotslash-publish-release@9c9ec027515c34db9282a09a25a9cab5880b2c52 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
