@@ -144,9 +144,7 @@ const ensureTurnExists = (state: IncrementalChatState, turnId: string): Incremen
     status: "inProgress",
   };
   state.turnsById[turnId] = turn;
-  if (!state.turnOrder.includes(turnId)) {
-    state.turnOrder.push(turnId);
-  }
+  state.turnOrder.push(turnId);
   syncTurnView(state, turn);
   return turn;
 };
@@ -159,9 +157,7 @@ const upsertTurnFromPayload = (state: IncrementalChatState, turn: Turn) => {
       status: turn.status,
     };
     state.turnsById[turn.id] = nextTurn;
-    if (!state.turnOrder.includes(turn.id)) {
-      state.turnOrder.push(turn.id);
-    }
+    state.turnOrder.push(turn.id);
     syncTurnView(state, nextTurn);
     return;
   }
