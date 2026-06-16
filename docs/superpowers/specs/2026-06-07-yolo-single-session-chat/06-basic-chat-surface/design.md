@@ -6,7 +6,7 @@
 
 不存在单独的 `06` plan，也不存在单独的 `06` implementation。后续实施必须从 `06a Chat Text Model` 开始，并按 `06a -> 06b -> 06c -> 06d` 严格串行推进。
 
-`06a/06b/06c` 的目标是把 `05b Incremental Chat State Boundary` 已经物化的聊天状态推进为第一版纯文本普通聊天界面。`06d` 才单独设计基础 Markdown 渲染。
+`06a/06b/06c` 的目标是把 `05b Incremental Chat State Boundary` 已经维护好的 prepared chat facts 推进为第一版纯文本普通聊天界面。`06d` 才单独设计基础 Markdown 渲染。
 
 ## 当前基线
 
@@ -34,7 +34,7 @@ snapshotReplay materials
 
 **决策 1：`06a/06b/06c` 纯文本，`06d` 专门做 Markdown**
 
-`06a/06b/06c` 只展示纯文本 user / assistant 消息和轻量状态。Assistant 文本来自 `05b` 已物化的完整 `agentMessage.text`，Markdown 语法按普通纯文本显示。
+`06a/06b/06c` 只展示纯文本 user / assistant 消息和轻量状态。Assistant 文本来自 `05b` prepared chat facts 中的完整 `agentMessage.text`，Markdown 语法按普通纯文本显示。
 
 基础 Markdown 渲染由 `06d Basic Markdown Rendering` 单独设计，不进入 `06a/06b/06c` 的验收口径。
 
@@ -91,7 +91,7 @@ snapshotReplay materials
 
 - 从 `05b` incremental chat state selectors 派生普通聊天可消费的纯文本 model。
 - 只建立 user / assistant 纯文本消息和轻量状态行的模型边界。
-- 保留 `05b` 已物化的 turn/message ordering，不重新按 timestamp 排序。
+- 保留 `05b` 已维护的 turn/message ordering，不重新按 timestamp 排序。
 
 非目标：
 

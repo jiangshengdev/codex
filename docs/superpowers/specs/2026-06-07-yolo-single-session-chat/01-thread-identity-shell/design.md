@@ -104,7 +104,8 @@ commit id、subscription id 或其他 projection 内容。
   可消费的输入，并处理 commit-chain、missing turn、backpressure reattach 等协议逻辑。
 - `03 Thread Runtime Store` 负责保存 session、turns、buffer、active turn 和 runtime
   状态。
-- `06 Basic Chat Surface` 才负责把 runtime 派生成普通聊天 view model 和 UI。
+- `05b Incremental Chat State Boundary` 才负责维护 prepared chat facts；`06 Basic Chat Surface`
+  才负责把 prepared facts 推进为普通聊天 view model 和 UI。
 
 因此，`01` 不能把 projection snapshot 直接当成 GUI 状态模型，也不能提前定义 chat UI
 或 composer 行为。

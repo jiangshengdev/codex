@@ -1,5 +1,9 @@
 # Chat Text Model Implementation Plan
 
+> **状态：已作废（2026-06-16）。禁止按此计划实施。**
+>
+> 作废原因：本计划把 `06a` 设计为从 `selectThreadTimelineMaterials(state)` / `TimelineMaterial` 派生 chat text model；新的架构决策要求 active chat surface 只能消费 chat projection prepared state，不能依赖 `TimelineMaterial`、`eventBuffer` 或 `snapshotTurns`。此文件仅保留历史记录，新 `06a` plan 需要重写。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a `chatTextModel` GUI feature module that derives a turn-grouped pure text chat model from `selectThreadTimelineMaterials(state)`.

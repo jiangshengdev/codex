@@ -213,4 +213,4 @@ pnpm --dir codex-gui run type-check
 
 `05 Live Event Handling` 才开始消费 `threadRuntime.eventBuffer`，并建立 live material / live handling path。`04a` 只负责保证旧 `projectionSlice` truth model 已清出主线。
 
-`06 Basic Chat Surface` 才把 replay/live material 派生成普通聊天 view model。`04a` 不提前决定 user message、assistant message、status row 或 tool activity 的最终展示。
+`05b Incremental Chat State Boundary` 才把 attach baseline 和 accepted live notification 应用成 prepared chat facts。`06 Basic Chat Surface` 只消费这些 prepared facts 和相邻 runtime status。`04a` 不提前决定 user message、assistant message、status row 或 tool activity 的最终展示。

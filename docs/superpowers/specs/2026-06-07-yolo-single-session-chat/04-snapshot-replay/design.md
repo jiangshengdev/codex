@@ -217,7 +217,7 @@ terminal status 是：
 
 `06 Basic Chat Surface`：
 
-- 06 才把 replay/live material 派生成普通聊天 view model。
+- 06 只消费 `05b` prepared chat facts 和相邻 runtime status，不消费 replay/live material 作为 steady-state 输入。
 - 04 不决定 user message、assistant message、status row 或 tool activity 的最终展示。
 
 `08 Tool Activity`：

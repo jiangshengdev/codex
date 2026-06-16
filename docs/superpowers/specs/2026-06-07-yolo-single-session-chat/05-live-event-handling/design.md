@@ -71,7 +71,7 @@ Live material 与 `04 Snapshot Replay` 的 material 保持同一语义层级，�
 
 `05` 可以保留 replay + live 的组合 selector，用于 focused tests、debug 或明确 replay material inspection。
 
-该 selector 不属于 active chat surface 的长期数据路径。`06a Chat Text Model` 必须改为消费 `05b` 的物化聊天状态 selectors，而不是消费 `selectThreadTimelineMaterials(state)`。
+该 selector 不属于 active chat surface 的长期数据路径。`06a Chat Text Model` 必须改为消费 `05b` 的 prepared chat facts selectors，而不是消费 `selectThreadTimelineMaterials(state)`。
 
 ## 当前基线
 
@@ -121,7 +121,7 @@ ThreadEventStore.snapshot()
   -> handle_thread_event_replay(snapshot.events, ThreadSnapshot)
 ```
 
-GUI 的 `05` 只覆盖 `ThreadEventStore.buffer` 到 typed material 的数据解释前置层。GUI 还必须补 `05b`，作为浏览器侧等价 `ChatWidget` 的物化增量状态边界。
+GUI 的 `05` 只覆盖 `ThreadEventStore.buffer` 到 typed material 的数据解释前置层。GUI 还必须补 `05b`，作为浏览器侧 active chat facts owner。`05b` 只对齐 `ChatWidget` 按条处理 notification 的 chat fact materialization subset，不承载完整 render-ready transcript cells 或 streaming tail。
 
 ## 目标架构
 
@@ -314,8 +314,8 @@ pnpm --dir codex-gui run ci
 
 ## 后续阶段边界
 
-`05b Incremental Chat State Boundary` 负责建立浏览器侧等价 `ChatWidget` 的物化状态。它从 attach snapshot 建 baseline，并按 accepted live notification 增量 apply。
+`05b Incremental Chat State Boundary` 负责建立浏览器侧 chat facts owner。它从 attach snapshot 建 baseline，并按 accepted live notification 增量 apply。
 
-`06a Chat Text Model` 只消费 `05b` 的物化聊天状态 selectors，不直接解释 `TimelineMaterial`，也不从 `snapshotReplay + eventBuffer` full fold。
+`06a Chat Text Model` 只消费 `05b` 的 prepared chat facts selectors，不直接解释 `TimelineMaterial`，也不从 `snapshotReplay + eventBuffer` full fold。
 
 `08 Tool Activity` 才解释 tool item 并派生简化 tool activity 展示。`05` 只保留 item lifecycle 和原始 item。

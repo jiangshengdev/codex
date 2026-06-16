@@ -2,7 +2,7 @@
 
 ## 目标
 
-`06a Chat Text Model` 是纯 TypeScript / selector 阶段。它把 `05b Incremental Chat State Boundary` 已经物化的聊天状态派生成普通聊天界面可消费的纯文本 view model。
+`06a Chat Text Model` 是纯 TypeScript / selector 阶段。它把 `05b Incremental Chat State Boundary` 已经维护好的 prepared chat facts 派生成普通聊天界面可消费的纯文本 view model。
 
 这一阶段只建立 model 边界，不渲染 React，不写 HTML/CSS，不替换 `App.tsx`，不实现 composer，不实现 Markdown，不展示 tool activity。
 
@@ -42,13 +42,13 @@ TUI 的 item 解释和 transcript 物化发生在 `ChatWidget`：
 - live path 对普通 user / assistant 展示主要由 `ItemCompleted` 进入 `handle_thread_item`。
 - live `ItemStarted` 主要用于 command、MCP、file change、web search、image generation、collab agent 等 activity 的 started 状态。
 
-GUI 的 `05b` 是 `ChatWidget` 物化状态边界。`06a` 只是在该物化状态之上做展示模型投影，不再承担 replay/live item interpretation。
+GUI 的 `05b` 是 chat facts owner，只对齐 `ChatWidget` 中按条解释 user / assistant message 的 facts materialization subset。`06a` 只是在 prepared chat facts 之上做展示模型投影，不再承担 replay/live item interpretation。
 
 ## 已确认决策
 
 **决策 1：输入只来自 `05b` selectors**
 
-`06a` 只消费 `05b` 导出的物化状态 selectors，例如：
+`06a` 只消费 `05b` 导出的 prepared chat facts selectors，例如：
 
 ```ts
 selectIncrementalChatTurns(state)
@@ -160,7 +160,7 @@ Turn group 顺序来自 `05b` 的 `turnOrder`，不按 timestamp 重新排序。
 
 ### Message entry
 
-`06a` 直接读取 `05b` 已物化的 message：
+`06a` 直接读取 `05b` 已维护的 message：
 
 - `role: "user"` 输出 user message。
 - `role: "assistant"` 输出 assistant message。
@@ -198,8 +198,8 @@ Reason 可以保留在内部用于生成文案或测试，但不要求 `06b` 直
 - `06a` 不 import `liveEventHandling` 的 `TimelineMaterial`。
 - `06a` 不调用 `selectThreadTimelineMaterials(state)`。
 - `06a` 不读取 `threadRuntime.snapshotTurns` 或 `threadRuntime.eventBuffer`。
-- `05b` 物化 user message 后，`06a` 输出 user message entry。
-- `05b` 物化 assistant message 后，`06a` 输出 assistant message entry。
+- `05b` 维护 user message 后，`06a` 输出 user message entry。
+- `05b` 维护 assistant message 后，`06a` 输出 assistant message entry。
 - Turn group 顺序遵循 `05b` selector 输出顺序。
 - Turn 内 message 顺序遵循 `05b` selector 输出顺序。
 - `subscriptionInterrupted` 产出 turn 外全局 status。

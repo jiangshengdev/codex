@@ -2,17 +2,17 @@
 
 ## 目标
 
-`05b Incremental Chat State Boundary` 负责建立 GUI 侧等价于 TUI `ChatWidget` 的物化聊天状态边界。
+`05b Incremental Chat State Boundary` 负责建立 GUI 侧 active chat facts owner。
 
-这一层位于 `05 Live Event Handling` 之后、`06a Chat Text Model` 之前。它不渲染 React，不实现 composer，不解析 Markdown，不展示 tool activity UI；它只负责把 attach snapshot 初始化结果和 accepted live notification 按条 apply 成物化聊天状态。
+这一层位于 `05 Live Event Handling` 之后、`06a Chat Text Model` 之前。它借鉴 TUI `ChatWidget` 按条处理 notification 的原则，但不等价于完整 `ChatWidget` UI/transcript state。它不渲染 React，不实现 composer，不解析 Markdown，不展示 tool activity UI；它只负责把 attach snapshot 初始化结果和 accepted live notification 按条 apply 成 serializable normalized chat facts。
 
-`05b` 是 active chat surface 的事实边界。`06a/06b/06c` 不能再从 `snapshotReplay + liveEventHandling + eventBuffer` 每次 full fold 出聊天 UI。
+`05b` 是 active chat facts 的事实边界。`06a/06b/06c` 不能再从 `snapshotReplay + liveEventHandling + eventBuffer` 每次 full fold 出聊天 UI。
 
 ## 已确认决策
 
 **决策 1：active live path 按条 apply**
 
-每条 accepted live notification 只 apply 一次到 `05b` 物化状态。一次 notification 更新只能处理该 notification 影响的 turn、item、message、status 或后续 tool activity placeholder。
+每条 accepted live notification 只 apply 一次到 `05b` prepared facts。一次 notification 更新只能处理该 notification 影响的 turn、item、message、status 或后续 tool activity placeholder。
 
 禁止在 steady-state live path 中，每个 notification 到达后从 `snapshotTurns + eventBuffer` 全量重建聊天 view model。
 
@@ -28,7 +28,7 @@
 
 **决策 4：Redux slice + `extraReducers` 响应事件 action**
 
-`05b` 使用 `incrementalChatStateSlice` 保存 serializable 物化状态。它通过 `extraReducers` 响应已经表示真实事件的 action，而不是为同一个 notification 连续 dispatch 多个 chat-specific setter action。
+`05b` 使用 `incrementalChatStateSlice` 保存 serializable normalized facts。它通过 `extraReducers` 响应已经表示真实事件的 action，而不是为同一个 notification 连续 dispatch 多个 chat-specific setter action。
 
 初始实现应响应：
 
@@ -42,7 +42,7 @@
 
 **决策 5：normalized + order arrays**
 
-`05b` 内部使用 normalized state 和顺序数组，支持局部更新和稳定输出顺序：
+`05b` 内部使用 normalized state 和顺序数组，支持局部更新和稳定输出顺序。它不把 `turnViews: [{ messages }]` 这类 render-ready view 当作 canonical Redux state：
 
 ```ts
 type IncrementalChatState = {
@@ -56,6 +56,8 @@ type IncrementalChatState = {
 ```
 
 第一版可以手写 normalized shape，不强制使用 `createEntityAdapter`。如果后续 turns/messages 操作增长，再考虑把部分集合迁移到 adapter。
+
+Render-ready ordered view、streaming tail、Markdown render cache 等属于 `06` 之后的 chat surface / transient UI material 边界。它们可以由 selector、React state 或后续专门 UI state owner 管理，但不能反向替代 `05b` 的 chat facts owner。
 
 **决策 6：第一版 rebuild 只发生在 attach / manual reconnect 后 attach**
 
@@ -152,7 +154,7 @@ type IncrementalChatState = {
 
 处理规则：
 
-- 保留当前已物化内容。
+- 保留当前 prepared chat facts。
 - 追加或更新一个全局 `subscriptionInterrupted` status。
 - 不清空 turns/messages。
 - 不 replay `eventBuffer`。
@@ -228,19 +230,21 @@ Selectors 可以按 `turnOrder` 和 `messagesByTurnId` 组装轻量 view，但�
 
 `06a` 只能消费这些 selectors 或 `05b` 导出的等价 view builder，不能 import `liveEventHandling` 的 `TimelineMaterial` 作为长期输入。
 
+Selectors 可以返回 ordered turn views，但这些 views 是读取接口，不是 `05b` 的 canonical stored facts。若后续 profiling 证明 selector 组装 turn views 仍然成为瓶颈，应新增 chat surface/transcript state owner 来维护 render-ready material，而不是把 UI view object 下沉成 chat projection facts。
+
 ## TUI Alignment
 
-TUI 的 `ThreadEventStore` 保存可 replay 的材料；`ChatWidget` 保存物化 UI 状态。
+TUI 的 `ThreadEventStore` 保存可 replay 的材料；`ChatWidget` 保存 render-ready transcript cells、streaming buffers 和 transient status。GUI 不能把这两层直接合并进一个 Redux facts slice。
 
 GUI 对齐方式：
 
 ```text
 threadRuntimeSlice ~= ThreadEventStore
-incrementalChatStateSlice ~= ChatWidget materialized chat state
-06a/06b ~= view model + React rendering
+incrementalChatStateSlice ~= ChatWidget 的 chat fact materialization subset
+06a/06b/chat surface ~= render-ready view + React rendering + transient UI material
 ```
 
-TUI live path 是 `handle_server_notification(notification, None)` 按条 mutate `ChatWidget`。GUI `05b` 的 `threadRuntimeEventBuffered` extra reducer 是浏览器/Redux 侧等价物。
+TUI live path 是 `handle_server_notification(notification, None)` 按条 mutate `ChatWidget`。GUI `05b` 的 `threadRuntimeEventBuffered` extra reducer 只对齐其中的 serializable chat facts apply 部分；render-ready cells 和 streaming tail 属于后续 chat surface 设计。
 
 TUI replay path 是重建 `ChatWidget` 后 replay snapshot turns 和 filtered buffered events。GUI 第一版只实现 attach/reconnect snapshot baseline rebuild；thread switch snapshot replay 留到未来范围扩大时再补。
 
@@ -268,10 +272,11 @@ TUI replay path 是重建 `ChatWidget` 后 replay snapshot turns 和 filtered bu
 - `threadRuntimeManualReconnectRequired` 可以保留内容并设置全局 interrupted status。
 - 同一 accepted live notification 不会重复 apply。
 - 同一 message id 不会重复插入同一个 turn。
-- user/assistant message 能从 snapshot item 和 live `itemCompleted` 进入物化状态。
+- user/assistant message 能从 snapshot item 和 live `itemCompleted` 进入 prepared chat facts。
 - live `itemStarted` 不生成普通聊天 message。
 - 非聊天 item 第一版不生成普通聊天 message。
-- selectors 从物化 state 生成轻量 view，不读取 `snapshotTurns + eventBuffer` full fold。
+- selectors 从 prepared chat facts 生成轻量 view，不读取 `snapshotTurns + eventBuffer` full fold。
+- render-ready ordered view 不作为 `05b` canonical Redux state。
 - `06a` 的设计和计划改为消费 `05b` selectors。
 
 ## Focused Verification

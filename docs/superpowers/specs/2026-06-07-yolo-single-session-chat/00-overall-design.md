@@ -64,11 +64,11 @@ TUI 的关键分层是：
 - live event 和 replay event 最终都进入 `ChatWidget`，但带有不同 replay kind。`ChatWidget` 才负责解释 `ItemStarted` / `ItemCompleted`，并把它们转换成具体聊天、tool activity 或状态展示行为。
 - TUI 不把 `ThreadProjectionEvent` / `ThreadProjectionClosed` 当作主线程路由或 ChatWidget 渲染基础。
 
-GUI 第一版只支持单会话，因此不需要完整复刻 TUI 的多线程切换能力。但它仍然需要保留同样的核心边界：输入协议、thread runtime、snapshot replay、live event handling、增量聊天状态和 chat surface 分开。
+GUI 第一版只支持单会话，因此不需要完整复刻 TUI 的多线程切换能力。但它仍然需要保留同样的核心边界：输入协议、thread runtime、replay/debug material、active chat facts 和 chat surface UI material 分开。
 
 ## 推荐架构
 
-GUI 的长期方向是：
+GUI 的长期方向不是多层 selector/material 链路，而是一条 accepted notification action 驱动的 active path，外加显式 replay/debug path。
 
 ```text
 TUI /gui launch URL
@@ -77,38 +77,54 @@ TUI /gui launch URL
      -> projection attach/event/closed
      -> future streaming notifications
   -> GUI thread identity shell
-  -> GUI thread runtime store
-  -> snapshot replay
-  -> live event handling
-  -> incremental chat state
-  -> chat surface view model
+  -> projection ingress validation
+  -> accepted notification action
+     -> threadRuntime facts owner
+     -> chatProjection facts owner
+  -> chat surface
+     -> render-ready ordered view
+     -> transient UI material / streaming tail
   -> React UI
 ```
 
-这条链路里的职责边界：
+这条 active path 里的职责边界：
 
 - `guiHostClient` 第一版负责 URL 参数、token、WebSocket、JSON-RPC handshake、projection attach/event/closed 输入，但 ingress 形状要能扩展到后续普通 notification streaming 输入。
 - thread identity shell 只负责确认 launch thread id 和 attached thread id 是同一个线程。
-- thread runtime store 负责保存可 replay/live 处理的 thread runtime 状态。
-- snapshot replay 负责把 attach snapshot 转成初始 UI 状态。
-- live event handling 负责把后续事件应用到当前 runtime，并把可展示 notification 交给增量聊天状态层。
-- incremental chat state 负责把 attach snapshot 初始化结果和 live notification 按条 apply 成物化聊天状态。
-- chat surface view model 只从物化聊天状态派生展示模型，不直接遍历 `snapshotTurns + eventBuffer` 作为长期渲染路径，也不直接拥有协议事实。
-- React UI 只渲染 view model 和提交用户操作。
+- projection ingress 负责 commit-chain、missing turn、closed(backpressure) 等验收逻辑。只有 accepted 输入才进入 Redux event action。
+- thread runtime facts owner 负责 `subscription`、`activeTurnId`、bounded `eventBuffer`、manual reconnect state、attach baseline 等 runtime/replay 事实。
+- chat projection facts owner 负责 serializable normalized chat facts，例如 turns、messages、message order、turn status 和 chat global status。
+- chat surface 负责 render-ready ordered view、transient UI material、streaming tail 和后续 Markdown render state。它可以缓存或局部维护 UI material，但不拥有 protocol/runtime facts。
+- React UI 只渲染 chat surface 输出并提交用户操作。
+
+Replay/debug path 是显式例外：
+
+```text
+attach / reconnect / resume / thread switch
+  -> snapshotTurns + bounded eventBuffer
+  -> replay/debug material
+  -> rebuild prepared chat facts or UI material at that boundary
+```
+
+`04 Snapshot Replay` 和 `05 Live Event Handling` 可以保留 material 类型和 selectors，但这些 material 只能服务 replay、debug、focused tests 或显式 rebuild，不进入 active chat UI 的 steady-state input。
 
 ## Notification 追加与性能边界
 
-GUI 的聊天状态必须按 notification 追加演进，不能在每次 notification 到达后从 `snapshotTurns + eventBuffer` 全量重建聊天 view model。
+GUI 的 active chat path 必须按 notification 追加演进，不能在每次 notification 到达后从 `snapshotTurns + eventBuffer` 全量重建聊天 view model。
 
 性能边界：
 
 - attach snapshot 或手动 reconnect 后的新 snapshot 可以全量 replay 一次，用于建立新的 baseline。
-- accepted live notification 必须按条应用到当前物化聊天状态。一次 notification 更新只能处理该 notification 影响的 turn、item、message、status 或 tool activity。
-- `eventBuffer` 是 replay/reconnect 所需的有界 tail，不是 active chat surface 每次 render 或 selector 执行时从头遍历的事实源。
-- selectors 可以读取已经物化的 chat state 生成轻量 view model，但不能在 steady-state live path 中反复 fold 全部 snapshot turns 和全部 event buffer。
+- accepted live notification 必须按条局部更新 owner state。一次 notification 更新只能处理该 notification 影响的 runtime facts、turn、item、message、status 或 tool activity。
+- `eventBuffer` 和 `snapshotTurns` 只用于 replay、debug、切线程恢复和显式 rebuild，不是 active chat surface 每次 render 或 selector 执行时从头遍历的事实源。
+- chat projection 保存 serializable normalized facts。selectors 可以读取 prepared chat facts 生成轻量 view，但不能在 steady-state live path 中反复 fold 全部 snapshot turns 和全部 event buffer。
+- chat facts 和 UI material 必须分层：`chatProjection` 保存 facts，`chatSurface` 保存或生成 render-ready ordered view、streaming tail 和 Markdown render state。
+- streaming 必须单独设计 stable finalized history 与 mutable active tail，不能把 streaming delta 直接混进 finalized messages。
 - 如果需要从 event log 重建状态，只能发生在 attach、manual reconnect 后重新 attach、thread switch/resume 等明确 replay 场景。
 
-这条约束覆盖 `05/06/08` 后续设计。`05` 可以保留 replay/live material 边界，但必须避免把 live path 实现成 `eventBuffer.map(...)` 后再让 `06` 每次从头 fold timeline。`06a` 的 chat text model 应是 materialized state 或等价的 incremental reducer 结果，而不是纯粹从完整 timeline 重新计算的 selector。
+Redux Toolkit 允许一个 event-style action 被多个 slice reducer / `extraReducers` 响应。这里禁止的不是 fan-out，而是多个 slice 重复拥有同一类累计事实，或 selector 在 active path 中重新 materialize 全部历史。一个 accepted notification action 可以同时驱动 `threadRuntimeSlice` 和 `chatProjection` slice，但每个 slice 只能更新自己拥有的 facts。
+
+这条约束覆盖 `05/05b/06/08` 后续设计。`05` 可以保留 replay/live material 边界，但必须避免把 live path 实现成 `eventBuffer.map(...)` 后再让 `06` 每次从头 fold timeline。`06a` 的 chat text model 应消费 chat projection prepared state，而不是纯粹从完整 timeline 重新计算。
 
 ## 分层拆分
 
@@ -134,7 +150,9 @@ YOLO single-session chat GUI
 └─ 09 verification and smoke
 ```
 
-当前主线跳过原 `05a streaming readiness` 代码阶段，但不能从 `05 live event handling` 直接进入 UI 接入。必须先补齐 `05b incremental chat state boundary`，明确 notification 如何按条 apply 到物化聊天状态，避免 `06a/06b/06c` 固化 full recompute selector。`06 basic chat surface` 只是 `06a/06b/06c/06d` 的总设计目录，不是独立实现任务。每一层只允许依赖它下面已经完成的层。上层不能反向决定下层模型。
+当前主线跳过原 `05a streaming readiness` 代码阶段，但不能从 `05 live event handling` 直接进入 UI 接入。必须先补齐 `05b incremental chat state boundary`，明确 notification 如何按条 apply 到 chat projection facts，避免 `06a/06b/06c` 固化 full recompute selector。`06 basic chat surface` 只是 `06a/06b/06c/06d` 的总设计目录，不是独立实现任务。
+
+阶段顺序不是 active path 的 selector 依赖链。上层只能消费下层公开的 prepared state 或明确标注的 replay/debug material；不能把 `05` 的 timeline selector、`eventBuffer` 或 `snapshotTurns` 当成 steady-state chat surface 输入。
 
 ## 第一阶段：Thread Identity Shell
 
@@ -215,20 +233,20 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
 
 ### 05b Incremental Chat State Boundary
 
-`05b` 负责定义 GUI 侧等价于 TUI `ChatWidget` 物化状态的浏览器实现边界。它不渲染 React，不实现 composer，不处理 Markdown，也不实现 tool activity UI；它只规定 replay baseline 和 live notification 如何按条更新聊天状态。
+`05b` 负责定义 GUI 侧 active chat facts owner。它借鉴 TUI `ChatWidget` 按条处理 notification 的原则，但不等价于完整 `ChatWidget` UI/transcript state。它不渲染 React，不实现 composer，不处理 Markdown，也不实现 tool activity UI；它只规定 attach baseline 和 live notification 如何按条更新 serializable normalized chat facts。
 
 状态演进规则：
 
-- accepted attach snapshot：清空旧 chat state，并从 snapshot turns 全量构建一次 baseline。
+- accepted attach snapshot：清空旧 chat projection state，并从 snapshot turns 全量构建一次 baseline。
 - accepted live `turnStarted`：按条建立或标记对应 turn 的运行状态。
 - accepted live `itemStarted`：按条记录后续 tool activity 或 running item 所需的最小状态；普通 user/assistant 文本第一版可以不展示 started。
 - accepted live `itemCompleted`：按条把当前 item 应用到对应 turn，普通 `userMessage` / `agentMessage` 追加成消息，tool item 留给 `08`。
 - accepted live `turnCompleted`：按条更新对应 turn 的完成状态。
-- manual reconnect required：保留当前已物化内容，并追加或更新全局 interrupted status；新的 accepted attach 才重建 baseline。
+- manual reconnect required：保留当前 prepared chat facts，并追加或更新全局 interrupted status；新的 accepted attach 才重建 baseline。
 
 `05b` 必须有 applied cursor 或等价幂等机制，保证同一个 accepted notification 不会被重复应用。语义必须是 incremental reducer，而不是 full timeline selector。
 
-已确认的第一版实现形态是 Redux Toolkit `incrementalChatStateSlice`。该 slice 使用 `extraReducers` 响应 `threadRuntimeAttached`、`threadRuntimeEventBuffered` 和 `threadRuntimeManualReconnectRequired` 等事件 action，让多个 reducers 响应同一个真实事件，避免为同一个 notification 连续 dispatch 多个 setter action。它保存 serializable normalized state，例如 `turnsById`、`turnOrder`、`messagesById`、`messagesByTurnId`、`globalStatus` 和 `appliedEventIds`。纯同步状态转移不引入 listener middleware；listener middleware 只留给后续需要等待、取消、异步 workflow 或后台任务的场景。
+已确认的第一版实现形态是 Redux Toolkit `incrementalChatStateSlice` 或等价 chat projection slice。该 slice 使用 `extraReducers` 响应 `threadRuntimeAttached`、`threadRuntimeEventBuffered` 和 `threadRuntimeManualReconnectRequired` 等事件 action，让多个 reducers 响应同一个真实事件，避免为同一个 notification 连续 dispatch 多个 setter action。它保存 serializable normalized state，例如 `turnsById`、`turnOrder`、`messagesById`、`messagesByTurnId`、`globalStatus` 和 `appliedEventIds`。纯同步状态转移不引入 listener middleware；listener middleware 只留给后续需要等待、取消、异步 workflow 或后台任务的场景。
 
 ### 05a Streaming Readiness（暂缓）
 
@@ -259,9 +277,9 @@ runtime store 接收已通过 ingress 校验的 projection 输入，并保留需
   -> 06d Basic Markdown Rendering
 ```
 
-`06a/06b/06c` 从 `05b` 物化的聊天状态派生普通纯文本聊天 view model 和 UI，只覆盖 user message、assistant 完整文本和基础状态行。assistant 文本只读取现有 projection snapshot/event 中完整 `agentMessage.text`，不提前引入可 append buffer 或真实 delta 语义，也不渲染 Markdown。
+`06a/06b/06c` 从 `05b` prepared chat facts 派生普通纯文本聊天 view model 和 UI，只覆盖 user message、assistant 完整文本和基础状态行。assistant 文本只读取现有 projection snapshot/event 中完整 `agentMessage.text`，不提前引入可 append buffer 或真实 delta 语义，也不渲染 Markdown。
 
-`06a` 不得把 `snapshotReplay materials + liveEvent materials` 作为 steady-state 输入反复全量 fold。若需要保留纯函数 builder，它只能用于 attach/reconnect replay 或测试；active notification path 必须通过 `05b` 的 incremental state 更新。
+`06a` 不得把 `snapshotReplay materials + liveEvent materials` 作为 steady-state 输入反复全量 fold。若需要保留纯函数 builder，它的输入必须是 `05b` selectors 输出的 prepared chat facts；active notification path 必须通过 `05b` 的 incremental state 更新。
 
 `06d` 在纯文本链路稳定后单独设计基础 Markdown 渲染。
 
