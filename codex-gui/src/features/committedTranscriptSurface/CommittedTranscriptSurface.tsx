@@ -38,7 +38,7 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
         {entry.role}
       </div>
     ) : null}
-    <div className="committed-transcript-entry-source whitespace-pre-wrap leading-6 text-foreground">
+    <div className="committed-transcript-entry-source whitespace-pre-wrap wrap-break-word leading-6 text-foreground">
       {entryText(entry)}
     </div>
   </article>
