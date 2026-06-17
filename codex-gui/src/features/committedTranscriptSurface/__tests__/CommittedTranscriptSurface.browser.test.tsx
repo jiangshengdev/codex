@@ -178,6 +178,7 @@ test("renders live completed items without rendering started items", async () =>
   );
 
   await expect.element(screen.getByText("Draft answer")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
   await expect
     .element(screen.getByRole("article", { name: "Turn turn-live" }))
     .not.toBeInTheDocument();

@@ -152,6 +152,8 @@ test("authenticates, attaches, records projection status, and clears token", asy
   await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
 
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "received event");
+  await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect(page.getByText("No committed messages yet.")).toBeVisible();
   await expect(page.locator("main > section")).toHaveCount(1);
   await expect
     .poll(() => sentMethods)

@@ -100,6 +100,11 @@ CommittedTranscriptTurn.displayName = "CommittedTranscriptTurn";
 export const CommittedTranscriptSurface = () => {
   const turnIds = useAppSelector(selectTranscriptTurnIds);
   const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
+  const hasCommittedChunks = useAppSelector((state) =>
+    selectTranscriptTurnIds(state).some(
+      (turnId) => selectTranscriptChunkIdsForTurn(state, turnId).length > 0,
+    ),
+  );
 
   return (
     <section aria-label="Committed transcript" className="committed-transcript-surface">
@@ -112,7 +117,7 @@ export const CommittedTranscriptSurface = () => {
           ))}
         </div>
       ) : null}
-      {turnIds.length === 0 ? (
+      {!hasCommittedChunks ? (
         <p className="committed-transcript-empty">No committed messages yet.</p>
       ) : (
         <div className="committed-transcript-turn-list">
