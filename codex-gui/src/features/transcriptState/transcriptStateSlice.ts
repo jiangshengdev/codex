@@ -1,6 +1,10 @@
 import { createAppSlice } from "@/app/createAppSlice";
 import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
+import {
+  threadRuntimeAttached,
+  threadRuntimeEventBuffered,
+  threadRuntimeManualReconnectRequired,
+} from "@/features/threadRuntime/threadRuntimeSlice";
 import type { ThreadItem, Turn, TurnStatus, UserInput } from "@codex-protocol/v2";
 
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
@@ -101,6 +105,23 @@ const resetState = (state: TranscriptState, nextState: TranscriptState) => {
   state.globalStatus = nextState.globalStatus;
   state.appliedEventIdsById = nextState.appliedEventIdsById;
   state.appliedEventOrder = nextState.appliedEventOrder;
+};
+
+const hasAppliedEvent = (state: TranscriptState, commitId: string): boolean =>
+  state.appliedEventIdsById[commitId] === true;
+
+const recordAppliedEvent = (state: TranscriptState, commitId: string) => {
+  state.appliedEventIdsById[commitId] = true;
+  state.appliedEventOrder.push(commitId);
+
+  if (state.appliedEventOrder.length <= MAX_APPLIED_EVENT_ID_WINDOW_LENGTH) {
+    return;
+  }
+
+  const removedCommitId = state.appliedEventOrder.shift();
+  if (removedCommitId != null) {
+    Reflect.deleteProperty(state.appliedEventIdsById, removedCommitId);
+  }
 };
 
 const chunkIdForIndex = (turnId: string, index: number): string => `${turnId}:chunk:${index}`;
@@ -319,14 +340,58 @@ export const transcriptStateSlice = createAppSlice({
       transcriptState.globalStatus,
   },
   extraReducers: (builder) => {
-    builder.addCase(threadRuntimeAttached, (state, action) => {
-      rebuildFromSnapshot(
-        state,
-        action.payload.snapshot.thread.id,
-        action.payload.subscriptionId,
-        action.payload.snapshot.thread.turns,
-      );
-    });
+    builder
+      .addCase(threadRuntimeAttached, (state, action) => {
+        rebuildFromSnapshot(
+          state,
+          action.payload.snapshot.thread.id,
+          action.payload.subscriptionId,
+          action.payload.snapshot.thread.turns,
+        );
+      })
+      .addCase(threadRuntimeEventBuffered, (state, action) => {
+        if (state.threadId !== action.payload.threadId) {
+          return;
+        }
+
+        if (hasAppliedEvent(state, action.payload.commitId)) {
+          return;
+        }
+
+        recordAppliedEvent(state, action.payload.commitId);
+
+        switch (action.payload.event.type) {
+          case "turnStarted":
+          case "turnCompleted":
+            upsertTurnFromPayload(state, action.payload.event.notification.turn);
+            return;
+          case "itemCompleted": {
+            const { item, turnId } = action.payload.event.notification;
+            ensureTurnExists(state, turnId);
+            const entry = materializeItem(item, turnId);
+            if (entry != null) {
+              upsertLiveCommittedEntry(state, entry);
+            }
+            return;
+          }
+          case "itemStarted":
+            return;
+        }
+      })
+      .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
+        if (state.threadId !== action.payload.threadId) {
+          return;
+        }
+
+        state.globalStatus = [
+          {
+            id: `subscriptionInterrupted:${action.payload.threadId}:${action.payload.subscriptionId ?? "none"}:${action.payload.reason}`,
+            status: "subscriptionInterrupted",
+            reason: action.payload.reason,
+            subscriptionId: action.payload.subscriptionId,
+          },
+        ];
+      });
   },
 });
 

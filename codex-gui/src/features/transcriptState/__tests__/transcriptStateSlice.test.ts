@@ -249,4 +249,317 @@ describe("transcript state reducer", () => {
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-filtered"]);
     expect(selectTranscriptChunkIdsForTurn(store.getState(), "turn-filtered")).toStrictEqual([]);
   });
+
+  it("applies live itemCompleted messages into committed transcript chunks", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        turnStarted("commit-live-turn", {
+          ...baseTurn("turn-live", []),
+          status: "inProgress",
+        }),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemStarted(
+          "commit-live-started",
+          "turn-live",
+          agentMessage("agent-started", "Started should be ignored"),
+        ),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-live-agent",
+          "turn-live",
+          agentMessage("agent-live", "Live answer"),
+        ),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-live")).toStrictEqual({
+      id: "turn-live",
+      status: "inProgress",
+    });
+    expect(selectTranscriptChunkIdsForTurn(store.getState(), "turn-live")).toStrictEqual([
+      "turn-live:chunk:0",
+    ]);
+    expect(selectTranscriptChunk(store.getState(), "turn-live:chunk:0")?.entries).toStrictEqual([
+      {
+        type: "message",
+        id: "agent-live",
+        turnId: "turn-live",
+        role: "assistant",
+        source: "Live answer",
+        sourceKind: "plainText",
+        revision: 0,
+      },
+    ]);
+  });
+
+  it("updates turn terminal status from live turnCompleted", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        turnStarted("commit-start-done", {
+          ...baseTurn("turn-done", []),
+          status: "inProgress",
+        }),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        turnCompleted("commit-complete-done", {
+          ...baseTurn("turn-done", []),
+          status: "completed",
+        }),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-done")).toStrictEqual({
+      id: "turn-done",
+      status: "completed",
+    });
+    expect(selectTranscriptChunkIdsForTurn(store.getState(), "turn-done")).toStrictEqual([]);
+  });
+
+  it("filters empty text and non-chat live item completions", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-empty-user",
+          "turn-live-filtered",
+          userMessage("empty-user", [textInput("")]),
+        ),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-empty-agent",
+          "turn-live-filtered",
+          agentMessage("empty-agent", ""),
+        ),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted("commit-plan", "turn-live-filtered", planItem("hidden-plan")),
+      ),
+    );
+
+    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-live-filtered"]);
+    expect(selectTranscriptChunkIdsForTurn(store.getState(), "turn-live-filtered")).toStrictEqual(
+      [],
+    );
+  });
+
+  it("uses commitId to avoid applying the same live notification twice", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-duplicate",
+          "turn-duplicate",
+          agentMessage("agent-first", "First"),
+        ),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-duplicate",
+          "turn-duplicate",
+          agentMessage("agent-second", "Second should be ignored"),
+        ),
+      ),
+    );
+
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-duplicate:chunk:0")?.entries,
+    ).toStrictEqual([
+      {
+        type: "message",
+        id: "agent-first",
+        turnId: "turn-duplicate",
+        role: "assistant",
+        source: "First",
+        sourceKind: "plainText",
+        revision: 0,
+      },
+    ]);
+  });
+
+  it("updates an existing committed entry and bumps only its chunk revision", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted("commit-first", "turn-update", agentMessage("agent-update", "First")),
+      ),
+    );
+    const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-update:chunk:0");
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted("commit-second", "turn-update", agentMessage("agent-update", "Second")),
+      ),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), "agent-update")).toStrictEqual({
+      type: "message",
+      id: "agent-update",
+      turnId: "turn-update",
+      role: "assistant",
+      source: "Second",
+      sourceKind: "plainText",
+      revision: 1,
+    });
+    expect(selectTranscriptChunk(store.getState(), "turn-update:chunk:0")).toStrictEqual({
+      id: "turn-update:chunk:0",
+      turnId: "turn-update",
+      revision: (beforeUpdateChunk?.revision ?? 0) + 1,
+      entries: [
+        {
+          type: "message",
+          id: "agent-update",
+          turnId: "turn-update",
+          role: "assistant",
+          source: "Second",
+          sourceKind: "plainText",
+          revision: 1,
+        },
+      ],
+    });
+  });
+
+  it("creates a new chunk after the committed chunk entry limit", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
+      store.dispatch(
+        threadRuntimeEventBuffered(
+          itemCompleted(
+            `commit-chunk-${index}`,
+            "turn-chunked",
+            agentMessage(`agent-chunk-${index}`, `Entry ${index}`),
+          ),
+        ),
+      );
+    }
+
+    expect(selectTranscriptChunkIdsForTurn(store.getState(), "turn-chunked")).toStrictEqual([
+      "turn-chunked:chunk:0",
+      "turn-chunked:chunk:1",
+    ]);
+    expect(selectTranscriptChunk(store.getState(), "turn-chunked:chunk:0")?.entries).toHaveLength(
+      TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+    );
+    expect(selectTranscriptChunk(store.getState(), "turn-chunked:chunk:1")?.entries).toStrictEqual([
+      {
+        type: "message",
+        id: "agent-chunk-100",
+        turnId: "turn-chunked",
+        role: "assistant",
+        source: "Entry 100",
+        sourceKind: "plainText",
+        revision: 0,
+      },
+    ]);
+  });
+
+  it("preserves committed transcript and sets global status on manual reconnect", () => {
+    const store = makeStore();
+    const attachWithChat = attachWithTurns([
+      baseTurn("turn-existing", [agentMessage("agent-existing", "Existing answer")]),
+    ]);
+
+    store.dispatch(threadRuntimeAttached(attachWithChat));
+    store.dispatch(
+      threadRuntimeManualReconnectRequired({
+        reason: "backpressure",
+        threadId: attachWithChat.snapshot.thread.id,
+        subscriptionId: attachWithChat.subscriptionId,
+      }),
+    );
+
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-existing:chunk:0")?.entries,
+    ).toStrictEqual([
+      {
+        type: "message",
+        id: "agent-existing",
+        turnId: "turn-existing",
+        role: "assistant",
+        source: "Existing answer",
+        sourceKind: "plainText",
+        revision: 0,
+      },
+    ]);
+    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
+      {
+        id: `subscriptionInterrupted:${attachWithChat.snapshot.thread.id}:${attachWithChat.subscriptionId}:backpressure`,
+        status: "subscriptionInterrupted",
+        reason: "backpressure",
+        subscriptionId: attachWithChat.subscriptionId,
+      },
+    ]);
+  });
+
+  it("clears interrupted status and applied event ids on the next attach", () => {
+    const store = makeStore();
+    const attachWithChat = attachWithTurns([
+      baseTurn("turn-before-reconnect", [agentMessage("agent-before", "Before reconnect")]),
+    ]);
+    const replacementAttach = attachWithTurns([
+      baseTurn("turn-after-reconnect", [agentMessage("agent-after", "After reconnect")]),
+    ]);
+
+    store.dispatch(threadRuntimeAttached(attachWithChat));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-before",
+          "turn-before-reconnect",
+          agentMessage("agent-live-before", "Live before"),
+        ),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeManualReconnectRequired({
+        reason: "backpressure",
+        threadId: attachWithChat.snapshot.thread.id,
+        subscriptionId: attachWithChat.subscriptionId,
+      }),
+    );
+    store.dispatch(threadRuntimeAttached(replacementAttach));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          "commit-before",
+          "turn-after-reconnect",
+          agentMessage("agent-live-after", "Live after reconnect"),
+        ),
+      ),
+    );
+
+    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-after-reconnect"]);
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-after-reconnect:chunk:0")?.entries,
+    ).toHaveLength(2);
+    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
 });
