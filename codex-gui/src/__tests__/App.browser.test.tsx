@@ -116,18 +116,25 @@ beforeEach(() => {
   });
 });
 
-test("App renders the GUI host status panel without opening a real WebSocket", async () => {
+test("App renders the committed transcript shell without visible GUI host debug details", async () => {
   const screen = await renderWithProviders(<App />);
+  const main = screen.getByRole("main").element();
+  const committedTranscript = screen
+    .getByRole("region", { name: "Committed transcript" })
+    .element();
 
-  await expect.element(screen.getByRole("heading", { name: "GUI host" })).toBeVisible();
-  await expect.element(screen.getByText("connecting")).toBeVisible();
-  await expect.element(screen.getByText(/^no$/)).toBeVisible();
-  await expect.element(screen.getByText(/^0$/)).toBeVisible();
-  await expect.element(screen.getByText(/^none$/)).toBeVisible();
+  await expect.element(screen.getByRole("main")).toHaveAttribute(
+    "data-gui-host-status",
+    "connecting",
+  );
+  await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+  expect(Array.from(main.children)).toHaveLength(1);
+  expect(main.firstElementChild).toBe(committedTranscript);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
 });
 
-test("App reflects GUI host status callback updates", async () => {
+test("App keeps GUI host status as a test hook instead of visible shell content", async () => {
   const screen = await renderWithProviders(<App />);
 
   emitStatus?.({
@@ -136,10 +143,10 @@ test("App reflects GUI host status callback updates", async () => {
     lastEventType: "turnStarted",
   });
 
-  await expect.element(screen.getByText("received event")).toBeVisible();
-  await expect.element(screen.getByText(/^yes$/)).toBeVisible();
-  await expect.element(screen.getByText(/^2$/)).toBeVisible();
-  await expect.element(screen.getByText("turnStarted")).toBeVisible();
+  await expect.element(screen.getByRole("main")).toHaveAttribute(
+    "data-gui-host-status",
+    "received event",
+  );
 });
 
 test("App dispatches accepted GUI host projection payloads into thread runtime", async () => {
