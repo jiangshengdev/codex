@@ -23,7 +23,9 @@ Do not modify that design while executing this plan. If the design proves insuff
 This plan creates:
 
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts`
 - `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
+- `codex-gui/src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts`
 
 This plan modifies:
 
@@ -57,8 +59,14 @@ This plan does not modify:
   - Defines local memoized components for root, global status, turn, chunk, and entry rendering.
   - Consumes only `transcriptState` selectors through `useAppSelector`.
   - Does not build or export a complete transcript tree.
+- Create: `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts`
+  - Exports `areTranscriptChunkViewsEqual`.
+  - Compares nullable chunk views by `id`, `turnId`, `revision`, `entries.length`, and each entry's
+    `id` / `revision`.
 - Create: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
   - Browser component coverage for empty, attach baseline, live committed update, and `itemStarted` ignored behavior.
+- Create: `codex-gui/src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts`
+  - Focused unit coverage for the custom chunk equality boundary.
 - Modify: `codex-gui/src/App.tsx`
   - Imports and renders `CommittedTranscriptSurface`.
   - Keeps existing GUI host connection and status dispatch behavior unchanged.
@@ -80,6 +88,7 @@ selectTranscriptChunk
 selectTranscriptGlobalStatus
 type TranscriptEntry
 type TranscriptGlobalStatus
+type TranscriptChunkView
 ```
 
 Do not import or consume:
@@ -114,14 +123,96 @@ type CompleteTranscriptSurface = {
 };
 ```
 
+`selectTranscriptChunk` currently returns a fresh `TranscriptChunkView` object and a fresh
+`entries` array on every call. `CommittedTranscriptChunk` must therefore pass a custom
+`useAppSelector` equality function that compares `chunk id`, `turnId`, `revision`, and each
+entry's `id` / `revision`; do not rely on default reference equality for chunk views. Implement
+that equality in `committedTranscriptChunkEquality.ts` and cover it with a focused unit test before
+using it in the component.
+
 ---
 
 ### Task 1: Add Committed Transcript Surface Browser Tests
 
 **Files:**
+- Create: `codex-gui/src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts`
 - Create: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
 
-- [ ] **Step 1: Create the browser test file with focused fixtures**
+- [ ] **Step 1: Create the chunk equality unit test**
+
+Create `codex-gui/src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import type {
+  TranscriptChunkView,
+  TranscriptEntry,
+} from "@/features/transcriptState/transcriptStateSlice";
+import { areTranscriptChunkViewsEqual } from "../committedTranscriptChunkEquality";
+
+const messageEntry = (id: string, revision: number): TranscriptEntry => ({
+  type: "message",
+  id,
+  turnId: "turn-1",
+  role: "assistant",
+  source: `source ${id}`,
+  sourceKind: "plainText",
+  revision,
+});
+
+const chunkView = (
+  overrides: Partial<TranscriptChunkView> = {},
+): TranscriptChunkView => ({
+  id: "turn-1:chunk:0",
+  turnId: "turn-1",
+  revision: 1,
+  entries: [messageEntry("entry-1", 0), messageEntry("entry-2", 0)],
+  ...overrides,
+});
+
+describe("areTranscriptChunkViewsEqual", () => {
+  it("treats new view objects with identical chunk and entry revisions as equal", () => {
+    expect(areTranscriptChunkViewsEqual(chunkView(), chunkView())).toBe(true);
+  });
+
+  it("detects chunk identity and revision changes", () => {
+    expect(areTranscriptChunkViewsEqual(chunkView(), chunkView({ id: "turn-1:chunk:1" }))).toBe(
+      false,
+    );
+    expect(areTranscriptChunkViewsEqual(chunkView(), chunkView({ turnId: "turn-2" }))).toBe(false);
+    expect(areTranscriptChunkViewsEqual(chunkView(), chunkView({ revision: 2 }))).toBe(false);
+  });
+
+  it("detects entry identity, order, length, and revision changes", () => {
+    expect(
+      areTranscriptChunkViewsEqual(
+        chunkView(),
+        chunkView({ entries: [messageEntry("entry-2", 0), messageEntry("entry-1", 0)] }),
+      ),
+    ).toBe(false);
+    expect(
+      areTranscriptChunkViewsEqual(
+        chunkView(),
+        chunkView({ entries: [messageEntry("entry-1", 0)] }),
+      ),
+    ).toBe(false);
+    expect(
+      areTranscriptChunkViewsEqual(
+        chunkView(),
+        chunkView({ entries: [messageEntry("entry-1", 1), messageEntry("entry-2", 0)] }),
+      ),
+    ).toBe(false);
+  });
+
+  it("handles null views", () => {
+    expect(areTranscriptChunkViewsEqual(null, null)).toBe(true);
+    expect(areTranscriptChunkViewsEqual(chunkView(), null)).toBe(false);
+    expect(areTranscriptChunkViewsEqual(null, chunkView())).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Create the browser test file with focused fixtures**
 
 Create `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`:
 
@@ -241,7 +332,7 @@ const itemStarted = (
 };
 ```
 
-- [ ] **Step 2: Add an empty-state test**
+- [ ] **Step 3: Add an empty-state test**
 
 Append this test:
 
@@ -254,7 +345,7 @@ test("renders an empty committed transcript state", async () => {
 });
 ```
 
-- [ ] **Step 3: Add attach baseline rendering coverage**
+- [ ] **Step 4: Add attach baseline rendering coverage**
 
 Append this test:
 
@@ -276,7 +367,7 @@ test("renders committed user and assistant messages from attach baseline", async
 });
 ```
 
-- [ ] **Step 4: Add live committed update and `itemStarted` ignored coverage**
+- [ ] **Step 5: Add live committed update and `itemStarted` ignored coverage**
 
 Append this test:
 
@@ -305,7 +396,7 @@ test("renders live itemCompleted entries and ignores itemStarted entries", async
 });
 ```
 
-- [ ] **Step 5: Add global status coverage**
+- [ ] **Step 6: Add global status coverage**
 
 Append this test:
 
@@ -329,31 +420,75 @@ test("renders committed transcript global status", async () => {
 });
 ```
 
-- [ ] **Step 6: Run the focused browser test and confirm it fails before implementation**
+- [ ] **Step 7: Run the focused tests and confirm they fail before implementation**
 
 Run:
 
 ```bash
+pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest run src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts
 pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest --config=vitest.browser.config.ts run src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
 ```
 
-Expected: FAIL because `@/features/committedTranscriptSurface/CommittedTranscriptSurface` does not exist.
+Expected: FAIL because `../committedTranscriptChunkEquality` and
+`@/features/committedTranscriptSurface/CommittedTranscriptSurface` do not exist.
 
 ---
 
 ### Task 2: Implement `CommittedTranscriptSurface`
 
 **Files:**
+- Create: `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts`
 - Create: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+- Test: `codex-gui/src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts`
 - Test: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
 
-- [ ] **Step 1: Create the component file**
+- [ ] **Step 1: Create the chunk equality helper**
+
+Create `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts`:
+
+```ts
+import type { TranscriptChunkView } from "@/features/transcriptState/transcriptStateSlice";
+
+export const areTranscriptChunkViewsEqual = (
+  previous: TranscriptChunkView | null,
+  next: TranscriptChunkView | null,
+): boolean => {
+  if (previous === next) {
+    return true;
+  }
+
+  if (previous == null || next == null) {
+    return false;
+  }
+
+  if (
+    previous.id !== next.id ||
+    previous.turnId !== next.turnId ||
+    previous.revision !== next.revision ||
+    previous.entries.length !== next.entries.length
+  ) {
+    return false;
+  }
+
+  return previous.entries.every((previousEntry, index) => {
+    const nextEntry = next.entries[index];
+    return (
+      nextEntry != null &&
+      previousEntry.id === nextEntry.id &&
+      previousEntry.revision === nextEntry.revision
+    );
+  });
+};
+```
+
+- [ ] **Step 2: Create the component file**
 
 Create `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`:
 
 ```tsx
 import { memo } from "react";
 import { useAppSelector } from "@/app/hooks";
+import { areTranscriptChunkViewsEqual } from "@/features/committedTranscriptSurface/committedTranscriptChunkEquality";
 import {
   selectTranscriptChunk,
   selectTranscriptChunkIdsForTurn,
@@ -439,7 +574,10 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
 CommittedTranscriptTurn.displayName = "CommittedTranscriptTurn";
 
 const CommittedTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
-  const chunk = useAppSelector((state) => selectTranscriptChunk(state, chunkId));
+  const chunk = useAppSelector(
+    (state) => selectTranscriptChunk(state, chunkId),
+    areTranscriptChunkViewsEqual,
+  );
 
   if (chunk == null) {
     return null;
@@ -482,17 +620,18 @@ const statusText = (status: TranscriptGlobalStatus): string => {
 };
 ```
 
-- [ ] **Step 2: Run the focused browser test and confirm it passes**
+- [ ] **Step 3: Run the focused tests and confirm they pass**
 
 Run:
 
 ```bash
+pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest run src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts
 pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest --config=vitest.browser.config.ts run src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
 ```
 
-Expected: PASS for the new committed transcript surface tests.
+Expected: PASS for the chunk equality unit tests and the new committed transcript surface browser tests.
 
-- [ ] **Step 3: Commit the new surface**
+- [ ] **Step 4: Commit the new surface**
 
 Run:
 
@@ -684,10 +823,11 @@ Expected: no matches.
 Run:
 
 ```bash
+pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest run src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts
 pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest --config=vitest.browser.config.ts run src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx src/__tests__/App.browser.test.tsx
 ```
 
-Expected: PASS.
+Expected: PASS for the chunk equality unit tests and focused browser coverage.
 
 - [ ] **Step 5: Commit old model deletion**
 
@@ -713,10 +853,11 @@ git commit -m "refactor(gui): remove chat text model"
 Run:
 
 ```bash
+pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest run src/features/committedTranscriptSurface/__tests__/committedTranscriptChunkEquality.test.ts
 pnpm --dir /Users/jiangsheng/cnb/codex/codex-gui exec vitest --config=vitest.browser.config.ts run src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx src/__tests__/App.browser.test.tsx
 ```
 
-Expected: PASS.
+Expected: PASS for the chunk equality unit tests and focused browser coverage.
 
 - [ ] **Step 2: Run focused type checking**
 
