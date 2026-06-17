@@ -88,6 +88,17 @@ snapshot 的初始化成本高于必要值。
 接 chat 列表 selector。但它是明显的后续接入陷阱,需要在进入 `06a/06b` UI 接入前切断或
 标注为 replay/debug-only。
 
+## 当前状态
+
+截至 2026-06-17,前两个问题已经在当前分支修复:
+
+- `appliedEventIds` 已拆为 `appliedEventIdsById` + `appliedEventOrder`,并设置
+  `MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500`。
+- `turnOrder.includes(...)` 已移除,turn membership 依赖 canonical `turnsById`。
+
+剩余更重要的风险不是单个 `includes`,而是 long turn 下 reducer 维护嵌套
+`turnViews[].messages[]` read model 时,每次 append / update 都会触碰一个不断增长的数组。
+
 ## 已选择方向
 
 针对 `appliedEventIds` 问题,采用 `Record` 查重表 + 有界顺序数组:
@@ -143,10 +154,138 @@ state.turnOrder.push(turnId);
 - 回归测试应证明 snapshot rebuild 不再为了 turn id 调用数组 membership scan,同时保持
   `selectIncrementalChatTurns` 输出顺序不变。
 
+## 2026-06-17 追加:长 turn 下 `turnView.messages` 复制风险
+
+当前剩余热点主要在 `upsertMessageIntoTurnView`:
+
+```ts
+const messages = [...turnView.messages, message];
+state.turnViews[turnViewIndex] = {
+  ...turnView,
+  messages,
+};
+```
+
+同 turn 内更新已有 message 时也会复制整个 messages 数组:
+
+```ts
+const messages = [...turnView.messages];
+messages[existingMessageIndex.index] = message;
+```
+
+表面看这是数组 spread 的成本,但本质是 Redux/Immer 的 immutable update 成本。即使改成
+Immer 风格的 `turnView.messages.push(message)`,也只能减少显式展开和部分常数开销;为了产生
+下一版 immutable state,Immer 在修改已有长数组时仍需要 copy-on-write。长 turn 中已有 `M`
+条可见 message 时,一次 append / update 仍可能触发与 `M` 成正比的数组复制。若代理在一个
+turn 内持续运行数小时并不断产出 item,累计成本会接近 O(M^2)。
+
+这比 `turnMessages.includes(...)` 更严重:
+
+- 一个会话可能持续 8 小时以上。
+- 一个 turn 不等于一条 message;代理会在同一个 turn 内持续回复、执行工具、产出多条可见 entry。
+- `selectIncrementalChatTurns` 现在直接返回 reducer 维护的 `turnViews`,读路径避免了每次全量
+  materialize,但写路径仍会为单个长 turn 复制不断增长的 `messages[]`。
+
+`messagesByTurnId[turnId].includes(message.id)` 仍是一个线性扫描点,但它不是根因。即使把
+membership 改成 O(1),只要 `turnViews[].messages[]` 仍是一个不断增长的大数组,append/update
+仍会触发大数组复制。
+
+## 可能方案
+
+### 方案 A:战术性改为 Immer mutable 写法
+
+把显式 spread 改为 reducer draft mutation:
+
+```ts
+turnView.messages.push(message);
+turnView.messages[existingMessageIndex.index] = message;
+```
+
+优点:
+
+- 改动小,符合 Redux Toolkit reducer 写法。
+- 可降低显式数组展开和对象重建的常数成本。
+
+局限:
+
+- 不改变 immutable update 的结构成本。
+- 对 very long turn 仍会修改同一个长数组,不能保证 append/update 成本有硬上限。
+
+结论:可作为局部清理,但不是这个性能问题的真正修复。
+
+### 方案 B:bounded chunks 拆分 committed messages
+
+把每个 turn 的 committed messages 从一个大数组改为多个固定上限 chunk。例如每 100 或 200
+条 entry 一个 chunk:
+
+```ts
+committedChunksById: Record<string, EntryChunk>;
+chunkOrderByTurnId: Record<string, string[]>;
+openChunkIdByTurnId: Record<string, string>;
+```
+
+append 时只修改最后一个未满 chunk。chunk 满后开新 chunk,`chunkOrderByTurnId` 只在每 N 条
+entry 时增长一次。
+
+优点:
+
+- 每次 append 最多复制一个小 chunk,成本有明确上限。
+- 长 turn 累计成本从复制整个历史,变成复制固定大小尾块。
+- 保留 Redux serializable state 和 reducer 内 deterministic projection。
+
+风险点:
+
+- UI/selector 不能再 `flatMap` 回完整 `messages[]`,否则会把成本转移到读路径。
+- 组件需要按 `chunkId` / chunk view 渲染,或至少按 chunk memoize。
+- 需要重新定义 `messageViewIndexById`,从 `{ turnId, index }` 调整为 `{ turnId, chunkId, index }`。
+
+结论:这是当前最适合的结构性修复方向。
+
+### 方案 C:committed transcript + active live tail
+
+借鉴 TUI 思路,把稳定历史和正在变化的 live tail 分开:
+
+- finalized/stable entry 进入 committed chunks。
+- running tool、streaming assistant message、hook/status 等 mutable 内容放在 active tail。
+- finalize 时把 active tail 合并进 committed chunk。
+
+优点:
+
+- 高频变化只触碰很小的 active state。
+- committed 历史大部分时间不变,引用稳定,更适合长会话。
+- 与 TUI 的 transcript / active cell 边界一致。
+
+风险点:
+
+- 设计复杂度高于单纯 chunk。
+- 需要明确哪些 protocol item 算 active,哪些事件触发 finalize。
+- 测试需要覆盖 active 到 committed 的迁移和 reconnect rebuild。
+
+结论:推荐与方案 B 组合,形成 `bounded committed chunks + active live tail`。
+
+### 方案 D:把高频 transcript buffer 移出 Redux
+
+使用 external mutable store 或组件本地 buffer 承接高频 append,Redux 只保存较粗粒度状态。
+
+优点:
+
+- 可以避开 Redux/Immer 的 immutable copy 成本。
+
+风险点:
+
+- 削弱 Redux DevTools / replay / deterministic reducer 边界。
+- 更容易出现 store 与 UI 状态不同步。
+- 与当前 YOLO 05b 的 reducer-maintained read model 方向不一致。
+
+结论:不建议作为首选。除非 chunk + active tail 仍无法满足性能目标,否则不应先走这条路。
+
 后续仍需单独评估:
 
+- 是否先做方案 A 作为短期止血,还是直接进入方案 B/C 的结构性修复。
 - 为 `messagesByTurnId` 增加 per-turn membership fact,或在 upsert 时优先依赖
-  `messagesById` / view index 来判断是否已存在。
+  `messagesById` / view index 来判断是否已存在。注意这只能解决 membership scan,不能解决
+  `turnViews[].messages[]` 长数组复制。
+- chunk size 初始值建议在 100 和 200 之间选择;需要结合 UI 渲染粒度和 reducer 更新频率定。
 - 明确 `selectChatTextModel` / `selectThreadTimelineMaterials` 是 legacy 或 replay/debug-only;
   后续聊天 UI 必须消费 `incrementalChatState` 的 prepared read model,不要从 timeline
   material 重新 fold 全量历史。
