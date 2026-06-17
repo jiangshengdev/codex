@@ -25,7 +25,6 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
-  transcriptStateSlice,
 } from "../transcriptStateSlice";
 
 const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
