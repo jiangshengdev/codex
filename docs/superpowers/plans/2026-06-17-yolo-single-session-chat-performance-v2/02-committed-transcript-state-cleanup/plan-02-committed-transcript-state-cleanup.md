@@ -645,30 +645,46 @@ const getOrCreateAppendChunk = (state: TranscriptState, turnId: string): Transcr
   return chunk;
 };
 
-const appendCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
+const appendEntryToChunk = (
+  state: TranscriptState,
+  entry: TranscriptEntry,
+  options: { bumpChunkRevision: boolean },
+) => {
   ensureTurnExists(state, entry.turnId);
-
-  const existingEntry = state.entriesById[entry.id];
-  if (existingEntry != null) {
-    state.entriesById[entry.id] = {
-      ...entry,
-      revision: existingEntry.revision + 1,
-    };
-    const chunkId = state.entryChunkById[entry.id];
-    if (chunkId != null) {
-      const chunk = state.chunksById[chunkId];
-      if (chunk != null) {
-        chunk.revision += 1;
-      }
-    }
-    return;
-  }
 
   const chunk = getOrCreateAppendChunk(state, entry.turnId);
   state.entriesById[entry.id] = entry;
   chunk.entryIds.push(entry.id);
-  chunk.revision += 1;
+  if (options.bumpChunkRevision) {
+    chunk.revision += 1;
+  }
   state.entryChunkById[entry.id] = chunk.id;
+};
+
+const appendBaselineEntry = (state: TranscriptState, entry: TranscriptEntry) => {
+  appendEntryToChunk(state, entry, { bumpChunkRevision: false });
+};
+
+const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
+  const existingEntry = state.entriesById[entry.id];
+  if (existingEntry == null) {
+    appendEntryToChunk(state, entry, { bumpChunkRevision: true });
+    return;
+  }
+
+  state.entriesById[entry.id] = {
+    ...entry,
+    revision: existingEntry.revision + 1,
+  };
+  const chunkId = state.entryChunkById[entry.id];
+  if (chunkId == null) {
+    return;
+  }
+
+  const chunk = state.chunksById[chunkId];
+  if (chunk != null) {
+    chunk.revision += 1;
+  }
 };
 
 const rebuildFromSnapshot = (
@@ -686,7 +702,7 @@ const rebuildFromSnapshot = (
     for (const item of turn.items) {
       const entry = materializeItem(item, turn.id);
       if (entry != null) {
-        appendCommittedEntry(nextState, entry);
+        appendBaselineEntry(nextState, entry);
       }
     }
   }
@@ -1198,7 +1214,7 @@ Replace the existing `extraReducers` block with this full block:
             ensureTurnExists(state, turnId);
             const entry = materializeItem(item, turnId);
             if (entry != null) {
-              appendCommittedEntry(state, entry);
+              upsertLiveCommittedEntry(state, entry);
             }
             return;
           }
