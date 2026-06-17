@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAppDispatch } from "./app/hooks";
+import { CommittedTranscriptSurface } from "./features/committedTranscriptSurface/CommittedTranscriptSurface";
 import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
 import {
@@ -110,7 +111,7 @@ function App() {
 
   return (
     <main
-      className="grid min-h-svh place-items-center bg-background px-6 py-10 text-foreground"
+      className="grid min-h-svh gap-6 bg-background px-6 py-10 text-foreground lg:grid-cols-[minmax(16rem,24rem)_minmax(0,1fr)] lg:items-start"
       data-gui-host-status={status.label}
     >
       <section className="grid w-full max-w-sm gap-3 text-sm">
@@ -128,6 +129,7 @@ function App() {
           <dd>{status.lastEventType ?? "none"}</dd>
         </dl>
       </section>
+      <CommittedTranscriptSurface />
     </main>
   );
 }
