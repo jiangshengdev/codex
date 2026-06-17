@@ -137,22 +137,24 @@ async function routeGuiHostWebSocket(page: Page): Promise<string[]> {
   return sentMethods;
 }
 
-test("renders a launch-param error when opened outside GUI host", async ({ page }) => {
+test("records a launch-param error without rendering host debug UI", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "error");
-  await expect(page.getByText("error: Missing threadId query parameter")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect(page.getByText("No committed messages yet.")).toBeVisible();
+  await expect(page.locator("main > section")).toHaveCount(1);
 });
 
-test("authenticates, attaches, and renders the first projection event", async ({ page }) => {
+test("authenticates, attaches, records projection status, and clears token", async ({ page }) => {
   const sentMethods = await routeGuiHostWebSocket(page);
 
   await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
 
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "received event");
-  await expect(page.getByText(/^yes$/)).toBeVisible();
-  await expect(page.getByText(/^1$/)).toBeVisible();
-  await expect(page.getByText("turnStarted")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect(page.getByText("No committed messages yet.")).toBeVisible();
+  await expect(page.locator("main > section")).toHaveCount(1);
   await expect
     .poll(() => sentMethods)
     .toEqual(["gui/authenticate", "initialize", "thread/projection/attach"]);

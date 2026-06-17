@@ -20,9 +20,12 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
+  ThreadItem,
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
   ThreadProjectionEventNotification,
+  Turn,
+  UserInput,
 } from "@codex-protocol/v2";
 
 const guiHostClientMock = vi.hoisted(() => ({
@@ -49,6 +52,54 @@ const startGuiHostConnectionMock =
 const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
 const launchThreadId = attachResponse.snapshot.thread.id;
 
+const textInput = (text: string): UserInput => ({
+  type: "text",
+  text,
+  text_elements: [],
+});
+
+const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
+  type: "userMessage",
+  id,
+  clientId: null,
+  content,
+});
+
+const agentMessage = (id: string, text: string): ThreadItem => ({
+  type: "agentMessage",
+  id,
+  text,
+  phase: "final_answer",
+  memoryCitation: null,
+});
+
+const attachWithCommittedMessages = (): ThreadProjectionAttachResponse => {
+  const turn: Turn = {
+    id: "turn-app-surface",
+    items: [
+      userMessage("user-app-surface", [textInput("Hello from App")]),
+      agentMessage("agent-app-surface", "Committed App response"),
+    ],
+    itemsView: "full",
+    status: "completed",
+    error: null,
+    startedAt: 1700000001,
+    completedAt: 1700000005,
+    durationMs: 4000,
+  };
+
+  return {
+    ...attachResponse,
+    snapshot: {
+      ...attachResponse.snapshot,
+      thread: {
+        ...attachResponse.snapshot.thread,
+        turns: [turn],
+      },
+    },
+  };
+};
+
 let emitStatus: ((status: GuiHostStatus) => void) | undefined;
 let cleanupConnectionCallCount: number;
 
@@ -65,18 +116,24 @@ beforeEach(() => {
   });
 });
 
-test("App renders the GUI host status panel without opening a real WebSocket", async () => {
+test("App renders the committed transcript shell without visible host debug details", async () => {
   const screen = await renderWithProviders(<App />);
+  const main = screen.getByRole("main").element();
+  const committedTranscript = screen
+    .getByRole("region", { name: "Committed transcript" })
+    .element();
 
-  await expect.element(screen.getByRole("heading", { name: "GUI host" })).toBeVisible();
-  await expect.element(screen.getByText("connecting")).toBeVisible();
-  await expect.element(screen.getByText(/^no$/)).toBeVisible();
-  await expect.element(screen.getByText(/^0$/)).toBeVisible();
-  await expect.element(screen.getByText(/^none$/)).toBeVisible();
+  await expect
+    .element(screen.getByRole("main"))
+    .toHaveAttribute("data-gui-host-status", "connecting");
+  await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+  expect(Array.from(main.children)).toHaveLength(1);
+  expect(main.firstElementChild).toBe(committedTranscript);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
 });
 
-test("App reflects GUI host status callback updates", async () => {
+test("App keeps host status as a test hook instead of visible shell content", async () => {
   const screen = await renderWithProviders(<App />);
 
   emitStatus?.({
@@ -85,13 +142,12 @@ test("App reflects GUI host status callback updates", async () => {
     lastEventType: "turnStarted",
   });
 
-  await expect.element(screen.getByText("received event")).toBeVisible();
-  await expect.element(screen.getByText(/^yes$/)).toBeVisible();
-  await expect.element(screen.getByText(/^2$/)).toBeVisible();
-  await expect.element(screen.getByText("turnStarted")).toBeVisible();
+  await expect
+    .element(screen.getByRole("main"))
+    .toHaveAttribute("data-gui-host-status", "received event");
 });
 
-test("App dispatches accepted GUI host projection payloads into thread runtime", async () => {
+test("App dispatches accepted host projection payloads into thread runtime", async () => {
   const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
   const threadId = attachResponse.snapshot.thread.id;
@@ -123,6 +179,17 @@ test("App dispatches accepted GUI host projection payloads into thread runtime",
   expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
     buildSnapshotReplayMaterials(runtime),
   );
+});
+
+test("App renders committed transcript messages from an attached projection", async () => {
+  const screen = await renderWithProviders(<App />);
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachWithCommittedMessages());
+
+  await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect.element(screen.getByText("Hello from App")).toBeVisible();
+  await expect.element(screen.getByText("Committed App response")).toBeVisible();
 });
 
 test("App records mismatched attach identity without advancing runtime state", async () => {
@@ -193,7 +260,7 @@ test("App records manual reconnect when a projection event breaks the baseline",
   expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
 });
 
-test("App closes the GUI host connection when unmounted", async () => {
+test("App closes the host connection when unmounted", async () => {
   const screen = await renderWithProviders(<App />);
 
   await screen.unmount();
