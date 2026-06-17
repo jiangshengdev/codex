@@ -43,8 +43,11 @@ export type IncrementalChatState = {
   turnViewIndexById: Record<string, number>;
   messageViewIndexById: Record<string, { turnId: string; index: number }>;
   globalStatus: IncrementalChatGlobalStatus[];
-  appliedEventIds: string[];
+  appliedEventIdsById: Record<string, true>;
+  appliedEventOrder: string[];
 };
+
+const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
 
 const initialState: IncrementalChatState = {
   threadId: null,
@@ -57,7 +60,8 @@ const initialState: IncrementalChatState = {
   turnViewIndexById: {},
   messageViewIndexById: {},
   globalStatus: [],
-  appliedEventIds: [],
+  appliedEventIdsById: {},
+  appliedEventOrder: [],
 };
 
 const createEmptyState = (): IncrementalChatState => ({
@@ -71,7 +75,8 @@ const createEmptyState = (): IncrementalChatState => ({
   turnViewIndexById: {},
   messageViewIndexById: {},
   globalStatus: [],
-  appliedEventIds: [],
+  appliedEventIdsById: {},
+  appliedEventOrder: [],
 });
 
 const resetState = (state: IncrementalChatState, nextState: IncrementalChatState) => {
@@ -85,7 +90,25 @@ const resetState = (state: IncrementalChatState, nextState: IncrementalChatState
   state.turnViewIndexById = nextState.turnViewIndexById;
   state.messageViewIndexById = nextState.messageViewIndexById;
   state.globalStatus = nextState.globalStatus;
-  state.appliedEventIds = nextState.appliedEventIds;
+  state.appliedEventIdsById = nextState.appliedEventIdsById;
+  state.appliedEventOrder = nextState.appliedEventOrder;
+};
+
+const hasAppliedEvent = (state: IncrementalChatState, commitId: string): boolean =>
+  state.appliedEventIdsById[commitId] === true;
+
+const recordAppliedEvent = (state: IncrementalChatState, commitId: string) => {
+  state.appliedEventIdsById[commitId] = true;
+  state.appliedEventOrder.push(commitId);
+
+  if (state.appliedEventOrder.length <= MAX_APPLIED_EVENT_ID_WINDOW_LENGTH) {
+    return;
+  }
+
+  const removedCommitId = state.appliedEventOrder.shift();
+  if (removedCommitId != null) {
+    Reflect.deleteProperty(state.appliedEventIdsById, removedCommitId);
+  }
 };
 
 const syncTurnView = (state: IncrementalChatState, turn: IncrementalChatTurn) => {
@@ -121,9 +144,7 @@ const ensureTurnExists = (state: IncrementalChatState, turnId: string): Incremen
     status: "inProgress",
   };
   state.turnsById[turnId] = turn;
-  if (!state.turnOrder.includes(turnId)) {
-    state.turnOrder.push(turnId);
-  }
+  state.turnOrder.push(turnId);
   syncTurnView(state, turn);
   return turn;
 };
@@ -136,9 +157,7 @@ const upsertTurnFromPayload = (state: IncrementalChatState, turn: Turn) => {
       status: turn.status,
     };
     state.turnsById[turn.id] = nextTurn;
-    if (!state.turnOrder.includes(turn.id)) {
-      state.turnOrder.push(turn.id);
-    }
+    state.turnOrder.push(turn.id);
     syncTurnView(state, nextTurn);
     return;
   }
@@ -360,11 +379,11 @@ export const incrementalChatStateSlice = createAppSlice({
           return;
         }
 
-        if (state.appliedEventIds.includes(action.payload.commitId)) {
+        if (hasAppliedEvent(state, action.payload.commitId)) {
           return;
         }
 
-        state.appliedEventIds.push(action.payload.commitId);
+        recordAppliedEvent(state, action.payload.commitId);
 
         switch (action.payload.event.type) {
           case "turnStarted":

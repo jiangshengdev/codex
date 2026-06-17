@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { makeStore } from "@/app/store";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import eventItemCompletedJson from "@/features/projection/__fixtures__/event-item-completed.json";
@@ -220,6 +220,48 @@ describe("incremental chat state reducer", () => {
     expect(selectIncrementalChatGlobalStatus(store.getState())).toStrictEqual([]);
   });
 
+  it("rebuilds snapshot turn order without array membership scans", () => {
+    const attachWithMultipleTurns = attachWithTurns([
+      baseTurn("turn-order-1"),
+      baseTurn("turn-order-2"),
+      baseTurn("turn-order-3"),
+    ]);
+    const includesSpy = vi.spyOn(Array.prototype, "includes");
+    const store = makeStore();
+    const includesCalls = (() => {
+      try {
+        store.dispatch(threadRuntimeAttached(attachWithMultipleTurns));
+        return Array.from(includesSpy.mock.calls as readonly (readonly unknown[])[], (call) =>
+          Array.from(call),
+        );
+      } finally {
+        includesSpy.mockRestore();
+      }
+    })();
+
+    const turnIds = new Set(["turn-order-1", "turn-order-2", "turn-order-3"]);
+    expect(
+      includesCalls.filter(([searchElement]) => turnIds.has(String(searchElement))),
+    ).toStrictEqual([]);
+    expect(selectIncrementalChatTurns(store.getState())).toStrictEqual([
+      {
+        id: "turn-order-1",
+        status: "completed",
+        messages: [],
+      },
+      {
+        id: "turn-order-2",
+        status: "completed",
+        messages: [],
+      },
+      {
+        id: "turn-order-3",
+        status: "completed",
+        messages: [],
+      },
+    ] satisfies IncrementalChatTurnView[]);
+  });
+
   it("applies live notifications incrementally and ignores itemStarted for chat messages", () => {
     const store = makeStore();
     store.dispatch(threadRuntimeAttached(attachWithTurns([])));
@@ -326,6 +368,35 @@ describe("incremental chat state reducer", () => {
         ],
       },
     ] satisfies IncrementalChatTurnView[]);
+  });
+
+  it("keeps applied event id dedupe state bounded", () => {
+    let state = incrementalChatStateSlice.reducer(
+      undefined,
+      threadRuntimeAttached(attachWithTurns([])),
+    );
+
+    for (let index = 0; index < 501; index += 1) {
+      const indexText = String(index);
+
+      state = incrementalChatStateSlice.reducer(
+        state,
+        threadRuntimeEventBuffered(
+          itemCompleted(
+            `commit-window-${indexText}`,
+            `turn-window-${indexText}`,
+            agentMessage(`agent-window-${indexText}`, `Window ${indexText}`),
+          ),
+        ),
+      );
+    }
+
+    expect(state.appliedEventOrder).toHaveLength(500);
+    expect(state.appliedEventOrder[0]).toBe("commit-window-1");
+    expect(state.appliedEventOrder.at(-1)).toBe("commit-window-500");
+    expect(state.appliedEventIdsById["commit-window-0"]).toBeUndefined();
+    expect(state.appliedEventIdsById["commit-window-1"]).toBe(true);
+    expect(state.appliedEventIdsById["commit-window-500"]).toBe(true);
   });
 
   it("updates an existing message id without duplicating turn order", () => {
