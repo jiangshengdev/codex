@@ -137,7 +137,7 @@ async function routeGuiHostWebSocket(page: Page): Promise<string[]> {
   return sentMethods;
 }
 
-test("records a launch-param error without rendering GUI host debug UI", async ({ page }) => {
+test("records a launch-param error without rendering host debug UI", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "error");
