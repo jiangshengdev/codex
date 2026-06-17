@@ -1,6 +1,6 @@
 import type { Action, ThunkAction } from "@reduxjs/toolkit";
 import { combineSlices, configureStore } from "@reduxjs/toolkit";
-import incrementalChatStateSlice from "@/features/incrementalChatState/incrementalChatStateSlice";
+import transcriptStateSlice from "@/features/transcriptState/transcriptStateSlice";
 import threadIdentitySlice from "@/features/threadIdentity/threadIdentitySlice";
 import threadRuntimeSlice from "@/features/threadRuntime/threadRuntimeSlice";
 
@@ -9,7 +9,7 @@ import threadRuntimeSlice from "@/features/threadRuntime/threadRuntimeSlice";
 const rootReducer = combineSlices(
   threadIdentitySlice,
   threadRuntimeSlice,
-  incrementalChatStateSlice,
+  transcriptStateSlice,
 );
 // Infer the `RootState` type from the root reducer
 export type RootState = ReturnType<typeof rootReducer>;
