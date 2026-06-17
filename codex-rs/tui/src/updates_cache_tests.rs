@@ -4,6 +4,21 @@ use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 
 #[tokio::test]
+async fn version_filepath_uses_fork_cache_dir() {
+    let codex_home = tempdir().expect("temp codex home");
+    let config = ConfigBuilder::default()
+        .codex_home(codex_home.path().to_path_buf())
+        .build()
+        .await
+        .expect("load config");
+
+    assert_eq!(
+        version_filepath(&config),
+        codex_home.path().join("cdx").join("version.json")
+    );
+}
+
+#[tokio::test]
 async fn dismiss_version_creates_cache_file_when_missing() {
     let codex_home = tempdir().expect("temp codex home");
     let config = ConfigBuilder::default()
