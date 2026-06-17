@@ -146,7 +146,6 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
-  transcriptStateSlice,
 } from "../transcriptStateSlice";
 
 const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
@@ -1266,6 +1265,7 @@ git commit -m "feat(gui): apply committed transcript events"
 - Delete: `codex-gui/src/features/incrementalChatState/incrementalChatStateSlice.ts`
 - Delete: `codex-gui/src/features/incrementalChatState/__tests__/incrementalChatStateSlice.test.ts`
 - Modify: `codex-gui/src/app/store.ts`
+- Modify: `codex-gui/src/features/transcriptState/__tests__/transcriptStateSlice.test.ts`
 
 - [ ] **Step 1: Delete the old owner and old tests**
 
@@ -1298,7 +1298,25 @@ git diff -- codex-gui/src/features/chatTextModel
 
 Expected result: no output.
 
-- [ ] **Step 4: Run the focused transcript test**
+- [ ] **Step 4: Clean stale test imports before type-check**
+
+Open `codex-gui/src/features/transcriptState/__tests__/transcriptStateSlice.test.ts` and make sure the import from `../transcriptStateSlice` does not include `transcriptStateSlice`.
+
+The import should look like this:
+
+```ts
+import {
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  selectTranscriptChunk,
+  selectTranscriptChunkIdsForTurn,
+  selectTranscriptEntry,
+  selectTranscriptGlobalStatus,
+  selectTranscriptTurn,
+  selectTranscriptTurnIds,
+} from "../transcriptStateSlice";
+```
+
+- [ ] **Step 5: Run the focused transcript test**
 
 Run:
 
@@ -1308,7 +1326,7 @@ pnpm --dir codex-gui exec vitest run src/features/transcriptState/__tests__/tran
 
 Expected result: PASS.
 
-- [ ] **Step 5: Run a focused type check**
+- [ ] **Step 6: Run a focused type check**
 
 Run:
 
@@ -1320,7 +1338,7 @@ Expected result: PASS.
 
 Do not run `pnpm --dir codex-gui run test` or `pnpm --dir codex-gui run ci`; those are broader than this plan's focused verification boundary.
 
-- [ ] **Step 6: Commit the old owner removal**
+- [ ] **Step 7: Commit the old owner removal**
 
 Run:
 
