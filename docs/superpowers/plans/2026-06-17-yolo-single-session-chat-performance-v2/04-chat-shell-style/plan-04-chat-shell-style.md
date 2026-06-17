@@ -4,7 +4,7 @@
 
 **Goal:** Turn `App` into a production single-column committed transcript shell by removing the visible `GUI host` debug panel and keeping host status as an internal/test signal.
 
-**Architecture:** Keep `App` responsible for GUI host connection, projection ingress, and Redux dispatch, but make `CommittedTranscriptSurface` the only visible main UI. Preserve `data-gui-host-status` for browser/e2e tests, update tests that currently assert the old debug panel, and style the committed transcript surface with component-local Tailwind while retaining stable semantic class hooks.
+**Architecture:** Keep `App` responsible for GUI host connection, projection ingress, and Redux dispatch, but make `CommittedTranscriptSurface` the only visible main UI. Preserve `data-gui-host-status` for browser/e2e tests, update tests that currently assert the old debug panel, make the committed empty state depend on committed chunks rather than raw turn ids, and style the committed transcript surface with component-local Tailwind while retaining stable semantic class hooks.
 
 **Tech Stack:** TypeScript, React 19, Redux Toolkit, React Redux typed hooks, Tailwind CSS v4, existing HeroUI v3 styles, Vitest Browser Mode, Playwright e2e, pnpm.
 
@@ -60,6 +60,7 @@ This plan does not modify:
   - Continue asserting `main[data-gui-host-status]` for internal/test status.
   - Assert the committed transcript region remains the visible shell.
 - Modify: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+  - Treat "empty committed transcript" as "no committed chunks", not "no turns".
   - Add Tailwind classes directly to the committed transcript components.
   - Preserve `committed-transcript-*` classes as stable hooks and component boundaries.
   - Do not add HeroUI components unless a real interaction/control is introduced; this plan introduces none.
@@ -105,6 +106,10 @@ lockfile changes
 ```
 
 Do not change `transcriptState` selectors, `chatTextModel` deletion behavior, active tail behavior, or windowing behavior in this plan.
+
+The committed empty state means "there are no committed transcript chunks to render". A live
+`turnStarted` event can create a turn before any committed message exists; that state must still
+render `No committed messages yet.`.
 
 ---
 
@@ -348,7 +353,140 @@ git add codex-gui/src/App.tsx codex-gui/src/__tests__/App.browser.test.tsx codex
 git commit -m "refactor(gui): remove visible host debug shell"
 ```
 
-### Task 3: Apply Component-Local Tailwind Styling
+### Task 3: Repair Empty Committed Transcript Semantics
+
+**Files:**
+- Modify: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+- Modify: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
+- Modify: `codex-gui/e2e/app.spec.ts`
+
+This task fixes a plan gap discovered after Task 2: a `turnStarted` projection can create
+`turnIds` without committed chunks. The empty state must be based on committed chunks, not raw turn
+ids. If commit `2a8c712f1 refactor(gui): remove visible host debug shell` already exists, keep it
+and apply this task as a follow-up commit; do not revert it just to repair the missing assertion.
+
+- [ ] **Step 1: Add a browser assertion for turn-without-committed-chunks**
+
+In `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`, find the test named:
+
+```ts
+test("renders live completed items without rendering started items", async () => {
+```
+
+After this existing assertion:
+
+```ts
+  await expect.element(screen.getByText("Draft answer")).not.toBeInTheDocument();
+```
+
+add:
+
+```ts
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+```
+
+This proves a live turn with only started/transient content still renders the committed empty state.
+
+- [ ] **Step 2: Restore the e2e empty-state assertion after the host event**
+
+In `codex-gui/e2e/app.spec.ts`, find the test named:
+
+```ts
+test("authenticates, attaches, records projection status, and clears token", async ({ page }) => {
+```
+
+After:
+
+```ts
+  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "received event");
+```
+
+ensure these assertions are present:
+
+```ts
+  await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect(page.getByText("No committed messages yet.")).toBeVisible();
+```
+
+Keep the existing assertion that only one direct `main > section` exists:
+
+```ts
+  await expect(page.locator("main > section")).toHaveCount(1);
+```
+
+- [ ] **Step 3: Run focused checks and verify they fail for the expected reason**
+
+Run:
+
+```bash
+pnpm --dir codex-gui run test:browser -- src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
+```
+
+Expected: FAIL because `CommittedTranscriptSurface` still uses `turnIds.length === 0` for the empty state.
+
+Run:
+
+```bash
+pnpm --dir codex-gui run test:e2e -- e2e/app.spec.ts
+```
+
+Expected: FAIL because the host event scenario creates a turn without committed chunks, so the current implementation hides the empty state. If Playwright browser assets are missing, stop and report the missing local dependency instead of installing anything.
+
+- [ ] **Step 4: Change the empty-state predicate to committed chunk presence**
+
+In `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`, add this selector result after the existing selector reads:
+
+```tsx
+  const hasCommittedChunks = useAppSelector((state) =>
+    selectTranscriptTurnIds(state).some(
+      (turnId) => selectTranscriptChunkIdsForTurn(state, turnId).length > 0,
+    ),
+  );
+```
+
+Then replace:
+
+```tsx
+      {turnIds.length === 0 ? (
+```
+
+with:
+
+```tsx
+      {!hasCommittedChunks ? (
+```
+
+This boolean reads only turn ids and chunk ids. It must not call `selectTranscriptChunk`, must not
+materialize entries, and must not introduce a complete transcript tree.
+
+- [ ] **Step 5: Run focused tests**
+
+Run:
+
+```bash
+pnpm --dir codex-gui run test:browser -- src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
+```
+
+Expected: PASS.
+
+Run:
+
+```bash
+pnpm --dir codex-gui run test:e2e -- e2e/app.spec.ts
+```
+
+Expected: PASS. If Playwright browser assets are missing, stop and report the missing local dependency instead of installing anything.
+
+- [ ] **Step 6: Commit the empty-state repair**
+
+Run:
+
+```bash
+git add codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx codex-gui/e2e/app.spec.ts
+git commit -m "fix(gui): preserve empty transcript after live turn"
+```
+
+### Task 4: Apply Component-Local Tailwind Styling
 
 **Files:**
 - Modify: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
@@ -436,7 +574,7 @@ In `CommittedTranscriptSurface`, replace the full return block with:
           ))}
         </div>
       ) : null}
-      {turnIds.length === 0 ? (
+      {!hasCommittedChunks ? (
         <p className="committed-transcript-empty rounded-md border border-dashed border-foreground/20 px-4 py-6 text-sm text-muted">
           No committed messages yet.
         </p>
@@ -470,10 +608,10 @@ git add codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSur
 git commit -m "style(gui): tighten committed transcript shell"
 ```
 
-### Task 4: Final Focused Verification
+### Task 5: Final Focused Verification
 
 **Files:**
-- Verify only; do not modify files in this task unless a focused check reports a real issue from Tasks 1-3.
+- Verify only; do not modify files in this task unless a focused check reports a real issue from Tasks 1-4.
 
 - [ ] **Step 1: Run focused lint on touched files**
 
