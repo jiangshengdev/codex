@@ -23,6 +23,6 @@ export const areTranscriptChunkViewsEqual = (
 
   return previous.entries.every((entry, index) => {
     const nextEntry = next.entries[index];
-    return nextEntry != null && entry.id === nextEntry.id && entry.revision === nextEntry.revision;
+    return entry.id === nextEntry?.id && entry.revision === nextEntry.revision;
   });
 };

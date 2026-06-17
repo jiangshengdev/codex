@@ -7,19 +7,10 @@ import {
   selectTranscriptTurn,
   selectTranscriptTurnIds,
   type TranscriptEntry,
-  type TranscriptGlobalStatus,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
 
-const statusText = (status: TranscriptGlobalStatus): string => {
-  switch (status.status) {
-    case "subscriptionInterrupted":
-      return "Connection interrupted. Reconnect required.";
-  }
-
-  const exhaustiveStatus: never = status.status;
-  return exhaustiveStatus;
-};
+const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
 
 const entryText = (entry: TranscriptEntry): string => {
   switch (entry.type) {
@@ -116,7 +107,7 @@ export const CommittedTranscriptSurface = () => {
         <div className="committed-transcript-status-list">
           {globalStatus.map((status) => (
             <div className="committed-transcript-status" key={status.id} role="status">
-              {statusText(status)}
+              {subscriptionInterruptedStatusText}
             </div>
           ))}
         </div>

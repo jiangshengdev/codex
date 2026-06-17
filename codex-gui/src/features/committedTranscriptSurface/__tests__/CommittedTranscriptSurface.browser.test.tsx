@@ -134,9 +134,7 @@ const turnStarted = (commitId: string, turn: Turn): ThreadProjectionEventNotific
 test("renders an empty committed transcript region", async () => {
   const screen = await renderWithProviders(<CommittedTranscriptSurface />);
 
-  await expect
-    .element(screen.getByRole("region", { name: "Committed transcript" }))
-    .toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
 
@@ -154,9 +152,7 @@ test("renders committed user and assistant messages from an attached baseline", 
     ),
   );
 
-  await expect
-    .element(screen.getByRole("article", { name: "Turn turn-surface" }))
-    .toBeVisible();
+  await expect.element(screen.getByRole("article", { name: "Turn turn-surface" })).toBeVisible();
   await expect.element(screen.getByText("Hello surface")).toBeVisible();
   await expect.element(screen.getByText("Committed response")).toBeVisible();
 });
