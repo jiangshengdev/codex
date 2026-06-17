@@ -440,9 +440,9 @@ describe("transcript state reducer", () => {
       store.dispatch(
         threadRuntimeEventBuffered(
           itemCompleted(
-            `commit-chunk-${index}`,
+            `commit-chunk-${String(index)}`,
             "turn-chunked",
-            agentMessage(`agent-chunk-${index}`, `Entry ${index}`),
+            agentMessage(`agent-chunk-${String(index)}`, `Entry ${String(index)}`),
           ),
         ),
       );

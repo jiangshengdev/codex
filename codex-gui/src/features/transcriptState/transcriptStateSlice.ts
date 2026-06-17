@@ -124,7 +124,8 @@ const recordAppliedEvent = (state: TranscriptState, commitId: string) => {
   }
 };
 
-const chunkIdForIndex = (turnId: string, index: number): string => `${turnId}:chunk:${index}`;
+const chunkIdForIndex = (turnId: string, index: number): string =>
+  `${turnId}:chunk:${String(index)}`;
 
 const ensureTurnExists = (state: TranscriptState, turnId: string): TranscriptTurn => {
   const existingTurn = state.turnsById[turnId];
