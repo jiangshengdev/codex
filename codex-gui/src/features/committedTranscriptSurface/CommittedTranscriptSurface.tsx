@@ -89,10 +89,7 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   }
 
   return (
-    <article
-      aria-label={`Turn ${turn.id}`}
-      className="committed-transcript-turn grid gap-3"
-    >
+    <article aria-label={`Turn ${turn.id}`} className="committed-transcript-turn grid gap-3">
       <div className="committed-transcript-turn-metadata flex flex-wrap items-center gap-2 text-xs text-muted">
         <span className="committed-transcript-turn-id font-medium">{turn.id}</span>
         <span className="committed-transcript-turn-status rounded-sm bg-foreground/5 px-2 py-0.5">

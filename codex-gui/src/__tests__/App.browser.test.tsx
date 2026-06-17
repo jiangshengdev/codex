@@ -123,10 +123,9 @@ test("App renders the committed transcript shell without visible host debug deta
     .getByRole("region", { name: "Committed transcript" })
     .element();
 
-  await expect.element(screen.getByRole("main")).toHaveAttribute(
-    "data-gui-host-status",
-    "connecting",
-  );
+  await expect
+    .element(screen.getByRole("main"))
+    .toHaveAttribute("data-gui-host-status", "connecting");
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
   expect(Array.from(main.children)).toHaveLength(1);
@@ -143,10 +142,9 @@ test("App keeps host status as a test hook instead of visible shell content", as
     lastEventType: "turnStarted",
   });
 
-  await expect.element(screen.getByRole("main")).toHaveAttribute(
-    "data-gui-host-status",
-    "received event",
-  );
+  await expect
+    .element(screen.getByRole("main"))
+    .toHaveAttribute("data-gui-host-status", "received event");
 });
 
 test("App dispatches accepted host projection payloads into thread runtime", async () => {
