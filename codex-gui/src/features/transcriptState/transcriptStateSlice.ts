@@ -315,10 +315,7 @@ export const transcriptStateSlice = createAppSlice({
       transcriptState.turnsById[turnId] ?? null,
     selectTranscriptChunkIdsForTurn: (transcriptState, turnId: string): string[] =>
       transcriptState.chunkIdsByTurnId[turnId] ?? [],
-    selectTranscriptChunk: (
-      transcriptState,
-      chunkId: string,
-    ): TranscriptChunkView | null => {
+    selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null => {
       const chunk = transcriptState.chunksById[chunkId];
       if (chunk == null) {
         return null;

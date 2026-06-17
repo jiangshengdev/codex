@@ -272,11 +272,7 @@ describe("transcript state reducer", () => {
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted(
-          "commit-live-agent",
-          "turn-live",
-          agentMessage("agent-live", "Live answer"),
-        ),
+        itemCompleted("commit-live-agent", "turn-live", agentMessage("agent-live", "Live answer")),
       ),
     );
 
@@ -343,11 +339,7 @@ describe("transcript state reducer", () => {
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted(
-          "commit-empty-agent",
-          "turn-live-filtered",
-          agentMessage("empty-agent", ""),
-        ),
+        itemCompleted("commit-empty-agent", "turn-live-filtered", agentMessage("empty-agent", "")),
       ),
     );
     store.dispatch(
@@ -368,11 +360,7 @@ describe("transcript state reducer", () => {
     store.dispatch(threadRuntimeAttached(attachWithTurns([])));
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted(
-          "commit-duplicate",
-          "turn-duplicate",
-          agentMessage("agent-first", "First"),
-        ),
+        itemCompleted("commit-duplicate", "turn-duplicate", agentMessage("agent-first", "First")),
       ),
     );
     store.dispatch(
@@ -495,19 +483,19 @@ describe("transcript state reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-existing:chunk:0")?.entries,
-    ).toStrictEqual([
-      {
-        type: "message",
-        id: "agent-existing",
-        turnId: "turn-existing",
-        role: "assistant",
-        source: "Existing answer",
-        sourceKind: "plainText",
-        revision: 0,
-      },
-    ]);
+    expect(selectTranscriptChunk(store.getState(), "turn-existing:chunk:0")?.entries).toStrictEqual(
+      [
+        {
+          type: "message",
+          id: "agent-existing",
+          turnId: "turn-existing",
+          role: "assistant",
+          source: "Existing answer",
+          sourceKind: "plainText",
+          revision: 0,
+        },
+      ],
+    );
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
       {
         id: `subscriptionInterrupted:${attachWithChat.snapshot.thread.id}:${attachWithChat.subscriptionId}:backpressure`,
