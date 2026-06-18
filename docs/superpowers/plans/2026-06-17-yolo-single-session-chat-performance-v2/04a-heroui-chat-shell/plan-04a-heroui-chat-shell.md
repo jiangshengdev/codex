@@ -1,21 +1,27 @@
-# HeroUI Chat Shell Correction Implementation Plan
+# HeroUI Page Shell Redesign Implementation Plan
 
-> 执行本计划时必须逐项推进 checkbox。代码或测试改动必须由 worker 子代理完成；主代理负责协调、审查、验证和提交。执行期间不得修改设计文档或本计划正文，除非只是把已完成任务的 checkbox 打勾。
+> 执行本计划时必须逐项推进 checkbox。代码或测试改动必须由 worker 子代理完成；主代理负责协调、
+> 审查、验证和提交。执行期间不得修改设计文档或本计划正文，除非只是把已完成任务的 checkbox 打勾。
 
 ## 目标
 
-修正 `CommittedTranscriptSurface` 的组件库落地方式: `Entry`、`Empty state` 和 `Global status`
-必须实际使用现有 `@heroui/react` 组件, 而不是只使用原生 HTML + Tailwind。
+按已确认的 `04a` 设计重写当前首屏页面可见 UI: 让 HeroUI React v3 接管 `App` 页面壳和
+`CommittedTranscriptSurface` 的主要视觉所有权, 清理旧的手写 Tailwind card / alert / pill
+视觉实现。
+
+本计划不是“给现有 HTML 套 HeroUI wrapper”。实现必须先识别并移除旧视觉 ownership, 再用
+`Surface`、`Card`、`Alert`、`Chip`、`Typography` 等本地 HeroUI v3 组件重建页面层级。
 
 ## Source Design
 
-实现已确认的修正设计:
+实现已确认的页面级设计:
 
 - `docs/superpowers/specs/2026-06-17-yolo-single-session-chat-performance-v2/04a-heroui-chat-shell-design.md`
 
 本计划依赖但不修改:
 
 - `docs/superpowers/specs/2026-06-17-yolo-single-session-chat-performance-v2/04-chat-shell-style-design.md`
+- `docs/superpowers/specs/2026-06-17-yolo-single-session-chat-performance-v2/03-committed-transcript-surface-design.md`
 - `docs/superpowers/plans/2026-06-17-yolo-single-session-chat-performance-v2/04-chat-shell-style/plan-04-chat-shell-style.md`
 
 如果实施时发现 `04a` 设计不足, 必须停止实现并回到设计层, 不得边实现边改设计或计划。
@@ -24,22 +30,27 @@
 
 本计划允许修改:
 
+- `codex-gui/src/App.tsx`
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+- `codex-gui/src/__tests__/App.browser.test.tsx`
+- `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
+- `codex-gui/e2e/app.spec.ts`
+
+测试文件只允许为适配新页面结构和保持用户语义契约而修改。不得添加测试来断言 HeroUI 内部 DOM、
+HeroUI BEM class、具体 Tailwind class 或 import 细节。
 
 本计划只读验证:
 
-- `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
-- `codex-gui/e2e/app.spec.ts`
+- `codex-gui/.heroui-docs/react/components/(layout)/surface.mdx`
 - `codex-gui/.heroui-docs/react/components/(layout)/card.mdx`
 - `codex-gui/.heroui-docs/react/components/(feedback)/alert.mdx`
+- `codex-gui/.heroui-docs/react/components/(data-display)/chip.mdx`
+- `codex-gui/.heroui-docs/react/components/(typography)/typography.mdx`
 
 本计划禁止修改:
 
 - `docs/superpowers/specs/**`
-- `docs/superpowers/plans/**`
-- `codex-gui/src/App.tsx`
-- `codex-gui/src/__tests__/App.browser.test.tsx`
-- `codex-gui/e2e/app.spec.ts`
+- `docs/superpowers/plans/**`, 但执行时允许勾选本计划 checkbox
 - `codex-gui/src/features/transcriptState/**`
 - `codex-gui/src/features/guiHost/**`
 - `codex-gui/src/features/projectionIngress/**`
@@ -48,9 +59,6 @@
 - `codex-gui/package.json`
 - `codex-gui/pnpm-lock.yaml`
 - 任何 lockfile
-
-除非现有 focused tests 因可访问语义回归失败, 否则不得修改测试。即使测试失败, 也应优先修
-`CommittedTranscriptSurface.tsx` 保持现有用户语义, 不得弱化测试来迁就 HeroUI 内部 DOM。
 
 ## 实施契约
 
@@ -84,7 +92,7 @@ new CSS dependency
 lockfile changes
 ```
 
-自动测试不验证组件库来源。组件库是否真正使用由人工代码审查确认。
+自动测试不验证组件库来源。组件库是否真正接管页面视觉由人工代码审查确认。
 
 ## Task 1: Preflight And Local HeroUI Docs Check
 
@@ -106,29 +114,95 @@ lockfile 变更, 停止并汇报; 不要 restore、stage 或 commit。
 读取:
 
 ```bash
-sed -n '1,220p' docs/superpowers/specs/2026-06-17-yolo-single-session-chat-performance-v2/04a-heroui-chat-shell-design.md
-```
-
-Expected: 确认本阶段只要求 `CommittedTranscriptSurface` 的 Entry / Empty / Status 使用 HeroUI React
-组件, 不修改 `App` shell。
-
-- [ ] **Step 3: Read local HeroUI Card and Alert docs**
-
-读取:
-
-```bash
-sed -n '1,160p' 'codex-gui/.heroui-docs/react/components/(layout)/card.mdx'
-sed -n '1,180p' 'codex-gui/.heroui-docs/react/components/(feedback)/alert.mdx'
+sed -n '1,320p' docs/superpowers/specs/2026-06-17-yolo-single-session-chat-performance-v2/04a-heroui-chat-shell-design.md
 ```
 
 Expected:
 
-- `Card` 从 `@heroui/react` 导入;
-- 使用 `Card.Content`, 不使用不存在的 `CardBody`;
-- `Alert` 从 `@heroui/react` 导入;
-- 使用 `Alert.Content`, 可使用 `Alert.Indicator` / `Alert.Title`。
+- 本阶段范围覆盖 `App` 页面壳和 `CommittedTranscriptSurface`;
+- HeroUI 接管 page shell、status、empty、entry、metadata 的主要视觉所有权;
+- Tailwind 只保留布局 glue、响应式约束、长文本换行和稳定 hook;
+- 自动测试不验证是否使用 HeroUI。
 
-## Task 2: Convert Entry, Empty, And Status To HeroUI Components
+- [ ] **Step 3: Read local HeroUI docs**
+
+读取:
+
+```bash
+sed -n '1,180p' 'codex-gui/.heroui-docs/react/components/(layout)/surface.mdx'
+sed -n '1,210p' 'codex-gui/.heroui-docs/react/components/(layout)/card.mdx'
+sed -n '1,170p' 'codex-gui/.heroui-docs/react/components/(feedback)/alert.mdx'
+sed -n '1,180p' 'codex-gui/.heroui-docs/react/components/(data-display)/chip.mdx'
+sed -n '1,120p' 'codex-gui/.heroui-docs/react/components/(typography)/typography.mdx'
+```
+
+Expected:
+
+- `Surface`, `Card`, `Alert`, `Chip`, `Typography` 均从 `@heroui/react` 导入;
+- `Card` 使用 `Card.Content`, 不使用不存在的 `CardBody`;
+- `Alert` 使用 `Alert.Content` / `Alert.Title` / `Alert.Description`;
+- `Chip` 用于 standalone labels / statuses;
+- `Typography` 用于 body / small text / muted text 等文本层级。
+
+## Task 2: Rebuild The App Page Shell With HeroUI Surface
+
+**Files:**
+
+- Modify: `codex-gui/src/App.tsx`
+- May modify: `codex-gui/src/__tests__/App.browser.test.tsx`
+
+- [ ] **Step 1: Import and use HeroUI Surface**
+
+在 `App.tsx` 中使用 `Surface` 承担首屏页面可见 surface:
+
+```tsx
+import { Surface } from "@heroui/react";
+```
+
+Required behavior:
+
+- `main[data-gui-host-status]` 保留;
+- host connection、projection ingress、Redux dispatch 逻辑不变;
+- 不展示 `GUI host`、`status`、`attached`、`events`、`last event`;
+- `main` 只保留语义、test hook、viewport 和布局 glue;
+- 可见 page shell 使用 `Surface`, 优先使用 `variant="default"`;
+- 不新增 header、sidebar、toolbar、debug inspector、loading UI 或 connection error UI。
+
+- [ ] **Step 2: Move page visual ownership away from main**
+
+清理 `main` 上承担页面视觉的旧 Tailwind ownership。
+
+Remove or avoid preserving as main visual ownership:
+
+```text
+bg-background
+text-foreground
+```
+
+Allowed on `main`:
+
+```text
+min-h-svh
+w-full
+responsive padding
+centering/layout glue
+```
+
+`Surface` 可以承载必要的 layout class, 但不得把旧页面视觉 class 原样搬到 `Surface className` 里来模拟
+旧界面。
+
+- [ ] **Step 3: Update App browser test structure assertions**
+
+当前 App browser test 可能假设 `main.firstElementChild` 直接是 committed transcript region。页面重写后
+允许 `main -> Surface -> region`。更新断言时必须保持用户语义:
+
+- `main` 仍有 `data-gui-host-status`;
+- `Committed transcript` region 可见;
+- empty state 可见;
+- `GUI host` debug details 不可见;
+- 不断言 HeroUI DOM、BEM class、Tailwind class 或 `Surface` 内部结构。
+
+## Task 3: Rebuild The Committed Transcript Surface With HeroUI Components
 
 **Files:**
 
@@ -136,109 +210,160 @@ Expected:
 
 - [ ] **Step 1: Import HeroUI components**
 
-在 `CommittedTranscriptSurface.tsx` 中添加:
+在 `CommittedTranscriptSurface.tsx` 中使用本地 docs 支持的 HeroUI 组件:
 
 ```tsx
-import { Alert, Card } from "@heroui/react";
+import { Alert, Card, Chip, Typography } from "@heroui/react";
 ```
 
-不要新增 provider、样式入口或依赖。
+`Separator` 只有在确实需要 turn / section 分隔时才引入。不要新增 provider、样式入口或依赖。
 
-- [ ] **Step 2: Convert committed transcript entries to Card**
+- [ ] **Step 2: Replace global status visual implementation with Alert**
 
-把 `CommittedTranscriptEntry` 的外层原生 `<article>` 替换为 HeroUI `Card`。
+把 `globalStatus.map(...)` 中的手写 status panel 替换为 HeroUI `Alert`。
 
 Required behavior:
 
-- `Card` 必须保留 `committed-transcript-entry` 和 `committed-transcript-entry-${entry.type}` class;
-- entry 内容主体必须使用 `Card.Content`;
-- role 文本和 source 文本继续可见;
-- source 内容继续使用 `whitespace-pre-wrap` 和当前长文本换行策略;
-- entry 可以通过 `role="article"` 或语义 wrapper 保留内容分组语义;
-- 不改变 `entryText(...)` 和 transcript selector 使用方式。
-
-Allowed shape:
-
-```tsx
-const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
-  <Card
-    className={`committed-transcript-entry committed-transcript-entry-${entry.type} ...`}
-    role="article"
-  >
-    <Card.Content className="...">
-      ...
-    </Card.Content>
-  </Card>
-);
-```
-
-具体 className 可按现有 Tailwind 密度调整, 但必须保留稳定 `committed-transcript-*` hooks。
-
-- [ ] **Step 3: Convert global status to Alert**
-
-把 `globalStatus.map(...)` 中的原生 status `<div>` 替换为 HeroUI `Alert`。
-
-Required behavior:
-
-- 使用 `<Alert status="danger">` 或本地 docs 支持的等价 danger status;
-- 保留 `committed-transcript-status` class;
+- 使用 `<Alert status="danger">`;
+- 使用 `Alert.Content` 和 `Alert.Title` 或 `Alert.Description`;
+- 保留 `committed-transcript-status` stable class;
 - 保留 `role="status"` 或等价可访问状态语义;
 - status 文案仍为 `Connection interrupted. Reconnect required.`;
-- 可使用 `Alert.Indicator`、`Alert.Content`、`Alert.Title`;
 - 不新增 close button、retry button、loading spinner 或正式 connection error UI。
 
-Allowed shape:
+Must remove as status visual ownership:
 
-```tsx
-<Alert className="committed-transcript-status ..." key={status.id} role="status" status="danger">
-  <Alert.Indicator />
-  <Alert.Content>
-    <Alert.Title>{subscriptionInterruptedStatusText}</Alert.Title>
-  </Alert.Content>
-</Alert>
+```text
+rounded-md
+border-danger/30
+bg-danger/10
+text-danger
 ```
 
-- [ ] **Step 4: Convert empty state to Card**
+- [ ] **Step 3: Replace empty state visual implementation with Card/Typography**
 
-把 empty state 的原生 `<p>` 外层替换为 HeroUI `Card`。
+把 empty state 的手写 dashed panel 替换为 HeroUI `Card` 或 `Surface`。本计划优先使用 `Card`。
 
 Required behavior:
 
 - 使用 `Card` 作为 empty state 容器;
-- empty state 内容主体使用 `Card.Content`;
-- 保留 `committed-transcript-empty` class;
+- 使用 `Card.Content`;
+- 使用 `Typography` 表达文案;
+- 保留 `committed-transcript-empty` stable class;
 - 文案仍为 `No committed messages yet.`;
-- empty state 仍只由 `!hasCommittedChunks` 控制;
+- empty state 仍由 `!hasCommittedChunks` 控制, 包括有 turn 但没有 committed chunks 的场景;
 - 不新增 loading UI 或 connection progress UI。
 
-Allowed shape:
+Must remove as empty visual ownership:
 
-```tsx
-<Card className="committed-transcript-empty ...">
-  <Card.Content>
-    <p className="...">No committed messages yet.</p>
-  </Card.Content>
-</Card>
+```text
+rounded-md
+border-dashed
+border-foreground/20
+text-muted
 ```
 
-- [ ] **Step 5: Preserve structural HTML boundaries**
+- [ ] **Step 4: Replace entry visual implementation with Card/Typography**
 
-保持以下结构继续使用原生 HTML + Tailwind:
+把 committed transcript entry 的手写 `<article>` card 替换为 HeroUI `Card` 结构。
+
+Required behavior:
+
+- 使用 `Card` 作为 entry 内容容器;
+- 使用 `Card.Content` 承载 entry role 和 source;
+- 使用 `Typography` 表达 role 和 source 文本层级;
+- 保留 `committed-transcript-entry` 和 `committed-transcript-entry-${entry.type}` stable classes;
+- role 文本和 source 文本继续可见;
+- source 内容继续保留 `whitespace-pre-wrap`、`wrap-break-word` 和必要 line-height;
+- 不改变 `entryText(...)` 和 transcript selector 使用方式。
+
+Must remove as entry visual ownership:
+
+```text
+rounded-md
+border-foreground/10
+bg-background
+shadow-sm
+text-foreground
+```
+
+- [ ] **Step 5: Replace turn metadata pill with Chip**
+
+把 turn metadata 中的 hand-written status pill 替换为 HeroUI `Chip`。
+
+Required behavior:
+
+- turn article 继续保留 `aria-label={`Turn ${turn.id}`}`;
+- turn id 继续可见;
+- turn status 继续可见;
+- status label 使用 `Chip`, 优先 `size="sm"` 和 neutral/default color;
+- 可用 `Typography` 表达 turn id;
+- 保留 `committed-transcript-turn-*` stable classes。
+
+Must remove as metadata visual ownership:
+
+```text
+rounded-sm
+bg-foreground/5
+px-2
+py-0.5
+```
+
+- [ ] **Step 6: Preserve structural and selector boundaries**
+
+保持以下事实和结构边界:
 
 - `section[aria-label="Committed transcript"]`;
 - `committed-transcript-status-list`;
 - `committed-transcript-turn-list`;
 - `CommittedTranscriptTurn`;
 - `CommittedTranscriptChunk`;
-- turn id / turn status metadata wrappers.
+- reducer / selector 调用路径;
+- `hasCommittedChunks` 语义。
 
-不要为了提高组件覆盖率把纯结构层强行 HeroUI 化。
+不要通过 `App` 或 shell helper 重新 materialize transcript tree。不要修改 transcript state、runtime、
+projection ingress 或 host client。
 
-## Task 3: Focused Behavior Verification
+## Task 4: Update Focused E2E Structure Assertions
 
-**Files:** 验证为主, 默认不修改
+**Files:**
 
-- [ ] **Step 1: Run focused committed transcript browser test**
+- Modify: `codex-gui/e2e/app.spec.ts`
+
+- [ ] **Step 1: Remove direct-child page structure assertion**
+
+当前 e2e 若断言:
+
+```ts
+page.locator("main > section")
+```
+
+应替换为用户语义断言, 因为新页面结构允许 `main -> Surface -> section`。
+
+Required assertions:
+
+- `main[data-gui-host-status]` 仍按场景更新;
+- `Committed transcript` region 可见;
+- `No committed messages yet.` 可见;
+- 页面不展示旧 `GUI host` debug panel;
+- host event 场景中即使已有 turn 但没有 committed chunks, empty state 仍可见;
+- 不断言 HeroUI DOM、BEM class、Tailwind class 或 direct-child 结构。
+
+## Task 5: Focused Verification
+
+**Files:** 验证为主
+
+- [ ] **Step 1: Run focused App browser test**
+
+运行:
+
+```bash
+pnpm --dir codex-gui run test:browser -- src/__tests__/App.browser.test.tsx
+```
+
+Expected: PASS.
+
+- [ ] **Step 2: Run focused committed transcript browser test**
 
 运行:
 
@@ -248,10 +373,7 @@ pnpm --dir codex-gui run test:browser -- src/features/committedTranscriptSurface
 
 Expected: PASS.
 
-If this fails because text or accessibility roles changed, fix `CommittedTranscriptSurface.tsx` to preserve existing
-user-visible semantics. Do not weaken tests to assert HeroUI internals.
-
-- [ ] **Step 2: Run focused e2e app test**
+- [ ] **Step 3: Run focused e2e app test**
 
 运行:
 
@@ -264,17 +386,7 @@ Expected: PASS.
 If Playwright browser assets are missing, stop and report the missing local dependency; do not install browsers or
 runtime assets.
 
-- [ ] **Step 3: Run focused lint on the touched source file**
-
-运行:
-
-```bash
-pnpm --dir codex-gui exec eslint src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx
-```
-
-Expected: PASS.
-
-- [ ] **Step 4: Run TypeScript project check**
+- [ ] **Step 4: Run type-check**
 
 运行:
 
@@ -284,69 +396,120 @@ pnpm --dir codex-gui run type-check
 
 Expected: PASS.
 
-Do not run full test suites.
-
-## Task 4: Manual Component-Library Review
-
-**Files:** 只读审查
-
-- [ ] **Step 1: Confirm HeroUI imports and usage**
+- [ ] **Step 5: Run scoped lint**
 
 运行:
 
 ```bash
-rg -n "@heroui/react|<Card|Card\\.Content|<Alert|Alert\\.Content" codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx
+pnpm --dir codex-gui exec eslint src/App.tsx src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx src/__tests__/App.browser.test.tsx src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx e2e/app.spec.ts
+```
+
+Expected: PASS.
+
+- [ ] **Step 6: Run scoped formatting check**
+
+运行:
+
+```bash
+pnpm --dir codex-gui exec prettier --check src/App.tsx src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx src/__tests__/App.browser.test.tsx src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx e2e/app.spec.ts
+```
+
+Expected: PASS.
+
+Do not run full test suites. If formatting issues are reported, only format the files touched by this plan and rerun
+the same scoped formatting check. Do not run `pnpm --dir codex-gui run ci` unless the user explicitly authorizes a
+broader frontend check.
+
+## Task 6: Manual Component-Library Review
+
+**Files:** 只读审查
+
+- [ ] **Step 1: Confirm HeroUI page/component usage**
+
+运行:
+
+```bash
+rg -n "@heroui/react|<Surface|<Card|Card\\.Content|<Alert|Alert\\.Content|<Chip|<Typography" codex-gui/src/App.tsx codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx
 ```
 
 Expected:
 
-- `CommittedTranscriptSurface.tsx` imports `Alert` and `Card` from `@heroui/react`;
-- `CommittedTranscriptEntry` uses `Card` and `Card.Content`;
-- committed empty state uses `Card` and `Card.Content`;
-- global status uses `Alert` and `Alert.Content`;
+- `App.tsx` imports and uses `Surface`;
+- `CommittedTranscriptSurface.tsx` imports and uses `Alert`, `Card`, `Chip`, and `Typography`;
+- committed empty state uses `Card` / `Card.Content`;
+- committed entry uses `Card` / `Card.Content`;
+- global status uses `Alert` / `Alert.Content`;
+- turn status uses `Chip`;
 - no test asserts these implementation details.
 
-- [ ] **Step 2: Confirm forbidden APIs and files were not introduced**
+- [ ] **Step 2: Confirm legacy visual ownership was not carried forward**
 
 运行:
 
 ```bash
-rg -n "HeroUIProvider|framer-motion|CardBody" codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx codex-gui/src
+rg -n "border-danger/30|bg-danger/10|border-dashed|border-foreground/10|bg-foreground/5|shadow-sm|CardBody" codex-gui/src/App.tsx codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx
 ```
 
-Expected: no matches.
+Expected: no matches, unless a match is demonstrably not part of page/status/empty/entry/metadata visual ownership.
+If a match remains, review against the `04a` ownership matrix before proceeding.
+
+- [ ] **Step 3: Confirm forbidden APIs and dependency changes were not introduced**
 
 运行:
 
 ```bash
+rg -n "HeroUIProvider|framer-motion|CardBody" codex-gui/src
 git status --short
 ```
 
-Expected: only `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx` is modified.
+Expected:
 
-If `codex-gui/package.json`, `codex-gui/pnpm-lock.yaml`, `codex-gui/src/index.css`, design docs, plan docs, or any
-lockfile appears, stop and report before staging.
+- no forbidden API matches;
+- no `codex-gui/package.json`, `codex-gui/pnpm-lock.yaml`, `codex-gui/src/index.css`, design docs, unrelated docs,
+  or lockfiles in the implementation diff.
 
-## Task 5: Commit
+## Task 7: Commit
 
 **Files:**
 
-- Stage only: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+- Stage only files modified by this plan.
 
-- [ ] **Step 1: Stage the intended source file**
-
-运行:
-
-```bash
-git add codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx
-```
-
-- [ ] **Step 2: Commit the HeroUI surface correction**
+- [ ] **Step 1: Review final diff**
 
 运行:
 
 ```bash
-git commit -m "style(gui): use HeroUI transcript surface components"
+git diff -- codex-gui/src/App.tsx \
+  codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx \
+  codex-gui/src/__tests__/App.browser.test.tsx \
+  codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx \
+  codex-gui/e2e/app.spec.ts
+git status --short
 ```
 
-Do not stage or commit docs, package files, lockfiles, generated files, or unrelated changes in this task.
+Expected: diff only contains the page shell redesign, committed transcript HeroUI component rewrite, and focused test
+updates allowed by this plan.
+
+- [ ] **Step 2: Stage intended files only**
+
+运行:
+
+```bash
+git add codex-gui/src/App.tsx \
+  codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx \
+  codex-gui/src/__tests__/App.browser.test.tsx \
+  codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx \
+  codex-gui/e2e/app.spec.ts
+```
+
+Do not stage docs, package files, lockfiles, generated files, or unrelated changes in this implementation task.
+
+- [ ] **Step 3: Commit the page shell redesign**
+
+运行:
+
+```bash
+git commit -m "style(gui): rebuild chat shell with HeroUI"
+```
+
+Do not push unless the user explicitly requests it.
