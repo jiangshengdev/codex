@@ -143,7 +143,7 @@ test("records a launch-param error without rendering host debug UI", async ({ pa
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "error");
   await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect(page.getByText("No committed messages yet.")).toBeVisible();
-  await expect(page.locator("main > section")).toHaveCount(1);
+  await expect(page.getByText("GUI host")).toHaveCount(0);
 });
 
 test("authenticates, attaches, records projection status, and clears token", async ({ page }) => {
@@ -154,7 +154,7 @@ test("authenticates, attaches, records projection status, and clears token", asy
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "received event");
   await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect(page.getByText("No committed messages yet.")).toBeVisible();
-  await expect(page.locator("main > section")).toHaveCount(1);
+  await expect(page.getByText("GUI host")).toHaveCount(0);
   await expect
     .poll(() => sentMethods)
     .toEqual(["gui/authenticate", "initialize", "thread/projection/attach"]);

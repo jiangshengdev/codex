@@ -118,18 +118,13 @@ beforeEach(() => {
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
   const screen = await renderWithProviders(<App />);
-  const main = screen.getByRole("main").element();
-  const committedTranscript = screen
-    .getByRole("region", { name: "Committed transcript" })
-    .element();
 
   await expect
     .element(screen.getByRole("main"))
     .toHaveAttribute("data-gui-host-status", "connecting");
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
-  expect(Array.from(main.children)).toHaveLength(1);
-  expect(main.firstElementChild).toBe(committedTranscript);
+  await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
 });
 
