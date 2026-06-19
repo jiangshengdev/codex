@@ -30,6 +30,9 @@ bounded chunks 和 active tail 订阅。
 本目录中的 `01-tui-research-draft.md` 保持为调研证据和设计参考, 不作为最终设计契约。
 本文件是 v2 总设计, 负责记录已确认的架构决策、状态边界、selector 契约和性能不变量。
 
+Composer 发送和终止当前 turn 的详细设计见 `07-composer-turn-control/design.md`; 本文件只保留
+Performance v2 总体边界, 不展开 composer 实现细节。
+
 Performance v2 不是实施计划。这里不定义阶段顺序、任务拆分或测试命令。
 
 ## 与既有设计的关系
