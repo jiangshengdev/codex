@@ -237,6 +237,7 @@ mod tests {
                         analytics_events_client: codex_analytics::AnalyticsEventsClient::disabled(),
                         thread_manager: thread_manager.clone(),
                         goal_service: Arc::new(codex_goal_extension::GoalService::new()),
+                        environment_manager: Arc::clone(&environment_manager),
                         executor_skill_provider: Arc::clone(&executor_skill_provider),
                         gui_launch_service: Arc::new(
                             crate::gui_launch_service::AppServerGuiLaunchService::unavailable(
