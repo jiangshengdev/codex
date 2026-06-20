@@ -214,6 +214,7 @@ const materializeItem = (item: ThreadItem, turnId: string): TranscriptEntry | nu
     case "subAgentActivity":
     case "webSearch":
     case "imageView":
+    case "sleep":
     case "imageGeneration":
     case "enteredReviewMode":
     case "exitedReviewMode":
