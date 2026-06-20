@@ -77,9 +77,11 @@ jobs:
         with:
           node-version: 22
       - name: Install codex-gui dependencies
-        run: pnpm --dir codex-gui install --frozen-lockfile
+        working-directory: codex-gui
+        run: pnpm install --frozen-lockfile
       - name: Build codex-gui
-        run: pnpm --dir codex-gui run build
+        working-directory: codex-gui
+        run: pnpm run build
 
   build:
     needs: release-preflight
