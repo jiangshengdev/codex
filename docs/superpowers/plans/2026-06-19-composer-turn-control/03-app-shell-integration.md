@@ -14,26 +14,26 @@
 
 **修改:**
 
-- `/Users/sheng/cnb/codex/codex-gui/src/App.tsx`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/App.tsx`
   - 保存 `GuiHostCommands | null`。
   - 把 `onCommandsReady` / `onCommandsUnavailable` 接到 `startGuiHostConnection`。
   - 在 `CommittedTranscriptSurface` 后挂载 `ComposerTurnControl`。
   - 挂载一次 `Toast.Provider placement="top center"`。
   - 给 `main` 或 transcript wrapper 增加底部空间。
 
-- `/Users/sheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
   - 更新 mock 类型。
   - 覆盖 composer 可见、attach 后发送、active turn stop、manual reconnect disabled。
 
 **不要修改:**
 
-- `/Users/sheng/cnb/codex/codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
 
 ## Task 1: 扩展 App browser test mock
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
 
 - [ ] **Step 1: 引入 command 类型**
 
@@ -76,7 +76,7 @@ const createCommands = (): GuiHostCommands => ({
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
 
 - [ ] **Step 1: 测 composer shell 出现且 debug UI 不回归**
 
@@ -176,7 +176,7 @@ test("App disables composer after projection backpressure requires reconnect", a
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:browser -- src/__tests__/App.browser.test.tsx
 ```
 
@@ -186,7 +186,7 @@ pnpm run test:browser -- src/__tests__/App.browser.test.tsx
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/App.tsx`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/App.tsx`
 
 - [ ] **Step 1: 引入 composer 和 command 类型**
 
@@ -257,7 +257,7 @@ return (
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:browser -- src/__tests__/App.browser.test.tsx
 ```
 
@@ -267,7 +267,7 @@ pnpm run test:browser -- src/__tests__/App.browser.test.tsx
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/__tests__/App.browser.test.tsx`
 
 - [ ] **Step 1: 写 no optimistic message test**
 
@@ -296,7 +296,7 @@ test("App does not render optimistic user messages after send", async () => {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:browser -- src/__tests__/App.browser.test.tsx
 ```
 
@@ -309,7 +309,7 @@ pnpm run test:browser -- src/__tests__/App.browser.test.tsx
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm vitest --run src/features/guiHost/guiHostClient.test.ts src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
 pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx src/__tests__/App.browser.test.tsx
 ```
@@ -321,7 +321,7 @@ pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurn
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run lint
 pnpm run type-check
 ```
@@ -333,7 +333,7 @@ pnpm run type-check
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex
+cd /Users/jiangsheng/cnb/codex
 git add codex-gui/src/App.tsx codex-gui/src/__tests__/App.browser.test.tsx
 git commit -m "feat(gui): mount composer in chat shell"
 ```

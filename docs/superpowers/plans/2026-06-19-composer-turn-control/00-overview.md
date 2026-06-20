@@ -36,7 +36,7 @@
 
 ## 全局约束
 
-- 设计源是 `/Users/sheng/cnb/codex/docs/superpowers/specs/2026-06-17-yolo-single-session-chat-performance-v2/07-composer-turn-control/design.md`。
+- 设计源是 `/Users/jiangsheng/cnb/codex/docs/superpowers/specs/2026-06-17-yolo-single-session-chat-performance-v2/07-composer-turn-control/design.md`。
 - 不修改 `codex-rs/app-server-protocol` API。
 - 不开放 `turn/steer`。
 - 不新增依赖, 不修改 lockfile。

@@ -14,19 +14,19 @@
 
 **修改:**
 
-- `/Users/sheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.ts`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.ts`
   - 继续拥有 WebSocket lifecycle、handshake、projection notification parsing。
   - 新增 command handle: `startTurn`, `interruptTurn`。
   - 新增 request id 分配、pending request map、business error reject。
 
-- `/Users/sheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.test.ts`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.test.ts`
   - 复用 `RecordingWebSocket`。
   - 新增 command request 成功/失败/cleanup 测试。
 
 **不要修改:**
 
-- `/Users/sheng/cnb/codex/codex-rs/app-server-protocol/src/protocol/v2/turn.rs`
-- `/Users/sheng/cnb/codex/codex-rs/gui-host/src/filter.rs`
+- `/Users/jiangsheng/cnb/codex/codex-rs/app-server-protocol/src/protocol/v2/turn.rs`
+- `/Users/jiangsheng/cnb/codex/codex-rs/gui-host/src/filter.rs`
 
 ## 接口目标
 
@@ -60,7 +60,7 @@ export type StartGuiHostConnectionOptions = {
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.test.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.test.ts`
 
 - [ ] **Step 1: 新增测试 helper**
 
@@ -231,7 +231,7 @@ it("sends turn/interrupt through the ready command API", async () => {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm vitest --run src/features/guiHost/guiHostClient.test.ts
 ```
 
@@ -241,7 +241,7 @@ pnpm vitest --run src/features/guiHost/guiHostClient.test.ts
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.ts`
 
 - [ ] **Step 1: 引入协议类型**
 
@@ -456,7 +456,7 @@ rejectPendingRequests("GUI host WebSocket is not available");
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm vitest --run src/features/guiHost/guiHostClient.test.ts
 ```
 
@@ -466,8 +466,8 @@ pnpm vitest --run src/features/guiHost/guiHostClient.test.ts
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.test.ts`
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.test.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/guiHost/guiHostClient.ts`
 
 - [ ] **Step 1: 写 business error 测试**
 
@@ -573,7 +573,7 @@ it("rejects pending command requests during cleanup", async () => {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm vitest --run src/features/guiHost/guiHostClient.test.ts
 ```
 
@@ -586,7 +586,7 @@ pnpm vitest --run src/features/guiHost/guiHostClient.test.ts
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run lint
 pnpm run type-check
 ```
@@ -598,7 +598,7 @@ pnpm run type-check
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex
+cd /Users/jiangsheng/cnb/codex
 git add codex-gui/src/features/guiHost/guiHostClient.ts codex-gui/src/features/guiHost/guiHostClient.test.ts
 git commit -m "feat(gui): add host turn command api"
 ```

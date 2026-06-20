@@ -14,21 +14,21 @@
 
 **创建:**
 
-- `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
   - 负责 UI、local draft、send/stop handlers、Toast 调用。
 
-- `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
   - 负责纯函数: `buildPlainTextInput`, `canSend`, `canStop`, `isConnectionUsable`, `errorDescription`。
 
-- `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
   - 覆盖纯函数。
 
-- `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
   - 覆盖浏览器交互。
 
 **仅当测试需要时修改:**
 
-- `/Users/sheng/cnb/codex/codex-gui/src/utils/test-utils.tsx`
+- `/Users/jiangsheng/cnb/codex/codex-gui/src/utils/test-utils.tsx`
 
 ## 前置条件
 
@@ -45,8 +45,8 @@ export type GuiHostCommands = {
 
 **文件:**
 
-- 创建: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
-- 创建: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
+- 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
+- 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
 
 - [ ] **Step 1: 创建空模型文件**
 
@@ -223,7 +223,7 @@ describe("composerTurnControlModel", () => {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm vitest --run src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
 ```
 
@@ -233,7 +233,7 @@ pnpm vitest --run src/features/composerTurnControl/__tests__/composerTurnControl
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
 
 - [ ] **Step 1: 实现函数**
 
@@ -295,7 +295,7 @@ export function errorDescription(error: unknown): string | undefined {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm vitest --run src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
 ```
 
@@ -305,8 +305,8 @@ pnpm vitest --run src/features/composerTurnControl/__tests__/composerTurnControl
 
 **文件:**
 
-- 创建: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
-- 创建: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
+- 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
+- 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
 
 - [ ] **Step 1: 创建最小组件 stub**
 
@@ -471,7 +471,7 @@ test("manual reconnect disables composer operations", async () => {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx
 ```
 
@@ -481,7 +481,7 @@ pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurn
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
 
 - [ ] **Step 1: 实现 component**
 
@@ -619,7 +619,7 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx
 ```
 
@@ -629,8 +629,8 @@ pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurn
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
-- 修改: `/Users/sheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
 
 - [ ] **Step 1: 写发送失败保留草稿测试**
 
@@ -712,7 +712,7 @@ test("shows toast when stop fails", async () => {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm vitest --run src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
 pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx
 ```
@@ -726,7 +726,7 @@ pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurn
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run lint
 pnpm run type-check
 ```
@@ -738,7 +738,7 @@ pnpm run type-check
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex
+cd /Users/jiangsheng/cnb/codex
 git add codex-gui/src/features/composerTurnControl
 git commit -m "feat(gui): add plain text composer controls"
 ```

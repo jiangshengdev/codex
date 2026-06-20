@@ -14,7 +14,7 @@
 
 **修改:**
 
-- `/Users/sheng/cnb/codex/codex-gui/e2e/app.spec.ts`
+- `/Users/jiangsheng/cnb/codex/codex-gui/e2e/app.spec.ts`
   - 扩展 WebSocket request capture, 保存完整 request。
   - 为 route mock 增加可选 active turn event, 让 Send 和 Stop tests 使用不同 fixture 状态。
   - 新增 send/stop e2e tests。
@@ -25,7 +25,7 @@
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/e2e/app.spec.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/e2e/app.spec.ts`
 
 - [ ] **Step 1: 保存完整 requests 并加入 route options**
 
@@ -127,7 +127,7 @@ await expect
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/e2e/app.spec.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/e2e/app.spec.ts`
 
 - [ ] **Step 1: 添加 turn/start handler**
 
@@ -172,7 +172,7 @@ if (request.method === "turn/interrupt") {
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/e2e/app.spec.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/e2e/app.spec.ts`
 
 - [ ] **Step 1: 添加测试**
 
@@ -205,7 +205,7 @@ test("sends plain text through turn/start", async ({ page }) => {
 如果 `01`-`03` 尚未实现, 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:e2e -- e2e/app.spec.ts -g "sends plain text through turn/start"
 ```
 
@@ -217,7 +217,7 @@ pnpm run test:e2e -- e2e/app.spec.ts -g "sends plain text through turn/start"
 
 **文件:**
 
-- 修改: `/Users/sheng/cnb/codex/codex-gui/e2e/app.spec.ts`
+- 修改: `/Users/jiangsheng/cnb/codex/codex-gui/e2e/app.spec.ts`
 
 - [ ] **Step 1: 添加测试**
 
@@ -248,7 +248,7 @@ test("interrupts active turn through turn/interrupt", async ({ page }) => {
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:e2e -- e2e/app.spec.ts -g "interrupts active turn through turn/interrupt"
 ```
 
@@ -261,7 +261,7 @@ pnpm run test:e2e -- e2e/app.spec.ts -g "interrupts active turn through turn/int
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test
 ```
 
@@ -272,7 +272,7 @@ pnpm run test
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:browser
 ```
 
@@ -283,7 +283,7 @@ pnpm run test:browser
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run test:e2e
 ```
 
@@ -294,7 +294,7 @@ pnpm run test:e2e
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex/codex-gui
+cd /Users/jiangsheng/cnb/codex/codex-gui
 pnpm run lint
 pnpm run type-check
 ```
@@ -306,7 +306,7 @@ pnpm run type-check
 运行:
 
 ```bash
-cd /Users/sheng/cnb/codex
+cd /Users/jiangsheng/cnb/codex
 git add codex-gui/e2e/app.spec.ts
 git commit -m "test(gui): cover composer send and stop e2e"
 ```
