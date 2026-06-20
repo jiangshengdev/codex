@@ -80,7 +80,7 @@ async fn launch_gui_tool_names_for_service(
     let environment_manager = Arc::new(EnvironmentManager::default_for_tests());
     let executor_skill_provider: Arc<dyn codex_skills_extension::SkillProvider> = Arc::new(
         codex_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
-            environment_manager,
+            Arc::clone(&environment_manager),
             SessionSource::Cli.restriction_product(),
         ),
     );
@@ -93,6 +93,7 @@ async fn launch_gui_tool_names_for_service(
             analytics_events_client: AnalyticsEventsClient::disabled(),
             thread_manager: Weak::new(),
             goal_service: Arc::new(codex_goal_extension::GoalService::new()),
+            environment_manager: Arc::clone(&environment_manager),
             executor_skill_provider,
             gui_launch_service,
             thread_store: codex_core::thread_store_from_config(config, /*state_db*/ None),
@@ -109,6 +110,7 @@ async fn launch_gui_tool_names_for_service(
                 config,
                 session_source: &source,
                 persistent_thread_state_available: true,
+                environments: &[],
                 session_store: &session_store,
                 thread_store: &thread_store,
             })
