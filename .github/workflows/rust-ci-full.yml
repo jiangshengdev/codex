@@ -450,7 +450,7 @@ jobs:
     with:
       runner: ubuntu-24.04
       target: x86_64-unknown-linux-gnu
-      profile: ci-test
+      profile: ci-test-slim
       artifact_id: linux-x64-remote
       remote_env: true
       cargo_build_jobs: 2
