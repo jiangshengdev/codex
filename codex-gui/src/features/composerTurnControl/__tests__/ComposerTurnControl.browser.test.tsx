@@ -3,7 +3,10 @@ import { expect, test, vi } from "vitest";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
-import { attachedThreadIdObserved, launchThreadIdRecorded } from "@/features/threadIdentity/threadIdentitySlice";
+import {
+  attachedThreadIdObserved,
+  launchThreadIdRecorded,
+} from "@/features/threadIdentity/threadIdentitySlice";
 import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
