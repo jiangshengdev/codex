@@ -57,8 +57,32 @@ jobs:
           echo "✅  Tag and Cargo.toml agree (${tag_ver})"
           echo "::endgroup::"
 
-  build:
+  release-preflight:
     needs: tag-check
+    name: Release preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
+        with:
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build codex-gui
+        run: pnpm --dir codex-gui run build
+
+  build:
+    needs: release-preflight
     name: Build - ${{ matrix.runner }} - ${{ matrix.target }} - ${{ matrix.bundle }}
     runs-on: ${{ matrix.runs_on || matrix.runner }}
     # Release builds can take a long time, so leave some headroom to avoid
@@ -1064,20 +1088,20 @@ jobs:
           if-no-files-found: error
 
   build-windows:
-    needs: tag-check
+    needs: release-preflight
     uses: ./.github/workflows/rust-release-windows.yml
     secrets: inherit
 
   argument-comment-lint-release-assets:
     name: argument-comment-lint release assets
-    needs: tag-check
+    needs: release-preflight
     uses: ./.github/workflows/rust-release-argument-comment-lint.yml
     with:
       publish: true
 
   zsh-release-assets:
     name: zsh release assets
-    needs: tag-check
+    needs: release-preflight
     uses: ./.github/workflows/rust-release-zsh.yml
 
   release:
