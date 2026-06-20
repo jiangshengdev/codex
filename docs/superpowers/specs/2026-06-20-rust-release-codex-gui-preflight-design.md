@@ -60,9 +60,11 @@ release-preflight:
 预检运行最小的 release 必需 GUI 构建路径：
 
 ```text
-pnpm --dir codex-gui install --frozen-lockfile
-pnpm --dir codex-gui run build
+pnpm install --frozen-lockfile
+pnpm run build
 ```
+
+这两个命令必须通过 GitHub Actions `working-directory: codex-gui` 在 `codex-gui` 目录中执行，而不是使用 `pnpm --dir codex-gui install`。`pnpm --dir codex-gui install` 在 CI 中会输出 `No projects matched the filters`，不会安装 `codex-gui` 的 dev dependencies。
 
 选择 `build` 而不是 `ci` 的原因：
 
@@ -99,8 +101,8 @@ pnpm --dir codex-gui run build
 
 - `tag-check` 失败时，`release-preflight` 不运行。
 - `release-preflight` 失败时，慢速产物 job 被跳过，最终 `release` 不满足现有 `needs.*.result == 'success'` 条件。
-- `pnpm --dir codex-gui install --frozen-lockfile` 失败时，说明 `codex-gui` lockfile 或依赖解析在 release 环境不可复现。
-- `pnpm --dir codex-gui run build` 失败时，错误会直接显示在早期预检 job 中。
+- `pnpm install --frozen-lockfile` 失败时，说明 `codex-gui` lockfile 或依赖解析在 release 环境不可复现。
+- `pnpm run build` 失败时，错误会直接显示在早期预检 job 中。
 
 ## 验证计划
 

@@ -59,9 +59,11 @@
         with:
           node-version: 22
       - name: Install codex-gui dependencies
-        run: pnpm --dir codex-gui install --frozen-lockfile
+        working-directory: codex-gui
+        run: pnpm install --frozen-lockfile
       - name: Build codex-gui
-        run: pnpm --dir codex-gui run build
+        working-directory: codex-gui
+        run: pnpm run build
 ```
 
 要求：
@@ -144,7 +146,7 @@ needs: release-preflight
 运行：
 
 ```sh
-rg -n "needs: tag-check|needs: release-preflight|^  release:|needs\\.release-preflight|pnpm --dir codex-gui install --frozen-lockfile|pnpm install --frozen-lockfile" .github/workflows/rust-release.yml
+rg -n "needs: tag-check|needs: release-preflight|^  release:|needs\\.release-preflight|working-directory: codex-gui|pnpm install --frozen-lockfile|pnpm --dir codex-gui install" .github/workflows/rust-release.yml
 ```
 
 预期：
@@ -153,7 +155,8 @@ rg -n "needs: tag-check|needs: release-preflight|^  release:|needs\\.release-pre
 - `build`、`build-windows`、`argument-comment-lint-release-assets`、`zsh-release-assets` 使用 `needs: release-preflight`。
 - 不出现 `needs.release-preflight`。
 - 最终 `release` job 不显式依赖 `release-preflight`。
-- `release-preflight` 使用 `pnpm --dir codex-gui install --frozen-lockfile`。
+- `release-preflight` 使用 `working-directory: codex-gui` 和 `pnpm install --frozen-lockfile`。
+- 不出现 `pnpm --dir codex-gui install`。
 - `release` job 中原有 root `pnpm install --frozen-lockfile` 保持不变。
 
 - [ ] **Step 2: 解析 workflow YAML**
