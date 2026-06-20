@@ -58,8 +58,8 @@
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 22
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install codex-gui dependencies
+        run: pnpm --dir codex-gui install --frozen-lockfile
       - name: Build codex-gui
         run: pnpm --dir codex-gui run build
 ```
@@ -139,12 +139,12 @@ needs: release-preflight
 
 - 验证: `.github/workflows/rust-release.yml`
 
-- [ ] **Step 1: 检查 `needs` 分布**
+- [ ] **Step 1: 检查 `needs` 分布和预检安装命令**
 
 运行：
 
 ```sh
-rg -n "needs: tag-check|needs: release-preflight|^  release:|needs\\.release-preflight" .github/workflows/rust-release.yml
+rg -n "needs: tag-check|needs: release-preflight|^  release:|needs\\.release-preflight|pnpm --dir codex-gui install --frozen-lockfile|pnpm install --frozen-lockfile" .github/workflows/rust-release.yml
 ```
 
 预期：
@@ -153,6 +153,8 @@ rg -n "needs: tag-check|needs: release-preflight|^  release:|needs\\.release-pre
 - `build`、`build-windows`、`argument-comment-lint-release-assets`、`zsh-release-assets` 使用 `needs: release-preflight`。
 - 不出现 `needs.release-preflight`。
 - 最终 `release` job 不显式依赖 `release-preflight`。
+- `release-preflight` 使用 `pnpm --dir codex-gui install --frozen-lockfile`。
+- `release` job 中原有 root `pnpm install --frozen-lockfile` 保持不变。
 
 - [ ] **Step 2: 解析 workflow YAML**
 
