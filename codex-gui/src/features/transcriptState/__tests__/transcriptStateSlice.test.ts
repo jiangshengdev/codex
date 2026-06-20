@@ -65,6 +65,12 @@ const planItem = (id: string): ThreadItem => ({
   text: "Hidden plan text",
 });
 
+const sleepItem = (id: string): ThreadItem => ({
+  type: "sleep",
+  id,
+  durationMs: 1000,
+});
+
 const baseTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   id,
   items,
@@ -240,6 +246,7 @@ describe("transcript state reducer", () => {
             userMessage("empty-user", [textInput("")]),
             agentMessage("empty-agent", ""),
             planItem("hidden-plan"),
+            sleepItem("hidden-sleep"),
           ]),
         ]),
       ),
@@ -345,6 +352,11 @@ describe("transcript state reducer", () => {
     store.dispatch(
       threadRuntimeEventBuffered(
         itemCompleted("commit-plan", "turn-live-filtered", planItem("hidden-plan")),
+      ),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted("commit-sleep", "turn-live-filtered", sleepItem("hidden-sleep")),
       ),
     );
 
