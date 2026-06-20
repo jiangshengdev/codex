@@ -546,6 +546,13 @@ debug = "limited"
 inherits = "test"
 opt-level = 0
 
+[profile.ci-test-slim]
+# Reduce archive size further for disk-constrained CI archive jobs.
+debug = 0
+inherits = "test"
+opt-level = 0
+strip = "debuginfo"
+
 [patch.crates-io]
 # Uncomment to debug local changes.
 # ratatui = { path = "../../ratatui" }
