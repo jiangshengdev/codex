@@ -179,6 +179,7 @@ impl GuiExtensionHarness {
                     config: &config,
                     session_source: &source,
                     persistent_thread_state_available: true,
+                    environments: &[],
                     session_store: &session_store,
                     thread_store: &thread_store,
                 })
