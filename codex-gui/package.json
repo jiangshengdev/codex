@@ -20,8 +20,8 @@
     "messages:extract:clean": "lingui extract --clean"
   },
   "dependencies": {
-    "@heroui/react": "^3.0.3",
-    "@heroui/styles": "^3.0.3",
+    "@heroui/react": "^3.2.1",
+    "@heroui/styles": "^3.2.1",
     "@lingui/core": "^6.0.0",
     "@lingui/react": "^6.0.0",
     "@reduxjs/toolkit": "^2.11.2",

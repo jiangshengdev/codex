@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Surface } from "@heroui/react";
 import { useAppDispatch } from "./app/hooks";
 import { CommittedTranscriptSurface } from "./features/committedTranscriptSurface/CommittedTranscriptSurface";
 import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
@@ -110,10 +111,12 @@ function App() {
 
   return (
     <main
-      className="min-h-svh bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8"
+      className="min-h-svh w-full px-4 py-6 sm:px-6 lg:px-8"
       data-gui-host-status={status.label}
     >
-      <CommittedTranscriptSurface />
+      <Surface className="mx-auto grid w-full max-w-6xl content-start p-4 sm:p-6" variant="default">
+        <CommittedTranscriptSurface />
+      </Surface>
     </main>
   );
 }
