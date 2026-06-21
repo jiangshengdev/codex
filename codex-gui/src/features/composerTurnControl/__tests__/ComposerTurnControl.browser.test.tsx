@@ -87,6 +87,31 @@ test("disables controls before attach", async () => {
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 });
 
+test("renders a white composer panel with a primary textarea and actions", async () => {
+  const screen = await renderAttached();
+  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
+  if (!(composerShell instanceof HTMLElement)) {
+    throw new Error("composer shell must render");
+  }
+  const composerPanel = composerShell.firstElementChild;
+  if (!(composerPanel instanceof HTMLElement)) {
+    throw new Error("composer panel must render");
+  }
+  const textarea = composerPanel.querySelector('textarea[placeholder="Message Codex"]');
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    throw new Error("composer textarea must render");
+  }
+  const actions = Array.from(composerPanel.querySelectorAll("button")).map((button) =>
+    button.textContent.trim(),
+  );
+
+  expect(composerPanel.classList.contains("bg-white")).toBe(true);
+  expect(composerShell.classList.contains("pb-0")).toBe(true);
+  expect(composerShell.classList.contains("py-3")).toBe(false);
+  expect(textarea.classList.contains("textarea--primary")).toBe(true);
+  expect(actions).toEqual(["Stop", "Send"]);
+});
+
 test("sends non-empty draft and clears it after success", async () => {
   const commandHandle = commands();
   const screen = await renderAttached(commandHandle);

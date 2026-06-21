@@ -97,8 +97,8 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
   };
 
   return (
-    <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 px-4 py-3">
-      <div className="mx-auto grid w-full max-w-6xl gap-2">
+    <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 px-4 pt-3 pb-0">
+      <div className="mx-auto grid w-full max-w-6xl gap-2 bg-white p-3">
         <TextArea
           disabled={!connectionUsable}
           fullWidth
@@ -108,7 +108,7 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
           onKeyDown={onKeyDown}
           placeholder="Message Codex"
           value={draft}
-          variant="secondary"
+          variant="primary"
         />
         <div className="flex justify-end gap-2">
           <Button
