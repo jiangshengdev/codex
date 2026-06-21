@@ -97,8 +97,8 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
   };
 
   return (
-    <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 px-4 pt-3 pb-0">
-      <div className="mx-auto grid w-full max-w-6xl gap-2 bg-white p-3">
+    <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 pt-3 pb-0">
+      <div className="mx-auto grid w-full max-w-6xl gap-2 bg-white p-2">
         <TextArea
           disabled={!connectionUsable}
           fullWidth

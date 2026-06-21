@@ -106,6 +106,9 @@ test("renders a white composer panel with a primary textarea and actions", async
   );
 
   expect(composerPanel.classList.contains("bg-white")).toBe(true);
+  expect(composerPanel.classList.contains("p-2")).toBe(true);
+  expect(composerPanel.classList.contains("p-3")).toBe(false);
+  expect(composerShell.classList.contains("px-4")).toBe(false);
   expect(composerShell.classList.contains("pb-0")).toBe(true);
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
