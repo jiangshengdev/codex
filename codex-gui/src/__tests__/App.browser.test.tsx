@@ -154,6 +154,19 @@ test("App renders composer in the shell without visible host debug details", asy
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
 });
 
+test("App keeps the transcript surface flush with the shell padding", async () => {
+  const screen = await renderWithProviders(<App />);
+  const transcript = screen.container.querySelector('[aria-label="Committed transcript"]');
+  const surface = transcript?.parentElement;
+
+  if (!(surface instanceof HTMLElement)) {
+    throw new Error("transcript surface container must render");
+  }
+
+  expect(surface.classList.contains("p-4")).toBe(false);
+  expect(surface.classList.contains("sm:p-6")).toBe(false);
+});
+
 test("App keeps host status as a test hook instead of visible shell content", async () => {
   const screen = await renderWithProviders(<App />);
 
