@@ -116,7 +116,7 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
             onPress={() => {
               void stop();
             }}
-            variant="danger"
+            variant="danger-soft"
           >
             Stop
           </Button>

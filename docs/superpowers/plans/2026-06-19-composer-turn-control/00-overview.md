@@ -44,7 +44,7 @@
 - 不把 composer 放入 `CommittedTranscriptSurface`。
 - 不做 optimistic message。
 - 不把消息列表变成局部 `overflow-y-auto` 滚动容器。
-- Stop 按钮使用 `Button variant="danger"`; 不使用未确认的 `danger-soft` variant。
+- Stop 按钮使用 `Button variant="danger-soft"`; 本地 `@heroui/styles` variants、编译 CSS 和 Button demo 均已确认支持。
 
 ## 建议执行顺序
 

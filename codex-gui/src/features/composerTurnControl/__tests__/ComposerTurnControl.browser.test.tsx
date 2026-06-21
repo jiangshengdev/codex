@@ -141,8 +141,10 @@ test("active turn disables Send and enables Stop", async () => {
 
   await screen.getByPlaceholder("Message Codex").fill("Next draft");
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
-  await screen.getByRole("button", { name: "Stop" }).click();
+  const stopButton = screen.getByRole("button", { name: "Stop" });
+  await expect.element(stopButton).toBeEnabled();
+  await expect.element(stopButton).toHaveClass("button--danger-soft");
+  await stopButton.click();
 
   if (event.event.type !== "turnStarted") {
     throw new Error("fixture must be turnStarted");

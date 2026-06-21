@@ -598,7 +598,7 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
           variant="secondary"
         />
         <div className="flex justify-end gap-2">
-          <Button isDisabled={!stopEnabled} onPress={() => void stop()} variant="danger">
+          <Button isDisabled={!stopEnabled} onPress={() => void stop()} variant="danger-soft">
             Stop
           </Button>
           <Button isDisabled={!sendEnabled} onPress={() => void submit()} variant="outline">
