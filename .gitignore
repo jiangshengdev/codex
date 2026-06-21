@@ -67,6 +67,9 @@ apply_patch/
 # coverage
 coverage/
 
+# browser automation artifacts
+/.playwright-cli
+
 # personal files
 personal/
 
