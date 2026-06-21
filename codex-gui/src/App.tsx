@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Surface } from "@heroui/react";
+import { Surface, Toast } from "@heroui/react";
 import { useAppDispatch } from "./app/hooks";
 import { CommittedTranscriptSurface } from "./features/committedTranscriptSurface/CommittedTranscriptSurface";
-import type { GuiHostStatus } from "./features/guiHost/guiHostClient";
+import { ComposerTurnControl } from "./features/composerTurnControl/ComposerTurnControl";
+import type { GuiHostCommands, GuiHostStatus } from "./features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "./features/guiHost/guiHostClient";
 import {
   ProjectionIngressAdapter,
@@ -25,6 +26,7 @@ function App() {
     eventCount: 0,
     lastEventType: null,
   });
+  const [commands, setCommands] = useState<GuiHostCommands | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -87,6 +89,10 @@ function App() {
 
           dispatchProjectionOutcome(projectionIngress.handleClosed(notification));
         },
+        onCommandsReady: setCommands,
+        onCommandsUnavailable: () => {
+          setCommands(null);
+        },
       });
     } catch (error: unknown) {
       queueMicrotask(() => {
@@ -94,6 +100,7 @@ function App() {
           return;
         }
 
+        setCommands(null);
         setStatus({
           label: "error",
           eventCount: 0,
@@ -105,18 +112,21 @@ function App() {
 
     return () => {
       isMounted = false;
+      setCommands(null);
       cleanupConnection?.();
     };
   }, [dispatch]);
 
   return (
     <main
-      className="min-h-svh w-full px-4 py-6 sm:px-6 lg:px-8"
+      className="min-h-svh w-full px-4 py-6 pb-44 sm:px-6 lg:px-8"
       data-gui-host-status={status.label}
     >
-      <Surface className="mx-auto grid w-full max-w-6xl content-start p-4 sm:p-6" variant="default">
+      <Toast.Provider placement="top" />
+      <Surface className="mx-auto grid min-w-0 w-full max-w-6xl content-start" variant="default">
         <CommittedTranscriptSurface />
       </Surface>
+      <ComposerTurnControl commands={commands} guiHostStatus={status} />
     </main>
   );
 }
