@@ -32,13 +32,13 @@ const entryText = (entry: TranscriptEntry): string => {
 
 const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
   <Card
-    className={`committed-transcript-entry committed-transcript-entry-${entry.type}`}
+    className={`committed-transcript-entry committed-transcript-entry-${entry.type} min-w-0`}
     role="article"
   >
-    <Card.Content className="grid gap-2">
+    <Card.Content className="grid min-w-0 gap-2">
       {entry.type === "message" ? (
         <Typography
-          className="committed-transcript-entry-role"
+          className="committed-transcript-entry-role min-w-0 max-w-full"
           color="muted"
           type="body-xs"
           weight="medium"
@@ -47,7 +47,7 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
         </Typography>
       ) : null}
       <Typography
-        className="committed-transcript-entry-source whitespace-pre-wrap wrap-break-word leading-6"
+        className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
         type="body-sm"
       >
         {entryText(entry)}
@@ -67,7 +67,7 @@ const CommittedTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
   }
 
   return (
-    <div className="committed-transcript-chunk grid gap-3">
+    <div className="committed-transcript-chunk grid min-w-0 gap-3">
       {chunk.entries.map((entry) => (
         <CommittedTranscriptEntry key={entry.id} entry={entry} />
       ))}
@@ -101,10 +101,13 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   }
 
   return (
-    <article aria-label={`Turn ${turn.id}`} className="committed-transcript-turn grid gap-3">
-      <div className="committed-transcript-turn-metadata flex flex-wrap items-center gap-2">
+    <article
+      aria-label={`Turn ${turn.id}`}
+      className="committed-transcript-turn grid min-w-0 gap-3"
+    >
+      <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
         <Typography
-          className="committed-transcript-turn-id"
+          className="committed-transcript-turn-id min-w-0 max-w-full wrap-break-word"
           color="muted"
           type="body-xs"
           weight="medium"
@@ -136,10 +139,10 @@ export const CommittedTranscriptSurface = () => {
   return (
     <section
       aria-label="Committed transcript"
-      className="committed-transcript-surface mx-auto grid w-full max-w-5xl gap-4"
+      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-5xl gap-4"
     >
       {globalStatus.length > 0 ? (
-        <div className="committed-transcript-status-list grid gap-2">
+        <div className="committed-transcript-status-list grid min-w-0 gap-2">
           {globalStatus.map((status) => (
             <Alert
               className="committed-transcript-status"
@@ -164,7 +167,7 @@ export const CommittedTranscriptSurface = () => {
           </Card.Content>
         </Card>
       ) : (
-        <div className="committed-transcript-turn-list grid gap-6">
+        <div className="committed-transcript-turn-list grid min-w-0 gap-6">
           {turnIds.map((turnId) => (
             <CommittedTranscriptTurn key={turnId} turnId={turnId} />
           ))}

@@ -123,7 +123,10 @@ function App() {
       data-gui-host-status={status.label}
     >
       <Toast.Provider placement="top" />
-      <Surface className="mx-auto grid w-full max-w-6xl content-start p-4 sm:p-6" variant="default">
+      <Surface
+        className="mx-auto grid min-w-0 w-full max-w-6xl content-start p-4 sm:p-6"
+        variant="default"
+      >
         <CommittedTranscriptSurface />
       </Surface>
       <ComposerTurnControl commands={commands} guiHostStatus={status} />

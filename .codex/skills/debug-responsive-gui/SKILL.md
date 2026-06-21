@@ -39,6 +39,14 @@ node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-u
 - 状态文件是 `/tmp/codex-debug-responsive-gui/current.json`。
 - GUI URL 只允许本地 HTTP(S) 地址，例如 `localhost`、`127.0.0.1` 或 `::1`。
 
+## 重启/恢复 GUI
+
+当用户说“重启 GUI”“重启后端”“GUI 不可用”或页面显示 `Codex GUI dev server unavailable` 时，先调用外层 `launch_gui` 重新获取当前 GUI URL，再用 `playwright-cli goto '<launch_gui 返回的 Local URL>'` 打开该 URL。
+
+不要把“重启 GUI”默认理解成重启 `codex-gui` 的 Vite 前端，也不要先 kill `codex app-server`、查进程或重启 Codex App。`launch_gui` 是恢复 GUI 后端/代理入口。
+
+如果重新调用 `launch_gui` 并打开 URL 后仍显示 `Codex GUI dev server unavailable`，再确认或启动 Vite dev server，然后刷新同一个 `launch_gui` URL。
+
 ## 单步恢复
 
 失败后可以直接运行失败的单步脚本继续：
