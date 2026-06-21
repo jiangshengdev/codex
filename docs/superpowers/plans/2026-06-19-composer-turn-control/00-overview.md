@@ -49,7 +49,7 @@
 ## 建议执行顺序
 
 - [ ] 执行 `01-gui-host-command-api.md`。
-- [ ] 执行 `02-composer-ui.md`。
+- [x] 执行 `02-composer-ui.md`。
 - [ ] 执行 `03-app-shell-integration.md`。
 - [ ] 执行 `04-e2e-and-verification.md`。
 

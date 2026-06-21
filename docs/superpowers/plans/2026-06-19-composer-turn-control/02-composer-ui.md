@@ -48,7 +48,7 @@ export type GuiHostCommands = {
 - 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
 - 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
 
-- [ ] **Step 1: 创建空模型文件**
+- [x] **Step 1: 创建空模型文件**
 
 创建:
 
@@ -93,7 +93,7 @@ export function errorDescription(error: unknown): string | undefined {
 }
 ```
 
-- [ ] **Step 2: 写失败测试**
+- [x] **Step 2: 写失败测试**
 
 Create test file:
 
@@ -218,7 +218,7 @@ describe("composerTurnControlModel", () => {
 });
 ```
 
-- [ ] **Step 3: 运行测试确认失败**
+- [x] **Step 3: 运行测试确认失败**
 
 运行:
 
@@ -235,7 +235,7 @@ pnpm vitest --run src/features/composerTurnControl/__tests__/composerTurnControl
 
 - 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
 
-- [ ] **Step 1: 实现函数**
+- [x] **Step 1: 实现函数**
 
 替换实现:
 
@@ -290,7 +290,7 @@ export function errorDescription(error: unknown): string | undefined {
 }
 ```
 
-- [ ] **Step 2: 运行模型测试**
+- [x] **Step 2: 运行模型测试**
 
 运行:
 
@@ -308,7 +308,7 @@ pnpm vitest --run src/features/composerTurnControl/__tests__/composerTurnControl
 - 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
 - 创建: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
 
-- [ ] **Step 1: 创建最小组件 stub**
+- [x] **Step 1: 创建最小组件 stub**
 
 创建:
 
@@ -325,7 +325,7 @@ export function ComposerTurnControl(_props: ComposerTurnControlProps) {
 }
 ```
 
-- [ ] **Step 2: 写 browser tests**
+- [x] **Step 2: 写 browser tests**
 
 Create test file:
 
@@ -466,7 +466,7 @@ test("manual reconnect disables composer operations", async () => {
 });
 ```
 
-- [ ] **Step 3: 运行 browser tests 确认失败**
+- [x] **Step 3: 运行 browser tests 确认失败**
 
 运行:
 
@@ -483,7 +483,7 @@ pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurn
 
 - 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
 
-- [ ] **Step 1: 实现 component**
+- [x] **Step 1: 实现 component**
 
 把 stub 替换为:
 
@@ -614,7 +614,7 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
 `Toast.Provider` intentionally stays outside this component. Standalone component tests wrap the component with
 `<Toast.Provider placement="top center" />`; App shell integration mounts the provider once at the page/root level.
 
-- [ ] **Step 2: 运行 component tests**
+- [x] **Step 2: 运行 component tests**
 
 运行:
 
@@ -632,7 +632,7 @@ pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurn
 - 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
 - 修改: `/Users/jiangsheng/cnb/codex/codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx`
 
-- [ ] **Step 1: 写发送失败保留草稿测试**
+- [x] **Step 1: 写发送失败保留草稿测试**
 
 新增测试:
 
@@ -650,7 +650,7 @@ test("preserves draft when sending fails", async () => {
 });
 ```
 
-- [ ] **Step 2: 写 pending 禁止重复提交测试**
+- [x] **Step 2: 写 pending 禁止重复提交测试**
 
 新增测试:
 
@@ -687,7 +687,7 @@ test("disables duplicate send while turn/start is pending", async () => {
 });
 ```
 
-- [ ] **Step 3: 写 Stop 失败 Toast 测试**
+- [x] **Step 3: 写 Stop 失败 Toast 测试**
 
 新增测试:
 
@@ -707,7 +707,7 @@ test("shows toast when stop fails", async () => {
 });
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 运行:
 
@@ -721,7 +721,7 @@ pnpm run test:browser -- src/features/composerTurnControl/__tests__/ComposerTurn
 
 ## Task 6: 局部验证与提交
 
-- [ ] **Step 1: 运行 lint/type-check**
+- [x] **Step 1: 运行 lint/type-check**
 
 运行:
 
@@ -733,7 +733,7 @@ pnpm run type-check
 
 预期: 两个命令 exit 0。
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 运行:
 
