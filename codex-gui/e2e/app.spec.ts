@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 const threadId = "00000000-0000-0000-0000-000000000001";
 const subscriptionId = "projection-e2e-subscription";
@@ -27,13 +28,14 @@ function rpcParams(request: RpcRequest): Record<string, unknown> {
   return {};
 }
 
-const attachResponse = {
+const attachResponse: ThreadProjectionAttachResponse = {
   subscriptionId,
   snapshot: {
     thread: {
       id: threadId,
       sessionId: threadId,
       forkedFromId: null,
+      parentThreadId: null,
       preview: "Projection e2e thread",
       ephemeral: false,
       modelProvider: "openai",
@@ -56,7 +58,7 @@ const attachResponse = {
 };
 
 const mobileStressTurnId = "019ee976-b222-73a3-8ca7-e298f1d457f5";
-const mobileStressAttachResponse = {
+const mobileStressAttachResponse: ThreadProjectionAttachResponse = {
   ...attachResponse,
   snapshot: {
     ...attachResponse.snapshot,
@@ -122,7 +124,7 @@ const projectionEvent = {
 };
 
 type RouteGuiHostWebSocketOptions = {
-  attach?: typeof attachResponse;
+  attach?: ThreadProjectionAttachResponse;
   emitActiveTurnEvent?: boolean;
 };
 
