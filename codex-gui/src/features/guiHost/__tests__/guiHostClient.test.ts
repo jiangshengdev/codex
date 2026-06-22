@@ -13,6 +13,7 @@ import {
   clearLaunchTokenFragment,
   readLaunchParams,
   startGuiHostConnection,
+  type GuiHostCommands,
   type LaunchParams,
 } from "../guiHostClient";
 import {
@@ -137,8 +138,7 @@ describe("guiHostClient", () => {
 
   it("sends turn/start through the ready command API", async () => {
     const socket = new RecordingWebSocket();
-    const commandsReady =
-      vi.fn<NonNullable<Parameters<typeof startGuiHostConnection>[0]["onCommandsReady"]>>();
+    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
     const attachResponse = attachBaseline;
     const threadId = attachResponse.snapshot.thread.id;
 
@@ -200,8 +200,7 @@ describe("guiHostClient", () => {
 
   it("sends turn/interrupt through the ready command API", async () => {
     const socket = new RecordingWebSocket();
-    const commandsReady =
-      vi.fn<NonNullable<Parameters<typeof startGuiHostConnection>[0]["onCommandsReady"]>>();
+    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
     const attachResponse = attachBaseline;
     const threadId = attachResponse.snapshot.thread.id;
 
@@ -248,8 +247,7 @@ describe("guiHostClient", () => {
   it("rejects command JSON-RPC errors without closing the socket", async () => {
     const socket = new RecordingWebSocket();
     const statuses: string[] = [];
-    const commandsReady =
-      vi.fn<NonNullable<Parameters<typeof startGuiHostConnection>[0]["onCommandsReady"]>>();
+    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
     const attachResponse = attachBaseline;
     const threadId = attachResponse.snapshot.thread.id;
 
