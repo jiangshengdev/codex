@@ -64,6 +64,9 @@ yarn-error.log*
 # patches
 apply_patch/
 
+# worktrees
+.worktrees/
+
 # coverage
 coverage/
 
