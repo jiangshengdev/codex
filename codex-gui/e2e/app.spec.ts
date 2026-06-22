@@ -75,7 +75,7 @@ const mobileStressAttachResponse: ThreadProjectionAttachResponse = {
               content: [
                 {
                   type: "text",
-                  text: "[$debug-responsive-gui](/Users/jiangsheng/cnb/codex/.codex/skills/debug-responsive-gui/SKILL.md) 启动一次",
+                  text: "[$debug-responsive-gui](/workspace/codex/.codex/skills/debug-responsive-gui/SKILL.md) 启动一次",
                   text_elements: [],
                 },
               ],
