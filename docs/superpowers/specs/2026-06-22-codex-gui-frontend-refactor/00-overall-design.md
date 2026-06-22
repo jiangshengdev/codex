@@ -84,8 +84,8 @@
 
 4. `04-app-shell-design.md`
 
-   `App.tsx` shell 拆分暂定为候选阶段。前三阶段完成后, 如果 `App.tsx` 仍值得降低复杂度,
-   再进入该阶段设计和实施计划。
+   `App.tsx` shell 拆分纳入本轮必做阶段。该阶段只降低 App shell 复杂度, 不改变用户行为、
+   UI、连接生命周期语义或 projection runtime 派发语义。
 
 ## 文件放置规则
 
@@ -157,5 +157,5 @@ Browser/e2e 只在触碰 App shell、用户行为边界或真实 WebSocket paylo
 - 决策 4: 选择源码 feature 内就近放置。
 - 决策 5: 选择测试目录内就近放置测试 helper。
 - 决策 6: 选择阶段内最小验证加阶段尾综合验证。
-- 决策 7: 选择 `04-app-shell-design.md` 作为候选阶段。
+- 决策 7: 选择 `04-app-shell-design.md` 纳入本轮必做阶段。
 - 决策 8: 选择写文件并提交。
