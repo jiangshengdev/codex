@@ -11,11 +11,8 @@ import {
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import type {
-  ThreadItem,
   ThreadProjectionAttachResponse,
   ThreadProjectionEventNotification,
-  Turn,
-  UserInput,
 } from "@codex-protocol/v2";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
@@ -26,154 +23,26 @@ import {
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
+import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
+  imageInput,
+  itemCompleted,
+  itemStarted,
+  planItem,
+  sleepItem,
+  textInput,
+  turnCompleted,
+  turnStarted,
+  userMessage,
+} from "./transcriptStateTestBuilders";
 
 const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
 const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
 const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
 const eventItemCompleted = eventItemCompletedJson as ThreadProjectionEventNotification;
 const eventTurnCompleted = eventTurnCompletedJson as ThreadProjectionEventNotification;
-
-const textInput = (text: string): UserInput => ({
-  type: "text",
-  text,
-  text_elements: [],
-});
-
-const imageInput = (url: string): UserInput => ({
-  type: "image",
-  url,
-});
-
-const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
-  type: "userMessage",
-  id,
-  clientId: null,
-  content,
-});
-
-const agentMessage = (id: string, text: string): ThreadItem => ({
-  type: "agentMessage",
-  id,
-  text,
-  phase: "final_answer",
-  memoryCitation: null,
-});
-
-const planItem = (id: string): ThreadItem => ({
-  type: "plan",
-  id,
-  text: "Hidden plan text",
-});
-
-const sleepItem = (id: string): ThreadItem => ({
-  type: "sleep",
-  id,
-  durationMs: 1000,
-});
-
-const baseTurn = (id: string, items: ThreadItem[] = []): Turn => ({
-  id,
-  items,
-  itemsView: "full",
-  status: "completed",
-  error: null,
-  startedAt: 1700000001,
-  completedAt: 1700000005,
-  durationMs: 4000,
-});
-
-const attachWithTurns = (turns: Turn[]): ThreadProjectionAttachResponse => ({
-  ...attachBaseline,
-  snapshot: {
-    ...attachBaseline.snapshot,
-    thread: {
-      ...attachBaseline.snapshot.thread,
-      turns,
-    },
-  },
-});
-
-const itemCompleted = (
-  commitId: string,
-  turnId: string,
-  item: ThreadItem,
-): ThreadProjectionEventNotification => {
-  if (eventItemCompleted.event.type !== "itemCompleted") {
-    throw new Error("fixture must contain an itemCompleted projection event");
-  }
-
-  return {
-    ...eventItemCompleted,
-    commitId,
-    event: {
-      ...eventItemCompleted.event,
-      notification: {
-        ...eventItemCompleted.event.notification,
-        turnId,
-        item,
-      },
-    },
-  };
-};
-
-const itemStarted = (
-  commitId: string,
-  turnId: string,
-  item: ThreadItem,
-): ThreadProjectionEventNotification => {
-  if (eventItemStarted.event.type !== "itemStarted") {
-    throw new Error("fixture must contain an itemStarted projection event");
-  }
-
-  return {
-    ...eventItemStarted,
-    commitId,
-    event: {
-      ...eventItemStarted.event,
-      notification: {
-        ...eventItemStarted.event.notification,
-        turnId,
-        item,
-      },
-    },
-  };
-};
-
-const turnStarted = (commitId: string, turn: Turn): ThreadProjectionEventNotification => {
-  if (eventTurnStarted.event.type !== "turnStarted") {
-    throw new Error("fixture must contain a turnStarted projection event");
-  }
-
-  return {
-    ...eventTurnStarted,
-    commitId,
-    event: {
-      ...eventTurnStarted.event,
-      notification: {
-        ...eventTurnStarted.event.notification,
-        turn,
-      },
-    },
-  };
-};
-
-const turnCompleted = (commitId: string, turn: Turn): ThreadProjectionEventNotification => {
-  if (eventTurnCompleted.event.type !== "turnCompleted") {
-    throw new Error("fixture must contain a turnCompleted projection event");
-  }
-
-  return {
-    ...eventTurnCompleted,
-    commitId,
-    event: {
-      ...eventTurnCompleted.event,
-      notification: {
-        ...eventTurnCompleted.event.notification,
-        turn,
-      },
-    },
-  };
-};
 
 describe("transcript state reducer", () => {
   it("registers transcript state in the app store", () => {
@@ -184,7 +53,7 @@ describe("transcript state reducer", () => {
   });
 
   it("rebuilds committed transcript chunks from an accepted attach snapshot", () => {
-    const attachWithChat = attachWithTurns([
+    const attachWithChat = attachWithTurns(attachBaseline, [
       baseTurn("turn-snapshot", [
         userMessage("user-snapshot", [
           textInput("Hello "),
@@ -240,7 +109,7 @@ describe("transcript state reducer", () => {
 
     store.dispatch(
       threadRuntimeAttached(
-        attachWithTurns([
+        attachWithTurns(attachBaseline, [
           baseTurn("turn-filtered", [
             userMessage("image-only", [imageInput("https://example.invalid/image.png")]),
             userMessage("empty-user", [textInput("")]),
@@ -259,10 +128,10 @@ describe("transcript state reducer", () => {
   it("applies live itemCompleted messages into committed transcript chunks", () => {
     const store = makeStore();
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered(
-        turnStarted("commit-live-turn", {
+        turnStarted(eventTurnStarted, "commit-live-turn", {
           ...baseTurn("turn-live", []),
           status: "inProgress",
         }),
@@ -271,6 +140,7 @@ describe("transcript state reducer", () => {
     store.dispatch(
       threadRuntimeEventBuffered(
         itemStarted(
+          eventItemStarted,
           "commit-live-started",
           "turn-live",
           agentMessage("agent-started", "Started should be ignored"),
@@ -279,7 +149,12 @@ describe("transcript state reducer", () => {
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted("commit-live-agent", "turn-live", agentMessage("agent-live", "Live answer")),
+        itemCompleted(
+          eventItemCompleted,
+          "commit-live-agent",
+          "turn-live",
+          agentMessage("agent-live", "Live answer"),
+        ),
       ),
     );
 
@@ -306,10 +181,10 @@ describe("transcript state reducer", () => {
   it("updates turn terminal status from live turnCompleted", () => {
     const store = makeStore();
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered(
-        turnStarted("commit-start-done", {
+        turnStarted(eventTurnStarted, "commit-start-done", {
           ...baseTurn("turn-done", []),
           status: "inProgress",
         }),
@@ -317,7 +192,7 @@ describe("transcript state reducer", () => {
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        turnCompleted("commit-complete-done", {
+        turnCompleted(eventTurnCompleted, "commit-complete-done", {
           ...baseTurn("turn-done", []),
           status: "completed",
         }),
@@ -334,10 +209,11 @@ describe("transcript state reducer", () => {
   it("filters empty text and non-chat live item completions", () => {
     const store = makeStore();
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered(
         itemCompleted(
+          eventItemCompleted,
           "commit-empty-user",
           "turn-live-filtered",
           userMessage("empty-user", [textInput("")]),
@@ -346,17 +222,32 @@ describe("transcript state reducer", () => {
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted("commit-empty-agent", "turn-live-filtered", agentMessage("empty-agent", "")),
+        itemCompleted(
+          eventItemCompleted,
+          "commit-empty-agent",
+          "turn-live-filtered",
+          agentMessage("empty-agent", ""),
+        ),
       ),
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted("commit-plan", "turn-live-filtered", planItem("hidden-plan")),
+        itemCompleted(
+          eventItemCompleted,
+          "commit-plan",
+          "turn-live-filtered",
+          planItem("hidden-plan"),
+        ),
       ),
     );
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted("commit-sleep", "turn-live-filtered", sleepItem("hidden-sleep")),
+        itemCompleted(
+          eventItemCompleted,
+          "commit-sleep",
+          "turn-live-filtered",
+          sleepItem("hidden-sleep"),
+        ),
       ),
     );
 
@@ -369,15 +260,21 @@ describe("transcript state reducer", () => {
   it("uses commitId to avoid applying the same live notification twice", () => {
     const store = makeStore();
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted("commit-duplicate", "turn-duplicate", agentMessage("agent-first", "First")),
+        itemCompleted(
+          eventItemCompleted,
+          "commit-duplicate",
+          "turn-duplicate",
+          agentMessage("agent-first", "First"),
+        ),
       ),
     );
     store.dispatch(
       threadRuntimeEventBuffered(
         itemCompleted(
+          eventItemCompleted,
           "commit-duplicate",
           "turn-duplicate",
           agentMessage("agent-second", "Second should be ignored"),
@@ -403,17 +300,27 @@ describe("transcript state reducer", () => {
   it("updates an existing committed entry and bumps only its chunk revision", () => {
     const store = makeStore();
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted("commit-first", "turn-update", agentMessage("agent-update", "First")),
+        itemCompleted(
+          eventItemCompleted,
+          "commit-first",
+          "turn-update",
+          agentMessage("agent-update", "First"),
+        ),
       ),
     );
     const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-update:chunk:0");
 
     store.dispatch(
       threadRuntimeEventBuffered(
-        itemCompleted("commit-second", "turn-update", agentMessage("agent-update", "Second")),
+        itemCompleted(
+          eventItemCompleted,
+          "commit-second",
+          "turn-update",
+          agentMessage("agent-update", "Second"),
+        ),
       ),
     );
 
@@ -447,11 +354,12 @@ describe("transcript state reducer", () => {
   it("creates a new chunk after the committed chunk entry limit", () => {
     const store = makeStore();
 
-    store.dispatch(threadRuntimeAttached(attachWithTurns([])));
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
       store.dispatch(
         threadRuntimeEventBuffered(
           itemCompleted(
+            eventItemCompleted,
             `commit-chunk-${String(index)}`,
             "turn-chunked",
             agentMessage(`agent-chunk-${String(index)}`, `Entry ${String(index)}`),
@@ -482,7 +390,7 @@ describe("transcript state reducer", () => {
 
   it("preserves committed transcript and sets global status on manual reconnect", () => {
     const store = makeStore();
-    const attachWithChat = attachWithTurns([
+    const attachWithChat = attachWithTurns(attachBaseline, [
       baseTurn("turn-existing", [agentMessage("agent-existing", "Existing answer")]),
     ]);
 
@@ -520,10 +428,10 @@ describe("transcript state reducer", () => {
 
   it("clears interrupted status and applied event ids on the next attach", () => {
     const store = makeStore();
-    const attachWithChat = attachWithTurns([
+    const attachWithChat = attachWithTurns(attachBaseline, [
       baseTurn("turn-before-reconnect", [agentMessage("agent-before", "Before reconnect")]),
     ]);
-    const replacementAttach = attachWithTurns([
+    const replacementAttach = attachWithTurns(attachBaseline, [
       baseTurn("turn-after-reconnect", [agentMessage("agent-after", "After reconnect")]),
     ]);
 
@@ -531,6 +439,7 @@ describe("transcript state reducer", () => {
     store.dispatch(
       threadRuntimeEventBuffered(
         itemCompleted(
+          eventItemCompleted,
           "commit-before",
           "turn-before-reconnect",
           agentMessage("agent-live-before", "Live before"),
@@ -548,6 +457,7 @@ describe("transcript state reducer", () => {
     store.dispatch(
       threadRuntimeEventBuffered(
         itemCompleted(
+          eventItemCompleted,
           "commit-before",
           "turn-after-reconnect",
           agentMessage("agent-live-after", "Live after reconnect"),
