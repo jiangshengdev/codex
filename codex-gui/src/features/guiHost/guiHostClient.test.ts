@@ -88,7 +88,7 @@ function startConnectionUntilCommandsReady({
 
   const cleanup = startGuiHostConnection({
     location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
-    replaceState: vi.fn(),
+    replaceState: vi.fn<History["replaceState"]>(),
     tokenStorage: new MemoryStorage(),
     createWebSocket: () => socket as unknown as WebSocket,
     onCommandsReady: commandsReady,
@@ -119,7 +119,7 @@ function startConnectionUntilCommandsReady({
 describe("guiHostClient", () => {
   it("stores app-server launch URL fragment token and restores it after refresh", () => {
     const storage = new MemoryStorage();
-    const replaceState = vi.fn();
+    const replaceState = vi.fn<History["replaceState"]>();
 
     expect(
       readLaunchParams(new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"), storage),
@@ -164,7 +164,7 @@ describe("guiHostClient", () => {
       location: new URL(
         `http://127.0.0.1:4567/?threadId=${attachResponse.snapshot.thread.id}#token=secret`,
       ),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -234,7 +234,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onCommandsReady: commandsReady,
@@ -296,7 +296,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onCommandsReady: commandsReady,
@@ -343,7 +343,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -387,7 +387,7 @@ describe("guiHostClient", () => {
   });
 
   it("rejects pending command requests during cleanup", async () => {
-    const commandsUnavailable = vi.fn();
+    const commandsUnavailable = vi.fn<() => void>();
     const { cleanup, commands, threadId } = startConnectionUntilCommandsReady({
       onCommandsUnavailable: commandsUnavailable,
     });
@@ -401,7 +401,7 @@ describe("guiHostClient", () => {
   });
 
   it("rejects pending command requests and marks commands unavailable on socket error", async () => {
-    const commandsUnavailable = vi.fn();
+    const commandsUnavailable = vi.fn<() => void>();
     const { commands, socket, threadId } = startConnectionUntilCommandsReady({
       onCommandsUnavailable: commandsUnavailable,
     });
@@ -415,7 +415,7 @@ describe("guiHostClient", () => {
   });
 
   it("rejects pending command requests and marks commands unavailable on socket close", async () => {
-    const commandsUnavailable = vi.fn();
+    const commandsUnavailable = vi.fn<() => void>();
     const { commands, socket, threadId } = startConnectionUntilCommandsReady({
       onCommandsUnavailable: commandsUnavailable,
     });
@@ -429,7 +429,7 @@ describe("guiHostClient", () => {
   });
 
   it("closes the socket and marks commands unavailable on terminal projection protocol errors", async () => {
-    const commandsUnavailable = vi.fn();
+    const commandsUnavailable = vi.fn<() => void>();
     const { attachResponse, commands, socket, threadId } = startConnectionUntilCommandsReady({
       onCommandsUnavailable: commandsUnavailable,
     });
@@ -462,7 +462,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -504,7 +504,7 @@ describe("guiHostClient", () => {
       location: new URL(
         `http://127.0.0.1:4567/?threadId=${attachResponse.snapshot.thread.id}#token=secret`,
       ),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -559,7 +559,7 @@ describe("guiHostClient", () => {
       location: new URL(
         `http://127.0.0.1:4567/?threadId=${attachResponse.snapshot.thread.id}#token=secret`,
       ),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -604,7 +604,7 @@ describe("guiHostClient", () => {
 
   it("clears the fragment and authenticates when launch token storage fails", () => {
     const socket = new RecordingWebSocket();
-    const replaceState = vi.fn();
+    const replaceState = vi.fn<History["replaceState"]>();
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
@@ -628,7 +628,7 @@ describe("guiHostClient", () => {
 
     const cleanup = startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -652,7 +652,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -687,7 +687,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -720,7 +720,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -740,7 +740,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -766,7 +766,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {

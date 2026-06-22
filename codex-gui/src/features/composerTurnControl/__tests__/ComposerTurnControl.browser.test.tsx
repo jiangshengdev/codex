@@ -25,7 +25,7 @@ const threadId = attachResponse.snapshot.thread.id;
 
 function commands(): GuiHostCommands {
   return {
-    startTurn: vi.fn().mockResolvedValue({
+    startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
       turn: {
         id: "turn-started",
         items: [],
@@ -37,7 +37,7 @@ function commands(): GuiHostCommands {
         durationMs: null,
       },
     }),
-    interruptTurn: vi.fn().mockResolvedValue({}),
+    interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
   };
 }
 
