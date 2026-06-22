@@ -450,10 +450,11 @@ jobs:
     with:
       runner: ubuntu-24.04
       target: x86_64-unknown-linux-gnu
-      profile: ci-test
+      profile: ci-test-slim
       artifact_id: linux-x64-remote
       remote_env: true
-      use_sccache: true
+      cargo_build_jobs: 2
+      use_sccache: false
     secrets: inherit
 
   tests_linux_arm64:
@@ -477,7 +478,7 @@ jobs:
       target: x86_64-pc-windows-msvc
       profile: ci-test
       artifact_id: windows-x64
-      test_threads: 8
+      test_threads: 1
     secrets: inherit
 
   tests_windows_arm64:

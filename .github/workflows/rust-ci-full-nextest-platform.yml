@@ -72,7 +72,7 @@ jobs:
       ARCHIVE_CACHE_RUNNER: ${{ inputs.archive_runner != '' && inputs.archive_runner || inputs.runner }}
       USE_SCCACHE: ${{ inputs.use_sccache && 'true' || 'false' }}
       CARGO_INCREMENTAL: "0"
-      SCCACHE_CACHE_SIZE: 10G
+      SCCACHE_CACHE_SIZE: 2G
       NEXTEST_ARCHIVE_FILE: nextest-${{ inputs.artifact_id }}.tar.zst
       TEST_HELPERS_ARTIFACT: nextest-test-helpers-${{ inputs.artifact_id }}
     steps:
@@ -351,7 +351,9 @@ jobs:
           set -euo pipefail
           export CODEX_TEST_REMOTE_ENV_CONTAINER_NAME="codex-remote-test-env-${{ github.run_id }}-${{ matrix.shard }}"
           source "${GITHUB_WORKSPACE}/scripts/test-remote-env.sh"
+          echo "CODEX_TEST_ENVIRONMENT=${CODEX_TEST_ENVIRONMENT}" >> "$GITHUB_ENV"
           echo "CODEX_TEST_REMOTE_ENV=${CODEX_TEST_REMOTE_ENV}" >> "$GITHUB_ENV"
+          echo "CODEX_TEST_REMOTE_ENV_CONTAINER_NAME=${CODEX_TEST_REMOTE_ENV_CONTAINER_NAME}" >> "$GITHUB_ENV"
           echo "CODEX_TEST_REMOTE_EXEC_SERVER_URL=${CODEX_TEST_REMOTE_EXEC_SERVER_URL}" >> "$GITHUB_ENV"
 
       - name: Download nextest archive
@@ -445,9 +447,9 @@ jobs:
         run: |
           set +e
           if [[ "${STEPS_TEST_OUTCOME}" != "success" ]]; then
-            docker logs "${CODEX_TEST_REMOTE_ENV}" || true
+            docker logs "${CODEX_TEST_REMOTE_ENV_CONTAINER_NAME}" || true
           fi
-          docker rm -f "${CODEX_TEST_REMOTE_ENV}" >/dev/null 2>&1 || true
+          docker rm -f "${CODEX_TEST_REMOTE_ENV_CONTAINER_NAME}" >/dev/null 2>&1 || true
         env:
           STEPS_TEST_OUTCOME: ${{ steps.test.outcome }}
 

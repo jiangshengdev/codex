@@ -64,8 +64,14 @@ yarn-error.log*
 # patches
 apply_patch/
 
+# worktrees
+.worktrees/
+
 # coverage
 coverage/
+
+# browser automation artifacts
+.playwright-cli/
 
 # personal files
 personal/

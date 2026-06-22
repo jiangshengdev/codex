@@ -14,6 +14,9 @@ dist-ssr
 coverage
 *.local
 
+# Reports
+.reports/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -34,6 +37,7 @@ coverage
 
 # Vitest
 __screenshots__/
+.vitest-attachments/
 
 # Vite
 *.timestamp-*-*.mjs

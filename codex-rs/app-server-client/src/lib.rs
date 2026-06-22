@@ -16,6 +16,7 @@
 //! surfaces as channel-full errors rather than unbounded memory growth.
 
 mod gui;
+mod path;
 mod remote;
 
 use std::error::Error;
@@ -23,6 +24,7 @@ use std::fmt;
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::Result as IoResult;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -49,12 +51,17 @@ use codex_config::LoaderOverrides;
 use codex_config::NoopThreadConfigLoader;
 use codex_config::RemoteThreadConfigLoader;
 use codex_config::ThreadConfigLoader;
+use codex_config::config_toml::ConfigToml;
 use codex_core::config::Config;
+pub use codex_core::otel_init::build_provider as build_otel_provider;
+use codex_core::personality_migration::PersonalityMigrationStatus;
+use codex_core::personality_migration::maybe_migrate_personality;
 pub use codex_exec_server::EnvironmentManager;
 pub use codex_exec_server::ExecServerRuntimePaths;
 use codex_feedback::CodexFeedback;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
+use codex_utils_absolute_path::AbsolutePathBuf;
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -67,6 +74,7 @@ pub use crate::gui::GuiLaunchError;
 pub use crate::gui::GuiLaunchUrlEntry;
 pub use crate::gui::GuiLaunchUrlKind;
 pub use crate::gui::GuiLaunchUrls;
+pub use crate::path::AppServerPath;
 pub use crate::remote::RemoteAppServerClient;
 pub use crate::remote::RemoteAppServerConnectArgs;
 pub use crate::remote::RemoteAppServerEndpoint;
@@ -77,13 +85,8 @@ pub use crate::remote::RemoteAppServerEndpoint;
 /// module exists so clients can remove a direct `codex-core` dependency
 /// while legacy startup/config paths are migrated to RPCs.
 pub mod legacy_core {
-    pub use codex_core::DEFAULT_AGENTS_MD_FILENAME;
-    pub use codex_core::LOCAL_AGENTS_MD_FILENAME;
-    pub use codex_core::McpManager;
     pub use codex_core::check_execpolicy_for_warnings;
     pub use codex_core::format_exec_policy_error_with_source;
-    pub use codex_core::grant_read_root_non_elevated;
-    pub use codex_core::web_search_detail;
 
     pub mod config {
         pub use codex_core::config::*;
@@ -92,41 +95,26 @@ pub mod legacy_core {
             pub use codex_core::config::edit::*;
         }
     }
-
-    pub mod connectors {
-        pub use codex_core::connectors::*;
-    }
-
-    pub mod otel_init {
-        pub use codex_core::otel_init::*;
-    }
-
-    pub mod personality_migration {
-        pub use codex_core::personality_migration::*;
-    }
-
-    pub mod review_format {
-        pub use codex_core::review_format::*;
-    }
-
-    pub mod review_prompts {
-        pub use codex_core::review_prompts::*;
-    }
-
-    pub mod test_support {
-        pub use codex_core::test_support::*;
-    }
-
-    pub mod util {
-        pub use codex_core::util::*;
-    }
-
-    pub mod windows_sandbox {
-        pub use codex_core::windows_sandbox::*;
-    }
 }
 
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Runs the embedded app-server personality migration.
+///
+/// Returns `true` when the migration changed config and the caller should reload it.
+pub async fn migrate_personality_if_needed(
+    codex_home: &Path,
+    config_toml: &ConfigToml,
+    state_db: Option<StateDbHandle>,
+) -> IoResult<bool> {
+    let status = maybe_migrate_personality(codex_home, config_toml, state_db).await?;
+    match status {
+        PersonalityMigrationStatus::Applied => Ok(true),
+        PersonalityMigrationStatus::SkippedMarker
+        | PersonalityMigrationStatus::SkippedExplicitPersonality
+        | PersonalityMigrationStatus::SkippedNoSessions => Ok(false),
+    }
+}
 
 /// Raw app-server request result for typed in-process requests.
 ///
@@ -185,6 +173,7 @@ pub(crate) fn server_notification_requires_delivery(notification: &ServerNotific
         ServerNotification::TurnCompleted(_)
             | ServerNotification::ThreadSettingsUpdated(_)
             | ServerNotification::ItemCompleted(_)
+            | ServerNotification::ExternalAgentConfigImportCompleted(_)
             | ServerNotification::AgentMessageDelta(_)
             | ServerNotification::PlanDelta(_)
             | ServerNotification::ReasoningSummaryTextDelta(_)
@@ -445,12 +434,6 @@ enum ClientCommand {
         thread_id: ThreadId,
         response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
     },
-    #[cfg(test)]
-    LaunchGuiForTest {
-        thread_id: ThreadId,
-        mode_result: Result<codex_gui_host::GuiHostMode, String>,
-        response_tx: oneshot::Sender<Result<GuiLaunchUrls, GuiLaunchError>>,
-    },
     ResolveServerRequest {
         request_id: RequestId,
         result: JsonRpcResult,
@@ -510,13 +493,11 @@ impl InProcessAppServerClient {
         let mut handle =
             codex_app_server::in_process::start(args.into_runtime_start_args()).await?;
         let request_sender = handle.sender();
-        let gui_sender = request_sender.clone();
         let (command_tx, mut command_rx) = mpsc::channel::<ClientCommand>(channel_capacity);
         let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
         let worker_handle = tokio::spawn(async move {
             let mut event_stream_enabled = true;
-            let mut gui_host_manager = None::<codex_app_server::GuiHostManager>;
             let mut skipped_events = 0usize;
             loop {
                 tokio::select! {
@@ -543,47 +524,18 @@ impl InProcessAppServerClient {
                                 thread_id,
                                 response_tx,
                             }) => {
-                                let result = async {
-                                    if let Some(manager) = gui_host_manager.as_ref() {
-                                        manager
-                                            .launch_urls_for_thread(thread_id)
-                                            .await
-                                            .map_err(GuiLaunchError::from)
-                                    } else {
-                                        let manager = crate::gui::new_gui_host_manager(
-                                            gui_sender.clone(),
-                                        )?;
-                                        let urls = manager
-                                            .launch_urls_for_thread(thread_id)
-                                            .await
-                                            .map_err(GuiLaunchError::from)?;
-                                        gui_host_manager = Some(manager);
-                                        Ok(urls)
-                                    }
-                                }
-                                .await;
-                                let _ = response_tx.send(result);
-                            }
-                            #[cfg(test)]
-                            Some(ClientCommand::LaunchGuiForTest {
-                                thread_id,
-                                mode_result,
-                                response_tx,
-                            }) => {
-                                let result = async {
-                                    let manager = crate::gui::new_gui_host_manager_for_test(
-                                        gui_sender.clone(),
-                                        mode_result,
-                                    )?;
-                                    let urls = manager
-                                        .launch_urls_for_thread(thread_id)
+                                let request_sender = request_sender.clone();
+                                tokio::spawn(async move {
+                                    let result = match request_sender
+                                        .launch_gui_for_thread(thread_id)
                                         .await
-                                        .map_err(GuiLaunchError::from)?;
-                                    manager.shutdown().await;
-                                    Ok(urls)
-                                }
-                                .await;
-                                let _ = response_tx.send(result);
+                                    {
+                                        Ok(Ok(urls)) => Ok(urls),
+                                        Ok(Err(error)) => Err(GuiLaunchError::from(error)),
+                                        Err(error) => Err(GuiLaunchError::from(error)),
+                                    };
+                                    let _ = response_tx.send(result);
+                                });
                             }
                             Some(ClientCommand::ResolveServerRequest {
                                 request_id,
@@ -603,17 +555,11 @@ impl InProcessAppServerClient {
                                 let _ = response_tx.send(send_result);
                             }
                             Some(ClientCommand::Shutdown { response_tx }) => {
-                                if let Some(manager) = gui_host_manager.take() {
-                                    manager.shutdown().await;
-                                }
                                 let shutdown_result = handle.shutdown().await;
                                 let _ = response_tx.send(shutdown_result);
                                 break;
                             }
                             None => {
-                                if let Some(manager) = gui_host_manager.take() {
-                                    manager.shutdown().await;
-                                }
                                 let _ = handle.shutdown().await;
                                 break;
                             }
@@ -682,34 +628,6 @@ impl InProcessAppServerClient {
         InProcessAppServerRequestHandle {
             command_tx: self.command_tx.clone(),
         }
-    }
-
-    #[cfg(test)]
-    async fn launch_gui_for_thread_with_mode_result_for_test(
-        &self,
-        thread_id: ThreadId,
-        mode_result: Result<codex_gui_host::GuiHostMode, String>,
-    ) -> Result<GuiLaunchUrls, GuiLaunchError> {
-        let (response_tx, response_rx) = oneshot::channel();
-        self.command_tx
-            .send(ClientCommand::LaunchGuiForTest {
-                thread_id,
-                mode_result,
-                response_tx,
-            })
-            .await
-            .map_err(|_| {
-                GuiLaunchError::Io(IoError::new(
-                    ErrorKind::BrokenPipe,
-                    "in-process app-server worker channel is closed",
-                ))
-            })?;
-        response_rx.await.map_err(|_| {
-            GuiLaunchError::Io(IoError::new(
-                ErrorKind::BrokenPipe,
-                "in-process GUI launch response channel is closed",
-            ))
-        })?
     }
 
     /// Sends a typed client request and returns raw JSON-RPC result.
@@ -958,6 +876,15 @@ impl AppServerRequestHandle {
 }
 
 impl AppServerClient {
+    pub fn codex_home(&self, local_codex_home: &AbsolutePathBuf) -> Option<AppServerPath> {
+        match self {
+            Self::InProcess(_) => Some(AppServerPath::from_app_server(
+                local_codex_home.display().to_string(),
+            )),
+            Self::Remote(client) => client.codex_home().map(AppServerPath::from_app_server),
+        }
+    }
+
     pub async fn request(&self, request: ClientRequest) -> IoResult<RequestResult> {
         match self {
             Self::InProcess(client) => client.request(request).await,
@@ -1225,6 +1152,7 @@ mod tests {
                 id: request.id,
                 result: serde_json::json!({
                     "userAgent": "codex_cli_rs/9.8.7-test (Test OS; x86_64) rust",
+                    "codexHome": "/server/.codex",
                 }),
             }),
         )
@@ -1461,22 +1389,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn in_process_launch_gui_reports_config_errors_at_launch_time() {
+    async fn in_process_launch_gui_uses_app_server_service() {
         let client = start_test_client(SessionSource::Cli).await;
         let thread_id =
-            ThreadId::from_string("00000000-0000-0000-0000-000000000505").expect("valid thread id");
+            ThreadId::from_string("00000000-0000-0000-0000-0000000000a1").expect("valid thread id");
 
-        let error = client
-            .launch_gui_for_thread_with_mode_result_for_test(
-                thread_id,
-                Err("invalid test GUI host mode".to_string()),
-            )
+        let urls = client
+            .launch_gui_for_thread(thread_id)
             .await
-            .expect_err("GUI launch should report config error");
+            .expect("launch should succeed");
 
-        assert_eq!(
-            error.to_string(),
-            "GUI host config error: invalid test GUI host mode"
+        assert!(
+            urls.entries[0]
+                .url
+                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
         );
         client.shutdown().await.expect("shutdown should complete");
     }
@@ -1658,6 +1584,7 @@ mod tests {
             .expect("remote client should connect");
 
         assert_eq!(client.server_version(), Some("9.8.7-test"));
+        assert_eq!(client.codex_home(), Some("/server/.codex"));
         let response: GetAccountResponse = client
             .request_typed(ClientRequest::GetAccount {
                 request_id: RequestId::Integer(1),
@@ -2111,6 +2038,7 @@ mod tests {
                             is_secret: false,
                             options: Some(vec![]),
                         }],
+                        auto_resolution_ms: None,
                     })
                     .expect("params should serialize"),
                 ),
@@ -2172,6 +2100,7 @@ mod tests {
                                 is_secret: false,
                                 options: Some(vec![]),
                             }],
+                            auto_resolution_ms: None,
                         })
                         .expect("params should serialize"),
                     ),
@@ -2379,6 +2308,16 @@ mod tests {
                             memory_citation: None,
                         },
                     }
+                )
+            )
+        ));
+        assert!(event_requires_delivery(
+            &InProcessServerEvent::ServerNotification(
+                codex_app_server_protocol::ServerNotification::ExternalAgentConfigImportCompleted(
+                    codex_app_server_protocol::ExternalAgentConfigImportCompletedNotification {
+                        import_id: "import".to_string(),
+                        item_type_results: Vec::new(),
+                    },
                 )
             )
         ));

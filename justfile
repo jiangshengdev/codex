@@ -36,7 +36,7 @@ app-server-test-client *args:
     cargo build -p codex-cli
     cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex {args}
 
-# Format the justfile, Rust, Python SDK code, and Python scripts.
+# Format the justfile, Rust, Bazel/Starlark, Python SDK code, and Python scripts.
 fmt:
     {{ python }} ../scripts/format.py
 
@@ -75,11 +75,11 @@ install:
 # there should be no need to add `--all-features`.
 [unix]
 test *args:
-    RUST_MIN_STACK={{ rust_min_stack }} cargo nextest run --no-fail-fast "$@"
+    RUST_MIN_STACK={{ rust_min_stack }} NEXTEST_PROFILE=local cargo nextest run --no-fail-fast "$@"
 
 [windows]
 test *args:
-    $env:RUST_MIN_STACK = "{{ rust_min_stack }}"; cargo nextest run --no-fail-fast @($args | Select-Object -Skip 1)
+    $env:RUST_MIN_STACK = "{{ rust_min_stack }}"; $env:NEXTEST_PROFILE = "local"; cargo nextest run --no-fail-fast @($args | Select-Object -Skip 1)
 
 # Run from the repository root so scripts that resolve paths from `cwd` see
 # the same layout they use in GitHub Actions.
@@ -147,6 +147,10 @@ write-config-schema:
 # Regenerate vendored app-server protocol schema artifacts.
 write-app-server-schema *args:
     cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- {args}
+
+# Regenerate GUI projection JSON fixtures.
+write-gui-projection-fixtures *args:
+    cargo run -p codex-app-server --bin write_gui_projection_fixtures -- {args}
 
 [no-cd]
 write-hooks-schema:

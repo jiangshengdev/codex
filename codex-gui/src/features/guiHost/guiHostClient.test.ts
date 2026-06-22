@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import type {
   ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
   ThreadProjectionEventNotification,
+  TurnStartParams,
+  TurnStartResponse,
 } from "@codex-protocol/v2";
 import {
   clearLaunchTokenFragment,
   readLaunchParams,
   startGuiHostConnection,
+  type GuiHostCommands,
   type LaunchParams,
 } from "./guiHostClient";
 
@@ -35,6 +40,17 @@ type SocketCloseEvent = {
   reason: string;
 };
 
+type ParsedRpcRequest = {
+  jsonrpc: "2.0";
+  id: number;
+  method: string;
+  params?: unknown;
+};
+
+function readRpcRequest(message: string): ParsedRpcRequest {
+  return JSON.parse(message) as ParsedRpcRequest;
+}
+
 class RecordingWebSocket {
   sent: string[] = [];
   closed: { code: number | undefined; reason: string | undefined }[] = [];
@@ -52,10 +68,58 @@ class RecordingWebSocket {
   }
 }
 
+function startConnectionUntilCommandsReady({
+  onCommandsUnavailable,
+  onStatus,
+}: {
+  onCommandsUnavailable?: () => void;
+  onStatus?: Parameters<typeof startGuiHostConnection>[0]["onStatus"];
+} = {}): {
+  attachResponse: ThreadProjectionAttachResponse;
+  cleanup: () => void;
+  commands: GuiHostCommands;
+  socket: RecordingWebSocket;
+  threadId: string;
+} {
+  const socket = new RecordingWebSocket();
+  const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
+  const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+  const threadId = attachResponse.snapshot.thread.id;
+
+  const cleanup = startGuiHostConnection({
+    location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
+    replaceState: vi.fn<History["replaceState"]>(),
+    tokenStorage: new MemoryStorage(),
+    createWebSocket: () => socket as unknown as WebSocket,
+    onCommandsReady: commandsReady,
+    onCommandsUnavailable,
+    onStatus,
+  });
+
+  socket.onopen?.();
+  socket.onmessage?.({
+    data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+  });
+  socket.onmessage?.({
+    data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
+  });
+  socket.onmessage?.({
+    data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
+  });
+
+  expect(commandsReady).toHaveBeenCalledTimes(1);
+  const commands = commandsReady.mock.calls[0]?.[0];
+  if (!commands) {
+    throw new Error("Expected commands to be ready");
+  }
+
+  return { attachResponse, cleanup, commands, socket, threadId };
+}
+
 describe("guiHostClient", () => {
   it("stores app-server launch URL fragment token and restores it after refresh", () => {
     const storage = new MemoryStorage();
-    const replaceState = vi.fn();
+    const replaceState = vi.fn<History["replaceState"]>();
 
     expect(
       readLaunchParams(new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"), storage),
@@ -90,15 +154,17 @@ describe("guiHostClient", () => {
     const statuses: string[] = [];
     const attached: ThreadProjectionAttachResponse[] = [];
     const projectionEvents: ThreadProjectionEventNotification[] = [];
+    const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
     const launchParams: LaunchParams[] = [];
     const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
     const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+    const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
 
     startGuiHostConnection({
       location: new URL(
         `http://127.0.0.1:4567/?threadId=${attachResponse.snapshot.thread.id}#token=secret`,
       ),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -112,6 +178,9 @@ describe("guiHostClient", () => {
       },
       onProjectionEvent: (notification) => {
         projectionEvents.push(notification);
+      },
+      onProjectionClosed: (notification) => {
+        projectionClosedNotifications.push(notification);
       },
     });
 
@@ -132,6 +201,13 @@ describe("guiHostClient", () => {
         params: projectionEvent,
       }),
     });
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/projection/closed",
+        params: projectionClosed,
+      }),
+    });
 
     expect(socket.sent.map(readRpcMethod)).toEqual([
       "gui/authenticate",
@@ -147,6 +223,236 @@ describe("guiHostClient", () => {
     ]);
     expect(attached).toEqual([attachResponse]);
     expect(projectionEvents).toEqual([projectionEvent]);
+    expect(projectionClosedNotifications).toEqual([projectionClosed]);
+  });
+
+  it("sends turn/start through the ready command API", async () => {
+    const socket = new RecordingWebSocket();
+    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
+    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const threadId = attachResponse.snapshot.thread.id;
+
+    startGuiHostConnection({
+      location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
+      replaceState: vi.fn<History["replaceState"]>(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onCommandsReady: commandsReady,
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
+    });
+
+    expect(commandsReady).toHaveBeenCalledTimes(1);
+    const commands = commandsReady.mock.calls[0]?.[0];
+    expect(commands).toBeDefined();
+
+    const params: TurnStartParams = {
+      threadId,
+      clientUserMessageId: null,
+      input: [{ type: "text", text: "Hello", text_elements: [] }],
+    };
+    const response: TurnStartResponse = {
+      turn: {
+        id: "turn-started-by-command",
+        items: [],
+        itemsView: "full",
+        status: "inProgress",
+        error: null,
+        startedAt: 1700000100,
+        completedAt: null,
+        durationMs: null,
+      },
+    };
+    const promise = commands?.startTurn(params);
+
+    expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "turn/start",
+      params,
+    });
+
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 4, result: response }),
+    });
+
+    await expect(promise).resolves.toEqual(response);
+  });
+
+  it("sends turn/interrupt through the ready command API", async () => {
+    const socket = new RecordingWebSocket();
+    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
+    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const threadId = attachResponse.snapshot.thread.id;
+
+    startGuiHostConnection({
+      location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
+      replaceState: vi.fn<History["replaceState"]>(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onCommandsReady: commandsReady,
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
+    });
+
+    expect(commandsReady).toHaveBeenCalledTimes(1);
+    const commands = commandsReady.mock.calls[0]?.[0];
+    expect(commands).toBeDefined();
+
+    const params = { threadId, turnId: "turn-active" };
+    const promise = commands?.interruptTurn(params);
+
+    expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "turn/interrupt",
+      params,
+    });
+
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 4, result: {} }),
+    });
+
+    await expect(promise).resolves.toEqual({});
+  });
+
+  it("rejects command JSON-RPC errors without closing the socket", async () => {
+    const socket = new RecordingWebSocket();
+    const statuses: string[] = [];
+    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
+    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const threadId = attachResponse.snapshot.thread.id;
+
+    startGuiHostConnection({
+      location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
+      replaceState: vi.fn<History["replaceState"]>(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: (status) => {
+        statuses.push(status.label);
+      },
+      onCommandsReady: commandsReady,
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
+    });
+
+    const commands = commandsReady.mock.calls[0]?.[0];
+    expect(commands).toBeDefined();
+
+    const params: TurnStartParams = {
+      threadId,
+      clientUserMessageId: null,
+      input: [{ type: "text", text: "Hello", text_elements: [] }],
+    };
+    const promise = commands?.startTurn(params);
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 4,
+        error: { code: -32000, message: "active turn already running" },
+      }),
+    });
+
+    await expect(promise).rejects.toThrow("active turn already running");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("attached");
+  });
+
+  it("rejects pending command requests during cleanup", async () => {
+    const commandsUnavailable = vi.fn<() => void>();
+    const { cleanup, commands, threadId } = startConnectionUntilCommandsReady({
+      onCommandsUnavailable: commandsUnavailable,
+    });
+
+    const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
+
+    cleanup();
+
+    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
+    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects pending command requests and marks commands unavailable on socket error", async () => {
+    const commandsUnavailable = vi.fn<() => void>();
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      onCommandsUnavailable: commandsUnavailable,
+    });
+
+    const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
+
+    socket.onerror?.();
+
+    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
+    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects pending command requests and marks commands unavailable on socket close", async () => {
+    const commandsUnavailable = vi.fn<() => void>();
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      onCommandsUnavailable: commandsUnavailable,
+    });
+
+    const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
+
+    socket.onclose?.({ code: 1006, reason: "network lost" });
+
+    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
+    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the socket and marks commands unavailable on terminal projection protocol errors", async () => {
+    const commandsUnavailable = vi.fn<() => void>();
+    const { attachResponse, commands, socket, threadId } = startConnectionUntilCommandsReady({
+      onCommandsUnavailable: commandsUnavailable,
+    });
+
+    const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/projection/event",
+        params: {
+          threadId,
+          subscriptionId: attachResponse.subscriptionId,
+          commitId: "c1",
+          parentCommitId: null,
+          event: { type: "turnStarted" },
+        },
+      }),
+    });
+
+    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
+    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
   });
 
   it("reports malformed projection attach payloads without forwarding them", () => {
@@ -156,7 +462,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -198,7 +504,7 @@ describe("guiHostClient", () => {
       location: new URL(
         `http://127.0.0.1:4567/?threadId=${attachResponse.snapshot.thread.id}#token=secret`,
       ),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -243,9 +549,62 @@ describe("guiHostClient", () => {
     });
   });
 
+  it("reports malformed projection closed payloads without forwarding them", () => {
+    const socket = new RecordingWebSocket();
+    const statuses: { label: string; message?: string }[] = [];
+    const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
+    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+
+    startGuiHostConnection({
+      location: new URL(
+        `http://127.0.0.1:4567/?threadId=${attachResponse.snapshot.thread.id}#token=secret`,
+      ),
+      replaceState: vi.fn<History["replaceState"]>(),
+      tokenStorage: new MemoryStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: (status) => {
+        statuses.push({
+          label: status.label,
+          message: "message" in status ? status.message : undefined,
+        });
+      },
+      onProjectionClosed: (notification) => {
+        projectionClosedNotifications.push(notification);
+      },
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/projection/closed",
+        params: {
+          threadId: attachResponse.snapshot.thread.id,
+          subscriptionId: attachResponse.subscriptionId,
+          reason: "unexpected",
+        },
+      }),
+    });
+
+    expect(projectionClosedNotifications).toEqual([]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "thread/projection/closed returned malformed params payload",
+    });
+  });
+
   it("clears the fragment and authenticates when launch token storage fails", () => {
     const socket = new RecordingWebSocket();
-    const replaceState = vi.fn();
+    const replaceState = vi.fn<History["replaceState"]>();
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
@@ -269,7 +628,7 @@ describe("guiHostClient", () => {
 
     const cleanup = startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -293,7 +652,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -328,7 +687,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -361,7 +720,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -381,7 +740,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {
@@ -407,7 +766,7 @@ describe("guiHostClient", () => {
 
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
-      replaceState: vi.fn(),
+      replaceState: vi.fn<History["replaceState"]>(),
       tokenStorage: new MemoryStorage(),
       createWebSocket: () => socket as unknown as WebSocket,
       onStatus: (status) => {

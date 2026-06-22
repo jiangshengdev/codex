@@ -38,6 +38,8 @@
 //! which wraps this module behind a worker task with async request/response
 //! helpers, surface-specific startup policy, and bounded shutdown.
 
+mod gui;
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::hash_map::Entry;
@@ -55,6 +57,7 @@ use crate::config_manager::ConfigManager;
 use crate::error_code::OVERLOADED_ERROR_CODE;
 use crate::error_code::internal_error;
 use crate::error_code::invalid_request;
+use crate::gui_launch_service::GuiLaunchServiceError;
 use crate::in_process_extra;
 use crate::message_processor::ConnectionSessionState;
 use crate::message_processor::MessageProcessor;
@@ -85,7 +88,9 @@ use codex_core::config::Config;
 use codex_core::resolve_installation_id;
 use codex_exec_server::EnvironmentManager;
 use codex_feedback::CodexFeedback;
+use codex_gui_host::GuiLaunchUrls;
 use codex_login::AuthManager;
+use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
 pub use codex_rollout::StateDbHandle;
 pub use codex_state::log_db::LogDbLayer;
@@ -105,7 +110,9 @@ type PendingClientRequestResponse = std::result::Result<Result, JSONRPCErrorErro
 fn server_notification_requires_delivery(notification: &ServerNotification) -> bool {
     matches!(
         notification,
-        ServerNotification::TurnCompleted(_) | ServerNotification::ThreadSettingsUpdated(_)
+        ServerNotification::TurnCompleted(_)
+            | ServerNotification::ThreadSettingsUpdated(_)
+            | ServerNotification::ExternalAgentConfigImportCompleted(_)
     )
 }
 
@@ -177,6 +184,7 @@ pub(crate) enum InProcessClientMessage {
         notification: ClientNotification,
     },
     Extra(Box<in_process_extra::ExtraConnectionCommand>),
+    Gui(gui::ClientCommand),
     ServerRequestResponse {
         request_id: RequestId,
         result: Result,
@@ -194,6 +202,7 @@ enum ProcessorCommand {
     Request(Box<ClientRequest>),
     Notification(ClientNotification),
     Extra(Box<in_process_extra::ExtraProcessorCommand>),
+    Gui(gui::ProcessorGuiCommand),
 }
 
 #[derive(Clone)]
@@ -220,12 +229,23 @@ impl InProcessClientSender {
         self.try_send_client_message(InProcessClientMessage::Notification { notification })
     }
 
+    #[allow(dead_code)]
     pub(crate) fn register_extra_connection(
         &self,
         outgoing_tx: mpsc::Sender<String>,
     ) -> IoResult<in_process_extra::ExtraConnectionHandle> {
+        self.extra_connection_sender().open(outgoing_tx)
+    }
+
+    pub(crate) fn extra_connection_sender(&self) -> in_process_extra::ExtraConnectionCommandSender {
         in_process_extra::ExtraConnectionCommandSender::new(self.client_tx.clone())
-            .open(outgoing_tx)
+    }
+
+    pub async fn launch_gui_for_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> IoResult<std::result::Result<GuiLaunchUrls, GuiLaunchServiceError>> {
+        gui::launch_for_thread(&self.client_tx, thread_id).await
     }
 
     pub fn respond_to_server_request(&self, request_id: RequestId, result: Result) -> IoResult<()> {
@@ -315,6 +335,17 @@ impl InProcessClientHandle {
         self.client.fail_server_request(request_id, error)
     }
 
+    /// Requests GUI launch URLs from the app-server-owned GUI launch service.
+    ///
+    /// This keeps local embedders on the same host lifecycle used by app-server
+    /// extension tools instead of letting clients construct their own GUI host.
+    pub async fn launch_gui_for_thread(
+        &self,
+        thread_id: ThreadId,
+    ) -> IoResult<std::result::Result<GuiLaunchUrls, GuiLaunchServiceError>> {
+        self.client.launch_gui_for_thread(thread_id).await
+    }
+
     /// Receives the next server event from the in-process runtime.
     ///
     /// Returns `None` when the runtime task exits and no more events are
@@ -384,6 +415,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
     let channel_capacity = args.channel_capacity.max(1);
     let installation_id = resolve_installation_id(&args.config.codex_home).await?;
     let (client_tx, mut client_rx) = mpsc::channel::<InProcessClientMessage>(channel_capacity);
+    let client_tx_for_gui = client_tx.clone();
     let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 
     let runtime_handle = tokio::spawn(async move {
@@ -454,6 +486,8 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
         );
         let (processor_tx, mut processor_rx) = mpsc::channel::<ProcessorCommand>(channel_capacity);
         let mut processor_handle = tokio::spawn(async move {
+            let gui_launch_service = gui::launch_service(client_tx_for_gui);
+            let processor_gui_launch_service = Arc::clone(&gui_launch_service);
             let processor = Arc::new(MessageProcessor::new(MessageProcessorArgs {
                 outgoing: Arc::clone(&processor_outgoing),
                 analytics_events_client,
@@ -471,6 +505,7 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                 rpc_transport: AppServerRpcTransport::InProcess,
                 remote_control_handle: None,
                 plugin_startup_tasks: crate::PluginStartupTasks::Start,
+                gui_launch_service: processor_gui_launch_service,
             }));
             let mut thread_created_rx = processor.thread_created_receiver();
             let session = Arc::new(ConnectionSessionState::new());
@@ -519,6 +554,9 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 extra_connections
                                     .handle_processor_command(&processor, *command)
                                     .await;
+                            }
+                            Some(ProcessorCommand::Gui(command)) => {
+                                gui::handle_processor_command(&gui_launch_service, command).await;
                             }
                             None => {
                                 break;
@@ -683,6 +721,13 @@ async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClie
                                 }
                             }
                         }
+                        Some(InProcessClientMessage::Gui(command)) => {
+                            if gui::forward_to_processor(command, &processor_tx)
+                                == gui::ForwardOutcome::Break
+                            {
+                                break;
+                            }
+                        }
                         Some(InProcessClientMessage::ServerRequestResponse { request_id, result }) => {
                             outgoing_message_sender
                                 .notify_client_response(request_id, result)
@@ -834,6 +879,7 @@ pub(crate) mod tests {
     use super::*;
     use codex_app_server_protocol::ClientInfo;
     use codex_app_server_protocol::ConfigRequirementsReadResponse;
+    use codex_app_server_protocol::ExternalAgentConfigImportCompletedNotification;
     use codex_app_server_protocol::SessionSource as ApiSessionSource;
     use codex_app_server_protocol::ThreadStartParams;
     use codex_app_server_protocol::ThreadStartResponse;
@@ -968,6 +1014,34 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn in_process_launch_gui_for_thread_uses_app_server_service() {
+        let client = start_test_client(SessionSource::Cli).await;
+        let thread_id =
+            codex_protocol::ThreadId::from_string("00000000-0000-0000-0000-0000000000a1")
+                .expect("valid thread id");
+
+        let urls = client
+            .launch_gui_for_thread(thread_id)
+            .await
+            .expect("GUI launch transport should work")
+            .expect("launch should succeed");
+
+        assert_eq!(
+            urls.entries[0].kind,
+            codex_gui_host::GuiLaunchUrlKind::Local
+        );
+        assert!(
+            urls.entries[0]
+                .url
+                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
+        );
+        client
+            .shutdown()
+            .await
+            .expect("in-process runtime should shutdown cleanly");
+    }
+
+    #[tokio::test]
     async fn in_process_start_uses_requested_session_source_for_thread_start() {
         for (requested_source, expected_source) in [
             (SessionSource::Cli, ApiSessionSource::Cli),
@@ -1038,6 +1112,14 @@ pub(crate) mod tests {
                     duration_ms: None,
                 },
             })
+        ));
+        assert!(server_notification_requires_delivery(
+            &ServerNotification::ExternalAgentConfigImportCompleted(
+                ExternalAgentConfigImportCompletedNotification {
+                    import_id: "import".to_string(),
+                    item_type_results: Vec::new(),
+                },
+            )
         ));
     }
 }

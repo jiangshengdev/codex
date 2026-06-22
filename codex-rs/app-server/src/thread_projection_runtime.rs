@@ -362,6 +362,7 @@ mod tests {
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
+            Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
             thread_store.clone(),
             /*state_db*/ None,
@@ -398,6 +399,7 @@ mod tests {
             Arc::new(tokio::sync::Semaphore::new(1)),
             thread_goal_processor,
             /*state_db*/ None,
+            /*log_db*/ None,
             crate::skills_watcher::SkillsWatcher::new(thread_manager.skills_manager(), outgoing),
         );
         let thread_id = thread_manager

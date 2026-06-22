@@ -5,12 +5,7 @@ use std::io;
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 
-use codex_app_server::GuiHostManager;
-use codex_app_server::in_process::InProcessClientSender;
-#[cfg(test)]
-use codex_gui_host::DevAssetProxyConfig;
-use codex_gui_host::GuiHostConfig;
-use codex_gui_host::GuiHostMode;
+use codex_app_server::GuiLaunchServiceError;
 use codex_protocol::ThreadId;
 use tokio::sync::oneshot;
 
@@ -27,6 +22,7 @@ pub use codex_gui_host::GuiLaunchUrls;
 pub enum GuiLaunchError {
     Config { message: String },
     Io(io::Error),
+    Unavailable { message: String },
     UnsupportedRemote,
 }
 
@@ -35,6 +31,7 @@ impl fmt::Display for GuiLaunchError {
         match self {
             Self::Config { message } => write!(f, "GUI host config error: {message}"),
             Self::Io(error) => write!(f, "GUI host launch error: {error}"),
+            Self::Unavailable { message } => write!(f, "GUI launch unavailable: {message}"),
             Self::UnsupportedRemote => {
                 f.write_str("GUI launch is only supported for in-process app-server sessions")
             }
@@ -46,7 +43,7 @@ impl Error for GuiLaunchError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io(error) => Some(error),
-            Self::Config { .. } | Self::UnsupportedRemote => None,
+            Self::Config { .. } | Self::Unavailable { .. } | Self::UnsupportedRemote => None,
         }
     }
 }
@@ -57,32 +54,14 @@ impl From<io::Error> for GuiLaunchError {
     }
 }
 
-#[cfg(test)]
-fn default_gui_host_mode() -> Result<GuiHostMode, GuiLaunchError> {
-    Ok(test_dev_mode())
-}
-
-#[cfg(not(test))]
-fn default_gui_host_mode() -> Result<GuiHostMode, GuiLaunchError> {
-    GuiHostMode::default_for_profile().map_err(|error| GuiLaunchError::Config {
-        message: error.to_string(),
-    })
-}
-
-#[cfg(test)]
-pub(crate) fn test_dev_mode() -> GuiHostMode {
-    GuiHostMode::Dev(DevAssetProxyConfig {
-        vite_origin: "http://127.0.0.1:5173".to_string(),
-    })
-}
-
-#[cfg(test)]
-pub(crate) fn new_gui_host_manager_for_test(
-    sender: InProcessClientSender,
-    mode_result: Result<GuiHostMode, String>,
-) -> Result<GuiHostManager, GuiLaunchError> {
-    let mode = mode_result.map_err(|message| GuiLaunchError::Config { message })?;
-    Ok(GuiHostManager::new(sender, GuiHostConfig { mode }))
+impl From<GuiLaunchServiceError> for GuiLaunchError {
+    fn from(value: GuiLaunchServiceError) -> Self {
+        match value {
+            GuiLaunchServiceError::Config { message } => Self::Config { message },
+            GuiLaunchServiceError::Launch { message } => Self::Io(IoError::other(message)),
+            GuiLaunchServiceError::Unavailable { message } => Self::Unavailable { message },
+        }
+    }
 }
 
 /// Extension facade for surfaces that need local GUI launch URLs.
@@ -94,13 +73,6 @@ pub trait AppServerClientGuiExt {
         &self,
         thread_id: ThreadId,
     ) -> impl Future<Output = Result<GuiLaunchUrls, GuiLaunchError>> + Send;
-}
-
-pub(crate) fn new_gui_host_manager(
-    sender: InProcessClientSender,
-) -> Result<GuiHostManager, GuiLaunchError> {
-    let mode = default_gui_host_mode()?;
-    Ok(GuiHostManager::new(sender, GuiHostConfig { mode }))
 }
 
 impl InProcessAppServerClient {
@@ -207,5 +179,31 @@ mod tests {
             GuiLaunchError::UnsupportedRemote.to_string(),
             "GUI launch is only supported for in-process app-server sessions"
         );
+    }
+
+    #[test]
+    fn unavailable_service_error_message_is_stable() {
+        let error = GuiLaunchError::from(GuiLaunchServiceError::Unavailable {
+            message: "session does not expose GUI launch".to_string(),
+        });
+
+        assert_eq!(
+            error.to_string(),
+            "GUI launch unavailable: session does not expose GUI launch"
+        );
+        assert!(error.source().is_none());
+    }
+
+    #[test]
+    fn launch_service_error_remains_launch_error() {
+        let error = GuiLaunchError::from(GuiLaunchServiceError::Launch {
+            message: "port is already in use".to_string(),
+        });
+
+        assert_eq!(
+            error.to_string(),
+            "GUI host launch error: port is already in use"
+        );
+        assert!(error.source().is_some());
     }
 }

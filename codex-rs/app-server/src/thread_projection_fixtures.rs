@@ -11,6 +11,8 @@ use codex_app_server_protocol::SessionSource;
 use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadProjectionAttachResponse;
+use codex_app_server_protocol::ThreadProjectionClosedNotification;
+use codex_app_server_protocol::ThreadProjectionClosedReason;
 use codex_app_server_protocol::ThreadProjectionEvent;
 use codex_app_server_protocol::ThreadProjectionEventNotification;
 use codex_app_server_protocol::ThreadProjectionSnapshot;
@@ -32,6 +34,7 @@ const FIXTURE_CWD: &str = "/tmp/codex-gui-projection-fixtures";
 const GENERATED_FIXTURE_NAMES: &[&str] = &[
     "attach-baseline.json",
     "attach-replacement.json",
+    "closed-backpressure.json",
     "event-item-completed.json",
     "event-item-started.json",
     "event-subscription-replacement.json",
@@ -76,6 +79,10 @@ pub(crate) fn generate_fixture_files() -> Result<BTreeMap<&'static str, String>>
     files.insert(
         "attach-replacement.json",
         serialize_fixture(&attach_replacement()?)?,
+    );
+    files.insert(
+        "closed-backpressure.json",
+        serialize_fixture(&closed_backpressure())?,
     );
     files.insert(
         "event-turn-started.json",
@@ -140,6 +147,14 @@ fn attach_replacement() -> Result<ThreadProjectionAttachResponse> {
             head_commit_id: Some(REPLACEMENT_HEAD_COMMIT_ID.to_string()),
         },
     })
+}
+
+fn closed_backpressure() -> ThreadProjectionClosedNotification {
+    ThreadProjectionClosedNotification {
+        thread_id: THREAD_ID.to_string(),
+        subscription_id: SUBSCRIPTION_ID.to_string(),
+        reason: ThreadProjectionClosedReason::Backpressure,
+    }
 }
 
 fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thread> {
