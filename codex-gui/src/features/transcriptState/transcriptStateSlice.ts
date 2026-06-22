@@ -5,7 +5,8 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import type { ThreadItem, Turn, TurnStatus, UserInput } from "@codex-protocol/v2";
+import type { Turn, TurnStatus } from "@codex-protocol/v2";
+import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
 
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
 export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
@@ -156,76 +157,6 @@ const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
   existingTurn.status = turn.status;
 };
 
-const textFromUserInput = (input: UserInput): string => {
-  switch (input.type) {
-    case "text":
-      return input.text;
-    case "image":
-    case "localImage":
-    case "skill":
-    case "mention":
-      return "";
-  }
-
-  const exhaustiveInput: never = input;
-  return exhaustiveInput;
-};
-
-const materializeItem = (item: ThreadItem, turnId: string): TranscriptEntry | null => {
-  switch (item.type) {
-    case "userMessage": {
-      const source = item.content.map(textFromUserInput).join("");
-      if (source.length === 0) {
-        return null;
-      }
-
-      return {
-        type: "message",
-        id: item.id,
-        turnId,
-        role: "user",
-        source,
-        sourceKind: "plainText",
-        revision: 0,
-      };
-    }
-    case "agentMessage":
-      if (item.text.length === 0) {
-        return null;
-      }
-
-      return {
-        type: "message",
-        id: item.id,
-        turnId,
-        role: "assistant",
-        source: item.text,
-        sourceKind: "plainText",
-        revision: 0,
-      };
-    case "hookPrompt":
-    case "plan":
-    case "reasoning":
-    case "commandExecution":
-    case "fileChange":
-    case "mcpToolCall":
-    case "dynamicToolCall":
-    case "collabAgentToolCall":
-    case "subAgentActivity":
-    case "webSearch":
-    case "imageView":
-    case "sleep":
-    case "imageGeneration":
-    case "enteredReviewMode":
-    case "exitedReviewMode":
-    case "contextCompaction":
-      return null;
-  }
-
-  const exhaustiveItem: never = item;
-  return exhaustiveItem;
-};
-
 const getOrCreateAppendChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
   const chunkIds = state.chunkIdsByTurnId[turnId] ?? [];
   const lastChunkId = chunkIds.at(-1);
@@ -297,7 +228,7 @@ const rebuildFromSnapshot = (
   for (const turn of turns) {
     upsertTurnFromPayload(nextState, turn);
     for (const item of turn.items) {
-      const entry = materializeItem(item, turn.id);
+      const entry = materializeTranscriptItem(item, turn.id);
       if (entry != null) {
         appendBaselineEntry(nextState, entry);
       }
@@ -367,7 +298,7 @@ export const transcriptStateSlice = createAppSlice({
           case "itemCompleted": {
             const { item, turnId } = action.payload.event.notification;
             ensureTurnExists(state, turnId);
-            const entry = materializeItem(item, turnId);
+            const entry = materializeTranscriptItem(item, turnId);
             if (entry != null) {
               upsertLiveCommittedEntry(state, entry);
             }
