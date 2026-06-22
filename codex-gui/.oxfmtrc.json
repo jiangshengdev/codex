@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "semi": false,
-  "singleQuote": true
+  "printWidth": 100,
+  "singleQuote": false,
+  "trailingComma": "all"
 }
