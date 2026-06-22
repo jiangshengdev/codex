@@ -15,106 +15,16 @@ import {
   startGuiHostConnection,
   type GuiHostCommands,
   type LaunchParams,
-} from "./guiHostClient";
+} from "../guiHostClient";
+import {
+  MemoryStorage,
+  RecordingWebSocket,
+  ThrowingSetItemStorage,
+  readRpcRequest,
+  startConnectionUntilCommandsReady,
+} from "./guiHostClientTestSupport";
 
-class MemoryStorage {
-  private readonly values = new Map<string, string>();
-
-  getItem(key: string): string | null {
-    return this.values.get(key) ?? null;
-  }
-
-  setItem(key: string, value: string): void {
-    this.values.set(key, value);
-  }
-}
-
-class ThrowingSetItemStorage extends MemoryStorage {
-  override setItem(): void {
-    throw new Error("sessionStorage unavailable");
-  }
-}
-
-type SocketCloseEvent = {
-  code: number;
-  reason: string;
-};
-
-type ParsedRpcRequest = {
-  jsonrpc: "2.0";
-  id: number;
-  method: string;
-  params?: unknown;
-};
-
-function readRpcRequest(message: string): ParsedRpcRequest {
-  return JSON.parse(message) as ParsedRpcRequest;
-}
-
-class RecordingWebSocket {
-  sent: string[] = [];
-  closed: { code: number | undefined; reason: string | undefined }[] = [];
-  onerror: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onopen: (() => void) | null = null;
-  onclose: ((event: SocketCloseEvent) => void) | null = null;
-
-  send(message: string): void {
-    this.sent.push(message);
-  }
-
-  close(code?: number, reason?: string): void {
-    this.closed.push({ code, reason });
-  }
-}
-
-function startConnectionUntilCommandsReady({
-  onCommandsUnavailable,
-  onStatus,
-}: {
-  onCommandsUnavailable?: () => void;
-  onStatus?: Parameters<typeof startGuiHostConnection>[0]["onStatus"];
-} = {}): {
-  attachResponse: ThreadProjectionAttachResponse;
-  cleanup: () => void;
-  commands: GuiHostCommands;
-  socket: RecordingWebSocket;
-  threadId: string;
-} {
-  const socket = new RecordingWebSocket();
-  const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-  const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
-  const threadId = attachResponse.snapshot.thread.id;
-
-  const cleanup = startGuiHostConnection({
-    location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
-    replaceState: vi.fn<History["replaceState"]>(),
-    tokenStorage: new MemoryStorage(),
-    createWebSocket: () => socket as unknown as WebSocket,
-    onCommandsReady: commandsReady,
-    onCommandsUnavailable,
-    onStatus,
-  });
-
-  socket.onopen?.();
-  socket.onmessage?.({
-    data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
-  });
-  socket.onmessage?.({
-    data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
-  });
-  socket.onmessage?.({
-    data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
-  });
-
-  expect(commandsReady).toHaveBeenCalledTimes(1);
-  const commands = commandsReady.mock.calls[0]?.[0];
-  if (!commands) {
-    throw new Error("Expected commands to be ready");
-  }
-
-  return { attachResponse, cleanup, commands, socket, threadId };
-}
+const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
 
 describe("guiHostClient", () => {
   it("stores app-server launch URL fragment token and restores it after refresh", () => {
@@ -156,7 +66,7 @@ describe("guiHostClient", () => {
     const projectionEvents: ThreadProjectionEventNotification[] = [];
     const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
     const launchParams: LaunchParams[] = [];
-    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const attachResponse = attachBaseline;
     const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
     const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
 
@@ -229,7 +139,7 @@ describe("guiHostClient", () => {
   it("sends turn/start through the ready command API", async () => {
     const socket = new RecordingWebSocket();
     const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const attachResponse = attachBaseline;
     const threadId = attachResponse.snapshot.thread.id;
 
     startGuiHostConnection({
@@ -291,7 +201,7 @@ describe("guiHostClient", () => {
   it("sends turn/interrupt through the ready command API", async () => {
     const socket = new RecordingWebSocket();
     const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const attachResponse = attachBaseline;
     const threadId = attachResponse.snapshot.thread.id;
 
     startGuiHostConnection({
@@ -338,7 +248,7 @@ describe("guiHostClient", () => {
     const socket = new RecordingWebSocket();
     const statuses: string[] = [];
     const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const attachResponse = attachBaseline;
     const threadId = attachResponse.snapshot.thread.id;
 
     startGuiHostConnection({
@@ -389,6 +299,7 @@ describe("guiHostClient", () => {
   it("rejects pending command requests during cleanup", async () => {
     const commandsUnavailable = vi.fn<() => void>();
     const { cleanup, commands, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
       onCommandsUnavailable: commandsUnavailable,
     });
 
@@ -403,6 +314,7 @@ describe("guiHostClient", () => {
   it("rejects pending command requests and marks commands unavailable on socket error", async () => {
     const commandsUnavailable = vi.fn<() => void>();
     const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
       onCommandsUnavailable: commandsUnavailable,
     });
 
@@ -417,6 +329,7 @@ describe("guiHostClient", () => {
   it("rejects pending command requests and marks commands unavailable on socket close", async () => {
     const commandsUnavailable = vi.fn<() => void>();
     const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
       onCommandsUnavailable: commandsUnavailable,
     });
 
@@ -431,6 +344,7 @@ describe("guiHostClient", () => {
   it("closes the socket and marks commands unavailable on terminal projection protocol errors", async () => {
     const commandsUnavailable = vi.fn<() => void>();
     const { attachResponse, commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
       onCommandsUnavailable: commandsUnavailable,
     });
 
@@ -498,7 +412,7 @@ describe("guiHostClient", () => {
     const socket = new RecordingWebSocket();
     const statuses: { label: string; message?: string }[] = [];
     const projectionEvents: ThreadProjectionEventNotification[] = [];
-    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const attachResponse = attachBaseline;
 
     startGuiHostConnection({
       location: new URL(
@@ -553,7 +467,7 @@ describe("guiHostClient", () => {
     const socket = new RecordingWebSocket();
     const statuses: { label: string; message?: string }[] = [];
     const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
-    const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+    const attachResponse = attachBaseline;
 
     startGuiHostConnection({
       location: new URL(
