@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import App from "@/App";
 import type {
+  GuiHostCommands,
   GuiHostStatus,
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
@@ -29,7 +30,7 @@ import type {
 } from "@codex-protocol/v2";
 
 const guiHostClientMock = vi.hoisted(() => ({
-  startGuiHostConnection: vi.fn(),
+  startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
 }));
 
 vi.mock("@/features/guiHost/guiHostClient", () => ({
@@ -71,6 +72,22 @@ const agentMessage = (id: string, text: string): ThreadItem => ({
   text,
   phase: "final_answer",
   memoryCitation: null,
+});
+
+const createCommands = (): GuiHostCommands => ({
+  startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
+    turn: {
+      id: "turn-started-from-app",
+      items: [],
+      itemsView: "full",
+      status: "inProgress",
+      error: null,
+      startedAt: 1700000100,
+      completedAt: null,
+      durationMs: null,
+    },
+  }),
+  interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
 });
 
 const attachWithCommittedMessages = (): ThreadProjectionAttachResponse => {
@@ -128,6 +145,28 @@ test("App renders the committed transcript shell without visible host debug deta
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
 });
 
+test("App renders composer in the shell without visible host debug details", async () => {
+  const screen = await renderWithProviders(<App />);
+
+  await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+  await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
+});
+
+test("App keeps the transcript surface flush with the shell padding", async () => {
+  const screen = await renderWithProviders(<App />);
+  const transcript = screen.container.querySelector('[aria-label="Committed transcript"]');
+  const surface = transcript?.parentElement;
+
+  if (!(surface instanceof HTMLElement)) {
+    throw new Error("transcript surface container must render");
+  }
+
+  expect(surface.classList.contains("p-4")).toBe(false);
+  expect(surface.classList.contains("sm:p-6")).toBe(false);
+});
+
 test("App keeps host status as a test hook instead of visible shell content", async () => {
   const screen = await renderWithProviders(<App />);
 
@@ -174,6 +213,50 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
   expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
     buildSnapshotReplayMaterials(runtime),
   );
+});
+
+test("App passes ready commands to composer and sends plain text", async () => {
+  const commandHandle = createCommands();
+  const screen = await renderWithProviders(<App />);
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
+  options?.onCommandsReady?.(commandHandle);
+
+  await screen.getByPlaceholder("Message Codex").fill("Hello from App composer");
+  await screen.getByRole("button", { name: "Send" }).click();
+
+  expect(commandHandle.startTurn).toHaveBeenCalledWith({
+    threadId: launchThreadId,
+    clientUserMessageId: null,
+    input: [{ type: "text", text: "Hello from App composer", text_elements: [] }],
+  });
+});
+
+test("App enables Stop for the current active turn", async () => {
+  const commandHandle = createCommands();
+  const screen = await renderWithProviders(<App />);
+  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
+  options?.onCommandsReady?.(commandHandle);
+  options?.onProjectionEvent?.(projectionEvent);
+
+  if (projectionEvent.event.type !== "turnStarted") {
+    throw new Error("fixture must contain a turnStarted projection event");
+  }
+
+  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+  await screen.getByRole("button", { name: "Stop" }).click();
+
+  expect(commandHandle.interruptTurn).toHaveBeenCalledWith({
+    threadId: launchThreadId,
+    turnId: projectionEvent.event.notification.turn.id,
+  });
 });
 
 test("App renders committed transcript messages from an attached projection", async () => {
@@ -239,6 +322,39 @@ test("App stops forwarding runtime events after backpressure requires manual rec
   );
 });
 
+test("App disables composer after projection backpressure requires reconnect", async () => {
+  const commandHandle = createCommands();
+  const screen = await renderWithProviders(<App />);
+  const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
+  options?.onCommandsReady?.(commandHandle);
+  options?.onProjectionClosed?.(projectionClosed);
+
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+});
+
+test("App disables composer when host commands become unavailable", async () => {
+  const commandHandle = createCommands();
+  const screen = await renderWithProviders(<App />);
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
+  options?.onCommandsReady?.(commandHandle);
+
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  options?.onCommandsUnavailable?.();
+
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+});
+
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
   const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventItemStartedJson as ThreadProjectionEventNotification;
@@ -261,4 +377,20 @@ test("App closes the host connection when unmounted", async () => {
   await screen.unmount();
 
   expect(cleanupConnectionCallCount).toBe(1);
+});
+
+test("App does not render optimistic user messages after send", async () => {
+  const commandHandle = createCommands();
+  const screen = await renderWithProviders(<App />);
+
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  options?.onProjectionAttached?.(attachResponse);
+  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
+  options?.onCommandsReady?.(commandHandle);
+
+  await screen.getByPlaceholder("Message Codex").fill("Not optimistic");
+  await screen.getByRole("button", { name: "Send" }).click();
+
+  await expect.element(screen.getByText("Not optimistic")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });

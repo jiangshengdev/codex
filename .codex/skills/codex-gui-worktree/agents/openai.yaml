@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex GUI Worktree"
+  short_description: "Create sparse codex-gui worktrees and link local deps/docs."
+  default_prompt: "Use $codex-gui-worktree to create a codex-gui sparse worktree and link the local frontend dependencies and docs."
