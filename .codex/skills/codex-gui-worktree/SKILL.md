@@ -1,11 +1,11 @@
 ---
 name: codex-gui-worktree
-description: Create and prepare lightweight sparse git worktrees for codex-gui parallel frontend work in /Users/jiangsheng/cnb/codex, including sparse checkout setup, local node_modules reuse, HeroUI docs links, Redux Toolkit docs links, and sibling Vitest docs access. Use when the user asks to create, prepare, bootstrap, repair, or automate a codex-gui worktree.
+description: Create and prepare lightweight sparse git worktrees for codex-gui parallel frontend work in the current Codex checkout, including sparse checkout setup, local node_modules reuse, HeroUI docs links, Redux Toolkit docs links, and sibling Vitest docs access. Use when the user asks to create, prepare, bootstrap, repair, or automate a codex-gui worktree.
 ---
 
 # codex-gui Worktree
 
-Use this skill to create or prepare sparse `codex-gui` worktrees for parallel frontend work in `/Users/jiangsheng/cnb/codex`.
+Use this skill to create or prepare sparse `codex-gui` worktrees for parallel frontend work in the current Codex checkout.
 
 ## Rules
 
@@ -21,8 +21,9 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 Defaults:
 
 ```text
-repo root: /Users/jiangsheng/cnb/codex
-worktree root: /Users/jiangsheng/cnb/codex/.worktrees
+repo root: inferred from this skill's git checkout
+worktree root: $REPO_ROOT/.worktrees
+vitest root: $REPO_ROOT/../vitest
 base branch: dev
 ```
 
@@ -44,7 +45,7 @@ docs/superpowers/plans/2026-06-22-codex-gui-frontend-refactor
 Use the bundled script:
 
 ```bash
-bash /Users/jiangsheng/cnb/codex/.codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
+bash .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
   --name gui-transcript-state \
   --branch codex/gui-transcript-state \
   --base dev \
@@ -53,25 +54,38 @@ bash /Users/jiangsheng/cnb/codex/.codex/skills/codex-gui-worktree/scripts/create
 
 The script creates the sparse worktree, links local dependency and documentation caches, and verifies the result.
 
+Path overrides are available when the checkout layout differs from the defaults:
+
+```bash
+bash .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
+  --name gui-transcript-state \
+  --branch codex/gui-transcript-state \
+  --repo-root <repo-root> \
+  --worktree-root <worktree-root> \
+  --vitest-root <vitest-root>
+```
+
+Environment overrides are also supported: `CODEX_GUI_WORKTREE_REPO_ROOT`, `CODEX_GUI_WORKTREE_ROOT`, and `CODEX_GUI_WORKTREE_VITEST_ROOT`.
+
 ## Linked Resources
 
 The script links these resources:
 
 ```text
 codex-gui/node_modules
-  -> /Users/jiangsheng/cnb/codex/codex-gui/node_modules
+  -> $REPO_ROOT/codex-gui/node_modules
 
 codex-gui/.heroui-docs/react
-  -> /Users/jiangsheng/cnb/codex/codex-gui/.heroui-docs/react
+  -> $REPO_ROOT/codex-gui/.heroui-docs/react
 
 codex-gui/.redux-toolkit-docs/redux
-  -> /Users/jiangsheng/cnb/codex/codex-gui/.redux-toolkit-docs/redux
+  -> $REPO_ROOT/codex-gui/.redux-toolkit-docs/redux
 
 codex-gui/.redux-toolkit-docs/toolkit
-  -> /Users/jiangsheng/cnb/codex/codex-gui/.redux-toolkit-docs/toolkit
+  -> $REPO_ROOT/codex-gui/.redux-toolkit-docs/toolkit
 
-/Users/jiangsheng/cnb/codex/.worktrees/vitest
-  -> /Users/jiangsheng/cnb/vitest
+$WORKTREE_ROOT/vitest
+  -> $VITEST_ROOT
 ```
 
 For `.heroui-docs` and `.redux-toolkit-docs`, keep the ignored root directories as real directories and link their children. Directory-level symlinks appear as untracked files because the existing `.gitignore` rules are directory rules.
