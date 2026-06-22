@@ -17,7 +17,8 @@
     "test:browser": "vitest --config=vitest.browser.config.ts",
     "test:e2e": "playwright test",
     "messages:extract": "lingui extract",
-    "messages:extract:clean": "lingui extract --clean"
+    "messages:extract:clean": "lingui extract --clean",
+    "analyze:large-files": "tsx scripts/large-files/cli.ts"
   },
   "dependencies": {
     "@heroui/react": "^3.2.1",
