@@ -22,6 +22,7 @@
     "test:unit": "vitest --run",
     "test:browser": "vitest --config=vitest.browser.config.ts",
     "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "messages:extract": "lingui extract",
     "messages:extract:clean": "lingui extract --clean",
     "analyze:large-files": "tsx scripts/large-files/cli.ts"
