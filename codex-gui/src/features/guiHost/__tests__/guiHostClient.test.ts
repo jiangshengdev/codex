@@ -14,14 +14,14 @@ import {
   readLaunchParams,
   startGuiHostConnection,
   type LaunchParams,
-} from "./guiHostClient";
+} from "../guiHostClient";
 import {
   MemoryStorage,
   RecordingWebSocket,
   ThrowingSetItemStorage,
   readRpcRequest,
   startConnectionUntilCommandsReady,
-} from "./__tests__/guiHostClientTestSupport";
+} from "./guiHostClientTestSupport";
 
 const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
 
