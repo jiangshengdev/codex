@@ -27,6 +27,7 @@
     "vitest.*.config.*",
     "playwright.config.*",
     "lingui.config.*",
-    "eslint.config.*"
+    "eslint.config.*",
+    "scripts/**/*.ts"
   ]
 }

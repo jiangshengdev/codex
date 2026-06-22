@@ -10,7 +10,8 @@ import reactDom from "eslint-plugin-react-dom";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactX from "eslint-plugin-react-x";
 import reactRefresh from "eslint-plugin-react-refresh";
-import prettierConfig from "eslint-config-prettier/flat";
+import pluginOxlint from "eslint-plugin-oxlint";
+import skipFormatting from "eslint-config-prettier/flat";
 import { configs } from "typescript-eslint";
 import { defineConfig, globalIgnores } from "eslint/config";
 
@@ -30,7 +31,8 @@ export default defineConfig(
     "**/coverage/",
   ]),
   {
-    files: ["**/*.{ts,tsx}"],
+    name: "app/files-to-lint",
+    files: ["**/*.{ts,mts,tsx}"],
     extends: [
       js.configs.recommended,
       configs.strictTypeChecked,
@@ -92,5 +94,6 @@ export default defineConfig(
       },
     },
   },
-  prettierConfig,
+  ...pluginOxlint.buildFromOxlintConfigFile(".oxlintrc.json"),
+  skipFormatting,
 );

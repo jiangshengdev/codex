@@ -30,7 +30,7 @@ import type {
 } from "@codex-protocol/v2";
 
 const guiHostClientMock = vi.hoisted(() => ({
-  startGuiHostConnection: vi.fn(),
+  startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
 }));
 
 vi.mock("@/features/guiHost/guiHostClient", () => ({
@@ -75,7 +75,7 @@ const agentMessage = (id: string, text: string): ThreadItem => ({
 });
 
 const createCommands = (): GuiHostCommands => ({
-  startTurn: vi.fn().mockResolvedValue({
+  startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
     turn: {
       id: "turn-started-from-app",
       items: [],
@@ -87,7 +87,7 @@ const createCommands = (): GuiHostCommands => ({
       durationMs: null,
     },
   }),
-  interruptTurn: vi.fn().mockResolvedValue({}),
+  interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
 });
 
 const attachWithCommittedMessages = (): ThreadProjectionAttachResponse => {
