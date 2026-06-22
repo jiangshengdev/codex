@@ -168,6 +168,7 @@ fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thr
         model_provider: "openai".to_string(),
         created_at: 1_700_000_000,
         updated_at: 1_700_000_030,
+        recency_at: Some(1_700_000_030),
         status: ThreadStatus::Idle,
         path: None,
         cwd: AbsolutePathBuf::from_absolute_path(FIXTURE_CWD)

@@ -372,6 +372,7 @@ mod tests {
             /*state_db*/ None,
             uuid::Uuid::new_v4().to_string(),
             /*attestation_provider*/ None,
+            /*external_time_provider*/ None,
         ));
         let (outgoing_tx, _outgoing_rx) = tokio::sync::mpsc::channel(8);
         let outgoing = Arc::new(OutgoingMessageSender::new(
@@ -387,7 +388,7 @@ mod tests {
             /*state_db*/ None,
             Arc::new(GoalService::new()),
         );
-        let skills_watcher = SkillsWatcher::new(thread_manager.skills_manager(), outgoing.clone());
+        let skills_watcher = SkillsWatcher::new(thread_manager.skills_service(), outgoing.clone());
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
@@ -619,6 +620,7 @@ mod tests {
             /*state_db*/ None,
             uuid::Uuid::new_v4().to_string(),
             /*attestation_provider*/ None,
+            /*external_time_provider*/ None,
         ));
         let (outgoing_tx, _outgoing_rx) = tokio::sync::mpsc::channel(8);
         let outgoing = Arc::new(OutgoingMessageSender::new(
@@ -634,7 +636,7 @@ mod tests {
             /*state_db*/ None,
             Arc::new(GoalService::new()),
         );
-        let skills_watcher = SkillsWatcher::new(thread_manager.skills_manager(), outgoing.clone());
+        let skills_watcher = SkillsWatcher::new(thread_manager.skills_service(), outgoing.clone());
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
