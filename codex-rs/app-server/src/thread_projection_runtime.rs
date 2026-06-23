@@ -368,6 +368,7 @@ mod tests {
             /*state_db*/ None,
             uuid::Uuid::new_v4().to_string(),
             /*attestation_provider*/ None,
+            /*external_time_provider*/ None,
         ));
         let thread_goal_processor = ThreadGoalRequestProcessor::new(
             thread_manager.clone(),
@@ -400,7 +401,7 @@ mod tests {
             thread_goal_processor,
             /*state_db*/ None,
             /*log_db*/ None,
-            crate::skills_watcher::SkillsWatcher::new(thread_manager.skills_manager(), outgoing),
+            crate::skills_watcher::SkillsWatcher::new(thread_manager.skills_service(), outgoing),
         );
         let thread_id = thread_manager
             .start_thread(config.as_ref().clone())

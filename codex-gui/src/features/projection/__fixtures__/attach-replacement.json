@@ -11,6 +11,7 @@
       "modelProvider": "openai",
       "createdAt": 1700000000,
       "updatedAt": 1700000030,
+      "recencyAt": 1700000030,
       "status": {
         "type": "idle"
       },

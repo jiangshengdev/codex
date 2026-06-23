@@ -739,6 +739,7 @@ pub(super) async fn handle_pending_thread_resume_request(
         active_permission_profile,
         workspace_roots,
         reasoning_effort,
+        multi_agent_mode,
         ..
     } = config_snapshot;
     let instruction_sources = pending.instruction_sources;
@@ -761,6 +762,7 @@ pub(super) async fn handle_pending_thread_resume_request(
         sandbox,
         active_permission_profile,
         reasoning_effort,
+        multi_agent_mode,
         initial_turns_page,
     };
     outgoing.send_response(request_id, response).await;
