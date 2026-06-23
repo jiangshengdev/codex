@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json" with { type: "json" };
 import {
   agentMessage,
   attachWithTurns,
