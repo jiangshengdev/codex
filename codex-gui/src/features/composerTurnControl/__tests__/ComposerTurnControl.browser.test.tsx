@@ -2,8 +2,10 @@ import { Toast } from "@heroui/react";
 import { expect, test, vi } from "vitest";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
@@ -14,14 +16,10 @@ import {
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-} from "@codex-protocol/v2";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
 const attachedStatus: GuiHostStatus = { label: "attached", eventCount: 0, lastEventType: null };
-const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
 
 function deferred<T>() {
@@ -155,7 +153,7 @@ test("uses Enter to send and Shift Enter to insert newline", async () => {
 test("active turn disables Send and enables Stop", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
-  const event = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const event = eventTurnStarted;
   screen.store.dispatch(threadRuntimeEventBuffered(event));
 
   await screen.getByPlaceholder("Message Codex").fill("Next draft");
@@ -265,7 +263,7 @@ test("stop failure keeps draft and shows a toast", async () => {
   const commandHandle = createGuiHostCommands();
   vi.mocked(commandHandle.interruptTurn).mockRejectedValueOnce(new Error("interrupt failed"));
   const screen = await renderAttached(commandHandle);
-  const event = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const event = eventTurnStarted;
   screen.store.dispatch(threadRuntimeEventBuffered(event));
   const composer = screen.getByPlaceholder("Message Codex");
 

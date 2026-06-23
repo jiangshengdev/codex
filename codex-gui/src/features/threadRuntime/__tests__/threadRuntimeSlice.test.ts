@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import attachReplacementJson from "@/features/projection/__fixtures__/attach-replacement.json";
-import eventItemCompletedJson from "@/features/projection/__fixtures__/event-item-completed.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnCompletedJson from "@/features/projection/__fixtures__/event-turn-completed.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  attachReplacement,
+  eventItemCompleted,
+  eventItemStarted,
+  eventTurnCompleted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import { attachWithTurns } from "@/features/projection/__tests__/projectionTestBuilders";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-} from "@codex-protocol/v2";
+import type { ThreadProjectionEventNotification } from "@codex-protocol/v2";
 import {
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeEventBuffer,
@@ -22,13 +21,6 @@ import {
   threadRuntimeSlice,
   type ThreadRuntimeState,
 } from "../threadRuntimeSlice";
-
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-const attachReplacement = attachReplacementJson as ThreadProjectionAttachResponse;
-const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
-const eventTurnCompleted = eventTurnCompletedJson as ThreadProjectionEventNotification;
-const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
-const eventItemCompleted = eventItemCompletedJson as ThreadProjectionEventNotification;
 
 const reduce = (
   state: ThreadRuntimeState | undefined,

@@ -17,9 +17,11 @@ import {
 } from "./appBrowserTestSupport";
 import App from "@/App";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
-import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  closedBackpressure,
+  eventItemStarted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   buildSnapshotReplayMaterials,
   selectSnapshotReplayMaterials,
@@ -31,11 +33,7 @@ import {
   selectThreadRuntimeSubscription,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionClosedNotification,
-  ThreadProjectionEventNotification,
-} from "@codex-protocol/v2";
+import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -102,7 +100,7 @@ test("App keeps host status as a test hook instead of visible shell content", as
 
 test("App dispatches accepted host projection payloads into thread runtime", async () => {
   const { store } = await renderWithProviders(<App />);
-  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const projectionEvent = eventTurnStarted;
   const threadId = attachResponse.snapshot.thread.id;
   if (projectionEvent.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
@@ -156,7 +154,7 @@ test("App passes ready commands to composer and sends plain text", async () => {
 test("App enables Stop for the current active turn", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
-  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const projectionEvent = eventTurnStarted;
 
   const options = getHostOptions(startGuiHostConnectionMock);
   attachProjection(options);
@@ -219,8 +217,8 @@ test("App records mismatched attach identity without advancing runtime state", a
 
 test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
   const { store } = await renderWithProviders(<App />);
-  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
-  const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
+  const projectionEvent = eventTurnStarted;
+  const projectionClosed = closedBackpressure;
 
   const options = getHostOptions(startGuiHostConnectionMock);
   attachProjection(options);
@@ -244,7 +242,7 @@ test("App stops forwarding runtime events after backpressure requires manual rec
 test("App disables composer after projection backpressure requires reconnect", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
-  const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
+  const projectionClosed = closedBackpressure;
 
   const options = getHostOptions(startGuiHostConnectionMock);
   attachProjection(options);
@@ -276,7 +274,7 @@ test("App disables composer when host commands become unavailable", async () => 
 
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
   const { store } = await renderWithProviders(<App />);
-  const projectionEvent = eventItemStartedJson as ThreadProjectionEventNotification;
+  const projectionEvent = eventItemStarted;
 
   const options = getHostOptions(startGuiHostConnectionMock);
   attachProjection(options);

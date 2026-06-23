@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { runtimeFromAttach } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 import {
   buildPlainTextInput,
   canSend,
@@ -17,7 +16,6 @@ const attachedStatus: GuiHostStatus = {
   lastEventType: null,
 };
 
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
 const runtime = runtimeFromAttach(attachBaseline);
 
 describe("composerTurnControlModel", () => {

@@ -4,7 +4,6 @@ import type {
   GuiHostStatus,
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import {
   agentMessage,
   attachWithTurns,
@@ -12,6 +11,7 @@ import {
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 export type StartGuiHostConnectionMock = {
@@ -24,7 +24,7 @@ export type StartGuiHostConnectionMock = {
   };
 };
 
-export const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+export const attachResponse: ThreadProjectionAttachResponse = attachBaseline;
 export const launchThreadId = attachResponse.snapshot.thread.id;
 
 let emitStatus: ((status: GuiHostStatus) => void) | undefined;

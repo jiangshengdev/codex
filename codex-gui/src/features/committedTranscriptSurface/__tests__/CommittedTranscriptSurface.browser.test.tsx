@@ -1,8 +1,4 @@
 import { expect, test } from "vitest";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import eventItemCompletedJson from "@/features/projection/__fixtures__/event-item-completed.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import {
   agentMessage,
   attachWithTurns,
@@ -14,21 +10,18 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
+  attachBaseline,
+  eventItemCompleted,
+  eventItemStarted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-} from "@codex-protocol/v2";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
-
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
-const eventItemCompleted = eventItemCompletedJson as ThreadProjectionEventNotification;
-const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
 
 test("renders an empty committed transcript region", async () => {
   const screen = await renderWithProviders(<CommittedTranscriptSurface />);

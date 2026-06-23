@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  eventItemStarted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithTurns,
   runtimeFromAttach,
@@ -11,21 +13,12 @@ import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import type {
-  ThreadItem,
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-  Turn,
-} from "@codex-protocol/v2";
+import type { ThreadItem, Turn } from "@codex-protocol/v2";
 import {
   buildSnapshotReplayMaterials,
   selectSnapshotReplayMaterials,
   type SnapshotReplayMaterial,
 } from "../snapshotReplay";
-
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
-const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
 
 const turnWithoutItems = ({
   id,

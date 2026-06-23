@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  closedBackpressure,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -31,8 +33,6 @@ import {
   startConnectionUntilCommandsReady,
   startGuiHostConnectionWithSocket,
 } from "./guiHostClientTestSupport";
-
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
 
 describe("guiHostClient", () => {
   it("stores app-server launch URL fragment token and restores it after refresh", () => {
@@ -75,8 +75,8 @@ describe("guiHostClient", () => {
     const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
     const launchParams: LaunchParams[] = [];
     const attachResponse = attachBaseline;
-    const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
-    const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
+    const projectionEvent = eventTurnStarted;
+    const projectionClosed = closedBackpressure;
 
     startGuiHostConnection({
       location: new URL(

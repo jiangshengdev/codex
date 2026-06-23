@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json" with { type: "json" };
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import {
   agentMessage,
   attachWithTurns,
@@ -9,7 +9,6 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
 const threadId = attachBaseline.snapshot.thread.id;
 const subscriptionId = "projection-e2e-subscription";
 
