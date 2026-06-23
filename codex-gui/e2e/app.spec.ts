@@ -1,7 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
+import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
+import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
+  textInput,
+  userMessage,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
-const threadId = "00000000-0000-0000-0000-000000000001";
+const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
+const threadId = attachBaseline.snapshot.thread.id;
 const subscriptionId = "projection-e2e-subscription";
 
 type RpcRequest = {
@@ -28,77 +37,38 @@ function rpcParams(request: RpcRequest): Record<string, unknown> {
   return {};
 }
 
-const attachResponse: ThreadProjectionAttachResponse = {
-  subscriptionId,
-  snapshot: {
-    thread: {
-      id: threadId,
-      sessionId: threadId,
-      forkedFromId: null,
-      parentThreadId: null,
-      preview: "Projection e2e thread",
-      ephemeral: false,
-      modelProvider: "openai",
-      createdAt: 1700000000,
-      updatedAt: 1700000030,
-      status: { type: "idle" },
-      path: null,
-      cwd: "/tmp/codex-gui-e2e",
-      cliVersion: "projection-e2e",
-      source: "appServer",
-      threadSource: null,
-      agentNickname: null,
-      agentRole: null,
-      gitInfo: null,
-      name: "Projection e2e",
-      turns: [],
+const attachResponse: ThreadProjectionAttachResponse = attachWithTurns(
+  {
+    ...attachBaseline,
+    subscriptionId,
+    snapshot: {
+      ...attachBaseline.snapshot,
+      thread: {
+        ...attachBaseline.snapshot.thread,
+        preview: "Projection e2e thread",
+        cwd: "/tmp/codex-gui-e2e",
+        cliVersion: "projection-e2e",
+        name: "Projection e2e",
+      },
     },
-    headCommitId: null,
   },
-};
+  [],
+);
 
 const mobileStressTurnId = "019ee976-b222-73a3-8ca7-e298f1d457f5";
-const mobileStressAttachResponse: ThreadProjectionAttachResponse = {
-  ...attachResponse,
-  snapshot: {
-    ...attachResponse.snapshot,
-    thread: {
-      ...attachResponse.snapshot.thread,
-      turns: [
-        {
-          id: mobileStressTurnId,
-          items: [
-            {
-              type: "userMessage",
-              id: "user-mobile-stress",
-              clientId: null,
-              content: [
-                {
-                  type: "text",
-                  text: "[$debug-responsive-gui](/workspace/codex/.codex/skills/debug-responsive-gui/SKILL.md) 启动一次",
-                  text_elements: [],
-                },
-              ],
-            },
-            {
-              type: "agentMessage",
-              id: "agent-mobile-stress",
-              text: "当前指标是 `375x667`，但 `documentElement.scrollWidth/body.scrollWidth` 仍然可能被 `/Applications/Codex.app/Contents/Resources/codex app-server` 这样的长片段撑宽。",
-              phase: "final_answer",
-              memoryCitation: null,
-            },
-          ],
-          itemsView: "full",
-          status: "completed",
-          error: null,
-          startedAt: 1700000001,
-          completedAt: 1700000005,
-          durationMs: 4000,
-        },
-      ],
-    },
-  },
-};
+const mobileStressAttachResponse: ThreadProjectionAttachResponse = attachWithTurns(attachResponse, [
+  baseTurn(mobileStressTurnId, [
+    userMessage("user-mobile-stress", [
+      textInput(
+        "[$debug-responsive-gui](/workspace/codex/.codex/skills/debug-responsive-gui/SKILL.md) 启动一次",
+      ),
+    ]),
+    agentMessage(
+      "agent-mobile-stress",
+      "当前指标是 `375x667`，但 `documentElement.scrollWidth/body.scrollWidth` 仍然可能被 `/Applications/Codex.app/Contents/Resources/codex app-server` 这样的长片段撑宽。",
+    ),
+  ]),
+]);
 
 const projectionEvent = {
   threadId,
