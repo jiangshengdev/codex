@@ -4,7 +4,7 @@
 
 在 `codex-gui` 聊天过程中实现贴底滚动：如果用户已经在页面底部，初始 attach 内容加载或后续新消息出现后，页面继续保持在底部；如果用户已经向上滚动查看历史，不强制跳回底部。
 
-本设计只处理滚动行为。不改变 transcript reducer、projection 数据模型、消息 materialization 规则或 composer 交互。
+本设计只处理滚动行为。不改变 projection 数据模型、消息 materialization 规则或 composer 交互。为避免滚动触发信号在读路径扫描 transcript，允许 transcript reducer 在写路径维护一个 O(1) 的 committed scroll commit key。
 
 ## 已确认决策
 
@@ -39,7 +39,7 @@
 
 - `CommittedTranscriptSurface` 保持负责 transcript DOM 结构，并暴露或渲染末尾 sentinel。
 - `AppShell` 或同级 hook 负责观察 sentinel、维护贴底状态、响应内容增长后的滚动。
-- transcript reducer 继续只负责 committed transcript 状态，不加入视口、滚动或 DOM 状态。
+- transcript reducer 继续只负责 committed transcript 状态，并额外暴露一个由 projection commit 语义驱动的 scroll commit key；它不加入视口、滚动或 DOM 状态。
 
 这个边界让滚动行为跟页面布局保持在一起，也避免把浏览器 DOM 行为混进 Redux state。
 
@@ -50,7 +50,24 @@
 - attach snapshot 接受后，baseline transcript 渲染完成。
 - live `itemCompleted` 让 committed transcript 新增或更新可见内容。
 
-实现时可以从 transcript selector 派生一个轻量 revision key，例如 turn id、chunk id、chunk revision 或 committed entry 数量组合。该 key 只用于触发布局后的滚动检查，不改变状态模型。
+触发信号应复用 projection 已有的 commit 语义，并由 transcript 写路径维护为 bounded/O(1) key。selector 不得遍历 `turnIds`、`chunkIds`、`entries` 或 materialize `TranscriptChunkView` 来构造 scroll revision。
+
+推荐在 `transcriptState` 中维护：
+
+```ts
+committedScrollCommitKey: string | null
+```
+
+写入规则：
+
+- `threadRuntimeAttached` 被 transcript reducer 接受并完成 snapshot rebuild 后，设置为 `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`。
+- `threadRuntimeEventBuffered` 中，只有事件已由 projection ingress/runtime 接受、通过 transcript reducer 的 thread/duplicate 检查，并且确实改变 committed transcript 可见 DOM 时，才推进 key。
+- live `itemCompleted` materialize 出 committed entry 并被应用后，设置为 `event:${commitId}`。
+- duplicate commit 不推进 key。
+- `itemStarted` 不推进 key，因为它不会生成 committed transcript DOM。
+- `turnStarted` / `turnCompleted` 是否推进 key 取决于 committed transcript UI 是否展示其造成的可见变化；如果只维护 runtime 状态但不影响 committed transcript DOM，则不推进。
+
+这个 key 是 UI 滚动触发信号，不是新的 projection cursor，也不替代 ingress adapter 的 commit-chain 校验。
 
 滚动应在 React 完成 DOM 更新后执行，避免读取旧的 `scrollHeight` 或滚动到旧位置。
 
@@ -59,6 +76,7 @@
 - 不新增 transcript 内部滚动容器。
 - 不改变 composer fixed bottom 布局。
 - 不改变初始 projection attach、live event buffering 或 transcript materialization 语义。
+- 不从 transcript 渲染结构全量扫描或拼接字符串来判断滚动触发。
 - 不在用户向上查看历史时自动跳到底。
 - 不安装或引入新依赖。
 - 不实现“新消息”浮动提示、未读计数或“回到底部”按钮。
@@ -74,6 +92,13 @@
 - 当用户向上滚动后，live 新消息出现不会强制跳到底，但消息仍正常渲染。
 
 可以复用现有 projection fixtures 和 App browser test support。测试应直接观察 `document.scrollingElement` 的滚动位置和可见消息，而不是依赖 HeroUI DOM 细节。
+
+同时需要在 `transcriptStateSlice.test.ts` 中覆盖 O(1) commit key 语义：
+
+- attach snapshot 设置 `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`。
+- materialized live `itemCompleted` 被应用后设置 `event:${commitId}`。
+- duplicate live commit 不推进 key。
+- 不会生成 committed transcript DOM 的事件不推进 key。
 
 如实现抽出纯 helper，可以补充小范围单元测试；但单元测试不能替代 App browser test。
 
