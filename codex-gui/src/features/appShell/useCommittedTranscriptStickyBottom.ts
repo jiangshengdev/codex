@@ -13,7 +13,7 @@ const selectCommittedTranscriptScrollRevision = (state: RootState): string =>
       const chunkRevisionKey = selectTranscriptChunkIdsForTurn(state, turnId)
         .map((chunkId) => {
           const chunk = selectTranscriptChunk(state, chunkId);
-          return `${chunkId}:${chunk?.revision ?? "missing"}:${chunk?.entries.length ?? 0}`;
+          return `${chunkId}:${String(chunk?.revision ?? "missing")}:${String(chunk?.entries.length ?? 0)}`;
         })
         .join(",");
 

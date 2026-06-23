@@ -58,7 +58,7 @@ beforeEach(() => {
 });
 
 const longTranscriptText = (label: string): string =>
-  Array.from({ length: 96 }, (_, index) => `${label} line ${index + 1}`).join("\n");
+  Array.from({ length: 96 }, (_, index) => `${label} line ${String(index + 1)}`).join("\n");
 
 const documentScroller = (): HTMLElement => {
   const scroller = document.scrollingElement;
