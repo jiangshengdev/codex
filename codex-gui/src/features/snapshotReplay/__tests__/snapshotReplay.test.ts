@@ -4,9 +4,12 @@ import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseli
 import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
 import {
+  attachWithTurns,
+  runtimeFromAttach,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
-  type ThreadRuntimeRecord,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import type {
   ThreadItem,
@@ -56,32 +59,6 @@ const fixtureItem = (item: ThreadItem | undefined, label: string): ThreadItem =>
   }
 
   return item;
-};
-
-const attachWithTurns = (turns: Turn[]): ThreadProjectionAttachResponse => ({
-  ...attachBaseline,
-  snapshot: {
-    ...attachBaseline.snapshot,
-    thread: {
-      ...attachBaseline.snapshot.thread,
-      turns,
-    },
-  },
-});
-
-const runtimeFromAttach = (response: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
-  const { turns: snapshotTurns, ...thread } = response.snapshot.thread;
-
-  return {
-    threadId: thread.id,
-    sessionId: thread.sessionId,
-    thread,
-    snapshotTurns,
-    eventBuffer: [],
-    activeTurnId:
-      snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,
-    subscription: { state: "active" },
-  };
 };
 
 describe("snapshot replay", () => {
@@ -136,7 +113,7 @@ describe("snapshot replay", () => {
     const firstItem = fixtureItem(firstTurn.items[0], "first turn");
     const secondFirstItem = fixtureItem(secondTurn.items[0], "second turn first");
     const secondSecondItem = fixtureItem(secondTurn.items[1], "second turn second");
-    const runtime = runtimeFromAttach(attachWithTurns([firstTurn, secondTurn]));
+    const runtime = runtimeFromAttach(attachWithTurns(attachBaseline, [firstTurn, secondTurn]));
 
     expect(buildSnapshotReplayMaterials(runtime)).toStrictEqual([
       {
@@ -204,7 +181,7 @@ describe("snapshot replay", () => {
     };
     const firstItem = fixtureItem(inProgressTurn.items[0], "in-progress first");
     const secondItem = fixtureItem(inProgressTurn.items[1], "in-progress second");
-    const runtime = runtimeFromAttach(attachWithTurns([inProgressTurn]));
+    const runtime = runtimeFromAttach(attachWithTurns(attachBaseline, [inProgressTurn]));
 
     expect(buildSnapshotReplayMaterials(runtime)).toStrictEqual([
       {

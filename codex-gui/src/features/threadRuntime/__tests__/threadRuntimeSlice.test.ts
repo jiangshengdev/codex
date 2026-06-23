@@ -6,10 +6,10 @@ import eventItemCompletedJson from "@/features/projection/__fixtures__/event-ite
 import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
 import eventTurnCompletedJson from "@/features/projection/__fixtures__/event-turn-completed.json";
 import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import { attachWithTurns } from "@/features/projection/__tests__/projectionTestBuilders";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionEventNotification,
-  Turn,
 } from "@codex-protocol/v2";
 import {
   selectThreadRuntimeActiveTurnId,
@@ -37,17 +37,6 @@ const reduce = (
     | ReturnType<typeof threadRuntimeEventBuffered>
     | ReturnType<typeof threadRuntimeManualReconnectRequired>,
 ) => threadRuntimeSlice.reducer(state, action);
-
-const attachWithTurns = (turns: Turn[]): ThreadProjectionAttachResponse => ({
-  ...attachBaseline,
-  snapshot: {
-    ...attachBaseline.snapshot,
-    thread: {
-      ...attachBaseline.snapshot.thread,
-      turns,
-    },
-  },
-});
 
 const runtimeRoot = (state: ThreadRuntimeState) => ({ threadRuntime: state });
 
@@ -95,7 +84,7 @@ describe("thread runtime reducer", () => {
     const state = reduce(
       undefined,
       threadRuntimeAttached(
-        attachWithTurns([
+        attachWithTurns(attachBaseline, [
           ...attachBaseline.snapshot.thread.turns,
           eventTurnStarted.event.notification.turn,
         ]),

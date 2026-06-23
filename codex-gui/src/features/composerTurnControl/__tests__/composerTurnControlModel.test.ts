@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import type { ThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import { runtimeFromAttach } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 import {
   buildPlainTextInput,
@@ -18,22 +18,6 @@ const attachedStatus: GuiHostStatus = {
 };
 
 const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-
-const runtimeFromAttach = (response: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
-  const { turns: snapshotTurns, ...thread } = response.snapshot.thread;
-
-  return {
-    threadId: thread.id,
-    sessionId: thread.sessionId,
-    thread,
-    snapshotTurns,
-    eventBuffer: [],
-    activeTurnId:
-      snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,
-    subscription: { state: "active" },
-  };
-};
-
 const runtime = runtimeFromAttach(attachBaseline);
 
 describe("composerTurnControlModel", () => {
