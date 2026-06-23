@@ -1,19 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import eventItemCompletedJson from "@/features/projection/__fixtures__/event-item-completed.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnCompletedJson from "@/features/projection/__fixtures__/event-turn-completed.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  eventItemCompleted,
+  eventItemStarted,
+  eventTurnCompleted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-} from "@codex-protocol/v2";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   selectTranscriptChunk,
@@ -36,13 +34,7 @@ import {
   turnCompleted,
   turnStarted,
   userMessage,
-} from "./transcriptStateTestBuilders";
-
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
-const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
-const eventItemCompleted = eventItemCompletedJson as ThreadProjectionEventNotification;
-const eventTurnCompleted = eventTurnCompletedJson as ThreadProjectionEventNotification;
+} from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state reducer", () => {
   it("registers transcript state in the app store", () => {

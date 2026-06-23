@@ -12,6 +12,9 @@
     },
     {
       "path": "./tsconfig.vitest.browser.json"
+    },
+    {
+      "path": "./e2e/tsconfig.json"
     }
   ]
 }

@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import attachReplacementJson from "@/features/projection/__fixtures__/attach-replacement.json";
-import eventItemCompletedJson from "@/features/projection/__fixtures__/event-item-completed.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnCompletedJson from "@/features/projection/__fixtures__/event-turn-completed.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-  Turn,
-} from "@codex-protocol/v2";
+import {
+  attachBaseline,
+  attachReplacement,
+  eventItemCompleted,
+  eventItemStarted,
+  eventTurnCompleted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import { attachWithTurns } from "@/features/projection/__tests__/projectionTestBuilders";
+import type { ThreadProjectionEventNotification } from "@codex-protocol/v2";
 import {
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeEventBuffer,
@@ -23,13 +22,6 @@ import {
   type ThreadRuntimeState,
 } from "../threadRuntimeSlice";
 
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-const attachReplacement = attachReplacementJson as ThreadProjectionAttachResponse;
-const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
-const eventTurnCompleted = eventTurnCompletedJson as ThreadProjectionEventNotification;
-const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
-const eventItemCompleted = eventItemCompletedJson as ThreadProjectionEventNotification;
-
 const reduce = (
   state: ThreadRuntimeState | undefined,
   action:
@@ -37,17 +29,6 @@ const reduce = (
     | ReturnType<typeof threadRuntimeEventBuffered>
     | ReturnType<typeof threadRuntimeManualReconnectRequired>,
 ) => threadRuntimeSlice.reducer(state, action);
-
-const attachWithTurns = (turns: Turn[]): ThreadProjectionAttachResponse => ({
-  ...attachBaseline,
-  snapshot: {
-    ...attachBaseline.snapshot,
-    thread: {
-      ...attachBaseline.snapshot.thread,
-      turns,
-    },
-  },
-});
 
 const runtimeRoot = (state: ThreadRuntimeState) => ({ threadRuntime: state });
 
@@ -95,7 +76,7 @@ describe("thread runtime reducer", () => {
     const state = reduce(
       undefined,
       threadRuntimeAttached(
-        attachWithTurns([
+        attachWithTurns(attachBaseline, [
           ...attachBaseline.snapshot.thread.turns,
           eventTurnStarted.event.notification.turn,
         ]),

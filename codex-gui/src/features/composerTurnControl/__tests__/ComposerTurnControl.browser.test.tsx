@@ -1,8 +1,12 @@
 import { Toast } from "@heroui/react";
 import { expect, test, vi } from "vitest";
+import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
@@ -13,33 +17,11 @@ import {
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-} from "@codex-protocol/v2";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
 const attachedStatus: GuiHostStatus = { label: "attached", eventCount: 0, lastEventType: null };
-const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
-
-function commands(): GuiHostCommands {
-  return {
-    startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-      turn: {
-        id: "turn-started",
-        items: [],
-        itemsView: "full",
-        status: "inProgress",
-        error: null,
-        startedAt: 1700000100,
-        completedAt: null,
-        durationMs: null,
-      },
-    }),
-    interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
-  };
-}
 
 function deferred<T>() {
   const callbacks = {} as {
@@ -58,7 +40,7 @@ function deferred<T>() {
   };
 }
 
-async function renderAttached(commandHandle: GuiHostCommands | null = commands()) {
+async function renderAttached(commandHandle: GuiHostCommands | null = createGuiHostCommands()) {
   const result = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
@@ -71,20 +53,28 @@ async function renderAttached(commandHandle: GuiHostCommands | null = commands()
   return result;
 }
 
+const expectComposerDisabled = async (
+  screen: Awaited<ReturnType<typeof renderWithProviders>>,
+): Promise<void> => {
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+};
+
 test("disables controls before attach", async () => {
+  expect.hasAssertions();
+
   const screen = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
-        commands={commands()}
+        commands={createGuiHostCommands()}
         guiHostStatus={{ label: "connecting", eventCount: 0, lastEventType: null }}
       />
     </>,
   );
 
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+  await expectComposerDisabled(screen);
 });
 
 test("renders a white composer panel with a primary textarea and actions", async () => {
@@ -116,7 +106,7 @@ test("renders a white composer panel with a primary textarea and actions", async
 });
 
 test("sends non-empty draft and clears it after success", async () => {
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Hello Codex");
@@ -132,7 +122,7 @@ test("sends non-empty draft and clears it after success", async () => {
 });
 
 test("keeps whitespace-only draft from submitting", async () => {
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
 
@@ -145,7 +135,7 @@ test("keeps whitespace-only draft from submitting", async () => {
 });
 
 test("uses Enter to send and Shift Enter to insert newline", async () => {
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
 
@@ -162,9 +152,9 @@ test("uses Enter to send and Shift Enter to insert newline", async () => {
 });
 
 test("active turn disables Send and enables Stop", async () => {
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
-  const event = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const event = eventTurnStarted;
   screen.store.dispatch(threadRuntimeEventBuffered(event));
 
   await screen.getByPlaceholder("Message Codex").fill("Next draft");
@@ -184,7 +174,9 @@ test("active turn disables Send and enables Stop", async () => {
 });
 
 test("manual reconnect disables composer operations", async () => {
-  const screen = await renderAttached(commands());
+  expect.hasAssertions();
+
+  const screen = await renderAttached(createGuiHostCommands());
   screen.store.dispatch(
     threadRuntimeManualReconnectRequired({
       reason: "backpressure",
@@ -193,13 +185,11 @@ test("manual reconnect disables composer operations", async () => {
     }),
   );
 
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+  await expectComposerDisabled(screen);
 });
 
 test("send failure keeps draft and shows a toast", async () => {
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   vi.mocked(commandHandle.startTurn).mockRejectedValueOnce(new Error("network failed"));
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
@@ -214,7 +204,7 @@ test("send failure keeps draft and shows a toast", async () => {
 
 test("pending send disables duplicate submission", async () => {
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   vi.mocked(commandHandle.startTurn).mockReturnValueOnce(pending.promise);
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
@@ -228,23 +218,14 @@ test("pending send disables duplicate submission", async () => {
   expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
 
   pending.resolve({
-    turn: {
-      id: "turn-finished",
-      items: [],
-      itemsView: "full",
-      status: "inProgress",
-      error: null,
-      startedAt: 1700000101,
-      completedAt: null,
-      durationMs: null,
-    },
+    turn: inProgressTurn("turn-finished"),
   });
   await expect.element(composer).toHaveValue("");
 });
 
 test("pending send keeps newer draft after the submitted draft succeeds", async () => {
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   vi.mocked(commandHandle.startTurn).mockReturnValueOnce(pending.promise);
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
@@ -254,16 +235,7 @@ test("pending send keeps newer draft after the submitted draft succeeds", async 
   await composer.fill("New draft");
 
   pending.resolve({
-    turn: {
-      id: "turn-finished",
-      items: [],
-      itemsView: "full",
-      status: "inProgress",
-      error: null,
-      startedAt: 1700000101,
-      completedAt: null,
-      durationMs: null,
-    },
+    turn: inProgressTurn("turn-finished"),
   });
 
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeEnabled();
@@ -271,10 +243,10 @@ test("pending send keeps newer draft after the submitted draft succeeds", async 
 });
 
 test("stop failure keeps draft and shows a toast", async () => {
-  const commandHandle = commands();
+  const commandHandle = createGuiHostCommands();
   vi.mocked(commandHandle.interruptTurn).mockRejectedValueOnce(new Error("interrupt failed"));
   const screen = await renderAttached(commandHandle);
-  const event = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const event = eventTurnStarted;
   screen.store.dispatch(threadRuntimeEventBuffered(event));
   const composer = screen.getByPlaceholder("Message Codex");
 
