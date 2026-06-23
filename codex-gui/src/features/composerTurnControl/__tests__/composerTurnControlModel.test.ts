@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
 import type { ThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 import {
   buildPlainTextInput,
   canSend,
@@ -15,35 +17,24 @@ const attachedStatus: GuiHostStatus = {
   lastEventType: null,
 };
 
-const runtime = {
-  threadId: "thread-1",
-  sessionId: "session-1",
-  thread: {
-    id: "thread-1",
-    sessionId: "session-1",
-    forkedFromId: null,
-    parentThreadId: null,
-    preview: "Composer test",
-    ephemeral: false,
-    modelProvider: "openai",
-    createdAt: 1700000000,
-    updatedAt: 1700000000,
-    status: { type: "idle" },
-    path: null,
-    cwd: "/tmp",
-    cliVersion: "test",
-    source: "appServer",
-    threadSource: null,
-    agentNickname: null,
-    agentRole: null,
-    gitInfo: null,
-    name: "Composer test",
-  },
-  snapshotTurns: [],
-  eventBuffer: [],
-  activeTurnId: null,
-  subscription: { state: "active" },
-} satisfies ThreadRuntimeRecord;
+const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
+
+const runtimeFromAttach = (response: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
+  const { turns: snapshotTurns, ...thread } = response.snapshot.thread;
+
+  return {
+    threadId: thread.id,
+    sessionId: thread.sessionId,
+    thread,
+    snapshotTurns,
+    eventBuffer: [],
+    activeTurnId:
+      snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,
+    subscription: { state: "active" },
+  };
+};
+
+const runtime = runtimeFromAttach(attachBaseline);
 
 describe("composerTurnControlModel", () => {
   it("builds plain text UserInput with text_elements", () => {
