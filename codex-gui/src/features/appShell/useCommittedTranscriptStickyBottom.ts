@@ -1,25 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useAppSelector } from "@/app/hooks";
-import type { RootState } from "@/app/store";
-import {
-  selectTranscriptChunk,
-  selectTranscriptChunkIdsForTurn,
-  selectTranscriptTurnIds,
-} from "@/features/transcriptState/transcriptStateSlice";
-
-const selectCommittedTranscriptScrollRevision = (state: RootState): string =>
-  selectTranscriptTurnIds(state)
-    .map((turnId) => {
-      const chunkRevisionKey = selectTranscriptChunkIdsForTurn(state, turnId)
-        .map((chunkId) => {
-          const chunk = selectTranscriptChunk(state, chunkId);
-          return `${chunkId}:${String(chunk?.revision ?? "missing")}:${String(chunk?.entries.length ?? 0)}`;
-        })
-        .join(",");
-
-      return `${turnId}[${chunkRevisionKey}]`;
-    })
-    .join("|");
+import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
 
 const documentScroller = (): HTMLElement | null => {
   const scroller = document.scrollingElement;
@@ -34,7 +15,7 @@ const scrollDocumentToBottom = (): void => {
 export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement | null> {
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const pinnedToBottomRef = useRef(true);
-  const scrollRevision = useAppSelector(selectCommittedTranscriptScrollRevision);
+  const scrollCommitKey = useAppSelector(selectCommittedTranscriptScrollCommitKey);
 
   useEffect(() => {
     const sentinel = bottomSentinelRef.current;
@@ -59,7 +40,7 @@ export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement |
     if (pinnedToBottomRef.current) {
       scrollDocumentToBottom();
     }
-  }, [scrollRevision]);
+  }, [scrollCommitKey]);
 
   return bottomSentinelRef;
 }

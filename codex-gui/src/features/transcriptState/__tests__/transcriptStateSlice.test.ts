@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
+  attachReplacement,
   eventItemCompleted,
   eventItemStarted,
   eventTurnCompleted,
@@ -14,6 +15,7 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptChunkIdsForTurn,
   selectTranscriptEntry,
@@ -42,6 +44,7 @@ describe("transcript state reducer", () => {
 
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual([]);
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBeNull();
   });
 
   it("rebuilds committed transcript chunks from an accepted attach snapshot", () => {
@@ -94,6 +97,22 @@ describe("transcript state reducer", () => {
       ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
+
+  it("sets the committed scroll commit key from accepted attach snapshots", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      `attach:${attachBaseline.snapshot.thread.id}:${attachBaseline.subscriptionId}:none`,
+    );
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachReplacement, [])));
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      `attach:${attachReplacement.snapshot.thread.id}:${attachReplacement.subscriptionId}:${attachReplacement.snapshot.headCommitId}`,
+    );
   });
 
   it("filters empty text, non-text user inputs, and non-chat snapshot items", () => {
@@ -168,6 +187,69 @@ describe("transcript state reducer", () => {
         revision: 0,
       },
     ]);
+  });
+
+  it("advances the committed scroll commit key only when live events change committed transcript DOM", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemStarted(
+          eventItemStarted,
+          "commit-started-no-dom",
+          "turn-scroll-key",
+          agentMessage("agent-started-no-dom", "Started should be ignored"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-filtered-no-dom",
+          "turn-scroll-key",
+          planItem("hidden-plan"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-visible-dom",
+          "turn-scroll-key",
+          agentMessage("agent-visible-dom", "Visible committed message"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-visible-dom",
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-visible-dom",
+          "turn-scroll-key",
+          agentMessage("agent-duplicate-dom", "Duplicate should be ignored"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-visible-dom",
+    );
   });
 
   it("updates turn terminal status from live turnCompleted", () => {
