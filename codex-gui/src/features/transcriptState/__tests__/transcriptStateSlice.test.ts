@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import eventItemCompletedJson from "@/features/projection/__fixtures__/event-item-completed.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnCompletedJson from "@/features/projection/__fixtures__/event-turn-completed.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  attachReplacement,
+  eventItemCompleted,
+  eventItemStarted,
+  eventTurnCompleted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionEventNotification,
-} from "@codex-protocol/v2";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptChunkIdsForTurn,
   selectTranscriptEntry,
@@ -36,13 +36,7 @@ import {
   turnCompleted,
   turnStarted,
   userMessage,
-} from "./transcriptStateTestBuilders";
-
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
-const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
-const eventItemCompleted = eventItemCompletedJson as ThreadProjectionEventNotification;
-const eventTurnCompleted = eventTurnCompletedJson as ThreadProjectionEventNotification;
+} from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state reducer", () => {
   it("registers transcript state in the app store", () => {
@@ -50,6 +44,7 @@ describe("transcript state reducer", () => {
 
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual([]);
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBeNull();
   });
 
   it("rebuilds committed transcript chunks from an accepted attach snapshot", () => {
@@ -102,6 +97,22 @@ describe("transcript state reducer", () => {
       ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
+
+  it("sets the committed scroll commit key from accepted attach snapshots", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      `attach:${attachBaseline.snapshot.thread.id}:${attachBaseline.subscriptionId}:none`,
+    );
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachReplacement, [])));
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      `attach:${attachReplacement.snapshot.thread.id}:${attachReplacement.subscriptionId}:${attachReplacement.snapshot.headCommitId ?? "none"}`,
+    );
   });
 
   it("filters empty text, non-text user inputs, and non-chat snapshot items", () => {
@@ -176,6 +187,69 @@ describe("transcript state reducer", () => {
         revision: 0,
       },
     ]);
+  });
+
+  it("advances the committed scroll commit key only when live events change committed transcript DOM", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemStarted(
+          eventItemStarted,
+          "commit-started-no-dom",
+          "turn-scroll-key",
+          agentMessage("agent-started-no-dom", "Started should be ignored"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-filtered-no-dom",
+          "turn-scroll-key",
+          planItem("hidden-plan"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-visible-dom",
+          "turn-scroll-key",
+          agentMessage("agent-visible-dom", "Visible committed message"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-visible-dom",
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-visible-dom",
+          "turn-scroll-key",
+          agentMessage("agent-duplicate-dom", "Duplicate should be ignored"),
+        ),
+      ),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-visible-dom",
+    );
   });
 
   it("updates turn terminal status from live turnCompleted", () => {

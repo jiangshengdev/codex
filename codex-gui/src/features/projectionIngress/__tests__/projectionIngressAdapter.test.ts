@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import attachReplacementJson from "@/features/projection/__fixtures__/attach-replacement.json";
-import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventSubscriptionReplacementJson from "@/features/projection/__fixtures__/event-subscription-replacement.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import {
+  attachBaseline,
+  attachReplacement,
+  closedBackpressure,
+  eventItemStarted,
+  eventSubscriptionReplacement,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -13,13 +15,6 @@ import type {
 } from "@codex-protocol/v2";
 import { ProjectionIngressAdapter } from "../projectionIngressAdapter";
 
-const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
-const attachReplacement = attachReplacementJson as ThreadProjectionAttachResponse;
-const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
-const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
-const eventSubscriptionReplacement =
-  eventSubscriptionReplacementJson as ThreadProjectionEventNotification;
-const closedBackpressure = closedBackpressureJson as ThreadProjectionClosedNotification;
 const projectionThreadId = attachBaseline.snapshot.thread.id;
 
 const deriveEvent = (

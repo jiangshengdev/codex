@@ -4,13 +4,16 @@ import type {
   GuiHostStatus,
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import type {
-  ThreadItem,
-  ThreadProjectionAttachResponse,
-  Turn,
-  UserInput,
-} from "@codex-protocol/v2";
+import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
+  inProgressTurn,
+  textInput,
+  userMessage,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
+import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 export type StartGuiHostConnectionMock = {
   mockImplementation: (
@@ -22,75 +25,28 @@ export type StartGuiHostConnectionMock = {
   };
 };
 
-export const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
+export const attachResponse: ThreadProjectionAttachResponse = attachBaseline;
 export const launchThreadId = attachResponse.snapshot.thread.id;
 
 let emitStatus: ((status: GuiHostStatus) => void) | undefined;
 let cleanupConnectionCallCount = 0;
 
-const textInput = (text: string): UserInput => ({
-  type: "text",
-  text,
-  text_elements: [],
-});
-
-const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
-  type: "userMessage",
-  id,
-  clientId: null,
-  content,
-});
-
-const agentMessage = (id: string, text: string): ThreadItem => ({
-  type: "agentMessage",
-  id,
-  text,
-  phase: "final_answer",
-  memoryCitation: null,
-});
-
-export const createCommands = (): GuiHostCommands => ({
+export const createGuiHostCommands = (): GuiHostCommands => ({
   startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: {
-      id: "turn-started-from-app",
-      items: [],
-      itemsView: "full",
-      status: "inProgress",
-      error: null,
-      startedAt: 1700000100,
-      completedAt: null,
-      durationMs: null,
-    },
+    turn: inProgressTurn("turn-started-from-app"),
   }),
   interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
 });
 
-export const attachWithCommittedMessages = (): ThreadProjectionAttachResponse => {
-  const turn: Turn = {
-    id: "turn-app-surface",
-    items: [
+export const createCommands = createGuiHostCommands;
+
+export const attachWithCommittedMessages = (): ThreadProjectionAttachResponse =>
+  attachWithTurns(attachResponse, [
+    baseTurn("turn-app-surface", [
       userMessage("user-app-surface", [textInput("Hello from App")]),
       agentMessage("agent-app-surface", "Committed App response"),
-    ],
-    itemsView: "full",
-    status: "completed",
-    error: null,
-    startedAt: 1700000001,
-    completedAt: 1700000005,
-    durationMs: 4000,
-  };
-
-  return {
-    ...attachResponse,
-    snapshot: {
-      ...attachResponse.snapshot,
-      thread: {
-        ...attachResponse.snapshot.thread,
-        turns: [turn],
-      },
-    },
-  };
-};
+    ]),
+  ]);
 
 export const resetAppBrowserTestSupport = (
   startGuiHostConnectionMock: StartGuiHostConnectionMock,
@@ -112,3 +68,47 @@ export const emitGuiHostStatus = (status: GuiHostStatus): void => {
 };
 
 export const getCleanupConnectionCallCount = (): number => cleanupConnectionCallCount;
+
+export const getHostOptions = (
+  startGuiHostConnectionMock: StartGuiHostConnectionMock,
+): StartGuiHostConnectionOptions => {
+  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
+  if (options == null) {
+    throw new Error("Expected GUI host connection to start");
+  }
+
+  return options;
+};
+
+export const attachProjection = (
+  options: StartGuiHostConnectionOptions,
+  response: ThreadProjectionAttachResponse = attachResponse,
+): void => {
+  options.onProjectionAttached?.(response);
+};
+
+export const markHostAttached = (options: StartGuiHostConnectionOptions): void => {
+  options.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
+};
+
+export const markCommandsReady = (
+  options: StartGuiHostConnectionOptions,
+  commands: GuiHostCommands = createGuiHostCommands(),
+): GuiHostCommands => {
+  options.onCommandsReady?.(commands);
+  return commands;
+};
+
+export const emitProjectionEvent = (
+  options: StartGuiHostConnectionOptions,
+  notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onProjectionEvent"]>>[0],
+): void => {
+  options.onProjectionEvent?.(notification);
+};
+
+export const emitProjectionClosed = (
+  options: StartGuiHostConnectionOptions,
+  notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onProjectionClosed"]>>[0],
+): void => {
+  options.onProjectionClosed?.(notification);
+};

@@ -5,6 +5,7 @@ import type {
   Turn,
   UserInput,
 } from "@codex-protocol/v2";
+import type { ThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 
 export const textInput = (text: string): UserInput => ({
   type: "text",
@@ -55,6 +56,13 @@ export const baseTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   durationMs: 4000,
 });
 
+export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
+  ...baseTurn(id, items),
+  status: "inProgress",
+  completedAt: null,
+  durationMs: null,
+});
+
 export const attachWithTurns = (
   attachBaseline: ThreadProjectionAttachResponse,
   turns: Turn[],
@@ -68,6 +76,21 @@ export const attachWithTurns = (
     },
   },
 });
+
+export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
+  const { turns: snapshotTurns, ...thread } = attach.snapshot.thread;
+
+  return {
+    threadId: thread.id,
+    sessionId: thread.sessionId,
+    thread,
+    snapshotTurns,
+    eventBuffer: [],
+    activeTurnId:
+      snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,
+    subscription: { state: "active" },
+  };
+};
 
 export const itemCompleted = (
   eventItemCompleted: ThreadProjectionEventNotification,
