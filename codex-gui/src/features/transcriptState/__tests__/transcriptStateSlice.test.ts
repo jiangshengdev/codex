@@ -36,7 +36,7 @@ import {
   turnCompleted,
   turnStarted,
   userMessage,
-} from "./transcriptStateTestBuilders";
+} from "@/features/projection/__tests__/projectionTestBuilders";
 
 const attachBaseline = attachBaselineJson as ThreadProjectionAttachResponse;
 const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
