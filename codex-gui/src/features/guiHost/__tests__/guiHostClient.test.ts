@@ -4,6 +4,7 @@ import {
   closedBackpressure,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
+import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -167,16 +168,7 @@ describe("guiHostClient", () => {
       input: [{ type: "text", text: "Hello", text_elements: [] }],
     };
     const response: TurnStartResponse = {
-      turn: {
-        id: "turn-started-by-command",
-        items: [],
-        itemsView: "full",
-        status: "inProgress",
-        error: null,
-        startedAt: 1700000100,
-        completedAt: null,
-        durationMs: null,
-      },
+      turn: inProgressTurn("turn-started-by-command"),
     };
     const promise = commands?.startTurn(params);
 

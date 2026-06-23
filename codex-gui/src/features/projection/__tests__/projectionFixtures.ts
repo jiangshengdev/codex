@@ -1,11 +1,11 @@
-import attachBaselineJson from "../__fixtures__/attach-baseline.json";
-import attachReplacementJson from "../__fixtures__/attach-replacement.json";
-import closedBackpressureJson from "../__fixtures__/closed-backpressure.json";
-import eventItemCompletedJson from "../__fixtures__/event-item-completed.json";
-import eventItemStartedJson from "../__fixtures__/event-item-started.json";
-import eventSubscriptionReplacementJson from "../__fixtures__/event-subscription-replacement.json";
-import eventTurnCompletedJson from "../__fixtures__/event-turn-completed.json";
-import eventTurnStartedJson from "../__fixtures__/event-turn-started.json";
+import attachBaselineJson from "../__fixtures__/attach-baseline.json" with { type: "json" };
+import attachReplacementJson from "../__fixtures__/attach-replacement.json" with { type: "json" };
+import closedBackpressureJson from "../__fixtures__/closed-backpressure.json" with { type: "json" };
+import eventItemCompletedJson from "../__fixtures__/event-item-completed.json" with { type: "json" };
+import eventItemStartedJson from "../__fixtures__/event-item-started.json" with { type: "json" };
+import eventSubscriptionReplacementJson from "../__fixtures__/event-subscription-replacement.json" with { type: "json" };
+import eventTurnCompletedJson from "../__fixtures__/event-turn-completed.json" with { type: "json" };
+import eventTurnStartedJson from "../__fixtures__/event-turn-started.json" with { type: "json" };
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,

@@ -56,6 +56,13 @@ export const baseTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   durationMs: 4000,
 });
 
+export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
+  ...baseTurn(id, items),
+  status: "inProgress",
+  completedAt: null,
+  durationMs: null,
+});
+
 export const attachWithTurns = (
   attachBaseline: ThreadProjectionAttachResponse,
   turns: Turn[],

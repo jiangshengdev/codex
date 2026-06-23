@@ -8,6 +8,7 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  inProgressTurn,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -32,16 +33,7 @@ let cleanupConnectionCallCount = 0;
 
 export const createGuiHostCommands = (): GuiHostCommands => ({
   startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: {
-      id: "turn-started-from-app",
-      items: [],
-      itemsView: "full",
-      status: "inProgress",
-      error: null,
-      startedAt: 1700000100,
-      completedAt: null,
-      durationMs: null,
-    },
+    turn: inProgressTurn("turn-started-from-app"),
   }),
   interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
 });

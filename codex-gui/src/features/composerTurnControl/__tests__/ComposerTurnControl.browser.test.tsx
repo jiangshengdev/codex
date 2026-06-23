@@ -6,6 +6,7 @@ import {
   attachBaseline,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
+import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
@@ -217,16 +218,7 @@ test("pending send disables duplicate submission", async () => {
   expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
 
   pending.resolve({
-    turn: {
-      id: "turn-finished",
-      items: [],
-      itemsView: "full",
-      status: "inProgress",
-      error: null,
-      startedAt: 1700000101,
-      completedAt: null,
-      durationMs: null,
-    },
+    turn: inProgressTurn("turn-finished"),
   });
   await expect.element(composer).toHaveValue("");
 });
@@ -243,16 +235,7 @@ test("pending send keeps newer draft after the submitted draft succeeds", async 
   await composer.fill("New draft");
 
   pending.resolve({
-    turn: {
-      id: "turn-finished",
-      items: [],
-      itemsView: "full",
-      status: "inProgress",
-      error: null,
-      startedAt: 1700000101,
-      completedAt: null,
-      durationMs: null,
-    },
+    turn: inProgressTurn("turn-finished"),
   });
 
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeEnabled();

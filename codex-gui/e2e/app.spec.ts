@@ -1,9 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
+import {
+  attachBaseline,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  inProgressTurn,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -70,24 +74,13 @@ const mobileStressAttachResponse: ThreadProjectionAttachResponse = attachWithTur
 ]);
 
 const projectionEvent = {
-  threadId,
+  ...eventTurnStarted,
   subscriptionId,
-  commitId: "commit-turn-started",
-  parentCommitId: null,
   event: {
-    type: "turnStarted",
+    ...eventTurnStarted.event,
     notification: {
-      threadId,
-      turn: {
-        id: "turn-in-progress",
-        items: [],
-        itemsView: "full",
-        status: "inProgress",
-        error: null,
-        startedAt: 1700000010,
-        completedAt: null,
-        durationMs: null,
-      },
+      ...eventTurnStarted.event.notification,
+      turn: inProgressTurn("turn-in-progress"),
     },
   },
 };
@@ -166,16 +159,7 @@ async function routeGuiHostWebSocket(
             jsonrpc: "2.0",
             id: request.id,
             result: {
-              turn: {
-                id: "turn-started-from-e2e",
-                items: [],
-                itemsView: "full",
-                status: "inProgress",
-                error: null,
-                startedAt: 1700000100,
-                completedAt: null,
-                durationMs: null,
-              },
+              turn: inProgressTurn("turn-started-from-e2e"),
             },
           }),
         );
