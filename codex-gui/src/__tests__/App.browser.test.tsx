@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   attachProjection,
   attachResponse,
@@ -19,9 +19,16 @@ import App from "@/App";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   closedBackpressure,
+  eventItemCompleted,
   eventItemStarted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
+import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
+  itemCompleted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   buildSnapshotReplayMaterials,
   selectSnapshotReplayMaterials,
@@ -48,6 +55,62 @@ const startGuiHostConnectionMock =
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
+});
+
+const longTranscriptText = (label: string): string =>
+  Array.from({ length: 96 }, (_, index) => `${label} line ${index + 1}`).join("\n");
+
+const documentScroller = (): HTMLElement => {
+  const scroller = document.scrollingElement;
+  if (!(scroller instanceof HTMLElement)) {
+    throw new Error("document.scrollingElement must be available");
+  }
+
+  return scroller;
+};
+
+const scrollToDocumentBottom = (): void => {
+  const scroller = documentScroller();
+  window.scrollTo({ top: scroller.scrollHeight });
+};
+
+const scrollToDocumentTop = (): void => {
+  window.scrollTo({ top: 0 });
+};
+
+const distanceFromDocumentBottom = (): number => {
+  const scroller = documentScroller();
+  return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+};
+
+const expectDocumentAtBottom = (): void => {
+  expect(distanceFromDocumentBottom()).toBeLessThanOrEqual(4);
+};
+
+const waitForBrowserFrame = (): Promise<void> =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      resolve();
+    });
+  });
+
+const expectDocumentScrollStaysAwayFromBottom = async (maxScrollTop: number): Promise<void> => {
+  const startTime = performance.now();
+
+  for (;;) {
+    expect(documentScroller().scrollTop).toBeLessThanOrEqual(maxScrollTop);
+    expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
+
+    if (performance.now() - startTime >= 150) {
+      return;
+    }
+
+    await waitForBrowserFrame();
+  }
+};
+
+afterEach(() => {
+  scrollToDocumentTop();
 });
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
@@ -185,6 +248,95 @@ test("App renders committed transcript messages from an attached projection", as
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("Hello from App")).toBeVisible();
   await expect.element(screen.getByText("Committed App response")).toBeVisible();
+});
+
+test("App keeps the document pinned to the bottom after attaching a long transcript", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  scrollToDocumentBottom();
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-attach", [
+        agentMessage("agent-scroll-attach", longTranscriptText("Attached transcript")),
+      ]),
+    ]),
+  );
+
+  await expect.element(screen.getByText("Attached transcript line 96")).toBeVisible();
+  await vi.waitFor(expectDocumentAtBottom);
+});
+
+test("App keeps the document pinned to the bottom after a live committed message", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-live", [
+        agentMessage("agent-scroll-live-existing", longTranscriptText("Existing transcript")),
+      ]),
+    ]),
+  );
+  await expect.element(screen.getByText("Existing transcript line 96")).toBeVisible();
+  scrollToDocumentBottom();
+  await waitForBrowserFrame();
+
+  emitProjectionEvent(options, {
+    ...itemCompleted(
+      eventItemCompleted,
+      "commit-scroll-live-new",
+      "turn-scroll-live",
+      agentMessage("agent-scroll-live-new", "Live sticky bottom message"),
+    ),
+    // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
+    // sticky-bottom behavior rather than the commit-chain mismatch path.
+    parentCommitId: null,
+  });
+
+  await expect.element(screen.getByText("Live sticky bottom message")).toBeVisible();
+  await vi.waitFor(expectDocumentAtBottom);
+});
+
+test("App does not force the document to the bottom after a live message when the user scrolled up", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-away", [
+        agentMessage("agent-scroll-away-existing", longTranscriptText("Scrollable transcript")),
+      ]),
+    ]),
+  );
+  await expect.element(screen.getByText("Scrollable transcript line 96")).toBeVisible();
+  scrollToDocumentBottom();
+  await waitForBrowserFrame();
+
+  const scroller = documentScroller();
+  scrollToDocumentTop();
+  await waitForBrowserFrame();
+  await waitForBrowserFrame();
+  const scrollTopBeforeMessage = scroller.scrollTop;
+  expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
+
+  emitProjectionEvent(options, {
+    ...itemCompleted(
+      eventItemCompleted,
+      "commit-scroll-away-new",
+      "turn-scroll-away",
+      agentMessage("agent-scroll-away-new", "Message while reading history"),
+    ),
+    // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
+    // sticky-bottom behavior rather than the commit-chain mismatch path.
+    parentCommitId: null,
+  });
+
+  await expect.element(screen.getByText("Message while reading history")).toBeVisible();
+  await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeMessage + 4);
 });
 
 test("App records mismatched attach identity without advancing runtime state", async () => {
