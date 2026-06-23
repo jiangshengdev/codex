@@ -111,7 +111,7 @@ describe("transcript state reducer", () => {
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachReplacement, [])));
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
-      `attach:${attachReplacement.snapshot.thread.id}:${attachReplacement.subscriptionId}:${attachReplacement.snapshot.headCommitId}`,
+      `attach:${attachReplacement.snapshot.thread.id}:${attachReplacement.subscriptionId}:${attachReplacement.snapshot.headCommitId ?? "none"}`,
     );
   });
 
