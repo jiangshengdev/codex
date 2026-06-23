@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 
 import {
@@ -29,8 +30,8 @@ async function main(): Promise<void> {
   await writeFile(MARKDOWN_REPORT_PATH, renderMarkdownReport(report), "utf8");
   await writeFile(JSON_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 
-  console.log(`Wrote ${MARKDOWN_REPORT_PATH}`);
-  console.log(`Wrote ${JSON_REPORT_PATH}`);
+  console.log(path.resolve(MARKDOWN_REPORT_PATH));
+  console.log(path.resolve(JSON_REPORT_PATH));
 }
 
 async function readTrackedFiles(): Promise<FileInput[]> {
