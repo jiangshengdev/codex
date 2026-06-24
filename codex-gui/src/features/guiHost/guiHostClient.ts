@@ -7,6 +7,14 @@ import type {
   TurnStartParams,
   TurnStartResponse,
 } from "@codex-protocol/v2";
+import {
+  formatRpcId,
+  isThreadProjectionAttachResponse,
+  isThreadProjectionClosedNotification,
+  isThreadProjectionEventNotification,
+  parseRpcMessage,
+  type RpcMessage,
+} from "./guiHostProtocol";
 
 export type GuiHostStatus =
   | { label: "connecting"; eventCount: number; lastEventType: null }
@@ -382,151 +390,11 @@ export function startGuiHostConnection({
   };
 }
 
-type RpcMessage = {
-  id?: unknown;
-  method?: string;
-  result?: Record<string, unknown>;
-  error?: {
-    code: number;
-    message?: string;
-  };
-  params?: Record<string, unknown>;
-};
-
 type PendingRequest = {
   terminalOnError: boolean;
   resolve: (result: Record<string, unknown>) => void;
   reject: (error: Error) => void;
 };
-
-function parseRpcMessage(data: unknown): RpcMessage {
-  const parsed: unknown = JSON.parse(String(data));
-  if (!isRecord(parsed)) {
-    return {};
-  }
-
-  const message: RpcMessage = {
-    id: parsed.id,
-    method: typeof parsed.method === "string" ? parsed.method : undefined,
-    result: isRecord(parsed.result) ? parsed.result : undefined,
-    error: parseRpcError(parsed.error),
-    params: isRecord(parsed.params) ? parsed.params : undefined,
-  };
-
-  return message;
-}
-
-function parseRpcError(value: unknown): RpcMessage["error"] {
-  if (!isRecord(value) || typeof value.code !== "number") {
-    return undefined;
-  }
-
-  return {
-    code: value.code,
-    message: typeof value.message === "string" ? value.message : undefined,
-  };
-}
-
-function isThreadProjectionAttachResponse(value: unknown): value is ThreadProjectionAttachResponse {
-  if (!isRecord(value) || typeof value.subscriptionId !== "string") {
-    return false;
-  }
-
-  const snapshot = value.snapshot;
-  if (!isRecord(snapshot)) {
-    return false;
-  }
-
-  const thread = snapshot.thread;
-  return (
-    isRecord(thread) &&
-    typeof thread.id === "string" &&
-    Array.isArray(thread.turns) &&
-    (typeof snapshot.headCommitId === "string" || snapshot.headCommitId === null)
-  );
-}
-
-function isThreadProjectionEventNotification(
-  value: unknown,
-): value is ThreadProjectionEventNotification {
-  if (
-    !isRecord(value) ||
-    typeof value.threadId !== "string" ||
-    typeof value.subscriptionId !== "string" ||
-    typeof value.commitId !== "string" ||
-    (typeof value.parentCommitId !== "string" && value.parentCommitId !== null)
-  ) {
-    return false;
-  }
-
-  const event = value.event;
-  return isThreadProjectionEvent(event);
-}
-
-function isThreadProjectionClosedNotification(
-  value: unknown,
-): value is ThreadProjectionClosedNotification {
-  return (
-    isRecord(value) &&
-    typeof value.threadId === "string" &&
-    typeof value.subscriptionId === "string" &&
-    value.reason === "backpressure"
-  );
-}
-
-function isThreadProjectionEvent(value: unknown): boolean {
-  if (!isRecord(value) || typeof value.type !== "string" || !isRecord(value.notification)) {
-    return false;
-  }
-
-  switch (value.type) {
-    case "turnStarted":
-    case "turnCompleted":
-      return isTurnProjectionNotification(value.notification);
-    case "itemStarted":
-      return isItemProjectionNotification(value.notification, "startedAtMs");
-    case "itemCompleted":
-      return isItemProjectionNotification(value.notification, "completedAtMs");
-    default:
-      return false;
-  }
-}
-
-function isTurnProjectionNotification(value: Record<string, unknown>): boolean {
-  return typeof value.threadId === "string" && isProjectionTurn(value.turn);
-}
-
-function isItemProjectionNotification(
-  value: Record<string, unknown>,
-  timestampField: "startedAtMs" | "completedAtMs",
-): boolean {
-  return (
-    typeof value.threadId === "string" &&
-    typeof value.turnId === "string" &&
-    typeof value[timestampField] === "number" &&
-    isProjectionItem(value.item)
-  );
-}
-
-function isProjectionTurn(value: unknown): boolean {
-  return isRecord(value) && typeof value.id === "string" && Array.isArray(value.items);
-}
-
-function isProjectionItem(value: unknown): boolean {
-  return isRecord(value) && typeof value.id === "string";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function formatRpcId(value: unknown): string {
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  return "-";
-}
 
 function webSocketProtocol(location: URL): "ws" | "wss" {
   return location.protocol === "https:" ? "wss" : "ws";

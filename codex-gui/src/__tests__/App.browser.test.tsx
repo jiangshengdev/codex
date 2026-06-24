@@ -1,14 +1,34 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import {
+  attachProjection,
+  attachResponse,
+  attachWithCommittedMessages,
+  createGuiHostCommands,
+  emitGuiHostStatus,
+  emitProjectionClosed,
+  emitProjectionEvent,
+  getCleanupConnectionCallCount,
+  getHostOptions,
+  launchThreadId,
+  markCommandsReady,
+  markHostAttached,
+  resetAppBrowserTestSupport,
+  type StartGuiHostConnectionMock,
+} from "./appBrowserTestSupport";
 import App from "@/App";
-import type {
-  GuiHostCommands,
-  GuiHostStatus,
-  StartGuiHostConnectionOptions,
-} from "@/features/guiHost/guiHostClient";
-import attachBaselineJson from "@/features/projection/__fixtures__/attach-baseline.json";
-import closedBackpressureJson from "@/features/projection/__fixtures__/closed-backpressure.json";
-import eventItemStartedJson from "@/features/projection/__fixtures__/event-item-started.json";
-import eventTurnStartedJson from "@/features/projection/__fixtures__/event-turn-started.json";
+import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
+import {
+  closedBackpressure,
+  eventItemCompleted,
+  eventItemStarted,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
+  itemCompleted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   buildSnapshotReplayMaterials,
   selectSnapshotReplayMaterials,
@@ -20,14 +40,7 @@ import {
   selectThreadRuntimeSubscription,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
-import type {
-  ThreadItem,
-  ThreadProjectionAttachResponse,
-  ThreadProjectionClosedNotification,
-  ThreadProjectionEventNotification,
-  Turn,
-  UserInput,
-} from "@codex-protocol/v2";
+import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -37,100 +50,67 @@ vi.mock("@/features/guiHost/guiHostClient", () => ({
   startGuiHostConnection: guiHostClientMock.startGuiHostConnection,
 }));
 
-type StartGuiHostConnectionMock = {
-  mockImplementation: (
-    implementation: (options: StartGuiHostConnectionOptions) => () => void,
-  ) => void;
-  mockReset: () => void;
-  mock: {
-    calls: [StartGuiHostConnectionOptions][];
-  };
-};
-
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
-const attachResponse = attachBaselineJson as ThreadProjectionAttachResponse;
-const launchThreadId = attachResponse.snapshot.thread.id;
-
-const textInput = (text: string): UserInput => ({
-  type: "text",
-  text,
-  text_elements: [],
+beforeEach(() => {
+  resetAppBrowserTestSupport(startGuiHostConnectionMock);
 });
 
-const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
-  type: "userMessage",
-  id,
-  clientId: null,
-  content,
-});
+const longTranscriptText = (label: string): string =>
+  Array.from({ length: 96 }, (_, index) => `${label} line ${String(index + 1)}`).join("\n");
 
-const agentMessage = (id: string, text: string): ThreadItem => ({
-  type: "agentMessage",
-  id,
-  text,
-  phase: "final_answer",
-  memoryCitation: null,
-});
+const documentScroller = (): HTMLElement => {
+  const scroller = document.scrollingElement;
+  if (!(scroller instanceof HTMLElement)) {
+    throw new Error("document.scrollingElement must be available");
+  }
 
-const createCommands = (): GuiHostCommands => ({
-  startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: {
-      id: "turn-started-from-app",
-      items: [],
-      itemsView: "full",
-      status: "inProgress",
-      error: null,
-      startedAt: 1700000100,
-      completedAt: null,
-      durationMs: null,
-    },
-  }),
-  interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
-});
-
-const attachWithCommittedMessages = (): ThreadProjectionAttachResponse => {
-  const turn: Turn = {
-    id: "turn-app-surface",
-    items: [
-      userMessage("user-app-surface", [textInput("Hello from App")]),
-      agentMessage("agent-app-surface", "Committed App response"),
-    ],
-    itemsView: "full",
-    status: "completed",
-    error: null,
-    startedAt: 1700000001,
-    completedAt: 1700000005,
-    durationMs: 4000,
-  };
-
-  return {
-    ...attachResponse,
-    snapshot: {
-      ...attachResponse.snapshot,
-      thread: {
-        ...attachResponse.snapshot.thread,
-        turns: [turn],
-      },
-    },
-  };
+  return scroller;
 };
 
-let emitStatus: ((status: GuiHostStatus) => void) | undefined;
-let cleanupConnectionCallCount: number;
+const scrollToDocumentBottom = (): void => {
+  const scroller = documentScroller();
+  window.scrollTo({ top: scroller.scrollHeight });
+};
 
-beforeEach(() => {
-  emitStatus = undefined;
-  cleanupConnectionCallCount = 0;
-  startGuiHostConnectionMock.mockReset();
-  startGuiHostConnectionMock.mockImplementation((options) => {
-    options.onLaunchParams?.({ threadId: launchThreadId, token: "secret" });
-    emitStatus = options.onStatus;
-    return () => {
-      cleanupConnectionCallCount += 1;
-    };
+const scrollToDocumentTop = (): void => {
+  window.scrollTo({ top: 0 });
+};
+
+const distanceFromDocumentBottom = (): number => {
+  const scroller = documentScroller();
+  return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+};
+
+const expectDocumentAtBottom = (): void => {
+  expect(distanceFromDocumentBottom()).toBeLessThanOrEqual(4);
+};
+
+const waitForBrowserFrame = (): Promise<void> =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      resolve();
+    });
   });
+
+const expectDocumentScrollStaysAwayFromBottom = async (maxScrollTop: number): Promise<void> => {
+  const startTime = performance.now();
+
+  for (;;) {
+    expect(documentScroller().scrollTop).toBeLessThanOrEqual(maxScrollTop);
+    expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
+
+    if (performance.now() - startTime >= 150) {
+      return;
+    }
+
+    await waitForBrowserFrame();
+  }
+};
+
+afterEach(() => {
+  scrollToDocumentTop();
 });
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
@@ -170,7 +150,7 @@ test("App keeps the transcript surface flush with the shell padding", async () =
 test("App keeps host status as a test hook instead of visible shell content", async () => {
   const screen = await renderWithProviders(<App />);
 
-  emitStatus?.({
+  emitGuiHostStatus({
     label: "received event",
     eventCount: 2,
     lastEventType: "turnStarted",
@@ -183,15 +163,15 @@ test("App keeps host status as a test hook instead of visible shell content", as
 
 test("App dispatches accepted host projection payloads into thread runtime", async () => {
   const { store } = await renderWithProviders(<App />);
-  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const projectionEvent = eventTurnStarted;
   const threadId = attachResponse.snapshot.thread.id;
   if (projectionEvent.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onProjectionEvent?.(projectionEvent);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  emitProjectionEvent(options, projectionEvent);
 
   expect(selectThreadIdentityState(store.getState())).toStrictEqual({
     launchThreadId: threadId,
@@ -216,13 +196,13 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
 });
 
 test("App passes ready commands to composer and sends plain text", async () => {
-  const commandHandle = createCommands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
-  options?.onCommandsReady?.(commandHandle);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  markHostAttached(options);
+  markCommandsReady(options, commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Hello from App composer");
   await screen.getByRole("button", { name: "Send" }).click();
@@ -235,15 +215,15 @@ test("App passes ready commands to composer and sends plain text", async () => {
 });
 
 test("App enables Stop for the current active turn", async () => {
-  const commandHandle = createCommands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
-  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
+  const projectionEvent = eventTurnStarted;
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
-  options?.onCommandsReady?.(commandHandle);
-  options?.onProjectionEvent?.(projectionEvent);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  markHostAttached(options);
+  markCommandsReady(options, commandHandle);
+  emitProjectionEvent(options, projectionEvent);
 
   if (projectionEvent.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
@@ -262,12 +242,101 @@ test("App enables Stop for the current active turn", async () => {
 test("App renders committed transcript messages from an attached projection", async () => {
   const screen = await renderWithProviders(<App />);
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachWithCommittedMessages());
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options, attachWithCommittedMessages());
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("Hello from App")).toBeVisible();
   await expect.element(screen.getByText("Committed App response")).toBeVisible();
+});
+
+test("App keeps the document pinned to the bottom after attaching a long transcript", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  scrollToDocumentBottom();
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-attach", [
+        agentMessage("agent-scroll-attach", longTranscriptText("Attached transcript")),
+      ]),
+    ]),
+  );
+
+  await expect.element(screen.getByText("Attached transcript line 96")).toBeVisible();
+  await vi.waitFor(expectDocumentAtBottom);
+});
+
+test("App keeps the document pinned to the bottom after a live committed message", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-live", [
+        agentMessage("agent-scroll-live-existing", longTranscriptText("Existing transcript")),
+      ]),
+    ]),
+  );
+  await expect.element(screen.getByText("Existing transcript line 96")).toBeVisible();
+  scrollToDocumentBottom();
+  await waitForBrowserFrame();
+
+  emitProjectionEvent(options, {
+    ...itemCompleted(
+      eventItemCompleted,
+      "commit-scroll-live-new",
+      "turn-scroll-live",
+      agentMessage("agent-scroll-live-new", "Live sticky bottom message"),
+    ),
+    // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
+    // sticky-bottom behavior rather than the commit-chain mismatch path.
+    parentCommitId: null,
+  });
+
+  await expect.element(screen.getByText("Live sticky bottom message")).toBeVisible();
+  await vi.waitFor(expectDocumentAtBottom);
+});
+
+test("App does not force the document to the bottom after a live message when the user scrolled up", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-away", [
+        agentMessage("agent-scroll-away-existing", longTranscriptText("Scrollable transcript")),
+      ]),
+    ]),
+  );
+  await expect.element(screen.getByText("Scrollable transcript line 96")).toBeVisible();
+  scrollToDocumentBottom();
+  await waitForBrowserFrame();
+
+  const scroller = documentScroller();
+  scrollToDocumentTop();
+  await waitForBrowserFrame();
+  await waitForBrowserFrame();
+  const scrollTopBeforeMessage = scroller.scrollTop;
+  expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
+
+  emitProjectionEvent(options, {
+    ...itemCompleted(
+      eventItemCompleted,
+      "commit-scroll-away-new",
+      "turn-scroll-away",
+      agentMessage("agent-scroll-away-new", "Message while reading history"),
+    ),
+    // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
+    // sticky-bottom behavior rather than the commit-chain mismatch path.
+    parentCommitId: null,
+  });
+
+  await expect.element(screen.getByText("Message while reading history")).toBeVisible();
+  await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeMessage + 4);
 });
 
 test("App records mismatched attach identity without advancing runtime state", async () => {
@@ -284,8 +353,8 @@ test("App records mismatched attach identity without advancing runtime state", a
     },
   };
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(mismatchedAttachResponse);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options, mismatchedAttachResponse);
 
   expect(selectThreadIdentityState(store.getState())).toStrictEqual({
     launchThreadId,
@@ -300,13 +369,13 @@ test("App records mismatched attach identity without advancing runtime state", a
 
 test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
   const { store } = await renderWithProviders(<App />);
-  const projectionEvent = eventTurnStartedJson as ThreadProjectionEventNotification;
-  const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
+  const projectionEvent = eventTurnStarted;
+  const projectionClosed = closedBackpressure;
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onProjectionClosed?.(projectionClosed);
-  options?.onProjectionEvent?.(projectionEvent);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  emitProjectionClosed(options, projectionClosed);
+  emitProjectionEvent(options, projectionEvent);
 
   const runtime = selectThreadRuntimeRecord(store.getState());
   expect(runtime?.threadId).toBe(launchThreadId);
@@ -323,15 +392,15 @@ test("App stops forwarding runtime events after backpressure requires manual rec
 });
 
 test("App disables composer after projection backpressure requires reconnect", async () => {
-  const commandHandle = createCommands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
-  const projectionClosed = closedBackpressureJson as ThreadProjectionClosedNotification;
+  const projectionClosed = closedBackpressure;
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
-  options?.onCommandsReady?.(commandHandle);
-  options?.onProjectionClosed?.(projectionClosed);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  markHostAttached(options);
+  markCommandsReady(options, commandHandle);
+  emitProjectionClosed(options, projectionClosed);
 
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
@@ -339,16 +408,16 @@ test("App disables composer after projection backpressure requires reconnect", a
 });
 
 test("App disables composer when host commands become unavailable", async () => {
-  const commandHandle = createCommands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
-  options?.onCommandsReady?.(commandHandle);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  markHostAttached(options);
+  markCommandsReady(options, commandHandle);
 
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
-  options?.onCommandsUnavailable?.();
+  options.onCommandsUnavailable?.();
 
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
@@ -357,11 +426,11 @@ test("App disables composer when host commands become unavailable", async () => 
 
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
   const { store } = await renderWithProviders(<App />);
-  const projectionEvent = eventItemStartedJson as ThreadProjectionEventNotification;
+  const projectionEvent = eventItemStarted;
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onProjectionEvent?.(projectionEvent);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  emitProjectionEvent(options, projectionEvent);
 
   expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
     state: "manualReconnectRequired",
@@ -376,17 +445,17 @@ test("App closes the host connection when unmounted", async () => {
 
   await screen.unmount();
 
-  expect(cleanupConnectionCallCount).toBe(1);
+  expect(getCleanupConnectionCallCount()).toBe(1);
 });
 
 test("App does not render optimistic user messages after send", async () => {
-  const commandHandle = createCommands();
+  const commandHandle = createGuiHostCommands();
   const screen = await renderWithProviders(<App />);
 
-  const options = startGuiHostConnectionMock.mock.calls[0]?.[0];
-  options?.onProjectionAttached?.(attachResponse);
-  options?.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
-  options?.onCommandsReady?.(commandHandle);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  markHostAttached(options);
+  markCommandsReady(options, commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Not optimistic");
   await screen.getByRole("button", { name: "Send" }).click();

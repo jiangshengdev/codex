@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import type { ThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
+import { runtimeFromAttach } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   buildPlainTextInput,
   canSend,
@@ -15,35 +16,7 @@ const attachedStatus: GuiHostStatus = {
   lastEventType: null,
 };
 
-const runtime = {
-  threadId: "thread-1",
-  sessionId: "session-1",
-  thread: {
-    id: "thread-1",
-    sessionId: "session-1",
-    forkedFromId: null,
-    parentThreadId: null,
-    preview: "Composer test",
-    ephemeral: false,
-    modelProvider: "openai",
-    createdAt: 1700000000,
-    updatedAt: 1700000000,
-    status: { type: "idle" },
-    path: null,
-    cwd: "/tmp",
-    cliVersion: "test",
-    source: "appServer",
-    threadSource: null,
-    agentNickname: null,
-    agentRole: null,
-    gitInfo: null,
-    name: "Composer test",
-  },
-  snapshotTurns: [],
-  eventBuffer: [],
-  activeTurnId: null,
-  subscription: { state: "active" },
-} satisfies ThreadRuntimeRecord;
+const runtime = runtimeFromAttach(attachBaseline);
 
 describe("composerTurnControlModel", () => {
   it("builds plain text UserInput with text_elements", () => {

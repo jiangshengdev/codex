@@ -5,7 +5,8 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import type { ThreadItem, Turn, TurnStatus, UserInput } from "@codex-protocol/v2";
+import type { Turn, TurnStatus } from "@codex-protocol/v2";
+import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
 
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
 export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
@@ -54,6 +55,7 @@ export type TranscriptChunkView = {
 export type TranscriptState = {
   threadId: string | null;
   subscriptionId: string | null;
+  committedScrollCommitKey: string | null;
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunkIdsByTurnId: Record<string, string[]>;
@@ -68,6 +70,7 @@ export type TranscriptState = {
 const initialState: TranscriptState = {
   threadId: null,
   subscriptionId: null,
+  committedScrollCommitKey: null,
   turnIds: [],
   turnsById: {},
   chunkIdsByTurnId: {},
@@ -82,6 +85,7 @@ const initialState: TranscriptState = {
 const createEmptyState = (): TranscriptState => ({
   threadId: null,
   subscriptionId: null,
+  committedScrollCommitKey: null,
   turnIds: [],
   turnsById: {},
   chunkIdsByTurnId: {},
@@ -96,6 +100,7 @@ const createEmptyState = (): TranscriptState => ({
 const resetState = (state: TranscriptState, nextState: TranscriptState) => {
   state.threadId = nextState.threadId;
   state.subscriptionId = nextState.subscriptionId;
+  state.committedScrollCommitKey = nextState.committedScrollCommitKey;
   state.turnIds = nextState.turnIds;
   state.turnsById = nextState.turnsById;
   state.chunkIdsByTurnId = nextState.chunkIdsByTurnId;
@@ -154,76 +159,6 @@ const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
   }
 
   existingTurn.status = turn.status;
-};
-
-const textFromUserInput = (input: UserInput): string => {
-  switch (input.type) {
-    case "text":
-      return input.text;
-    case "image":
-    case "localImage":
-    case "skill":
-    case "mention":
-      return "";
-  }
-
-  const exhaustiveInput: never = input;
-  return exhaustiveInput;
-};
-
-const materializeItem = (item: ThreadItem, turnId: string): TranscriptEntry | null => {
-  switch (item.type) {
-    case "userMessage": {
-      const source = item.content.map(textFromUserInput).join("");
-      if (source.length === 0) {
-        return null;
-      }
-
-      return {
-        type: "message",
-        id: item.id,
-        turnId,
-        role: "user",
-        source,
-        sourceKind: "plainText",
-        revision: 0,
-      };
-    }
-    case "agentMessage":
-      if (item.text.length === 0) {
-        return null;
-      }
-
-      return {
-        type: "message",
-        id: item.id,
-        turnId,
-        role: "assistant",
-        source: item.text,
-        sourceKind: "plainText",
-        revision: 0,
-      };
-    case "hookPrompt":
-    case "plan":
-    case "reasoning":
-    case "commandExecution":
-    case "fileChange":
-    case "mcpToolCall":
-    case "dynamicToolCall":
-    case "collabAgentToolCall":
-    case "subAgentActivity":
-    case "webSearch":
-    case "imageView":
-    case "sleep":
-    case "imageGeneration":
-    case "enteredReviewMode":
-    case "exitedReviewMode":
-    case "contextCompaction":
-      return null;
-  }
-
-  const exhaustiveItem: never = item;
-  return exhaustiveItem;
 };
 
 const getOrCreateAppendChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
@@ -288,16 +223,18 @@ const rebuildFromSnapshot = (
   state: TranscriptState,
   threadId: string,
   subscriptionId: string,
+  headCommitId: string | null,
   turns: Turn[],
 ) => {
   const nextState = createEmptyState();
   nextState.threadId = threadId;
   nextState.subscriptionId = subscriptionId;
+  nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
 
   for (const turn of turns) {
     upsertTurnFromPayload(nextState, turn);
     for (const item of turn.items) {
-      const entry = materializeItem(item, turn.id);
+      const entry = materializeTranscriptItem(item, turn.id);
       if (entry != null) {
         appendBaselineEntry(nextState, entry);
       }
@@ -312,6 +249,8 @@ export const transcriptStateSlice = createAppSlice({
   initialState,
   reducers: () => ({}),
   selectors: {
+    selectCommittedTranscriptScrollCommitKey: (transcriptState): string | null =>
+      transcriptState.committedScrollCommitKey,
     selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
     selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
       transcriptState.turnsById[turnId] ?? null,
@@ -345,6 +284,7 @@ export const transcriptStateSlice = createAppSlice({
           state,
           action.payload.snapshot.thread.id,
           action.payload.subscriptionId,
+          action.payload.snapshot.headCommitId,
           action.payload.snapshot.thread.turns,
         );
       })
@@ -367,9 +307,10 @@ export const transcriptStateSlice = createAppSlice({
           case "itemCompleted": {
             const { item, turnId } = action.payload.event.notification;
             ensureTurnExists(state, turnId);
-            const entry = materializeItem(item, turnId);
+            const entry = materializeTranscriptItem(item, turnId);
             if (entry != null) {
               upsertLiveCommittedEntry(state, entry);
+              state.committedScrollCommitKey = `event:${action.payload.commitId}`;
             }
             return;
           }
@@ -395,6 +336,7 @@ export const transcriptStateSlice = createAppSlice({
 });
 
 export const {
+  selectCommittedTranscriptScrollCommitKey,
   selectTranscriptTurnIds,
   selectTranscriptTurn,
   selectTranscriptChunkIdsForTurn,
