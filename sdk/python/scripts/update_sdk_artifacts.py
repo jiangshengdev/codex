@@ -136,8 +136,12 @@ def normalize_codex_version(version: str) -> str:
     normalized = re.sub(r"-alpha\.?([0-9]+)$", r"a\1", normalized)
     normalized = re.sub(r"-beta\.?([0-9]+)$", r"b\1", normalized)
     normalized = re.sub(r"-rc\.?([0-9]+)$", r"rc\1", normalized)
+    normalized = re.sub(r"-cdx\.([0-9]+)$", r".dev\1", normalized)
 
-    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)*(?:(?:a|b|rc)[0-9]+)?", normalized):
+    if not re.fullmatch(
+        r"[0-9]+(?:\.[0-9]+)*(?:(?:a|b|rc)[0-9]+|\.dev[0-9]+)?",
+        normalized,
+    ):
         raise RuntimeError(f"Could not normalize Codex version {version!r} to a PEP 440 version")
     return normalized
 
