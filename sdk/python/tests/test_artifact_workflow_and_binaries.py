@@ -632,6 +632,8 @@ def test_normalize_codex_version_accepts_release_tags_and_pep440_versions() -> N
     assert script.normalize_codex_version("v0.116.0-beta.2") == "0.116.0b2"
     assert script.normalize_codex_version("0.116.0rc3") == "0.116.0rc3"
     assert script.normalize_codex_version("0.116.0") == "0.116.0"
+    assert script.normalize_codex_version("rust-v0.142.1-cdx.1") == "0.142.1.dev1"
+    assert script.normalize_codex_version("0.142.1-cdx.2") == "0.142.1.dev2"
 
 
 def test_stage_runtime_release_replaces_existing_staging_dir(tmp_path: Path) -> None:

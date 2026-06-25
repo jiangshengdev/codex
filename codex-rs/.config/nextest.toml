@@ -22,6 +22,11 @@ max-threads = 1
 [test-groups.app_server_integration_local]
 max-threads = 4
 
+# These tests copy and launch a fake packaged app-server with a vendored zsh.
+# Keep them serial locally to avoid subprocess startup contention.
+[test-groups.app_server_zsh_fork_integration_local]
+max-threads = 1
+
 [test-groups.core_apply_patch_cli_integration]
 max-threads = 1
 
@@ -53,8 +58,15 @@ test-group = 'app_server_integration'
 [[profile.local.overrides]]
 # Use up to four app-server subprocesses locally. The global nextest pool still
 # limits this to the machine's logical CPU count.
-filter = 'package(codex-app-server) & kind(test)'
+filter = 'package(codex-app-server) & kind(test) & not test(turn_start_zsh_fork)'
 test-group = 'app_server_integration_local'
+
+[[profile.local.overrides]]
+# The zsh-fork tests are heavier than most app-server integration tests because
+# each case copies and launches a fake packaged app-server plus vendored zsh.
+filter = 'package(codex-app-server) & kind(test) & test(turn_start_zsh_fork)'
+test-group = 'app_server_zsh_fork_integration_local'
+threads-required = "num-test-threads"
 
 [[profile.default.overrides]]
 # These tests exercise full Codex turns and apply_patch execution, and they are
