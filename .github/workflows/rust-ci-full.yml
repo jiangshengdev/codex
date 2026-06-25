@@ -441,6 +441,7 @@ jobs:
       target: aarch64-apple-darwin
       profile: ci-test
       artifact_id: macos-aarch64
+      test_threads: 2
       use_sccache: true
     secrets: inherit
 
@@ -453,6 +454,7 @@ jobs:
       profile: ci-test-slim
       artifact_id: linux-x64-remote
       remote_env: true
+      test_threads: 2
       cargo_build_jobs: 2
       use_sccache: false
     secrets: inherit
@@ -466,6 +468,7 @@ jobs:
       target: aarch64-unknown-linux-gnu
       profile: ci-test
       artifact_id: linux-arm64
+      test_threads: 2
       cargo_build_jobs: 2
       use_sccache: true
     secrets: inherit
