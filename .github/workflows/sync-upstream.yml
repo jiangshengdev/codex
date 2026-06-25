@@ -54,7 +54,7 @@ jobs:
         run: |
           tag="${{ steps.rust_tags.outputs.stable_tag }}"
           if [ -n "$tag" ]; then
-            git fetch upstream "refs/tags/${tag}:refs/tags/${tag}"
+            git fetch --no-tags upstream "+refs/tags/${tag}:refs/tags/${tag}"
           fi
 
       - name: Push mirrored main to GitHub fork
