@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex GUI dev runtime stopped</title>
+    <style>
+/* {{CODEX_GUI_HOST_CSS}} */
+
+#spacer {
+  box-sizing: border-box;
+  height: auto;
+  min-height: 120px;
+  padding: 32px;
+}
+
+@media (max-width: 1024px) {
+  #spacer {
+    min-height: 104px;
+    padding: 24px 20px;
+  }
+}
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <section id="center">
+        <div>
+          <h1>Codex GUI dev runtime stopped</h1>
+          <p>
+            Codex GUI host is still running, but the Vite dev runtime has been stopped to keep the browser responsive.
+          </p>
+        </div>
+      </section>
+
+      <div class="ticks"></div>
+
+      <section id="next-steps">
+        <div id="docs">
+          <h2>Runtime state</h2>
+          <p>The page left the Vite runtime after a dev-only error signal.</p>
+          <code>{{CODEX_GUI_HOST_REASON}}</code>
+        </div>
+
+        <div id="social">
+          <h2>Manual recovery</h2>
+          <p>Fix or restart Vite, then refresh this page or reopen the GUI.</p>
+          <code>{{CODEX_GUI_HOST_VITE_ORIGIN}}</code>
+        </div>
+      </section>
+
+      <div class="ticks"></div>
+
+      <section id="spacer">
+        <h2>Why this page is stable</h2>
+        <p>
+          This page is served by GUI host directly and does not load Vite.
+        </p>
+      </section>
+    </div>
+  </body>
+</html>
