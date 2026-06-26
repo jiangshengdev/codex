@@ -15,6 +15,7 @@ use crate::ProdAssetConfig;
 const X_FRAME_OPTIONS: &str = "x-frame-options";
 const CONTENT_SECURITY_POLICY: &str = "content-security-policy";
 const DEV_PROXY_ERROR_HTML: &str = include_str!("embedded_pages/dev_proxy_error.html");
+const DEV_RUNTIME_ERROR_HTML: &str = include_str!("embedded_pages/dev_runtime_error.html");
 const DEV_PROXY_ERROR_CSS: &str = include_str!("embedded_pages/assets/style.css");
 
 pub fn prod_dist_dir(config: &ProdAssetConfig) -> anyhow::Result<PathBuf> {
@@ -86,6 +87,19 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
     }
 }
 
+pub async fn dev_runtime_error_response(config: DevAssetProxyConfig, uri: Uri) -> Response {
+    let reason = dev_runtime_error_reason_from_uri(&uri);
+    let mut response = (
+        StatusCode::OK,
+        dev_runtime_error_page(&config.vite_origin, reason.as_deref()),
+    )
+        .into_response();
+    response
+        .headers_mut()
+        .insert(CONTENT_TYPE, HeaderValue::from_static("text/html"));
+    with_security_headers(response)
+}
+
 fn dev_proxy_error_response(vite_origin: &str, error: &str) -> Response {
     let mut response = (
         StatusCode::BAD_GATEWAY,
@@ -104,6 +118,35 @@ fn dev_proxy_error_page(vite_origin: &str, error: &str) -> String {
         .replace("/* {{CODEX_GUI_HOST_CSS}} */", DEV_PROXY_ERROR_CSS)
         .replace("{{CODEX_GUI_HOST_VITE_ORIGIN}}", &html_escape(vite_origin))
         .replace("{{CODEX_GUI_HOST_ERROR}}", &html_escape(&error))
+}
+
+fn dev_runtime_error_page(vite_origin: &str, reason: Option<&str>) -> String {
+    DEV_RUNTIME_ERROR_HTML
+        .replace("/* {{CODEX_GUI_HOST_CSS}} */", DEV_PROXY_ERROR_CSS)
+        .replace(
+            "{{CODEX_GUI_HOST_REASON}}",
+            &html_escape(dev_runtime_error_reason_label(reason)),
+        )
+        .replace("{{CODEX_GUI_HOST_VITE_ORIGIN}}", &html_escape(vite_origin))
+}
+
+fn dev_runtime_error_reason_from_uri(uri: &Uri) -> Option<String> {
+    uri.query()?.split('&').find_map(|param| {
+        let (key, value) = param.split_once('=').unwrap_or((param, ""));
+        if key == "reason" {
+            Some(value.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+fn dev_runtime_error_reason_label(reason: Option<&str>) -> &'static str {
+    match reason {
+        Some("hmrDisconnected") => "HMR disconnected",
+        Some("viteError") => "Vite error",
+        Some(_) | None => "Unknown runtime error",
+    }
 }
 
 fn capitalize_first_char(input: &str) -> String {
@@ -231,5 +274,65 @@ mod tests {
         assert!(body.contains("?unsafe=&lt;script&gt;"));
         assert!(body.contains("Connection error"));
         assert!(!body.contains("{{CODEX_GUI_HOST_"));
+    }
+
+    #[test]
+    fn dev_runtime_error_page_renders_bounded_runtime_reason() {
+        let page = super::dev_runtime_error_page("http://127.0.0.1:5173", Some("hmrDisconnected"));
+
+        assert!(page.contains("Codex GUI dev runtime stopped"));
+        assert!(page.contains("HMR disconnected"));
+        assert!(page.contains("http://127.0.0.1:5173"));
+        assert!(page.contains("dev runtime has been stopped"));
+        assert!(!page.contains("@vite/client"));
+        assert!(!page.contains("/src/main.tsx"));
+        assert!(!page.contains("http-equiv=\"refresh\""));
+        assert!(!page.contains("{{CODEX_GUI_HOST_"));
+    }
+
+    #[test]
+    fn dev_runtime_error_page_uses_bounded_fallback_for_unknown_reason() {
+        let page = super::dev_runtime_error_page(
+            "http://127.0.0.1:5173/?unsafe=<script>",
+            Some("<script>bad</script>"),
+        );
+
+        assert!(page.contains("Unknown runtime error"));
+        assert!(page.contains("?unsafe=&lt;script&gt;"));
+        assert!(!page.contains("<script>bad</script>"));
+        assert!(!page.contains("{{CODEX_GUI_HOST_"));
+    }
+
+    #[tokio::test]
+    async fn dev_runtime_error_response_returns_stable_html() {
+        let config = DevAssetProxyConfig {
+            vite_origin: "http://127.0.0.1:5173".to_string(),
+        };
+        let response = super::dev_runtime_error_response(
+            config,
+            "/__codex-gui/dev-runtime-error?reason=viteError"
+                .parse::<Uri>()
+                .expect("URI should be valid"),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(super::CONTENT_TYPE)
+                .expect("content-type should be present"),
+            "text/html"
+        );
+
+        let body = body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body should be readable");
+        let body = String::from_utf8(body.to_vec()).expect("body should be UTF-8");
+
+        assert!(body.contains("Vite error"));
+        assert!(!body.contains("Waiting for Vite"));
+        assert!(!body.contains("pnpm --dir codex-gui dev"));
+        assert!(!body.contains("NO_PROXY=127.0.0.1,localhost"));
     }
 }
