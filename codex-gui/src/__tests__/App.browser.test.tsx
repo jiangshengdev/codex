@@ -161,6 +161,19 @@ test("App keeps host status as a test hook instead of visible shell content", as
     .toHaveAttribute("data-gui-host-status", "received event");
 });
 
+test("App displays GUI host startup errors", async () => {
+  startGuiHostConnectionMock.mockImplementation(() => {
+    throw new Error("Missing launch token fragment");
+  });
+
+  const screen = await renderWithProviders(<App />);
+
+  await expect.element(screen.getByRole("main")).toHaveAttribute("data-gui-host-status", "error");
+  await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
+  await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+});
+
 test("App dispatches accepted host projection payloads into thread runtime", async () => {
   const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStarted;
