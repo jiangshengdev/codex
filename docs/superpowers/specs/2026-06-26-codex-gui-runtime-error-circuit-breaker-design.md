@@ -44,6 +44,78 @@ A. 只做项目本体根治。
 
 修改范围限定在 `codex-rs/gui-host` 和 `codex-gui`。不依赖也不修改 `.codex/skills/debug-responsive-gui`。
 
+主题：错误页模板
+
+B. 新增 `dev_runtime_error.html`，复用现有 embedded CSS。
+
+现有 `dev_proxy_error.html` 继续表达 `Waiting for Vite`。新增页面专门表达 HMR/runtime 熔断。
+
+主题：错误页路由
+
+B. 使用 `/__codex-gui/dev-runtime-error`。
+
+该 route 明确表达 dev runtime 熔断，区别于现有 Vite proxy unavailable 页面。
+
+主题：错误页状态码
+
+A. 返回 `200 OK`。
+
+GUI host 成功提供稳定错误页。错误语义放在页面内容和 `reason` 参数中。
+
+主题：错误页内容
+
+A. 使用极简 runtime stopped 文案。
+
+页面只显示错误类型、Vite origin、稳定失败说明和手动刷新说明。
+
+主题：URL 参数
+
+A. 只允许短枚举 `reason`，不传 message。
+
+第一阶段只支持 `hmrDisconnected` 和 `viteError`。
+
+主题：原始位置保留
+
+A. 不保留原始 URL。
+
+跳转只带 `reason`，避免修复后刷新错误页时自动回到坏页面。
+
+主题：防循环 guard
+
+C. 使用 module-level boolean + 当前路径检查。
+
+本页内只触发一次；如果当前 path 已经是 `/__codex-gui/dev-runtime-error`，直接跳过。不使用持久存储。
+
+主题：observer 模块位置
+
+B. 新增小模块，例如 `src/devRuntimeCircuitBreaker.ts`。
+
+`main.tsx` 只调用安装函数，模块内部处理 HMR 监听、guard 和 URL 构造。
+
+主题：`vite:error` 信息处理
+
+A. 只映射为 `reason=viteError`，不读取 payload。
+
+避免依赖 Vite payload shape，也不把 stack、file path 或 plugin message 放进 URL。
+
+主题：事件优先级
+
+A. 第一个事件获胜。
+
+`vite:error` 和 `vite:ws:disconnect` 哪个先到，就用哪个 `reason` 触发跳转。后续事件被 guard 忽略。
+
+主题：测试形态
+
+A. 前端 observer 用纯单元测试，`gui-host` 用 Rust 单元测试。
+
+前端测试 fake `hot.on` 和 fake `location.replace`。`gui-host` 测试验证 route 和 rendered HTML。
+
+主题：现有 `dev_proxy_error.html` 是否改动
+
+A. 不改现有 proxy error 页面。
+
+现有页面继续处理 GUI host 连接不上 Vite upstream 的场景。新增 runtime error 页面只处理页面已加载后 Vite/HMR 出错的场景。
+
 ## 目标
 
 - 错误 endpoint 可以被打开。
@@ -66,13 +138,15 @@ A. 只做项目本体根治。
 
 ### `gui-host` 稳定错误页
 
-`codex-rs/gui-host` 增加一个固定 dev error route，例如：
+`codex-rs/gui-host` 增加一个固定 dev runtime error route：
 
 ```text
-/__codex-gui/dev-error
+/__codex-gui/dev-runtime-error
 ```
 
 该 route 只在 GUI host dev mode 中提供，由 GUI host 直接响应，不走 Vite proxy。
+
+该 route 返回 `200 OK`。这是一个稳定承载页面，不是 upstream proxy 请求失败。
 
 错误页要求：
 
@@ -81,9 +155,9 @@ A. 只做项目本体根治。
 - 不自动刷新。
 - 不定时探测。
 - 不自动跳回原页面。
-- 显示当前错误类型、Vite origin 和简短恢复说明。
+- 显示当前错误类型、Vite origin、稳定失败说明和简短恢复说明。
 
-现有 `embedded_pages/dev_proxy_error.html` 可以复用样式或抽取共享渲染逻辑，但新 route 的语义应是“运行时 dev error 熔断页”，不只是“proxy upstream unavailable”。
+新增 `embedded_pages/dev_runtime_error.html`。该页面可以复用现有 embedded CSS，但不改动现有 `embedded_pages/dev_proxy_error.html`。现有页面继续表达“GUI host 无法连接 Vite upstream”；新增页面表达“已加载页面中的 Vite dev runtime 已被熔断”。
 
 ### `codex-gui` dev-only HMR observer
 
@@ -99,10 +173,18 @@ vite:error
 触发后只执行一次导航：
 
 ```text
-location.replace('/__codex-gui/dev-error?...')
+location.replace('/__codex-gui/dev-runtime-error?reason=hmrDisconnected')
 ```
 
 使用 `replace` 而不是 `assign`，避免浏览器历史里保留会立即重新进入 Vite 错误 runtime 的页面。
+
+`vite:error` 触发时使用：
+
+```text
+location.replace('/__codex-gui/dev-runtime-error?reason=viteError')
+```
+
+observer 不读取 `vite:error` payload，不传 message，不传 stack，不保留原始 URL。
 
 observer 不负责：
 
@@ -121,11 +203,11 @@ observer 不负责：
 
 事件：`vite:ws:disconnect`
 
-进入 `tripped`。记录错误类型为 `hmrDisconnected`，发起一次 `location.replace` 到稳定错误页。
+进入 `tripped`。记录错误类型为 `hmrDisconnected`，发起一次 `location.replace` 到 `/__codex-gui/dev-runtime-error?reason=hmrDisconnected`。
 
 事件：`vite:error`
 
-进入 `tripped`。记录错误类型为 `viteError`，发起一次 `location.replace` 到稳定错误页。
+进入 `tripped`。记录错误类型为 `viteError`，发起一次 `location.replace` 到 `/__codex-gui/dev-runtime-error?reason=viteError`。
 
 终态：`tripped`
 
@@ -141,8 +223,9 @@ observer 不负责：
 - 稳定错误页路径本身不能被 Vite proxy fallback 捕获。
 - 稳定错误页不能加载 `codex-gui` bundle。
 - 稳定错误页不能执行自动 `reload`、自动 `goto` 或自动轮询。
-- observer 触发时如果当前路径已经是 `/__codex-gui/dev-error`，必须直接跳过。
-- 传给错误页的 query 参数必须 bounded，只允许短枚举和短消息摘要，不能传完整 stack 或无界 payload。
+- observer 触发时如果当前路径已经是 `/__codex-gui/dev-runtime-error`，必须直接跳过。
+- 传给错误页的 query 参数只允许短枚举 `reason`，第一阶段只支持 `hmrDisconnected` 和 `viteError`。
+- 不使用 `sessionStorage` 等持久状态，避免修复后被旧熔断状态卡住。
 
 ## 错误页内容
 
@@ -158,6 +241,7 @@ observer 不负责：
 
 - 大段 stack trace。
 - 无界 console log。
+- 原始 URL。
 - 自动恢复倒计时。
 - 会自动打开新地址的按钮。
 
@@ -170,18 +254,21 @@ observer 不负责：
 - 收到 `vite:ws:disconnect` 后调用一次 `location.replace`。
 - 收到 `vite:error` 后调用一次 `location.replace`。
 - 多次事件只触发一次导航。
-- 当前已在 `/__codex-gui/dev-error` 时不导航。
+- 当前已在 `/__codex-gui/dev-runtime-error` 时不导航。
 - 非 dev 环境不注册 observer。
+- `vite:error` payload 不会进入 URL。
+- 跳转 URL 不包含原始页面 URL。
 
 ### `gui-host`
 
 增加 focused test 覆盖稳定错误页：
 
-- dev mode 下 `/__codex-gui/dev-error` 返回 HTML。
+- dev mode 下 `/__codex-gui/dev-runtime-error` 返回 `200 OK` HTML。
 - 响应不经过 Vite proxy。
 - HTML 不包含 `@vite/client`、`/src/main.tsx` 或自动刷新逻辑。
-- query 参数会被 HTML escape。
+- `reason` 参数只接受受支持枚举；未知值显示 bounded fallback。
 - route 不影响 `/ws` 和普通 Vite proxy fallback。
+- 现有 `dev_proxy_error.html` 行为不变。
 
 ## 风险和取舍
 
