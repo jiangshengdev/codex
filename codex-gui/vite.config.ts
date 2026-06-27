@@ -5,7 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { lingui, linguiTransformerBabelPreset } from "@lingui/vite-plugin";
 import babel from "@rolldown/plugin-babel";
 
-const viteHost = process.env.CODEX_GUI_VITE_HOST ?? "127.0.0.1";
+const viteHost = process.env.CODEX_GUI_VITE_HOST ?? "0.0.0.0";
 const vitePort = Number(process.env.CODEX_GUI_VITE_PORT ?? "5173");
 const viteHmrHost = process.env.CODEX_GUI_VITE_HMR_HOST;
 const viteHmrPort = Number(process.env.CODEX_GUI_VITE_HMR_PORT ?? vitePort);

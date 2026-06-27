@@ -37,7 +37,7 @@ node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-u
 - 入口脚本默认按顺序执行 discovery、CFT 启动/复用、GUI 导航、窗口排布、响应式模式、reload 和 metrics 验证。
 - 每个步骤都会先检测当前真实状态；满足目标时输出 `skip` 并退出 0，不满足时才执行本步骤。
 - 状态文件是 `/tmp/codex-debug-responsive-gui/current.json`。
-- GUI URL 只允许本地 HTTP(S) 地址，例如 `localhost`、`127.0.0.1` 或 `::1`。
+- GUI URL 必须使用 `launch_gui` 返回的 Local HTTP(S) URL。
 
 ## 重启/恢复 GUI
 
@@ -47,10 +47,10 @@ node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-u
 
 如果重新调用 `launch_gui` 并打开 URL 后仍显示 `Codex GUI dev server unavailable`，再确认或启动 Vite dev server，然后刷新同一个 `launch_gui` URL。
 
-如果 `launch_gui` URL 返回 HTTP 502，通常表示代理背后的 `codex-gui` Vite dev server 未运行或不可达。先检查 `127.0.0.1:5173` 是否已有 Vite 监听：如果用户已经提前启动并保持 Vite 运行，不要再启动；如果没有监听，在仓库的 `codex-gui` 目录里启动前台会话：
+如果 `launch_gui` URL 返回 HTTP 502，通常表示代理背后的 `codex-gui` Vite dev server 未运行或不可达。先检查默认 Vite dev server 端口或 `CODEX_GUI_VITE_PORT` 指定端口是否已有监听：如果用户已经提前启动并保持 Vite 运行，不要再启动；如果没有监听，在仓库的 `codex-gui` 目录里启动前台会话：
 
 ```bash
-pnpm run dev --host 127.0.0.1
+pnpm run dev
 ```
 
 保持该 Vite 会话运行，再刷新同一个 `launch_gui` URL。不要把 `debug-responsive-gui` 自动化脚本当作 Vite 生命周期管理器；它只负责打开/验证 GUI。不要默认用 `nohup` 或后台 shell 保活 Vite，除非用户明确要求切换为后台守护方式并接受额外验证。

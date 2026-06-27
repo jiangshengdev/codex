@@ -252,6 +252,52 @@ test("App enables Stop for the current active turn", async () => {
   });
 });
 
+test("App shows a QR access popover before the Stop button", async () => {
+  const screen = await renderWithProviders(<App />);
+
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  markHostAttached(options);
+  markCommandsReady(options);
+
+  const qrButton = screen.getByRole("button", { name: "Scan with phone" });
+  const buttons = Array.from(screen.container.querySelectorAll("button"));
+  const qrButtonElement = buttons.find(
+    (button) => button.getAttribute("aria-label") === "Scan with phone",
+  );
+  const stopButtonElement = buttons.find((button) => button.textContent.trim() === "Stop");
+
+  await expect.element(qrButton).toBeEnabled();
+  if (qrButtonElement == null || stopButtonElement == null) {
+    throw new Error("QR and Stop buttons must render");
+  }
+  expect(
+    qrButtonElement.compareDocumentPosition(stopButtonElement) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+
+  await qrButton.click();
+
+  const expectedUrl = `${window.location.origin}/?threadId=${launchThreadId}#token=secret`;
+  await expect.element(screen.getByRole("dialog", { name: "Scan with phone" })).toBeVisible();
+  await expect.element(screen.getByLabelText("QR code for current GUI URL")).toBeVisible();
+  await expect.element(screen.getByText(expectedUrl)).toBeVisible();
+});
+
+test("App disables QR access when launch params are unavailable", async () => {
+  startGuiHostConnectionMock.mockImplementation((options) => {
+    options.onStatus?.({
+      label: "connecting",
+      eventCount: 0,
+      lastEventType: null,
+    });
+    return () => undefined;
+  });
+
+  const screen = await renderWithProviders(<App />);
+
+  await expect.element(screen.getByRole("button", { name: "Scan with phone" })).toBeDisabled();
+});
+
 test("App renders committed transcript messages from an attached projection", async () => {
   const screen = await renderWithProviders(<App />);
 
