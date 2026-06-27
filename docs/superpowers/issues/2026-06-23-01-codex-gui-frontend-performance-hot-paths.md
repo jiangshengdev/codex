@@ -115,7 +115,17 @@ materialize 更好。但 selector 和顶层状态更新仍把部分成本重新�
 
 ## 当前状态
 
-只读检查完成,尚未修复。
+部分修复。
+
+2026-06-27 更新:
+
+- 建议方向 3 已修复:`selectTranscriptChunk` 现在通过 module-private `WeakMap` 按
+  `TranscriptChunk` object identity 和 `chunk.revision` 缓存 `TranscriptChunkView`,避免
+  unchanged chunk 在无关 Redux 更新后重复 materialize `entries`。
+- 覆盖测试已加入 `codex-gui/src/features/transcriptState/__tests__/transcriptStateSlice.test.ts`,
+  包括 unchanged chunk 引用稳定、chunk 变更后失效、snapshot reattach 不复用旧 view。
+- 验证通过:`pnpm run ci`。
+- 建议方向 1、2、4、5、6 仍未修复。
 
 已检查并复核的主要文件:
 
