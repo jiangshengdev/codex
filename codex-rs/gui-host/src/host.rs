@@ -122,16 +122,8 @@ where
     match &state.mode {
         GuiHostMode::Dev(config) => {
             let config = config.clone();
-            let runtime_error_config = config.clone();
             Ok(Router::new()
                 .route("/ws", get(crate::ws::ws_handler::<B>))
-                .route(
-                    "/__codex-gui/dev-runtime-error",
-                    get(move |uri: Uri| {
-                        let config = runtime_error_config.clone();
-                        async move { assets::dev_runtime_error_response(config, uri).await }
-                    }),
-                )
                 .fallback(get(move |uri: Uri| {
                     let config = config.clone();
                     async move { assets::proxy_vite(config, uri).await }
@@ -402,68 +394,6 @@ mod tests {
         );
 
         handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn dev_runtime_error_route_is_served_by_gui_host() {
-        let handle = start_host(NoopBackend).await;
-        let response = reqwest::get(format!(
-            "http://127.0.0.1:{}/__codex-gui/dev-runtime-error?reason=hmrDisconnected",
-            handle.local_addr().port()
-        ))
-        .await
-        .expect("runtime error route request should succeed");
-
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(
-            response
-                .headers()
-                .get("x-frame-options")
-                .expect("x-frame-options header should be present"),
-            "DENY"
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get("content-security-policy")
-                .expect("content-security-policy header should be present"),
-            "frame-ancestors 'none'"
-        );
-
-        let body = response.text().await.expect("body should be readable");
-        assert!(body.contains("Codex GUI dev runtime stopped"));
-        assert!(body.contains("HMR disconnected"));
-        assert!(!body.contains("@vite/client"));
-        assert!(!body.contains("/src/main.tsx"));
-
-        handle.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn dev_runtime_error_route_does_not_replace_proxy_error_route() {
-        let (handle, mut fake_upstream_task) =
-            start_host_with_failing_vite_upstream(NoopBackend).await;
-        let response = reqwest::get(format!(
-            "http://127.0.0.1:{}/?threadId=test",
-            handle.local_addr().port()
-        ))
-        .await
-        .expect("proxy fallback request should succeed");
-
-        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
-        let body = response.text().await.expect("body should be readable");
-        assert!(body.contains("Waiting for Vite"));
-        assert!(!body.contains("Codex GUI dev runtime stopped"));
-
-        handle.shutdown().await;
-        match tokio::time::timeout(std::time::Duration::from_secs(1), &mut fake_upstream_task).await
-        {
-            Ok(result) => result.expect("fake upstream task should complete"),
-            Err(_) => {
-                fake_upstream_task.abort();
-                panic!("fake upstream should receive proxy request");
-            }
-        }
     }
 
     #[tokio::test]
@@ -1070,40 +1000,6 @@ mod tests {
         )
         .await
         .expect("host should start")
-    }
-
-    async fn start_host_with_failing_vite_upstream<B>(
-        backend: B,
-    ) -> (crate::host::GuiHostHandle, tokio::task::JoinHandle<()>)
-    where
-        B: crate::GuiBackend + Clone,
-    {
-        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
-            .await
-            .expect("fake Vite upstream listener should bind");
-        let vite_origin = format!(
-            "http://{}",
-            listener
-                .local_addr()
-                .expect("fake Vite upstream listener should have local address")
-        );
-        let fake_upstream_task = tokio::spawn(async move {
-            let (_stream, _addr) = listener
-                .accept()
-                .await
-                .expect("fake Vite upstream should accept one connection");
-        });
-
-        let handle = GuiHost::start(
-            GuiHostConfig {
-                mode: GuiHostMode::Dev(crate::DevAssetProxyConfig { vite_origin }),
-            },
-            backend,
-        )
-        .await
-        .expect("host should start");
-
-        (handle, fake_upstream_task)
     }
 
     async fn start_advertised_host<B>(backend: B) -> crate::host::GuiHostHandle

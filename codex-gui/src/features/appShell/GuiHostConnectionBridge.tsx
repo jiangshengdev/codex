@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type {
+  GuiHostCommands,
+  GuiHostStatus,
+  LaunchParams,
+} from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
 import {
   ProjectionIngressAdapter,
@@ -19,9 +23,14 @@ import {
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
   setCommands: (commands: GuiHostCommands | null) => void;
+  setLaunchParams: (params: LaunchParams | null) => void;
 };
 
-export function GuiHostConnectionBridge({ setStatus, setCommands }: GuiHostConnectionBridgeProps) {
+export function GuiHostConnectionBridge({
+  setStatus,
+  setCommands,
+  setLaunchParams,
+}: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
@@ -57,6 +66,7 @@ export function GuiHostConnectionBridge({ setStatus, setCommands }: GuiHostConne
         replaceState: window.history.replaceState.bind(window.history),
         onStatus: setStatus,
         onLaunchParams: (params) => {
+          setLaunchParams(params);
           launchThreadId = params.threadId;
           projectionIngress = new ProjectionIngressAdapter(params.threadId);
           dispatch(launchThreadIdRecorded(params.threadId));
@@ -109,9 +119,10 @@ export function GuiHostConnectionBridge({ setStatus, setCommands }: GuiHostConne
     return () => {
       isMounted = false;
       setCommands(null);
+      setLaunchParams(null);
       cleanupConnection?.();
     };
-  }, [dispatch, setCommands, setStatus]);
+  }, [dispatch, setCommands, setLaunchParams, setStatus]);
 
   return null;
 }
