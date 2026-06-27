@@ -67,6 +67,13 @@ export type TranscriptState = {
   appliedEventOrder: string[];
 };
 
+type TranscriptChunkViewCacheEntry = {
+  revision: number;
+  view: TranscriptChunkView;
+};
+
+const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
+
 const initialState: TranscriptState = {
   threadId: null,
   subscriptionId: null,
@@ -244,6 +251,29 @@ const rebuildFromSnapshot = (
   resetState(state, nextState);
 };
 
+const selectCachedTranscriptChunkView = (
+  transcriptState: TranscriptState,
+  chunk: TranscriptChunk,
+): TranscriptChunkView => {
+  const cachedEntry = transcriptChunkViewCache.get(chunk);
+  if (cachedEntry?.revision === chunk.revision) {
+    return cachedEntry.view;
+  }
+
+  const view: TranscriptChunkView = {
+    id: chunk.id,
+    turnId: chunk.turnId,
+    revision: chunk.revision,
+    entries: chunk.entryIds.flatMap((entryId) => {
+      const entry = transcriptState.entriesById[entryId];
+      return entry == null ? [] : [entry];
+    }),
+  };
+
+  transcriptChunkViewCache.set(chunk, { revision: chunk.revision, view });
+  return view;
+};
+
 export const transcriptStateSlice = createAppSlice({
   name: "transcriptState",
   initialState,
@@ -262,15 +292,7 @@ export const transcriptStateSlice = createAppSlice({
         return null;
       }
 
-      return {
-        id: chunk.id,
-        turnId: chunk.turnId,
-        revision: chunk.revision,
-        entries: chunk.entryIds.flatMap((entryId) => {
-          const entry = transcriptState.entriesById[entryId];
-          return entry == null ? [] : [entry];
-        }),
-      };
+      return selectCachedTranscriptChunkView(transcriptState, chunk);
     },
     selectTranscriptEntry: (transcriptState, entryId: string): TranscriptEntry | null =>
       transcriptState.entriesById[entryId] ?? null,
