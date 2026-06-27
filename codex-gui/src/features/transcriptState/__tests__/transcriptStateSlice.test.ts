@@ -99,6 +99,145 @@ describe("transcript state reducer", () => {
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
   });
 
+  it("returns a stable transcript chunk view while the chunk is unchanged", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-cached", [agentMessage("agent-cached", "Cached answer")]),
+        ]),
+      ),
+    );
+
+    const firstChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
+
+    expect(firstChunk).not.toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemStarted(
+          eventItemStarted,
+          "commit-other-started",
+          "turn-other",
+          agentMessage("agent-other-started", "Started should not affect cached chunk"),
+        ),
+      ),
+    );
+
+    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-other-completed",
+          "turn-other",
+          agentMessage("agent-other-completed", "Other turn answer"),
+        ),
+      ),
+    );
+
+    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
+  });
+
+  it("returns a new transcript chunk view when that chunk changes", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-cached", [agentMessage("agent-cached", "Cached answer")]),
+        ]),
+      ),
+    );
+
+    const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-cached-append",
+          "turn-cached",
+          agentMessage("agent-cached-live", "Live answer"),
+        ),
+      ),
+    );
+
+    const afterUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
+
+    expect(afterUpdateChunk).not.toBe(beforeUpdateChunk);
+    expect(afterUpdateChunk).toStrictEqual({
+      id: "turn-cached:chunk:0",
+      turnId: "turn-cached",
+      revision: (beforeUpdateChunk?.revision ?? 0) + 1,
+      entries: [
+        {
+          type: "message",
+          id: "agent-cached",
+          turnId: "turn-cached",
+          role: "assistant",
+          source: "Cached answer",
+          sourceKind: "plainText",
+          revision: 0,
+        },
+        {
+          type: "message",
+          id: "agent-cached-live",
+          turnId: "turn-cached",
+          role: "assistant",
+          source: "Live answer",
+          sourceKind: "plainText",
+          revision: 0,
+        },
+      ],
+    });
+  });
+
+  it("does not reuse transcript chunk views across snapshot reattach", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-reattach", [agentMessage("agent-reattach", "Before reconnect")]),
+        ]),
+      ),
+    );
+
+    const beforeReattachChunk = selectTranscriptChunk(store.getState(), "turn-reattach:chunk:0");
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachReplacement, [
+          baseTurn("turn-reattach", [agentMessage("agent-reattach", "After reconnect")]),
+        ]),
+      ),
+    );
+
+    const afterReattachChunk = selectTranscriptChunk(store.getState(), "turn-reattach:chunk:0");
+
+    expect(afterReattachChunk).not.toBe(beforeReattachChunk);
+    expect(afterReattachChunk).toStrictEqual({
+      id: "turn-reattach:chunk:0",
+      turnId: "turn-reattach",
+      revision: 0,
+      entries: [
+        {
+          type: "message",
+          id: "agent-reattach",
+          turnId: "turn-reattach",
+          role: "assistant",
+          source: "After reconnect",
+          sourceKind: "plainText",
+          revision: 0,
+        },
+      ],
+    });
+  });
+
   it("sets the committed scroll commit key from accepted attach snapshots", () => {
     const store = makeStore();
 

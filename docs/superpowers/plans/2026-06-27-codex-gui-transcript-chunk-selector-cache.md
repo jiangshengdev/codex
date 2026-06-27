@@ -202,7 +202,7 @@ Expected: `which pnpm` does not print a path under `/Users/jiangsheng/.cache/cod
 Run:
 
 ```sh
-pnpm run test -- src/features/transcriptState/__tests__/transcriptStateSlice.test.ts
+pnpm run test:unit -- src/features/transcriptState/__tests__/transcriptStateSlice.test.ts
 ```
 
 Expected: FAIL on `returns a stable transcript chunk view while the chunk is unchanged`, because repeated `selectTranscriptChunk` calls currently return fresh objects.
@@ -295,7 +295,7 @@ selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView |
 Run with the already-initialized shell:
 
 ```sh
-pnpm run test -- src/features/transcriptState/__tests__/transcriptStateSlice.test.ts
+pnpm run test:unit -- src/features/transcriptState/__tests__/transcriptStateSlice.test.ts
 ```
 
 Expected: PASS for the full `transcriptStateSlice.test.ts` file.
@@ -321,7 +321,7 @@ Expected: Prettier completes and only formats the two touched files.
 Run:
 
 ```sh
-pnpm run test -- src/features/transcriptState/__tests__/transcriptStateSlice.test.ts
+pnpm run test:unit -- src/features/transcriptState/__tests__/transcriptStateSlice.test.ts
 ```
 
 Expected: PASS.
