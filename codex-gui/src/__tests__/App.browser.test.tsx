@@ -168,7 +168,9 @@ test("App displays GUI host startup errors", async () => {
 
   const screen = await renderWithProviders(<App />);
 
-  await expect.element(screen.getByRole("main")).toHaveAttribute("data-gui-host-status", "error");
+  await expect
+    .element(screen.getByRole("main"))
+    .toHaveAttribute("data-gui-host-status", "error");
   await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
   await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();

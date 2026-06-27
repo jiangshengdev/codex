@@ -34,12 +34,8 @@ export function installDevRuntimeCircuitBreaker({
     replace(`${devRuntimeErrorPath}?reason=${reason}`);
   };
 
-  hot.on("vite:ws:disconnect", () => {
-    trip("hmrDisconnected");
-  });
-  hot.on("vite:error", () => {
-    trip("viteError");
-  });
+  hot.on("vite:ws:disconnect", () => trip("hmrDisconnected"));
+  hot.on("vite:error", () => trip("viteError"));
 }
 
 export function resetDevRuntimeCircuitBreakerForTests(): void {

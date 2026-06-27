@@ -37,38 +37,38 @@ describe("installDevRuntimeCircuitBreaker", () => {
   });
 
   it("navigates once when Vite HMR disconnects", () => {
-    const devRuntime = createHot();
-    const replacements: string[] = [];
+    const { emit, hot } = createHot();
+    const replacements: Array<string> = [];
 
     installDevRuntimeCircuitBreaker({
       dev: true,
-      hot: devRuntime.hot,
+      hot,
       pathname: "/",
       replace: (url) => {
         replacements.push(url);
       },
     });
 
-    devRuntime.emit("vite:ws:disconnect");
-    devRuntime.emit("vite:ws:disconnect");
+    emit("vite:ws:disconnect");
+    emit("vite:ws:disconnect");
 
     expect(replacements).toEqual(["/__codex-gui/dev-runtime-error?reason=hmrDisconnected"]);
   });
 
   it("navigates once when Vite reports an error without copying payload", () => {
-    const devRuntime = createHot();
-    const replacements: string[] = [];
+    const { emit, hot } = createHot();
+    const replacements: Array<string> = [];
 
     installDevRuntimeCircuitBreaker({
       dev: true,
-      hot: devRuntime.hot,
+      hot,
       pathname: "/thread/test",
       replace: (url) => {
         replacements.push(url);
       },
     });
 
-    devRuntime.emit("vite:error", {
+    emit("vite:error", {
       message: "Something failed",
       stack: "Error: Something failed\n    at app.ts:1:1",
     });
@@ -77,53 +77,51 @@ describe("installDevRuntimeCircuitBreaker", () => {
   });
 
   it("lets the first Vite event win", () => {
-    const devRuntime = createHot();
-    const replacements: string[] = [];
+    const { emit, hot } = createHot();
+    const replacements: Array<string> = [];
 
     installDevRuntimeCircuitBreaker({
       dev: true,
-      hot: devRuntime.hot,
+      hot,
       pathname: "/",
       replace: (url) => {
         replacements.push(url);
       },
     });
 
-    devRuntime.emit("vite:error");
-    devRuntime.emit("vite:ws:disconnect");
+    emit("vite:error");
+    emit("vite:ws:disconnect");
 
     expect(replacements).toEqual(["/__codex-gui/dev-runtime-error?reason=viteError"]);
   });
 
   it("does not install listeners outside dev mode", () => {
-    const devRuntime = createHot();
+    const { hot, listenerCount } = createHot();
 
     installDevRuntimeCircuitBreaker({
       dev: false,
-      hot: devRuntime.hot,
+      hot,
       pathname: "/",
-      replace: () => {
-        return;
-      },
+      replace: () => {},
     });
 
-    expect(devRuntime.listenerCount()).toBe(0);
+    expect(listenerCount()).toBe(0);
   });
 
   it("does not navigate from the stable runtime error page", () => {
-    const devRuntime = createHot();
-    const replacements: string[] = [];
+    const { emit, hot } = createHot();
+    const replacements: Array<string> = [];
 
     installDevRuntimeCircuitBreaker({
       dev: true,
-      hot: devRuntime.hot,
+      hot,
       pathname: "/__codex-gui/dev-runtime-error",
       replace: (url) => {
         replacements.push(url);
       },
     });
 
-    devRuntime.emit("vite:error");
+    emit("vite:error");
 
     expect(replacements).toEqual([]);
   });
