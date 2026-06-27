@@ -64,7 +64,7 @@ rp_git() {
     done
   fi
 
-  git "$@"
+  git --no-pager "$@"
 }
 
 rp_repo_root() {
