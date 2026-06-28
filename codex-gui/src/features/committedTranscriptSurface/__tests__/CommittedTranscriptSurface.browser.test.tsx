@@ -156,6 +156,41 @@ test("renders temporary content collapsed beside the final answer once final ans
   await expect.element(screen.getByText("Hidden working note")).toBeVisible();
 });
 
+test("collapses temporary content from earlier chunks once a later chunk has a final answer", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const commentaryMessages = Array.from({ length: 101 }, (_, index) =>
+    agentMessage(
+      `agent-cross-chunk-commentary-${String(index)}`,
+      `Cross chunk working note ${String(index)}`,
+      "commentary",
+    ),
+  );
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-temporary-cross-chunk", [
+          ...commentaryMessages,
+          agentMessage(
+            "agent-cross-chunk-final",
+            "Visible final answer after chunk boundary",
+            "final_answer",
+          ),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Visible final answer after chunk boundary")).toBeVisible();
+  await expect.element(screen.getByText("Cross chunk working note 0")).not.toBeVisible();
+
+  const trigger = screen.getByRole("button", { name: "Temporary updates · 100 items" });
+  await expect.element(trigger).toBeEnabled();
+  await trigger.click();
+
+  await expect.element(screen.getByText("Cross chunk working note 0")).toBeVisible();
+});
+
 test("keeps legacy assistant messages outside the temporary disclosure", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 

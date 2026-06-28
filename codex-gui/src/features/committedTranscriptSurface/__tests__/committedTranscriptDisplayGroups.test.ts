@@ -90,4 +90,31 @@ describe("groupTranscriptEntriesForDisplay", () => {
       { type: "entry", entry: lateCommentary },
     ]);
   });
+
+  it("collapses commentary when the first final answer is in a later chunk", () => {
+    const commentary = message("commentary", "assistant", "commentary");
+
+    expect(
+      groupTranscriptEntriesForDisplay([commentary], {
+        hasFinalAnswerAfterEntries: true,
+      }),
+    ).toStrictEqual([
+      {
+        type: "temporaryModule",
+        id: "temporary:commentary",
+        entries: [commentary],
+        hasFinalAnswer: true,
+      },
+    ]);
+  });
+
+  it("does not fold commentary when the first final answer is in an earlier chunk", () => {
+    const lateCommentary = message("late-commentary", "assistant", "commentary");
+
+    expect(
+      groupTranscriptEntriesForDisplay([lateCommentary], {
+        hasFinalAnswerBeforeEntries: true,
+      }),
+    ).toStrictEqual([{ type: "entry", entry: lateCommentary }]);
+  });
 });

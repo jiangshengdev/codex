@@ -16,6 +16,11 @@ export type TranscriptTurnDisplayItem =
       entry: TranscriptEntry;
     };
 
+type GroupTranscriptEntriesForDisplayOptions = {
+  hasFinalAnswerBeforeEntries?: boolean;
+  hasFinalAnswerAfterEntries?: boolean;
+};
+
 const isAssistantMessage = (
   entry: TranscriptEntry,
 ): entry is Extract<TranscriptEntry, { type: "message" }> =>
@@ -32,13 +37,21 @@ const temporaryModuleId = (entries: TranscriptEntry[]): string =>
 
 export const groupTranscriptEntriesForDisplay = (
   entries: TranscriptEntry[],
+  options: GroupTranscriptEntriesForDisplayOptions = {},
 ): TranscriptTurnDisplayItem[] => {
-  const finalAnswerIndex = entries.findIndex(isFinalAnswer);
-  const hasFinalAnswer = finalAnswerIndex !== -1;
-  const temporaryBoundary = hasFinalAnswer ? finalAnswerIndex : entries.length;
-  const temporaryEntries = entries
-    .slice(0, temporaryBoundary)
-    .filter(isTemporaryBeforeFinalAnswer);
+  const finalAnswerIndex = options.hasFinalAnswerBeforeEntries
+    ? -1
+    : entries.findIndex(isFinalAnswer);
+  const hasFinalAnswer =
+    options.hasFinalAnswerBeforeEntries === true ||
+    finalAnswerIndex !== -1 ||
+    options.hasFinalAnswerAfterEntries === true;
+  const temporaryBoundary = options.hasFinalAnswerBeforeEntries
+    ? 0
+    : finalAnswerIndex !== -1
+      ? finalAnswerIndex
+      : entries.length;
+  const temporaryEntries = entries.slice(0, temporaryBoundary).filter(isTemporaryBeforeFinalAnswer);
 
   const firstTemporaryIndex = entries.findIndex(
     (entry, index) => index < temporaryBoundary && isTemporaryBeforeFinalAnswer(entry),

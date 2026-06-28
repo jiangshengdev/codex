@@ -60,6 +60,9 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
 const temporaryUpdatesLabel = (count: number): string =>
   `Temporary updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
+const isFinalAnswerEntry = (entry: TranscriptEntry): boolean =>
+  entry.type === "message" && entry.role === "assistant" && entry.phase === "final_answer";
+
 const TemporaryTranscriptModule = ({
   entries,
   hasFinalAnswer,
@@ -104,41 +107,54 @@ const TemporaryTranscriptModule = ({
   );
 };
 
-const CommittedTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
-  const chunk = useAppSelector(
-    (state) => selectTranscriptChunk(state, chunkId),
-    areTranscriptChunkViewsEqual,
-  );
+const CommittedTranscriptChunk = memo(
+  ({
+    chunkId,
+    hasFinalAnswerBeforeChunk,
+    hasFinalAnswerAfterChunk,
+  }: {
+    chunkId: string;
+    hasFinalAnswerBeforeChunk: boolean;
+    hasFinalAnswerAfterChunk: boolean;
+  }) => {
+    const chunk = useAppSelector(
+      (state) => selectTranscriptChunk(state, chunkId),
+      areTranscriptChunkViewsEqual,
+    );
 
-  if (chunk == null || chunk.entries.length === 0) {
-    return null;
-  }
+    if (chunk == null || chunk.entries.length === 0) {
+      return null;
+    }
 
-  const displayItems = groupTranscriptEntriesForDisplay(chunk.entries);
+    const displayItems = groupTranscriptEntriesForDisplay(chunk.entries, {
+      hasFinalAnswerBeforeEntries: hasFinalAnswerBeforeChunk,
+      hasFinalAnswerAfterEntries: hasFinalAnswerAfterChunk,
+    });
 
-  return (
-    <div className="committed-transcript-chunk grid min-w-0 gap-3">
-      {displayItems.map((item) => {
-        switch (item.type) {
-          case "entry":
-          case "finalAnswer":
-            return <CommittedTranscriptEntry key={item.entry.id} entry={item.entry} />;
-          case "temporaryModule":
-            return (
-              <TemporaryTranscriptModule
-                entries={item.entries}
-                hasFinalAnswer={item.hasFinalAnswer}
-                key={item.id}
-              />
-            );
-        }
+    return (
+      <div className="committed-transcript-chunk grid min-w-0 gap-3">
+        {displayItems.map((item) => {
+          switch (item.type) {
+            case "entry":
+            case "finalAnswer":
+              return <CommittedTranscriptEntry key={item.entry.id} entry={item.entry} />;
+            case "temporaryModule":
+              return (
+                <TemporaryTranscriptModule
+                  entries={item.entries}
+                  hasFinalAnswer={item.hasFinalAnswer}
+                  key={item.id}
+                />
+              );
+          }
 
-        const exhaustiveItem: never = item;
-        return exhaustiveItem;
-      })}
-    </div>
-  );
-});
+          const exhaustiveItem: never = item;
+          return exhaustiveItem;
+        })}
+      </div>
+    );
+  },
+);
 
 CommittedTranscriptChunk.displayName = "CommittedTranscriptChunk";
 
@@ -160,6 +176,16 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
     (state) => selectTranscriptChunkIdsForTurn(state, turnId),
     areStringArraysEqual,
   );
+  const firstFinalAnswerChunkIndex = useAppSelector((state) => {
+    for (const [index, chunkId] of chunkIds.entries()) {
+      const chunk = selectTranscriptChunk(state, chunkId);
+      if (chunk?.entries.some(isFinalAnswerEntry) === true) {
+        return index;
+      }
+    }
+
+    return null;
+  });
 
   if (turn == null || chunkIds.length === 0) {
     return null;
@@ -183,8 +209,17 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
           {turn.status}
         </Chip>
       </div>
-      {chunkIds.map((chunkId) => (
-        <CommittedTranscriptChunk key={chunkId} chunkId={chunkId} />
+      {chunkIds.map((chunkId, index) => (
+        <CommittedTranscriptChunk
+          chunkId={chunkId}
+          hasFinalAnswerAfterChunk={
+            firstFinalAnswerChunkIndex != null && index < firstFinalAnswerChunkIndex
+          }
+          hasFinalAnswerBeforeChunk={
+            firstFinalAnswerChunkIndex != null && index > firstFinalAnswerChunkIndex
+          }
+          key={chunkId}
+        />
       ))}
     </article>
   );
