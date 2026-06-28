@@ -112,3 +112,67 @@ test("renders manual reconnect interruption status", async () => {
     .element(screen.getByText("Connection interrupted. Reconnect required."))
     .toBeVisible();
 });
+
+test("renders temporary content forced open until a final answer exists", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-temporary-open", [
+          agentMessage("agent-commentary-open", "Working before final", "commentary"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Working before final")).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Temporary updates · 1 item" }))
+    .toBeDisabled();
+});
+
+test("renders temporary content collapsed beside the final answer once final answer exists", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-temporary-collapsed", [
+          agentMessage("agent-commentary-collapsed", "Hidden working note", "commentary"),
+          agentMessage("agent-final-collapsed", "Visible final answer", "final_answer"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  await expect.element(screen.getByText("Hidden working note")).not.toBeVisible();
+
+  const trigger = screen.getByRole("button", { name: "Temporary updates · 1 item" });
+  await expect.element(trigger).toBeEnabled();
+  await trigger.click();
+
+  await expect.element(screen.getByText("Hidden working note")).toBeVisible();
+});
+
+test("keeps legacy assistant messages outside the temporary disclosure", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-legacy-phase", [
+          agentMessage("agent-legacy", "Legacy assistant text", null),
+          agentMessage("agent-final-legacy", "Final after legacy", "final_answer"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Legacy assistant text")).toBeVisible();
+  await expect.element(screen.getByText("Final after legacy")).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Temporary updates · 1 item" }))
+    .not.toBeInTheDocument();
+});

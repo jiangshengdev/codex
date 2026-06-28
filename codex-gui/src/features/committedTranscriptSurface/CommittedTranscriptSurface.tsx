@@ -1,5 +1,5 @@
-import { memo } from "react";
-import { Alert, Card, Chip, Typography } from "@heroui/react";
+import { memo, useState } from "react";
+import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
 import { useAppSelector } from "@/app/hooks";
 import {
   selectTranscriptChunk,
@@ -10,6 +10,7 @@ import {
   type TranscriptEntry,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
+import { groupTranscriptEntriesForDisplay } from "./committedTranscriptDisplayGroups";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
 
@@ -56,6 +57,53 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
   </Card>
 );
 
+const temporaryUpdatesLabel = (count: number): string =>
+  `Temporary updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
+
+const TemporaryTranscriptModule = ({
+  entries,
+  hasFinalAnswer,
+}: {
+  entries: TranscriptEntry[];
+  hasFinalAnswer: boolean;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const label = temporaryUpdatesLabel(entries.length);
+  const shouldShowEntries = !hasFinalAnswer || isExpanded;
+
+  return (
+    <Disclosure
+      className="committed-transcript-temporary-module grid min-w-0 gap-2"
+      isDisabled={!hasFinalAnswer}
+      isExpanded={!hasFinalAnswer || isExpanded}
+      onExpandedChange={setIsExpanded}
+    >
+      <Disclosure.Heading>
+        <Button
+          className="committed-transcript-temporary-trigger justify-between"
+          slot="trigger"
+          variant="secondary"
+        >
+          {label}
+          <Disclosure.Indicator />
+        </Button>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <Disclosure.Body className="pt-3">
+          <div
+            className="grid min-w-0 gap-3"
+            style={{ display: shouldShowEntries ? undefined : "none" }}
+          >
+            {entries.map((entry) => (
+              <CommittedTranscriptEntry key={entry.id} entry={entry} />
+            ))}
+          </div>
+        </Disclosure.Body>
+      </Disclosure.Content>
+    </Disclosure>
+  );
+};
+
 const CommittedTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
   const chunk = useAppSelector(
     (state) => selectTranscriptChunk(state, chunkId),
@@ -66,11 +114,28 @@ const CommittedTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
     return null;
   }
 
+  const displayItems = groupTranscriptEntriesForDisplay(chunk.entries);
+
   return (
     <div className="committed-transcript-chunk grid min-w-0 gap-3">
-      {chunk.entries.map((entry) => (
-        <CommittedTranscriptEntry key={entry.id} entry={entry} />
-      ))}
+      {displayItems.map((item) => {
+        switch (item.type) {
+          case "entry":
+          case "finalAnswer":
+            return <CommittedTranscriptEntry key={item.entry.id} entry={item.entry} />;
+          case "temporaryModule":
+            return (
+              <TemporaryTranscriptModule
+                entries={item.entries}
+                hasFinalAnswer={item.hasFinalAnswer}
+                key={item.id}
+              />
+            );
+        }
+
+        const exhaustiveItem: never = item;
+        return exhaustiveItem;
+      })}
     </div>
   );
 });
