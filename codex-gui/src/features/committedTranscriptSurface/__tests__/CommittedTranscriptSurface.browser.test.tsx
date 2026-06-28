@@ -156,7 +156,7 @@ test("renders temporary content collapsed beside the final answer once final ans
   await expect.element(screen.getByText("Hidden working note")).toBeVisible();
 });
 
-test("collapses temporary content from earlier chunks once a later chunk has a final answer", async () => {
+test("renders one collapsed temporary module for a turn split across chunks", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
   const commentaryMessages = Array.from({ length: 101 }, (_, index) =>
     agentMessage(
@@ -184,7 +184,14 @@ test("collapses temporary content from earlier chunks once a later chunk has a f
   await expect.element(screen.getByText("Visible final answer after chunk boundary")).toBeVisible();
   await expect.element(screen.getByText("Cross chunk working note 0")).not.toBeVisible();
 
-  const trigger = screen.getByRole("button", { name: "Temporary updates · 100 items" });
+  const triggers = Array.from(
+    document.querySelectorAll<HTMLButtonElement>(".committed-transcript-temporary-trigger"),
+  );
+  expect(triggers.map((trigger) => trigger.textContent)).toStrictEqual([
+    "Temporary updates · 101 items",
+  ]);
+
+  const trigger = screen.getByRole("button", { name: "Temporary updates · 101 items" });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
