@@ -125,7 +125,24 @@ materialize 更好。但 selector 和顶层状态更新仍把部分成本重新�
 - 覆盖测试已加入 `codex-gui/src/features/transcriptState/__tests__/transcriptStateSlice.test.ts`,
   包括 unchanged chunk 引用稳定、chunk 变更后失效、snapshot reattach 不复用旧 view。
 - 验证通过:`pnpm run ci`。
-- 建议方向 1、2、4、5、6 仍未修复。
+
+2026-06-28 更新:
+
+- 建议方向 1 已修复:`GuiHostStatus` 已收窄为 lifecycle-only 状态,`thread/projection/event`
+  和 `thread/projection/closed` 不再通过 `onStatus` 推动 `App` 顶层 React state 更新。
+  projection payload 继续通过 `onProjectionEvent` / `onProjectionClosed` 进入
+  `ProjectionIngressAdapter` 和 Redux 路径。
+- 建议方向 2 已修复:`ComposerTurnControl` 不再订阅完整 `selectThreadRuntimeRecord` 或
+  `selectThreadRuntimeSubscription`,改为订阅 primitive selectors:
+  `selectThreadRuntimeThreadId`、`selectThreadRuntimeActiveTurnId` 和
+  `selectThreadRuntimeSubscriptionState`。composer command payload 继续使用当前
+  `threadId` / `activeTurnId`。
+- 覆盖测试已更新 `guiHostClient`, `threadRuntimeSlice`, `composerTurnControlModel`,
+  `ComposerTurnControl.browser`, `App.browser` 和 `e2e/app.spec.ts`,旧
+  `received event` / `eventCount` / `lastEventType` 测试契约已移除。
+- 验证通过:`pnpm run type-check`; focused unit tests; focused browser tests;
+  `pnpm run test:e2e -- e2e/app.spec.ts`; `pnpm run format:prettier`; `pnpm run lint`。
+- 建议方向 4、5、6 仍未修复。
 
 已检查并复核的主要文件:
 
