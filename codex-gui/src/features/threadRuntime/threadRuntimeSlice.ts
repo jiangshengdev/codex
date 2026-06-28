@@ -123,6 +123,9 @@ export const threadRuntimeSlice = createAppSlice({
     selectThreadRuntimeRecord: (threadRuntime) => threadRuntime.current,
     selectThreadRuntimeActiveTurnId: (threadRuntime) => threadRuntime.current?.activeTurnId ?? null,
     selectThreadRuntimeSubscription: (threadRuntime) => threadRuntime.current?.subscription ?? null,
+    selectThreadRuntimeThreadId: (threadRuntime) => threadRuntime.current?.threadId ?? null,
+    selectThreadRuntimeSubscriptionState: (threadRuntime) =>
+      threadRuntime.current?.subscription.state ?? null,
     selectThreadRuntimeEventBuffer: (threadRuntime) =>
       threadRuntime.current?.eventBuffer ?? EMPTY_EVENT_BUFFER,
   },
@@ -139,6 +142,8 @@ export const {
   selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
   selectThreadRuntimeSubscription,
+  selectThreadRuntimeSubscriptionState,
+  selectThreadRuntimeThreadId,
 } = threadRuntimeSlice.selectors;
 
 export default threadRuntimeSlice;

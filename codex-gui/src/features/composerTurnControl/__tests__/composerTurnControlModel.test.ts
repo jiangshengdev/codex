@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
-import { runtimeFromAttach } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   buildPlainTextInput,
   canSend,
@@ -12,11 +10,7 @@ import {
 
 const attachedStatus: GuiHostStatus = {
   label: "attached",
-  eventCount: 0,
-  lastEventType: null,
 };
-
-const runtime = runtimeFromAttach(attachBaseline);
 
 describe("composerTurnControlModel", () => {
   it("builds plain text UserInput with text_elements", () => {
@@ -27,13 +21,13 @@ describe("composerTurnControlModel", () => {
     });
   });
 
-  it("requires attached identity, active subscription, runtime, and usable host status", () => {
+  it("requires attached identity, active subscription, thread id, and usable host status", () => {
     expect(
       isConnectionUsable({
         canAdvanceThreadIdentity: true,
         guiHostStatus: attachedStatus,
-        runtime,
-        subscription: { state: "active" },
+        threadId: "thread-1",
+        subscriptionState: "active",
       }),
     ).toBe(true);
 
@@ -41,8 +35,8 @@ describe("composerTurnControlModel", () => {
       isConnectionUsable({
         canAdvanceThreadIdentity: false,
         guiHostStatus: attachedStatus,
-        runtime,
-        subscription: { state: "active" },
+        threadId: "thread-1",
+        subscriptionState: "active",
       }),
     ).toBe(false);
 
@@ -50,21 +44,26 @@ describe("composerTurnControlModel", () => {
       isConnectionUsable({
         canAdvanceThreadIdentity: true,
         guiHostStatus: attachedStatus,
-        runtime,
-        subscription: {
-          state: "manualReconnectRequired",
-          reason: "backpressure",
-          subscriptionId: "sub-1",
-        },
+        threadId: null,
+        subscriptionState: "active",
       }),
     ).toBe(false);
 
     expect(
       isConnectionUsable({
         canAdvanceThreadIdentity: true,
-        guiHostStatus: { label: "error", eventCount: 0, lastEventType: null, message: "boom" },
-        runtime,
-        subscription: { state: "active" },
+        guiHostStatus: attachedStatus,
+        threadId: "thread-1",
+        subscriptionState: "manualReconnectRequired",
+      }),
+    ).toBe(false);
+
+    expect(
+      isConnectionUsable({
+        canAdvanceThreadIdentity: true,
+        guiHostStatus: { label: "error", message: "boom" },
+        threadId: "thread-1",
+        subscriptionState: "active",
       }),
     ).toBe(false);
   });

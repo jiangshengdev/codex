@@ -10,8 +10,6 @@ import type {
 function App() {
   const [status, setStatus] = useState<GuiHostStatus>({
     label: "connecting",
-    eventCount: 0,
-    lastEventType: null,
   });
   const [commands, setCommands] = useState<GuiHostCommands | null>(null);
   const [launchParams, setLaunchParams] = useState<LaunchParams | null>(null);

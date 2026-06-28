@@ -1,15 +1,12 @@
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import type {
-  ThreadRuntimeRecord,
-  ThreadRuntimeSubscription,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ThreadRuntimeSubscription } from "@/features/threadRuntime/threadRuntimeSlice";
 import type { UserInput } from "@codex-protocol/v2";
 
 export type ComposerAvailabilityInput = {
   canAdvanceThreadIdentity: boolean;
   guiHostStatus: GuiHostStatus;
-  runtime: ThreadRuntimeRecord | null;
-  subscription: ThreadRuntimeSubscription | null;
+  threadId: string | null;
+  subscriptionState: ThreadRuntimeSubscription["state"] | null;
 };
 
 export function buildPlainTextInput(text: string): UserInput {
@@ -19,8 +16,8 @@ export function buildPlainTextInput(text: string): UserInput {
 export function isConnectionUsable(input: ComposerAvailabilityInput): boolean {
   return (
     input.canAdvanceThreadIdentity &&
-    input.runtime != null &&
-    input.subscription?.state === "active" &&
+    input.threadId != null &&
+    input.subscriptionState === "active" &&
     input.guiHostStatus.label !== "error" &&
     input.guiHostStatus.label !== "closed"
   );
