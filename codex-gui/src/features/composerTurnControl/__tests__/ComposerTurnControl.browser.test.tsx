@@ -19,7 +19,7 @@ import {
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
-const attachedStatus: GuiHostStatus = { label: "attached", eventCount: 0, lastEventType: null };
+const attachedStatus: GuiHostStatus = { label: "attached" };
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
 
@@ -73,7 +73,7 @@ test("disables controls before attach", async () => {
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={createGuiHostCommands()}
-        guiHostStatus={{ label: "connecting", eventCount: 0, lastEventType: null }}
+        guiHostStatus={{ label: "connecting" }}
         launchParams={null}
       />
     </>,

@@ -4,7 +4,6 @@ import {
   attachResponse,
   attachWithCommittedMessages,
   createGuiHostCommands,
-  emitGuiHostStatus,
   emitProjectionClosed,
   emitProjectionEvent,
   getCleanupConnectionCallCount,
@@ -147,18 +146,21 @@ test("App keeps the transcript surface flush with the shell padding", async () =
   expect(surface.classList.contains("sm:p-6")).toBe(false);
 });
 
-test("App keeps host status as a test hook instead of visible shell content", async () => {
+test("App keeps host lifecycle status stable while projection events update runtime", async () => {
   const screen = await renderWithProviders(<App />);
+  const { store } = screen;
+  const options = getHostOptions(startGuiHostConnectionMock);
 
-  emitGuiHostStatus({
-    label: "received event",
-    eventCount: 2,
-    lastEventType: "turnStarted",
-  });
+  attachProjection(options);
+  markHostAttached(options);
+  emitProjectionEvent(options, eventTurnStarted);
 
   await expect
     .element(screen.getByRole("main"))
-    .toHaveAttribute("data-gui-host-status", "received event");
+    .toHaveAttribute("data-gui-host-status", "attached");
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
+    { type: "projectionEvent", notification: eventTurnStarted },
+  ]);
 });
 
 test("App displays GUI host startup errors", async () => {
@@ -285,11 +287,7 @@ test("App shows a QR access popover before the Stop button", async () => {
 
 test("App disables QR access when launch params are unavailable", async () => {
   startGuiHostConnectionMock.mockImplementation((options) => {
-    options.onStatus?.({
-      label: "connecting",
-      eventCount: 0,
-      lastEventType: null,
-    });
+    options.onStatus?.({ label: "connecting" });
     return () => undefined;
   });
 

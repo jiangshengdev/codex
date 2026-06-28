@@ -17,13 +17,12 @@ import {
 } from "./guiHostProtocol";
 
 export type GuiHostStatus =
-  | { label: "connecting"; eventCount: number; lastEventType: null }
-  | { label: "authenticated"; eventCount: number; lastEventType: null }
-  | { label: "initialized"; eventCount: number; lastEventType: null }
-  | { label: "attached"; eventCount: number; lastEventType: null }
-  | { label: "received event"; eventCount: number; lastEventType: string }
-  | { label: "closed"; eventCount: number; lastEventType: null }
-  | { label: "error"; eventCount: number; lastEventType: null; message: string };
+  | { label: "connecting" }
+  | { label: "authenticated" }
+  | { label: "initialized" }
+  | { label: "attached" }
+  | { label: "closed" }
+  | { label: "error"; message: string };
 
 export type LaunchParams = {
   threadId: string;
@@ -107,7 +106,6 @@ export function startGuiHostConnection({
   onLaunchParams?.(launchParams);
 
   const socket = createWebSocket(`${webSocketProtocol(location)}://${location.host}/ws`);
-  let eventCount = 0;
   let terminalError = false;
   let closed = false;
   let nextRequestId = 1;
@@ -127,7 +125,7 @@ export function startGuiHostConnection({
     onStatus?.(status);
   };
 
-  emit({ label: "connecting", eventCount, lastEventType: null });
+  emit({ label: "connecting" });
 
   const rejectPendingRequests = (reason: string): void => {
     const error = new Error(reason);
@@ -145,8 +143,6 @@ export function startGuiHostConnection({
   const emitProtocolError = (message: string): void => {
     emit({
       label: "error",
-      eventCount,
-      lastEventType: null,
       message,
     });
     rejectPendingRequests("GUI host WebSocket is not available");
@@ -219,8 +215,6 @@ export function startGuiHostConnection({
     rejectPendingRequests("GUI host WebSocket is not available");
     emit({
       label: "error",
-      eventCount,
-      lastEventType: null,
       message: "GUI host WebSocket failed",
     });
   };
@@ -228,14 +222,12 @@ export function startGuiHostConnection({
   socket.onclose = (event) => {
     rejectPendingRequests("GUI host WebSocket is not available");
     if (event.code === 1000) {
-      emit({ label: "closed", eventCount, lastEventType: null });
+      emit({ label: "closed" });
       return;
     }
 
     emit({
       label: "error",
-      eventCount,
-      lastEventType: null,
       message: `GUI host WebSocket closed (code=${String(event.code)}${event.reason ? `, reason=${event.reason}` : ""})`,
     });
   };
@@ -288,7 +280,7 @@ export function startGuiHostConnection({
     }
 
     if (message.id === 1 && message.result?.authenticated === true) {
-      emit({ label: "authenticated", eventCount, lastEventType: null });
+      emit({ label: "authenticated" });
       startHandshakeRequest("initialize", {
         clientInfo: { name: "codex-gui", version: "0.0.0" },
         capabilities: {},
@@ -302,7 +294,7 @@ export function startGuiHostConnection({
         return;
       }
 
-      emit({ label: "initialized", eventCount, lastEventType: null });
+      emit({ label: "initialized" });
       startHandshakeRequest("thread/projection/attach", { threadId });
       return;
     }
@@ -325,7 +317,7 @@ export function startGuiHostConnection({
       }
 
       onProjectionAttached?.(message.result);
-      emit({ label: "attached", eventCount, lastEventType: null });
+      emit({ label: "attached" });
       commandsReady = true;
       onCommandsReady?.(commands);
       return;
@@ -341,13 +333,7 @@ export function startGuiHostConnection({
       }
 
       const notification = message.params;
-      eventCount += 1;
       onProjectionEvent?.(notification);
-      emit({
-        label: "received event",
-        eventCount,
-        lastEventType: notification.event.type,
-      });
     }
 
     if (message.method === "thread/projection/closed") {
@@ -360,13 +346,7 @@ export function startGuiHostConnection({
       }
 
       const notification = message.params;
-      eventCount += 1;
       onProjectionClosed?.(notification);
-      emit({
-        label: "received event",
-        eventCount,
-        lastEventType: "projectionClosed",
-      });
     }
   };
 

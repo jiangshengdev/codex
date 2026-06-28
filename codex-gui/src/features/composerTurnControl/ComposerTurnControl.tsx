@@ -10,8 +10,8 @@ import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectThreadRuntimeActiveTurnId,
-  selectThreadRuntimeRecord,
-  selectThreadRuntimeSubscription,
+  selectThreadRuntimeSubscriptionState,
+  selectThreadRuntimeThreadId,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   buildPlainTextInput,
@@ -35,17 +35,17 @@ export function ComposerTurnControl({
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
-  const runtime = useAppSelector(selectThreadRuntimeRecord);
+  const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
-  const subscription = useAppSelector(selectThreadRuntimeSubscription);
+  const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
 
   const connectionUsable =
     commands != null &&
     isConnectionUsable({
       canAdvanceThreadIdentity,
       guiHostStatus,
-      runtime,
-      subscription,
+      threadId,
+      subscriptionState,
     });
   const sendEnabled = canSend({
     connectionUsable,
@@ -59,7 +59,7 @@ export function ComposerTurnControl({
   });
 
   const submit = async (): Promise<void> => {
-    if (!sendEnabled || runtime == null || commands == null) {
+    if (!sendEnabled || threadId == null || commands == null) {
       return;
     }
 
@@ -67,7 +67,7 @@ export function ComposerTurnControl({
     setIsSending(true);
     try {
       await commands.startTurn({
-        threadId: runtime.threadId,
+        threadId,
         clientUserMessageId: null,
         input: [buildPlainTextInput(submittedDraft)],
       });
@@ -82,13 +82,13 @@ export function ComposerTurnControl({
   };
 
   const stop = async (): Promise<void> => {
-    if (!stopEnabled || runtime == null || activeTurnId == null || commands == null) {
+    if (!stopEnabled || threadId == null || activeTurnId == null || commands == null) {
       return;
     }
 
     try {
       await commands.interruptTurn({
-        threadId: runtime.threadId,
+        threadId,
         turnId: activeTurnId,
       });
     } catch (error) {

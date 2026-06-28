@@ -1,7 +1,6 @@
 import { vi } from "vitest";
 import type {
   GuiHostCommands,
-  GuiHostStatus,
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
 import {
@@ -28,7 +27,6 @@ export type StartGuiHostConnectionMock = {
 export const attachResponse: ThreadProjectionAttachResponse = attachBaseline;
 export const launchThreadId = attachResponse.snapshot.thread.id;
 
-let emitStatus: ((status: GuiHostStatus) => void) | undefined;
 let cleanupConnectionCallCount = 0;
 
 export const createGuiHostCommands = (): GuiHostCommands => ({
@@ -51,20 +49,14 @@ export const attachWithCommittedMessages = (): ThreadProjectionAttachResponse =>
 export const resetAppBrowserTestSupport = (
   startGuiHostConnectionMock: StartGuiHostConnectionMock,
 ): void => {
-  emitStatus = undefined;
   cleanupConnectionCallCount = 0;
   startGuiHostConnectionMock.mockReset();
   startGuiHostConnectionMock.mockImplementation((options) => {
     options.onLaunchParams?.({ threadId: launchThreadId, token: "secret" });
-    emitStatus = options.onStatus;
     return () => {
       cleanupConnectionCallCount += 1;
     };
   });
-};
-
-export const emitGuiHostStatus = (status: GuiHostStatus): void => {
-  emitStatus?.(status);
 };
 
 export const getCleanupConnectionCallCount = (): number => cleanupConnectionCallCount;
@@ -88,7 +80,7 @@ export const attachProjection = (
 };
 
 export const markHostAttached = (options: StartGuiHostConnectionOptions): void => {
-  options.onStatus?.({ label: "attached", eventCount: 0, lastEventType: null });
+  options.onStatus?.({ label: "attached" });
 };
 
 export const markCommandsReady = (
