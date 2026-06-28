@@ -32,6 +32,20 @@ description: Use only when debugging the Codex GUI with playwright-cli in a visi
 node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<launch_gui 返回的 LAN URL；没有 LAN 或 LAN 不可用时使用 Local URL>'
 ```
 
+## React inspector
+
+读取当前 `playwright-cli` 控制页面的 React fiber tree：
+
+```bash
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --max-depth 4
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --max-depth 4
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --path 0.1.3 --max-depth 4
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --include-values
+```
+
+脚本只检查当前已打开页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。默认用于通用浅层发现，不内置 `codex-gui` 组件名；深入时使用 `--component`、`--path`、`--max-depth`。当前脚本只负责 React inspection；Redux inspection 后续独立设计，不混入这个入口。
+
 运行方式：
 
 - 先由 Codex 外层调用 `launch_gui` 获取当前 GUI URL。
