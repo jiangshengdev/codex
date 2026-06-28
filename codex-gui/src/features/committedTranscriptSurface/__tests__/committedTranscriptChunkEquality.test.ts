@@ -75,6 +75,15 @@ describe("areTranscriptChunkViewsEqual", () => {
     ).toBe(false);
   });
 
+  it("detects message phase changes when entry id and revision match", () => {
+    expect(
+      areTranscriptChunkViewsEqual(
+        chunk({ entries: [entry("entry-1", 0)] }),
+        chunk({ entries: [{ ...entry("entry-1", 0), phase: "commentary" }] }),
+      ),
+    ).toBe(false);
+  });
+
   it("compares nullable chunk views", () => {
     expect(areTranscriptChunkViewsEqual(null, null)).toBe(true);
     expect(areTranscriptChunkViewsEqual(null, chunk())).toBe(false);

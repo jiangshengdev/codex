@@ -56,6 +56,24 @@ describe("groupTranscriptEntriesForDisplay", () => {
     ]);
   });
 
+  it("groups multiple pre-final commentary entries into one temporary module", () => {
+    const firstCommentary = message("commentary-1", "assistant", "commentary");
+    const secondCommentary = message("commentary-2", "assistant", "commentary");
+    const finalAnswer = message("final", "assistant", "final_answer");
+
+    expect(
+      groupTranscriptEntriesForDisplay([firstCommentary, secondCommentary, finalAnswer]),
+    ).toStrictEqual([
+      {
+        type: "temporaryModule",
+        id: "temporary:commentary-1:commentary-2",
+        entries: [firstCommentary, secondCommentary],
+        hasFinalAnswer: true,
+      },
+      { type: "finalAnswer", entry: finalAnswer },
+    ]);
+  });
+
   it("passes status entries through without folding them into temporary content", () => {
     const interrupted = status("interrupted");
     const commentary = message("commentary", "assistant", "commentary");
@@ -89,32 +107,5 @@ describe("groupTranscriptEntriesForDisplay", () => {
       { type: "finalAnswer", entry: finalAnswer },
       { type: "entry", entry: lateCommentary },
     ]);
-  });
-
-  it("collapses commentary when the first final answer is in a later chunk", () => {
-    const commentary = message("commentary", "assistant", "commentary");
-
-    expect(
-      groupTranscriptEntriesForDisplay([commentary], {
-        hasFinalAnswerAfterEntries: true,
-      }),
-    ).toStrictEqual([
-      {
-        type: "temporaryModule",
-        id: "temporary:commentary",
-        entries: [commentary],
-        hasFinalAnswer: true,
-      },
-    ]);
-  });
-
-  it("does not fold commentary when the first final answer is in an earlier chunk", () => {
-    const lateCommentary = message("late-commentary", "assistant", "commentary");
-
-    expect(
-      groupTranscriptEntriesForDisplay([lateCommentary], {
-        hasFinalAnswerBeforeEntries: true,
-      }),
-    ).toStrictEqual([{ type: "entry", entry: lateCommentary }]);
   });
 });
