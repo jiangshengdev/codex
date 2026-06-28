@@ -49,6 +49,31 @@ test("renders committed user and assistant messages from an attached baseline", 
   await expect.element(screen.getByText("Committed response")).toBeVisible();
 });
 
+test("updates committed message text after snapshot reattach with stable ids", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-reattach", [agentMessage("agent-reattach", "Before reconnect")]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Before reconnect")).toBeVisible();
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-reattach", [agentMessage("agent-reattach", "After reconnect")]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Before reconnect")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("After reconnect")).toBeVisible();
+});
+
 test("renders live completed items without rendering started items", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 

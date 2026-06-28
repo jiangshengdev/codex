@@ -6,12 +6,26 @@ const areTranscriptChunkEntriesEqual = (
   previous: TranscriptChunkEntry,
   next: TranscriptChunkEntry | undefined,
 ): boolean => {
-  if (next?.id !== previous.id || previous.revision !== next.revision) {
+  if (
+    next?.type !== previous.type ||
+    next.id !== previous.id ||
+    next.turnId !== previous.turnId ||
+    previous.revision !== next.revision
+  ) {
     return false;
   }
 
   if (previous.type === "message" && next.type === "message") {
-    return previous.phase === next.phase;
+    return (
+      previous.role === next.role &&
+      previous.source === next.source &&
+      previous.sourceKind === next.sourceKind &&
+      previous.phase === next.phase
+    );
+  }
+
+  if (previous.type === "status" && next.type === "status") {
+    return previous.status === next.status;
   }
 
   return true;
