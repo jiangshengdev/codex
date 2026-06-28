@@ -133,10 +133,7 @@ describe("guiHostClient", () => {
       "initialize",
       "thread/projection/attach",
     ]);
-    expect(statuses).toContain("authenticated");
-    expect(statuses).toContain("initialized");
-    expect(statuses).toContain("attached");
-    expect(statuses).toContain("received event");
+    expect(statuses).toEqual(["connecting", "authenticated", "initialized", "attached"]);
     expect(launchParams).toEqual([
       { threadId: attachResponse.snapshot.thread.id, token: "secret" },
     ]);

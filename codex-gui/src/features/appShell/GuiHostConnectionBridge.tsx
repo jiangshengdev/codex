@@ -109,8 +109,6 @@ export function GuiHostConnectionBridge({
         setCommands(null);
         setStatus({
           label: "error",
-          eventCount: 0,
-          lastEventType: null,
           message: error instanceof Error ? error.message : String(error),
         });
       });
