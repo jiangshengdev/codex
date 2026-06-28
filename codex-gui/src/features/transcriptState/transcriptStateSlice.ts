@@ -5,7 +5,7 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import type { Turn, TurnStatus } from "@codex-protocol/v2";
+import type { ThreadItem, Turn, TurnStatus } from "@codex-protocol/v2";
 import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
 
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
@@ -20,6 +20,8 @@ export type TranscriptChunk = {
   revision: number;
 };
 
+export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
+
 export type TranscriptEntry =
   | {
       type: "message";
@@ -28,6 +30,7 @@ export type TranscriptEntry =
       role: "user" | "assistant";
       source: string;
       sourceKind: "plainText" | "markdown";
+      phase: TranscriptMessagePhase;
       revision: number;
     }
   | {
