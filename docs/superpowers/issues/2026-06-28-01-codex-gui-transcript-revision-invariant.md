@@ -69,3 +69,26 @@ chunk 在无关 store 更新后直接复用旧 view, 避免重新 materialize `e
 - 确认不会存在绕过 `upsertLiveCommittedEntry` 直接改写 `entriesById` 的路径。
 - 如果未来新增 transcript entry 类型或渲染字段, 必须同步确认 revision bump 规则。
 - 如果无法保证这个 invariant, 再回到设计层讨论删除 `revision` 并重做缓存失效机制。
+
+## 追加问题: temporary module id 生成引入额外扫描
+
+`temporaryModuleId(entries)` 通过 `entries.map((entry) => entry.id).join(":")` 生成模块 id。
+这会在展示分组路径上为每个 temporary module 再扫描一遍 entries。
+
+该 id 只是 UI 分组后的 key/id, 不应该成为额外的 per-render 线性成本来源。尤其在 transcript
+surface 已经围绕 chunk、entry 和 revision 做缓存设计的前提下, 再在 view-model grouping
+阶段用 `map + join` 拼接 id, 会把本可以由稳定边界表达的身份重新变成数组遍历。
+
+这类逻辑的问题不只是单次成本, 而是它出现在容易被频繁执行的渲染派生路径里:
+
+- entries 数量越多, id 生成成本越高。
+- temporary module 越多, 重复扫描越多。
+- 如果 grouping 在 store 更新或 React render 中反复执行, 该成本会被放大。
+
+推荐方向:
+
+1. temporary module id 应来自已有稳定边界, 例如第一个/最后一个 entry id、turn id 加范围信息,
+   或 grouping 阶段已经持有的稳定 segment key。
+2. 不要为了生成 display item id 对 entries 做额外 `map + join`。
+3. 如果确实需要表达完整 entry membership, 应先说明为什么 React key/id 需要完整 membership,
+   并证明这条路径不会进入高频热路径。
