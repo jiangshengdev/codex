@@ -83,6 +83,7 @@ describe("transcript state reducer", () => {
           role: "user",
           source: "Hello there",
           sourceKind: "plainText",
+          phase: null,
           revision: 0,
         },
         {
@@ -92,11 +93,81 @@ describe("transcript state reducer", () => {
           role: "assistant",
           source: "**Plain** text",
           sourceKind: "plainText",
+          phase: "final_answer",
           revision: 0,
         },
       ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
+
+  it("preserves assistant message phase in snapshot transcript entries", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-phase", [
+            agentMessage("agent-commentary", "Working", "commentary"),
+            agentMessage("agent-final", "Done", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptChunk(store.getState(), "turn-phase:chunk:0")?.entries).toStrictEqual([
+      {
+        type: "message",
+        id: "agent-commentary",
+        turnId: "turn-phase",
+        role: "assistant",
+        source: "Working",
+        sourceKind: "plainText",
+        phase: "commentary",
+        revision: 0,
+      },
+      {
+        type: "message",
+        id: "agent-final",
+        turnId: "turn-phase",
+        role: "assistant",
+        source: "Done",
+        sourceKind: "plainText",
+        phase: "final_answer",
+        revision: 0,
+      },
+    ]);
+  });
+
+  it("preserves assistant message phase in live completed transcript entries", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-live-commentary",
+          "turn-live-phase",
+          agentMessage("agent-live-commentary", "Still working", "commentary"),
+        ),
+      ),
+    );
+
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-live-phase:chunk:0")?.entries,
+    ).toStrictEqual([
+      {
+        type: "message",
+        id: "agent-live-commentary",
+        turnId: "turn-live-phase",
+        role: "assistant",
+        source: "Still working",
+        sourceKind: "plainText",
+        phase: "commentary",
+        revision: 0,
+      },
+    ]);
   });
 
   it("returns a stable transcript chunk view while the chunk is unchanged", () => {
@@ -181,6 +252,7 @@ describe("transcript state reducer", () => {
           role: "assistant",
           source: "Cached answer",
           sourceKind: "plainText",
+          phase: "final_answer",
           revision: 0,
         },
         {
@@ -190,6 +262,7 @@ describe("transcript state reducer", () => {
           role: "assistant",
           source: "Live answer",
           sourceKind: "plainText",
+          phase: "final_answer",
           revision: 0,
         },
       ],
@@ -232,6 +305,7 @@ describe("transcript state reducer", () => {
           role: "assistant",
           source: "After reconnect",
           sourceKind: "plainText",
+          phase: "final_answer",
           revision: 0,
         },
       ],
@@ -323,6 +397,7 @@ describe("transcript state reducer", () => {
         role: "assistant",
         source: "Live answer",
         sourceKind: "plainText",
+        phase: "final_answer",
         revision: 0,
       },
     ]);
@@ -505,6 +580,7 @@ describe("transcript state reducer", () => {
         role: "assistant",
         source: "First",
         sourceKind: "plainText",
+        phase: "final_answer",
         revision: 0,
       },
     ]);
@@ -544,6 +620,7 @@ describe("transcript state reducer", () => {
       role: "assistant",
       source: "Second",
       sourceKind: "plainText",
+      phase: "final_answer",
       revision: 1,
     });
     expect(selectTranscriptChunk(store.getState(), "turn-update:chunk:0")).toStrictEqual({
@@ -558,6 +635,7 @@ describe("transcript state reducer", () => {
           role: "assistant",
           source: "Second",
           sourceKind: "plainText",
+          phase: "final_answer",
           revision: 1,
         },
       ],
@@ -596,6 +674,7 @@ describe("transcript state reducer", () => {
         role: "assistant",
         source: "Entry 100",
         sourceKind: "plainText",
+        phase: "final_answer",
         revision: 0,
       },
     ]);
@@ -625,6 +704,7 @@ describe("transcript state reducer", () => {
           role: "assistant",
           source: "Existing answer",
           sourceKind: "plainText",
+          phase: "final_answer",
           revision: 0,
         },
       ],

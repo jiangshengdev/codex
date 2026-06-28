@@ -1,6 +1,6 @@
 ---
 name: debug-responsive-gui
-description: Use when debugging the Codex GUI with playwright-cli in a visible Google Chrome for Testing browser, including DevTools, responsive layout checks, screenshots, or reproducible browser-control step records.
+description: Use only when debugging the Codex GUI with playwright-cli in a visible Google Chrome for Testing browser, including DevTools, responsive layout checks, screenshots, browser opening, visual verification, or reproducible browser-control step records. Do not use for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only output; use gui-launch for those.
 ---
 
 # Debug Responsive GUI
@@ -8,6 +8,7 @@ description: Use when debugging the Codex GUI with playwright-cli in a visible G
 ## 基本规则
 
 - 回复用户使用简体中文。
+- 普通 `GUI 启动`、`启动 GUI`、`/gui` 或只需要打印 GUI URL 的请求必须使用 `gui-launch`；本 skill 只用于明确的 debug、响应式、截图、浏览器打开、视觉验证或可复现浏览器控制场景。
 - 浏览器生命周期优先使用 `playwright-cli`。
 - 调试浏览器必须是 `Google Chrome for Testing`，不是系统 `Google Chrome`。
 - 浏览器必须可见；启动时必须带 `--headed`。
@@ -28,20 +29,36 @@ description: Use when debugging the Codex GUI with playwright-cli in a visible G
 稳定用法：
 
 ```bash
-node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<launch_gui 返回的 Local URL>'
+node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<launch_gui 返回的 LAN URL；没有 LAN 或 LAN 不可用时使用 Local URL>'
 ```
+
+## React inspector
+
+读取当前 `playwright-cli` 控制页面的 React fiber tree：
+
+```bash
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --max-depth 4
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --max-depth 4
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --path 0.1.3 --max-depth 4
+node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --include-values
+```
+
+脚本只检查当前已打开页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。默认用于通用浅层发现，不内置 `codex-gui` 组件名；深入时使用 `--component`、`--path`、`--max-depth`。当前脚本只负责 React inspection；Redux inspection 后续独立设计，不混入这个入口。
 
 运行方式：
 
-- 先由 Codex 外层调用 `launch_gui` 获取当前 GUI URL，再传入 `--gui-url`。
+- 先由 Codex 外层调用 `launch_gui` 获取当前 GUI URL。
+- 如果 `launch_gui` 返回 LAN URL，默认优先把 LAN URL 传给 `--gui-url`；只有没有 LAN URL、LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
+- URL 中的 `threadId` 和 `token` 必须完整保留；不要手写、猜测或从旧 URL 拼接。
 - 入口脚本默认按顺序执行 discovery、CFT 启动/复用、GUI 导航、窗口排布、响应式模式、reload 和 metrics 验证。
 - 每个步骤都会先检测当前真实状态；满足目标时输出 `skip` 并退出 0，不满足时才执行本步骤。
 - 状态文件是 `/tmp/codex-debug-responsive-gui/current.json`。
-- GUI URL 必须使用 `launch_gui` 返回的 Local HTTP(S) URL。
+- GUI URL 必须使用本次 `launch_gui` 返回的完整 URL，默认 LAN 优先，Local 只作回退或按用户明确要求使用。
 
 ## 重启/恢复 GUI
 
-当用户说“重启 GUI”“重启后端”“GUI 不可用”或页面显示 `Codex GUI dev server unavailable` 时，先调用外层 `launch_gui` 重新获取当前 GUI URL，再用 `playwright-cli goto '<launch_gui 返回的 Local URL>'` 打开该 URL。
+当用户说“重启 GUI”“重启后端”“GUI 不可用”或页面显示 `Codex GUI dev server unavailable` 时，先调用外层 `launch_gui` 重新获取当前 GUI URL，再优先选择返回的 LAN URL；没有 LAN URL、LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
 
 不要把“重启 GUI”默认理解成重启 `codex-gui` 的 Vite 前端，也不要先 kill `codex app-server`、查进程或重启 Codex App。`launch_gui` 是恢复 GUI 后端/代理入口。
 
@@ -63,7 +80,7 @@ pnpm run dev
 node .codex/skills/debug-responsive-gui/scripts/steps/00-check-tools.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/05-discover-current-state.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/10-start-cft-if-needed.mjs
-node .codex/skills/debug-responsive-gui/scripts/steps/20-open-gui-if-needed.mjs --gui-url '<launch_gui 返回的 Local URL>'
+node .codex/skills/debug-responsive-gui/scripts/steps/20-open-gui-if-needed.mjs --gui-url '<launch_gui 返回的 LAN URL；没有 LAN 或 LAN 不可用时使用 Local URL>'
 node .codex/skills/debug-responsive-gui/scripts/steps/30-layout-windows-if-needed.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/40-enter-responsive-if-needed.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/50-reload-page.mjs
