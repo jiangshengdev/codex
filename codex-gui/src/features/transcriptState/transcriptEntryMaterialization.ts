@@ -34,6 +34,7 @@ export const materializeTranscriptItem = (
         role: "user",
         source,
         sourceKind: "plainText",
+        phase: null,
         revision: 0,
       };
     }
@@ -49,6 +50,7 @@ export const materializeTranscriptItem = (
         role: "assistant",
         source: item.text,
         sourceKind: "plainText",
+        phase: item.phase,
         revision: 0,
       };
     case "hookPrompt":

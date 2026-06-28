@@ -1,5 +1,5 @@
-import { memo } from "react";
-import { Alert, Card, Chip, Typography } from "@heroui/react";
+import { memo, useMemo, useState } from "react";
+import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
 import { useAppSelector } from "@/app/hooks";
 import {
   selectTranscriptChunk,
@@ -7,9 +7,11 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  type TranscriptChunkView,
   type TranscriptEntry,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
+import { groupTranscriptEntriesForDisplay } from "./committedTranscriptDisplayGroups";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
 
@@ -56,26 +58,52 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
   </Card>
 );
 
-const CommittedTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
-  const chunk = useAppSelector(
-    (state) => selectTranscriptChunk(state, chunkId),
-    areTranscriptChunkViewsEqual,
-  );
+const temporaryUpdatesLabel = (count: number): string =>
+  `Temporary updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
-  if (chunk == null || chunk.entries.length === 0) {
-    return null;
-  }
+const TemporaryTranscriptModule = ({
+  entries,
+  hasFinalAnswer,
+}: {
+  entries: TranscriptEntry[];
+  hasFinalAnswer: boolean;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const label = temporaryUpdatesLabel(entries.length);
+  const shouldShowEntries = !hasFinalAnswer || isExpanded;
 
   return (
-    <div className="committed-transcript-chunk grid min-w-0 gap-3">
-      {chunk.entries.map((entry) => (
-        <CommittedTranscriptEntry key={entry.id} entry={entry} />
-      ))}
-    </div>
+    <Disclosure
+      className="committed-transcript-temporary-module grid min-w-0 gap-2"
+      isDisabled={!hasFinalAnswer}
+      isExpanded={!hasFinalAnswer || isExpanded}
+      onExpandedChange={setIsExpanded}
+    >
+      <Disclosure.Heading>
+        <Button
+          className="committed-transcript-temporary-trigger justify-between"
+          slot="trigger"
+          variant="secondary"
+        >
+          {label}
+          <Disclosure.Indicator />
+        </Button>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <Disclosure.Body className="pt-3">
+          <div
+            className="grid min-w-0 gap-3"
+            style={{ display: shouldShowEntries ? undefined : "none" }}
+          >
+            {entries.map((entry) => (
+              <CommittedTranscriptEntry key={entry.id} entry={entry} />
+            ))}
+          </div>
+        </Disclosure.Body>
+      </Disclosure.Content>
+    </Disclosure>
   );
-});
-
-CommittedTranscriptChunk.displayName = "CommittedTranscriptChunk";
+};
 
 const areStringArraysEqual = (previous: string[], next: string[]): boolean => {
   if (previous === next) {
@@ -89,12 +117,33 @@ const areStringArraysEqual = (previous: string[], next: string[]): boolean => {
   return previous.every((value, index) => value === next[index]);
 };
 
+const areTranscriptChunkViewArraysEqual = (
+  previous: (TranscriptChunkView | null)[],
+  next: (TranscriptChunkView | null)[],
+): boolean => {
+  if (previous === next) {
+    return true;
+  }
+
+  if (previous.length !== next.length) {
+    return false;
+  }
+
+  return previous.every((chunk, index) => areTranscriptChunkViewsEqual(chunk, next[index] ?? null));
+};
+
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
   const chunkIds = useAppSelector(
     (state) => selectTranscriptChunkIdsForTurn(state, turnId),
     areStringArraysEqual,
   );
+  const chunks = useAppSelector(
+    (state) => chunkIds.map((chunkId) => selectTranscriptChunk(state, chunkId)),
+    areTranscriptChunkViewArraysEqual,
+  );
+  const entries = useMemo(() => chunks.flatMap((chunk) => chunk?.entries ?? []), [chunks]);
+  const displayItems = useMemo(() => groupTranscriptEntriesForDisplay(entries), [entries]);
 
   if (turn == null || chunkIds.length === 0) {
     return null;
@@ -118,9 +167,26 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
           {turn.status}
         </Chip>
       </div>
-      {chunkIds.map((chunkId) => (
-        <CommittedTranscriptChunk key={chunkId} chunkId={chunkId} />
-      ))}
+      <div className="committed-transcript-chunk grid min-w-0 gap-3">
+        {displayItems.map((item) => {
+          switch (item.type) {
+            case "entry":
+            case "finalAnswer":
+              return <CommittedTranscriptEntry key={item.entry.id} entry={item.entry} />;
+            case "temporaryModule":
+              return (
+                <TemporaryTranscriptModule
+                  entries={item.entries}
+                  hasFinalAnswer={item.hasFinalAnswer}
+                  key={item.id}
+                />
+              );
+          }
+
+          const exhaustiveItem: never = item;
+          return exhaustiveItem;
+        })}
+      </div>
     </article>
   );
 });
