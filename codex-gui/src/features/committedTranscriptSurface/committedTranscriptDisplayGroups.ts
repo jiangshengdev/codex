@@ -43,10 +43,15 @@ export const groupTranscriptEntriesForDisplay = (
 
   return entries.flatMap((entry, index): TranscriptTurnDisplayItem[] => {
     if (index === firstTemporaryIndex && temporaryEntries.length > 0) {
+      const firstTemporaryEntry = temporaryEntries[0];
+      if (firstTemporaryEntry === undefined) {
+        return [];
+      }
+
       return [
         {
           type: "temporaryModule",
-          id: temporaryModuleId(temporaryEntries[0]),
+          id: temporaryModuleId(firstTemporaryEntry),
           entries: temporaryEntries,
           hasFinalAnswer,
         },
