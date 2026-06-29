@@ -6,6 +6,7 @@ import type {
 import { areTranscriptChunkViewsEqual } from "../committedTranscriptChunkEquality";
 
 type TranscriptMessageEntry = Extract<TranscriptEntry, { type: "message" }>;
+type TranscriptStatusEntry = Extract<TranscriptEntry, { type: "status" }>;
 
 const entry = (id: string, revision: number): TranscriptMessageEntry => ({
   type: "message",
@@ -14,6 +15,19 @@ const entry = (id: string, revision: number): TranscriptMessageEntry => ({
   role: "assistant",
   source: `source ${id} ${String(revision)}`,
   sourceKind: "plainText",
+  phase: "final_answer",
+  revision,
+});
+
+const statusEntry = (
+  id: string,
+  revision: number,
+  status: TranscriptStatusEntry["status"] = "interrupted",
+): TranscriptStatusEntry => ({
+  type: "status",
+  id,
+  turnId: "turn-1",
+  status,
   revision,
 });
 
@@ -30,18 +44,12 @@ const chunk = (
 });
 
 describe("areTranscriptChunkViewsEqual", () => {
-  it("treats fresh chunk and entry objects as equal when stable ids and revisions match", () => {
+  it("treats fresh chunk and entry objects as equal when rendered fields match", () => {
     const previous = chunk({
-      entries: [
-        { ...entry("entry-1", 0), source: "previous source" },
-        { ...entry("entry-2", 0), source: "previous second source" },
-      ],
+      entries: [{ ...entry("entry-1", 0) }, { ...entry("entry-2", 0) }],
     });
     const next = chunk({
-      entries: [
-        { ...entry("entry-1", 0), source: "next source" },
-        { ...entry("entry-2", 0), source: "next second source" },
-      ],
+      entries: [{ ...entry("entry-1", 0) }, { ...entry("entry-2", 0) }],
     });
 
     expect(areTranscriptChunkViewsEqual(previous, next)).toBe(true);
@@ -70,6 +78,33 @@ describe("areTranscriptChunkViewsEqual", () => {
       areTranscriptChunkViewsEqual(
         chunk({ entries: [entry("entry-1", 0), entry("entry-2", 0)] }),
         chunk({ entries: [entry("entry-1", 0), entry("entry-2", 1)] }),
+      ),
+    ).toBe(false);
+  });
+
+  it("detects message phase changes when entry id and revision match", () => {
+    expect(
+      areTranscriptChunkViewsEqual(
+        chunk({ entries: [entry("entry-1", 0)] }),
+        chunk({ entries: [{ ...entry("entry-1", 0), phase: "commentary" }] }),
+      ),
+    ).toBe(false);
+  });
+
+  it("detects message source changes when entry id and revision match", () => {
+    expect(
+      areTranscriptChunkViewsEqual(
+        chunk({ entries: [{ ...entry("entry-1", 0), source: "Before reconnect" }] }),
+        chunk({ entries: [{ ...entry("entry-1", 0), source: "After reconnect" }] }),
+      ),
+    ).toBe(false);
+  });
+
+  it("detects status changes when entry id and revision match", () => {
+    expect(
+      areTranscriptChunkViewsEqual(
+        chunk({ entries: [statusEntry("status-1", 0, "interrupted")] }),
+        chunk({ entries: [statusEntry("status-1", 0, "failed")] }),
       ),
     ).toBe(false);
   });

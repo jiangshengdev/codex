@@ -15,6 +15,8 @@ import {
   selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
   selectThreadRuntimeSubscription,
+  selectThreadRuntimeSubscriptionState,
+  selectThreadRuntimeThreadId,
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
@@ -39,6 +41,8 @@ describe("thread runtime reducer", () => {
     expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
     expect(selectThreadRuntimeActiveTurnId(store.getState())).toBeNull();
     expect(selectThreadRuntimeSubscription(store.getState())).toBeNull();
+    expect(selectThreadRuntimeThreadId(store.getState())).toBeNull();
+    expect(selectThreadRuntimeSubscriptionState(store.getState())).toBeNull();
     expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
   });
 
@@ -66,6 +70,8 @@ describe("thread runtime reducer", () => {
     expect(selectThreadRuntimeSubscription(runtimeRoot(state))).toStrictEqual({
       state: "active",
     });
+    expect(selectThreadRuntimeThreadId(runtimeRoot(state))).toBe(attachBaseline.snapshot.thread.id);
+    expect(selectThreadRuntimeSubscriptionState(runtimeRoot(state))).toBe("active");
     expect(selectThreadRuntimeEventBuffer(runtimeRoot(state))).toStrictEqual([]);
   });
 
@@ -197,6 +203,9 @@ describe("thread runtime reducer", () => {
       reason: "backpressure",
       subscriptionId: attachBaseline.subscriptionId,
     });
+    expect(selectThreadRuntimeSubscriptionState(runtimeRoot(interrupted))).toBe(
+      "manualReconnectRequired",
+    );
     expect(afterEvent).toStrictEqual(interrupted);
   });
 

@@ -22,7 +22,15 @@ max-threads = 1
 [test-groups.app_server_integration_local]
 max-threads = 4
 
+# These tests copy and launch a fake packaged app-server with a vendored zsh.
+# Keep them serial locally to avoid subprocess startup contention.
+[test-groups.app_server_zsh_fork_integration_local]
+max-threads = 1
+
 [test-groups.core_apply_patch_cli_integration]
+max-threads = 1
+
+[test-groups.core_tool_parallelism]
 max-threads = 1
 
 [test-groups.windows_sandbox_legacy_sessions]
@@ -53,14 +61,30 @@ test-group = 'app_server_integration'
 [[profile.local.overrides]]
 # Use up to four app-server subprocesses locally. The global nextest pool still
 # limits this to the machine's logical CPU count.
-filter = 'package(codex-app-server) & kind(test)'
+filter = 'package(codex-app-server) & kind(test) & not test(turn_start_zsh_fork)'
 test-group = 'app_server_integration_local'
+
+[[profile.local.overrides]]
+# The zsh-fork tests are heavier than most app-server integration tests because
+# each case copies and launches a fake packaged app-server plus vendored zsh.
+filter = 'package(codex-app-server) & kind(test) & test(turn_start_zsh_fork)'
+test-group = 'app_server_zsh_fork_integration_local'
+threads-required = "num-test-threads"
 
 [[profile.default.overrides]]
 # These tests exercise full Codex turns and apply_patch execution, and they are
 # sensitive to Windows runner process-startup stalls when many cases launch at once.
 filter = 'package(codex-core) & kind(test) & test(apply_patch_cli)'
 test-group = 'core_apply_patch_cli_integration'
+
+[[profile.default.overrides]]
+# These tests assert wall-clock parallelism inside a single Codex turn and are
+# sensitive to unrelated suite load. Run them one at a time and reserve the full
+# nextest thread pool so timing failures still indicate the tool pipeline itself
+# regressed.
+filter = 'package(codex-core) & kind(test) & test(suite::tool_parallelism)'
+test-group = 'core_tool_parallelism'
+threads-required = "num-test-threads"
 
 [[profile.default.overrides]]
 # These tests create restricted-token Windows child processes and private desktops.

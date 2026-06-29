@@ -1,12 +1,13 @@
-import { memo } from "react";
-import { Alert, Card, Chip, Typography } from "@heroui/react";
+import { memo, useState } from "react";
+import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
 import { useAppSelector } from "@/app/hooks";
 import {
   selectTranscriptChunk,
-  selectTranscriptChunkIdsForTurn,
+  selectTranscriptEntry,
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  type TranscriptChunkView,
   type TranscriptEntry,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
@@ -34,18 +35,9 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
   <Card
     className={`committed-transcript-entry committed-transcript-entry-${entry.type} min-w-0`}
     role="article"
+    variant={entry.type === "message" && entry.role === "user" ? "secondary" : "default"}
   >
     <Card.Content className="grid min-w-0 gap-2">
-      {entry.type === "message" ? (
-        <Typography
-          className="committed-transcript-entry-role min-w-0 max-w-full"
-          color="muted"
-          type="body-xs"
-          weight="medium"
-        >
-          {entry.role}
-        </Typography>
-      ) : null}
       <Typography
         className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
         type="body-sm"
@@ -56,28 +48,13 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
   </Card>
 );
 
-const CommittedTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
-  const chunk = useAppSelector(
-    (state) => selectTranscriptChunk(state, chunkId),
-    areTranscriptChunkViewsEqual,
-  );
+const intermediateUpdatesLabel = (count: number): string =>
+  `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
-  if (chunk == null || chunk.entries.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="committed-transcript-chunk grid min-w-0 gap-3">
-      {chunk.entries.map((entry) => (
-        <CommittedTranscriptEntry key={entry.id} entry={entry} />
-      ))}
-    </div>
-  );
-});
-
-CommittedTranscriptChunk.displayName = "CommittedTranscriptChunk";
-
-const areStringArraysEqual = (previous: string[], next: string[]): boolean => {
+const areTranscriptChunkViewArraysEqual = (
+  previous: (TranscriptChunkView | null)[],
+  next: (TranscriptChunkView | null)[],
+): boolean => {
   if (previous === next) {
     return true;
   }
@@ -86,17 +63,125 @@ const areStringArraysEqual = (previous: string[], next: string[]): boolean => {
     return false;
   }
 
-  return previous.every((value, index) => value === next[index]);
+  return previous.every((chunk, index) => areTranscriptChunkViewsEqual(chunk, next[index] ?? null));
+};
+
+const areTranscriptEntryArraysEqual = (
+  previous: TranscriptEntry[],
+  next: TranscriptEntry[],
+): boolean => {
+  if (previous === next) {
+    return true;
+  }
+
+  if (previous.length !== next.length) {
+    return false;
+  }
+
+  return previous.every((entry, index) => entry === next[index]);
+};
+
+const LeadingPromptEntry = ({ entryId }: { entryId: string | null }) => {
+  const entry = useAppSelector((state) =>
+    entryId == null ? null : selectTranscriptEntry(state, entryId),
+  );
+
+  if (entry == null) {
+    return null;
+  }
+
+  return <CommittedTranscriptEntry entry={entry} />;
+};
+
+const MiddleTranscriptModule = ({
+  chunkIds,
+  hasFinalAnswer,
+}: {
+  chunkIds: string[];
+  hasFinalAnswer: boolean;
+}) => {
+  const chunks = useAppSelector(
+    (state) => chunkIds.map((chunkId) => selectTranscriptChunk(state, chunkId)),
+    areTranscriptChunkViewArraysEqual,
+  );
+  const entries = chunks.flatMap((chunk) => chunk?.entries ?? []);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const label = intermediateUpdatesLabel(entries.length);
+  const shouldShowEntries = !hasFinalAnswer || isExpanded;
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <Disclosure
+      className="committed-transcript-temporary-module grid min-w-0 gap-2"
+      isDisabled={!hasFinalAnswer}
+      isExpanded={!hasFinalAnswer || isExpanded}
+      onExpandedChange={setIsExpanded}
+    >
+      <Disclosure.Heading>
+        <Button
+          className="committed-transcript-temporary-trigger justify-between"
+          slot="trigger"
+          variant="outline"
+        >
+          {label}
+          <Disclosure.Indicator />
+        </Button>
+      </Disclosure.Heading>
+      <Disclosure.Content>
+        <Disclosure.Body className="pt-3">
+          <div
+            className="grid min-w-0 gap-3"
+            style={{ display: shouldShowEntries ? undefined : "none" }}
+          >
+            {entries.map((entry) => (
+              <CommittedTranscriptEntry key={entry.id} entry={entry} />
+            ))}
+          </div>
+        </Disclosure.Body>
+      </Disclosure.Content>
+    </Disclosure>
+  );
+};
+
+const FinalAssistantMessages = ({ entryIds }: { entryIds: string[] }) => {
+  const entries = useAppSelector(
+    (state) =>
+      entryIds.flatMap((entryId) => {
+        const entry = selectTranscriptEntry(state, entryId);
+        return entry == null ? [] : [entry];
+      }),
+    areTranscriptEntryArraysEqual,
+  );
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {entries.map((entry) => (
+        <CommittedTranscriptEntry key={entry.id} entry={entry} />
+      ))}
+    </>
+  );
 };
 
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
-  const chunkIds = useAppSelector(
-    (state) => selectTranscriptChunkIdsForTurn(state, turnId),
-    areStringArraysEqual,
-  );
 
-  if (turn == null || chunkIds.length === 0) {
+  if (turn == null) {
+    return null;
+  }
+
+  const hasEntries =
+    turn.leadingPromptEntryId != null ||
+    turn.middleChunkIds.length > 0 ||
+    turn.finalAssistantEntryIds.length > 0;
+
+  if (!hasEntries) {
     return null;
   }
 
@@ -106,21 +191,18 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
       className="committed-transcript-turn grid min-w-0 gap-3"
     >
       <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
-        <Typography
-          className="committed-transcript-turn-id min-w-0 max-w-full wrap-break-word"
-          color="muted"
-          type="body-xs"
-          weight="medium"
-        >
-          {turn.id}
-        </Typography>
         <Chip className="committed-transcript-turn-status" color="default" size="sm">
           {turn.status}
         </Chip>
       </div>
-      {chunkIds.map((chunkId) => (
-        <CommittedTranscriptChunk key={chunkId} chunkId={chunkId} />
-      ))}
+      <div className="committed-transcript-chunk grid min-w-0 gap-3">
+        <LeadingPromptEntry entryId={turn.leadingPromptEntryId} />
+        <MiddleTranscriptModule
+          chunkIds={turn.middleChunkIds}
+          hasFinalAnswer={turn.finalAssistantEntryIds.length > 0}
+        />
+        <FinalAssistantMessages entryIds={turn.finalAssistantEntryIds} />
+      </div>
     </article>
   );
 });
@@ -130,10 +212,16 @@ CommittedTranscriptTurn.displayName = "CommittedTranscriptTurn";
 export const CommittedTranscriptSurface = () => {
   const turnIds = useAppSelector(selectTranscriptTurnIds);
   const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
-  const hasCommittedChunks = useAppSelector((state) =>
-    selectTranscriptTurnIds(state).some(
-      (turnId) => selectTranscriptChunkIdsForTurn(state, turnId).length > 0,
-    ),
+  const hasCommittedEntries = useAppSelector((state) =>
+    selectTranscriptTurnIds(state).some((turnId) => {
+      const turn = selectTranscriptTurn(state, turnId);
+      return (
+        turn != null &&
+        (turn.leadingPromptEntryId != null ||
+          turn.middleChunkIds.length > 0 ||
+          turn.finalAssistantEntryIds.length > 0)
+      );
+    }),
   );
 
   return (
@@ -158,7 +246,7 @@ export const CommittedTranscriptSurface = () => {
           ))}
         </div>
       ) : null}
-      {!hasCommittedChunks ? (
+      {!hasCommittedEntries ? (
         <Card className="committed-transcript-empty">
           <Card.Content>
             <Typography color="muted" type="body-sm">

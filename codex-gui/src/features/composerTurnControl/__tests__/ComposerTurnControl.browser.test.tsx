@@ -19,7 +19,7 @@ import {
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
-const attachedStatus: GuiHostStatus = { label: "attached", eventCount: 0, lastEventType: null };
+const attachedStatus: GuiHostStatus = { label: "attached" };
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
 
@@ -44,7 +44,11 @@ async function renderAttached(commandHandle: GuiHostCommands | null = createGuiH
   const result = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
-      <ComposerTurnControl commands={commandHandle} guiHostStatus={attachedStatus} />
+      <ComposerTurnControl
+        commands={commandHandle}
+        guiHostStatus={attachedStatus}
+        launchParams={null}
+      />
     </>,
   );
   result.store.dispatch(launchThreadIdRecorded(threadId));
@@ -69,7 +73,8 @@ test("disables controls before attach", async () => {
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={createGuiHostCommands()}
-        guiHostStatus={{ label: "connecting", eventCount: 0, lastEventType: null }}
+        guiHostStatus={{ label: "connecting" }}
+        launchParams={null}
       />
     </>,
   );
@@ -91,9 +96,9 @@ test("renders a white composer panel with a primary textarea and actions", async
   if (!(textarea instanceof HTMLTextAreaElement)) {
     throw new Error("composer textarea must render");
   }
-  const actions = Array.from(composerPanel.querySelectorAll("button")).map((button) =>
-    button.textContent.trim(),
-  );
+  const actions = Array.from(composerPanel.querySelectorAll("button"))
+    .map((button) => button.textContent.trim())
+    .filter((label) => label.length > 0);
 
   expect(composerPanel.classList.contains("bg-white")).toBe(true);
   expect(composerPanel.classList.contains("p-2")).toBe(true);
@@ -102,6 +107,9 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerShell.classList.contains("pb-0")).toBe(true);
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
+  const qrButton = screen.getByRole("button", { name: "Scan with phone" });
+  await expect.element(qrButton).toBeDisabled();
+  await expect.element(qrButton).toHaveClass("button--icon-only");
   expect(actions).toEqual(["Stop", "Send"]);
 });
 

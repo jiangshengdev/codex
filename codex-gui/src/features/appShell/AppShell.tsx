@@ -1,15 +1,36 @@
-import { Surface, Toast } from "@heroui/react";
+import { Alert, Surface, Toast } from "@heroui/react";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type {
+  GuiHostCommands,
+  GuiHostStatus,
+  LaunchParams,
+} from "@/features/guiHost/guiHostClient";
 import { useCommittedTranscriptStickyBottom } from "./useCommittedTranscriptStickyBottom";
 
 export type AppShellProps = {
   status: GuiHostStatus;
   commands: GuiHostCommands | null;
+  launchParams: LaunchParams | null;
 };
 
-export function AppShell({ status, commands }: AppShellProps) {
+function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
+  if (status.label !== "error") {
+    return null;
+  }
+
+  return (
+    <Alert className="mx-auto mb-4 w-full max-w-6xl" status="danger">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>Unable to start Codex GUI</Alert.Title>
+        <Alert.Description>{status.message}</Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
+export function AppShell({ status, commands, launchParams }: AppShellProps) {
   const transcriptBottomRef = useCommittedTranscriptStickyBottom();
 
   return (
@@ -18,6 +39,7 @@ export function AppShell({ status, commands }: AppShellProps) {
       data-gui-host-status={status.label}
     >
       <Toast.Provider placement="top" />
+      <GuiHostErrorAlert status={status} />
       <Surface className="mx-auto grid min-w-0 w-full max-w-6xl content-start" variant="default">
         <CommittedTranscriptSurface />
       </Surface>
@@ -26,7 +48,7 @@ export function AppShell({ status, commands }: AppShellProps) {
         className="committed-transcript-bottom-sentinel h-px w-full"
         ref={transcriptBottomRef}
       />
-      <ComposerTurnControl commands={commands} guiHostStatus={status} />
+      <ComposerTurnControl commands={commands} guiHostStatus={status} launchParams={launchParams} />
     </main>
   );
 }

@@ -25,11 +25,17 @@ export const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
   content,
 });
 
-export const agentMessage = (id: string, text: string): ThreadItem => ({
+type AgentMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
+
+export const agentMessage = (
+  id: string,
+  text: string,
+  phase: AgentMessagePhase = "final_answer",
+): ThreadItem => ({
   type: "agentMessage",
   id,
   text,
-  phase: "final_answer",
+  phase,
   memoryCitation: null,
 });
 

@@ -1,12 +1,17 @@
 import { Button, TextArea, toast } from "@heroui/react";
 import { useState, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type {
+  GuiHostCommands,
+  GuiHostStatus,
+  LaunchParams,
+} from "@/features/guiHost/guiHostClient";
+import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectThreadRuntimeActiveTurnId,
-  selectThreadRuntimeRecord,
-  selectThreadRuntimeSubscription,
+  selectThreadRuntimeSubscriptionState,
+  selectThreadRuntimeThreadId,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   buildPlainTextInput,
@@ -19,23 +24,28 @@ import {
 export type ComposerTurnControlProps = {
   commands: GuiHostCommands | null;
   guiHostStatus: GuiHostStatus;
+  launchParams: LaunchParams | null;
 };
 
-export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnControlProps) {
+export function ComposerTurnControl({
+  commands,
+  guiHostStatus,
+  launchParams,
+}: ComposerTurnControlProps) {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
-  const runtime = useAppSelector(selectThreadRuntimeRecord);
+  const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
-  const subscription = useAppSelector(selectThreadRuntimeSubscription);
+  const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
 
   const connectionUsable =
     commands != null &&
     isConnectionUsable({
       canAdvanceThreadIdentity,
       guiHostStatus,
-      runtime,
-      subscription,
+      threadId,
+      subscriptionState,
     });
   const sendEnabled = canSend({
     connectionUsable,
@@ -49,7 +59,7 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
   });
 
   const submit = async (): Promise<void> => {
-    if (!sendEnabled || runtime == null || commands == null) {
+    if (!sendEnabled || threadId == null || commands == null) {
       return;
     }
 
@@ -57,7 +67,7 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
     setIsSending(true);
     try {
       await commands.startTurn({
-        threadId: runtime.threadId,
+        threadId,
         clientUserMessageId: null,
         input: [buildPlainTextInput(submittedDraft)],
       });
@@ -72,13 +82,13 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
   };
 
   const stop = async (): Promise<void> => {
-    if (!stopEnabled || runtime == null || activeTurnId == null || commands == null) {
+    if (!stopEnabled || threadId == null || activeTurnId == null || commands == null) {
       return;
     }
 
     try {
       await commands.interruptTurn({
-        threadId: runtime.threadId,
+        threadId,
         turnId: activeTurnId,
       });
     } catch (error) {
@@ -110,25 +120,28 @@ export function ComposerTurnControl({ commands, guiHostStatus }: ComposerTurnCon
           value={draft}
           variant="primary"
         />
-        <div className="flex justify-end gap-2">
-          <Button
-            isDisabled={!stopEnabled}
-            onPress={() => {
-              void stop();
-            }}
-            variant="danger-soft"
-          >
-            Stop
-          </Button>
-          <Button
-            isDisabled={!sendEnabled}
-            onPress={() => {
-              void submit();
-            }}
-            variant="outline"
-          >
-            Send
-          </Button>
+        <div className="flex items-center justify-between gap-2">
+          <QrAccessPopover launchParams={launchParams} />
+          <div className="flex items-center gap-2">
+            <Button
+              isDisabled={!stopEnabled}
+              onPress={() => {
+                void stop();
+              }}
+              variant="danger-soft"
+            >
+              Stop
+            </Button>
+            <Button
+              isDisabled={!sendEnabled}
+              onPress={() => {
+                void submit();
+              }}
+              variant="outline"
+            >
+              Send
+            </Button>
+          </div>
         </div>
       </div>
     </section>

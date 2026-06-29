@@ -1,0 +1,4 @@
+interface:
+  display_name: "GUI Launch"
+  short_description: "Print Codex GUI URLs like CLI /gui."
+  default_prompt: "GUI 启动"
