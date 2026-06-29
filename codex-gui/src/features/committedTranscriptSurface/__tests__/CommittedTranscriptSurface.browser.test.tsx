@@ -153,7 +153,7 @@ test("renders temporary content forced open until a final answer exists", async 
 
   await expect.element(screen.getByText("Working before final")).toBeVisible();
   await expect
-    .element(screen.getByRole("button", { name: "Temporary updates · 1 item" }))
+    .element(screen.getByRole("button", { name: "Intermediate updates · 1 item" }))
     .toBeDisabled();
 });
 
@@ -174,7 +174,7 @@ test("renders temporary content collapsed beside the final answer once final ans
   await expect.element(screen.getByText("Visible final answer")).toBeVisible();
   await expect.element(screen.getByText("Hidden working note")).not.toBeVisible();
 
-  const trigger = screen.getByRole("button", { name: "Temporary updates · 1 item" });
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 1 item" });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
@@ -213,17 +213,69 @@ test("renders one collapsed temporary module for a turn split across chunks", as
     document.querySelectorAll<HTMLButtonElement>(".committed-transcript-temporary-trigger"),
   );
   expect(triggers.map((trigger) => trigger.textContent)).toStrictEqual([
-    "Temporary updates · 101 items",
+    "Intermediate updates · 101 items",
   ]);
 
-  const trigger = screen.getByRole("button", { name: "Temporary updates · 101 items" });
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 101 items" });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
   await expect.element(screen.getByText("Cross chunk working note 0")).toBeVisible();
 });
 
-test("keeps legacy assistant messages outside the temporary disclosure", async () => {
+test("renders later user messages inside the intermediate disclosure", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-middle-user", [
+          userMessage("user-leading-middle", [textInput("Initial prompt")]),
+          agentMessage("agent-middle-user-note", "Working note", "commentary"),
+          userMessage("user-middle-follow-up", [textInput("Follow-up input")]),
+          agentMessage("agent-middle-user-final", "Final response", "final_answer"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Initial prompt")).toBeVisible();
+  await expect.element(screen.getByText("Final response")).toBeVisible();
+  await expect.element(screen.getByText("Working note")).not.toBeVisible();
+  await expect.element(screen.getByText("Follow-up input")).not.toBeVisible();
+
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 2 items" });
+  await expect.element(trigger).toBeEnabled();
+  await trigger.click();
+
+  await expect.element(screen.getByText("Working note")).toBeVisible();
+  await expect.element(screen.getByText("Follow-up input")).toBeVisible();
+});
+
+test("renders multiple final assistant messages outside the intermediate disclosure", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-multi-final-surface", [
+          userMessage("user-multi-final-surface", [textInput("Prompt")]),
+          agentMessage("agent-final-surface-one", "First final", "final_answer"),
+          agentMessage("agent-final-surface-two", "Second final", "final_answer"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Prompt")).toBeVisible();
+  await expect.element(screen.getByText("First final")).toBeVisible();
+  await expect.element(screen.getByText("Second final")).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: /Intermediate updates/ }))
+    .not.toBeInTheDocument();
+});
+
+test("renders legacy assistant messages inside the intermediate disclosure", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 
   store.dispatch(
@@ -237,9 +289,12 @@ test("keeps legacy assistant messages outside the temporary disclosure", async (
     ),
   );
 
-  await expect.element(screen.getByText("Legacy assistant text")).toBeVisible();
   await expect.element(screen.getByText("Final after legacy")).toBeVisible();
-  await expect
-    .element(screen.getByRole("button", { name: "Temporary updates · 1 item" }))
-    .not.toBeInTheDocument();
+  await expect.element(screen.getByText("Legacy assistant text")).not.toBeVisible();
+
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 1 item" });
+  await expect.element(trigger).toBeEnabled();
+  await trigger.click();
+
+  await expect.element(screen.getByText("Legacy assistant text")).toBeVisible();
 });

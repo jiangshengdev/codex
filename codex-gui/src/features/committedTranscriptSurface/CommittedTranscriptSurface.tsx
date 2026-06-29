@@ -1,9 +1,9 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useState } from "react";
 import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
 import { useAppSelector } from "@/app/hooks";
 import {
   selectTranscriptChunk,
-  selectTranscriptChunkIdsForTurn,
+  selectTranscriptEntry,
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
@@ -11,7 +11,6 @@ import {
   type TranscriptEntry,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
-import { groupTranscriptEntriesForDisplay } from "./committedTranscriptDisplayGroups";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
 
@@ -58,19 +57,70 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
   </Card>
 );
 
-const temporaryUpdatesLabel = (count: number): string =>
-  `Temporary updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
+const intermediateUpdatesLabel = (count: number): string =>
+  `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
-const TemporaryTranscriptModule = ({
-  entries,
+const areTranscriptChunkViewArraysEqual = (
+  previous: (TranscriptChunkView | null)[],
+  next: (TranscriptChunkView | null)[],
+): boolean => {
+  if (previous === next) {
+    return true;
+  }
+
+  if (previous.length !== next.length) {
+    return false;
+  }
+
+  return previous.every((chunk, index) => areTranscriptChunkViewsEqual(chunk, next[index] ?? null));
+};
+
+const areTranscriptEntryArraysEqual = (
+  previous: TranscriptEntry[],
+  next: TranscriptEntry[],
+): boolean => {
+  if (previous === next) {
+    return true;
+  }
+
+  if (previous.length !== next.length) {
+    return false;
+  }
+
+  return previous.every((entry, index) => entry === next[index]);
+};
+
+const LeadingPromptEntry = ({ entryId }: { entryId: string | null }) => {
+  const entry = useAppSelector((state) =>
+    entryId == null ? null : selectTranscriptEntry(state, entryId),
+  );
+
+  if (entry == null) {
+    return null;
+  }
+
+  return <CommittedTranscriptEntry entry={entry} />;
+};
+
+const MiddleTranscriptModule = ({
+  chunkIds,
   hasFinalAnswer,
 }: {
-  entries: TranscriptEntry[];
+  chunkIds: string[];
   hasFinalAnswer: boolean;
 }) => {
+  const chunks = useAppSelector(
+    (state) => chunkIds.map((chunkId) => selectTranscriptChunk(state, chunkId)),
+    areTranscriptChunkViewArraysEqual,
+  );
+  const entries = chunks.flatMap((chunk) => chunk?.entries ?? []);
   const [isExpanded, setIsExpanded] = useState(false);
-  const label = temporaryUpdatesLabel(entries.length);
+  const label = intermediateUpdatesLabel(entries.length);
   const shouldShowEntries = !hasFinalAnswer || isExpanded;
+
+  if (entries.length === 0) {
+    return null;
+  }
 
   return (
     <Disclosure
@@ -105,47 +155,42 @@ const TemporaryTranscriptModule = ({
   );
 };
 
-const areStringArraysEqual = (previous: string[], next: string[]): boolean => {
-  if (previous === next) {
-    return true;
+const FinalAssistantMessages = ({ entryIds }: { entryIds: string[] }) => {
+  const entries = useAppSelector(
+    (state) =>
+      entryIds.flatMap((entryId) => {
+        const entry = selectTranscriptEntry(state, entryId);
+        return entry == null ? [] : [entry];
+      }),
+    areTranscriptEntryArraysEqual,
+  );
+
+  if (entries.length === 0) {
+    return null;
   }
 
-  if (previous.length !== next.length) {
-    return false;
-  }
-
-  return previous.every((value, index) => value === next[index]);
-};
-
-const areTranscriptChunkViewArraysEqual = (
-  previous: (TranscriptChunkView | null)[],
-  next: (TranscriptChunkView | null)[],
-): boolean => {
-  if (previous === next) {
-    return true;
-  }
-
-  if (previous.length !== next.length) {
-    return false;
-  }
-
-  return previous.every((chunk, index) => areTranscriptChunkViewsEqual(chunk, next[index] ?? null));
+  return (
+    <>
+      {entries.map((entry) => (
+        <CommittedTranscriptEntry key={entry.id} entry={entry} />
+      ))}
+    </>
+  );
 };
 
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
-  const chunkIds = useAppSelector(
-    (state) => selectTranscriptChunkIdsForTurn(state, turnId),
-    areStringArraysEqual,
-  );
-  const chunks = useAppSelector(
-    (state) => chunkIds.map((chunkId) => selectTranscriptChunk(state, chunkId)),
-    areTranscriptChunkViewArraysEqual,
-  );
-  const entries = useMemo(() => chunks.flatMap((chunk) => chunk?.entries ?? []), [chunks]);
-  const displayItems = useMemo(() => groupTranscriptEntriesForDisplay(entries), [entries]);
 
-  if (turn == null || chunkIds.length === 0) {
+  if (turn == null) {
+    return null;
+  }
+
+  const hasEntries =
+    turn.leadingPromptEntryId != null ||
+    turn.middleChunkIds.length > 0 ||
+    turn.finalAssistantEntryIds.length > 0;
+
+  if (!hasEntries) {
     return null;
   }
 
@@ -168,24 +213,12 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
         </Chip>
       </div>
       <div className="committed-transcript-chunk grid min-w-0 gap-3">
-        {displayItems.map((item) => {
-          switch (item.type) {
-            case "entry":
-            case "finalAnswer":
-              return <CommittedTranscriptEntry key={item.entry.id} entry={item.entry} />;
-            case "temporaryModule":
-              return (
-                <TemporaryTranscriptModule
-                  entries={item.entries}
-                  hasFinalAnswer={item.hasFinalAnswer}
-                  key={item.id}
-                />
-              );
-          }
-
-          const exhaustiveItem: never = item;
-          return exhaustiveItem;
-        })}
+        <LeadingPromptEntry entryId={turn.leadingPromptEntryId} />
+        <MiddleTranscriptModule
+          chunkIds={turn.middleChunkIds}
+          hasFinalAnswer={turn.finalAssistantEntryIds.length > 0}
+        />
+        <FinalAssistantMessages entryIds={turn.finalAssistantEntryIds} />
       </div>
     </article>
   );
@@ -196,10 +229,16 @@ CommittedTranscriptTurn.displayName = "CommittedTranscriptTurn";
 export const CommittedTranscriptSurface = () => {
   const turnIds = useAppSelector(selectTranscriptTurnIds);
   const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
-  const hasCommittedChunks = useAppSelector((state) =>
-    selectTranscriptTurnIds(state).some(
-      (turnId) => selectTranscriptChunkIdsForTurn(state, turnId).length > 0,
-    ),
+  const hasCommittedEntries = useAppSelector((state) =>
+    selectTranscriptTurnIds(state).some((turnId) => {
+      const turn = selectTranscriptTurn(state, turnId);
+      return (
+        turn != null &&
+        (turn.leadingPromptEntryId != null ||
+          turn.middleChunkIds.length > 0 ||
+          turn.finalAssistantEntryIds.length > 0)
+      );
+    }),
   );
 
   return (
@@ -224,7 +263,7 @@ export const CommittedTranscriptSurface = () => {
           ))}
         </div>
       ) : null}
-      {!hasCommittedChunks ? (
+      {!hasCommittedEntries ? (
         <Card className="committed-transcript-empty">
           <Card.Content>
             <Typography color="muted" type="body-sm">

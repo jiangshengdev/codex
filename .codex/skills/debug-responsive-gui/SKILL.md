@@ -29,7 +29,7 @@ description: Use only when debugging the Codex GUI with playwright-cli in a visi
 稳定用法：
 
 ```bash
-node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<launch_gui 返回的 LAN URL；没有 LAN 或 LAN 不可用时使用 Local URL>'
+node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<launch_gui 返回的 VPN 或 LAN URL；没有 VPN/LAN 或不可用时使用 Local URL>'
 ```
 
 ## React inspector
@@ -44,21 +44,35 @@ node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --path 0.1.3 -
 node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --include-values
 ```
 
-脚本只检查当前已打开页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。默认用于通用浅层发现，不内置 `codex-gui` 组件名；深入时使用 `--component`、`--path`、`--max-depth`。当前脚本只负责 React inspection；Redux inspection 后续独立设计，不混入这个入口。
+脚本只检查当前已打开页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。默认用于通用浅层发现，不内置 `codex-gui` 组件名；深入时使用 `--component`、`--path`、`--max-depth`。当前脚本只负责 React inspection；Redux inspection 使用下方独立入口，不混入这个入口。
+
+## Redux inspector
+
+读取当前 `playwright-cli` 控制页面的 Redux store state：
+
+```bash
+node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs
+node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path threadRuntime.current
+node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path transcriptState.entriesById --max-depth 2 --max-keys 40
+```
+
+脚本只检查当前 `playwright-cli` 控制页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。它从 `#root.__reactContainer$...` 进入 React fiber，查找 React-Redux Provider 的 `memoizedProps.value.store`，再读取 `store.getState()`。它不依赖 Redux DevTools extension，也不依赖 `__REACT_DEVTOOLS_GLOBAL_HOOK__.getFiberRoots()`。
+
+默认输出安全摘要，不打印完整 store；局部 state 用 `--path <dot.path>`，输出仍受 `--max-depth`、`--max-keys`、`--max-array-items`、`--max-string-length` 限制。
 
 运行方式：
 
 - 先由 Codex 外层调用 `launch_gui` 获取当前 GUI URL。
-- 如果 `launch_gui` 返回 LAN URL，默认优先把 LAN URL 传给 `--gui-url`；只有没有 LAN URL、LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
+- 默认选择顺序是 VPN -> LAN -> Local。如果 `launch_gui` 返回 VPN URL，优先把 VPN URL 传给 `--gui-url`；没有 VPN URL、VPN URL 明确不可用，或用户明确要求局域网地址时，才使用 LAN URL；只有没有 VPN/LAN URL、VPN/LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
 - URL 中的 `threadId` 和 `token` 必须完整保留；不要手写、猜测或从旧 URL 拼接。
 - 入口脚本默认按顺序执行 discovery、CFT 启动/复用、GUI 导航、窗口排布、响应式模式、reload 和 metrics 验证。
 - 每个步骤都会先检测当前真实状态；满足目标时输出 `skip` 并退出 0，不满足时才执行本步骤。
 - 状态文件是 `/tmp/codex-debug-responsive-gui/current.json`。
-- GUI URL 必须使用本次 `launch_gui` 返回的完整 URL，默认 LAN 优先，Local 只作回退或按用户明确要求使用。
+- GUI URL 必须使用本次 `launch_gui` 返回的完整 URL，默认 VPN -> LAN -> Local，Local 只作回退或按用户明确要求使用。
 
 ## 重启/恢复 GUI
 
-当用户说“重启 GUI”“重启后端”“GUI 不可用”或页面显示 `Codex GUI dev server unavailable` 时，先调用外层 `launch_gui` 重新获取当前 GUI URL，再优先选择返回的 LAN URL；没有 LAN URL、LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
+当用户说“重启 GUI”“重启后端”“GUI 不可用”或页面显示 `Codex GUI dev server unavailable` 时，先调用外层 `launch_gui` 重新获取当前 GUI URL，再按 VPN -> LAN -> Local 顺序选择 URL；只有没有 VPN/LAN URL、VPN/LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
 
 不要把“重启 GUI”默认理解成重启 `codex-gui` 的 Vite 前端，也不要先 kill `codex app-server`、查进程或重启 Codex App。`launch_gui` 是恢复 GUI 后端/代理入口。
 
@@ -80,7 +94,7 @@ pnpm run dev
 node .codex/skills/debug-responsive-gui/scripts/steps/00-check-tools.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/05-discover-current-state.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/10-start-cft-if-needed.mjs
-node .codex/skills/debug-responsive-gui/scripts/steps/20-open-gui-if-needed.mjs --gui-url '<launch_gui 返回的 LAN URL；没有 LAN 或 LAN 不可用时使用 Local URL>'
+node .codex/skills/debug-responsive-gui/scripts/steps/20-open-gui-if-needed.mjs --gui-url '<launch_gui 返回的 VPN 或 LAN URL；没有 VPN/LAN 或不可用时使用 Local URL>'
 node .codex/skills/debug-responsive-gui/scripts/steps/30-layout-windows-if-needed.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/40-enter-responsive-if-needed.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/50-reload-page.mjs

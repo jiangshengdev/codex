@@ -2,7 +2,7 @@
 
 import path from 'node:path';
 import { log, run, scriptRoot } from './lib/exec.mjs';
-import { parseLocalHttpUrl, requireFlagValue, resetState, stripFragment, updateState } from './lib/state.mjs';
+import { parseGuiHttpUrl, requireFlagValue, resetState, stripFragment, updateState } from './lib/state.mjs';
 
 const stepNames = [
   '00-check-tools.mjs',
@@ -22,7 +22,7 @@ let guiUrl;
 try {
   guiUrl = requireFlagValue(args, '--gui-url');
   if (guiUrl) {
-    parseLocalHttpUrl(guiUrl);
+    parseGuiHttpUrl(guiUrl);
   }
 } catch (error) {
   console.error(error.message);
