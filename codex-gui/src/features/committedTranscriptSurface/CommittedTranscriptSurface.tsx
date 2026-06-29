@@ -35,18 +35,9 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
   <Card
     className={`committed-transcript-entry committed-transcript-entry-${entry.type} min-w-0`}
     role="article"
+    variant={entry.type === "message" && entry.role === "user" ? "secondary" : "default"}
   >
     <Card.Content className="grid min-w-0 gap-2">
-      {entry.type === "message" ? (
-        <Typography
-          className="committed-transcript-entry-role min-w-0 max-w-full"
-          color="muted"
-          type="body-xs"
-          weight="medium"
-        >
-          {entry.role}
-        </Typography>
-      ) : null}
       <Typography
         className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
         type="body-sm"
@@ -133,7 +124,7 @@ const MiddleTranscriptModule = ({
         <Button
           className="committed-transcript-temporary-trigger justify-between"
           slot="trigger"
-          variant="secondary"
+          variant="outline"
         >
           {label}
           <Disclosure.Indicator />
@@ -200,14 +191,6 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
       className="committed-transcript-turn grid min-w-0 gap-3"
     >
       <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
-        <Typography
-          className="committed-transcript-turn-id min-w-0 max-w-full wrap-break-word"
-          color="muted"
-          type="body-xs"
-          weight="medium"
-        >
-          {turn.id}
-        </Typography>
         <Chip className="committed-transcript-turn-status" color="default" size="sm">
           {turn.status}
         </Chip>

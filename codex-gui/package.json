@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "ci": "pnpm run format:prettier && pnpm run lint && pnpm run type-check && pnpm run test:unit",
+    "ci": "pnpm run format:oxfmt && pnpm run lint && pnpm run type-check && pnpm run test:unit",
     "format:prettier": "prettier --check .",
     "format:prettier:fix": "prettier --write .",
     "format:oxfmt": "oxfmt --check .",
