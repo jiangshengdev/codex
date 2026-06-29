@@ -44,7 +44,21 @@ node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --path 0.1.3 -
 node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --include-values
 ```
 
-脚本只检查当前已打开页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。默认用于通用浅层发现，不内置 `codex-gui` 组件名；深入时使用 `--component`、`--path`、`--max-depth`。当前脚本只负责 React inspection；Redux inspection 后续独立设计，不混入这个入口。
+脚本只检查当前已打开页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。默认用于通用浅层发现，不内置 `codex-gui` 组件名；深入时使用 `--component`、`--path`、`--max-depth`。当前脚本只负责 React inspection；Redux inspection 使用下方独立入口，不混入这个入口。
+
+## Redux inspector
+
+读取当前 `playwright-cli` 控制页面的 Redux store state：
+
+```bash
+node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs
+node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path threadRuntime.current
+node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path transcriptState.entriesById --max-depth 2 --max-keys 40
+```
+
+脚本只检查当前 `playwright-cli` 控制页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。它从 `#root.__reactContainer$...` 进入 React fiber，查找 React-Redux Provider 的 `memoizedProps.value.store`，再读取 `store.getState()`。它不依赖 Redux DevTools extension，也不依赖 `__REACT_DEVTOOLS_GLOBAL_HOOK__.getFiberRoots()`。
+
+默认输出安全摘要，不打印完整 store；局部 state 用 `--path <dot.path>`，输出仍受 `--max-depth`、`--max-keys`、`--max-array-items`、`--max-string-length` 限制。
 
 运行方式：
 
