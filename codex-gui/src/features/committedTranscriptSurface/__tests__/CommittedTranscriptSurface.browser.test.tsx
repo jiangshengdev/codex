@@ -51,9 +51,7 @@ test("renders committed user and assistant messages from an attached baseline", 
   await expect.element(screen.getByText("user")).not.toBeInTheDocument();
   await expect.element(screen.getByText("assistant")).not.toBeInTheDocument();
 
-  const entries = Array.from(
-    document.querySelectorAll<HTMLElement>(".committed-transcript-entry"),
-  );
+  const entries = Array.from(document.querySelectorAll<HTMLElement>(".committed-transcript-entry"));
   expect(
     entries.map((entry) => ({
       isSecondary: entry.classList.contains("card--secondary"),
