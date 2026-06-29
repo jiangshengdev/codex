@@ -1,0 +1,49 @@
+# Temporary grouping 重复处理完整 turn entries
+
+日期:2026-06-29
+状态:未修复
+范围:`codex-gui/src/features/committedTranscriptSurface`
+
+## 问题摘要
+
+`committedTranscriptSurface` 的 temporary content collapse 会在每次相关 turn 变化后重新处理该
+turn 的全部 entries。当前路径先从所有 chunk view flatten 出完整 entries, 再执行 display
+grouping。
+
+单次 `groupTranscriptEntriesForDisplay` 调用不是 O(n²), 但它会执行多段线性扫描。随着同一 turn
+持续追加 committed entries, 每次 chunk revision 变化都会让该 turn 重新 flatten/group 全量
+entries, 累计成本会呈二次增长形态。
+
+## 证据
+
+完整 turn entries 派生路径:
+
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:141`
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:145`
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:146`
+
+`groupTranscriptEntriesForDisplay` 的多段线性工作:
+
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptDisplayGroups.ts:36`
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptDisplayGroups.ts:39`
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptDisplayGroups.ts:41`
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptDisplayGroups.ts:45`
+
+temporary module id 额外扫描:
+
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptDisplayGroups.ts:30`
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptDisplayGroups.ts:50`
+
+## 影响
+
+chunk 化只限制了 selector materialization 的单 chunk 成本, 但 display grouping 又把成本提升回
+turn 级别。跨 chunk temporary module 的需求会让该成本更容易出现在长 turn 中。
+
+## 建议方向
+
+1. 把 temporary grouping 改成 single pass, 在一次遍历中确定 final answer boundary、
+   temporary segment 和输出 items。
+2. temporary module id 使用 grouping 过程中已经拿到的稳定边界, 例如 first temporary entry id,
+   last temporary entry id 和 count, 不再表达完整 membership。
+3. 如果后续需要跨 chunk temporary module, 明确这是 turn-level display model, 并避免在每次
+   chunk 变化后无条件重建完整 turn view-model。

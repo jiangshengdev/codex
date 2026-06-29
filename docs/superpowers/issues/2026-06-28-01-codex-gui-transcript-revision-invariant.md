@@ -1,94 +1,19 @@
-# codex-gui transcript revision invariant issue
+# codex-gui transcript revision invariant
 
-## 问题摘要
+日期:2026-06-28
+状态:已拆分
 
-`codex-gui` 的 transcript `revision` 不是 Rust/protocol 层提供的版本号, 而是前端在
-`transcriptState` 内部自造的缓存失效 token。它只有在以下不变量成立时才有价值:
+这份文件原本同时记录 transcript revision invariant 和 temporary grouping 性能问题。为保持一个
+问题一个文件, 内容已拆分到独立问题文件中。
 
-> 任何会影响某个 transcript chunk view 渲染结果的写入, 都必须 bump 对应 entry revision,
-> 并 bump 所属 chunk revision。
+## 问题文件
 
-如果 equality 逻辑在 `id` / `revision` 之外继续比较 `role`、`source`、`sourceKind`、
-`phase`、`status` 等渲染字段, 等于承认 `revision` 不能单独表达渲染等价性。这会让
-`revision` 从缓存失效边界退化成辅助字段, 并误导后续维护者。
+1. `codex-gui-frontend-performance-hot-paths/07-transcript-revision-invariant.md`
+2. `codex-gui-frontend-performance-hot-paths/06-temporary-grouping-full-turn-scan.md`
 
-## 背景
+## 迁移说明
 
-`selectTranscriptChunk` 的缓存设计使用:
-
-- `TranscriptChunk` object identity 区分 snapshot rebuild 后的同 id / 同 revision chunk。
-- `chunk.revision` 作为同一 chunk object 内部的 view 失效条件。
-
-该设计目标是避免无关 Redux 更新时反复 materialize `entries`, 让 unchanged chunk 能返回稳定
-`TranscriptChunkView` 引用。
-
-因此 `revision` 的语义不应只是 display hint, 而应是前端内部 render/cache invalidation
-contract。
-
-## 当前矛盾
-
-今天的 equality 改动让 `areTranscriptChunkViewsEqual` 在 entry `id` 和 `revision` 相同的情况下,
-继续比较部分渲染字段:
-
-- message: `role`、`source`、`sourceKind`、`phase`
-- status: `status`
-
-这能补住某些 UI stale render, 但同时暴露出更底层的问题:
-
-- 如果这些字段会影响渲染, 它们变化时本应 bump entry revision。
-- 如果 entry revision 没有 bump, 所属 chunk revision 也不可靠。
-- 如果 equality 必须常态化补比这些字段, entry revision 的存在价值会明显下降。
-
-换句话说, 字段级 equality 是症状修补, 不是对 `revision` 设计的强化。
-
-## 影响
-
-- 维护者会误以为 `revision` 是可靠的渲染版本边界, 但 equality 又在绕过它补比字段。
-- cache invalidation 规则变得分裂: selector 依赖 `chunk.revision`, render equality 又依赖字段快照。
-- 后续新增 transcript entry 字段时, 很容易忘记同时更新 equality 和 revision bump 规则。
-- 如果 `revision` 语义不能重新收束, 它会变成多余甚至危险的状态字段。
-
-## 推荐方向
-
-选择继续使用 `revision`, 不直接删除。
-
-原因是 `revision` 对 `selectTranscriptChunk` 的 WeakMap 缓存仍有明确价值: 它可以让 unchanged
-chunk 在无关 store 更新后直接复用旧 view, 避免重新 materialize `entries`。
-
-但需要把设计重新收紧:
-
-1. 删除字段级 equality 补丁, 让 `areTranscriptChunkViewsEqual` 回到依赖 entry `id` /
-   `revision` 的语义。
-2. 明确 `entry revision` 覆盖所有会影响 entry 渲染的字段。
-3. 明确任何 existing entry update 必须 bump entry revision, 并 bump 所属 chunk revision。
-4. 用测试覆盖 `phase`、`source`、`status` 等渲染字段变化时 revision 会递增。
-
-## 后续验证点
-
-- 检查 snapshot rebuild 和 live `itemCompleted` 两条写路径是否都满足 revision invariant。
-- 确认不会存在绕过 `upsertLiveCommittedEntry` 直接改写 `entriesById` 的路径。
-- 如果未来新增 transcript entry 类型或渲染字段, 必须同步确认 revision bump 规则。
-- 如果无法保证这个 invariant, 再回到设计层讨论删除 `revision` 并重做缓存失效机制。
-
-## 追加问题: temporary module id 生成引入额外扫描
-
-`temporaryModuleId(entries)` 通过 `entries.map((entry) => entry.id).join(":")` 生成模块 id。
-这会在展示分组路径上为每个 temporary module 再扫描一遍 entries。
-
-该 id 只是 UI 分组后的 key/id, 不应该成为额外的 per-render 线性成本来源。尤其在 transcript
-surface 已经围绕 chunk、entry 和 revision 做缓存设计的前提下, 再在 view-model grouping
-阶段用 `map + join` 拼接 id, 会把本可以由稳定边界表达的身份重新变成数组遍历。
-
-这类逻辑的问题不只是单次成本, 而是它出现在容易被频繁执行的渲染派生路径里:
-
-- entries 数量越多, id 生成成本越高。
-- temporary module 越多, 重复扫描越多。
-- 如果 grouping 在 store 更新或 React render 中反复执行, 该成本会被放大。
-
-推荐方向:
-
-1. temporary module id 应来自已有稳定边界, 例如第一个/最后一个 entry id、turn id 加范围信息,
-   或 grouping 阶段已经持有的稳定 segment key。
-2. 不要为了生成 display item id 对 entries 做额外 `map + join`。
-3. 如果确实需要表达完整 entry membership, 应先说明为什么 React key/id 需要完整 membership,
-   并证明这条路径不会进入高频热路径。
+- revision invalidation contract 只记录在 `07-transcript-revision-invariant.md`。
+- temporary module id 和 temporary grouping 完整 turn 扫描只记录在
+  `06-temporary-grouping-full-turn-scan.md`。
+- 本文件仅保留索引, 不再承载问题正文。
