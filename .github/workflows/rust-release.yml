@@ -744,17 +744,23 @@ jobs:
           done
 
       - name: Build Codex package archive
-        shell: bash
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
         env:
           TARGET: ${{ matrix.target }}
           BUNDLE: ${{ matrix.bundle }}
-        run: |
-          set -euo pipefail
-          bash "${GITHUB_WORKSPACE}/.github/scripts/build-codex-package-archive.sh" \
-            --target "$TARGET" \
-            --bundle "$BUNDLE" \
-            --entrypoint-dir "target/${TARGET}/release" \
-            --archive-dir "dist/${TARGET}"
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 10
+          retry_on: any
+          shell: bash
+          command: |
+            set -euo pipefail
+            bash "${GITHUB_WORKSPACE}/.github/scripts/build-codex-package-archive.sh" \
+              --target "$TARGET" \
+              --bundle "$BUNDLE" \
+              --entrypoint-dir "target/${TARGET}/release" \
+              --archive-dir "dist/${TARGET}"
 
       - name: Build Python runtime wheel
         if: ${{ matrix.bundle == 'primary' }}
