@@ -80,6 +80,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Free disk space (Linux x64 remote archive)
+        if: ${{ runner.os == 'Linux' && inputs.artifact_id == 'linux-x64-remote' }}
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: false
+          tool-cache: false
+          swap-storage: false
+
       - name: Configure Dev Drive (Windows)
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
