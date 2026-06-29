@@ -66,7 +66,7 @@ describe("groupTranscriptEntriesForDisplay", () => {
     ).toStrictEqual([
       {
         type: "temporaryModule",
-        id: "temporary:commentary-1:commentary-2",
+        id: "temporary:commentary-1",
         entries: [firstCommentary, secondCommentary],
         hasFinalAnswer: true,
       },

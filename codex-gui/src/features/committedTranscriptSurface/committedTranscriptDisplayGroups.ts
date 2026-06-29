@@ -27,8 +27,7 @@ const isFinalAnswer = (entry: TranscriptEntry): boolean =>
 const isTemporaryBeforeFinalAnswer = (entry: TranscriptEntry): boolean =>
   isAssistantMessage(entry) && entry.phase === "commentary";
 
-const temporaryModuleId = (entries: TranscriptEntry[]): string =>
-  `temporary:${entries.map((entry) => entry.id).join(":")}`;
+const temporaryModuleId = (entry: TranscriptEntry): string => `temporary:${entry.id}`;
 
 export const groupTranscriptEntriesForDisplay = (
   entries: TranscriptEntry[],
@@ -47,7 +46,7 @@ export const groupTranscriptEntriesForDisplay = (
       return [
         {
           type: "temporaryModule",
-          id: temporaryModuleId(temporaryEntries),
+          id: temporaryModuleId(temporaryEntries[0]),
           entries: temporaryEntries,
           hasFinalAnswer,
         },
