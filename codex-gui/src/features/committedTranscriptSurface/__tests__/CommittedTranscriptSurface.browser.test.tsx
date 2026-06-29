@@ -47,6 +47,22 @@ test("renders committed user and assistant messages from an attached baseline", 
   await expect.element(screen.getByRole("article", { name: "Turn turn-surface" })).toBeVisible();
   await expect.element(screen.getByText("Hello surface")).toBeVisible();
   await expect.element(screen.getByText("Committed response")).toBeVisible();
+  await expect.element(screen.getByText("turn-surface")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("user")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("assistant")).not.toBeInTheDocument();
+
+  const entries = Array.from(
+    document.querySelectorAll<HTMLElement>(".committed-transcript-entry"),
+  );
+  expect(
+    entries.map((entry) => ({
+      isSecondary: entry.classList.contains("card--secondary"),
+      text: entry.textContent,
+    })),
+  ).toStrictEqual([
+    { isSecondary: true, text: "Hello surface" },
+    { isSecondary: false, text: "Committed response" },
+  ]);
 });
 
 test("updates committed message text after snapshot reattach with stable ids", async () => {
@@ -214,6 +230,12 @@ test("renders one collapsed temporary module for a turn split across chunks", as
   );
   expect(triggers.map((trigger) => trigger.textContent)).toStrictEqual([
     "Intermediate updates · 101 items",
+  ]);
+  expect(triggers.map((trigger) => trigger.classList.contains("button--outline"))).toStrictEqual([
+    true,
+  ]);
+  expect(triggers.map((trigger) => trigger.classList.contains("button--secondary"))).toStrictEqual([
+    false,
   ]);
 
   const trigger = screen.getByRole("button", { name: "Intermediate updates · 101 items" });
