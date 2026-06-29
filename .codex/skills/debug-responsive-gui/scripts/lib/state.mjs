@@ -64,11 +64,15 @@ export function stripFragment(url) {
   return parsed.toString();
 }
 
-export function parseLocalHttpUrl(url) {
-  const parsed = new URL(url);
-  const allowedHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
-  if (!['http:', 'https:'].includes(parsed.protocol) || !allowedHosts.has(parsed.hostname)) {
-    throw new Error(`GUI URL must be a local HTTP URL: ${url}`);
+export function parseGuiHttpUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`GUI URL must be an HTTP(S) URL without credentials: ${url}`);
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) {
+    throw new Error(`GUI URL must be an HTTP(S) URL without credentials: ${url}`);
   }
   return parsed;
 }

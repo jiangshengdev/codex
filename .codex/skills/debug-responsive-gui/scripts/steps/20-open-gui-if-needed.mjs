@@ -3,7 +3,7 @@
 import { log } from '../lib/exec.mjs';
 import { isCodexGui, metricsExpression, summarizeMetrics } from '../lib/metrics.mjs';
 import { evalJson, gotoUrl } from '../lib/playwright-cli.mjs';
-import { parseLocalHttpUrl, readState, requireFlagValue, stripFragment, updateState } from '../lib/state.mjs';
+import { parseGuiHttpUrl, readState, requireFlagValue, stripFragment, updateState } from '../lib/state.mjs';
 
 async function verifyHttpReachable(url) {
   let response;
@@ -46,7 +46,7 @@ if (!guiUrl) {
 }
 
 try {
-  parseLocalHttpUrl(guiUrl);
+  parseGuiHttpUrl(guiUrl);
 } catch (error) {
   failStep(error.message, { guiUrl });
 }

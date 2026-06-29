@@ -11,7 +11,13 @@ import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
 export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
 
-export type TranscriptTurn = { id: string; status: TurnStatus };
+export type TranscriptTurn = {
+  id: string;
+  status: TurnStatus;
+  leadingPromptEntryId: string | null;
+  middleChunkIds: string[];
+  finalAssistantEntryIds: string[];
+};
 
 export type TranscriptChunk = {
   id: string;
@@ -61,7 +67,6 @@ export type TranscriptState = {
   committedScrollCommitKey: string | null;
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
-  chunkIdsByTurnId: Record<string, string[]>;
   chunksById: Record<string, TranscriptChunk>;
   entriesById: Record<string, TranscriptEntry>;
   entryChunkById: Record<string, string>;
@@ -83,7 +88,6 @@ const initialState: TranscriptState = {
   committedScrollCommitKey: null,
   turnIds: [],
   turnsById: {},
-  chunkIdsByTurnId: {},
   chunksById: {},
   entriesById: {},
   entryChunkById: {},
@@ -98,7 +102,6 @@ const createEmptyState = (): TranscriptState => ({
   committedScrollCommitKey: null,
   turnIds: [],
   turnsById: {},
-  chunkIdsByTurnId: {},
   chunksById: {},
   entriesById: {},
   entryChunkById: {},
@@ -113,7 +116,6 @@ const resetState = (state: TranscriptState, nextState: TranscriptState) => {
   state.committedScrollCommitKey = nextState.committedScrollCommitKey;
   state.turnIds = nextState.turnIds;
   state.turnsById = nextState.turnsById;
-  state.chunkIdsByTurnId = nextState.chunkIdsByTurnId;
   state.chunksById = nextState.chunksById;
   state.entriesById = nextState.entriesById;
   state.entryChunkById = nextState.entryChunkById;
@@ -151,6 +153,9 @@ const ensureTurnExists = (state: TranscriptState, turnId: string): TranscriptTur
   const turn: TranscriptTurn = {
     id: turnId,
     status: "inProgress",
+    leadingPromptEntryId: null,
+    middleChunkIds: [],
+    finalAssistantEntryIds: [],
   };
   state.turnsById[turnId] = turn;
   state.turnIds.push(turnId);
@@ -163,6 +168,9 @@ const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
     state.turnsById[turn.id] = {
       id: turn.id,
       status: turn.status,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      finalAssistantEntryIds: [],
     };
     state.turnIds.push(turn.id);
     return;
@@ -171,8 +179,9 @@ const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
   existingTurn.status = turn.status;
 };
 
-const getOrCreateAppendChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
-  const chunkIds = state.chunkIdsByTurnId[turnId] ?? [];
+const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
+  const turn = ensureTurnExists(state, turnId);
+  const chunkIds = turn.middleChunkIds;
   const lastChunkId = chunkIds.at(-1);
   const lastChunk = lastChunkId == null ? null : state.chunksById[lastChunkId];
 
@@ -183,19 +192,29 @@ const getOrCreateAppendChunk = (state: TranscriptState, turnId: string): Transcr
   const chunkId = chunkIdForIndex(turnId, chunkIds.length);
   const chunk: TranscriptChunk = { id: chunkId, turnId, entryIds: [], revision: 0 };
   state.chunksById[chunkId] = chunk;
-  state.chunkIdsByTurnId[turnId] = [...chunkIds, chunkId];
+  turn.middleChunkIds.push(chunkId);
   return chunk;
 };
 
-const appendEntryToChunk = (
+const isAssistantMessageEntry = (
+  entry: TranscriptEntry,
+): entry is Extract<TranscriptEntry, { type: "message" }> & { role: "assistant" } =>
+  entry.type === "message" && entry.role === "assistant";
+
+const isFinalAssistantEntry = (entry: TranscriptEntry): boolean =>
+  isAssistantMessageEntry(entry) && entry.phase === "final_answer";
+
+const turnHasVisibleEntries = (turn: TranscriptTurn): boolean =>
+  turn.leadingPromptEntryId != null ||
+  turn.middleChunkIds.length > 0 ||
+  turn.finalAssistantEntryIds.length > 0;
+
+const appendEntryToMiddleChunk = (
   state: TranscriptState,
   entry: TranscriptEntry,
   options: { bumpChunkRevision: boolean },
 ) => {
-  ensureTurnExists(state, entry.turnId);
-
-  const chunk = getOrCreateAppendChunk(state, entry.turnId);
-  state.entriesById[entry.id] = entry;
+  const chunk = getOrCreateMiddleChunk(state, entry.turnId);
   chunk.entryIds.push(entry.id);
   if (options.bumpChunkRevision) {
     chunk.revision += 1;
@@ -203,14 +222,35 @@ const appendEntryToChunk = (
   state.entryChunkById[entry.id] = chunk.id;
 };
 
+const classifyNewEntry = (
+  state: TranscriptState,
+  entry: TranscriptEntry,
+  options: { bumpChunkRevision: boolean },
+) => {
+  const turn = ensureTurnExists(state, entry.turnId);
+  state.entriesById[entry.id] = entry;
+
+  if (!turnHasVisibleEntries(turn) && !isAssistantMessageEntry(entry)) {
+    turn.leadingPromptEntryId = entry.id;
+    return;
+  }
+
+  if (isFinalAssistantEntry(entry)) {
+    turn.finalAssistantEntryIds.push(entry.id);
+    return;
+  }
+
+  appendEntryToMiddleChunk(state, entry, options);
+};
+
 const appendBaselineEntry = (state: TranscriptState, entry: TranscriptEntry) => {
-  appendEntryToChunk(state, entry, { bumpChunkRevision: false });
+  classifyNewEntry(state, entry, { bumpChunkRevision: false });
 };
 
 const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
   const existingEntry = state.entriesById[entry.id];
   if (existingEntry == null) {
-    appendEntryToChunk(state, entry, { bumpChunkRevision: true });
+    classifyNewEntry(state, entry, { bumpChunkRevision: true });
     return;
   }
 
@@ -287,8 +327,6 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
     selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
       transcriptState.turnsById[turnId] ?? null,
-    selectTranscriptChunkIdsForTurn: (transcriptState, turnId: string): string[] =>
-      transcriptState.chunkIdsByTurnId[turnId] ?? [],
     selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null => {
       const chunk = transcriptState.chunksById[chunkId];
       if (chunk == null) {
@@ -364,7 +402,6 @@ export const {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptTurnIds,
   selectTranscriptTurn,
-  selectTranscriptChunkIdsForTurn,
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,
