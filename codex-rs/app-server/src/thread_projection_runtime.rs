@@ -106,16 +106,6 @@ pub(crate) async fn handle_projection_attach_response(
         return;
     };
 
-    tracing::info!(
-        thread_id = %conversation_id,
-        connection_id = ?connection_id,
-        request_id = ?request_id,
-        projection_generation = ?projection_generation,
-        cut_history_cursor_item_count = cut.history_cursor.item_count(),
-        cut_head_commit_id = ?cut.head_commit_id,
-        "projection_attach_cut"
-    );
-
     let snapshot = match snapshot_processor
         .read_thread_projection_snapshot_at_cut_for_attach(conversation_id, cut)
         .await
