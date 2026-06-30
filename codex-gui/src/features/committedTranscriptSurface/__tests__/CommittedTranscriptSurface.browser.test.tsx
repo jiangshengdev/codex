@@ -3,6 +3,7 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  inProgressTurn,
   itemCompleted,
   itemStarted,
   textInput,
@@ -94,12 +95,7 @@ test("renders live completed items without rendering started items", async () =>
   store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   store.dispatch(
     threadRuntimeEventBuffered(
-      turnStarted(eventTurnStarted, "commit-turn-live", {
-        ...baseTurn("turn-live"),
-        status: "inProgress",
-        completedAt: null,
-        durationMs: null,
-      }),
+      turnStarted(eventTurnStarted, "commit-turn-live", inProgressTurn("turn-live")),
     ),
   );
   store.dispatch(

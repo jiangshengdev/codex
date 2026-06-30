@@ -24,6 +24,7 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  inProgressTurn,
   itemCompleted,
   itemStarted,
   planItem,
@@ -88,10 +89,7 @@ describe("transcript state live events reducer", () => {
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered(
-        turnStarted(eventTurnStarted, "commit-live-turn", {
-          ...baseTurn("turn-live", []),
-          status: "inProgress",
-        }),
+        turnStarted(eventTurnStarted, "commit-live-turn", inProgressTurn("turn-live")),
       ),
     );
     store.dispatch(
@@ -204,10 +202,7 @@ describe("transcript state live events reducer", () => {
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered(
-        turnStarted(eventTurnStarted, "commit-start-done", {
-          ...baseTurn("turn-done", []),
-          status: "inProgress",
-        }),
+        turnStarted(eventTurnStarted, "commit-start-done", inProgressTurn("turn-done")),
       ),
     );
     store.dispatch(

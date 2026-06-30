@@ -8,8 +8,11 @@ import {
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import { attachWithTurns } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { ThreadProjectionEventNotification } from "@codex-protocol/v2";
+import {
+  attachWithTurns,
+  turnCompleted,
+  turnStarted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeEventBuffer,
@@ -111,19 +114,10 @@ describe("thread runtime reducer", () => {
     }
     const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
     const started = reduce(attached, threadRuntimeEventBuffered(eventTurnStarted));
-    const nonMatchingCompleted: ThreadProjectionEventNotification = {
-      ...eventTurnCompleted,
-      event: {
-        ...eventTurnCompleted.event,
-        notification: {
-          ...eventTurnCompleted.event.notification,
-          turn: {
-            ...eventTurnCompleted.event.notification.turn,
-            id: "another-turn",
-          },
-        },
-      },
-    };
+    const nonMatchingCompleted = turnCompleted(eventTurnCompleted, eventTurnCompleted.commitId, {
+      ...eventTurnCompleted.event.notification.turn,
+      id: "another-turn",
+    });
 
     const state = reduce(started, threadRuntimeEventBuffered(nonMatchingCompleted));
 
@@ -163,19 +157,11 @@ describe("thread runtime reducer", () => {
       state = reduce(
         state,
         threadRuntimeEventBuffered({
-          ...eventTurnStarted,
-          commitId: `commit-buffer-${commitIndex}`,
+          ...turnStarted(eventTurnStarted, `commit-buffer-${commitIndex}`, {
+            ...eventTurnStarted.event.notification.turn,
+            id: `turn-buffer-${commitIndex}`,
+          }),
           parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
-          event: {
-            ...eventTurnStarted.event,
-            notification: {
-              ...eventTurnStarted.event.notification,
-              turn: {
-                ...eventTurnStarted.event.notification.turn,
-                id: `turn-buffer-${commitIndex}`,
-              },
-            },
-          },
         }),
       );
     }
