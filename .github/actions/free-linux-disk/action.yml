@@ -1,0 +1,15 @@
+name: Free Linux disk space
+description: Free disk space on Linux runners by removing unused hosted-runner toolchains.
+
+runs:
+  using: composite
+  steps:
+    - name: Remove unused Linux runner toolchains
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/.ghcup
