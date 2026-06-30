@@ -20,7 +20,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   }
 
   return (
-    <Alert className="mx-auto mb-4 w-full max-w-6xl" status="danger">
+    <Alert className="mx-auto mb-4 w-full max-w-3xl" status="danger">
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>Unable to start Codex GUI</Alert.Title>
@@ -40,7 +40,10 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
     >
       <Toast.Provider placement="top" />
       <GuiHostErrorAlert status={status} />
-      <Surface className="mx-auto grid min-w-0 w-full max-w-6xl content-start" variant="transparent">
+      <Surface
+        className="mx-auto grid min-w-0 w-full max-w-3xl content-start"
+        variant="transparent"
+      >
         <CommittedTranscriptSurface />
       </Surface>
       <div
