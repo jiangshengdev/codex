@@ -3,6 +3,7 @@ import { attachBaseline } from "@/features/projection/__tests__/projectionFixtur
 import {
   recordStatusLabels,
   recordStatusSummaries,
+  readRpcMethod,
   sendAuthenticateResult,
   sendJsonRpcError,
   startGuiHostConnectionWithSocket,
@@ -109,16 +110,3 @@ describe("guiHostClient protocol errors", () => {
     expect(statuses.at(-1)).toBe("error");
   });
 });
-
-function readRpcMethod(message: string): string | undefined {
-  const parsed: unknown = JSON.parse(message);
-  if (!isRecord(parsed)) {
-    return undefined;
-  }
-
-  return typeof parsed.method === "string" ? parsed.method : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}

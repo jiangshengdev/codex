@@ -8,6 +8,7 @@ import {
   MemoryStorage,
   RecordingWebSocket,
   ThrowingSetItemStorage,
+  readRpcMethod,
 } from "./guiHostClientTestSupport";
 
 describe("guiHostClient launch params", () => {
@@ -63,16 +64,3 @@ describe("guiHostClient launch params", () => {
     expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
   });
 });
-
-function readRpcMethod(message: string): string | undefined {
-  const parsed: unknown = JSON.parse(message);
-  if (!isRecord(parsed)) {
-    return undefined;
-  }
-
-  return typeof parsed.method === "string" ? parsed.method : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
