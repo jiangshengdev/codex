@@ -227,7 +227,7 @@ export const CommittedTranscriptSurface = () => {
   return (
     <section
       aria-label="Committed transcript"
-      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-5xl gap-4"
+      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4"
     >
       {globalStatus.length > 0 ? (
         <div className="committed-transcript-status-list grid min-w-0 gap-2">
