@@ -48,7 +48,7 @@ export function QrAccessPopover({
             </p>
           ) : (
             <div className="grid gap-3">
-              <div className="rounded-lg bg-white p-3">
+              <div className="rounded-lg p-3">
                 <QRCodeSVG
                   aria-label="QR code for current GUI URL"
                   className="h-full w-full"

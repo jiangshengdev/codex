@@ -100,7 +100,6 @@ test("renders a white composer panel with a primary textarea and actions", async
     .map((button) => button.textContent.trim())
     .filter((label) => label.length > 0);
 
-  expect(composerPanel.classList.contains("bg-white")).toBe(true);
   expect(composerPanel.classList.contains("p-2")).toBe(true);
   expect(composerPanel.classList.contains("p-3")).toBe(false);
   expect(composerShell.classList.contains("px-4")).toBe(false);

@@ -1,4 +1,4 @@
-import { Button, TextArea, toast } from "@heroui/react";
+import { Button, Surface, TextArea, toast } from "@heroui/react";
 import { useState, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type {
@@ -108,7 +108,10 @@ export function ComposerTurnControl({
 
   return (
     <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 pt-3 pb-0">
-      <div className="mx-auto grid w-full max-w-6xl gap-2 bg-white p-2">
+      <Surface
+        className="mx-auto grid w-full max-w-3xl gap-2 rounded-t-[20px] p-2 shadow-lg"
+        variant="default"
+      >
         <TextArea
           disabled={!connectionUsable}
           fullWidth
@@ -143,7 +146,7 @@ export function ComposerTurnControl({
             </Button>
           </div>
         </div>
-      </div>
+      </Surface>
     </section>
   );
 }
