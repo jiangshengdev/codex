@@ -1,3 +1,7 @@
+# Codex GUI
+
+- Before editing files under `codex-gui/**`, read `codex-gui/AGENTS.md` and apply its frontend-specific rules.
+
 # Rust/codex-rs
 
 In the codex-rs folder where the rust code lives:

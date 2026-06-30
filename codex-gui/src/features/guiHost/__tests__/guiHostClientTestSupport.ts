@@ -45,6 +45,15 @@ export function readRpcRequest(message: string): ParsedRpcRequest {
   return JSON.parse(message) as ParsedRpcRequest;
 }
 
+export function readRpcMethod(message: string): string | undefined {
+  const parsed: unknown = JSON.parse(message);
+  if (!isRecord(parsed)) {
+    return undefined;
+  }
+
+  return typeof parsed.method === "string" ? parsed.method : undefined;
+}
+
 export function recordStatusLabels(): {
   labels: string[];
   onStatus: NonNullable<StartGuiHostConnectionOptions["onStatus"]>;
@@ -199,4 +208,8 @@ export function startConnectionUntilCommandsReady({
   }
 
   return { attachResponse, cleanup, commands, socket, threadId };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

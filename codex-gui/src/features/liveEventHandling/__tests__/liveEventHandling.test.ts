@@ -45,6 +45,32 @@ const turnWithoutItems = ({
   durationMs,
 });
 
+const expectedItemLifecycleMaterials = (): LiveEventMaterial[] => {
+  if (eventItemStarted.event.type !== "itemStarted") {
+    throw new Error("fixture must contain an itemStarted projection event");
+  }
+  if (eventItemCompleted.event.type !== "itemCompleted") {
+    throw new Error("fixture must contain an itemCompleted projection event");
+  }
+
+  return [
+    {
+      type: "itemStarted",
+      source: "liveEvent",
+      threadId: eventItemStarted.threadId,
+      turnId: eventItemStarted.event.notification.turnId,
+      item: eventItemStarted.event.notification.item,
+    },
+    {
+      type: "itemCompleted",
+      source: "liveEvent",
+      threadId: eventItemCompleted.threadId,
+      turnId: eventItemCompleted.event.notification.turnId,
+      item: eventItemCompleted.event.notification.item,
+    },
+  ] satisfies LiveEventMaterial[];
+};
+
 describe("live event handling", () => {
   it("returns no material when no runtime exists", () => {
     const store = makeStore();
@@ -59,12 +85,6 @@ describe("live event handling", () => {
   it("derives live turn and item lifecycle material in event buffer order", () => {
     if (eventTurnStarted.event.type !== "turnStarted") {
       throw new Error("fixture must contain a turnStarted projection event");
-    }
-    if (eventItemStarted.event.type !== "itemStarted") {
-      throw new Error("fixture must contain an itemStarted projection event");
-    }
-    if (eventItemCompleted.event.type !== "itemCompleted") {
-      throw new Error("fixture must contain an itemCompleted projection event");
     }
     if (eventTurnCompleted.event.type !== "turnCompleted") {
       throw new Error("fixture must contain a turnCompleted projection event");
@@ -84,20 +104,7 @@ describe("live event handling", () => {
         threadId: eventTurnStarted.threadId,
         turn: eventTurnStarted.event.notification.turn,
       },
-      {
-        type: "itemStarted",
-        source: "liveEvent",
-        threadId: eventItemStarted.threadId,
-        turnId: eventItemStarted.event.notification.turnId,
-        item: eventItemStarted.event.notification.item,
-      },
-      {
-        type: "itemCompleted",
-        source: "liveEvent",
-        threadId: eventItemCompleted.threadId,
-        turnId: eventItemCompleted.event.notification.turnId,
-        item: eventItemCompleted.event.notification.item,
-      },
+      ...expectedItemLifecycleMaterials(),
       {
         type: "turnCompleted",
         source: "liveEvent",
@@ -113,35 +120,15 @@ describe("live event handling", () => {
   });
 
   it("does not collapse item started and completed lifecycle material", () => {
-    if (eventItemStarted.event.type !== "itemStarted") {
-      throw new Error("fixture must contain an itemStarted projection event");
-    }
-    if (eventItemCompleted.event.type !== "itemCompleted") {
-      throw new Error("fixture must contain an itemCompleted projection event");
-    }
-
     const store = makeStore();
     store.dispatch(threadRuntimeAttached(attachBaseline));
     store.dispatch(threadRuntimeEventBuffered(eventTurnStarted));
     store.dispatch(threadRuntimeEventBuffered(eventItemStarted));
     store.dispatch(threadRuntimeEventBuffered(eventItemCompleted));
 
-    expect(selectLiveEventMaterials(store.getState()).slice(1)).toStrictEqual([
-      {
-        type: "itemStarted",
-        source: "liveEvent",
-        threadId: eventItemStarted.threadId,
-        turnId: eventItemStarted.event.notification.turnId,
-        item: eventItemStarted.event.notification.item,
-      },
-      {
-        type: "itemCompleted",
-        source: "liveEvent",
-        threadId: eventItemCompleted.threadId,
-        turnId: eventItemCompleted.event.notification.turnId,
-        item: eventItemCompleted.event.notification.item,
-      },
-    ] satisfies LiveEventMaterial[]);
+    expect(selectLiveEventMaterials(store.getState()).slice(1)).toStrictEqual(
+      expectedItemLifecycleMaterials(),
+    );
   });
 
   it("derives subscription interrupted material only for manual reconnect state", () => {
