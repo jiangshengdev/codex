@@ -68,6 +68,7 @@ describe("transcript state reducer", () => {
       status: "completed",
       leadingPromptEntryId: "user-snapshot",
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-snapshot"],
     });
     expect(selectTranscriptEntry(store.getState(), "user-snapshot")).toStrictEqual({
@@ -115,6 +116,7 @@ describe("transcript state reducer", () => {
       status: "completed",
       leadingPromptEntryId: "user-leading",
       middleChunkIds: ["turn-layout:chunk:0"],
+      middleEntryCount: 3,
       finalAssistantEntryIds: ["agent-final"],
     });
     expect(selectTranscriptChunk(store.getState(), "turn-layout:chunk:0")?.entries).toStrictEqual([
@@ -180,6 +182,7 @@ describe("transcript state reducer", () => {
       status: "completed",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-assistant-first:chunk:0"],
+      middleEntryCount: 1,
       finalAssistantEntryIds: ["agent-first-final"],
     });
     expect(
@@ -217,6 +220,7 @@ describe("transcript state reducer", () => {
       status: "completed",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-final-first:chunk:0"],
+      middleEntryCount: 1,
       finalAssistantEntryIds: ["agent-final-first"],
     });
     expect(
@@ -255,6 +259,7 @@ describe("transcript state reducer", () => {
       status: "completed",
       leadingPromptEntryId: "user-multi-final",
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-final-one", "agent-final-two"],
     });
   });
@@ -513,6 +518,7 @@ describe("transcript state reducer", () => {
       status: "completed",
       leadingPromptEntryId: null,
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: [],
     });
   });
@@ -555,6 +561,7 @@ describe("transcript state reducer", () => {
       status: "inProgress",
       leadingPromptEntryId: null,
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-live"],
     });
     expect(selectTranscriptEntry(store.getState(), "agent-live")).toStrictEqual({
@@ -658,6 +665,7 @@ describe("transcript state reducer", () => {
       status: "completed",
       leadingPromptEntryId: null,
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: [],
     });
   });
@@ -713,6 +721,7 @@ describe("transcript state reducer", () => {
       status: "inProgress",
       leadingPromptEntryId: null,
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: [],
     });
   });
@@ -784,6 +793,14 @@ describe("transcript state reducer", () => {
       ),
     );
 
+    expect(selectTranscriptTurn(store.getState(), "turn-update")).toStrictEqual({
+      id: "turn-update",
+      status: "inProgress",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-update:chunk:0"],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
     expect(selectTranscriptEntry(store.getState(), "agent-update")).toStrictEqual({
       type: "message",
       id: "agent-update",
@@ -843,6 +860,7 @@ describe("transcript state reducer", () => {
       status: "inProgress",
       leadingPromptEntryId: null,
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-final-update"],
     });
     expect(selectTranscriptEntry(store.getState(), "agent-final-update")).toStrictEqual({
@@ -871,6 +889,8 @@ describe("transcript state reducer", () => {
         ),
       ),
     );
+    let firstChunkAfterLimit: ReturnType<typeof selectTranscriptChunk> | null = null;
+
     for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
       store.dispatch(
         threadRuntimeEventBuffered(
@@ -882,6 +902,13 @@ describe("transcript state reducer", () => {
           ),
         ),
       );
+
+      if (index === TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1) {
+        firstChunkAfterLimit = selectTranscriptChunk(
+          store.getState(),
+          "turn-middle-chunked:chunk:0",
+        );
+      }
     }
     store.dispatch(
       threadRuntimeEventBuffered(
@@ -899,6 +926,7 @@ describe("transcript state reducer", () => {
       status: "inProgress",
       leadingPromptEntryId: "user-leading-live",
       middleChunkIds: ["turn-middle-chunked:chunk:0", "turn-middle-chunked:chunk:1"],
+      middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
       finalAssistantEntryIds: ["agent-final-live"],
     });
     expect(
@@ -907,6 +935,9 @@ describe("transcript state reducer", () => {
     expect(
       selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:1")?.entries,
     ).toHaveLength(1);
+    expect(selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")).toBe(
+      firstChunkAfterLimit,
+    );
   });
 
   it("preserves committed transcript and sets global status on manual reconnect", () => {

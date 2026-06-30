@@ -1,7 +1,7 @@
 # Temporary grouping 重复处理完整 turn entries
 
 日期:2026-06-29
-状态:未修复
+状态:已修复
 范围:`codex-gui/src/features/committedTranscriptSurface`
 
 ## 问题摘要
@@ -47,3 +47,18 @@ turn 级别。跨 chunk temporary module 的需求会让该成本更容易出现
    last temporary entry id 和 count, 不再表达完整 membership。
 3. 如果后续需要跨 chunk temporary module, 明确这是 turn-level display model, 并避免在每次
    chunk 变化后无条件重建完整 turn view-model。
+
+## 修复记录
+
+2026-06-30:
+
+- `committedTranscriptDisplayGroups.ts` 已在前序结构调整中移除，final answer boundary 不再由 render
+  path 重新推导。
+- `MiddleTranscriptModule` 保持 turn 级 disclosure 外观，但内部按 `middleChunkIds` 渲染
+  `MiddleTranscriptChunk`，不再把所有 middle chunks flatten 成完整 entries 数组。
+- `Intermediate updates` 数量来自 `TranscriptTurn.middleEntryCount`，label 不再扫描 chunks 或 entries。
+- collapsed 状态下不再渲染 hidden temporary entries；展开后才挂载 chunk content。
+
+剩余风险:
+
+- 当前修复恢复 chunk-level render boundary；如果后续 temporary module 需要展示极长历史，虚拟化或分页应作为独立 issue 处理。

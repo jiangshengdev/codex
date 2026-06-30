@@ -186,7 +186,7 @@ test("renders temporary content collapsed beside the final answer once final ans
   );
 
   await expect.element(screen.getByText("Visible final answer")).toBeVisible();
-  await expect.element(screen.getByText("Hidden working note")).not.toBeVisible();
+  await expect.element(screen.getByText("Hidden working note")).not.toBeInTheDocument();
 
   const trigger = screen.getByRole("button", { name: "Intermediate updates · 1 item" });
   await expect.element(trigger).toBeEnabled();
@@ -221,7 +221,7 @@ test("renders one collapsed temporary module for a turn split across chunks", as
   );
 
   await expect.element(screen.getByText("Visible final answer after chunk boundary")).toBeVisible();
-  await expect.element(screen.getByText("Cross chunk working note 0")).not.toBeVisible();
+  await expect.element(screen.getByText("Cross chunk working note 0")).not.toBeInTheDocument();
 
   const triggers = Array.from(
     document.querySelectorAll<HTMLButtonElement>(".committed-transcript-temporary-trigger"),
@@ -261,8 +261,8 @@ test("renders later user messages inside the intermediate disclosure", async () 
 
   await expect.element(screen.getByText("Initial prompt")).toBeVisible();
   await expect.element(screen.getByText("Final response")).toBeVisible();
-  await expect.element(screen.getByText("Working note")).not.toBeVisible();
-  await expect.element(screen.getByText("Follow-up input")).not.toBeVisible();
+  await expect.element(screen.getByText("Working note")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("Follow-up input")).not.toBeInTheDocument();
 
   const trigger = screen.getByRole("button", { name: "Intermediate updates · 2 items" });
   await expect.element(trigger).toBeEnabled();
@@ -310,7 +310,7 @@ test("renders legacy assistant messages inside the intermediate disclosure", asy
   );
 
   await expect.element(screen.getByText("Final after legacy")).toBeVisible();
-  await expect.element(screen.getByText("Legacy assistant text")).not.toBeVisible();
+  await expect.element(screen.getByText("Legacy assistant text")).not.toBeInTheDocument();
 
   const trigger = screen.getByRole("button", { name: "Intermediate updates · 1 item" });
   await expect.element(trigger).toBeEnabled();
