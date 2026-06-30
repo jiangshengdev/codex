@@ -16,6 +16,7 @@ export type TranscriptTurn = {
   status: TurnStatus;
   leadingPromptEntryId: string | null;
   middleChunkIds: string[];
+  middleEntryCount: number;
   finalAssistantEntryIds: string[];
 };
 
@@ -155,6 +156,7 @@ const ensureTurnExists = (state: TranscriptState, turnId: string): TranscriptTur
     status: "inProgress",
     leadingPromptEntryId: null,
     middleChunkIds: [],
+    middleEntryCount: 0,
     finalAssistantEntryIds: [],
   };
   state.turnsById[turnId] = turn;
@@ -170,6 +172,7 @@ const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
       status: turn.status,
       leadingPromptEntryId: null,
       middleChunkIds: [],
+      middleEntryCount: 0,
       finalAssistantEntryIds: [],
     };
     state.turnIds.push(turn.id);
@@ -214,8 +217,10 @@ const appendEntryToMiddleChunk = (
   entry: TranscriptEntry,
   options: { bumpChunkRevision: boolean },
 ) => {
+  const turn = ensureTurnExists(state, entry.turnId);
   const chunk = getOrCreateMiddleChunk(state, entry.turnId);
   chunk.entryIds.push(entry.id);
+  turn.middleEntryCount += 1;
   if (options.bumpChunkRevision) {
     chunk.revision += 1;
   }

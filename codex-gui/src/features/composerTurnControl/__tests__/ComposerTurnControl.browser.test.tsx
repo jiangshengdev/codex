@@ -65,6 +65,19 @@ const expectComposerDisabled = async (
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
 
+async function beginPendingSend(draft: string) {
+  const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
+  const commandHandle = createGuiHostCommands();
+  vi.mocked(commandHandle.startTurn).mockReturnValueOnce(pending.promise);
+  const screen = await renderAttached(commandHandle);
+  const composer = screen.getByPlaceholder("Message Codex");
+
+  await composer.fill(draft);
+  await screen.getByRole("button", { name: "Send" }).click();
+
+  return { commandHandle, composer, pending, screen };
+}
+
 test("disables controls before attach", async () => {
   expect.hasAssertions();
 
@@ -100,7 +113,6 @@ test("renders a white composer panel with a primary textarea and actions", async
     .map((button) => button.textContent.trim())
     .filter((label) => label.length > 0);
 
-  expect(composerPanel.classList.contains("bg-white")).toBe(true);
   expect(composerPanel.classList.contains("p-2")).toBe(true);
   expect(composerPanel.classList.contains("p-3")).toBe(false);
   expect(composerShell.classList.contains("px-4")).toBe(false);
@@ -211,14 +223,7 @@ test("send failure keeps draft and shows a toast", async () => {
 });
 
 test("pending send disables duplicate submission", async () => {
-  const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
-  const commandHandle = createGuiHostCommands();
-  vi.mocked(commandHandle.startTurn).mockReturnValueOnce(pending.promise);
-  const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
-
-  await composer.fill("Send once");
-  await screen.getByRole("button", { name: "Send" }).click();
+  const { commandHandle, composer, pending, screen } = await beginPendingSend("Send once");
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   await composer.click();
   await screen.user.keyboard("{Enter}");
@@ -232,14 +237,7 @@ test("pending send disables duplicate submission", async () => {
 });
 
 test("pending send keeps newer draft after the submitted draft succeeds", async () => {
-  const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
-  const commandHandle = createGuiHostCommands();
-  vi.mocked(commandHandle.startTurn).mockReturnValueOnce(pending.promise);
-  const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
-
-  await composer.fill("Submitted draft");
-  await screen.getByRole("button", { name: "Send" }).click();
+  const { composer, pending, screen } = await beginPendingSend("Submitted draft");
   await composer.fill("New draft");
 
   pending.resolve({

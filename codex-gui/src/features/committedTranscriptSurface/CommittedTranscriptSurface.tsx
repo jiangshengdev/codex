@@ -7,7 +7,6 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
-  type TranscriptChunkView,
   type TranscriptEntry,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
@@ -51,21 +50,6 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
 const intermediateUpdatesLabel = (count: number): string =>
   `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
-const areTranscriptChunkViewArraysEqual = (
-  previous: (TranscriptChunkView | null)[],
-  next: (TranscriptChunkView | null)[],
-): boolean => {
-  if (previous === next) {
-    return true;
-  }
-
-  if (previous.length !== next.length) {
-    return false;
-  }
-
-  return previous.every((chunk, index) => areTranscriptChunkViewsEqual(chunk, next[index] ?? null));
-};
-
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntry[],
   next: TranscriptEntry[],
@@ -93,23 +77,41 @@ const LeadingPromptEntry = ({ entryId }: { entryId: string | null }) => {
   return <CommittedTranscriptEntry entry={entry} />;
 };
 
+const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
+  const chunk = useAppSelector(
+    (state) => selectTranscriptChunk(state, chunkId),
+    areTranscriptChunkViewsEqual,
+  );
+
+  if (chunk == null || chunk.entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="committed-transcript-middle-chunk grid min-w-0 gap-3">
+      {chunk.entries.map((entry) => (
+        <CommittedTranscriptEntry key={entry.id} entry={entry} />
+      ))}
+    </div>
+  );
+});
+
+MiddleTranscriptChunk.displayName = "MiddleTranscriptChunk";
+
 const MiddleTranscriptModule = ({
   chunkIds,
   hasFinalAnswer,
+  middleEntryCount,
 }: {
   chunkIds: string[];
   hasFinalAnswer: boolean;
+  middleEntryCount: number;
 }) => {
-  const chunks = useAppSelector(
-    (state) => chunkIds.map((chunkId) => selectTranscriptChunk(state, chunkId)),
-    areTranscriptChunkViewArraysEqual,
-  );
-  const entries = chunks.flatMap((chunk) => chunk?.entries ?? []);
   const [isExpanded, setIsExpanded] = useState(false);
-  const label = intermediateUpdatesLabel(entries.length);
+  const label = intermediateUpdatesLabel(middleEntryCount);
   const shouldShowEntries = !hasFinalAnswer || isExpanded;
 
-  if (entries.length === 0) {
+  if (middleEntryCount === 0) {
     return null;
   }
 
@@ -117,7 +119,7 @@ const MiddleTranscriptModule = ({
     <Disclosure
       className="committed-transcript-temporary-module grid min-w-0 gap-2"
       isDisabled={!hasFinalAnswer}
-      isExpanded={!hasFinalAnswer || isExpanded}
+      isExpanded={shouldShowEntries}
       onExpandedChange={setIsExpanded}
     >
       <Disclosure.Heading>
@@ -132,14 +134,13 @@ const MiddleTranscriptModule = ({
       </Disclosure.Heading>
       <Disclosure.Content>
         <Disclosure.Body className="pt-3">
-          <div
-            className="grid min-w-0 gap-3"
-            style={{ display: shouldShowEntries ? undefined : "none" }}
-          >
-            {entries.map((entry) => (
-              <CommittedTranscriptEntry key={entry.id} entry={entry} />
-            ))}
-          </div>
+          {shouldShowEntries ? (
+            <div className="grid min-w-0 gap-3">
+              {chunkIds.map((chunkId) => (
+                <MiddleTranscriptChunk chunkId={chunkId} key={chunkId} />
+              ))}
+            </div>
+          ) : null}
         </Disclosure.Body>
       </Disclosure.Content>
     </Disclosure>
@@ -200,6 +201,7 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
         <MiddleTranscriptModule
           chunkIds={turn.middleChunkIds}
           hasFinalAnswer={turn.finalAssistantEntryIds.length > 0}
+          middleEntryCount={turn.middleEntryCount}
         />
         <FinalAssistantMessages entryIds={turn.finalAssistantEntryIds} />
       </div>
@@ -227,7 +229,7 @@ export const CommittedTranscriptSurface = () => {
   return (
     <section
       aria-label="Committed transcript"
-      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-5xl gap-4"
+      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4"
     >
       {globalStatus.length > 0 ? (
         <div className="committed-transcript-status-list grid min-w-0 gap-2">
