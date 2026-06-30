@@ -759,8 +759,8 @@ jobs:
             bash "${GITHUB_WORKSPACE}/.github/scripts/build-codex-package-archive.sh" \
               --target "$TARGET" \
               --bundle "$BUNDLE" \
-              --entrypoint-dir "target/${TARGET}/release" \
-              --archive-dir "dist/${TARGET}"
+              --entrypoint-dir "${GITHUB_WORKSPACE}/codex-rs/target/${TARGET}/release" \
+              --archive-dir "${GITHUB_WORKSPACE}/codex-rs/dist/${TARGET}"
 
       - name: Build Python runtime wheel
         if: ${{ matrix.bundle == 'primary' }}
