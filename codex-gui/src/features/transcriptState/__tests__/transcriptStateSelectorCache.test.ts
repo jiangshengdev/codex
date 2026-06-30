@@ -1,0 +1,168 @@
+import { describe, expect, it } from "vitest";
+import { makeStore } from "@/app/store";
+import {
+  attachBaseline,
+  attachReplacement,
+  eventItemCompleted,
+  eventItemStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import {
+  threadRuntimeAttached,
+  threadRuntimeEventBuffered,
+} from "@/features/threadRuntime/threadRuntimeSlice";
+import { selectTranscriptChunk } from "../transcriptStateSlice";
+import {
+  agentMessage,
+  attachWithTurns,
+  baseTurn,
+  itemCompleted,
+  itemStarted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+
+describe("transcript state selector cache", () => {
+  it("returns a stable transcript chunk view while the chunk is unchanged", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-cached", [agentMessage("agent-cached", "Cached answer", "commentary")]),
+        ]),
+      ),
+    );
+
+    const firstChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
+
+    expect(firstChunk).not.toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemStarted(
+          eventItemStarted,
+          "commit-other-started",
+          "turn-other",
+          agentMessage("agent-other-started", "Started should not affect cached chunk"),
+        ),
+      ),
+    );
+
+    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-other-completed",
+          "turn-other",
+          agentMessage("agent-other-completed", "Other turn answer"),
+        ),
+      ),
+    );
+
+    expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
+  });
+
+  it("returns a new transcript chunk view when that chunk changes", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-cached", [agentMessage("agent-cached", "Cached answer", "commentary")]),
+        ]),
+      ),
+    );
+
+    const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-cached-append",
+          "turn-cached",
+          agentMessage("agent-cached-live", "Live answer", "commentary"),
+        ),
+      ),
+    );
+
+    const afterUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
+
+    expect(afterUpdateChunk).not.toBe(beforeUpdateChunk);
+    expect(afterUpdateChunk).toStrictEqual({
+      id: "turn-cached:chunk:0",
+      turnId: "turn-cached",
+      revision: (beforeUpdateChunk?.revision ?? 0) + 1,
+      entries: [
+        {
+          type: "message",
+          id: "agent-cached",
+          turnId: "turn-cached",
+          role: "assistant",
+          source: "Cached answer",
+          sourceKind: "plainText",
+          phase: "commentary",
+          revision: 0,
+        },
+        {
+          type: "message",
+          id: "agent-cached-live",
+          turnId: "turn-cached",
+          role: "assistant",
+          source: "Live answer",
+          sourceKind: "plainText",
+          phase: "commentary",
+          revision: 0,
+        },
+      ],
+    });
+  });
+
+  it("does not reuse transcript chunk views across snapshot reattach", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-reattach", [
+            agentMessage("agent-reattach", "Before reconnect", "commentary"),
+          ]),
+        ]),
+      ),
+    );
+
+    const beforeReattachChunk = selectTranscriptChunk(store.getState(), "turn-reattach:chunk:0");
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachReplacement, [
+          baseTurn("turn-reattach", [
+            agentMessage("agent-reattach", "After reconnect", "commentary"),
+          ]),
+        ]),
+      ),
+    );
+
+    const afterReattachChunk = selectTranscriptChunk(store.getState(), "turn-reattach:chunk:0");
+
+    expect(afterReattachChunk).not.toBe(beforeReattachChunk);
+    expect(afterReattachChunk).toStrictEqual({
+      id: "turn-reattach:chunk:0",
+      turnId: "turn-reattach",
+      revision: 0,
+      entries: [
+        {
+          type: "message",
+          id: "agent-reattach",
+          turnId: "turn-reattach",
+          role: "assistant",
+          source: "After reconnect",
+          sourceKind: "plainText",
+          phase: "commentary",
+          revision: 0,
+        },
+      ],
+    });
+  });
+});
