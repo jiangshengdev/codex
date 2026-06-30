@@ -830,6 +830,62 @@ describe("transcript state reducer", () => {
     });
   });
 
+  it("bumps entry and chunk revisions when an existing middle entry phase changes", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-phase-first",
+          "turn-phase-update",
+          agentMessage("agent-phase-update", "Working", "commentary"),
+        ),
+      ),
+    );
+    const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0");
+
+    store.dispatch(
+      threadRuntimeEventBuffered(
+        itemCompleted(
+          eventItemCompleted,
+          "commit-phase-second",
+          "turn-phase-update",
+          agentMessage("agent-phase-update", "Done", "final_answer"),
+        ),
+      ),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), "agent-phase-update")).toStrictEqual({
+      type: "message",
+      id: "agent-phase-update",
+      turnId: "turn-phase-update",
+      role: "assistant",
+      source: "Done",
+      sourceKind: "plainText",
+      phase: "final_answer",
+      revision: 1,
+    });
+    expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toStrictEqual({
+      id: "turn-phase-update:chunk:0",
+      turnId: "turn-phase-update",
+      revision: (beforeUpdateChunk?.revision ?? 0) + 1,
+      entries: [
+        {
+          type: "message",
+          id: "agent-phase-update",
+          turnId: "turn-phase-update",
+          role: "assistant",
+          source: "Done",
+          sourceKind: "plainText",
+          phase: "final_answer",
+          revision: 1,
+        },
+      ],
+    });
+  });
+
   it("updates an existing final assistant entry without creating a middle chunk", () => {
     const store = makeStore();
 
