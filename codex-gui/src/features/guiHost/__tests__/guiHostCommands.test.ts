@@ -2,46 +2,30 @@ import { describe, expect, it, vi } from "vitest";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { TurnStartParams, TurnStartResponse } from "@codex-protocol/v2";
-import type { GuiHostCommands } from "../guiHostClient";
 import {
   recordStatusLabels,
   readRpcRequest,
-  sendAttachResult,
-  sendAuthenticateResult,
-  sendInitializeResult,
   sendJsonRpcError,
   sendJsonRpcResult,
   startConnectionUntilCommandsReady,
-  startGuiHostConnectionWithSocket,
 } from "./guiHostClientTestSupport";
+
+const turnStartParams = (threadId: string): TurnStartParams => ({
+  threadId,
+  clientUserMessageId: null,
+  input: [{ type: "text", text: "Hello", text_elements: [] }],
+});
 
 describe("guiHostClient commands", () => {
   it("sends turn/start through the ready command API", async () => {
-    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-    const attachResponse = attachBaseline;
-    const { socket, threadId } = startGuiHostConnectionWithSocket({
-      attachResponse,
-      onCommandsReady: commandsReady,
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
     });
-
-    socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendAttachResult(socket, attachResponse);
-
-    expect(commandsReady).toHaveBeenCalledTimes(1);
-    const commands = commandsReady.mock.calls[0]?.[0];
-    expect(commands).toBeDefined();
-
-    const params: TurnStartParams = {
-      threadId,
-      clientUserMessageId: null,
-      input: [{ type: "text", text: "Hello", text_elements: [] }],
-    };
+    const params = turnStartParams(threadId);
     const response: TurnStartResponse = {
       turn: inProgressTurn("turn-started-by-command"),
     };
-    const promise = commands?.startTurn(params);
+    const promise = commands.startTurn(params);
 
     expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
       jsonrpc: "2.0",
@@ -56,24 +40,12 @@ describe("guiHostClient commands", () => {
   });
 
   it("sends turn/interrupt through the ready command API", async () => {
-    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-    const attachResponse = attachBaseline;
-    const { socket, threadId } = startGuiHostConnectionWithSocket({
-      attachResponse,
-      onCommandsReady: commandsReady,
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
     });
 
-    socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendAttachResult(socket, attachResponse);
-
-    expect(commandsReady).toHaveBeenCalledTimes(1);
-    const commands = commandsReady.mock.calls[0]?.[0];
-    expect(commands).toBeDefined();
-
     const params = { threadId, turnId: "turn-active" };
-    const promise = commands?.interruptTurn(params);
+    const promise = commands.interruptTurn(params);
 
     expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
       jsonrpc: "2.0",
@@ -89,28 +61,12 @@ describe("guiHostClient commands", () => {
 
   it("rejects command JSON-RPC errors without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
-    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-    const attachResponse = attachBaseline;
-    const { socket, threadId } = startGuiHostConnectionWithSocket({
-      attachResponse,
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
       onStatus,
-      onCommandsReady: commandsReady,
     });
 
-    socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendAttachResult(socket, attachResponse);
-
-    const commands = commandsReady.mock.calls[0]?.[0];
-    expect(commands).toBeDefined();
-
-    const params: TurnStartParams = {
-      threadId,
-      clientUserMessageId: null,
-      input: [{ type: "text", text: "Hello", text_elements: [] }],
-    };
-    const promise = commands?.startTurn(params);
+    const promise = commands.startTurn(turnStartParams(threadId));
 
     sendJsonRpcError(socket, 4, { code: -32000, message: "active turn already running" });
 
@@ -134,35 +90,30 @@ describe("guiHostClient commands", () => {
     expect(commandsUnavailable).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects pending command requests and marks commands unavailable on socket error", async () => {
-    const commandsUnavailable = vi.fn<() => void>();
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-      onCommandsUnavailable: commandsUnavailable,
-    });
+  it.each([
+    ["socket error", (socket: { onerror?: (() => void) | null }) => socket.onerror?.()],
+    [
+      "socket close",
+      (socket: { onclose?: ((event: { code: number; reason: string }) => void) | null }) =>
+        socket.onclose?.({ code: 1006, reason: "network lost" }),
+    ],
+  ])(
+    "rejects pending command requests and marks commands unavailable on %s",
+    async (_, closeSocket) => {
+      const commandsUnavailable = vi.fn<() => void>();
+      const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+        attachResponse: attachBaseline,
+        onCommandsUnavailable: commandsUnavailable,
+      });
 
-    const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
+      const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
 
-    socket.onerror?.();
+      closeSocket(socket);
 
-    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
-    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects pending command requests and marks commands unavailable on socket close", async () => {
-    const commandsUnavailable = vi.fn<() => void>();
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-      onCommandsUnavailable: commandsUnavailable,
-    });
-
-    const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
-
-    socket.onclose?.({ code: 1006, reason: "network lost" });
-
-    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
-    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
-  });
+      await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
+      expect(commandsUnavailable).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("closes the socket and marks commands unavailable on terminal projection protocol errors", async () => {
     const commandsUnavailable = vi.fn<() => void>();
