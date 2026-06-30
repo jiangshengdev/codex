@@ -81,7 +81,7 @@ jobs:
           persist-credentials: false
 
       - name: Free disk space (Linux x64 remote archive)
-        if: ${{ runner.os == 'Linux' && inputs.artifact_id == 'linux-x64-remote' }}
+        if: ${{ runner.os == 'Linux' && runner.environment == 'github-hosted' && inputs.artifact_id == 'linux-x64-remote' }}
         uses: ./.github/actions/free-linux-disk
 
       - name: Configure Dev Drive (Windows)
