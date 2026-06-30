@@ -108,6 +108,29 @@ const expectDocumentScrollStaysAwayFromBottom = async (maxScrollTop: number): Pr
   }
 };
 
+const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(options);
+  markHostAttached(options);
+  markCommandsReady(options, commandHandle);
+
+  return { commandHandle, options, screen };
+};
+
+const expectAppComposerDisabled = async (
+  screen: Awaited<ReturnType<typeof renderWithProviders>>,
+): Promise<void> => {
+  for (const control of [
+    screen.getByPlaceholder("Message Codex"),
+    screen.getByRole("button", { name: "Send" }),
+    screen.getByRole("button", { name: "Stop" }),
+  ]) {
+    await expect.element(control).toBeDisabled();
+  }
+};
+
 afterEach(() => {
   scrollToDocumentTop();
 });
@@ -212,12 +235,7 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
 
 test("App passes ready commands to composer and sends plain text", async () => {
   const commandHandle = createGuiHostCommands();
-  const screen = await renderWithProviders(<App />);
-
-  const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
-  markHostAttached(options);
-  markCommandsReady(options, commandHandle);
+  const { screen } = await renderReadyApp(commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Hello from App composer");
   await screen.getByRole("button", { name: "Send" }).click();
@@ -231,13 +249,8 @@ test("App passes ready commands to composer and sends plain text", async () => {
 
 test("App enables Stop for the current active turn", async () => {
   const commandHandle = createGuiHostCommands();
-  const screen = await renderWithProviders(<App />);
+  const { options, screen } = await renderReadyApp(commandHandle);
   const projectionEvent = eventTurnStarted;
-
-  const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
-  markHostAttached(options);
-  markCommandsReady(options, commandHandle);
   emitProjectionEvent(options, projectionEvent);
 
   if (projectionEvent.event.type !== "turnStarted") {
@@ -255,12 +268,7 @@ test("App enables Stop for the current active turn", async () => {
 });
 
 test("App shows a QR access popover before the Stop button", async () => {
-  const screen = await renderWithProviders(<App />);
-
-  const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
-  markHostAttached(options);
-  markCommandsReady(options);
+  const { screen } = await renderReadyApp();
 
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   const buttons = Array.from(screen.container.querySelectorAll("button"));
@@ -450,35 +458,21 @@ test("App stops forwarding runtime events after backpressure requires manual rec
 
 test("App disables composer after projection backpressure requires reconnect", async () => {
   const commandHandle = createGuiHostCommands();
-  const screen = await renderWithProviders(<App />);
+  const { options, screen } = await renderReadyApp(commandHandle);
   const projectionClosed = closedBackpressure;
-
-  const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
-  markHostAttached(options);
-  markCommandsReady(options, commandHandle);
   emitProjectionClosed(options, projectionClosed);
 
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+  await expectAppComposerDisabled(screen);
 });
 
 test("App disables composer when host commands become unavailable", async () => {
   const commandHandle = createGuiHostCommands();
-  const screen = await renderWithProviders(<App />);
-
-  const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
-  markHostAttached(options);
-  markCommandsReady(options, commandHandle);
+  const { options, screen } = await renderReadyApp(commandHandle);
 
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
   options.onCommandsUnavailable?.();
 
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+  await expectAppComposerDisabled(screen);
 });
 
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
@@ -507,12 +501,7 @@ test("App closes the host connection when unmounted", async () => {
 
 test("App does not render optimistic user messages after send", async () => {
   const commandHandle = createGuiHostCommands();
-  const screen = await renderWithProviders(<App />);
-
-  const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
-  markHostAttached(options);
-  markCommandsReady(options, commandHandle);
+  const { screen } = await renderReadyApp(commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Not optimistic");
   await screen.getByRole("button", { name: "Send" }).click();
