@@ -272,7 +272,17 @@ pub(super) async fn ensure_listener_task_running(
         thread_settings_from_config_snapshot(&conversation.config_snapshot().await);
     let (mut listener_command_rx, listener_generation) = {
         let mut thread_state = thread_state.lock().await;
-        if thread_state.listener_matches(&conversation) {
+        let listener_match_status = thread_state.listener_match_status(&conversation);
+        tracing::info!(
+            thread_id = %conversation_id,
+            listener_generation = thread_state.listener_generation,
+            listener_present = listener_match_status.listener_present,
+            listener_weak_upgrade_ok = listener_match_status.listener_weak_upgrade_ok,
+            listener_arc_matches = listener_match_status.listener_arc_matches,
+            will_rebuild_listener = !listener_match_status.matches(),
+            "projection_listener_match"
+        );
+        if listener_match_status.matches() {
             return Ok(());
         }
         let (listener_command_rx, listener_generation) = thread_state.set_listener(
@@ -304,8 +314,17 @@ pub(super) async fn ensure_listener_task_running(
         ..
     } = listener_task_context;
     let outgoing_for_task = Arc::clone(&outgoing);
-    let projection_history_cursor =
+    let projection_listener_start_cursor =
         projection_history_cursor_for_listener_start(&conversation).await;
+    let projection_history_cursor = projection_listener_start_cursor.cursor;
+    tracing::info!(
+        thread_id = %conversation_id,
+        is_ephemeral = projection_listener_start_cursor.is_ephemeral,
+        load_history_ok = projection_listener_start_cursor.load_history_ok,
+        history_item_count = projection_listener_start_cursor.history_item_count,
+        baseline_cursor_item_count = projection_history_cursor.item_count(),
+        "projection_listener_baseline"
+    );
     outgoing
         .thread_projection_manager()
         .set_history_cursor(conversation_id, projection_history_cursor)
@@ -355,8 +374,18 @@ pub(super) async fn ensure_listener_task_running(
                     };
                     let persisted_item_count =
                         projection_persisted_rollout_item_count_for_event(&event.msg);
-                    projection_history_cursor =
-                        projection_history_cursor.advance_by(persisted_item_count);
+                    let cursor_before = projection_history_cursor;
+                    let cursor_after = projection_history_cursor.advance_by(persisted_item_count);
+                    tracing::info!(
+                        thread_id = %conversation_id,
+                        event_id = %event.id,
+                        event_msg_type = projection_event_msg_type(&event.msg),
+                        persisted_item_count,
+                        cursor_before_item_count = cursor_before.item_count(),
+                        cursor_after_item_count = cursor_after.item_count(),
+                        "projection_event_cursor_advance"
+                    );
+                    projection_history_cursor = cursor_after;
                     outgoing_for_task
                         .thread_projection_manager()
                         .set_history_cursor(conversation_id, projection_history_cursor)
@@ -443,21 +472,55 @@ pub(super) async fn ensure_listener_task_running(
     Ok(())
 }
 
+struct ProjectionListenerStartCursor {
+    cursor: ProjectionHistoryCursor,
+    is_ephemeral: bool,
+    load_history_ok: bool,
+    history_item_count: usize,
+}
+
 async fn projection_history_cursor_for_listener_start(
     conversation: &Arc<CodexThread>,
-) -> ProjectionHistoryCursor {
+) -> ProjectionListenerStartCursor {
     if conversation.config_snapshot().await.ephemeral {
-        return ProjectionHistoryCursor::default();
+        return ProjectionListenerStartCursor {
+            cursor: ProjectionHistoryCursor::default(),
+            is_ephemeral: true,
+            load_history_ok: false,
+            history_item_count: 0,
+        };
     }
 
     match conversation.load_history(/*include_archived*/ true).await {
-        Ok(history) => ProjectionHistoryCursor::new(history.items.len()),
+        Ok(history) => {
+            let history_item_count = history.items.len();
+            ProjectionListenerStartCursor {
+                cursor: ProjectionHistoryCursor::new(history_item_count),
+                is_ephemeral: false,
+                load_history_ok: true,
+                history_item_count,
+            }
+        }
         Err(err) => {
             tracing::debug!(
                 "starting projection history cursor at zero because history is not available: {err}"
             );
-            ProjectionHistoryCursor::default()
+            ProjectionListenerStartCursor {
+                cursor: ProjectionHistoryCursor::default(),
+                is_ephemeral: false,
+                load_history_ok: false,
+                history_item_count: 0,
+            }
         }
+    }
+}
+
+fn projection_event_msg_type(event: &EventMsg) -> &'static str {
+    match event {
+        EventMsg::AgentMessage(_) => "agent_message",
+        EventMsg::RawResponseItem(_) => "raw_response_item",
+        EventMsg::TurnComplete(_) => "turn_complete",
+        _ => "other",
     }
 }
 

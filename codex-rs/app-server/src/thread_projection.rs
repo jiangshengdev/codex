@@ -213,7 +213,12 @@ impl ThreadProjectionManager {
         history_cursor: ProjectionHistoryCursor,
     ) {
         let mut inner = self.inner.lock().await;
-        inner.thread_entry_mut(thread_id).history_cursor = history_cursor;
+        let entry = inner.thread_entry_mut(thread_id);
+        entry.set_history_cursor(
+            thread_id,
+            history_cursor,
+            /*cursor_set_source*/ "set_history_cursor",
+        );
     }
 
     pub(crate) async fn capture_snapshot_cut(&self, thread_id: ThreadId) -> ProjectionSnapshotCut {
@@ -253,7 +258,11 @@ impl ThreadProjectionManager {
         let mut inner = self.inner.lock().await;
         let generation = inner.capture_generation(thread_id);
         let entry = inner.thread_entry_mut(thread_id);
-        entry.history_cursor = history_cursor;
+        entry.set_history_cursor(
+            thread_id,
+            history_cursor,
+            /*cursor_set_source*/ "project_notification_at_cursor",
+        );
         let Some(event) = projection_event_from_notification(notification) else {
             return Vec::new();
         };
@@ -304,6 +313,26 @@ impl ThreadProjectionManager {
 }
 
 impl ThreadEntry {
+    fn set_history_cursor(
+        &mut self,
+        thread_id: ThreadId,
+        history_cursor: ProjectionHistoryCursor,
+        cursor_set_source: &'static str,
+    ) {
+        let old_history_cursor = self.history_cursor;
+        tracing::info!(
+            thread_id = %thread_id,
+            cursor_set_source,
+            old_history_cursor_item_count = old_history_cursor.item_count(),
+            new_history_cursor_item_count = history_cursor.item_count(),
+            is_cursor_regression = history_cursor.item_count() < old_history_cursor.item_count(),
+            old_head_commit_id = ?self.head_commit_id,
+            subscriber_count = self.subscribers.len(),
+            "projection_cursor_set"
+        );
+        self.history_cursor = history_cursor;
+    }
+
     fn attach(&mut self, connection_id: ConnectionId, subscription_id: String) -> Option<String> {
         let had_subscribers = !self.subscribers.is_empty();
         let head_commit_id = self.head_commit_id.clone();
