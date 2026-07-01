@@ -337,9 +337,6 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
-    const CREATED_THREAD_HISTORY_ITEM_COUNT: usize = 1;
-    const VISIBLE_TURN_HISTORY_ITEM_COUNT: usize = CREATED_THREAD_HISTORY_ITEM_COUNT + 1;
-
     #[tokio::test]
     async fn projection_snapshot_turns_match_canonical_reconstruction_for_live_active_turn()
     -> Result<()> {

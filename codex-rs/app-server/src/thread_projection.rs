@@ -222,16 +222,6 @@ impl ThreadProjectionManager {
             .collect()
     }
 
-    pub(crate) async fn capture_snapshot_cut(&self, thread_id: ThreadId) -> ProjectionSnapshotCut {
-        let mut inner = self.inner.lock().await;
-        let generation = inner.capture_generation(thread_id);
-        let entry = inner.thread_entry_mut(thread_id);
-        ProjectionSnapshotCut {
-            generation,
-            head_commit_id: entry.head_commit_id.clone(),
-        }
-    }
-
     pub(crate) async fn capture_snapshot_cut_if_generation_matches(
         &self,
         thread_id: ThreadId,
@@ -968,9 +958,13 @@ mod tests {
         let thread_id = ThreadId::new();
         let connection_id = ConnectionId(1);
 
-        let cut = manager.capture_snapshot_cut(thread_id).await;
+        let generation = manager.capture_current_generation(thread_id).await;
+        let cut = manager
+            .capture_snapshot_cut_if_generation_matches(thread_id, generation)
+            .await
+            .expect("generation should still match");
         let attached = manager
-            .attach_if_generation_matches(thread_id, connection_id, cut.generation)
+            .attach_if_generation_matches(thread_id, connection_id, generation)
             .await;
         let ProjectionAttachAttempt::Attached(attached) = attached else {
             panic!("attach should succeed");
@@ -981,7 +975,10 @@ mod tests {
             .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
             .await;
 
-        let cut = manager.capture_snapshot_cut(thread_id).await;
+        let cut = manager
+            .capture_snapshot_cut_if_generation_matches(thread_id, cut.generation)
+            .await
+            .expect("generation should still match");
         assert_eq!(
             cut.head_commit_id,
             Some(deliveries[0].notification.commit_id.clone())

@@ -308,9 +308,6 @@ mod tests {
     use tokio::time::Duration;
     use tokio::time::timeout;
 
-    const CREATED_THREAD_HISTORY_ITEM_COUNT: usize = 1;
-    const VISIBLE_TURN_HISTORY_ITEM_COUNT: usize = CREATED_THREAD_HISTORY_ITEM_COUNT + 1;
-
     fn turn_started_notification(thread_id: ThreadId) -> ServerNotification {
         ServerNotification::TurnStarted(TurnStartedNotification {
             thread_id: thread_id.to_string(),
@@ -889,11 +886,17 @@ stream_max_retries = 0
 
         timeout(Duration::from_secs(1), async {
             loop {
+                let generation = harness
+                    .outgoing
+                    .thread_projection_manager()
+                    .capture_current_generation(harness.thread_id())
+                    .await;
                 let cut = harness
                     .outgoing
                     .thread_projection_manager()
-                    .capture_snapshot_cut(harness.thread_id())
-                    .await;
+                    .capture_snapshot_cut_if_generation_matches(harness.thread_id(), generation)
+                    .await
+                    .expect("generation should still match");
                 if cut.head_commit_id.is_some() {
                     break;
                 }
