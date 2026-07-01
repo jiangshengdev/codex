@@ -2,8 +2,9 @@
 
 ## 状态
 
-- 已定位根因，未修复。
-- 2026-07-01 最新复现和 instrumentation 证明：刷新或新浏览器 attach 时，后端 snapshot 在重建前已经把已落盘的 final/complete rollout items 截掉，因此前端 Redux 和渲染层只能看到缺失后的 transcript。
+- 已定位根因；当前代码静态评估显示该根因已修复，仍需真实移动端/桌面回归验证。
+- 2026-07-01 复现和 instrumentation 曾证明：刷新或新浏览器 attach 时，后端 snapshot 在重建前已经把已落盘的 final/complete rollout items 截掉，因此前端 Redux 和渲染层只能看到缺失后的 transcript。
+- 当前 `dev` 分支评估结论：`ProjectionSnapshotCut` 已不再携带 projection history cursor/item count；`thread/projection/attach` snapshot 现在通过 `load_thread_turns_list_history` 读取完整 persisted history 后重建 turns，并已有 `projection_snapshot_preserves_final_after_physical_only_history_item` 回归测试覆盖 physical-only history item 后 final answer 不丢失。
 
 ## 现象
 
@@ -21,9 +22,10 @@
 
 ## 根因结论
 
-- `thread/projection/attach` snapshot 会读取完整 rollout history vector，然后执行 `history_items.truncate(cut.history_cursor.item_count())`。
+- 历史根因：`thread/projection/attach` snapshot 会读取完整 rollout history vector，然后执行 `history_items.truncate(cut.history_cursor.item_count())`。
 - `cut.history_cursor.item_count()` 来自 live projection cursor 的计数口径；baseline 后新增的 `TurnContext` 等 physical rollout item 不随 `conversation.next_event()` 的 live cursor 推进。
 - 因此 cursor-domain count 会被当成完整 physical history vector 的 index 使用，导致 attach snapshot 在重建 turns 前把尾部 final/complete items 截掉。
+- 当前代码状态：该截断路径已不存在。`ProjectionSnapshotCut` 只保留 generation 和 head commit；attach snapshot 读取完整 history items，并复用 canonical turns reconstruction 路径。
 - 2026-07-01 最新复现 thread `019f1aef-5b84-7cd2-899a-5ae65d9a35c1` 的直接证据：
   - rollout 共 98 个 physical JSONL item。
   - attach cut 日志：`cut_history_cursor_item_count=94`。
@@ -34,12 +36,12 @@
 
 ## 需要补充的信息
 
-- 桌面浏览器和手机浏览器在同一 thread 上看到的 transcript 差异。
-- 是否还有除了 final/complete 以外的其他 item 类型会被同一截断口径影响。
-- 修复后需要回归验证：手机/桌面旧 URL 刷新、web 输入后刷新、web 与 CLI/TUI 混合输入后刷新。
+- 真实运行时回归验证：桌面浏览器和手机浏览器在同一 thread 上刷新旧 URL 后，`thread/projection/attach` payload、Redux transcript state、DOM 消息数量和文本是否一致。
+- 是否还有除了 final/complete 以外的其他 item 类型曾被同一历史截断口径影响，并需要独立回归样例。
+- 手机/桌面旧 URL 刷新、web 输入后刷新、web 与 CLI/TUI 混合输入后刷新这三类场景的结果记录。
 
 ## 后续建议
 
-- 进入修复设计时，优先让 attach cut 把 cursor-domain count 映射到完整 history vector 的 physical index 后再 truncate，或先过滤到 cursor-domain 序列再 replay turns。
-- 不建议优先重定义 projection cursor 为 physical item count；该方向会影响 listener baseline、live append 和 head commit fanout，风险更高。
-- 修复前保留当前 instrumentation，直到能用复现 thread 证明 attach snapshot 不再丢弃 final/complete。
+- 不再按历史方案继续设计 `history_cursor.item_count()` 映射修复；当前代码已移除这条截断路径。
+- 下一步优先做只读回归：同一固定 thread 分别用桌面和移动端视口刷新旧 URL，抓取 `thread/projection/attach` response、Redux transcript state 和 committed transcript DOM。
+- 如果 payload 已一致但 DOM 不一致，再回到 `codex-gui` 渲染层排查；如果 payload 仍缺失，则重新定位当前 app-server snapshot 生成路径。
