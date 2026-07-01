@@ -15,6 +15,9 @@ import {
   launchThreadIdRecorded,
 } from "@/features/threadIdentity/threadIdentitySlice";
 import {
+  replayForProjectionEvent,
+  snapshotReplayIndexFromTurns,
+  type SnapshotReplayIndex,
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
@@ -38,13 +41,22 @@ export function GuiHostConnectionBridge({
     let cleanupConnection: (() => void) | undefined;
     let launchThreadId: string | null = null;
     let projectionIngress: ProjectionIngressAdapter | null = null;
+    let snapshotReplayIndex: SnapshotReplayIndex | null = null;
     const dispatchProjectionOutcome = (outcome: ProjectionIngressOutcome) => {
       switch (outcome.type) {
         case "attachAccepted":
           dispatch(threadRuntimeAttached(outcome.response));
           return;
         case "eventAccepted":
-          dispatch(threadRuntimeEventBuffered(outcome.notification));
+          dispatch(
+            threadRuntimeEventBuffered({
+              notification: outcome.notification,
+              replay:
+                snapshotReplayIndex == null
+                  ? "live"
+                  : replayForProjectionEvent(snapshotReplayIndex, outcome.notification),
+            }),
+          );
           return;
         case "manualReconnectRequired":
           dispatch(
@@ -69,6 +81,7 @@ export function GuiHostConnectionBridge({
           setLaunchParams(params);
           launchThreadId = params.threadId;
           projectionIngress = new ProjectionIngressAdapter(params.threadId);
+          snapshotReplayIndex = null;
           dispatch(launchThreadIdRecorded(params.threadId));
         },
         onProjectionAttached: (response) => {
@@ -79,7 +92,14 @@ export function GuiHostConnectionBridge({
             return;
           }
 
-          dispatchProjectionOutcome(projectionIngress.handleAttach(response));
+          const outcome = projectionIngress.handleAttach(response);
+          if (outcome.type === "attachAccepted") {
+            snapshotReplayIndex = snapshotReplayIndexFromTurns(
+              outcome.response.snapshot.thread.turns,
+            );
+          }
+
+          dispatchProjectionOutcome(outcome);
         },
         onProjectionEvent: (notification) => {
           if (projectionIngress == null) {
