@@ -80,19 +80,6 @@ pub(crate) struct TurnSummary {
     pub(crate) last_error: Option<TurnError>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ListenerMatchStatus {
-    pub(crate) listener_present: bool,
-    pub(crate) listener_weak_upgrade_ok: bool,
-    pub(crate) listener_arc_matches: bool,
-}
-
-impl ListenerMatchStatus {
-    pub(crate) fn matches(self) -> bool {
-        self.listener_present && self.listener_weak_upgrade_ok && self.listener_arc_matches
-    }
-}
-
 #[derive(Default)]
 pub(crate) struct ThreadState {
     pub(crate) pending_interrupts: PendingInterruptQueue,
@@ -110,22 +97,11 @@ pub(crate) struct ThreadState {
 }
 
 impl ThreadState {
-    pub(crate) fn listener_match_status(
-        &self,
-        conversation: &Arc<CodexThread>,
-    ) -> ListenerMatchStatus {
-        let listener_present = self.listener_thread.is_some();
-        let upgraded_listener = self.listener_thread.as_ref().and_then(Weak::upgrade);
-        let listener_weak_upgrade_ok = upgraded_listener.is_some();
-        let listener_arc_matches = upgraded_listener
+    pub(crate) fn listener_matches(&self, conversation: &Arc<CodexThread>) -> bool {
+        self.listener_thread
             .as_ref()
-            .is_some_and(|existing| Arc::ptr_eq(existing, conversation));
-
-        ListenerMatchStatus {
-            listener_present,
-            listener_weak_upgrade_ok,
-            listener_arc_matches,
-        }
+            .and_then(Weak::upgrade)
+            .is_some_and(|existing| Arc::ptr_eq(&existing, conversation))
     }
 
     pub(crate) fn set_listener(
