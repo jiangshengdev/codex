@@ -90,14 +90,36 @@ snapshot 的初始化成本高于必要值。
 
 ## 当前状态
 
+状态:已修复(2026-07-01 复核)
+
 截至 2026-06-17,前两个问题已经在当前分支修复:
 
 - `appliedEventIds` 已拆为 `appliedEventIdsById` + `appliedEventOrder`,并设置
   `MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500`。
 - `turnOrder.includes(...)` 已移除,turn membership 依赖 canonical `turnsById`。
 
-剩余更重要的风险不是单个 `includes`,而是 long turn 下 reducer 维护嵌套
-`turnViews[].messages[]` read model 时,每次 append / update 都会触碰一个不断增长的数组。
+截至 2026-07-01,后续复核确认剩余 long turn 风险也已通过当前 `transcriptState`
+结构性修复:
+
+- `transcriptStateSlice.ts` 现在使用 `turnIds`、`turnsById`、`chunksById`、
+  `entriesById` 和 `entryChunkById` 维护 committed transcript,不再维护
+  `turnViews[].messages[]` 或 `messagesByTurnId` 这类不断增长的整 turn 消息数组。
+- live event 去重使用 `appliedEventIdsById[commitId]` O(1) 查重,`appliedEventOrder`
+  只作为 500 上限的 eviction 顺序数组。
+- turn membership 依赖 `turnsById`,snapshot rebuild 中未发现 `turnOrder.includes(...)`
+  或 `turnIds.includes(...)`。
+- middle / temporary entries 按 `TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100` 拆成
+  bounded chunk。append 只写尾部 chunk; update 通过 `entryChunkById` 定位所属 chunk 并
+  bump revision,不按整个 turn 扫描。
+- `CommittedTranscriptSurface` 渲染 middle content 时按 `chunkId` 订阅
+  `MiddleTranscriptChunk`,没有把所有 middle chunks `flatMap` 回整 turn entries。
+- collapsed temporary module 不挂载隐藏 entries;只有展开时才渲染 chunk entries。
+- disclosure label 使用 `middleEntryCount`,不是在 render 时扫描 chunk entries 计算。
+
+保留的成本是有界成本:`appliedEventOrder.shift()` 最多处理 500 长度数组;
+`selectTranscriptChunk` 会 materialize 单个 chunk 的 `entryIds`,但单 chunk 当前上限是
+100。`finalAssistantEntryIds` 未 chunk 化,但它不属于本 issue 的 temporary/middle hot path,
+且正常语义下一轮只有少量 final answer。
 
 ## 已选择方向
 
