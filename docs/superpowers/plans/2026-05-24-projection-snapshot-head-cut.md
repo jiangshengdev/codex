@@ -2,548 +2,190 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `thread/projection/attach` reconstruct snapshots from the same physical persisted history boundary as the returned projection `headCommitId`.
+**Goal:** Make `thread/projection/attach` return a snapshot and `headCommitId` from the same listener-processed projection cut.
 
-**Architecture:** Replace the old listener-estimated `ProjectionHistoryCursor(usize)` with a storage-neutral physical persisted item boundary. `ThreadStore::append_items` returns an `end_boundary`, core carries that boundary on delivered `Event`s, and app-server listener binds projection commits to the event-provided boundary before attach snapshot reconstruction truncates physical history through a semantic boundary API.
+**Architecture:** Keep the fix fork-local and app-server-focused: add a small rollout persistence count helper, track a per-thread projection history cursor in the listener/PM path, capture snapshot cut inside the listener command handler, and reconstruct attach snapshots from history truncated to that cut. Keep existing `ProjectionGeneration` stale attach protection and do not change protocol or `ThreadStore` trait APIs.
 
-**Tech Stack:** Rust, Tokio, `codex-thread-store`, `codex-core`, `codex-protocol`, `codex-app-server`, `pretty_assertions`, `just test`, `just fmt`, `just fix`.
+**Tech Stack:** Rust, Tokio tests, `codex-rollout`, `codex-app-server`, existing `thread_projection` and `thread_projection_runtime` test helpers, `pretty_assertions`.
 
 ---
 
 ## Source Of Truth
 
 - Design: `docs/superpowers/specs/2026-05-24-projection-snapshot-head-cut-design.md`
-- Issue: `docs/superpowers/issues/2026-06-30-02-codex-gui-mobile-missing-messages.md`
-- Research: `docs/superpowers/research/2026-06-30-codex-gui-final-message-missing/current-findings.md`
+- Issue: `docs/superpowers/issues/2026-05-19-projection-hidden-race-review.md`
+- Prior related fix: `docs/superpowers/specs/2026-05-21-projection-attach-generation-gate-design.md`
+
+## Scope
+
+This plan fixes only the snapshot/head cut mismatch:
+
+- attach snapshot must not include persisted history that the listener has not processed into projection state.
+- attach response must use the `headCommitId` from the same projection cut as the snapshot.
+- pending persisted events remain deliverable later as `thread/projection/event`.
+
+Do not solve in this change:
+
+- Do not solve projection fanout backpressure.
+- Do not change `ThreadStore` trait signatures.
+- Do not change rollout JSONL format.
+- Do not change app-server protocol schema or generated TypeScript.
+- Do not change core `send_event_raw()` persist-before-deliver order.
+- Do not remove the existing `ProjectionGeneration` stale attach gate.
 
 ## File Structure
 
-- Modify: `codex-rs/thread-store/src/types.rs`
-  - Add `StoredHistoryBoundary` and `AppendThreadItemsResult`.
-- Modify: `codex-rs/thread-store/src/lib.rs`
-  - Re-export the new types.
-- Modify: `codex-rs/thread-store/src/store.rs`
-  - Change `ThreadStore::append_items` to return `AppendThreadItemsResult`.
-- Modify: `codex-rs/thread-store/src/in_memory.rs`
-  - Return the append `end_boundary` from the in-memory history length.
-  - Add focused tests for persisted, filtered, and metadata appends.
-- Modify: `codex-rs/thread-store/src/local/live_writer.rs`
-  - Return the append `end_boundary` after canonical items are flushed.
-- Modify: `codex-rs/thread-store/src/local/mod.rs`
-  - Update the trait implementation and local store tests.
-- Modify: `codex-rs/thread-store/src/live_thread.rs`
-  - Return `AppendThreadItemsResult` to core.
-- Modify: `codex-rs/core/src/session/mod.rs`
-  - Return append results from persist helpers.
-  - Attach persistence boundary to delivered events.
-- Modify: `codex-rs/protocol/src/protocol.rs`
-  - Add `EventPersistenceBoundary` and `Event.persistence_boundary`.
-- Modify: all existing `Event { id, msg }` construction sites under `codex-rs/core/src/**`
-  - Mark direct non-persist event sends as `NoPersist`.
-- Modify: `codex-rs/app-server/src/thread_projection_cut.rs`
-  - Replace `ProjectionHistoryCursor` with `ProjectionHistoryBoundary`.
+- Modify: `codex-rs/rollout/src/policy.rs`
+  - Add a count helper that reuses existing canonical persistence filtering.
+  - Add focused tests for count behavior.
+- Modify: `codex-rs/rollout/src/lib.rs`
+  - Re-export the count helper.
+- Create: `codex-rs/app-server/src/thread_projection_cut.rs`
+  - Define `ProjectionHistoryCursor` and `ProjectionSnapshotCut`.
+  - Keep cut/cursor helpers out of hot orchestration files.
+- Modify: `codex-rs/app-server/src/lib.rs`
+  - Wire the new module.
 - Modify: `codex-rs/app-server/src/thread_projection.rs`
-  - Store `history_boundary` in projection entries.
-  - Bind projection commits to event-provided boundaries.
-- Modify: `codex-rs/app-server/src/projection_fanout.rs`
-  - Rename projection cursor plumbing to boundary plumbing.
-- Modify: `codex-rs/app-server/src/outgoing_message.rs`
-  - Carry optional projection history boundary through outgoing projection fanout.
+  - Store `history_cursor` in projection thread entries.
+  - Add PM APIs for baseline cursor, cursor advancement, and cut capture.
+  - Add unit tests for head/cursor behavior.
 - Modify: `codex-rs/app-server/src/request_processors/thread_lifecycle.rs`
-  - Stop estimating persisted item counts from `EventMsg`.
-  - Use event `persistence_boundary` to update projection cut.
+  - Initialize listener cursor at startup.
+  - Advance cursor before bespoke event handling so projected commits bind to the post-event cursor.
+  - Capture snapshot cut in the listener command handler, not in request processor.
 - Modify: `codex-rs/app-server/src/request_processors/thread_projection.rs`
-  - Truncate physical history only through `ProjectionHistoryBoundary`.
-  - Add the mixed physical history regression.
+  - Replace full-history snapshot read with snapshot-at-cut reconstruction.
+  - Keep request-processor-side generation capture for stale attach protection.
 - Modify: `codex-rs/app-server/src/thread_projection_runtime.rs`
-  - Update attach race tests for the renamed boundary type and event boundary semantics.
+  - Replace prebuilt snapshot future with listener-captured snapshot cut and snapshot reader.
+  - Add the race regression proving pending persisted history stays out of attach snapshot.
 
-## Task 1: Add Store-Level Physical Boundary Types
+## Task 1: Add A Rollout Persistence Count Helper
 
 **Files:**
-- Modify: `codex-rs/thread-store/src/types.rs`
-- Modify: `codex-rs/thread-store/src/lib.rs`
-- Modify: `codex-rs/thread-store/src/store.rs`
+- Modify: `codex-rs/rollout/src/policy.rs`
+- Modify: `codex-rs/rollout/src/lib.rs`
 
-- [ ] **Step 1: Add the boundary and append result types**
+- [ ] **Step 1: Add failing tests for count helper**
 
-In `codex-rs/thread-store/src/types.rs`, add these types after `AppendThreadItemsParams`:
+Add tests in `codex-rs/rollout/src/policy.rs` near existing policy tests. If the file has no local test module, add one at the bottom.
 
 ```rust
-/// Storage-neutral upper bound in a thread's persisted physical history.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct StoredHistoryBoundary {
-    physical_item_count: usize,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use codex_protocol::protocol::EventMsg;
+    use codex_protocol::protocol::RolloutItem;
+    use codex_protocol::protocol::TokenCountEvent;
+    use codex_protocol::protocol::TokenUsage;
+    use codex_protocol::protocol::TurnStartedEvent;
 
-impl StoredHistoryBoundary {
-    /// Create a boundary from the persisted physical item count.
-    pub fn new(physical_item_count: usize) -> Self {
-        Self {
-            physical_item_count,
-        }
+    #[test]
+    fn persisted_rollout_item_count_matches_filtered_items() {
+        let items = vec![
+            RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
+                turn_id: "turn-1".to_string(),
+                started_at: None,
+            })),
+            RolloutItem::EventMsg(EventMsg::TokenCount(TokenCountEvent {
+                info: TokenUsage::default(),
+                rate_limits: None,
+            })),
+        ];
+
+        assert_eq!(
+            persisted_rollout_item_count(&items, EventPersistenceMode::Limited),
+            persisted_rollout_items(&items, EventPersistenceMode::Limited).len()
+        );
+        assert_eq!(
+            persisted_rollout_item_count(&items, EventPersistenceMode::Extended),
+            persisted_rollout_items(&items, EventPersistenceMode::Extended).len()
+        );
     }
-
-    /// Return the persisted physical item count for diagnostics and storage-local code.
-    pub fn physical_item_count_for_logs(self) -> usize {
-        self.physical_item_count
-    }
-}
-
-/// Result of appending rollout items to a live thread.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct AppendThreadItemsResult {
-    /// Persisted physical history upper bound after the append completes.
-    pub end_boundary: StoredHistoryBoundary,
 }
 ```
 
-- [ ] **Step 2: Re-export the new types**
+Expected before implementation: compile fails because `persisted_rollout_item_count` does not exist.
 
-In `codex-rs/thread-store/src/lib.rs`, add exports beside `AppendThreadItemsParams`:
+- [ ] **Step 2: Run the red test**
 
-```rust
-pub use types::AppendThreadItemsResult;
-pub use types::StoredHistoryBoundary;
-```
-
-- [ ] **Step 3: Change the trait return type**
-
-In `codex-rs/thread-store/src/store.rs`, import `AppendThreadItemsResult` and change the trait method:
-
-```rust
-use crate::AppendThreadItemsResult;
-```
-
-```rust
-fn append_items(
-    &self,
-    params: AppendThreadItemsParams,
-) -> ThreadStoreFuture<'_, AppendThreadItemsResult>;
-```
-
-Update the method doc comment to say the result boundary uses the same physical item count as `StoredThreadHistory.items`.
-
-- [ ] **Step 4: Run the compile check for the expected failures**
-
-Run from repository root:
+Run from `codex-rs`:
 
 ```sh
-just test -p codex-thread-store
+cargo test -p codex-rollout persisted_rollout_item_count_matches_filtered_items
 ```
 
-Expected: compile failures at `append_items` implementors because they still return `()`.
+Expected: compile failure naming `persisted_rollout_item_count`.
 
-## Task 2: Implement Append Boundaries In Thread Stores
+- [ ] **Step 3: Implement count helper by reusing existing policy**
 
-**Files:**
-- Modify: `codex-rs/thread-store/src/in_memory.rs`
-- Modify: `codex-rs/thread-store/src/local/live_writer.rs`
-- Modify: `codex-rs/thread-store/src/local/mod.rs`
-- Modify: `codex-rs/thread-store/src/live_thread.rs`
-
-- [ ] **Step 1: Update the in-memory append implementation**
-
-In `codex-rs/thread-store/src/in_memory.rs`, import:
+Add this function in `codex-rs/rollout/src/policy.rs` next to `persisted_rollout_items`:
 
 ```rust
-use crate::AppendThreadItemsResult;
-use crate::StoredHistoryBoundary;
-```
-
-Change `InMemoryThreadStore::append_items` to return `ThreadStoreResult<AppendThreadItemsResult>` and compute the boundary from the stored vector length:
-
-```rust
-async fn append_items(
-    &self,
-    params: AppendThreadItemsParams,
-) -> ThreadStoreResult<AppendThreadItemsResult> {
-    let canonical_items = persisted_rollout_items(params.items.as_slice());
-    let mut state = self.state.lock().await;
-    state.calls.append_items += 1;
-    let history = state.histories.entry(params.thread_id).or_default();
-    if !canonical_items.is_empty() {
-        history.extend(canonical_items);
-    }
-    Ok(AppendThreadItemsResult {
-        end_boundary: StoredHistoryBoundary::new(history.len()),
-    })
-}
-```
-
-Update the trait implementation wrapper to return `ThreadStoreFuture<'_, AppendThreadItemsResult>`.
-
-- [ ] **Step 2: Update the local live writer**
-
-In `codex-rs/thread-store/src/local/live_writer.rs`, import:
-
-```rust
-use crate::AppendThreadItemsResult;
-use crate::LoadThreadHistoryParams;
-use crate::StoredHistoryBoundary;
-```
-
-Change `append_items` to return `ThreadStoreResult<AppendThreadItemsResult>`. After flushing, load history and return its physical item count:
-
-```rust
-pub(super) async fn append_items(
-    store: &LocalThreadStore,
-    params: AppendThreadItemsParams,
-) -> ThreadStoreResult<AppendThreadItemsResult> {
-    let thread_id = params.thread_id;
-    let canonical_items = persisted_rollout_items(params.items.as_slice());
-    if !canonical_items.is_empty() {
-        let recorder = store.live_recorder(thread_id).await?;
-        recorder
-            .record_canonical_items(canonical_items.as_slice())
-            .await
-            .map_err(thread_store_io_error)?;
-        recorder.flush().await.map_err(thread_store_io_error)?;
-    }
-
-    let history = store
-        .load_history(LoadThreadHistoryParams {
-            thread_id,
-            include_archived: true,
-        })
-        .await?;
-    Ok(AppendThreadItemsResult {
-        end_boundary: StoredHistoryBoundary::new(history.items.len()),
-    })
-}
-```
-
-Do not call the `ThreadStore` trait method from this helper. Use the inherent
-`LocalThreadStore::load_history` method so this path cannot recurse through
-`ThreadStore::append_items`.
-
-- [ ] **Step 3: Update local store and live thread signatures**
-
-In `codex-rs/thread-store/src/local/mod.rs`, update the trait implementation:
-
-```rust
-fn append_items(
-    &self,
-    params: AppendThreadItemsParams,
-) -> ThreadStoreFuture<'_, AppendThreadItemsResult> {
-    Box::pin(async move { live_writer::append_items(self, params).await })
-}
-```
-
-In `codex-rs/thread-store/src/live_thread.rs`, update `LiveThread::append_items`:
-
-```rust
-pub async fn append_items(
-    &self,
+/// Return how many canonical rollout items would be persisted for a live append.
+pub fn persisted_rollout_item_count(
     items: &[RolloutItem],
-) -> ThreadStoreResult<AppendThreadItemsResult> {
-    self.thread_store
-        .append_items(AppendThreadItemsParams {
-            thread_id: self.thread_id,
-            items: items.to_vec(),
-        })
-        .await
+    mode: EventPersistenceMode,
+) -> usize {
+    items
+        .iter()
+        .filter(|item| is_persisted_rollout_item(item, mode))
+        .count()
 }
 ```
 
-- [ ] **Step 4: Add store boundary tests**
+Do not duplicate `should_persist_event_msg` or `should_persist_response_item` match arms in app-server.
 
-Add focused tests in `codex-rs/thread-store/src/in_memory.rs` near existing in-memory tests:
+- [ ] **Step 4: Re-export helper**
+
+Add this line in `codex-rs/rollout/src/lib.rs` beside the existing policy exports:
 
 ```rust
-#[tokio::test]
-async fn append_items_returns_physical_end_boundary() {
-    let store = InMemoryThreadStore::default();
-    let thread_id = ThreadId::new();
-    store
-        .create_thread(CreateThreadParams {
-            thread_id,
-            metadata: ThreadPersistenceMetadata::default(),
-            rollout_path: None,
-        })
-        .await
-        .unwrap();
-
-    let result = store
-        .append_items(AppendThreadItemsParams {
-            thread_id,
-            items: vec![RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
-                message: "hello".to_string(),
-                images: None,
-                kind: None,
-            }))],
-        })
-        .await
-        .unwrap();
-
-    let history = store
-        .load_history(LoadThreadHistoryParams {
-            thread_id,
-            include_archived: true,
-        })
-        .await
-        .unwrap();
-    assert_eq!(
-        result.end_boundary.physical_item_count_for_logs(),
-        history.items.len()
-    );
-}
+pub use policy::persisted_rollout_item_count;
 ```
 
-Keep the assertion on `end_boundary` versus `history.items.len()` as the required behavior for this test.
+- [ ] **Step 5: Verify helper test passes**
 
-- [ ] **Step 5: Verify thread-store**
-
-Run from repository root:
+Run from `codex-rs`:
 
 ```sh
-just test -p codex-thread-store
+cargo test -p codex-rollout persisted_rollout_item_count_matches_filtered_items
 ```
 
-Expected: all `codex-thread-store` tests pass.
+Expected: test passes.
 
-## Task 3: Add Persistence Boundary To Delivered Events
+## Task 2: Add Projection Cut Types And PM Cursor State
 
 **Files:**
-- Modify: `codex-rs/protocol/src/protocol.rs`
-- Modify: all `Event { id, msg }` construction sites under `codex-rs/core/src/**`
-
-- [ ] **Step 1: Add event boundary types**
-
-In `codex-rs/protocol/src/protocol.rs`, import the thread-store boundary type if protocol can depend on it. If that would create a cycle, define a protocol-local mirror with the same `physical_item_count` semantics and convert at core/app-server boundaries.
-
-Preferred shape:
-
-```rust
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
-pub enum EventPersistenceBoundary {
-    Persisted(StoredHistoryBoundary),
-    NoPersist,
-}
-```
-
-Add the field to `Event`:
-
-```rust
-pub struct Event {
-    /// Submission `id` that this event is correlated with.
-    pub id: String,
-    /// Payload
-    pub msg: EventMsg,
-    /// Persisted history boundary associated with this delivered event.
-    pub persistence_boundary: EventPersistenceBoundary,
-}
-```
-
-- [ ] **Step 2: Add constructors**
-
-Add these constructors near `Event`:
-
-```rust
-impl Event {
-    pub fn persisted(
-        id: String,
-        msg: EventMsg,
-        boundary: StoredHistoryBoundary,
-    ) -> Self {
-        Self {
-            id,
-            msg,
-            persistence_boundary: EventPersistenceBoundary::Persisted(boundary),
-        }
-    }
-
-    pub fn no_persist(id: String, msg: EventMsg) -> Self {
-        Self {
-            id,
-            msg,
-            persistence_boundary: EventPersistenceBoundary::NoPersist,
-        }
-    }
-}
-```
-
-If a protocol-local boundary mirror is required, make `Event::persisted` accept that mirror type and convert from `StoredHistoryBoundary` in core.
-
-- [ ] **Step 3: Mark existing direct event sends as no-persist**
-
-Run from repository root:
-
-```sh
-rg -n -e 'Event \\{' codex-rs/core/src
-```
-
-For each direct event literal that does not immediately follow a successful rollout append result, change:
-
-```rust
-Event { id, msg }
-```
-
-to:
-
-```rust
-Event::no_persist(id, msg)
-```
-
-For multi-line literals, preserve the existing `id` and `msg` expressions:
-
-```rust
-Event::no_persist(
-    sub_id.clone(),
-    EventMsg::Error(ErrorEvent {
-        message,
-    }),
-)
-```
-
-- [ ] **Step 4: Run the expected compile check**
-
-Run from repository root:
-
-```sh
-just test -p codex-core
-```
-
-Expected before Task 4: compile failures in core persist helpers because persisted events have not yet been converted to `Event::persisted`.
-
-## Task 4: Return Append Results From Core Persist Paths
-
-**Files:**
-- Modify: `codex-rs/core/src/session/mod.rs`
-- Modify: core call sites that use `persist_rollout_items`
-
-- [ ] **Step 1: Change `persist_rollout_items` to return the append result**
-
-In `codex-rs/core/src/session/mod.rs`, update:
-
-```rust
-pub(crate) async fn persist_rollout_items(
-    &self,
-    items: &[RolloutItem],
-) -> Option<AppendThreadItemsResult> {
-    let Some(live_thread) = self.live_thread() else {
-        return None;
-    };
-    match live_thread.append_items(items).await {
-        Ok(result) => Some(result),
-        Err(e) => {
-            error!("failed to record rollout items: {e:#}");
-            None
-        }
-    }
-}
-```
-
-Use `Option<AppendThreadItemsResult>` so ephemeral or unavailable live-thread paths can produce `NoPersist` events without panicking.
-
-- [ ] **Step 2: Update `send_event_raw`**
-
-In `send_event_raw`, persist first, then attach the boundary to the delivered event:
-
-```rust
-pub(crate) async fn send_event_raw(&self, event: Event) {
-    let Event {
-        id,
-        msg,
-        persistence_boundary: _,
-    } = event;
-    let boundary = self
-        .persist_rollout_items(&[RolloutItem::EventMsg(msg.clone())])
-        .await
-        .map(|result| result.end_boundary);
-    let event = match boundary {
-        Some(boundary) => Event::persisted(id, msg, boundary),
-        None => Event::no_persist(id, msg),
-    };
-    self.tx_event.send(event).await.ok();
-}
-```
-
-Keep the existing send target and error handling from the current function; only replace the event construction and persistence boundary attachment.
-
-- [ ] **Step 3: Update `record_conversation_items` and raw response delivery**
-
-Where `record_conversation_items` persists `ResponseItem`s before `send_raw_response_items`, return the append result so the subsequent raw response event can use the same physical boundary.
-
-For each response item delivered as `EventMsg::RawResponseItem`, construct:
-
-```rust
-let event = match append_result {
-    Some(result) => Event::persisted(
-        sub_id.clone(),
-        EventMsg::RawResponseItem(raw_response_item_event),
-        result.end_boundary,
-    ),
-    None => Event::no_persist(
-        sub_id.clone(),
-        EventMsg::RawResponseItem(raw_response_item_event),
-    ),
-};
-self.send_event_raw(event).await;
-```
-
-If `send_event_raw` would re-persist `RawResponseItem`, add a new internal helper named `deliver_event_raw` that sends an already-bound `Event` without persisting it again. Use that helper only after the response items have already been persisted by `record_conversation_items`.
-
-- [ ] **Step 4: Update callers that ignore persist results**
-
-For calls like:
-
-```rust
-self.persist_rollout_items(&items).await;
-```
-
-where no event is delivered from that append, keep the append for durability and explicitly ignore the result:
-
-```rust
-let _ = self.persist_rollout_items(&items).await;
-```
-
-This documents the chosen design: non-event persisted items do not produce projection-boundary-only updates.
-
-- [ ] **Step 5: Verify core compiles**
-
-Run from repository root:
-
-```sh
-just test -p codex-core
-```
-
-Expected: `codex-core` tests compile and pass, or remaining failures point to missed `Event` construction sites.
-
-## Task 5: Replace Projection Cursor With Projection History Boundary
-
-**Files:**
-- Modify: `codex-rs/app-server/src/thread_projection_cut.rs`
+- Create: `codex-rs/app-server/src/thread_projection_cut.rs`
+- Modify: `codex-rs/app-server/src/lib.rs`
 - Modify: `codex-rs/app-server/src/thread_projection.rs`
-- Modify: `codex-rs/app-server/src/projection_fanout.rs`
-- Modify: `codex-rs/app-server/src/outgoing_message.rs`
 
-- [ ] **Step 1: Replace the cut type**
+- [ ] **Step 1: Add the cut module**
 
-In `codex-rs/app-server/src/thread_projection_cut.rs`, replace `ProjectionHistoryCursor` with:
+Create `codex-rs/app-server/src/thread_projection_cut.rs`:
 
 ```rust
-use codex_protocol::protocol::RolloutItem;
-use codex_thread_store::StoredHistoryBoundary;
-
 use crate::thread_projection::ProjectionGeneration;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) struct ProjectionHistoryBoundary {
-    boundary: StoredHistoryBoundary,
+pub(crate) struct ProjectionHistoryCursor {
+    item_count: usize,
 }
 
-impl ProjectionHistoryBoundary {
-    pub(crate) fn new(boundary: StoredHistoryBoundary) -> Self {
-        Self { boundary }
+impl ProjectionHistoryCursor {
+    pub(crate) fn new(item_count: usize) -> Self {
+        Self { item_count }
     }
 
-    pub(crate) fn truncate_history(self, history: &mut Vec<RolloutItem>) {
-        history.truncate(self.boundary.physical_item_count_for_logs());
+    pub(crate) fn item_count(self) -> usize {
+        self.item_count
     }
 
-    pub(crate) fn physical_item_count_for_logs(self) -> usize {
-        self.boundary.physical_item_count_for_logs()
+    pub(crate) fn advance_by(self, item_count: usize) -> Self {
+        Self {
+            item_count: self.item_count.saturating_add(item_count),
+        }
     }
 }
 
@@ -551,346 +193,768 @@ impl ProjectionHistoryBoundary {
 pub(crate) struct ProjectionSnapshotCut {
     pub(crate) generation: ProjectionGeneration,
     pub(crate) head_commit_id: Option<String>,
-    pub(crate) history_boundary: ProjectionHistoryBoundary,
+    pub(crate) history_cursor: ProjectionHistoryCursor,
 }
 ```
 
-- [ ] **Step 2: Rename manager state**
+- [ ] **Step 2: Wire the module**
 
-In `codex-rs/app-server/src/thread_projection.rs`, rename:
-
-```rust
-history_cursor
-```
-
-to:
+Add this module declaration in `codex-rs/app-server/src/lib.rs` with the other internal modules:
 
 ```rust
-history_boundary
+mod thread_projection_cut;
 ```
 
-Rename manager methods:
+- [ ] **Step 3: Add failing PM tests for cursor/cut behavior**
+
+Add these tests to `codex-rs/app-server/src/thread_projection.rs` in the existing test module:
 
 ```rust
-set_history_cursor -> set_history_boundary
-project_notification_at_cursor -> project_notification_at_boundary
+#[tokio::test]
+async fn capture_snapshot_cut_returns_head_and_cursor_together() {
+    let manager = ThreadProjectionManager::new();
+    let thread_id = ThreadId::new();
+    let connection_id = ConnectionId(1);
+    let baseline = ProjectionHistoryCursor::new(2);
+
+    manager.set_history_cursor(thread_id, baseline).await;
+    let generation = manager.capture_current_generation(thread_id).await;
+    let attached = manager
+        .attach_if_generation_matches(thread_id, connection_id, generation)
+        .await;
+    let ProjectionAttachAttempt::Attached(attached) = attached else {
+        panic!("attach should succeed");
+    };
+    assert_eq!(attached.head_commit_id, None);
+
+    let next_cursor = baseline.advance_by(1);
+    let deliveries = manager
+        .project_notification_at_cursor(
+            thread_id,
+            &turn_started_notification(thread_id, "turn-1"),
+            next_cursor,
+        )
+        .await;
+
+    let cut = manager.capture_snapshot_cut(thread_id).await;
+    assert_eq!(cut.head_commit_id, Some(deliveries[0].notification.commit_id.clone()));
+    assert_eq!(cut.history_cursor, next_cursor);
+}
+
+#[tokio::test]
+async fn non_projected_persisted_event_advances_cursor_without_head() {
+    let manager = ThreadProjectionManager::new();
+    let thread_id = ThreadId::new();
+    let baseline = ProjectionHistoryCursor::new(2);
+    let next_cursor = baseline.advance_by(1);
+
+    manager.set_history_cursor(thread_id, baseline).await;
+    manager.set_history_cursor(thread_id, next_cursor).await;
+
+    let cut = manager.capture_snapshot_cut(thread_id).await;
+    assert_eq!(cut.head_commit_id, None);
+    assert_eq!(cut.history_cursor, next_cursor);
+}
 ```
 
-The setter should accept `ProjectionHistoryBoundary`, and `ProjectionSnapshotCut` should capture `history_boundary`.
-
-- [ ] **Step 3: Update outgoing fanout plumbing**
-
-In `codex-rs/app-server/src/outgoing_message.rs` and `codex-rs/app-server/src/projection_fanout.rs`, rename optional fields and parameters from:
+Add the imports needed by these tests:
 
 ```rust
-projection_history_cursor: Option<ProjectionHistoryCursor>
+use crate::thread_projection_cut::ProjectionHistoryCursor;
 ```
 
-to:
+Expected before implementation: compile failure for missing cursor APIs.
 
-```rust
-projection_history_boundary: Option<ProjectionHistoryBoundary>
-```
+- [ ] **Step 4: Run the red PM tests**
 
-When a projection notification is faned out with a boundary, call:
-
-```rust
-project_notification_at_boundary(thread_id, notification, boundary)
-```
-
-If there is no boundary, keep the existing non-projection behavior and do not mutate projection history boundary.
-
-- [ ] **Step 4: Verify app-server compile errors are now listener-only**
-
-Run from repository root:
+Run from `codex-rs`:
 
 ```sh
-just test -p codex-app-server thread_projection
+cargo test -p codex-app-server capture_snapshot_cut_returns_head_and_cursor_together
+cargo test -p codex-app-server non_projected_persisted_event_advances_cursor_without_head
 ```
 
-Expected before Task 6: compile failures remain in `thread_lifecycle.rs` where old cursor estimation is still referenced.
+Expected: compile failure naming missing PM cursor APIs.
 
-## Task 6: Use Event Boundaries In The Projection Listener
+- [ ] **Step 5: Add cursor to `ThreadEntry`**
+
+In `codex-rs/app-server/src/thread_projection.rs`, import the new cut types:
+
+```rust
+use crate::thread_projection_cut::ProjectionHistoryCursor;
+use crate::thread_projection_cut::ProjectionSnapshotCut;
+```
+
+Extend `ThreadEntry`:
+
+```rust
+struct ThreadEntry {
+    head_commit_id: Option<String>,
+    history_cursor: ProjectionHistoryCursor,
+    subscribers: HashMap<ConnectionId, ProjectionSubscriber>,
+    has_subscribers_tx: watch::Sender<bool>,
+}
+```
+
+Update `thread_entry_mut` default entry:
+
+```rust
+ThreadEntry {
+    head_commit_id: None,
+    history_cursor: ProjectionHistoryCursor::default(),
+    subscribers: HashMap::new(),
+    has_subscribers_tx,
+}
+```
+
+- [ ] **Step 6: Add PM cursor APIs**
+
+Add these methods to `impl ThreadProjectionManager`:
+
+```rust
+pub(crate) async fn set_history_cursor(
+    &self,
+    thread_id: ThreadId,
+    history_cursor: ProjectionHistoryCursor,
+) {
+    let mut inner = self.inner.lock().await;
+    inner.thread_entry_mut(thread_id).history_cursor = history_cursor;
+}
+
+pub(crate) async fn capture_snapshot_cut(&self, thread_id: ThreadId) -> ProjectionSnapshotCut {
+    let mut inner = self.inner.lock().await;
+    let generation = inner
+        .current_generation(thread_id)
+        .unwrap_or_else(ProjectionGeneration::initial);
+    let entry = inner.thread_entry_mut(thread_id);
+    ProjectionSnapshotCut {
+        generation,
+        head_commit_id: entry.head_commit_id.clone(),
+        history_cursor: entry.history_cursor,
+    }
+}
+
+pub(crate) async fn project_notification_at_cursor(
+    &self,
+    thread_id: ThreadId,
+    notification: &ServerNotification,
+    history_cursor: ProjectionHistoryCursor,
+) -> Vec<ProjectionDelivery> {
+    let mut inner = self.inner.lock().await;
+    let entry = inner.thread_entry_mut(thread_id);
+    entry.history_cursor = history_cursor;
+    let Some(event) = projection_event_from_notification(notification) else {
+        return Vec::new();
+    };
+    let commit_id = Uuid::now_v7().to_string();
+    let parent_commit_id = entry.advance_head(commit_id.clone());
+    entry
+        .sorted_subscribers()
+        .into_iter()
+        .map(|(connection_id, subscription_id)| ProjectionDelivery {
+            connection_id,
+            notification: ThreadProjectionEventNotification {
+                thread_id: thread_id.to_string(),
+                subscription_id,
+                commit_id: commit_id.clone(),
+                parent_commit_id: parent_commit_id.clone(),
+                event: event.clone(),
+            },
+        })
+        .collect()
+}
+```
+
+Keep existing `project_notification(...)` as a wrapper for tests and existing callers:
+
+```rust
+pub(crate) async fn project_notification(
+    &self,
+    thread_id: ThreadId,
+    notification: &ServerNotification,
+) -> Vec<ProjectionDelivery> {
+    let cursor = self.capture_snapshot_cut(thread_id).await.history_cursor;
+    self.project_notification_at_cursor(thread_id, notification, cursor)
+        .await
+}
+```
+
+- [ ] **Step 7: Verify PM tests pass**
+
+Run from `codex-rs`:
+
+```sh
+cargo test -p codex-app-server capture_snapshot_cut_returns_head_and_cursor_together
+cargo test -p codex-app-server non_projected_persisted_event_advances_cursor_without_head
+```
+
+Expected: tests pass.
+
+## Task 3: Initialize And Advance Listener Cursor
 
 **Files:**
 - Modify: `codex-rs/app-server/src/request_processors/thread_lifecycle.rs`
-- Modify: `codex-rs/app-server/src/thread_projection_runtime.rs`
+- Modify: `codex-rs/app-server/src/outgoing_message.rs`
 
-- [ ] **Step 1: Remove event persisted count estimation**
+- [ ] **Step 1: Add listener cursor imports**
 
-In `codex-rs/app-server/src/request_processors/thread_lifecycle.rs`, remove `projection_persisted_rollout_item_count_for_event` and the local cursor `advance_by` flow.
-
-Replace the event handling setup with:
+In `codex-rs/app-server/src/request_processors/thread_lifecycle.rs`, add imports through the existing `super::*` path if available, or direct imports:
 
 ```rust
-let history_boundary = match event.persistence_boundary {
-    EventPersistenceBoundary::Persisted(boundary) => {
-        let boundary = ProjectionHistoryBoundary::new(boundary);
-        outgoing_for_task
-            .thread_projection_manager()
-            .set_history_boundary(conversation_id, boundary)
-            .await;
-        boundary
+use codex_protocol::protocol::RolloutItem;
+use codex_rollout::EventPersistenceMode;
+use codex_rollout::persisted_rollout_item_count;
+use crate::thread_projection_cut::ProjectionHistoryCursor;
+```
+
+- [ ] **Step 2: Add helper for baseline cursor**
+
+Add this helper in `thread_lifecycle.rs` near listener startup helpers:
+
+```rust
+async fn projection_history_cursor_for_listener_start(
+    conversation: &Arc<CodexThread>,
+) -> ProjectionHistoryCursor {
+    if conversation.config_snapshot().await.ephemeral {
+        return ProjectionHistoryCursor::default();
     }
-    EventPersistenceBoundary::NoPersist => outgoing_for_task
+
+    match conversation.load_history(/*include_archived*/ true).await {
+        Ok(history) => ProjectionHistoryCursor::new(history.items.len()),
+        Err(err) => {
+            tracing::debug!(
+                "starting projection history cursor at zero because history is not available: {err}"
+            );
+            ProjectionHistoryCursor::default()
+        }
+    }
+}
+```
+
+This helper intentionally does not change snapshot/read error behavior. It only initializes a best-known listener baseline for projection cut state.
+
+- [ ] **Step 3: Initialize PM cursor before spawning listener**
+
+In `ensure_conversation_listener(...)`, after the listener is installed and before `tokio::spawn`, compute and store baseline:
+
+```rust
+let projection_history_cursor =
+    projection_history_cursor_for_listener_start(&conversation).await;
+outgoing
+    .thread_projection_manager()
+    .set_history_cursor(conversation_id, projection_history_cursor)
+    .await;
+```
+
+Also move `projection_history_cursor` into the spawned task as a mutable local:
+
+```rust
+let mut projection_history_cursor = projection_history_cursor;
+tokio::spawn(async move {
+    // existing loop
+});
+```
+
+- [ ] **Step 4: Advance cursor before bespoke event handling**
+
+Inside the `event = conversation.next_event()` branch, after `thread_state.track_current_turn_event(...)` and before the raw-event early-continue branch, add:
+
+```rust
+let persisted_item_count = persisted_rollout_item_count(
+    &[RolloutItem::EventMsg(event.msg.clone())],
+    EventPersistenceMode::Limited,
+);
+projection_history_cursor = projection_history_cursor.advance_by(persisted_item_count);
+outgoing_for_task
+    .thread_projection_manager()
+    .set_history_cursor(conversation_id, projection_history_cursor)
+    .await;
+```
+
+Use `EventPersistenceMode::Limited` because app-server start/resume/fork paths currently pass `persist_extended_history: false` into core thread creation and resume. Do not add a new config surface for this change.
+
+- [ ] **Step 5: Send projected notifications at the current cursor**
+
+Modify `ThreadScopedOutgoingMessageSender` in `codex-rs/app-server/src/outgoing_message.rs` to carry an optional cursor:
+
+```rust
+pub(crate) struct ThreadScopedOutgoingMessageSender {
+    outgoing: Arc<OutgoingMessageSender>,
+    connection_ids: Vec<ConnectionId>,
+    thread_id: ThreadId,
+    projection_history_cursor: Option<ProjectionHistoryCursor>,
+}
+```
+
+Add a constructor for listener event delivery:
+
+```rust
+pub(crate) fn with_projection_history_cursor(
+    outgoing: Arc<OutgoingMessageSender>,
+    connection_ids: Vec<ConnectionId>,
+    thread_id: ThreadId,
+    projection_history_cursor: ProjectionHistoryCursor,
+) -> Self {
+    Self {
+        outgoing,
+        connection_ids,
+        thread_id,
+        projection_history_cursor: Some(projection_history_cursor),
+    }
+}
+```
+
+Keep existing `new(...)` setting `projection_history_cursor: None`.
+
+In `send_server_notification`, replace the PM call with:
+
+```rust
+let deliveries = if let Some(cursor) = self.projection_history_cursor {
+    self.outgoing
         .thread_projection_manager()
-        .current_history_boundary(conversation_id)
-        .await,
+        .project_notification_at_cursor(self.thread_id, &notification, cursor)
+        .await
+} else {
+    self.outgoing
+        .thread_projection_manager()
+        .project_notification(self.thread_id, &notification)
+        .await
 };
+for delivery in deliveries {
+    self.outgoing
+        .send_server_notification_to_connections(
+            &[delivery.connection_id],
+            ServerNotification::ThreadProjectionEvent(delivery.notification),
+        )
+        .await;
+}
 ```
 
-If `current_history_boundary` does not exist, add it to `ThreadProjectionManager` as a read-only accessor returning the entry's current boundary.
+- [ ] **Step 6: Use cursor-aware sender in listener**
 
-- [ ] **Step 2: Build outgoing sender with the event boundary**
-
-Replace:
+In `thread_lifecycle.rs`, replace the listener event branch construction:
 
 ```rust
-ThreadScopedOutgoingMessageSender::with_projection_history_cursor(...)
-```
-
-with:
-
-```rust
-ThreadScopedOutgoingMessageSender::with_projection_history_boundary(
+let thread_outgoing = ThreadScopedOutgoingMessageSender::new(
     outgoing_for_task.clone(),
     subscribed_connection_ids,
     conversation_id,
-    history_boundary,
-)
-```
-
-The projected notification commit should bind to this same `history_boundary`.
-
-- [ ] **Step 3: Keep listener startup baseline physical**
-
-When a listener starts, initialize the projection history boundary from the full persisted history length:
-
-```rust
-let boundary = ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(history.items.len()));
-```
-
-This is now correct because the boundary is physical persisted item count, not cursor-domain event count.
-
-- [ ] **Step 4: Update runtime tests**
-
-In `codex-rs/app-server/src/thread_projection_runtime.rs`, update helpers that manually set cursor counts to set `ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(count))`.
-
-Keep the test named like `attach_snapshot_cut_excludes_persisted_event_not_processed_by_projection` and update it so the pending future event remains after the captured physical boundary.
-
-- [ ] **Step 5: Verify focused app-server tests**
-
-Run from repository root:
-
-```sh
-just test -p codex-app-server thread_projection
-```
-
-Expected: compile failures are limited to `read_thread_projection_snapshot_at_cut` and tests that still reference `history_cursor` or `ProjectionHistoryCursor`.
-
-## Task 7: Make Snapshot Reconstruction Use Boundary API
-
-**Files:**
-- Modify: `codex-rs/app-server/src/request_processors/thread_projection.rs`
-
-- [ ] **Step 1: Replace direct truncate**
-
-In `read_thread_projection_snapshot_at_cut`, replace direct count access:
-
-```rust
-history_items.truncate(cut.history_cursor.item_count());
+);
 ```
 
 with:
 
 ```rust
-cut.history_boundary.truncate_history(&mut history_items);
-```
-
-Update the returned snapshot to use `cut.head_commit_id` unchanged.
-
-- [ ] **Step 2: Remove temporary truncation instrumentation helpers**
-
-Remove helpers that only existed for temporary diagnostics:
-
-```rust
-projection_history_item_is_outside_cursor_domain
-projection_history_item_kinds
-projection_history_item_kind
-```
-
-Keep only durable logs that describe boundary values through `physical_item_count_for_logs()`.
-
-- [ ] **Step 3: Add the mixed physical history regression**
-
-In the existing tests module in `codex-rs/app-server/src/request_processors/thread_projection.rs`, add a test named:
-
-```rust
-projection_snapshot_at_physical_boundary_keeps_visible_final_and_excludes_pending_turn
-```
-
-The test should build history in this order:
-
-```rust
-let history = vec![
-    session_meta_item(thread_id),
-    user_message_item("turn-visible", "visible prompt"),
-    agent_message_item("turn-visible", MessagePhase::Commentary, "working"),
-    turn_context_item(thread_id),
-    agent_message_item("turn-visible", MessagePhase::FinalAnswer, "visible final"),
-    assistant_response_item("msg-visible-final", "visible final"),
-    token_count_item("turn-visible"),
-    turn_complete_item("turn-visible"),
-    user_message_item("turn-pending", "pending prompt"),
-];
-```
-
-Add private helpers inside the same test module for every item in the mixed history so the regression is self-contained. Define these helpers with the existing protocol constructors used by nearby tests:
-
-```rust
-fn session_meta_item(thread_id: ThreadId) -> RolloutItem {
-    RolloutItem::SessionMeta(codex_protocol::protocol::SessionMetaLine {
-        meta: codex_core::SessionMeta {
-            id: thread_id,
-            ..Default::default()
-        },
-    })
-}
-
-fn turn_context_item(thread_id: ThreadId) -> RolloutItem {
-    RolloutItem::TurnContext(codex_protocol::protocol::TurnContextItem {
-        thread_id,
-        ..Default::default()
-    })
-}
-
-fn assistant_response_item(id: &str, text: &str) -> RolloutItem {
-    RolloutItem::ResponseItem(codex_protocol::models::ResponseItem::Message {
-        id: Some(id.to_string()),
-        role: "assistant".to_string(),
-        content: vec![codex_protocol::models::ContentItem::OutputText {
-            text: text.to_string(),
-        }],
-        phase: Some(MessagePhase::FinalAnswer),
-    })
-}
-```
-
-Set the cut boundary to the physical index immediately after `turn_complete_item("turn-visible")`:
-
-```rust
-let cut = ProjectionSnapshotCut {
-    generation: fixture.projection_generation,
-    head_commit_id: Some("commit-visible".to_string()),
-    history_boundary: ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(8)),
-};
-```
-
-Assert:
-
-```rust
-assert_eq!(snapshot.thread.turns.len(), 1);
-let turn = &snapshot.thread.turns[0];
-assert_eq!(turn.id, "turn-visible");
-assert_eq!(turn.status, TurnStatus::Completed);
-assert!(
-    turn.items.iter().any(|item| matches!(
-        item,
-        ThreadItem::AgentMessage(message)
-            if message.text == "visible final"
-                && message.phase == Some(MessagePhase::FinalAnswer)
-    ))
+let thread_outgoing = ThreadScopedOutgoingMessageSender::with_projection_history_cursor(
+    outgoing_for_task.clone(),
+    subscribed_connection_ids,
+    conversation_id,
+    projection_history_cursor,
 );
 ```
 
-The pending turn must not appear in `snapshot.thread.turns`.
+- [ ] **Step 7: Run a compile-focused check**
 
-- [ ] **Step 4: Run the regression**
-
-Run from repository root:
+Run from `codex-rs`:
 
 ```sh
-just test -p codex-app-server projection_snapshot_at_physical_boundary_keeps_visible_final_and_excludes_pending_turn
+cargo check -p codex-app-server --all-targets
 ```
 
-Expected: the new regression passes.
+Expected: app-server compiles.
 
-## Task 8: Run Integration Verification And Clean Up
+## Task 4: Reconstruct Attach Snapshot At Captured Cut
 
 **Files:**
-- Modify: only files already listed in Tasks 1-7.
+- Modify: `codex-rs/app-server/src/request_processors/thread_projection.rs`
+- Modify: `codex-rs/app-server/src/thread_projection_runtime.rs`
+- Modify: `codex-rs/app-server/src/request_processors/thread_lifecycle.rs`
 
-- [ ] **Step 1: Run focused crate tests**
+- [ ] **Step 1: Add snapshot-at-cut helper**
 
-Run from repository root:
+In `codex-rs/app-server/src/request_processors/thread_projection.rs`, add a new helper next to `read_thread_projection_snapshot`:
 
-```sh
-just test -p codex-thread-store
-just test -p codex-core
-just test -p codex-app-server thread_projection
+```rust
+pub(super) async fn read_thread_projection_snapshot_at_cut(
+    &self,
+    thread_id: ThreadId,
+    cut: crate::thread_projection_cut::ProjectionSnapshotCut,
+) -> Result<ThreadProjectionSnapshot, ThreadReadViewError> {
+    let mut thread = self
+        .read_thread_view(thread_id, /*include_turns*/ false)
+        .await?;
+    let loaded_thread = self.thread_manager.get_thread(thread_id).await.ok();
+    let has_live_running_thread = match loaded_thread.as_ref() {
+        Some(thread) => matches!(thread.agent_status().await, AgentStatus::Running),
+        None => false,
+    };
+    let active_turn = if loaded_thread.is_some() {
+        let thread_state = self.thread_state_manager.thread_state(thread_id).await;
+        thread_state.lock().await.active_turn_snapshot()
+    } else {
+        None
+    };
+    let has_live_in_progress_turn = has_live_running_thread
+        || active_turn
+            .as_ref()
+            .is_some_and(|turn| matches!(turn.status, TurnStatus::InProgress));
+    let loaded_status = self
+        .thread_watch_manager
+        .loaded_status_for_thread(&thread.id)
+        .await;
+    let mut history_items = match self.load_thread_turns_list_history(thread_id).await {
+        Ok(items) => items,
+        Err(ThreadReadViewError::InvalidRequest(message))
+            if message
+                == format!(
+                    "thread {thread_id} is not materialized yet; thread/turns/list is unavailable before first user message"
+                ) =>
+        {
+            Vec::new()
+        }
+        Err(err) => return Err(err),
+    };
+    history_items.truncate(cut.history_cursor.item_count());
+    let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
+
+    thread.turns = reconstruct_thread_turns_for_turns_list(
+        &history_items,
+        loaded_status,
+        has_live_running_thread,
+        active_turn,
+    );
+    thread.status = thread_status;
+    Ok(ThreadProjectionSnapshot {
+        thread,
+        head_commit_id: cut.head_commit_id,
+    })
+}
 ```
 
-Expected: all three commands pass.
+Keep the existing `read_thread_projection_snapshot(...)` until all callers are migrated or tests are updated.
 
-- [ ] **Step 2: Run formatting**
+- [ ] **Step 2: Change runtime work to capture cut in listener**
 
-Run from repository root:
+In `codex-rs/app-server/src/thread_projection_runtime.rs`, change `ProjectionAttachResponseWork` from carrying a prebuilt snapshot future to carrying a `ThreadRequestProcessor` clone. Use this concrete shape:
+
+```rust
+use crate::request_processors::thread_processor::ThreadRequestProcessor;
+
+pub(crate) struct ProjectionAttachResponseWork {
+    pub(crate) request_id: ConnectionRequestId,
+    pub(crate) connection_id: ConnectionId,
+    pub(crate) projection_generation: ProjectionGeneration,
+    pub(crate) snapshot_processor: ThreadRequestProcessor,
+}
+```
+
+`ThreadRequestProcessor` is already `Clone`; using it keeps the snapshot read logic in the same owner that currently implements `read_thread_projection_snapshot(...)`.
+
+- [ ] **Step 3: Capture cut before snapshot read**
+
+In `handle_projection_attach_response(...)`, after the first closing-thread check and before reading snapshot, add:
+
+```rust
+let cut = outgoing
+    .thread_projection_manager()
+    .capture_snapshot_cut(conversation_id)
+    .await;
+if cut.generation != projection_generation {
+    outgoing
+        .send_error(
+            request_id,
+            invalid_request(format!(
+                "thread {conversation_id} was unloaded while attaching projection; retry thread/projection/attach after the thread is loaded"
+            )),
+        )
+        .await;
+    return;
+}
+```
+
+Then replace `snapshot.await` with:
+
+```rust
+let snapshot = match snapshot_processor
+    .read_thread_projection_snapshot_at_cut(conversation_id, cut)
+    .await
+{
+    Ok(snapshot) => snapshot,
+    Err(error) => {
+        outgoing.send_error(request_id, error).await;
+        return;
+    }
+};
+```
+
+Keep the final `attach_if_generation_matches(...)` call after snapshot read. The early generation check avoids expensive snapshot work when teardown already happened; the final check remains the real commit gate.
+
+- [ ] **Step 4: Send snapshot directly**
+
+Replace the response construction in `handle_projection_attach_response(...)` with:
+
+```rust
+outgoing
+    .send_response(
+        request_id,
+        ThreadProjectionAttachResponse {
+            subscription_id: attach_result.subscription_id,
+            snapshot,
+        },
+    )
+    .await;
+```
+
+Do not overwrite `snapshot.head_commit_id` with `attach_result.head_commit_id`; the snapshot cut is the source of truth for the response.
+
+- [ ] **Step 5: Update enqueue path**
+
+In `thread_projection_attach(...)`, keep this generation capture before enqueue:
+
+```rust
+let projection_generation = self
+    .outgoing
+    .thread_projection_manager()
+    .capture_current_generation(thread_id)
+    .await;
+```
+
+Replace the old snapshot future creation with passing a cloneable snapshot processor into `enqueue_projection_attach_response(...)`:
+
+```rust
+let snapshot_processor = self.clone();
+```
+
+Update `ThreadListenerCommand::SendThreadProjectionAttachResponse` construction and match forwarding in `thread_lifecycle.rs` to carry the new work shape.
+
+- [ ] **Step 6: Run compile check**
+
+Run from `codex-rs`:
+
+```sh
+cargo check -p codex-app-server --all-targets
+```
+
+Expected: app-server compiles.
+
+## Task 5: Add Race Regression For Pending Persisted History
+
+**Files:**
+- Modify: `codex-rs/app-server/src/thread_projection_runtime.rs`
+- Modify: `codex-rs/app-server/src/request_processors/thread_projection.rs`
+
+- [ ] **Step 1: Add a focused snapshot-at-cut unit test**
+
+In `codex-rs/app-server/src/request_processors/thread_projection.rs`, add a test beside existing projection snapshot tests. Use the existing `ThreadRequestProcessor` test helpers in that module to create a materialized thread with two persisted items. The test should:
+
+```rust
+#[tokio::test]
+async fn projection_snapshot_at_cut_excludes_history_after_cursor() -> anyhow::Result<()> {
+    let fixture = projection_snapshot_fixture_with_history(vec![
+        RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
+            turn_id: "turn-visible".to_string(),
+            started_at: Some(1),
+        })),
+        RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
+            turn_id: "turn-pending".to_string(),
+            started_at: Some(2),
+        })),
+    ])
+    .await?;
+
+    let cut = ProjectionSnapshotCut {
+        generation: fixture
+            .processor
+            .outgoing
+            .thread_projection_manager()
+            .capture_current_generation(fixture.thread_id)
+            .await,
+        head_commit_id: None,
+        history_cursor: ProjectionHistoryCursor::new(1),
+    };
+    let snapshot = fixture
+        .processor
+        .read_thread_projection_snapshot_at_cut(fixture.thread_id, cut)
+        .await?;
+
+    let turn_ids = snapshot
+        .thread
+        .turns
+        .iter()
+        .map(|turn| turn.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(turn_ids, vec!["turn-visible"]);
+    assert_eq!(snapshot.head_commit_id, None);
+    Ok(())
+}
+```
+
+Add a small test-only helper named `projection_snapshot_fixture_with_history` in the same test module when wiring this test. The helper must use the module's existing processor construction pattern and append the supplied `RolloutItem` list to the in-memory thread store.
+
+- [ ] **Step 2: Run the red snapshot test**
+
+Run from `codex-rs`:
+
+```sh
+cargo test -p codex-app-server projection_snapshot_at_cut_excludes_history_after_cursor --no-fail-fast
+```
+
+Expected before final wiring: compile or assertion failure until snapshot-at-cut helper is wired.
+
+- [ ] **Step 3: Add listener/runtime race regression**
+
+In `codex-rs/app-server/src/thread_projection_runtime.rs`, add a test that mirrors the existing stale attach teardown test shape:
+
+```rust
+#[tokio::test]
+async fn attach_snapshot_cut_excludes_persisted_event_not_processed_by_projection()
+-> anyhow::Result<()> {
+    let thread_id = ThreadId::new();
+    let connection_id = ConnectionId(1);
+    let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
+    let thread_state_manager = ThreadStateManager::new();
+    thread_state_manager
+        .connection_initialized(connection_id, ConnectionCapabilities::default())
+        .await;
+    let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel(4);
+    let outgoing = Arc::new(OutgoingMessageSender::new(
+        outgoing_tx,
+        codex_analytics::AnalyticsEventsClient::disabled(),
+    ));
+
+    let old_cursor = ProjectionHistoryCursor::new(1);
+    outgoing
+        .thread_projection_manager()
+        .set_history_cursor(thread_id, old_cursor)
+        .await;
+    let projection_generation = outgoing
+        .thread_projection_manager()
+        .capture_current_generation(thread_id)
+        .await;
+
+    // Build a snapshot reader whose persisted history has two events while PM cursor remains at one.
+    let snapshot_processor = snapshot_processor_with_projection_history(
+        thread_id,
+        vec![visible_turn_started(thread_id), pending_turn_started(thread_id)],
+        outgoing.clone(),
+        thread_state_manager.clone(),
+    )
+    .await?;
+
+    handle_projection_attach_response(
+        thread_id,
+        &pending_thread_unloads,
+        &outgoing,
+        &thread_state_manager,
+        ProjectionAttachResponseWork {
+            request_id: ConnectionRequestId {
+                connection_id,
+                request_id: RequestId::Integer(1),
+            },
+            connection_id,
+            projection_generation,
+            snapshot_processor,
+        },
+    )
+    .await;
+
+    let message = outgoing_rx.recv().await.expect("attach response");
+    let response = match message {
+        OutgoingEnvelope::ToConnection {
+            message: OutgoingMessage::Response(response),
+            ..
+        } => response,
+        other => panic!("expected attach response, got {other:?}"),
+    };
+    let payload: ThreadProjectionAttachResponse =
+        serde_json::from_value(response.result.expect("attach result"))?;
+    let turn_ids = payload
+        .snapshot
+        .thread
+        .turns
+        .iter()
+        .map(|turn| turn.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(turn_ids, vec!["turn-visible"]);
+    assert_eq!(payload.snapshot.head_commit_id, None);
+    Ok(())
+}
+```
+
+Use local test helpers for `visible_turn_started`, `pending_turn_started`, and `snapshot_processor_with_projection_history`. Keep them in the test module; do not add production-only fixture APIs.
+
+- [ ] **Step 4: Run focused regression tests**
+
+Run from `codex-rs`:
+
+```sh
+cargo test -p codex-app-server projection_snapshot_at_cut_excludes_history_after_cursor --no-fail-fast
+cargo test -p codex-app-server attach_snapshot_cut_excludes_persisted_event_not_processed_by_projection --no-fail-fast
+```
+
+Expected: both pass.
+
+## Task 6: Final Verification And Cleanup
+
+**Files:**
+- Verify all files touched by Tasks 1-5.
+
+- [ ] **Step 1: Run app-server projection tests**
+
+Run from `codex-rs`:
+
+```sh
+RUST_MIN_STACK=8388608 cargo nextest run -p codex-app-server --test-threads 4 thread_projection
+```
+
+Expected: all matching app-server projection tests pass.
+
+- [ ] **Step 2: Run rollout helper test**
+
+Run from `codex-rs`:
+
+```sh
+cargo test -p codex-rollout persisted_rollout_item_count_matches_filtered_items
+```
+
+Expected: test passes.
+
+- [ ] **Step 3: Format Rust code**
+
+Run from `codex-rs`:
 
 ```sh
 just fmt
 ```
 
-Expected: command exits successfully. Do not re-run tests solely because `just fmt` changed formatting.
+Expected: command exits successfully. Do not re-run tests solely because `just fmt` touched formatting.
 
-- [ ] **Step 3: Run scoped clippy fix**
+- [ ] **Step 4: Run scoped clippy fix**
 
-Run from repository root:
+Run from `codex-rs`:
 
 ```sh
 just fix -p codex-app-server
 ```
 
-Expected: command exits successfully. If Tasks 1-4 changed `codex-thread-store`, `codex-core`, or `codex-protocol` enough to produce clippy warnings there, run the scoped equivalent for those crates:
+Expected: command exits successfully. Do not re-run tests after this command unless it reports a source-changing fix that affects behavior.
 
-```sh
-just fix -p codex-thread-store
-just fix -p codex-core
-just fix -p codex-protocol
-```
+- [ ] **Step 5: Check diff cleanliness**
 
-- [ ] **Step 4: Check diff hygiene**
-
-Run from repository root:
+Run from repo root:
 
 ```sh
 git diff --check
-git status --short
 ```
 
-Expected: `git diff --check` has no output. `git status --short` shows only files intentionally changed for this plan and no unrelated user edits.
+Expected: no whitespace errors.
 
-- [ ] **Step 5: Commit only after review approval**
+- [ ] **Step 6: Review scope**
 
-After the user approves the implementation diff, commit the changed files:
+Run from repo root:
 
 ```sh
-git add codex-rs/thread-store/src/types.rs \
-  codex-rs/thread-store/src/lib.rs \
-  codex-rs/thread-store/src/store.rs \
-  codex-rs/thread-store/src/in_memory.rs \
-  codex-rs/thread-store/src/local/live_writer.rs \
-  codex-rs/thread-store/src/local/mod.rs \
-  codex-rs/thread-store/src/live_thread.rs \
-  codex-rs/protocol/src/protocol.rs \
-  codex-rs/core/src/session/mod.rs \
-  codex-rs/app-server/src/thread_projection_cut.rs \
-  codex-rs/app-server/src/thread_projection.rs \
-  codex-rs/app-server/src/projection_fanout.rs \
-  codex-rs/app-server/src/outgoing_message.rs \
-  codex-rs/app-server/src/request_processors/thread_lifecycle.rs \
-  codex-rs/app-server/src/request_processors/thread_projection.rs \
-  codex-rs/app-server/src/thread_projection_runtime.rs
-git commit -m "fix(app-server): bind projection snapshots to persisted history boundary"
+git diff --stat
 ```
 
-Do not push.
+Expected: changes are limited to rollout helper, app-server projection/listener/snapshot code, and focused tests. No protocol schema, generated TypeScript, or broad store trait changes should appear.
