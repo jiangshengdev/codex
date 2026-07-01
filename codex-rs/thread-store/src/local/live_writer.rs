@@ -11,12 +11,9 @@ use tracing::warn;
 use super::LocalThreadStore;
 use super::create_thread;
 use crate::AppendThreadItemsParams;
-use crate::AppendThreadItemsResult;
 use crate::CreateThreadParams;
-use crate::LoadThreadHistoryParams;
 use crate::ReadThreadParams;
 use crate::ResumeThreadParams;
-use crate::StoredHistoryBoundary;
 use crate::ThreadStoreError;
 use crate::ThreadStoreResult;
 
@@ -85,39 +82,19 @@ pub(super) async fn resume_thread(
 pub(super) async fn append_items(
     store: &LocalThreadStore,
     params: AppendThreadItemsParams,
-) -> ThreadStoreResult<AppendThreadItemsResult> {
-    let thread_id = params.thread_id;
+) -> ThreadStoreResult<()> {
     let canonical_items = persisted_rollout_items(params.items.as_slice());
-    let rollout_path = rollout_path(store, thread_id).await?;
-    if !canonical_items.is_empty() {
-        let recorder = store.live_recorder(thread_id).await?;
-        recorder
-            .record_canonical_items(canonical_items.as_slice())
-            .await
-            .map_err(thread_store_io_error)?;
-        // LiveThread applies metadata immediately after append_items returns. Wait for the local
-        // writer so SQLite never gets ahead of JSONL for accepted live appends.
-        recorder.flush().await.map_err(thread_store_io_error)?;
+    if canonical_items.is_empty() {
+        return Ok(());
     }
-
-    if codex_rollout::existing_rollout_path(rollout_path.as_path())
+    let recorder = store.live_recorder(params.thread_id).await?;
+    recorder
+        .record_canonical_items(canonical_items.as_slice())
         .await
-        .is_none()
-    {
-        return Ok(AppendThreadItemsResult {
-            end_boundary: StoredHistoryBoundary::new(0),
-        });
-    }
-
-    let history = store
-        .load_history(LoadThreadHistoryParams {
-            thread_id,
-            include_archived: true,
-        })
-        .await?;
-    Ok(AppendThreadItemsResult {
-        end_boundary: StoredHistoryBoundary::new(history.items.len()),
-    })
+        .map_err(thread_store_io_error)?;
+    // LiveThread applies metadata immediately after append_items returns. Wait for the local
+    // writer so SQLite never gets ahead of JSONL for accepted live appends.
+    recorder.flush().await.map_err(thread_store_io_error)
 }
 
 pub(super) async fn persist_thread(

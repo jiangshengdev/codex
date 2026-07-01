@@ -936,7 +936,7 @@ async fn spawn_agent_can_fork_parent_thread_history_with_sanitized_items() {
         )
         .await;
     let parent_reference_context_item = turn_context.to_turn_context_item();
-    let _ = parent_thread
+    parent_thread
         .codex
         .session
         .persist_rollout_items(&[RolloutItem::TurnContext(
@@ -1137,7 +1137,7 @@ async fn spawn_agent_fork_strips_parent_usage_hints_from_compacted_history() {
             internal_chat_message_metadata_passthrough: None,
         },
     ];
-    let _ = parent_thread
+    parent_thread
         .codex
         .session
         .persist_rollout_items(&[
@@ -1342,7 +1342,7 @@ async fn spawn_agent_fork_last_n_turns_keeps_only_recent_turns() {
             &[spawn_agent_call(&parent_spawn_call_id)],
         )
         .await;
-    let _ = parent_thread
+    parent_thread
         .codex
         .session
         .persist_rollout_items(&[RolloutItem::TurnContext(
@@ -2294,7 +2294,7 @@ async fn resume_thread_subagent_restores_stored_metadata_and_effective_multi_age
         .await
         .to_turn_context_item();
     child_turn_context.multi_agent_mode = Some(MultiAgentMode::Proactive);
-    let _ = child_thread
+    child_thread
         .codex
         .session
         .persist_rollout_items(&[RolloutItem::TurnContext(child_turn_context)])

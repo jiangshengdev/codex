@@ -686,12 +686,12 @@ pub(crate) async fn handle_start(
         Err(err) => {
             error!("failed to prepare realtime conversation: {err}");
             let message = err.to_string();
-            sess.send_event_raw(Event::no_persist(
-                sub_id,
-                EventMsg::RealtimeConversationRealtime(RealtimeConversationRealtimeEvent {
+            sess.send_event_raw(Event {
+                id: sub_id,
+                msg: EventMsg::RealtimeConversationRealtime(RealtimeConversationRealtimeEvent {
                     payload: RealtimeEvent::Error(message),
                 }),
-            ))
+            })
             .await;
             return Ok(());
         }
@@ -700,12 +700,12 @@ pub(crate) async fn handle_start(
     if let Err(err) = handle_start_inner(sess, &sub_id, prepared_start).await {
         error!("failed to start realtime conversation: {err}");
         let message = err.to_string();
-        sess.send_event_raw(Event::no_persist(
-            sub_id.clone(),
-            EventMsg::RealtimeConversationRealtime(RealtimeConversationRealtimeEvent {
+        sess.send_event_raw(Event {
+            id: sub_id.clone(),
+            msg: EventMsg::RealtimeConversationRealtime(RealtimeConversationRealtimeEvent {
                 payload: RealtimeEvent::Error(message),
             }),
-        ))
+        })
         .await;
     }
     Ok(())
@@ -992,13 +992,13 @@ async fn handle_start_inner(
 
     info!("realtime conversation started");
 
-    sess.send_event_raw(Event::no_persist(
-        sub_id.to_string(),
-        EventMsg::RealtimeConversationStarted(RealtimeConversationStartedEvent {
+    sess.send_event_raw(Event {
+        id: sub_id.to_string(),
+        msg: EventMsg::RealtimeConversationStarted(RealtimeConversationStartedEvent {
             realtime_session_id: requested_realtime_session_id,
             version,
         }),
-    ))
+    })
     .await;
 
     let RealtimeStartOutput {
@@ -1007,10 +1007,10 @@ async fn handle_start_inner(
         sdp,
     } = start_output;
     if let Some(sdp) = sdp {
-        sess.send_event_raw(Event::no_persist(
-            sub_id.to_string(),
-            EventMsg::RealtimeConversationSdp(RealtimeConversationSdpEvent { sdp }),
-        ))
+        sess.send_event_raw(Event {
+            id: sub_id.to_string(),
+            msg: EventMsg::RealtimeConversationSdp(RealtimeConversationSdpEvent { sdp }),
+        })
         .await;
     }
 
@@ -1018,7 +1018,10 @@ async fn handle_start_inner(
     let sub_id = sub_id.to_string();
     let fanout_realtime_active = Arc::clone(&realtime_active);
     let fanout_task = tokio::spawn(async move {
-        let ev = |msg| Event::no_persist(sub_id.clone(), msg);
+        let ev = |msg| Event {
+            id: sub_id.clone(),
+            msg,
+        };
         let mut end = RealtimeConversationEnd::TransportClosed;
         while let Ok(event) = events_rx.recv().await {
             if !fanout_realtime_active.load(Ordering::Relaxed) {
@@ -1744,13 +1747,13 @@ async fn send_conversation_error(
     message: String,
     codex_error_info: CodexErrorInfo,
 ) {
-    sess.send_event_raw(Event::no_persist(
-        sub_id,
-        EventMsg::Error(ErrorEvent {
+    sess.send_event_raw(Event {
+        id: sub_id,
+        msg: EventMsg::Error(ErrorEvent {
             message,
             codex_error_info: Some(codex_error_info),
         }),
-    ))
+    })
     .await;
 }
 
@@ -1774,10 +1777,10 @@ async fn send_realtime_conversation_closed(
         RealtimeConversationEnd::Error => Some("error".to_string()),
     };
 
-    sess.send_event_raw(Event::no_persist(
-        sub_id,
-        EventMsg::RealtimeConversationClosed(RealtimeConversationClosedEvent { reason }),
-    ))
+    sess.send_event_raw(Event {
+        id: sub_id,
+        msg: EventMsg::RealtimeConversationClosed(RealtimeConversationClosedEvent { reason }),
+    })
     .await;
 }
 

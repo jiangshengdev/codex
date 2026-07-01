@@ -49,15 +49,15 @@ async fn forward_events_cancelled_while_send_blocked_shuts_down_delegate() {
 
     let (tx_out, rx_out) = bounded(1);
     tx_out
-        .send(Event::no_persist(
-            "full".to_string(),
-            EventMsg::TurnAborted(TurnAbortedEvent {
+        .send(Event {
+            id: "full".to_string(),
+            msg: EventMsg::TurnAborted(TurnAbortedEvent {
                 turn_id: Some("turn-1".to_string()),
                 reason: TurnAbortReason::Interrupted,
                 completed_at: None,
                 duration_ms: None,
             }),
-        ))
+        })
         .await
         .unwrap();
 
@@ -72,9 +72,9 @@ async fn forward_events_cancelled_while_send_blocked_shuts_down_delegate() {
     ));
 
     tx_events
-        .send(Event::no_persist(
-            "evt".to_string(),
-            EventMsg::RawResponseItem(RawResponseItemEvent {
+        .send(Event {
+            id: "evt".to_string(),
+            msg: EventMsg::RawResponseItem(RawResponseItemEvent {
                 item: ResponseItem::CustomToolCall {
                     id: None,
                     status: None,
@@ -84,7 +84,7 @@ async fn forward_events_cancelled_while_send_blocked_shuts_down_delegate() {
                     internal_chat_message_metadata_passthrough: None,
                 },
             }),
-        ))
+        })
         .await
         .unwrap();
 

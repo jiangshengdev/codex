@@ -719,21 +719,21 @@ impl Session {
             let mut post_session_configured_events = Vec::<Event>::new();
 
             for usage in config.features.legacy_feature_usages() {
-                post_session_configured_events.push(Event::no_persist(
-                    INITIAL_SUBMIT_ID.to_owned(),
-                    EventMsg::DeprecationNotice(DeprecationNoticeEvent {
+                post_session_configured_events.push(Event {
+                    id: INITIAL_SUBMIT_ID.to_owned(),
+                    msg: EventMsg::DeprecationNotice(DeprecationNoticeEvent {
                         summary: usage.summary.clone(),
                         details: usage.details.clone(),
                     }),
-                ));
+                });
             }
             for message in &config.startup_warnings {
-                post_session_configured_events.push(Event::no_persist(
-                    "".to_owned(),
-                    EventMsg::Warning(WarningEvent {
+                post_session_configured_events.push(Event {
+                    id: "".to_owned(),
+                    msg: EventMsg::Warning(WarningEvent {
                         message: message.clone(),
                     }),
-                ));
+                });
             }
             let config_path = config.codex_home.join(CONFIG_TOML_FILE);
             if let Some(event) = unstable_features_warning_event(
@@ -749,12 +749,12 @@ impl Session {
                 post_session_configured_events.push(event);
             }
             if config.permissions.approval_policy.value() == AskForApproval::OnFailure {
-                post_session_configured_events.push(Event::no_persist(
-                    "".to_owned(),
-                    EventMsg::Warning(WarningEvent {
+                post_session_configured_events.push(Event {
+                    id: "".to_owned(),
+                    msg: EventMsg::Warning(WarningEvent {
                         message: "`on-failure` approval policy is deprecated and will be removed in a future release. Use `on-request` for interactive approvals or `never` for non-interactive runs.".to_string(),
                     }),
-                ));
+                });
             }
 
             let auth = auth.as_ref();
@@ -965,12 +965,12 @@ impl Session {
             )
             .await;
             for warning in hooks.startup_warnings() {
-                post_session_configured_events.push(Event::no_persist(
-                    INITIAL_SUBMIT_ID.to_owned(),
-                    EventMsg::Warning(WarningEvent {
+                post_session_configured_events.push(Event {
+                    id: INITIAL_SUBMIT_ID.to_owned(),
+                    msg: EventMsg::Warning(WarningEvent {
                         message: warning.clone(),
                     }),
-                ));
+                });
             }
 
             let analytics_events_client = analytics_events_client.unwrap_or_else(|| {
@@ -1104,9 +1104,9 @@ impl Session {
             // Dispatch the SessionConfiguredEvent first and then report any errors.
             // If resuming, include converted initial messages in the payload so UIs can render them immediately.
             let initial_messages = initial_history.get_event_msgs();
-            let events = std::iter::once(Event::no_persist(
-                INITIAL_SUBMIT_ID.to_owned(),
-                EventMsg::SessionConfigured(SessionConfiguredEvent {
+            let events = std::iter::once(Event {
+                id: INITIAL_SUBMIT_ID.to_owned(),
+                msg: EventMsg::SessionConfigured(SessionConfiguredEvent {
                     session_id,
                     thread_id,
                     forked_from_id,
@@ -1132,7 +1132,7 @@ impl Session {
                     }),
                     rollout_path,
                 }),
-            ))
+            })
             .chain(post_session_configured_events.into_iter());
             for event in events {
                 sess.send_event_raw(event).await;

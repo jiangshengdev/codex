@@ -650,10 +650,10 @@ impl NetworkApprovalService {
                                 format!("Failed to apply network policy amendment: {err}");
                             warn!("{message}");
                             session
-                                .send_event_raw(Event::no_persist(
-                                    turn_context.sub_id.clone(),
-                                    EventMsg::Warning(WarningEvent { message }),
-                                ))
+                                .send_event_raw(Event {
+                                    id: turn_context.sub_id.clone(),
+                                    msg: EventMsg::Warning(WarningEvent { message }),
+                                })
                                 .await;
                         }
                     }
@@ -680,10 +680,10 @@ impl NetworkApprovalService {
                                 format!("Failed to apply network policy amendment: {err}");
                             warn!("{message}");
                             session
-                                .send_event_raw(Event::no_persist(
-                                    turn_context.sub_id.clone(),
-                                    EventMsg::Warning(WarningEvent { message }),
-                                ))
+                                .send_event_raw(Event {
+                                    id: turn_context.sub_id.clone(),
+                                    msg: EventMsg::Warning(WarningEvent { message }),
+                                })
                                 .await;
                         }
                     }

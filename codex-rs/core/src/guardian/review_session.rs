@@ -1174,28 +1174,28 @@ mod tests {
         last_agent_message: Option<&str>,
         time_to_first_token_ms: Option<i64>,
     ) -> Event {
-        Event::no_persist(
-            turn_id.to_string(),
-            EventMsg::TurnComplete(TurnCompleteEvent {
+        Event {
+            id: turn_id.to_string(),
+            msg: EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: turn_id.to_string(),
                 last_agent_message: last_agent_message.map(str::to_string),
                 completed_at: None,
                 duration_ms: None,
                 time_to_first_token_ms,
             }),
-        )
+        }
     }
 
     fn turn_aborted_event(turn_id: &str) -> Event {
-        Event::no_persist(
-            turn_id.to_string(),
-            EventMsg::TurnAborted(TurnAbortedEvent {
+        Event {
+            id: turn_id.to_string(),
+            msg: EventMsg::TurnAborted(TurnAbortedEvent {
                 turn_id: Some(turn_id.to_string()),
                 reason: TurnAbortReason::Interrupted,
                 completed_at: None,
                 duration_ms: None,
             }),
-        )
+        }
     }
 
     async fn test_review_params() -> GuardianReviewSessionParams {
@@ -1637,13 +1637,13 @@ mod tests {
     async fn wait_for_guardian_review_ignores_prior_turn_errors() {
         let (review_session, tx_event, _rx_sub) = test_review_session().await;
         tx_event
-            .send(Event::no_persist(
-                "prior-turn".to_string(),
-                EventMsg::Error(ErrorEvent {
+            .send(Event {
+                id: "prior-turn".to_string(),
+                msg: EventMsg::Error(ErrorEvent {
                     message: "stale guardian error".to_string(),
                     codex_error_info: None,
                 }),
-            ))
+            })
             .await
             .expect("queue prior turn error");
         tx_event
@@ -1678,13 +1678,13 @@ mod tests {
     async fn wait_for_guardian_review_preserves_structured_session_error() {
         let (review_session, tx_event, _rx_sub) = test_review_session().await;
         tx_event
-            .send(Event::no_persist(
-                "current-turn".to_string(),
-                EventMsg::Error(ErrorEvent {
+            .send(Event {
+                id: "current-turn".to_string(),
+                msg: EventMsg::Error(ErrorEvent {
                     message: "temporary failure".to_string(),
                     codex_error_info: Some(CodexErrorInfo::ServerOverloaded),
                 }),
-            ))
+            })
             .await
             .expect("queue guardian error");
         tx_event

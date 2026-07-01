@@ -336,10 +336,10 @@ impl<C> SkillsExtension<C> {
     }
 
     fn emit_warning(&self, turn_id: &str, message: String) {
-        self.event_sink.emit(Event::no_persist(
-            turn_id.to_string(),
-            EventMsg::Warning(WarningEvent { message }),
-        ));
+        self.event_sink.emit(Event {
+            id: turn_id.to_string(),
+            msg: EventMsg::Warning(WarningEvent { message }),
+        });
     }
 }
 

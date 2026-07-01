@@ -77,11 +77,11 @@ pub async fn run_codex_tool_session(
         }
     };
 
-    let session_configured_event = Event::no_persist(
+    let session_configured_event = Event {
         // Use a fake id value for now.
-        "".to_string(),
-        EventMsg::SessionConfigured(session_configured.clone()),
-    );
+        id: "".to_string(),
+        msg: EventMsg::SessionConfigured(session_configured.clone()),
+    };
     outgoing
         .send_event_as_notification(
             &session_configured_event,

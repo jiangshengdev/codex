@@ -2212,9 +2212,9 @@ async fn guardian_reused_trunk_ignores_stale_prior_turn_completion() -> anyhow::
 
     session
         .guardian_review_session
-        .send_trunk_event_raw_for_test(Event::no_persist(
-            "stale-turn".to_string(),
-            EventMsg::TurnComplete(TurnCompleteEvent {
+        .send_trunk_event_raw_for_test(Event {
+            id: "stale-turn".to_string(),
+            msg: EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: "stale-turn".to_string(),
                 last_agent_message: Some(
                     "{\"risk_level\":\"high\",\"user_authorization\":\"low\",\"outcome\":\"deny\",\"rationale\":\"stale guardian rationale\"}"
@@ -2224,7 +2224,7 @@ async fn guardian_reused_trunk_ignores_stale_prior_turn_completion() -> anyhow::
                 duration_ms: None,
                 time_to_first_token_ms: Some(1),
             }),
-        ))
+        })
         .await;
 
     let second_outcome = run_guardian_review_session_for_test(

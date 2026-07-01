@@ -233,35 +233,6 @@ fn assistant_message(text: &str) -> ResponseItem {
     }
 }
 
-#[tokio::test]
-async fn batched_raw_response_items_use_per_item_persistence_boundaries() {
-    let (mut session, turn_context, rx) = make_session_and_context_with_rx().await;
-    attach_thread_persistence(Arc::get_mut(&mut session).expect("session should be unique")).await;
-    let items = vec![assistant_message("first"), assistant_message("second")];
-
-    session
-        .record_conversation_items(turn_context.as_ref(), &items)
-        .await;
-
-    let first = rx.recv().await.expect("first raw response item event");
-    let second = rx.recv().await.expect("second raw response item event");
-    assert!(matches!(first.msg, EventMsg::RawResponseItem(_)));
-    assert!(matches!(second.msg, EventMsg::RawResponseItem(_)));
-
-    let first_boundary = persisted_event_physical_item_count(first.persistence_boundary);
-    let second_boundary = persisted_event_physical_item_count(second.persistence_boundary);
-    assert_eq!(first_boundary + 1, second_boundary);
-}
-
-fn persisted_event_physical_item_count(
-    boundary: codex_protocol::protocol::EventPersistenceBoundary,
-) -> usize {
-    let codex_protocol::protocol::EventPersistenceBoundary::Persisted(boundary) = boundary else {
-        panic!("raw response item should carry a persisted history boundary");
-    };
-    boundary.physical_item_count_for_logs()
-}
-
 fn test_session_telemetry_without_metadata() -> SessionTelemetry {
     let exporter = InMemoryMetricExporter::default();
     let metrics = MetricsClient::new(
@@ -2852,7 +2823,7 @@ async fn thread_rollback_drops_last_turn_from_history() {
         .into_iter()
         .map(RolloutItem::ResponseItem)
         .collect();
-    let _ = sess.persist_rollout_items(&rollout_items).await;
+    sess.persist_rollout_items(&rollout_items).await;
     sess.set_previous_turn_settings(Some(PreviousTurnSettings {
         model: "stale-model".to_string(),
         comp_hash: None,
@@ -2912,7 +2883,7 @@ async fn thread_rollback_clears_history_when_num_turns_exceeds_existing_turns() 
         .into_iter()
         .map(RolloutItem::ResponseItem)
         .collect();
-    let _ = sess.persist_rollout_items(&rollout_items).await;
+    sess.persist_rollout_items(&rollout_items).await;
 
     handlers::thread_rollback(&sess, "sub-1".to_string(), /*num_turns*/ 99).await;
 
@@ -2970,68 +2941,67 @@ async fn thread_rollback_recomputes_previous_turn_settings_and_reference_context
     let turn_two_user = user_message("turn 2 user");
     let turn_two_assistant = assistant_message("turn 2 assistant");
 
-    let _ = sess
-        .persist_rollout_items(&[
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: first_turn_id.clone(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::EventMsg(EventMsg::UserMessage(
-                codex_protocol::protocol::UserMessageEvent {
-                    client_id: None,
-                    message: "turn 1 user".to_string(),
-                    images: None,
-                    local_images: Vec::new(),
-                    text_elements: Vec::new(),
-                    ..Default::default()
-                },
-            )),
-            RolloutItem::TurnContext(first_context_item.clone()),
-            RolloutItem::ResponseItem(turn_one_user.clone()),
-            RolloutItem::ResponseItem(turn_one_assistant.clone()),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
-                turn_id: first_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: rolled_back_turn_id.clone(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::EventMsg(EventMsg::UserMessage(
-                codex_protocol::protocol::UserMessageEvent {
-                    client_id: None,
-                    message: "turn 2 user".to_string(),
-                    images: None,
-                    local_images: Vec::new(),
-                    text_elements: Vec::new(),
-                    ..Default::default()
-                },
-            )),
-            RolloutItem::TurnContext(rolled_back_context_item),
-            RolloutItem::ResponseItem(turn_two_user),
-            RolloutItem::ResponseItem(turn_two_assistant),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
-                turn_id: rolled_back_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-        ])
-        .await;
+    sess.persist_rollout_items(&[
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
+                turn_id: first_turn_id.clone(),
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::EventMsg(EventMsg::UserMessage(
+            codex_protocol::protocol::UserMessageEvent {
+                client_id: None,
+                message: "turn 1 user".to_string(),
+                images: None,
+                local_images: Vec::new(),
+                text_elements: Vec::new(),
+                ..Default::default()
+            },
+        )),
+        RolloutItem::TurnContext(first_context_item.clone()),
+        RolloutItem::ResponseItem(turn_one_user.clone()),
+        RolloutItem::ResponseItem(turn_one_assistant.clone()),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: first_turn_id,
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
+                turn_id: rolled_back_turn_id.clone(),
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::EventMsg(EventMsg::UserMessage(
+            codex_protocol::protocol::UserMessageEvent {
+                client_id: None,
+                message: "turn 2 user".to_string(),
+                images: None,
+                local_images: Vec::new(),
+                text_elements: Vec::new(),
+                ..Default::default()
+            },
+        )),
+        RolloutItem::TurnContext(rolled_back_context_item),
+        RolloutItem::ResponseItem(turn_two_user),
+        RolloutItem::ResponseItem(turn_two_assistant),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: rolled_back_turn_id,
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+    ])
+    .await;
     sess.replace_history(
         vec![assistant_message("stale history")],
         Some(first_context_item.clone()),
@@ -3091,93 +3061,92 @@ async fn thread_rollback_restores_cleared_reference_context_item_after_compactio
     let previous_window_id = Uuid::now_v7();
     let compacted_window_id = Uuid::now_v7();
 
-    let _ = sess
-        .persist_rollout_items(&[
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: first_turn_id.clone(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
-                client_id: None,
-                message: "turn 1 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-                ..Default::default()
-            })),
-            RolloutItem::TurnContext(first_context_item.clone()),
-            RolloutItem::ResponseItem(user_message("turn 1 user")),
-            RolloutItem::ResponseItem(assistant_message("turn 1 assistant")),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
-                turn_id: first_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: compact_turn_id.clone(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::Compacted(CompactedItem {
-                message: "summary after compaction".to_string(),
-                replacement_history: Some(compacted_history.clone()),
-                window_number: Some(7),
-                first_window_id: Some(first_window_id.to_string()),
-                previous_window_id: Some(previous_window_id.to_string()),
-                window_id: Some(compacted_window_id.to_string()),
-            }),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
-                turn_id: compact_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: rolled_back_turn_id.clone(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
-                client_id: None,
-                message: "turn 2 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-                ..Default::default()
-            })),
-            RolloutItem::TurnContext(TurnContextItem {
-                turn_id: Some(rolled_back_turn_id.clone()),
-                model: "rolled-back-model".to_string(),
-                comp_hash: None,
-                ..first_context_item.clone()
-            }),
-            RolloutItem::ResponseItem(user_message("turn 2 user")),
-            RolloutItem::ResponseItem(assistant_message("turn 2 assistant")),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
-                turn_id: rolled_back_turn_id,
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-        ])
-        .await;
+    sess.persist_rollout_items(&[
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
+                turn_id: first_turn_id.clone(),
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+            client_id: None,
+            message: "turn 1 user".to_string(),
+            images: None,
+            local_images: Vec::new(),
+            text_elements: Vec::new(),
+            ..Default::default()
+        })),
+        RolloutItem::TurnContext(first_context_item.clone()),
+        RolloutItem::ResponseItem(user_message("turn 1 user")),
+        RolloutItem::ResponseItem(assistant_message("turn 1 assistant")),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: first_turn_id,
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
+                turn_id: compact_turn_id.clone(),
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::Compacted(CompactedItem {
+            message: "summary after compaction".to_string(),
+            replacement_history: Some(compacted_history.clone()),
+            window_number: Some(7),
+            first_window_id: Some(first_window_id.to_string()),
+            previous_window_id: Some(previous_window_id.to_string()),
+            window_id: Some(compacted_window_id.to_string()),
+        }),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: compact_turn_id,
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
+                turn_id: rolled_back_turn_id.clone(),
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+            client_id: None,
+            message: "turn 2 user".to_string(),
+            images: None,
+            local_images: Vec::new(),
+            text_elements: Vec::new(),
+            ..Default::default()
+        })),
+        RolloutItem::TurnContext(TurnContextItem {
+            turn_id: Some(rolled_back_turn_id.clone()),
+            model: "rolled-back-model".to_string(),
+            comp_hash: None,
+            ..first_context_item.clone()
+        }),
+        RolloutItem::ResponseItem(user_message("turn 2 user")),
+        RolloutItem::ResponseItem(assistant_message("turn 2 assistant")),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: rolled_back_turn_id,
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+    ])
+    .await;
     sess.replace_history(
         vec![assistant_message("stale history")],
         Some(first_context_item),
@@ -3221,91 +3190,90 @@ async fn thread_rollback_persists_marker_and_replays_cumulatively() {
     .await;
     let turn_context_item = tc.to_turn_context_item();
 
-    let _ = sess
-        .persist_rollout_items(&[
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: "turn-1".to_string(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
-                client_id: None,
-                message: "turn 1 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-                ..Default::default()
-            })),
-            RolloutItem::TurnContext(turn_context_item.clone()),
-            RolloutItem::ResponseItem(user_message("turn 1 user")),
-            RolloutItem::ResponseItem(assistant_message("turn 1 assistant")),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+    sess.persist_rollout_items(&[
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-1".to_string(),
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: "turn-2".to_string(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
-                client_id: None,
-                message: "turn 2 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-                ..Default::default()
-            })),
-            RolloutItem::TurnContext(turn_context_item.clone()),
-            RolloutItem::ResponseItem(user_message("turn 2 user")),
-            RolloutItem::ResponseItem(assistant_message("turn 2 assistant")),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+            client_id: None,
+            message: "turn 1 user".to_string(),
+            images: None,
+            local_images: Vec::new(),
+            text_elements: Vec::new(),
+            ..Default::default()
+        })),
+        RolloutItem::TurnContext(turn_context_item.clone()),
+        RolloutItem::ResponseItem(user_message("turn 1 user")),
+        RolloutItem::ResponseItem(assistant_message("turn 1 assistant")),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: "turn-1".to_string(),
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-2".to_string(),
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-            RolloutItem::EventMsg(EventMsg::TurnStarted(
-                codex_protocol::protocol::TurnStartedEvent {
-                    turn_id: "turn-3".to_string(),
-                    trace_id: None,
-                    started_at: None,
-                    model_context_window: Some(128_000),
-                    collaboration_mode_kind: ModeKind::Default,
-                },
-            )),
-            RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
-                client_id: None,
-                message: "turn 3 user".to_string(),
-                images: None,
-                local_images: Vec::new(),
-                text_elements: Vec::new(),
-                ..Default::default()
-            })),
-            RolloutItem::TurnContext(turn_context_item),
-            RolloutItem::ResponseItem(user_message("turn 3 user")),
-            RolloutItem::ResponseItem(assistant_message("turn 3 assistant")),
-            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+            client_id: None,
+            message: "turn 2 user".to_string(),
+            images: None,
+            local_images: Vec::new(),
+            text_elements: Vec::new(),
+            ..Default::default()
+        })),
+        RolloutItem::TurnContext(turn_context_item.clone()),
+        RolloutItem::ResponseItem(user_message("turn 2 user")),
+        RolloutItem::ResponseItem(assistant_message("turn 2 assistant")),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: "turn-2".to_string(),
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
                 turn_id: "turn-3".to_string(),
-                last_agent_message: None,
-                completed_at: None,
-                duration_ms: None,
-                time_to_first_token_ms: None,
-            })),
-        ])
-        .await;
+                trace_id: None,
+                started_at: None,
+                model_context_window: Some(128_000),
+                collaboration_mode_kind: ModeKind::Default,
+            },
+        )),
+        RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+            client_id: None,
+            message: "turn 3 user".to_string(),
+            images: None,
+            local_images: Vec::new(),
+            text_elements: Vec::new(),
+            ..Default::default()
+        })),
+        RolloutItem::TurnContext(turn_context_item),
+        RolloutItem::ResponseItem(user_message("turn 3 user")),
+        RolloutItem::ResponseItem(assistant_message("turn 3 assistant")),
+        RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: "turn-3".to_string(),
+            last_agent_message: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })),
+    ])
+    .await;
 
     handlers::thread_rollback(&sess, "sub-1".to_string(), /*num_turns*/ 1).await;
     let first_rollback = wait_for_thread_rolled_back(&rx).await;
@@ -8591,7 +8559,7 @@ async fn record_context_updates_and_set_reference_context_item_persists_full_rei
         .await;
     let rollout_path = attach_thread_persistence(&mut session).await;
 
-    let _ = session
+    session
         .persist_rollout_items(&[RolloutItem::EventMsg(EventMsg::UserMessage(
             UserMessageEvent {
                 client_id: None,

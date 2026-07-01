@@ -634,13 +634,13 @@ impl Session {
                 Ok(update) => update,
                 Err(err) => {
                     let message = err.to_string();
-                    self.send_event_raw(Event::no_persist(
-                        sub_id.clone(),
-                        EventMsg::Error(ErrorEvent {
+                    self.send_event_raw(Event {
+                        id: sub_id.clone(),
+                        msg: EventMsg::Error(ErrorEvent {
                             message: message.clone(),
                             codex_error_info: Some(CodexErrorInfo::BadRequest),
                         }),
-                    ))
+                    })
                     .await;
                     return Err(CodexErr::InvalidRequest(message));
                 }

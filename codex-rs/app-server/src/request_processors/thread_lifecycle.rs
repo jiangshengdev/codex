@@ -1,8 +1,7 @@
 use super::*;
-use crate::thread_projection_cut::ProjectionHistoryBoundary;
-use codex_protocol::protocol::EventHistoryBoundary;
-use codex_protocol::protocol::EventPersistenceBoundary;
-use codex_thread_store::StoredHistoryBoundary;
+use crate::thread_projection_cut::ProjectionHistoryCursor;
+use codex_protocol::protocol::RolloutItem;
+use codex_rollout::persisted_rollout_items;
 
 pub(super) const THREAD_UNLOADING_DELAY: Duration = Duration::from_secs(30 * 60);
 
@@ -305,12 +304,13 @@ pub(super) async fn ensure_listener_task_running(
         ..
     } = listener_task_context;
     let outgoing_for_task = Arc::clone(&outgoing);
-    let projection_history_boundary =
-        projection_history_boundary_for_listener_start(&conversation).await;
+    let projection_history_cursor =
+        projection_history_cursor_for_listener_start(&conversation).await;
     outgoing
         .thread_projection_manager()
-        .set_history_boundary(conversation_id, projection_history_boundary)
+        .set_history_cursor(conversation_id, projection_history_cursor)
         .await;
+    let mut projection_history_cursor = projection_history_cursor;
     tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -353,29 +353,23 @@ pub(super) async fn ensure_listener_task_running(
                         thread_state.track_current_turn_event(&event.id, &event.msg);
                         thread_state.experimental_raw_events
                     };
-                    let projection_history_boundary = match event.persistence_boundary {
-                        EventPersistenceBoundary::Persisted(boundary) => {
-                            let boundary = self::projection_history_boundary(boundary);
-                            outgoing_for_task
-                                .thread_projection_manager()
-                                .set_history_boundary(conversation_id, boundary)
-                                .await;
-                            boundary
-                        }
-                        EventPersistenceBoundary::NoPersist => outgoing_for_task
-                            .thread_projection_manager()
-                            .current_history_boundary(conversation_id)
-                            .await,
-                    };
+                    let persisted_item_count =
+                        projection_persisted_rollout_item_count_for_event(&event.msg);
+                    projection_history_cursor =
+                        projection_history_cursor.advance_by(persisted_item_count);
+                    outgoing_for_task
+                        .thread_projection_manager()
+                        .set_history_cursor(conversation_id, projection_history_cursor)
+                        .await;
                     let subscribed_connection_ids = thread_state_manager
                         .subscribed_connection_ids(conversation_id)
                         .await;
                     let thread_outgoing =
-                        ThreadScopedOutgoingMessageSender::with_projection_history_boundary(
+                        ThreadScopedOutgoingMessageSender::with_projection_history_cursor(
                             outgoing_for_task.clone(),
                             subscribed_connection_ids,
                             conversation_id,
-                            projection_history_boundary,
+                            projection_history_cursor,
                         );
 
                     if let EventMsg::RawResponseItem(raw_response_item_event) = &event.msg
@@ -449,30 +443,33 @@ pub(super) async fn ensure_listener_task_running(
     Ok(())
 }
 
-fn projection_history_boundary(boundary: EventHistoryBoundary) -> ProjectionHistoryBoundary {
-    ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(
-        boundary.physical_item_count_for_logs(),
-    ))
-}
-
-async fn projection_history_boundary_for_listener_start(
+async fn projection_history_cursor_for_listener_start(
     conversation: &Arc<CodexThread>,
-) -> ProjectionHistoryBoundary {
+) -> ProjectionHistoryCursor {
     if conversation.config_snapshot().await.ephemeral {
-        return ProjectionHistoryBoundary::default();
+        return ProjectionHistoryCursor::default();
     }
 
     match conversation.load_history(/*include_archived*/ true).await {
-        Ok(history) => {
-            ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(history.items.len()))
-        }
+        Ok(history) => ProjectionHistoryCursor::new(history.items.len()),
         Err(err) => {
             tracing::debug!(
-                "starting projection history boundary at zero because history is not available: {err}"
+                "starting projection history cursor at zero because history is not available: {err}"
             );
-            ProjectionHistoryBoundary::default()
+            ProjectionHistoryCursor::default()
         }
     }
+}
+
+fn projection_persisted_rollout_item_count_for_event(event: &EventMsg) -> usize {
+    let mut items = Vec::with_capacity(2);
+    if let EventMsg::RawResponseItem(raw_response_item_event) = event {
+        items.push(RolloutItem::ResponseItem(
+            raw_response_item_event.item.clone(),
+        ));
+    }
+    items.push(RolloutItem::EventMsg(event.clone()));
+    persisted_rollout_items(&items).len()
 }
 
 pub(super) async fn wait_for_thread_shutdown(thread: &Arc<CodexThread>) -> ThreadShutdownResult {
@@ -899,4 +896,26 @@ pub(super) fn set_thread_status_and_interrupt_stale_turns(
         }
     }
     thread.status = status;
+}
+
+#[cfg(test)]
+mod tests {
+    use codex_protocol::items::HookPromptFragment;
+    use codex_protocol::items::build_hook_prompt_message;
+    use codex_protocol::protocol::EventMsg;
+    use codex_protocol::protocol::RawResponseItemEvent;
+
+    use super::projection_persisted_rollout_item_count_for_event;
+
+    #[test]
+    fn projection_cursor_counts_persisted_response_item_for_raw_response_item() {
+        let item = build_hook_prompt_message(&[HookPromptFragment::from_single_hook(
+            "Retry with tests.",
+            "hook-run-1",
+        )])
+        .expect("hook prompt should produce a response item");
+        let event = EventMsg::RawResponseItem(RawResponseItemEvent { item });
+
+        assert_eq!(projection_persisted_rollout_item_count_for_event(&event), 1);
+    }
 }

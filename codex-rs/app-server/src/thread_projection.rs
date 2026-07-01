@@ -11,7 +11,7 @@ use tokio::sync::watch;
 use uuid::Uuid;
 
 use crate::outgoing_message::ConnectionId;
-use crate::thread_projection_cut::ProjectionHistoryBoundary;
+use crate::thread_projection_cut::ProjectionHistoryCursor;
 use crate::thread_projection_cut::ProjectionSnapshotCut;
 
 #[derive(Clone, Default)]
@@ -75,7 +75,7 @@ struct ThreadProjectionManagerInner {
 
 struct ThreadEntry {
     head_commit_id: Option<String>,
-    history_boundary: ProjectionHistoryBoundary,
+    history_cursor: ProjectionHistoryCursor,
     subscribers: HashMap<ConnectionId, ProjectionSubscriber>,
     has_subscribers_tx: watch::Sender<bool>,
 }
@@ -202,30 +202,18 @@ impl ThreadProjectionManager {
         if projection_event_from_notification(notification).is_none() {
             return Vec::new();
         }
-        let boundary = self.capture_snapshot_cut(thread_id).await.history_boundary;
-        self.project_notification_at_boundary(thread_id, notification, boundary)
+        let cursor = self.capture_snapshot_cut(thread_id).await.history_cursor;
+        self.project_notification_at_cursor(thread_id, notification, cursor)
             .await
     }
 
-    pub(crate) async fn set_history_boundary(
+    pub(crate) async fn set_history_cursor(
         &self,
         thread_id: ThreadId,
-        history_boundary: ProjectionHistoryBoundary,
+        history_cursor: ProjectionHistoryCursor,
     ) {
         let mut inner = self.inner.lock().await;
-        inner.thread_entry_mut(thread_id).history_boundary = history_boundary;
-    }
-
-    pub(crate) async fn current_history_boundary(
-        &self,
-        thread_id: ThreadId,
-    ) -> ProjectionHistoryBoundary {
-        let inner = self.inner.lock().await;
-        inner
-            .threads
-            .get(&thread_id)
-            .map(|entry| entry.history_boundary)
-            .unwrap_or_default()
+        inner.thread_entry_mut(thread_id).history_cursor = history_cursor;
     }
 
     pub(crate) async fn capture_snapshot_cut(&self, thread_id: ThreadId) -> ProjectionSnapshotCut {
@@ -235,7 +223,7 @@ impl ThreadProjectionManager {
         ProjectionSnapshotCut {
             generation,
             head_commit_id: entry.head_commit_id.clone(),
-            history_boundary: entry.history_boundary,
+            history_cursor: entry.history_cursor,
         }
     }
 
@@ -252,20 +240,20 @@ impl ThreadProjectionManager {
         Some(ProjectionSnapshotCut {
             generation: expected_generation,
             head_commit_id: entry.head_commit_id.clone(),
-            history_boundary: entry.history_boundary,
+            history_cursor: entry.history_cursor,
         })
     }
 
-    pub(crate) async fn project_notification_at_boundary(
+    pub(crate) async fn project_notification_at_cursor(
         &self,
         thread_id: ThreadId,
         notification: &ServerNotification,
-        history_boundary: ProjectionHistoryBoundary,
+        history_cursor: ProjectionHistoryCursor,
     ) -> Vec<ProjectionDelivery> {
         let mut inner = self.inner.lock().await;
         let generation = inner.capture_generation(thread_id);
         let entry = inner.thread_entry_mut(thread_id);
-        entry.history_boundary = history_boundary;
+        entry.history_cursor = history_cursor;
         let Some(event) = projection_event_from_notification(notification) else {
             return Vec::new();
         };
@@ -456,7 +444,7 @@ impl ThreadProjectionManagerInner {
             let (has_subscribers_tx, _) = watch::channel(false);
             ThreadEntry {
                 head_commit_id: None,
-                history_boundary: ProjectionHistoryBoundary::default(),
+                history_cursor: ProjectionHistoryCursor::default(),
                 subscribers: HashMap::new(),
                 has_subscribers_tx,
             }
@@ -498,11 +486,10 @@ mod tests {
     use codex_app_server_protocol::TurnStartedNotification;
     use codex_app_server_protocol::TurnStatus;
     use codex_protocol::ThreadId;
-    use codex_thread_store::StoredHistoryBoundary;
     use pretty_assertions::assert_eq;
 
     use crate::outgoing_message::ConnectionId;
-    use crate::thread_projection_cut::ProjectionHistoryBoundary;
+    use crate::thread_projection_cut::ProjectionHistoryCursor;
 
     use super::*;
 
@@ -1006,15 +993,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn capture_snapshot_cut_returns_head_and_boundary_together() {
+    async fn capture_snapshot_cut_returns_head_and_cursor_together() {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
         let connection_id = ConnectionId(1);
-        let baseline = ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(
-            /*physical_item_count*/ 2,
-        ));
+        let baseline = ProjectionHistoryCursor::new(/*item_count*/ 2);
 
-        manager.set_history_boundary(thread_id, baseline).await;
+        manager.set_history_cursor(thread_id, baseline).await;
         let cut = manager.capture_snapshot_cut(thread_id).await;
         let attached = manager
             .attach_if_generation_matches(thread_id, connection_id, cut.generation)
@@ -1024,14 +1009,12 @@ mod tests {
         };
         assert_eq!(attached.head_commit_id, None);
 
-        let next_boundary = ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(
-            /*physical_item_count*/ 3,
-        ));
+        let next_cursor = baseline.advance_by(/*item_count*/ 1);
         let deliveries = manager
-            .project_notification_at_boundary(
+            .project_notification_at_cursor(
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                next_boundary,
+                next_cursor,
             )
             .await;
 
@@ -1040,7 +1023,7 @@ mod tests {
             cut.head_commit_id,
             Some(deliveries[0].notification.commit_id.clone())
         );
-        assert_eq!(cut.history_boundary, next_boundary);
+        assert_eq!(cut.history_cursor, next_cursor);
     }
 
     #[tokio::test]
@@ -1060,29 +1043,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn non_projected_persisted_event_advances_boundary_without_head() {
+    async fn non_projected_persisted_event_advances_cursor_without_head() {
         let manager = ThreadProjectionManager::new();
         let thread_id = ThreadId::new();
-        let baseline = ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(
-            /*physical_item_count*/ 2,
-        ));
-        let next_boundary = ProjectionHistoryBoundary::new(StoredHistoryBoundary::new(
-            /*physical_item_count*/ 3,
-        ));
+        let baseline = ProjectionHistoryCursor::new(/*item_count*/ 2);
+        let next_cursor = baseline.advance_by(/*item_count*/ 1);
 
-        manager.set_history_boundary(thread_id, baseline).await;
+        manager.set_history_cursor(thread_id, baseline).await;
         let deliveries = manager
-            .project_notification_at_boundary(
+            .project_notification_at_cursor(
                 thread_id,
                 &non_whitelisted_notification(thread_id),
-                next_boundary,
+                next_cursor,
             )
             .await;
 
         assert_eq!(Vec::<ProjectionDelivery>::new(), deliveries);
         let cut = manager.capture_snapshot_cut(thread_id).await;
         assert_eq!(cut.head_commit_id, None);
-        assert_eq!(cut.history_boundary, next_boundary);
+        assert_eq!(cut.history_cursor, next_cursor);
     }
 
     #[tokio::test]

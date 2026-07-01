@@ -22,7 +22,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::AppendThreadItemsParams;
-use crate::AppendThreadItemsResult;
 use crate::ArchiveThreadParams;
 use crate::CreateThreadParams;
 use crate::DeleteThreadParams;
@@ -238,10 +237,7 @@ impl ThreadStore for LocalThreadStore {
         Box::pin(async move { live_writer::resume_thread(self, params).await })
     }
 
-    fn append_items(
-        &self,
-        params: AppendThreadItemsParams,
-    ) -> ThreadStoreFuture<'_, AppendThreadItemsResult> {
+    fn append_items(&self, params: AppendThreadItemsParams) -> ThreadStoreFuture<'_, ()> {
         Box::pin(async move { live_writer::append_items(self, params).await })
     }
 
@@ -384,42 +380,6 @@ mod tests {
             .expect_err("shutdown should remove the live thread writer");
         assert!(
             matches!(err, ThreadStoreError::ThreadNotFound { thread_id: missing } if missing == thread_id)
-        );
-    }
-
-    #[tokio::test]
-    async fn filtered_append_returns_zero_boundary_without_materializing_rollout() {
-        let home = TempDir::new().expect("temp dir");
-        let store = LocalThreadStore::new(test_config(home.path()), /*state_db*/ None);
-        let thread_id = ThreadId::default();
-
-        store
-            .create_thread(create_thread_params(thread_id))
-            .await
-            .expect("create live thread");
-        let rollout_path = store
-            .live_rollout_path(thread_id)
-            .await
-            .expect("load rollout path");
-        assert!(
-            !tokio::fs::try_exists(rollout_path.as_path())
-                .await
-                .expect("check rollout path before append")
-        );
-
-        let result = store
-            .append_items(AppendThreadItemsParams {
-                thread_id,
-                items: vec![RolloutItem::ResponseItem(ResponseItem::Other)],
-            })
-            .await
-            .expect("append filtered item");
-
-        assert_eq!(result.end_boundary.physical_item_count_for_logs(), 0);
-        assert!(
-            !tokio::fs::try_exists(rollout_path.as_path())
-                .await
-                .expect("check rollout path after append")
         );
     }
 

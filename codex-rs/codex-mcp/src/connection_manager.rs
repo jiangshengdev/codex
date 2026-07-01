@@ -273,10 +273,10 @@ impl McpConnectionManager {
                 }
             }
             let _ = tx_event
-                .send(Event::no_persist(
-                    startup_submit_id,
-                    EventMsg::McpStartupComplete(summary),
-                ))
+                .send(Event {
+                    id: startup_submit_id,
+                    msg: EventMsg::McpStartupComplete(summary),
+                })
                 .await;
         });
         manager
@@ -866,10 +866,10 @@ async fn emit_update(
     update: McpStartupUpdateEvent,
 ) -> Result<(), async_channel::SendError<Event>> {
     tx_event
-        .send(Event::no_persist(
-            submit_id.to_string(),
-            EventMsg::McpStartupUpdate(update),
-        ))
+        .send(Event {
+            id: submit_id.to_string(),
+            msg: EventMsg::McpStartupUpdate(update),
+        })
         .await
 }
 
