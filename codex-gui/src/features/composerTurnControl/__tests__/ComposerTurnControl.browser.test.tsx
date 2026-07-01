@@ -171,6 +171,26 @@ test("uses Enter to send and Shift Enter to insert newline", async () => {
   expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
 });
 
+test("keeps composing Enter from sending draft", async () => {
+  const commandHandle = createGuiHostCommands();
+  const screen = await renderAttached(commandHandle);
+  const composer = screen.getByPlaceholder("Message Codex");
+
+  await composer.fill("正在输入");
+  await composer.click();
+  composer.element().dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      isComposing: true,
+      key: "Enter",
+    }),
+  );
+
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
+  await expect.element(composer).toHaveValue("正在输入");
+});
+
 test("active turn disables Send and enables Stop", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
