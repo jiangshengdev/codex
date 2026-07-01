@@ -9,17 +9,22 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  agentMessage,
   attachWithTurns,
+  itemCompleted,
+  itemStarted,
   turnCompleted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
+  replayForProjectionEvent,
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
   selectThreadRuntimeSubscription,
   selectThreadRuntimeSubscriptionState,
   selectThreadRuntimeThreadId,
+  snapshotReplayIndexFromTurns,
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
@@ -64,6 +69,7 @@ describe("thread runtime reducer", () => {
       sessionId: attachBaseline.snapshot.thread.sessionId,
       thread: threadMetadata,
       snapshotTurns,
+      snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
       eventBuffer: [],
       activeTurnId: null,
       subscription: { state: "active" },
@@ -103,8 +109,8 @@ describe("thread runtime reducer", () => {
     expect(started.current?.activeTurnId).toBe("turn-in-progress");
     expect(completed.current?.activeTurnId).toBeNull();
     expect(completed.current?.eventBuffer).toStrictEqual([
-      { type: "projectionEvent", notification: eventTurnStarted },
-      { type: "projectionEvent", notification: eventTurnCompleted },
+      { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
+      { type: "projectionEvent", notification: eventTurnCompleted, replay: "live" },
     ]);
   });
 
@@ -125,6 +131,7 @@ describe("thread runtime reducer", () => {
     expect(state.current?.eventBuffer.at(-1)).toStrictEqual({
       type: "projectionEvent",
       notification: nonMatchingCompleted,
+      replay: "live",
     });
   });
 
@@ -138,9 +145,136 @@ describe("thread runtime reducer", () => {
       attachBaseline.snapshot.thread.turns,
     );
     expect(itemCompleted.current?.eventBuffer).toStrictEqual([
-      { type: "projectionEvent", notification: eventTurnStarted },
-      { type: "projectionEvent", notification: eventItemStarted },
-      { type: "projectionEvent", notification: eventItemCompleted },
+      { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
+      { type: "projectionEvent", notification: eventItemStarted, replay: "live" },
+      { type: "projectionEvent", notification: eventItemCompleted, replay: "live" },
+    ]);
+  });
+
+  it("marks live turn events already present in the attach snapshot as snapshot duplicates", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [eventTurnStarted.event.notification.turn]),
+      ),
+    );
+    const replay = replayForProjectionEvent(
+      snapshotReplayIndexFromTurns([eventTurnStarted.event.notification.turn]),
+      eventTurnStarted,
+    );
+
+    const state = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: eventTurnStarted,
+        replay,
+      }),
+    );
+
+    expect(replay).toBe("snapshotDuplicate");
+    expect(state.current?.activeTurnId).toBe(eventTurnStarted.event.notification.turn.id);
+    expect(state.current?.eventBuffer).toStrictEqual([
+      {
+        type: "projectionEvent",
+        notification: eventTurnStarted,
+        replay: "snapshotDuplicate",
+      },
+    ]);
+  });
+
+  it("keeps a completed turn live when the snapshot only has the same turn in progress", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    if (eventTurnCompleted.event.type !== "turnCompleted") {
+      throw new Error("fixture must contain a turnCompleted projection event");
+    }
+    const snapshotReplayIndex = snapshotReplayIndexFromTurns([
+      eventTurnStarted.event.notification.turn,
+    ]);
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [eventTurnStarted.event.notification.turn]),
+      ),
+    );
+    const replay = replayForProjectionEvent(snapshotReplayIndex, eventTurnCompleted);
+
+    const state = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: eventTurnCompleted,
+        replay,
+      }),
+    );
+
+    expect(replay).toBe("live");
+    expect(state.current?.activeTurnId).toBeNull();
+    expect(state.current?.eventBuffer).toStrictEqual([
+      {
+        type: "projectionEvent",
+        notification: eventTurnCompleted,
+        replay: "live",
+      },
+    ]);
+  });
+
+  it("marks live item events already present in the attach snapshot as snapshot duplicates", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    const snapshotItem = agentMessage("agent-snapshot-duplicate", "Already in snapshot");
+    const snapshotTurn = {
+      ...eventTurnStarted.event.notification.turn,
+      items: [snapshotItem],
+    };
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])),
+    );
+    const duplicateStarted = itemStarted(
+      eventItemStarted,
+      "commit-started-snapshot-duplicate",
+      eventTurnStarted.event.notification.turn.id,
+      snapshotItem,
+    );
+    const duplicateCompleted = itemCompleted(
+      eventItemCompleted,
+      "commit-completed-snapshot-duplicate",
+      eventTurnStarted.event.notification.turn.id,
+      snapshotItem,
+    );
+    const snapshotReplayIndex = snapshotReplayIndexFromTurns([snapshotTurn]);
+
+    const started = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: duplicateStarted,
+        replay: replayForProjectionEvent(snapshotReplayIndex, duplicateStarted),
+      }),
+    );
+    const completed = reduce(
+      started,
+      threadRuntimeEventBuffered({
+        notification: duplicateCompleted,
+        replay: replayForProjectionEvent(snapshotReplayIndex, duplicateCompleted),
+      }),
+    );
+
+    expect(completed.current?.eventBuffer).toStrictEqual([
+      {
+        type: "projectionEvent",
+        notification: duplicateStarted,
+        replay: "snapshotDuplicate",
+      },
+      {
+        type: "projectionEvent",
+        notification: duplicateCompleted,
+        replay: "snapshotDuplicate",
+      },
     ]);
   });
 
