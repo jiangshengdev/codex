@@ -47,7 +47,7 @@ describe("transcript state reconnect reducer", () => {
       turnId: "turn-existing",
       role: "assistant",
       source: "Existing answer",
-      sourceKind: "plainText",
+      sourceKind: "markdown",
       phase: "final_answer",
       revision: 0,
     });

@@ -14,7 +14,7 @@ const entry = (id: string, revision: number): TranscriptMessageEntry => ({
   turnId: "turn-1",
   role: "assistant",
   source: `source ${id} ${String(revision)}`,
-  sourceKind: "plainText",
+  sourceKind: "markdown",
   phase: "final_answer",
   revision,
 });
