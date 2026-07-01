@@ -246,34 +246,7 @@ impl ThreadRequestProcessor {
             }
             Err(err) => return Err(err),
         };
-        let history_items_before_truncate_count = history_items.len();
-        let cut_history_cursor_item_count = cut.history_cursor.item_count();
-        let kept_tail_item_kinds =
-            projection_history_item_kinds(history_items.iter().take(cut_history_cursor_item_count));
-        let dropped_head_item_kinds =
-            projection_history_item_kinds(history_items.iter().skip(cut_history_cursor_item_count));
-        let non_cursor_items_before_cut_count = history_items
-            .iter()
-            .take(cut_history_cursor_item_count)
-            .filter(|item| projection_history_item_is_outside_cursor_domain(item))
-            .count();
-        let cursor_domain_items_before_cut_count =
-            cut_history_cursor_item_count.saturating_sub(non_cursor_items_before_cut_count);
-        tracing::info!(
-            thread_id = %thread_id,
-            history_items_before_truncate_count,
-            cut_history_cursor_item_count,
-            history_items_after_truncate_count = std::cmp::min(
-                history_items_before_truncate_count,
-                cut_history_cursor_item_count,
-            ),
-            non_cursor_items_before_cut_count,
-            cursor_domain_items_before_cut_count,
-            kept_tail_item_kinds = %kept_tail_item_kinds,
-            dropped_head_item_kinds = %dropped_head_item_kinds,
-            "projection_snapshot_history_truncate"
-        );
-        history_items.truncate(cut_history_cursor_item_count);
+        history_items.truncate(cut.history_cursor.item_count());
         let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
 
         // The thread store only exposes current metadata, so reconcile the
@@ -344,74 +317,6 @@ async fn enqueue_projection_attach_response(
         ))
     })?;
     Ok(())
-}
-
-fn projection_history_item_is_outside_cursor_domain(item: &RolloutItem) -> bool {
-    matches!(
-        item,
-        RolloutItem::SessionMeta(_) | RolloutItem::TurnContext(_)
-    )
-}
-
-fn projection_history_item_kinds<'a>(
-    items: impl Iterator<Item = &'a RolloutItem> + DoubleEndedIterator,
-) -> String {
-    const MAX_ITEM_KINDS: usize = 8;
-    let mut item_kinds = items
-        .rev()
-        .take(MAX_ITEM_KINDS)
-        .map(projection_history_item_kind)
-        .collect::<Vec<_>>();
-    item_kinds.reverse();
-    item_kinds.join(",")
-}
-
-fn projection_history_item_kind(item: &RolloutItem) -> &'static str {
-    match item {
-        RolloutItem::SessionMeta(_) => "session_meta",
-        RolloutItem::ResponseItem(response_item) => match response_item {
-            ResponseItem::Message { role, .. } if role == "assistant" => {
-                "response_item.message.assistant"
-            }
-            ResponseItem::Message { role, .. } if role == "user" => "response_item.message.user",
-            ResponseItem::Message { .. } => "response_item.message.other",
-            ResponseItem::AgentMessage { .. } => "response_item.agent_message",
-            ResponseItem::Reasoning { .. } => "response_item.reasoning",
-            ResponseItem::LocalShellCall { .. } => "response_item.local_shell_call",
-            ResponseItem::FunctionCall { .. } => "response_item.function_call",
-            ResponseItem::ToolSearchCall { .. } => "response_item.tool_search_call",
-            ResponseItem::FunctionCallOutput { .. } => "response_item.function_call_output",
-            ResponseItem::ToolSearchOutput { .. } => "response_item.tool_search_output",
-            ResponseItem::CustomToolCall { .. } => "response_item.custom_tool_call",
-            ResponseItem::CustomToolCallOutput { .. } => "response_item.custom_tool_call_output",
-            ResponseItem::WebSearchCall { .. } => "response_item.web_search_call",
-            ResponseItem::ImageGenerationCall { .. } => "response_item.image_generation_call",
-            ResponseItem::Compaction { .. } => "response_item.compaction",
-            ResponseItem::CompactionTrigger { .. } => "response_item.compaction_trigger",
-            ResponseItem::ContextCompaction { .. } => "response_item.context_compaction",
-            ResponseItem::Other => "response_item.other",
-        },
-        RolloutItem::InterAgentCommunication(_) => "inter_agent_communication",
-        RolloutItem::Compacted(_) => "compacted",
-        RolloutItem::TurnContext(_) => "turn_context",
-        RolloutItem::EventMsg(event) => match event {
-            EventMsg::AgentMessage(message) => match message.phase {
-                Some(codex_protocol::models::MessagePhase::FinalAnswer) => {
-                    "event_msg.agent_message.final_answer"
-                }
-                Some(codex_protocol::models::MessagePhase::Commentary) => {
-                    "event_msg.agent_message.commentary"
-                }
-                None => "event_msg.agent_message.none",
-            },
-            EventMsg::RawResponseItem(_) => "event_msg.raw_response_item",
-            EventMsg::TurnComplete(_) => "event_msg.turn_complete",
-            EventMsg::TokenCount(_) => "event_msg.token_count",
-            EventMsg::TurnStarted(_) => "event_msg.turn_started",
-            EventMsg::UserMessage(_) => "event_msg.user_message",
-            _ => "event_msg.other",
-        },
-    }
 }
 
 #[cfg(test)]
