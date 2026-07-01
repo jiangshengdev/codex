@@ -120,7 +120,9 @@ export const buildLiveEventMaterials = (
     return [];
   }
 
-  return runtime.eventBuffer.map(liveMaterialFromBufferedEvent);
+  return runtime.eventBuffer
+    .filter((bufferedEvent) => bufferedEvent.replay === "live")
+    .map(liveMaterialFromBufferedEvent);
 };
 
 export const buildLiveSubscriptionMaterials = (

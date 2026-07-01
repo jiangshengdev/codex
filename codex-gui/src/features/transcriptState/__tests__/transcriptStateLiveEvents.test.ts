@@ -133,6 +133,42 @@ describe("transcript state live events reducer", () => {
     });
   });
 
+  it("applies normalized live itemCompleted projection payloads into committed transcript chunks", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-live-normalized",
+          "turn-live-normalized",
+          agentMessage("agent-live-normalized", "Live normalized answer"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-live-normalized")).toStrictEqual({
+      id: "turn-live-normalized",
+      status: "inProgress",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: ["agent-live-normalized"],
+    });
+    expect(selectTranscriptEntry(store.getState(), "agent-live-normalized")).toStrictEqual({
+      type: "message",
+      id: "agent-live-normalized",
+      turnId: "turn-live-normalized",
+      role: "assistant",
+      source: "Live normalized answer",
+      sourceKind: "plainText",
+      phase: "final_answer",
+      revision: 0,
+    });
+  });
+
   it("advances the committed scroll commit key only when live events change committed transcript DOM", () => {
     const store = makeStore();
 
@@ -193,6 +229,38 @@ describe("transcript state live events reducer", () => {
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-visible-dom",
+    );
+  });
+
+  it("ignores snapshot duplicate live items without changing transcript or scroll key", () => {
+    const store = makeStore();
+    const snapshotTurn = baseTurn("turn-snapshot-duplicate", [
+      agentMessage("agent-snapshot-duplicate", "Already attached"),
+    ]);
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const beforeTurn = selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate");
+    const beforeEntry = selectTranscriptEntry(store.getState(), "agent-snapshot-duplicate");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-snapshot-duplicate",
+          "turn-snapshot-duplicate",
+          agentMessage("agent-snapshot-duplicate", "Live replay should be ignored"),
+        ),
+        replay: "snapshotDuplicate",
+      }),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+    expect(selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate")).toStrictEqual(
+      beforeTurn,
+    );
+    expect(selectTranscriptEntry(store.getState(), "agent-snapshot-duplicate")).toStrictEqual(
+      beforeEntry,
     );
   });
 

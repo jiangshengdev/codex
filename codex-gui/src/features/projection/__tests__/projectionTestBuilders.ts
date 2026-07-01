@@ -5,7 +5,10 @@ import type {
   Turn,
   UserInput,
 } from "@codex-protocol/v2";
-import type { ThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import {
+  snapshotReplayIndexFromTurns,
+  type ThreadRuntimeRecord,
+} from "@/features/threadRuntime/threadRuntimeSlice";
 
 export const textInput = (text: string): UserInput => ({
   type: "text",
@@ -91,6 +94,7 @@ export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): Threa
     sessionId: thread.sessionId,
     thread,
     snapshotTurns,
+    snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
     eventBuffer: [],
     activeTurnId:
       snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,

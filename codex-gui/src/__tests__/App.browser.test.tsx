@@ -32,6 +32,7 @@ import {
   buildSnapshotReplayMaterials,
   selectSnapshotReplayMaterials,
 } from "@/features/snapshotReplay/snapshotReplay";
+import { selectLiveEventMaterials } from "@/features/liveEventHandling/liveEventHandling";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectThreadRuntimeEventBuffer,
@@ -182,7 +183,7 @@ test("App keeps host lifecycle status stable while projection events update runt
     .element(screen.getByRole("main"))
     .toHaveAttribute("data-gui-host-status", "attached");
   expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: eventTurnStarted },
+    { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
   ]);
 });
 
@@ -223,7 +224,7 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
   expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
   expect(runtime?.activeTurnId).toBe(projectionEvent.event.notification.turn.id);
   expect(runtime?.eventBuffer).toStrictEqual([
-    { type: "projectionEvent", notification: projectionEvent },
+    { type: "projectionEvent", notification: projectionEvent, replay: "live" },
   ]);
   expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
     state: "active",
@@ -231,6 +232,38 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
   expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
     buildSnapshotReplayMaterials(runtime),
   );
+});
+
+test("App classifies snapshot-ahead projection events as snapshot duplicate replay", async () => {
+  const { store } = await renderWithProviders(<App />);
+  if (eventTurnStarted.event.type !== "turnStarted") {
+    throw new Error("fixture must contain a turnStarted projection event");
+  }
+
+  const snapshotAheadAttach = attachWithTurns(attachResponse, [
+    eventTurnStarted.event.notification.turn,
+  ]);
+  const snapshotAheadWithOldHead: ThreadProjectionAttachResponse = {
+    ...snapshotAheadAttach,
+    snapshot: {
+      ...snapshotAheadAttach.snapshot,
+      headCommitId: eventTurnStarted.parentCommitId,
+    },
+  };
+
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options, snapshotAheadWithOldHead);
+  emitProjectionEvent(options, eventTurnStarted);
+
+  const runtime = selectThreadRuntimeRecord(store.getState());
+  expect(runtime?.snapshotTurns).toStrictEqual([eventTurnStarted.event.notification.turn]);
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
+    { type: "projectionEvent", notification: eventTurnStarted, replay: "snapshotDuplicate" },
+  ]);
+  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
+    buildSnapshotReplayMaterials(runtime),
+  );
+  expect(selectLiveEventMaterials(store.getState())).toStrictEqual([]);
 });
 
 test("App passes ready commands to composer and sends plain text", async () => {
