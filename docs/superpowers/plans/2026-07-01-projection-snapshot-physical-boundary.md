@@ -1,4 +1,4 @@
-# Projection Snapshot Head Cut Implementation Plan
+# Projection Snapshot Physical Boundary Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,7 +12,7 @@
 
 ## Source Of Truth
 
-- Design: `docs/superpowers/specs/2026-05-24-projection-snapshot-head-cut-design.md`
+- Design: `docs/superpowers/specs/2026-07-01-projection-snapshot-physical-boundary-design.md`
 - Issue: `docs/superpowers/issues/2026-06-30-02-codex-gui-mobile-missing-messages.md`
 - Research: `docs/superpowers/research/2026-06-30-codex-gui-final-message-missing/current-findings.md`
 

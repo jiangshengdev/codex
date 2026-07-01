@@ -1,4 +1,4 @@
-# Projection Snapshot Head Cut Design
+# Projection Snapshot Physical Boundary Design
 
 ## 背景
 
