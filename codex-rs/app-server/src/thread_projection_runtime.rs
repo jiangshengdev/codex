@@ -600,16 +600,6 @@ stream_max_retries = 0
                 .await
         }
 
-        async fn set_history_cursor(&self, item_count: usize) {
-            self.outgoing
-                .thread_projection_manager()
-                .set_history_cursor(
-                    self.thread_id(),
-                    crate::thread_projection_cut::ProjectionHistoryCursor::new(item_count),
-                )
-                .await;
-        }
-
         async fn append_history(&self, history_items: Vec<RolloutItem>) -> anyhow::Result<()> {
             self.runtime
                 .store
@@ -687,12 +677,9 @@ stream_max_retries = 0
     }
 
     #[tokio::test]
-    async fn attach_snapshot_cut_excludes_persisted_event_not_processed_by_projection()
+    async fn attach_snapshot_can_include_persisted_event_not_processed_by_projection()
     -> anyhow::Result<()> {
         let mut harness = ProjectionAttachHarness::new().await?;
-        harness
-            .set_history_cursor(VISIBLE_TURN_HISTORY_ITEM_COUNT)
-            .await;
         harness
             .append_history(vec![visible_turn_started(), pending_turn_started()])
             .await?;
@@ -707,7 +694,7 @@ stream_max_retries = 0
             .iter()
             .map(|turn| turn.id.as_str())
             .collect::<Vec<_>>();
-        assert_eq!(turn_ids, vec!["turn-visible"]);
+        assert_eq!(turn_ids, vec!["turn-visible", "turn-pending"]);
         assert_eq!(payload.snapshot.head_commit_id, None);
         harness.assert_no_projection_attach_lease().await;
         Ok(())
