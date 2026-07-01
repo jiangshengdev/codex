@@ -4,6 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use crate::AppendThreadItemsParams;
+use crate::AppendThreadItemsResult;
 use crate::ArchiveThreadParams;
 use crate::CreateThreadParams;
 use crate::DeleteThreadParams;
@@ -42,8 +43,12 @@ pub trait ThreadStore: Any + Send + Sync {
     /// Appends raw rollout items to a live thread.
     ///
     /// Implementations should apply the shared rollout persistence policy before writing durable
-    /// replay history and before updating any implementation-owned projections.
-    fn append_items(&self, params: AppendThreadItemsParams) -> ThreadStoreFuture<'_, ()>;
+    /// replay history and before updating any implementation-owned projections. The returned
+    /// boundary uses the same physical item count as [`StoredThreadHistory::items`].
+    fn append_items(
+        &self,
+        params: AppendThreadItemsParams,
+    ) -> ThreadStoreFuture<'_, AppendThreadItemsResult>;
 
     /// Materializes the thread if persistence is lazy, then persists all queued items.
     fn persist_thread(&self, thread_id: ThreadId) -> ThreadStoreFuture<'_, ()>;

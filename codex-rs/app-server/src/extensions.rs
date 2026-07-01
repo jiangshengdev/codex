@@ -243,9 +243,9 @@ mod tests {
     }
 
     fn thread_goal_updated_event(thread_id: ThreadId, turn_id: &str) -> Event {
-        Event {
-            id: turn_id.to_string(),
-            msg: EventMsg::ThreadGoalUpdated(ThreadGoalUpdatedEvent {
+        Event::no_persist(
+            turn_id.to_string(),
+            EventMsg::ThreadGoalUpdated(ThreadGoalUpdatedEvent {
                 thread_id,
                 turn_id: Some(turn_id.to_string()),
                 goal: CoreThreadGoal {
@@ -259,6 +259,6 @@ mod tests {
                     updated_at: 8,
                 },
             }),
-        }
+        )
     }
 }

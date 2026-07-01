@@ -16,6 +16,7 @@ use codex_protocol::protocol::ThreadMemoryMode;
 use codex_rollout::persisted_rollout_items;
 
 use crate::AppendThreadItemsParams;
+use crate::AppendThreadItemsResult;
 use crate::ArchiveThreadParams;
 use crate::CreateThreadParams;
 use crate::DeleteThreadParams;
@@ -24,6 +25,7 @@ use crate::LoadThreadHistoryParams;
 use crate::ReadThreadByRolloutPathParams;
 use crate::ReadThreadParams;
 use crate::ResumeThreadParams;
+use crate::StoredHistoryBoundary;
 use crate::StoredThread;
 use crate::StoredThreadHistory;
 use crate::ThreadMetadataPatch;
@@ -51,7 +53,10 @@ mod tests {
     use crate::ThreadPersistenceMetadata;
     use crate::ThreadSortKey;
     use codex_protocol::models::BaseInstructions;
+    use codex_protocol::models::ResponseItem;
+    use codex_protocol::protocol::EventMsg;
     use codex_protocol::protocol::SessionSource;
+    use codex_protocol::protocol::UserMessageEvent;
 
     #[tokio::test]
     async fn default_turn_pagination_methods_return_unsupported() {
@@ -156,6 +161,160 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![child_thread_id]
         );
+    }
+
+    #[tokio::test]
+    async fn append_items_returns_physical_end_boundary() {
+        let store = InMemoryThreadStore::default();
+        let thread_id = ThreadId::default();
+
+        store
+            .create_thread(create_thread_params(thread_id))
+            .await
+            .expect("create thread");
+        let result = store
+            .append_items(AppendThreadItemsParams {
+                thread_id,
+                items: vec![user_message_item("hello")],
+            })
+            .await
+            .expect("append item");
+        let history = store
+            .load_history(LoadThreadHistoryParams {
+                thread_id,
+                include_archived: true,
+            })
+            .await
+            .expect("load history");
+
+        assert_eq!(
+            result.end_boundary.physical_item_count_for_logs(),
+            history.items.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn append_items_returns_unchanged_boundary_for_filtered_items() {
+        let store = InMemoryThreadStore::default();
+        let thread_id = ThreadId::default();
+
+        store
+            .create_thread(create_thread_params(thread_id))
+            .await
+            .expect("create thread");
+        let initial_history = store
+            .load_history(LoadThreadHistoryParams {
+                thread_id,
+                include_archived: true,
+            })
+            .await
+            .expect("load initial history");
+        let result = store
+            .append_items(AppendThreadItemsParams {
+                thread_id,
+                items: vec![RolloutItem::ResponseItem(ResponseItem::Other)],
+            })
+            .await
+            .expect("append filtered item");
+        let history = store
+            .load_history(LoadThreadHistoryParams {
+                thread_id,
+                include_archived: true,
+            })
+            .await
+            .expect("load history");
+
+        assert_eq!(
+            result.end_boundary.physical_item_count_for_logs(),
+            initial_history.items.len()
+        );
+        assert_eq!(
+            result.end_boundary.physical_item_count_for_logs(),
+            history.items.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn append_items_advances_boundary_for_session_meta() {
+        let store = InMemoryThreadStore::default();
+        let thread_id = ThreadId::default();
+
+        store
+            .create_thread(create_thread_params(thread_id))
+            .await
+            .expect("create thread");
+        let initial_history = store
+            .load_history(LoadThreadHistoryParams {
+                thread_id,
+                include_archived: true,
+            })
+            .await
+            .expect("load initial history");
+        let result = store
+            .append_items(AppendThreadItemsParams {
+                thread_id,
+                items: vec![session_meta_item(thread_id)],
+            })
+            .await
+            .expect("append session meta");
+        let history = store
+            .load_history(LoadThreadHistoryParams {
+                thread_id,
+                include_archived: true,
+            })
+            .await
+            .expect("load history");
+
+        assert_eq!(
+            result.end_boundary.physical_item_count_for_logs(),
+            initial_history.items.len() + 1
+        );
+        assert_eq!(
+            result.end_boundary.physical_item_count_for_logs(),
+            history.items.len()
+        );
+    }
+
+    fn create_thread_params(thread_id: ThreadId) -> CreateThreadParams {
+        CreateThreadParams {
+            session_id: thread_id.into(),
+            thread_id,
+            extra_config: None,
+            forked_from_id: None,
+            parent_thread_id: None,
+            source: SessionSource::Exec,
+            thread_source: None,
+            base_instructions: BaseInstructions::default(),
+            dynamic_tools: Vec::new(),
+            multi_agent_version: None,
+            metadata: ThreadPersistenceMetadata {
+                cwd: None,
+                model_provider: "test-provider".to_string(),
+                memory_mode: ThreadMemoryMode::Enabled,
+            },
+        }
+    }
+
+    fn user_message_item(message: &str) -> RolloutItem {
+        RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+            client_id: None,
+            message: message.to_string(),
+            images: None,
+            local_images: Vec::new(),
+            text_elements: Vec::new(),
+            ..Default::default()
+        }))
+    }
+
+    fn session_meta_item(thread_id: ThreadId) -> RolloutItem {
+        RolloutItem::SessionMeta(SessionMetaLine {
+            meta: SessionMeta {
+                session_id: thread_id.into(),
+                id: thread_id,
+                ..SessionMeta::default()
+            },
+            git: None,
+        })
     }
 }
 
@@ -276,19 +435,20 @@ impl InMemoryThreadStore {
         Ok(())
     }
 
-    async fn append_items(&self, params: AppendThreadItemsParams) -> ThreadStoreResult<()> {
+    async fn append_items(
+        &self,
+        params: AppendThreadItemsParams,
+    ) -> ThreadStoreResult<AppendThreadItemsResult> {
         let canonical_items = persisted_rollout_items(params.items.as_slice());
-        if canonical_items.is_empty() {
-            return Ok(());
-        }
         let mut state = self.state.lock().await;
         state.calls.append_items += 1;
-        state
-            .histories
-            .entry(params.thread_id)
-            .or_default()
-            .extend(canonical_items);
-        Ok(())
+        let history = state.histories.entry(params.thread_id).or_default();
+        if !canonical_items.is_empty() {
+            history.extend(canonical_items);
+        }
+        Ok(AppendThreadItemsResult {
+            end_boundary: StoredHistoryBoundary::new(history.len()),
+        })
     }
 
     async fn load_history(
@@ -401,7 +561,10 @@ impl ThreadStore for InMemoryThreadStore {
         Box::pin(InMemoryThreadStore::resume_thread(self, params))
     }
 
-    fn append_items(&self, params: AppendThreadItemsParams) -> ThreadStoreFuture<'_, ()> {
+    fn append_items(
+        &self,
+        params: AppendThreadItemsParams,
+    ) -> ThreadStoreFuture<'_, AppendThreadItemsResult> {
         Box::pin(InMemoryThreadStore::append_items(self, params))
     }
 

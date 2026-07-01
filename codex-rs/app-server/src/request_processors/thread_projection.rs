@@ -246,7 +246,7 @@ impl ThreadRequestProcessor {
             }
             Err(err) => return Err(err),
         };
-        history_items.truncate(cut.history_cursor.item_count());
+        cut.history_boundary.truncate_history(&mut history_items);
         let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
 
         // The thread store only exposes current metadata, so reconcile the
@@ -327,7 +327,10 @@ mod tests {
     use codex_config::LoaderOverrides;
     use codex_config::NoopThreadConfigLoader;
     use codex_core::config::ConfigBuilder;
+    use codex_protocol::models::ContentItem;
     use codex_protocol::models::ImageDetail;
+    use codex_protocol::models::MessagePhase;
+    use codex_protocol::models::ResponseItem;
     use codex_protocol::protocol::SessionSource;
     use codex_thread_store::AppendThreadItemsParams;
     use codex_thread_store::InMemoryThreadStore;
@@ -483,8 +486,10 @@ mod tests {
                 .capture_current_generation(thread_id)
                 .await,
             head_commit_id: None,
-            history_cursor: crate::thread_projection_cut::ProjectionHistoryCursor::new(
-                CREATED_THREAD_HISTORY_ITEM_COUNT + persisted_items.len(),
+            history_boundary: crate::thread_projection_cut::ProjectionHistoryBoundary::new(
+                codex_thread_store::StoredHistoryBoundary::new(
+                    CREATED_THREAD_HISTORY_ITEM_COUNT + persisted_items.len(),
+                ),
             ),
         };
         let snapshot = processor
@@ -527,7 +532,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn projection_snapshot_at_cut_excludes_history_after_cursor() -> Result<()> {
+    async fn projection_snapshot_at_cut_excludes_history_after_boundary() -> Result<()> {
         let fixture = projection_snapshot_fixture_with_history(vec![
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
@@ -558,8 +563,8 @@ mod tests {
                 .capture_current_generation(fixture.thread_id)
                 .await,
             head_commit_id: None,
-            history_cursor: crate::thread_projection_cut::ProjectionHistoryCursor::new(
-                VISIBLE_TURN_HISTORY_ITEM_COUNT,
+            history_boundary: crate::thread_projection_cut::ProjectionHistoryBoundary::new(
+                codex_thread_store::StoredHistoryBoundary::new(VISIBLE_TURN_HISTORY_ITEM_COUNT),
             ),
         };
         let snapshot = match fixture
@@ -578,6 +583,84 @@ mod tests {
             .map(|turn| turn.id.as_str())
             .collect::<Vec<_>>();
         assert_eq!(turn_ids, vec!["turn-visible"]);
+        assert_eq!(snapshot.head_commit_id, None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn projection_snapshot_at_physical_boundary_keeps_visible_final_and_excludes_pending_turn()
+    -> Result<()> {
+        let fixture = projection_snapshot_fixture_with_history(vec![
+            session_meta_item(ThreadId::default()),
+            turn_started_item("turn-visible"),
+            user_message_item("turn-visible", "visible user"),
+            agent_message_item(MessagePhase::Commentary, "visible commentary"),
+            turn_context_item("turn-visible"),
+            agent_message_item(MessagePhase::FinalAnswer, "visible final"),
+            assistant_response_item("visible-response", "visible final"),
+            token_count_item(),
+            turn_complete_item("turn-visible", "visible final"),
+            user_message_item("turn-pending", "pending user"),
+        ])
+        .await?;
+
+        let cut = crate::thread_projection_cut::ProjectionSnapshotCut {
+            generation: fixture
+                .processor
+                .outgoing
+                .thread_projection_manager()
+                .capture_current_generation(fixture.thread_id)
+                .await,
+            head_commit_id: None,
+            history_boundary: crate::thread_projection_cut::ProjectionHistoryBoundary::new(
+                codex_thread_store::StoredHistoryBoundary::new(
+                    CREATED_THREAD_HISTORY_ITEM_COUNT + 9,
+                ),
+            ),
+        };
+        let snapshot = match fixture
+            .processor
+            .read_thread_projection_snapshot_at_cut(fixture.thread_id, cut)
+            .await
+        {
+            Ok(snapshot) => snapshot,
+            Err(_) => panic!("projection snapshot at physical boundary should read history"),
+        };
+
+        let turn_ids = snapshot
+            .thread
+            .turns
+            .iter()
+            .map(|turn| turn.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(turn_ids, vec!["turn-visible"]);
+
+        let visible_turn = snapshot
+            .thread
+            .turns
+            .iter()
+            .find(|turn| turn.id == "turn-visible")
+            .expect("visible turn should remain inside the physical boundary");
+        assert_eq!(visible_turn.status, TurnStatus::Completed);
+        assert!(
+            visible_turn.items.iter().any(|item| matches!(
+                item,
+                ThreadItem::AgentMessage {
+                    text,
+                    phase: Some(MessagePhase::FinalAnswer),
+                    ..
+                } if text == "visible final"
+            )),
+            "final answer should not be truncated by a boundary that crossed TurnContext"
+        );
+        assert!(
+            snapshot
+                .thread
+                .turns
+                .iter()
+                .all(|turn| turn.id != "turn-pending"),
+            "pending turn after the captured physical boundary must be excluded"
+        );
         assert_eq!(snapshot.head_commit_id, None);
         Ok(())
     }
@@ -705,6 +788,108 @@ mod tests {
                 },
             )),
         ]
+    }
+
+    fn session_meta_item(thread_id: ThreadId) -> RolloutItem {
+        RolloutItem::SessionMeta(codex_protocol::protocol::SessionMetaLine {
+            meta: codex_protocol::protocol::SessionMeta {
+                id: thread_id,
+                session_id: thread_id.into(),
+                ..Default::default()
+            },
+            git: None,
+        })
+    }
+
+    fn user_message_item(turn_id: &str, message: &str) -> RolloutItem {
+        RolloutItem::EventMsg(EventMsg::UserMessage(
+            codex_protocol::protocol::UserMessageEvent {
+                client_id: Some(turn_id.to_string()),
+                message: message.to_string(),
+                ..Default::default()
+            },
+        ))
+    }
+
+    fn turn_started_item(turn_id: &str) -> RolloutItem {
+        RolloutItem::EventMsg(EventMsg::TurnStarted(
+            codex_protocol::protocol::TurnStartedEvent {
+                turn_id: turn_id.to_string(),
+                trace_id: None,
+                started_at: None,
+                model_context_window: None,
+                collaboration_mode_kind: Default::default(),
+            },
+        ))
+    }
+
+    fn agent_message_item(phase: MessagePhase, message: &str) -> RolloutItem {
+        RolloutItem::EventMsg(EventMsg::AgentMessage(
+            codex_protocol::protocol::AgentMessageEvent {
+                message: message.to_string(),
+                phase: Some(phase),
+                memory_citation: None,
+            },
+        ))
+    }
+
+    fn turn_context_item(turn_id: &str) -> RolloutItem {
+        RolloutItem::TurnContext(codex_protocol::protocol::TurnContextItem {
+            turn_id: Some(turn_id.to_string()),
+            cwd: AbsolutePathBuf::from_absolute_path("/tmp").expect("absolute cwd"),
+            workspace_roots: None,
+            current_date: None,
+            timezone: None,
+            approval_policy: codex_protocol::protocol::AskForApproval::Never,
+            sandbox_policy: codex_protocol::protocol::SandboxPolicy::ReadOnly {
+                network_access: false,
+            },
+            permission_profile: None,
+            network: None,
+            file_system_sandbox_policy: None,
+            model: "mock-model".to_string(),
+            comp_hash: None,
+            personality: None,
+            collaboration_mode: None,
+            multi_agent_version: None,
+            multi_agent_mode: None,
+            realtime_active: None,
+            effort: None,
+            summary: codex_protocol::config_types::ReasoningSummary::Auto,
+        })
+    }
+
+    fn assistant_response_item(id: &str, text: &str) -> RolloutItem {
+        RolloutItem::ResponseItem(ResponseItem::Message {
+            id: Some(id.to_string()),
+            role: "assistant".to_string(),
+            content: vec![ContentItem::OutputText {
+                text: text.to_string(),
+            }],
+            phase: Some(MessagePhase::FinalAnswer),
+            internal_chat_message_metadata_passthrough: None,
+        })
+    }
+
+    fn token_count_item() -> RolloutItem {
+        RolloutItem::EventMsg(EventMsg::TokenCount(
+            codex_protocol::protocol::TokenCountEvent {
+                info: None,
+                rate_limits: None,
+            },
+        ))
+    }
+
+    fn turn_complete_item(turn_id: &str, last_agent_message: &str) -> RolloutItem {
+        RolloutItem::EventMsg(EventMsg::TurnComplete(
+            codex_protocol::protocol::TurnCompleteEvent {
+                turn_id: turn_id.to_string(),
+                last_agent_message: Some(last_agent_message.to_string()),
+                completed_at: None,
+                duration_ms: None,
+                time_to_first_token_ms: None,
+            },
+        ))
     }
 
     fn turn_user_texts(turns: &[Turn]) -> Vec<&str> {

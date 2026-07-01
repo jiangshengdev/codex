@@ -293,9 +293,9 @@ mod tests {
 
         let thread_id = ThreadId::new();
         let rollout_file = NamedTempFile::new()?;
-        let event = Event {
-            id: "1".to_string(),
-            msg: EventMsg::SessionConfigured(SessionConfiguredEvent {
+        let event = Event::no_persist(
+            "1".to_string(),
+            EventMsg::SessionConfigured(SessionConfiguredEvent {
                 session_id: codex_protocol::SessionId::new(),
                 thread_id,
                 forked_from_id: None,
@@ -315,7 +315,7 @@ mod tests {
                 network_proxy: None,
                 rollout_path: Some(rollout_file.path().to_path_buf()),
             }),
-        };
+        );
 
         outgoing_message_sender
             .send_event_as_notification(&event, /*meta*/ None)
@@ -361,10 +361,10 @@ mod tests {
             network_proxy: None,
             rollout_path: Some(rollout_file.path().to_path_buf()),
         };
-        let event = Event {
-            id: "1".to_string(),
-            msg: EventMsg::SessionConfigured(session_configured_event.clone()),
-        };
+        let event = Event::no_persist(
+            "1".to_string(),
+            EventMsg::SessionConfigured(session_configured_event.clone()),
+        );
         let meta = OutgoingNotificationMeta {
             request_id: Some(RequestId::String("123".into())),
             thread_id: None,
@@ -384,6 +384,7 @@ mod tests {
                 "requestId": "123",
             },
             "id": "1",
+            "persistence_boundary": "NoPersist",
             "msg": {
                 "type": "session_configured",
                 "session_id": session_configured_event.session_id,
@@ -429,10 +430,10 @@ mod tests {
             network_proxy: None,
             rollout_path: Some(rollout_file.path().to_path_buf()),
         };
-        let event = Event {
-            id: "1".to_string(),
-            msg: EventMsg::SessionConfigured(session_configured_event.clone()),
-        };
+        let event = Event::no_persist(
+            "1".to_string(),
+            EventMsg::SessionConfigured(session_configured_event.clone()),
+        );
         let meta = OutgoingNotificationMeta {
             request_id: Some(RequestId::String("123".into())),
             thread_id: Some(thread_id),
@@ -453,6 +454,7 @@ mod tests {
                 "threadId": thread_id.to_string(),
             },
             "id": "1",
+            "persistence_boundary": "NoPersist",
             "msg": {
                 "type": "session_configured",
                 "session_id": session_configured_event.session_id,

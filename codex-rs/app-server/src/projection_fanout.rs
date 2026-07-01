@@ -15,7 +15,7 @@ use crate::outgoing_message::OutgoingMessage;
 use crate::thread_projection::InvalidatedProjectionSubscriber;
 use crate::thread_projection::ProjectionDelivery;
 use crate::thread_projection::ThreadProjectionManager;
-use crate::thread_projection_cut::ProjectionHistoryCursor;
+use crate::thread_projection_cut::ProjectionHistoryBoundary;
 
 pub(crate) const PROJECTION_FANOUT_QUEUE_CAPACITY: usize = 32;
 
@@ -43,11 +43,11 @@ impl ThreadProjectionFacade {
         sender: mpsc::Sender<OutgoingEnvelope>,
         thread_id: ThreadId,
         notification: &ServerNotification,
-        projection_history_cursor: Option<ProjectionHistoryCursor>,
+        projection_history_boundary: Option<ProjectionHistoryBoundary>,
     ) {
-        let deliveries = if let Some(cursor) = projection_history_cursor {
+        let deliveries = if let Some(boundary) = projection_history_boundary {
             self.manager
-                .project_notification_at_cursor(thread_id, notification, cursor)
+                .project_notification_at_boundary(thread_id, notification, boundary)
                 .await
         } else {
             self.manager
@@ -390,7 +390,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             ),
         )
         .await
@@ -428,7 +428,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             )
             .await;
         facade
@@ -436,7 +436,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             )
             .await;
 
@@ -506,7 +506,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             )
             .await;
         tokio::task::yield_now().await;
@@ -515,7 +515,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             )
             .await;
         facade
@@ -523,7 +523,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-3"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             )
             .await;
 
@@ -583,7 +583,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             )
             .await;
         tokio::task::yield_now().await;
@@ -593,7 +593,7 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             ),
         )
         .await
@@ -605,7 +605,7 @@ mod tests {
                 tx,
                 thread_id,
                 &turn_started_notification(thread_id, "turn-3"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             ),
         )
         .await
@@ -630,7 +630,7 @@ mod tests {
                 tx,
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
+                /*projection_history_boundary*/ None,
             )
             .await;
         facade.remove_thread(thread_id).await;

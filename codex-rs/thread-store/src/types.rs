@@ -115,6 +115,33 @@ pub struct AppendThreadItemsParams {
     pub items: Vec<RolloutItem>,
 }
 
+/// Storage-neutral upper bound in a thread's persisted physical history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct StoredHistoryBoundary {
+    physical_item_count: usize,
+}
+
+impl StoredHistoryBoundary {
+    /// Create a boundary from the persisted physical item count.
+    pub fn new(physical_item_count: usize) -> Self {
+        Self {
+            physical_item_count,
+        }
+    }
+
+    /// Return the persisted physical item count for diagnostics and storage-local code.
+    pub fn physical_item_count_for_logs(self) -> usize {
+        self.physical_item_count
+    }
+}
+
+/// Result of appending rollout items to a live thread.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AppendThreadItemsResult {
+    /// Persisted physical history upper bound after the append completes.
+    pub end_boundary: StoredHistoryBoundary,
+}
+
 /// Parameters for loading persisted history for resume, fork, rollback, and memory jobs.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoadThreadHistoryParams {

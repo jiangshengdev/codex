@@ -146,12 +146,14 @@ use codex_rollout_trace::ThreadTraceContext;
 use codex_sandboxing::policy_transforms::intersect_permission_profiles;
 use codex_shell_command::parse_command::parse_command;
 use codex_terminal_detection::user_agent;
+use codex_thread_store::AppendThreadItemsResult;
 use codex_thread_store::CreateThreadParams;
 use codex_thread_store::LiveThread;
 use codex_thread_store::LiveThreadInitGuard;
 use codex_thread_store::LocalThreadStore;
 use codex_thread_store::ReadThreadParams;
 use codex_thread_store::ResumeThreadParams;
+use codex_thread_store::StoredHistoryBoundary;
 use codex_thread_store::ThreadPersistenceMetadata;
 use codex_thread_store::ThreadStore;
 use codex_utils_path_uri::PathUri;
@@ -357,7 +359,9 @@ use codex_protocol::protocol::CompactedItem;
 use codex_protocol::protocol::DeprecationNoticeEvent;
 use codex_protocol::protocol::ErrorEvent;
 use codex_protocol::protocol::Event;
+use codex_protocol::protocol::EventHistoryBoundary;
 use codex_protocol::protocol::EventMsg;
+use codex_protocol::protocol::EventPersistenceBoundary;
 use codex_protocol::protocol::ExecApprovalRequestEvent;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::McpServerRefreshConfig;
@@ -1334,7 +1338,7 @@ impl Session {
 
                 // If persisting, persist all rollout items as-is (the store filters).
                 if !rollout_items.is_empty() {
-                    self.persist_rollout_items(&rollout_items).await;
+                    let _ = self.persist_rollout_items(&rollout_items).await;
                 }
 
                 // Forked threads should remain file-backed immediately after startup.
@@ -1724,10 +1728,7 @@ impl Session {
         self.services
             .rollout_thread_trace
             .record_tool_call_event(turn_context.sub_id.clone(), &legacy_source);
-        let event = Event {
-            id: turn_context.sub_id.clone(),
-            msg,
-        };
+        let event = Event::no_persist(turn_context.sub_id.clone(), msg);
         self.send_event_raw(event).await;
         self.maybe_notify_parent_of_terminal_turn(turn_context, &legacy_source)
             .await;
@@ -1738,10 +1739,7 @@ impl Session {
 
         let show_raw_agent_reasoning = self.show_raw_agent_reasoning();
         for legacy in legacy_source.as_legacy_events(show_raw_agent_reasoning) {
-            let legacy_event = Event {
-                id: turn_context.sub_id.clone(),
-                msg: legacy,
-            };
+            let legacy_event = Event::no_persist(turn_context.sub_id.clone(), legacy);
             self.send_event_raw(legacy_event).await;
         }
     }
@@ -1879,9 +1877,16 @@ impl Session {
     }
 
     pub(crate) async fn send_event_raw(&self, event: Event) {
+        let Event {
+            id,
+            msg,
+            persistence_boundary: _,
+        } = event;
         // Persist the event into rollout storage (the store filters as needed).
-        let rollout_items = vec![RolloutItem::EventMsg(event.msg.clone())];
-        self.persist_rollout_items(&rollout_items).await;
+        let append_result = self
+            .persist_rollout_items(&[RolloutItem::EventMsg(msg.clone())])
+            .await;
+        let event = Self::event_from_append_result(id, msg, append_result);
         self.services
             .rollout_thread_trace
             .record_protocol_event(&event.msg);
@@ -2744,8 +2749,9 @@ impl Session {
                 turn_context.model_info.truncation_policy.into(),
             );
         }
-        self.persist_rollout_response_items(items).await;
-        self.send_raw_response_items(turn_context, items).await;
+        let append_result = self.persist_rollout_response_items(items).await;
+        self.send_raw_response_items(turn_context, items, append_result)
+            .await;
     }
 
     pub(crate) async fn record_step_environment_context_if_changed(
@@ -2795,9 +2801,11 @@ impl Session {
                 turn_context.model_info.truncation_policy.into(),
             );
         }
-        self.persist_rollout_items(&[RolloutItem::InterAgentCommunication(communication)])
+        let append_result = self
+            .persist_rollout_items(&[RolloutItem::InterAgentCommunication(communication)])
             .await;
-        self.send_raw_response_items(turn_context, items).await;
+        self.send_raw_response_items(turn_context, items, append_result)
+            .await;
     }
 
     async fn maybe_warn_on_server_model_mismatch(
@@ -2891,10 +2899,12 @@ impl Session {
             state.replace_history(items, reference_context_item.clone());
         }
 
-        self.persist_rollout_items(&[RolloutItem::Compacted(compacted_item)])
+        let _ = self
+            .persist_rollout_items(&[RolloutItem::Compacted(compacted_item)])
             .await;
         if let Some(turn_context_item) = reference_context_item {
-            self.persist_rollout_items(&[RolloutItem::TurnContext(turn_context_item)])
+            let _ = self
+                .persist_rollout_items(&[RolloutItem::TurnContext(turn_context_item)])
                 .await;
         }
         {
@@ -2903,13 +2913,16 @@ impl Session {
         }
     }
 
-    async fn persist_rollout_response_items(&self, items: &[ResponseItem]) {
+    async fn persist_rollout_response_items(
+        &self,
+        items: &[ResponseItem],
+    ) -> Option<AppendThreadItemsResult> {
         let rollout_items: Vec<RolloutItem> = items
             .iter()
             .cloned()
             .map(RolloutItem::ResponseItem)
             .collect();
-        self.persist_rollout_items(&rollout_items).await;
+        self.persist_rollout_items(&rollout_items).await
     }
 
     pub fn enabled(&self, feature: Feature) -> bool {
@@ -2953,14 +2966,72 @@ impl Session {
     }
 
     #[tracing::instrument(level = "trace", skip_all, fields(item_count = items.len()))]
-    async fn send_raw_response_items(&self, turn_context: &TurnContext, items: &[ResponseItem]) {
-        for item in items {
-            self.send_event(
-                turn_context,
-                EventMsg::RawResponseItem(RawResponseItemEvent { item: item.clone() }),
-            )
-            .await;
+    async fn send_raw_response_items(
+        &self,
+        turn_context: &TurnContext,
+        items: &[ResponseItem],
+        append_result: Option<AppendThreadItemsResult>,
+    ) {
+        let persistence_boundaries =
+            Self::raw_response_item_persistence_boundaries(items, append_result);
+        for (item, persistence_boundary) in items.iter().zip(persistence_boundaries) {
+            let msg = EventMsg::RawResponseItem(RawResponseItemEvent { item: item.clone() });
+            self.services
+                .rollout_thread_trace
+                .record_codex_turn_event(&turn_context.sub_id, &msg);
+            self.services
+                .rollout_thread_trace
+                .record_tool_call_event(turn_context.sub_id.clone(), &msg);
+            let event = Event {
+                id: turn_context.sub_id.clone(),
+                msg,
+                persistence_boundary,
+            };
+            self.services
+                .rollout_thread_trace
+                .record_protocol_event(&event.msg);
+            self.deliver_event_raw(event).await;
         }
+    }
+
+    fn raw_response_item_persistence_boundaries(
+        items: &[ResponseItem],
+        append_result: Option<AppendThreadItemsResult>,
+    ) -> Vec<EventPersistenceBoundary> {
+        let Some(result) = append_result else {
+            return vec![EventPersistenceBoundary::NoPersist; items.len()];
+        };
+        let item_is_persisted = items
+            .iter()
+            .map(Self::raw_response_item_is_persisted)
+            .collect::<Vec<_>>();
+        let persisted_item_count = item_is_persisted
+            .iter()
+            .filter(|is_persisted| **is_persisted)
+            .count();
+        let mut physical_item_count = result
+            .end_boundary
+            .physical_item_count_for_logs()
+            .saturating_sub(persisted_item_count);
+
+        item_is_persisted
+            .iter()
+            .map(|is_persisted| {
+                if *is_persisted {
+                    physical_item_count += 1;
+                    EventPersistenceBoundary::Persisted(EventHistoryBoundary::new(
+                        physical_item_count,
+                    ))
+                } else {
+                    EventPersistenceBoundary::NoPersist
+                }
+            })
+            .collect()
+    }
+
+    fn raw_response_item_is_persisted(item: &ResponseItem) -> bool {
+        !codex_rollout::persisted_rollout_items(&[RolloutItem::ResponseItem(item.clone())])
+            .is_empty()
     }
 
     async fn build_turn_context_contribution_items(
@@ -3135,12 +3206,12 @@ impl Session {
                 let warning_message = available_skills.warning_message.clone();
                 let skills_instructions = AvailableSkillsInstructions::from(available_skills);
                 if let Some(warning_message) = warning_message {
-                    self.send_event_raw(Event {
-                        id: String::new(),
-                        msg: EventMsg::Warning(WarningEvent {
+                    self.send_event_raw(Event::no_persist(
+                        String::new(),
+                        EventMsg::Warning(WarningEvent {
                             message: warning_message,
                         }),
-                    })
+                    ))
                     .await;
                 }
                 developer_sections.push(skills_instructions.render());
@@ -3331,12 +3402,35 @@ impl Session {
     }
 
     #[tracing::instrument(level = "trace", skip_all, fields(item_count = items.len()))]
-    pub(crate) async fn persist_rollout_items(&self, items: &[RolloutItem]) {
-        if let Some(live_thread) = self.live_thread()
-            && let Err(e) = live_thread.append_items(items).await
-        {
-            error!("failed to record rollout items: {e:#}");
+    pub(crate) async fn persist_rollout_items(
+        &self,
+        items: &[RolloutItem],
+    ) -> Option<AppendThreadItemsResult> {
+        let live_thread = self.live_thread()?;
+        match live_thread.append_items(items).await {
+            Ok(result) => Some(result),
+            Err(e) => {
+                error!("failed to record rollout items: {e:#}");
+                None
+            }
         }
+    }
+
+    pub(crate) fn event_from_append_result(
+        id: String,
+        msg: EventMsg,
+        append_result: Option<AppendThreadItemsResult>,
+    ) -> Event {
+        match append_result {
+            Some(result) => {
+                Event::persisted(id, msg, Self::event_history_boundary(result.end_boundary))
+            }
+            None => Event::no_persist(id, msg),
+        }
+    }
+
+    fn event_history_boundary(boundary: StoredHistoryBoundary) -> EventHistoryBoundary {
+        EventHistoryBoundary::new(boundary.physical_item_count_for_logs())
     }
 
     pub(crate) async fn clone_history(&self) -> ContextManager {
@@ -3377,18 +3471,19 @@ impl Session {
             let mut state = self.state.lock().await;
             state.replace_history(replacement_history.clone(), Some(turn_context_item.clone()));
         };
-        self.persist_rollout_items(&[
-            RolloutItem::Compacted(CompactedItem {
-                message: String::new(),
-                replacement_history: Some(replacement_history),
-                window_number: Some(window_number),
-                first_window_id: Some(window_ids.first_window_id.to_string()),
-                previous_window_id: window_ids.previous_window_id.map(|id| id.to_string()),
-                window_id: Some(window_ids.window_id.to_string()),
-            }),
-            RolloutItem::TurnContext(turn_context_item),
-        ])
-        .await;
+        let _ = self
+            .persist_rollout_items(&[
+                RolloutItem::Compacted(CompactedItem {
+                    message: String::new(),
+                    replacement_history: Some(replacement_history),
+                    window_number: Some(window_number),
+                    first_window_id: Some(window_ids.first_window_id.to_string()),
+                    previous_window_id: window_ids.previous_window_id.map(|id| id.to_string()),
+                    window_id: Some(window_ids.window_id.to_string()),
+                }),
+                RolloutItem::TurnContext(turn_context_item),
+            ])
+            .await;
         {
             let mut state = self.state.lock().await;
             state.queue_pending_session_start_source(codex_hooks::SessionStartSource::Compact);
@@ -3465,7 +3560,8 @@ impl Session {
         }
         // Persist one `TurnContextItem` per real user turn so resume/lazy replay can recover the
         // latest durable baseline even when this turn emitted no model-visible context diffs.
-        self.persist_rollout_items(&[RolloutItem::TurnContext(turn_context_item.clone())])
+        let _ = self
+            .persist_rollout_items(&[RolloutItem::TurnContext(turn_context_item.clone())])
             .await;
 
         // Advance the in-memory diff baseline even when this turn emitted no model-visible

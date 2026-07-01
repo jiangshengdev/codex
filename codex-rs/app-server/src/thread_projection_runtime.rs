@@ -600,12 +600,14 @@ stream_max_retries = 0
                 .await
         }
 
-        async fn set_history_cursor(&self, item_count: usize) {
+        async fn set_history_boundary(&self, item_count: usize) {
             self.outgoing
                 .thread_projection_manager()
-                .set_history_cursor(
+                .set_history_boundary(
                     self.thread_id(),
-                    crate::thread_projection_cut::ProjectionHistoryCursor::new(item_count),
+                    crate::thread_projection_cut::ProjectionHistoryBoundary::new(
+                        codex_thread_store::StoredHistoryBoundary::new(item_count),
+                    ),
                 )
                 .await;
         }
@@ -691,7 +693,7 @@ stream_max_retries = 0
     -> anyhow::Result<()> {
         let mut harness = ProjectionAttachHarness::new().await?;
         harness
-            .set_history_cursor(VISIBLE_TURN_HISTORY_ITEM_COUNT)
+            .set_history_boundary(VISIBLE_TURN_HISTORY_ITEM_COUNT)
             .await;
         harness
             .append_history(vec![visible_turn_started(), pending_turn_started()])

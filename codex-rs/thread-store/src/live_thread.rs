@@ -9,6 +9,7 @@ use tokio::sync::Mutex;
 use tracing::warn;
 
 use crate::AppendThreadItemsParams;
+use crate::AppendThreadItemsResult;
 use crate::CreateThreadParams;
 use crate::LoadThreadHistoryParams;
 use crate::LocalThreadStore;
@@ -138,19 +139,20 @@ impl LiveThread {
         skip_all,
         fields(item_count = items.len())
     )]
-    pub async fn append_items(&self, items: &[RolloutItem]) -> ThreadStoreResult<()> {
+    pub async fn append_items(
+        &self,
+        items: &[RolloutItem],
+    ) -> ThreadStoreResult<AppendThreadItemsResult> {
         let canonical_items = persisted_rollout_items(items);
-        if items.is_empty() {
-            return Ok(());
-        }
-        self.thread_store
+        let result = self
+            .thread_store
             .append_items(AppendThreadItemsParams {
                 thread_id: self.thread_id,
                 items: items.to_vec(),
             })
             .await?;
         if canonical_items.is_empty() {
-            return Ok(());
+            return Ok(result);
         }
         let update = self
             .metadata_sync
@@ -170,7 +172,7 @@ impl LiveThread {
                 .await
                 .mark_pending_update_applied(&update);
         }
-        Ok(())
+        Ok(result)
     }
 
     pub async fn persist(&self) -> ThreadStoreResult<()> {

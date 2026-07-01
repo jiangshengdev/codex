@@ -406,10 +406,10 @@ async fn empty_registry_does_not_claim_approval_review() {
 }
 
 fn warning_event(id: &str, message: &str) -> Event {
-    Event {
-        id: id.to_string(),
-        msg: EventMsg::Warning(WarningEvent {
+    Event::no_persist(
+        id.to_string(),
+        EventMsg::Warning(WarningEvent {
             message: message.to_string(),
         }),
-    }
+    )
 }

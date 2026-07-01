@@ -558,7 +558,8 @@ impl CodexThread {
             .map_err(|err| ThreadStoreError::Internal {
                 message: err.to_string(),
             })?;
-        live_thread.append_items(items).await
+        live_thread.append_items(items).await?;
+        Ok(())
     }
 
     pub fn state_db(&self) -> Option<StateDbHandle> {

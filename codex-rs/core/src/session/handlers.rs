@@ -69,14 +69,14 @@ pub async fn clean_background_terminals(sess: &Arc<Session>) {
 }
 
 pub async fn realtime_conversation_list_voices(sess: &Session, sub_id: String) {
-    sess.send_event_raw(Event {
-        id: sub_id,
-        msg: EventMsg::RealtimeConversationListVoicesResponse(
+    sess.send_event_raw(Event::no_persist(
+        sub_id,
+        EventMsg::RealtimeConversationListVoicesResponse(
             RealtimeConversationListVoicesResponseEvent {
                 voices: RealtimeVoicesList::builtin(),
             },
         ),
-    })
+    ))
     .await;
 }
 
@@ -102,7 +102,7 @@ pub async fn update_thread_settings(
             codex_error_info: Some(CodexErrorInfo::BadRequest),
         }),
     };
-    sess.send_event_raw(Event { id: sub_id, msg }).await;
+    sess.send_event_raw(Event::no_persist(sub_id, msg)).await;
 }
 
 async fn thread_settings_update(
@@ -212,10 +212,10 @@ pub(super) async fn user_input_or_turn_inner(
         return;
     };
     if emit_thread_settings_applied {
-        sess.send_event_raw(Event {
-            id: sub_id.clone(),
-            msg: thread_settings_applied_event(sess).await,
-        })
+        sess.send_event_raw(Event::no_persist(
+            sub_id.clone(),
+            thread_settings_applied_event(sess).await,
+        ))
         .await;
     }
     sess.maybe_emit_unknown_model_warning_for_turn(current_context.as_ref())
@@ -268,10 +268,10 @@ pub(super) async fn user_input_or_turn_inner(
             .await;
         }
         Err(err) => {
-            sess.send_event_raw(Event {
-                id: sub_id,
-                msg: EventMsg::Error(err.to_error_event()),
-            })
+            sess.send_event_raw(Event::no_persist(
+                sub_id,
+                EventMsg::Error(err.to_error_event()),
+            ))
             .await;
         }
     }
@@ -389,11 +389,8 @@ pub async fn exec_approval(
                 let message = format!("Failed to apply execpolicy amendment: {err}");
                 tracing::warn!("{message}");
                 let warning = EventMsg::Warning(WarningEvent { message });
-                sess.send_event_raw(Event {
-                    id: event_turn_id.clone(),
-                    msg: warning,
-                })
-                .await;
+                sess.send_event_raw(Event::no_persist(event_turn_id.clone(), warning))
+                    .await;
             }
         }
     }
@@ -453,26 +450,26 @@ pub async fn compact(sess: &Arc<Session>, sub_id: String) {
 
 pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32) {
     if num_turns == 0 {
-        sess.send_event_raw(Event {
-            id: sub_id,
-            msg: EventMsg::Error(ErrorEvent {
+        sess.send_event_raw(Event::no_persist(
+            sub_id,
+            EventMsg::Error(ErrorEvent {
                 message: "num_turns must be >= 1".to_string(),
                 codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
             }),
-        })
+        ))
         .await;
         return;
     }
 
     let has_active_turn = { sess.active_turn.lock().await.is_some() };
     if has_active_turn {
-        sess.send_event_raw(Event {
-            id: sub_id,
-            msg: EventMsg::Error(ErrorEvent {
+        sess.send_event_raw(Event::no_persist(
+            sub_id,
+            EventMsg::Error(ErrorEvent {
                 message: "Cannot rollback while a turn is in progress.".to_string(),
                 codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
             }),
-        })
+        ))
         .await;
         return;
     }
@@ -481,25 +478,25 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
     let live_thread = match sess.live_thread_for_persistence("rollback thread") {
         Ok(live_thread) => live_thread,
         Err(_) => {
-            sess.send_event_raw(Event {
-                id: turn_context.sub_id.clone(),
-                msg: EventMsg::Error(ErrorEvent {
+            sess.send_event_raw(Event::no_persist(
+                turn_context.sub_id.clone(),
+                EventMsg::Error(ErrorEvent {
                     message: "thread rollback requires persisted thread history".to_string(),
                     codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
                 }),
-            })
+            ))
             .await;
             return;
         }
     };
     if let Err(err) = live_thread.flush().await {
-        sess.send_event_raw(Event {
-            id: turn_context.sub_id.clone(),
-            msg: EventMsg::Error(ErrorEvent {
+        sess.send_event_raw(Event::no_persist(
+            turn_context.sub_id.clone(),
+            EventMsg::Error(ErrorEvent {
                 message: format!("failed to flush thread persistence for rollback replay: {err}"),
                 codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
             }),
-        })
+        ))
         .await;
         return;
     }
@@ -507,13 +504,13 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
     let stored_history = match live_thread.load_history(/*include_archived*/ false).await {
         Ok(history) => history,
         Err(err) => {
-            sess.send_event_raw(Event {
-                id: turn_context.sub_id.clone(),
-                msg: EventMsg::Error(ErrorEvent {
+            sess.send_event_raw(Event::no_persist(
+                turn_context.sub_id.clone(),
+                EventMsg::Error(ErrorEvent {
                     message: format!("failed to load thread history for rollback replay: {err}"),
                     codex_error_info: Some(CodexErrorInfo::ThreadRollbackFailed),
                 }),
-            })
+            ))
             .await;
             return;
         }
@@ -534,7 +531,8 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
         .rearm_reminder(sess.thread_id());
     sess.recompute_token_usage(turn_context.as_ref()).await;
 
-    sess.persist_rollout_items(&[RolloutItem::EventMsg(rollback_msg.clone())])
+    let append_result = sess
+        .persist_rollout_items(&[RolloutItem::EventMsg(rollback_msg.clone())])
         .await;
     if let Err(err) = sess.flush_rollout().await {
         sess.send_event(
@@ -548,10 +546,11 @@ pub async fn thread_rollback(sess: &Arc<Session>, sub_id: String, num_turns: u32
         .await;
     }
 
-    sess.deliver_event_raw(Event {
-        id: turn_context.sub_id.clone(),
-        msg: rollback_msg,
-    })
+    sess.deliver_event_raw(Session::event_from_append_result(
+        turn_context.sub_id.clone(),
+        rollback_msg,
+        append_result,
+    ))
     .await;
 }
 
@@ -576,13 +575,13 @@ pub(super) async fn persist_thread_memory_mode_update(
 pub async fn set_thread_memory_mode(sess: &Arc<Session>, sub_id: String, mode: ThreadMemoryMode) {
     if let Err(err) = persist_thread_memory_mode_update(sess, mode).await {
         warn!("Failed to persist thread memory mode update to rollout: {err}");
-        let event = Event {
-            id: sub_id,
-            msg: EventMsg::Error(ErrorEvent {
+        let event = Event::no_persist(
+            sub_id,
+            EventMsg::Error(ErrorEvent {
                 message: err.to_string(),
                 codex_error_info: Some(CodexErrorInfo::Other),
             }),
-        };
+        );
         sess.send_event_raw(event).await;
     }
 }
@@ -642,20 +641,17 @@ pub async fn shutdown(sess: &Arc<Session>, sub_id: String) -> bool {
         && let Err(e) = live_thread.shutdown().await
     {
         warn!("failed to shutdown thread persistence: {e}");
-        let event = Event {
-            id: sub_id.clone(),
-            msg: EventMsg::Error(ErrorEvent {
+        let event = Event::no_persist(
+            sub_id.clone(),
+            EventMsg::Error(ErrorEvent {
                 message: "Failed to shutdown thread persistence".to_string(),
                 codex_error_info: Some(CodexErrorInfo::Other),
             }),
-        };
+        );
         sess.send_event_raw(event).await;
     }
 
-    let event = Event {
-        id: sub_id,
-        msg: EventMsg::ShutdownComplete,
-    };
+    let event = Event::no_persist(sub_id, EventMsg::ShutdownComplete);
     sess.services
         .rollout_thread_trace
         .record_protocol_event(&event.msg);
@@ -690,13 +686,13 @@ pub async fn review(
             .await;
         }
         Err(err) => {
-            let event = Event {
-                id: sub_id,
-                msg: EventMsg::Error(ErrorEvent {
+            let event = Event::no_persist(
+                sub_id,
+                EventMsg::Error(ErrorEvent {
                     message: err.to_string(),
                     codex_error_info: Some(CodexErrorInfo::Other),
                 }),
-            };
+            );
             sess.send_event(&turn_context, event.msg).await;
         }
     }
@@ -726,13 +722,13 @@ pub(super) async fn submission_loop(
                     if let Err(err) =
                         handle_realtime_conversation_start(&sess, sub.id.clone(), params).await
                     {
-                        sess.send_event_raw(Event {
-                            id: sub.id.clone(),
-                            msg: EventMsg::Error(ErrorEvent {
+                        sess.send_event_raw(Event::no_persist(
+                            sub.id.clone(),
+                            EventMsg::Error(ErrorEvent {
                                 message: err.to_string(),
                                 codex_error_info: Some(CodexErrorInfo::Other),
                             }),
-                        })
+                        ))
                         .await;
                     }
                     false

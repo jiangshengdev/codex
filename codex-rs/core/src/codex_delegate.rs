@@ -290,14 +290,17 @@ async fn forward_events(
                     Event {
                         id: _,
                         msg: EventMsg::TokenCount(_),
+                        ..
                     } => {}
                     Event {
                         id: _,
                         msg: EventMsg::SessionConfigured(_),
+                        ..
                     } => {}
                     Event {
                         id,
                         msg: EventMsg::ExecApprovalRequest(event),
+                        ..
                     } => {
                         // Initiate approval via parent session; do not surface to consumer.
                         handle_exec_approval(
@@ -313,6 +316,7 @@ async fn forward_events(
                     Event {
                         id,
                         msg: EventMsg::ApplyPatchApprovalRequest(event),
+                        ..
                     } => {
                         handle_patch_approval(
                             &codex,
@@ -340,6 +344,7 @@ async fn forward_events(
                     Event {
                         id,
                         msg: EventMsg::RequestUserInput(event),
+                        ..
                     } => {
                         handle_request_user_input(
                             &codex,
@@ -352,41 +357,44 @@ async fn forward_events(
                         )
                         .await;
                     }
-                    Event {
-                        id,
-                        msg: EventMsg::McpToolCallBegin(event),
+                    event @ Event {
+                        msg: EventMsg::McpToolCallBegin(_),
+                        ..
                     } => {
+                        let EventMsg::McpToolCallBegin(payload) = &event.msg else {
+                            unreachable!("event pattern matched McpToolCallBegin");
+                        };
+                        let call_id = payload.call_id.clone();
+                        let invocation = payload.invocation.clone();
                         pending_mcp_invocations
                             .lock()
                             .await
-                            .insert(event.call_id.clone(), event.invocation.clone());
+                            .insert(call_id, invocation);
                         if !forward_event_or_shutdown(
                             &codex,
                             &tx_sub,
                             &cancel_token,
-                            Event {
-                                id,
-                                msg: EventMsg::McpToolCallBegin(event),
-                            },
+                            event,
                         )
                         .await
                         {
                             break;
                         }
                     }
-                    Event {
-                        id,
-                        msg: EventMsg::McpToolCallEnd(event),
+                    event @ Event {
+                        msg: EventMsg::McpToolCallEnd(_),
+                        ..
                     } => {
-                        pending_mcp_invocations.lock().await.remove(&event.call_id);
+                        let EventMsg::McpToolCallEnd(payload) = &event.msg else {
+                            unreachable!("event pattern matched McpToolCallEnd");
+                        };
+                        let call_id = payload.call_id.clone();
+                        pending_mcp_invocations.lock().await.remove(&call_id);
                         if !forward_event_or_shutdown(
                             &codex,
                             &tx_sub,
                             &cancel_token,
-                            Event {
-                                id,
-                                msg: EventMsg::McpToolCallEnd(event),
-                            },
+                            event,
                         )
                         .await
                         {

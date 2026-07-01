@@ -219,9 +219,9 @@ impl ElicitationRequestManager {
                     lock.insert((server_name.clone(), id.clone()), tx);
                 }
                 let _ = tx_event
-                    .send(Event {
-                        id: "mcp_elicitation_request".to_string(),
-                        msg: EventMsg::ElicitationRequest(ElicitationRequestEvent {
+                    .send(Event::no_persist(
+                        "mcp_elicitation_request".to_string(),
+                        EventMsg::ElicitationRequest(ElicitationRequestEvent {
                             turn_id: None,
                             server_name,
                             id: match id.clone() {
@@ -234,7 +234,7 @@ impl ElicitationRequestManager {
                             },
                             request,
                         }),
-                    })
+                    ))
                     .await;
                 rx.await
                     .context("elicitation request channel closed unexpectedly")

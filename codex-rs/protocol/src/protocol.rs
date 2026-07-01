@@ -1200,6 +1200,30 @@ impl SandboxPolicy {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+pub struct EventHistoryBoundary {
+    physical_item_count: usize,
+}
+
+impl EventHistoryBoundary {
+    pub fn new(physical_item_count: usize) -> Self {
+        Self {
+            physical_item_count,
+        }
+    }
+
+    pub fn physical_item_count_for_logs(self) -> usize {
+        self.physical_item_count
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub enum EventPersistenceBoundary {
+    Persisted(EventHistoryBoundary),
+    #[default]
+    NoPersist,
+}
+
 /// Event Queue Entry - events from agent
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Event {
@@ -1207,6 +1231,27 @@ pub struct Event {
     pub id: String,
     /// Payload
     pub msg: EventMsg,
+    /// Persisted history boundary associated with this delivered event.
+    #[serde(default)]
+    pub persistence_boundary: EventPersistenceBoundary,
+}
+
+impl Event {
+    pub fn persisted(id: String, msg: EventMsg, boundary: EventHistoryBoundary) -> Self {
+        Self {
+            id,
+            msg,
+            persistence_boundary: EventPersistenceBoundary::Persisted(boundary),
+        }
+    }
+
+    pub fn no_persist(id: String, msg: EventMsg) -> Self {
+        Self {
+            id,
+            msg,
+            persistence_boundary: EventPersistenceBoundary::NoPersist,
+        }
+    }
 }
 
 /// Response event from the agent
@@ -5539,9 +5584,9 @@ mod tests {
         let thread_id = ThreadId::from_string("67e55044-10b1-426f-9247-bb680e5fe0c8")?;
         let rollout_file = NamedTempFile::new()?;
         let permission_profile = PermissionProfile::read_only();
-        let event = Event {
-            id: "1234".to_string(),
-            msg: EventMsg::SessionConfigured(SessionConfiguredEvent {
+        let event = Event::no_persist(
+            "1234".to_string(),
+            EventMsg::SessionConfigured(SessionConfiguredEvent {
                 session_id,
                 thread_id,
                 forked_from_id: None,
@@ -5561,10 +5606,11 @@ mod tests {
                 network_proxy: None,
                 rollout_path: Some(rollout_file.path().to_path_buf()),
             }),
-        };
+        );
 
         let expected = json!({
             "id": "1234",
+            "persistence_boundary": "NoPersist",
             "msg": {
                 "type": "session_configured",
                 "session_id": "67e55044-10b1-426f-9247-bb680e5fe0c7",
@@ -5580,6 +5626,48 @@ mod tests {
             }
         });
         assert_eq!(expected, serde_json::to_value(&event)?);
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_event_without_persistence_boundary_defaults_to_no_persist() -> Result<()> {
+        let session_id = SessionId::from_string("67e55044-10b1-426f-9247-bb680e5fe0c7")?;
+        let thread_id = ThreadId::from_string("67e55044-10b1-426f-9247-bb680e5fe0c8")?;
+        let event = Event::no_persist(
+            "1234".to_string(),
+            EventMsg::SessionConfigured(SessionConfiguredEvent {
+                session_id,
+                thread_id,
+                forked_from_id: None,
+                parent_thread_id: None,
+                thread_source: None,
+                thread_name: None,
+                model: "codex-mini-latest".to_string(),
+                model_provider_id: "openai".to_string(),
+                service_tier: None,
+                approval_policy: AskForApproval::Never,
+                approvals_reviewer: ApprovalsReviewer::User,
+                permission_profile: PermissionProfile::read_only(),
+                active_permission_profile: None,
+                cwd: test_path_buf("/home/user/project").abs(),
+                reasoning_effort: Some(ReasoningEffortConfig::default()),
+                initial_messages: None,
+                network_proxy: None,
+                rollout_path: None,
+            }),
+        );
+        let mut value = serde_json::to_value(&event)?;
+        value
+            .as_object_mut()
+            .expect("event should serialize as an object")
+            .remove("persistence_boundary");
+
+        let decoded: Event = serde_json::from_value(value)?;
+
+        assert!(matches!(
+            decoded.persistence_boundary,
+            EventPersistenceBoundary::NoPersist
+        ));
         Ok(())
     }
 
@@ -5623,15 +5711,15 @@ mod tests {
 
     #[test]
     fn serialize_mcp_startup_update_event() -> Result<()> {
-        let event = Event {
-            id: "init".to_string(),
-            msg: EventMsg::McpStartupUpdate(McpStartupUpdateEvent {
+        let event = Event::no_persist(
+            "init".to_string(),
+            EventMsg::McpStartupUpdate(McpStartupUpdateEvent {
                 server: "srv".to_string(),
                 status: McpStartupStatus::Failed {
                     error: "boom".to_string(),
                 },
             }),
-        };
+        );
 
         let value = serde_json::to_value(&event)?;
         assert_eq!(value["msg"]["type"], "mcp_startup_update");
@@ -5643,9 +5731,9 @@ mod tests {
 
     #[test]
     fn serialize_mcp_startup_complete_event() -> Result<()> {
-        let event = Event {
-            id: "init".to_string(),
-            msg: EventMsg::McpStartupComplete(McpStartupCompleteEvent {
+        let event = Event::no_persist(
+            "init".to_string(),
+            EventMsg::McpStartupComplete(McpStartupCompleteEvent {
                 ready: vec!["a".to_string()],
                 failed: vec![McpStartupFailure {
                     server: "b".to_string(),
@@ -5653,7 +5741,7 @@ mod tests {
                 }],
                 cancelled: vec!["c".to_string()],
             }),
-        };
+        );
 
         let value = serde_json::to_value(&event)?;
         assert_eq!(value["msg"]["type"], "mcp_startup_complete");

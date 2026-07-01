@@ -29,7 +29,7 @@ use crate::error_code::internal_error;
 use crate::projection_fanout::ThreadProjectionFacade;
 use crate::server_request_error::TURN_TRANSITION_PENDING_REQUEST_ERROR_REASON;
 use crate::thread_projection::ThreadProjectionManager;
-use crate::thread_projection_cut::ProjectionHistoryCursor;
+use crate::thread_projection_cut::ProjectionHistoryBoundary;
 pub(crate) use codex_app_server_transport::ConnectionId;
 pub(crate) use codex_app_server_transport::OutgoingError;
 pub(crate) use codex_app_server_transport::OutgoingMessage;
@@ -113,7 +113,7 @@ pub(crate) struct ThreadScopedOutgoingMessageSender {
     outgoing: Arc<OutgoingMessageSender>,
     connection_ids: Arc<Vec<ConnectionId>>,
     thread_id: ThreadId,
-    projection_history_cursor: Option<ProjectionHistoryCursor>,
+    projection_history_boundary: Option<ProjectionHistoryBoundary>,
 }
 
 struct PendingCallbackEntry {
@@ -132,21 +132,21 @@ impl ThreadScopedOutgoingMessageSender {
             outgoing,
             connection_ids: Arc::new(connection_ids),
             thread_id,
-            projection_history_cursor: None,
+            projection_history_boundary: None,
         }
     }
 
-    pub(crate) fn with_projection_history_cursor(
+    pub(crate) fn with_projection_history_boundary(
         outgoing: Arc<OutgoingMessageSender>,
         connection_ids: Vec<ConnectionId>,
         thread_id: ThreadId,
-        projection_history_cursor: ProjectionHistoryCursor,
+        projection_history_boundary: ProjectionHistoryBoundary,
     ) -> Self {
         Self {
             outgoing,
             connection_ids: Arc::new(connection_ids),
             thread_id,
-            projection_history_cursor: Some(projection_history_cursor),
+            projection_history_boundary: Some(projection_history_boundary),
         }
     }
 
@@ -193,7 +193,7 @@ impl ThreadScopedOutgoingMessageSender {
             .send_thread_projection_notification(
                 self.thread_id,
                 &notification,
-                self.projection_history_cursor,
+                self.projection_history_boundary,
             )
             .await;
     }
@@ -634,14 +634,14 @@ impl OutgoingMessageSender {
         &self,
         thread_id: ThreadId,
         notification: &ServerNotification,
-        projection_history_cursor: Option<ProjectionHistoryCursor>,
+        projection_history_boundary: Option<ProjectionHistoryBoundary>,
     ) {
         self.thread_projection_facade
             .enqueue_notification(
                 self.sender.clone(),
                 thread_id,
                 notification,
-                projection_history_cursor,
+                projection_history_boundary,
             )
             .await;
     }
