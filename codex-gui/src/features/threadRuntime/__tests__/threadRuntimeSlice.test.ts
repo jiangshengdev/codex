@@ -126,7 +126,7 @@ describe("thread runtime reducer", () => {
     expectTypeOf<
       Parameters<typeof threadRuntimeEventBuffered>[0]
     >().toEqualTypeOf<ThreadRuntimeProjectionEventPayload>();
-    expectTypeOf<ThreadProjectionEventNotification>().not.toMatchTypeOf<
+    expectTypeOf<ThreadProjectionEventNotification>().not.toExtend<
       Parameters<typeof threadRuntimeEventBuffered>[0]
     >();
 
