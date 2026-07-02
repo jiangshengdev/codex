@@ -5,6 +5,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use anyhow::Result;
+use codex_app_server_protocol::AgentMessageDeltaNotification;
 use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
 use codex_app_server_protocol::SessionSource;
@@ -13,6 +14,8 @@ use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadProjectionAttachResponse;
 use codex_app_server_protocol::ThreadProjectionClosedNotification;
 use codex_app_server_protocol::ThreadProjectionClosedReason;
+use codex_app_server_protocol::ThreadProjectionDelta;
+use codex_app_server_protocol::ThreadProjectionDeltaNotification;
 use codex_app_server_protocol::ThreadProjectionEvent;
 use codex_app_server_protocol::ThreadProjectionEventNotification;
 use codex_app_server_protocol::ThreadProjectionSnapshot;
@@ -35,6 +38,7 @@ const GENERATED_FIXTURE_NAMES: &[&str] = &[
     "attach-baseline.json",
     "attach-replacement.json",
     "closed-backpressure.json",
+    "event-agent-message-delta.json",
     "event-item-completed.json",
     "event-item-started.json",
     "event-subscription-replacement.json",
@@ -83,6 +87,10 @@ pub(crate) fn generate_fixture_files() -> Result<BTreeMap<&'static str, String>>
     files.insert(
         "closed-backpressure.json",
         serialize_fixture(&closed_backpressure())?,
+    );
+    files.insert(
+        "event-agent-message-delta.json",
+        serialize_fixture(&event_agent_message_delta()?)?,
     );
     files.insert(
         "event-turn-started.json",
@@ -255,6 +263,21 @@ fn event_turn_started() -> Result<ThreadProjectionEventNotification> {
             },
         },
     )
+}
+
+fn event_agent_message_delta() -> Result<ThreadProjectionDeltaNotification> {
+    Ok(ThreadProjectionDeltaNotification {
+        thread_id: THREAD_ID.to_string(),
+        subscription_id: SUBSCRIPTION_ID.to_string(),
+        delta: ThreadProjectionDelta::AgentMessage {
+            notification: AgentMessageDeltaNotification {
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                item_id: "assistant-message".to_string(),
+                delta: "streamed text".to_string(),
+            },
+        },
+    })
 }
 
 fn event_item_started() -> Result<ThreadProjectionEventNotification> {

@@ -1,3 +1,4 @@
+use super::AgentMessageDeltaNotification;
 use super::ItemCompletedNotification;
 use super::ItemStartedNotification;
 use super::Thread;
@@ -65,6 +66,15 @@ pub struct ThreadProjectionEventNotification {
     pub event: ThreadProjectionEvent,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadProjectionDeltaNotification {
+    pub thread_id: String,
+    pub subscription_id: String,
+    pub delta: ThreadProjectionDelta,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
@@ -96,6 +106,15 @@ pub enum ThreadProjectionEvent {
     },
     ItemCompleted {
         notification: ItemCompletedNotification,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[ts(tag = "type", rename_all = "camelCase", export_to = "v2/")]
+pub enum ThreadProjectionDelta {
+    AgentMessage {
+        notification: AgentMessageDeltaNotification,
     },
 }
 
@@ -215,6 +234,47 @@ mod tests {
                                 "completedAt": null,
                                 "durationMs": null
                             }
+                        }
+                    }
+                }
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_thread_projection_delta_notification() -> Result<()> {
+        let notification: ServerNotification = serde_json::from_value(json!({
+            "method": "thread/projection/delta",
+            "params": {
+                "threadId": "thr_123",
+                "subscriptionId": "sub_123",
+                "delta": {
+                    "type": "agentMessage",
+                    "notification": {
+                        "threadId": "thr_123",
+                        "turnId": "turn_123",
+                        "itemId": "item_123",
+                        "delta": "hello"
+                    }
+                }
+            }
+        }))?;
+
+        assert_eq!(
+            serde_json::to_value(&notification)?,
+            json!({
+                "method": "thread/projection/delta",
+                "params": {
+                    "threadId": "thr_123",
+                    "subscriptionId": "sub_123",
+                    "delta": {
+                        "type": "agentMessage",
+                        "notification": {
+                            "threadId": "thr_123",
+                            "turnId": "turn_123",
+                            "itemId": "item_123",
+                            "delta": "hello"
                         }
                     }
                 }

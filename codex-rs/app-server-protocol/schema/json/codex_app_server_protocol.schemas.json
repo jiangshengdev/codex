@@ -4440,6 +4440,26 @@
           "properties": {
             "method": {
               "enum": [
+                "thread/projection/delta"
+              ],
+              "title": "Thread/projection/deltaNotificationMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ThreadProjectionDeltaNotification"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "title": "Thread/projection/deltaNotification",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "enum": [
                 "thread/projection/closed"
               ],
               "title": "Thread/projection/closedNotificationMethod",
@@ -18591,6 +18611,51 @@
           "backpressure"
         ],
         "type": "string"
+      },
+      "ThreadProjectionDelta": {
+        "oneOf": [
+          {
+            "properties": {
+              "notification": {
+                "$ref": "#/definitions/v2/AgentMessageDeltaNotification"
+              },
+              "type": {
+                "enum": [
+                  "agentMessage"
+                ],
+                "title": "AgentMessageThreadProjectionDeltaType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "notification",
+              "type"
+            ],
+            "title": "AgentMessageThreadProjectionDelta",
+            "type": "object"
+          }
+        ]
+      },
+      "ThreadProjectionDeltaNotification": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "delta": {
+            "$ref": "#/definitions/v2/ThreadProjectionDelta"
+          },
+          "subscriptionId": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "delta",
+          "subscriptionId",
+          "threadId"
+        ],
+        "title": "ThreadProjectionDeltaNotification",
+        "type": "object"
       },
       "ThreadProjectionDetachParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
