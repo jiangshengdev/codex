@@ -3,6 +3,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use codex_app_server_protocol::ServerNotification;
+use codex_app_server_protocol::ThreadProjectionDelta;
+use codex_app_server_protocol::ThreadProjectionDeltaNotification;
 use codex_app_server_protocol::ThreadProjectionEvent;
 use codex_app_server_protocol::ThreadProjectionEventNotification;
 use codex_protocol::ThreadId;
@@ -56,7 +58,39 @@ pub(crate) enum ProjectionAttachAttempt {
 pub(crate) struct ProjectionDelivery {
     pub(crate) connection_id: ConnectionId,
     pub(crate) generation: ProjectionGeneration,
-    pub(crate) notification: ThreadProjectionEventNotification,
+    pub(crate) payload: ProjectionDeliveryPayload,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ProjectionDeliveryPayload {
+    Event(Box<ThreadProjectionEventNotification>),
+    Delta(ThreadProjectionDeltaNotification),
+}
+
+impl ProjectionDelivery {
+    #[cfg(test)]
+    pub(crate) fn subscription_id(&self) -> &str {
+        match &self.payload {
+            ProjectionDeliveryPayload::Event(notification) => &notification.subscription_id,
+            ProjectionDeliveryPayload::Delta(notification) => &notification.subscription_id,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn event_notification(&self) -> &ThreadProjectionEventNotification {
+        let ProjectionDeliveryPayload::Event(notification) = &self.payload else {
+            panic!("expected projection event delivery");
+        };
+        notification.as_ref()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn delta_notification(&self) -> &ThreadProjectionDeltaNotification {
+        let ProjectionDeliveryPayload::Delta(notification) = &self.payload else {
+            panic!("expected projection delta delivery");
+        };
+        notification
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,9 +231,20 @@ impl ThreadProjectionManager {
         thread_id: ThreadId,
         notification: &ServerNotification,
     ) -> Vec<ProjectionDelivery> {
-        let Some(event) = projection_event_from_notification(notification) else {
-            return Vec::new();
-        };
+        if let Some(event) = projection_event_from_notification(notification) {
+            return self.project_structural_event(thread_id, event).await;
+        }
+        if let Some(delta) = projection_delta_from_notification(notification) {
+            return self.project_delta(thread_id, delta).await;
+        }
+        Vec::new()
+    }
+
+    async fn project_structural_event(
+        &self,
+        thread_id: ThreadId,
+        event: ThreadProjectionEvent,
+    ) -> Vec<ProjectionDelivery> {
         let mut inner = self.inner.lock().await;
         let generation = inner.capture_generation(thread_id);
         let entry = inner.thread_entry_mut(thread_id);
@@ -211,13 +256,38 @@ impl ThreadProjectionManager {
             .map(|(connection_id, subscription_id)| ProjectionDelivery {
                 connection_id,
                 generation,
-                notification: ThreadProjectionEventNotification {
+                payload: ProjectionDeliveryPayload::Event(Box::new(
+                    ThreadProjectionEventNotification {
+                        thread_id: thread_id.to_string(),
+                        subscription_id,
+                        parent_commit_id: parent_commit_id.clone(),
+                        commit_id: commit_id.clone(),
+                        event: event.clone(),
+                    },
+                )),
+            })
+            .collect()
+    }
+
+    async fn project_delta(
+        &self,
+        thread_id: ThreadId,
+        delta: ThreadProjectionDelta,
+    ) -> Vec<ProjectionDelivery> {
+        let mut inner = self.inner.lock().await;
+        let generation = inner.capture_generation(thread_id);
+        let entry = inner.thread_entry_mut(thread_id);
+        entry
+            .sorted_subscribers()
+            .into_iter()
+            .map(|(connection_id, subscription_id)| ProjectionDelivery {
+                connection_id,
+                generation,
+                payload: ProjectionDeliveryPayload::Delta(ThreadProjectionDeltaNotification {
                     thread_id: thread_id.to_string(),
                     subscription_id,
-                    parent_commit_id: parent_commit_id.clone(),
-                    commit_id: commit_id.clone(),
-                    event: event.clone(),
-                },
+                    delta: delta.clone(),
+                }),
             })
             .collect()
     }
@@ -437,10 +507,25 @@ fn projection_event_from_notification(
     }
 }
 
+fn projection_delta_from_notification(
+    notification: &ServerNotification,
+) -> Option<ThreadProjectionDelta> {
+    match notification {
+        ServerNotification::AgentMessageDelta(notification) => {
+            Some(ThreadProjectionDelta::AgentMessage {
+                notification: notification.clone(),
+            })
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use codex_app_server_protocol::AgentMessageDeltaNotification;
     use codex_app_server_protocol::ServerNotification;
     use codex_app_server_protocol::ThreadArchivedNotification;
+    use codex_app_server_protocol::ThreadProjectionDelta;
     use codex_app_server_protocol::ThreadProjectionEvent;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnItemsView;
@@ -469,6 +554,20 @@ mod tests {
         })
     }
 
+    fn agent_message_delta_notification(
+        thread_id: ThreadId,
+        turn_id: &str,
+        item_id: &str,
+        delta: &str,
+    ) -> ServerNotification {
+        ServerNotification::AgentMessageDelta(AgentMessageDeltaNotification {
+            thread_id: thread_id.to_string(),
+            turn_id: turn_id.to_string(),
+            item_id: item_id.to_string(),
+            delta: delta.to_string(),
+        })
+    }
+
     fn non_whitelisted_notification(thread_id: ThreadId) -> ServerNotification {
         ServerNotification::ThreadArchived(ThreadArchivedNotification {
             thread_id: thread_id.to_string(),
@@ -492,8 +591,8 @@ mod tests {
 
         assert_eq!(1, first.len());
         assert_eq!(1, second.len());
-        let first = &first[0].notification;
-        let second = &second[0].notification;
+        let first = first[0].event_notification();
+        let second = second[0].event_notification();
         assert_eq!(None, first.parent_commit_id);
         assert_eq!(Some(first.commit_id.clone()), second.parent_commit_id);
     }
@@ -511,12 +610,12 @@ mod tests {
 
         assert_eq!(2, deliveries.len());
         assert_eq!(
-            deliveries[0].notification.commit_id,
-            deliveries[1].notification.commit_id
+            deliveries[0].event_notification().commit_id,
+            deliveries[1].event_notification().commit_id
         );
         assert_eq!(
-            deliveries[0].notification.parent_commit_id,
-            deliveries[1].notification.parent_commit_id
+            deliveries[0].event_notification().parent_commit_id,
+            deliveries[1].event_notification().parent_commit_id
         );
     }
 
@@ -539,11 +638,11 @@ mod tests {
         assert_eq!(ConnectionId(2), deliveries[0].connection_id);
         assert_eq!(
             second.subscription_id,
-            deliveries[0].notification.subscription_id
+            deliveries[0].event_notification().subscription_id
         );
         assert_ne!(
             first.subscription_id,
-            deliveries[0].notification.subscription_id
+            deliveries[0].event_notification().subscription_id
         );
     }
 
@@ -565,7 +664,73 @@ mod tests {
         assert_eq!(Vec::<ProjectionDelivery>::new(), ignored);
         assert_eq!(attach.head_commit_id, second_attach.head_commit_id);
         assert_eq!(1, delivered.len());
-        assert_eq!(None, delivered[0].notification.parent_commit_id);
+        assert_eq!(None, delivered[0].event_notification().parent_commit_id);
+    }
+
+    #[tokio::test]
+    async fn agent_message_delta_delivers_without_advancing_head() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+
+        let attach = manager.attach(thread_id, connection_id).await;
+        let delta = manager
+            .project_notification(
+                thread_id,
+                &agent_message_delta_notification(thread_id, "turn-1", "item-1", "hello"),
+            )
+            .await;
+        let second_attach = manager.attach(thread_id, connection_id).await;
+        let event = manager
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await;
+
+        assert_eq!(1, delta.len());
+        assert_eq!(connection_id, delta[0].connection_id);
+        assert_eq!(attach.subscription_id, delta[0].subscription_id());
+        assert_eq!(attach.head_commit_id, second_attach.head_commit_id);
+        assert_eq!(1, event.len());
+        assert_eq!(None, event[0].event_notification().parent_commit_id);
+
+        let ProjectionDeliveryPayload::Delta(notification) = &delta[0].payload else {
+            panic!("expected projection delta delivery");
+        };
+        assert_eq!(thread_id.to_string(), notification.thread_id);
+        assert_eq!(attach.subscription_id, notification.subscription_id);
+        assert_eq!(
+            ThreadProjectionDelta::AgentMessage {
+                notification: AgentMessageDeltaNotification {
+                    thread_id: thread_id.to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "item-1".to_string(),
+                    delta: "hello".to_string(),
+                },
+            },
+            notification.delta
+        );
+    }
+
+    #[tokio::test]
+    async fn two_subscribers_receive_projection_delta_with_distinct_subscription_ids() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let first = manager.attach(thread_id, ConnectionId(1)).await;
+        let second = manager.attach(thread_id, ConnectionId(2)).await;
+
+        let deliveries = manager
+            .project_notification(
+                thread_id,
+                &agent_message_delta_notification(thread_id, "turn-1", "item-1", "hello"),
+            )
+            .await;
+
+        assert_eq!(2, deliveries.len());
+        assert_eq!(first.subscription_id, deliveries[0].subscription_id());
+        assert_eq!(second.subscription_id, deliveries[1].subscription_id());
+        assert_eq!(
+            deliveries[0].delta_notification().delta,
+            deliveries[1].delta_notification().delta
+        );
     }
 
     #[tokio::test]
@@ -584,7 +749,7 @@ mod tests {
         assert_eq!(1, deliveries.len());
         assert_eq!(
             second.subscription_id,
-            deliveries[0].notification.subscription_id
+            deliveries[0].event_notification().subscription_id
         );
     }
 
@@ -655,7 +820,7 @@ mod tests {
             .project_notification(thread_id, &turn_started_notification(thread_id, "turn-2"))
             .await;
         assert_eq!(1, deliveries.len());
-        assert_eq!(None, deliveries[0].notification.parent_commit_id);
+        assert_eq!(None, deliveries[0].event_notification().parent_commit_id);
     }
 
     #[tokio::test]
@@ -886,7 +1051,7 @@ mod tests {
         assert_ne!(first.subscription_id, second.subscription_id);
         assert_eq!(
             second.head_commit_id,
-            Some(deliveries[0].notification.commit_id.clone())
+            Some(deliveries[0].event_notification().commit_id.clone())
         );
     }
 
@@ -981,7 +1146,7 @@ mod tests {
             .expect("generation should still match");
         assert_eq!(
             cut.head_commit_id,
-            Some(deliveries[0].notification.commit_id.clone())
+            Some(deliveries[0].event_notification().commit_id.clone())
         );
     }
 
@@ -1013,7 +1178,7 @@ mod tests {
 
         assert_eq!(1, deliveries.len());
         assert!(matches!(
-            deliveries[0].notification.event,
+            deliveries[0].event_notification().event,
             ThreadProjectionEvent::TurnStarted { .. }
         ));
     }

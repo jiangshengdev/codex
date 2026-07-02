@@ -5,36 +5,35 @@ description: Use only when debugging the Codex GUI with playwright-cli in a visi
 
 # Debug Responsive GUI
 
-## 基本规则
+## Core Rules
 
-- 回复用户使用简体中文。
-- 普通 `GUI 启动`、`启动 GUI`、`/gui` 或只需要打印 GUI URL 的请求必须使用 `gui-launch`；本 skill 只用于明确的 debug、响应式、截图、浏览器打开、视觉验证或可复现浏览器控制场景。
-- 浏览器生命周期优先使用 `playwright-cli`。
-- 调试浏览器必须是 `Google Chrome for Testing`，不是系统 `Google Chrome`。
-- 浏览器必须可见；启动时必须带 `--headed`。
-- 禁止使用 Computer Use。
-- 禁止坐标点击。
-- 禁止自动选择或验证具体设备型号。
-- AppleScript 只用于激活 `Google Chrome for Testing`、查询窗口、移动窗口、关闭可识别的恢复弹窗，以及在 DevTools 窗口发送已允许的 `Command+Shift+M`。
-- 不确定视觉状态时必须查询状态或截图，不要盲猜。
+- Use `gui-launch` for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only requests. Use this skill only for explicit debugging, responsive checks, screenshots, browser opening, visual verification, or reproducible browser-control traces.
+- Prefer `playwright-cli` for browser lifecycle control.
+- Use `Google Chrome for Testing` for debugging, not the system `Google Chrome`.
+- Keep the browser visible; launch it with `--headed`.
+- Do not use Computer Use.
+- Do not click by coordinates.
+- Do not automatically choose or verify a specific device model.
+- Use AppleScript only to activate `Google Chrome for Testing`, query windows, move windows, close recognizable restore dialogs, and send the allowed `Command+Shift+M` shortcut in the DevTools window.
+- Query state or take a screenshot when the visual state is unclear. Do not guess.
 
-## 自动化脚本入口
+## Automation Entrypoint
 
-脚本路径：
+Script path:
 
 ```bash
 .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs
 ```
 
-稳定用法：
+Stable usage:
 
 ```bash
-node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<launch_gui 返回的 VPN 或 LAN URL；没有 VPN/LAN 或不可用时使用 Local URL>'
+node .codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs --gui-url '<VPN or LAN URL returned by launch_gui; use Local URL only when VPN/LAN is unavailable>'
 ```
 
 ## React inspector
 
-读取当前 `playwright-cli` 控制页面的 React fiber tree：
+Read the React fiber tree from the current page controlled by `playwright-cli`:
 
 ```bash
 node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs
@@ -44,11 +43,11 @@ node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --path 0.1.3 -
 node .codex/skills/debug-responsive-gui/scripts/inspect-react.mjs --component AppShell --include-values
 ```
 
-脚本只检查当前已打开页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。默认用于通用浅层发现，不内置 `codex-gui` 组件名；深入时使用 `--component`、`--path`、`--max-depth`。当前脚本只负责 React inspection；Redux inspection 使用下方独立入口，不混入这个入口。
+The script only inspects the currently open page. It does not launch, navigate, or close the browser. It writes JSON only to stdout. Use the default output for shallow discovery; it does not hard-code `codex-gui` component names. Use `--component`, `--path`, and `--max-depth` for deeper inspection. This script is React-only; use the separate Redux entrypoint below for Redux inspection.
 
 ## Redux inspector
 
-读取当前 `playwright-cli` 控制页面的 Redux store state：
+Read the Redux store state from the current page controlled by `playwright-cli`:
 
 ```bash
 node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs
@@ -56,71 +55,71 @@ node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path threadR
 node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path transcriptState.entriesById --max-depth 2 --max-keys 40
 ```
 
-脚本只检查当前 `playwright-cli` 控制页面，不启动、不导航、不关闭浏览器；stdout 只输出 JSON。它从 `#root.__reactContainer$...` 进入 React fiber，查找 React-Redux Provider 的 `memoizedProps.value.store`，再读取 `store.getState()`。它不依赖 Redux DevTools extension，也不依赖 `__REACT_DEVTOOLS_GLOBAL_HOOK__.getFiberRoots()`。
+The script only inspects the current page controlled by `playwright-cli`. It does not launch, navigate, or close the browser. It writes JSON only to stdout. It enters the React fiber tree through `#root.__reactContainer$...`, finds the React-Redux Provider at `memoizedProps.value.store`, then reads `store.getState()`. It does not depend on the Redux DevTools extension or on `__REACT_DEVTOOLS_GLOBAL_HOOK__.getFiberRoots()`.
 
-默认输出安全摘要，不打印完整 store；局部 state 用 `--path <dot.path>`，输出仍受 `--max-depth`、`--max-keys`、`--max-array-items`、`--max-string-length` 限制。
+The default output is a safe summary, not the full store. Use `--path <dot.path>` for a specific state subtree. Output is still bounded by `--max-depth`, `--max-keys`, `--max-array-items`, and `--max-string-length`.
 
-运行方式：
+## Workflow
 
-- 先由 Codex 外层调用 `launch_gui` 获取当前 GUI URL。
-- 默认选择顺序是 VPN -> LAN -> Local。如果 `launch_gui` 返回 VPN URL，优先把 VPN URL 传给 `--gui-url`；没有 VPN URL、VPN URL 明确不可用，或用户明确要求局域网地址时，才使用 LAN URL；只有没有 VPN/LAN URL、VPN/LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
-- URL 中的 `threadId` 和 `token` 必须完整保留；不要手写、猜测或从旧 URL 拼接。
-- 入口脚本默认按顺序执行 discovery、CFT 启动/复用、GUI 导航、窗口排布、响应式模式、reload 和 metrics 验证。
-- 每个步骤都会先检测当前真实状态；满足目标时输出 `skip` 并退出 0，不满足时才执行本步骤。
-- 状态文件是 `/tmp/codex-debug-responsive-gui/current.json`。
-- GUI URL 必须使用本次 `launch_gui` 返回的完整 URL，默认 VPN -> LAN -> Local，Local 只作回退或按用户明确要求使用。
+- First call outer `launch_gui` to get the current GUI URL.
+- Select URLs in this order by default: VPN -> LAN -> Local. If `launch_gui` returns a VPN URL, pass that VPN URL to `--gui-url`. Use the LAN URL only when no VPN URL exists, the VPN URL is explicitly unavailable, or the user explicitly asks for a LAN address. Use the Local URL only when no VPN/LAN URL exists, VPN/LAN is explicitly unavailable, or the user explicitly asks for a local address.
+- Preserve the full `threadId` and `token` in the URL. Do not hand-write, guess, or splice URLs from old values.
+- The entrypoint script runs discovery, CFT start/reuse, GUI navigation, window layout, responsive mode, reload, and metrics verification in order by default.
+- Each step checks the real current state first. If the target state is already satisfied, it prints `skip` and exits 0; otherwise it performs that step.
+- The state file is `/tmp/codex-debug-responsive-gui/current.json`.
+- Always use the full URL returned by the current `launch_gui` call. Default to VPN -> LAN -> Local; use Local only as a fallback or when explicitly requested by the user.
 
-## 重启/恢复 GUI
+## Restarting Or Recovering The GUI
 
-当用户说“重启 GUI”“重启后端”“GUI 不可用”或页面显示 `Codex GUI dev server unavailable` 时，先调用外层 `launch_gui` 重新获取当前 GUI URL，再按 VPN -> LAN -> Local 顺序选择 URL；只有没有 VPN/LAN URL、VPN/LAN URL 明确不可用，或用户明确要求本机地址时，才使用 Local URL。
+When the user says "重启 GUI", "重启后端", or "GUI 不可用", or when the page shows `Codex GUI dev server unavailable`, first call outer `launch_gui` again to get the current GUI URL. Then choose the URL in VPN -> LAN -> Local order. Use the Local URL only when no VPN/LAN URL exists, VPN/LAN is explicitly unavailable, or the user explicitly asks for a local address.
 
-不要把“重启 GUI”默认理解成重启 `codex-gui` 的 Vite 前端，也不要先 kill `codex app-server`、查进程或重启 Codex App。`launch_gui` 是恢复 GUI 后端/代理入口。
+Do not interpret "重启 GUI" as restarting the `codex-gui` Vite frontend by default. Do not start by killing `codex app-server`, inspecting processes, or restarting the Codex App. `launch_gui` is the recovery entrypoint for the GUI backend/proxy.
 
-如果重新调用 `launch_gui` 并打开 URL 后仍显示 `Codex GUI dev server unavailable`，再确认或启动 Vite dev server，然后刷新同一个 `launch_gui` URL。
+If the page still shows `Codex GUI dev server unavailable` after calling `launch_gui` again and opening the URL, then confirm or start the Vite dev server and refresh the same `launch_gui` URL.
 
-如果 `launch_gui` URL 返回 HTTP 502，通常表示代理背后的 `codex-gui` Vite dev server 未运行或不可达。先检查默认 Vite dev server 端口或 `CODEX_GUI_VITE_PORT` 指定端口是否已有监听：如果用户已经提前启动并保持 Vite 运行，不要再启动；如果没有监听，在仓库的 `codex-gui` 目录里启动前台会话：
+If a `launch_gui` URL returns HTTP 502, it usually means the proxied `codex-gui` Vite dev server is not running or is unreachable. First check whether the default Vite dev server port, or the port specified by `CODEX_GUI_VITE_PORT`, is already listening. If the user already started Vite and kept it running, do not start another one. If nothing is listening, start a foreground session from the repo's `codex-gui` directory:
 
 ```bash
 pnpm run dev
 ```
 
-保持该 Vite 会话运行，再刷新同一个 `launch_gui` URL。不要把 `debug-responsive-gui` 自动化脚本当作 Vite 生命周期管理器；它只负责打开/验证 GUI。不要默认用 `nohup` 或后台 shell 保活 Vite，除非用户明确要求切换为后台守护方式并接受额外验证。
+Keep that Vite session running, then refresh the same `launch_gui` URL. Do not treat the `debug-responsive-gui` automation script as a Vite lifecycle manager; it only opens and verifies the GUI. Do not use `nohup` or a background shell to keep Vite alive by default unless the user explicitly asks for a background daemon approach and accepts the extra verification.
 
-## 单步恢复
+## Step Recovery
 
-失败后可以直接运行失败的单步脚本继续：
+After a failure, rerun the failed step script directly:
 
 ```bash
 node .codex/skills/debug-responsive-gui/scripts/steps/00-check-tools.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/05-discover-current-state.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/10-start-cft-if-needed.mjs
-node .codex/skills/debug-responsive-gui/scripts/steps/20-open-gui-if-needed.mjs --gui-url '<launch_gui 返回的 VPN 或 LAN URL；没有 VPN/LAN 或不可用时使用 Local URL>'
+node .codex/skills/debug-responsive-gui/scripts/steps/20-open-gui-if-needed.mjs --gui-url '<VPN or LAN URL returned by launch_gui; use Local URL only when VPN/LAN is unavailable>'
 node .codex/skills/debug-responsive-gui/scripts/steps/30-layout-windows-if-needed.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/40-enter-responsive-if-needed.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/50-reload-page.mjs
 node .codex/skills/debug-responsive-gui/scripts/steps/60-verify-responsive-metrics.mjs
 ```
 
-如果某一步失败，先读取 stderr 和 `/tmp/codex-debug-responsive-gui/current.json`。不要因为一个步骤失败而改用 Computer Use、坐标点击或系统 `Google Chrome`。
+If a step fails, read stderr and `/tmp/codex-debug-responsive-gui/current.json` first. Do not switch to Computer Use, coordinate clicks, or the system `Google Chrome` because one step failed.
 
-## 验证边界
+## Verification Boundary
 
-脚本验证的是流程状态：
+The script verifies workflow state:
 
-- `playwright-cli` 连接正常。
-- 浏览器是 headed `chrome-for-testing`。
-- 页面是 `codex-gui`。
-- DevTools 和浏览器窗口可通过 AX 查询并排布。
-- 响应式步骤只在 metrics 不是 responsive-like 时发送 `Command+Shift+M`。
-- reload 后 metrics 仍能证明页面是 `codex-gui`。
+- `playwright-cli` is connected.
+- The browser is headed `chrome-for-testing`.
+- The page is `codex-gui`.
+- DevTools and browser windows can be queried and arranged through AX.
+- The responsive step sends `Command+Shift+M` only when metrics are not responsive-like.
+- After reload, metrics still prove that the page is `codex-gui`.
 
-脚本不验证：
+The script does not verify:
 
-- 具体设备型号。
-- DevTools 设备下拉框当前选项。
-- iPhone SE、iPhone XR 或其他设备 profile。
+- Specific device models.
+- The current selection in the DevTools device dropdown.
+- iPhone SE, iPhone XR, or any other device profile.
 
-## 常用验证命令
+## Common Validation Commands
 
 ```bash
 find .codex/skills/debug-responsive-gui/scripts -name '*.mjs' -print0 | xargs -0 -n1 node --check

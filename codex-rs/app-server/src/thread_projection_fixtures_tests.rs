@@ -3,6 +3,8 @@ use super::*;
 use anyhow::Context;
 use codex_app_server_protocol::ThreadProjectionClosedNotification;
 use codex_app_server_protocol::ThreadProjectionClosedReason;
+use codex_app_server_protocol::ThreadProjectionDelta;
+use codex_app_server_protocol::ThreadProjectionDeltaNotification;
 use pretty_assertions::assert_eq;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -93,6 +95,9 @@ fn generated_fixtures_round_trip_through_protocol_types() -> Result<()> {
     assert_round_trips::<ThreadProjectionClosedNotification>(
         &fixtures["closed-backpressure.json"],
     )?;
+    assert_round_trips::<ThreadProjectionDeltaNotification>(
+        &fixtures["event-agent-message-delta.json"],
+    )?;
 
     for name in [
         "event-turn-started.json",
@@ -119,6 +124,32 @@ fn generated_closed_backpressure_fixture_uses_current_subscription() -> Result<(
             thread_id: THREAD_ID.to_string(),
             subscription_id: SUBSCRIPTION_ID.to_string(),
             reason: ThreadProjectionClosedReason::Backpressure,
+        }
+    );
+
+    Ok(())
+}
+
+#[test]
+fn generated_delta_fixture_is_transient_and_subscription_scoped() -> Result<()> {
+    let fixtures = generate_fixture_files()?;
+    let raw: Value = serde_json::from_str(&fixtures["event-agent-message-delta.json"])?;
+    assert_absent_recursive(&raw, "commitId");
+    assert_absent_recursive(&raw, "parentCommitId");
+
+    let delta: ThreadProjectionDeltaNotification =
+        serde_json::from_str(&fixtures["event-agent-message-delta.json"])?;
+    assert_eq!(delta.thread_id, THREAD_ID.to_string());
+    assert_eq!(delta.subscription_id, SUBSCRIPTION_ID.to_string());
+    assert_eq!(
+        delta.delta,
+        ThreadProjectionDelta::AgentMessage {
+            notification: codex_app_server_protocol::AgentMessageDeltaNotification {
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                item_id: "assistant-message".to_string(),
+                delta: "streamed text".to_string(),
+            },
         }
     );
 

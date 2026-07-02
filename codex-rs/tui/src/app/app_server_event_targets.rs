@@ -180,6 +180,7 @@ pub(super) fn server_notification_thread_target(
         | ServerNotification::WindowsWorldWritableWarning(_)
         | ServerNotification::WindowsSandboxSetupCompleted(_)
         | ServerNotification::ThreadProjectionEvent(_)
+        | ServerNotification::ThreadProjectionDelta(_)
         | ServerNotification::ThreadProjectionClosed(_)
         | ServerNotification::AccountLoginCompleted(_) => None,
     };
