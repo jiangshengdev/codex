@@ -7,7 +7,6 @@ description: Ordinary Codex GUI launch URL printing. Use when the user says `GUI
 
 ## 基本规则
 
-- 回复用户使用简体中文。
 - 这是普通 GUI 启动流程；行为必须和 CLI `/gui` 保持一致。
 - 只调用 Codex 外层 `launch_gui` 工具并打印返回的 URL 列表。
 - 不要运行 `.codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs`。
