@@ -7,7 +7,6 @@ description: Use only when debugging the Codex GUI with playwright-cli in a visi
 
 ## 基本规则
 
-- 回复用户使用简体中文。
 - 普通 `GUI 启动`、`启动 GUI`、`/gui` 或只需要打印 GUI URL 的请求必须使用 `gui-launch`；本 skill 只用于明确的 debug、响应式、截图、浏览器打开、视觉验证或可复现浏览器控制场景。
 - 浏览器生命周期优先使用 `playwright-cli`。
 - 调试浏览器必须是 `Google Chrome for Testing`，不是系统 `Google Chrome`。
