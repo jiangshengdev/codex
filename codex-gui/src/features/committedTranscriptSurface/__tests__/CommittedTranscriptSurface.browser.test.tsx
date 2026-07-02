@@ -112,11 +112,20 @@ test("renders assistant transcript markdown", async () => {
   expect(markdown.querySelector("blockquote")?.textContent).toContain("Quoted text");
   expect(markdown.querySelector("ul")?.textContent).toContain("First item");
   expect(markdown.querySelector("ol")?.textContent).toContain("First ordered item");
-  expect(markdown.querySelector("code")?.textContent).toContain("inline code");
+  const inlineCode = markdown.querySelector("p code");
+  expect(inlineCode?.textContent).toContain("inline code");
+  expect(inlineCode?.classList.contains("bg-muted")).toBe(false);
+  expect(inlineCode?.classList.contains("bg-default")).toBe(true);
+  expect(inlineCode?.classList.contains("text-default-700")).toBe(true);
   const fencedCode = markdown.querySelector("pre > code");
   expect(fencedCode?.textContent).toContain("fenced code");
   expect(fencedCode?.classList.contains("rounded")).toBe(false);
   expect(fencedCode?.classList.contains("px-1")).toBe(false);
+  expect(fencedCode?.classList.contains("bg-default")).toBe(false);
+  const fencedCodeBlock = markdown.querySelector("pre");
+  expect(fencedCodeBlock?.classList.contains("bg-muted")).toBe(false);
+  expect(fencedCodeBlock?.classList.contains("bg-default")).toBe(true);
+  expect(fencedCodeBlock?.classList.contains("text-default-700")).toBe(true);
 });
 
 test("keeps user markdown syntax as plain text", async () => {

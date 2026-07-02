@@ -33,7 +33,7 @@ const markdownComponents: Components = {
         className={
           isBlockCode
             ? "font-mono text-sm whitespace-pre"
-            : "rounded bg-muted px-1 py-0.5 font-mono text-sm wrap-break-word"
+            : "rounded border border-border bg-default px-1 py-0.5 font-mono text-sm text-default-700 wrap-break-word"
         }
       >
         {children}
@@ -80,7 +80,9 @@ const markdownComponents: Components = {
     </Typography>
   ),
   pre: ({ children }) => (
-    <pre className="min-w-0 overflow-x-auto rounded bg-muted p-3 text-sm leading-6">{children}</pre>
+    <pre className="min-w-0 overflow-x-auto rounded border border-border bg-default p-3 text-sm leading-6 text-default-700">
+      {children}
+    </pre>
   ),
   ul: ({ children }) => (
     <ul className="grid min-w-0 list-disc gap-1 pl-5 wrap-break-word">{children}</ul>
