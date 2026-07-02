@@ -81,6 +81,9 @@ test("renders assistant transcript markdown", async () => {
               "- First item",
               "- Second item",
               "",
+              "1. First ordered item",
+              "2. Second ordered item",
+              "",
               "Use `inline code` here.",
               "",
               "```",
@@ -97,9 +100,23 @@ test("renders assistant transcript markdown", async () => {
   await expect.element(screen.getByText("Quoted text")).toBeVisible();
   await expect.element(screen.getByText("First item")).toBeVisible();
   await expect.element(screen.getByText("Second item")).toBeVisible();
-  expect(document.querySelector("blockquote")?.textContent).toContain("Quoted text");
-  expect(document.querySelector("code")?.textContent).toContain("inline code");
-  expect(document.querySelector("pre")?.textContent).toContain("fenced code");
+  await expect.element(screen.getByText("First ordered item")).toBeVisible();
+  await expect.element(screen.getByText("Second ordered item")).toBeVisible();
+
+  const markdown = document.querySelector<HTMLElement>(".committed-transcript-entry-markdown");
+  expect(markdown).not.toBeNull();
+  if (!markdown) {
+    return;
+  }
+
+  expect(markdown.querySelector("blockquote")?.textContent).toContain("Quoted text");
+  expect(markdown.querySelector("ul")?.textContent).toContain("First item");
+  expect(markdown.querySelector("ol")?.textContent).toContain("First ordered item");
+  expect(markdown.querySelector("code")?.textContent).toContain("inline code");
+  const fencedCode = markdown.querySelector("pre > code");
+  expect(fencedCode?.textContent).toContain("fenced code");
+  expect(fencedCode?.classList.contains("rounded")).toBe(false);
+  expect(fencedCode?.classList.contains("px-1")).toBe(false);
 });
 
 test("keeps user markdown syntax as plain text", async () => {

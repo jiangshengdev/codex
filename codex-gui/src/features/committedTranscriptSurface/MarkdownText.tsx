@@ -1,8 +1,8 @@
+import { Children, cloneElement, isValidElement } from "react";
 import { Typography } from "@heroui/react";
 import ReactMarkdown, { type Components } from "react-markdown";
 
 const allowedMarkdownElements = [
-  "a",
   "blockquote",
   "br",
   "code",
@@ -22,12 +22,11 @@ const allowedMarkdownElements = [
 ];
 
 const markdownComponents: Components = {
-  a: ({ children }) => <span>{children}</span>,
   blockquote: ({ children }) => (
     <blockquote className="min-w-0 border-l border-border pl-3 text-muted">{children}</blockquote>
   ),
-  code: ({ children }) => (
-    <code className="rounded bg-muted px-1 py-0.5 font-mono text-sm wrap-break-word">
+  code: ({ children, className }) => (
+    <code className={className ?? "rounded bg-muted px-1 py-0.5 font-mono text-sm wrap-break-word"}>
       {children}
     </code>
   ),
@@ -71,7 +70,13 @@ const markdownComponents: Components = {
     </Typography>
   ),
   pre: ({ children }) => (
-    <pre className="min-w-0 overflow-x-auto rounded bg-muted p-3 text-sm leading-6">{children}</pre>
+    <pre className="min-w-0 overflow-x-auto rounded bg-muted p-3 text-sm leading-6">
+      {Children.map(children, (child) =>
+        isValidElement<{ className?: string }>(child)
+          ? cloneElement(child, { className: "font-mono text-sm whitespace-pre" })
+          : child,
+      )}
+    </pre>
   ),
   ul: ({ children }) => (
     <ul className="grid min-w-0 list-disc gap-1 pl-5 wrap-break-word">{children}</ul>
