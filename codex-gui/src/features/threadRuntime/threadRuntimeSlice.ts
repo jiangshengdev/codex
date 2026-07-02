@@ -23,10 +23,6 @@ export type ThreadRuntimeProjectionEventPayload = {
   replay: ThreadRuntimeEventReplay;
 };
 
-export type ThreadRuntimeEventBufferedPayload =
-  | ThreadProjectionEventNotification
-  | ThreadRuntimeProjectionEventPayload;
-
 export type ThreadRuntimeBufferedEvent = {
   type: "projectionEvent";
   notification: ThreadProjectionEventNotification;
@@ -99,19 +95,6 @@ export const replayForProjectionEvent = (
   }
 };
 
-export const normalizeThreadRuntimeEventPayload = (
-  payload: ThreadRuntimeEventBufferedPayload,
-): ThreadRuntimeProjectionEventPayload => {
-  if ("notification" in payload) {
-    return payload;
-  }
-
-  return {
-    notification: payload,
-    replay: "live",
-  };
-};
-
 export const threadRuntimeSlice = createAppSlice({
   name: "threadRuntime",
   initialState,
@@ -133,12 +116,12 @@ export const threadRuntimeSlice = createAppSlice({
       },
     ),
     threadRuntimeEventBuffered: create.reducer(
-      (state, action: PayloadAction<ThreadRuntimeEventBufferedPayload>) => {
+      (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {
         const runtime = state.current;
         if (runtime?.subscription.state !== "active") {
           return;
         }
-        const { notification, replay } = normalizeThreadRuntimeEventPayload(action.payload);
+        const { notification, replay } = action.payload;
 
         runtime.eventBuffer.push({
           type: "projectionEvent",

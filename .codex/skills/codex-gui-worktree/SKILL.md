@@ -15,6 +15,7 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 - Do not stage or commit.
 - Do not overwrite existing branches, worktrees, files, directories, or symlinks.
 - Stop on conflicts and print the exact path that blocks progress.
+- Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
 
 ## Default Layout
 

@@ -49,7 +49,7 @@ export const materializeTranscriptItem = (
         turnId,
         role: "assistant",
         source: item.text,
-        sourceKind: "plainText",
+        sourceKind: "markdown",
         phase: item.phase,
         revision: 0,
       };

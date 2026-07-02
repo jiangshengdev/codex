@@ -99,7 +99,7 @@ export function ComposerTurnControl({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key !== "Enter" || event.shiftKey) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
       return;
     }
     event.preventDefault();
