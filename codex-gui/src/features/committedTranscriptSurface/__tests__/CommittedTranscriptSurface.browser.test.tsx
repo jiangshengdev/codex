@@ -86,8 +86,10 @@ test("renders assistant transcript markdown", async () => {
               "",
               "Use `inline code` here.",
               "",
-              "```",
-              "fenced code",
+              "[Allowed link](https://example.invalid/docs)",
+              "",
+              "```ts",
+              'const value: string = "fenced code";',
               "```",
             ].join("\n"),
           ),
@@ -114,18 +116,15 @@ test("renders assistant transcript markdown", async () => {
   expect(markdown.querySelector("ol")?.textContent).toContain("First ordered item");
   const inlineCode = markdown.querySelector("p code");
   expect(inlineCode?.textContent).toContain("inline code");
-  expect(inlineCode?.classList.contains("bg-muted")).toBe(false);
-  expect(inlineCode?.classList.contains("bg-default")).toBe(true);
-  expect(inlineCode?.classList.contains("text-default-700")).toBe(true);
-  const fencedCode = markdown.querySelector("pre > code");
-  expect(fencedCode?.textContent).toContain("fenced code");
-  expect(fencedCode?.classList.contains("rounded")).toBe(false);
-  expect(fencedCode?.classList.contains("px-1")).toBe(false);
-  expect(fencedCode?.classList.contains("bg-default")).toBe(false);
+
   const fencedCodeBlock = markdown.querySelector("pre");
-  expect(fencedCodeBlock?.classList.contains("bg-muted")).toBe(false);
-  expect(fencedCodeBlock?.classList.contains("bg-default")).toBe(true);
-  expect(fencedCodeBlock?.classList.contains("text-default-700")).toBe(true);
+  expect(fencedCodeBlock?.textContent).toContain('const value: string = "fenced code";');
+
+  const allowedLink = markdown.querySelector<HTMLAnchorElement>(
+    'a[href="https://example.invalid/docs"]',
+  );
+  expect(allowedLink).not.toBeNull();
+  expect(allowedLink?.textContent).toContain("Allowed link");
 });
 
 test("keeps user markdown syntax as plain text", async () => {
@@ -148,7 +147,7 @@ test("keeps user markdown syntax as plain text", async () => {
     .not.toBeInTheDocument();
 });
 
-test("does not render unsafe markdown nodes as active DOM", async () => {
+test("keeps raw html and images inactive while allowing markdown links", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 
   store.dispatch(
@@ -158,7 +157,9 @@ test("does not render unsafe markdown nodes as active DOM", async () => {
           agentMessage(
             "agent-markdown-safety",
             [
-              "Before <strong>raw html</strong> after.",
+              "Before <strong>raw html</strong> and <em>raw emphasis</em> after.",
+              "",
+              '<a href="https://example.invalid/raw">raw link</a>',
               "",
               "![blocked image](https://example.invalid/image.png)",
               "",
@@ -172,9 +173,19 @@ test("does not render unsafe markdown nodes as active DOM", async () => {
 
   await expect.element(screen.getByText(/Before/)).toBeVisible();
   expect(document.querySelector(".committed-transcript-entry-markdown strong")).toBeNull();
+  expect(
+    document.querySelector('.committed-transcript-entry-markdown [data-streamdown="strong"]'),
+  ).toBeNull();
+  expect(document.querySelector(".committed-transcript-entry-markdown em")).toBeNull();
   expect(document.querySelector(".committed-transcript-entry-markdown img")).toBeNull();
-  expect(document.querySelector(".committed-transcript-entry-markdown a")).toBeNull();
-  await expect.element(screen.getByText("blocked link")).toBeVisible();
+  const links = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>(".committed-transcript-entry-markdown a"),
+  );
+  expect(links.find((link) => link.textContent === "raw link")).toBeUndefined();
+  const allowedLink = links.find((link) => link.textContent === "blocked link");
+  expect(allowedLink).not.toBeNull();
+  expect(allowedLink?.getAttribute("href")).toContain("https://example.invalid");
+  expect(allowedLink?.textContent).toBe("blocked link");
 });
 
 test("updates committed message text after snapshot reattach with stable ids", async () => {
