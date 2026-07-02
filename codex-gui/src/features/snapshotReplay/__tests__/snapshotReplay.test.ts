@@ -206,7 +206,7 @@ describe("snapshot replay", () => {
 
     const beforeLiveEvent = selectSnapshotReplayMaterials(store.getState());
 
-    store.dispatch(threadRuntimeEventBuffered(eventTurnStarted));
+    store.dispatch(threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }));
 
     expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(beforeLiveEvent);
   });

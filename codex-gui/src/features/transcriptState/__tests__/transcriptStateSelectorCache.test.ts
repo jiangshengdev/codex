@@ -37,27 +37,29 @@ describe("transcript state selector cache", () => {
     expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemStarted(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
           eventItemStarted,
           "commit-other-started",
           "turn-other",
           agentMessage("agent-other-started", "Started should not affect cached chunk"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-other-completed",
           "turn-other",
           agentMessage("agent-other-completed", "Other turn answer"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
@@ -77,14 +79,15 @@ describe("transcript state selector cache", () => {
     const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-cached-append",
           "turn-cached",
           agentMessage("agent-cached-live", "Live answer", "commentary"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     const afterUpdateChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
@@ -101,7 +104,7 @@ describe("transcript state selector cache", () => {
           turnId: "turn-cached",
           role: "assistant",
           source: "Cached answer",
-          sourceKind: "plainText",
+          sourceKind: "markdown",
           phase: "commentary",
           revision: 0,
         },
@@ -111,7 +114,7 @@ describe("transcript state selector cache", () => {
           turnId: "turn-cached",
           role: "assistant",
           source: "Live answer",
-          sourceKind: "plainText",
+          sourceKind: "markdown",
           phase: "commentary",
           revision: 0,
         },
@@ -158,7 +161,7 @@ describe("transcript state selector cache", () => {
           turnId: "turn-reattach",
           role: "assistant",
           source: "After reconnect",
-          sourceKind: "plainText",
+          sourceKind: "markdown",
           phase: "commentary",
           revision: 0,
         },

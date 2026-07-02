@@ -21,13 +21,13 @@ description: Ordinary Codex GUI launch URL printing. Use when the user says `GUI
 调用 `launch_gui` 后，按 CLI `/gui` 的文本格式打印全部返回条目：
 
 ```text
-• GUI URLs:
+GUI URLs:
   <label>:<padding><url>
 ```
 
 具体规则：
 
-- 第一行固定为 `• GUI URLs:`。
+- 第一行固定为 `GUI URLs:`，不要在文本中包含真实 bullet 字符；TUI assistant message 会自行给最终回复首行添加外层 bullet。
 - 后续每个 URL 条目一行，格式为两个空格、label、冒号、padding、URL。
 - padding 使用 CLI `/gui` 的对齐语义：以返回条目中最长 label 宽度为准，让 URL 起始列对齐。
 - 如果只返回 `Local`，只打印 `Local`。
@@ -37,7 +37,7 @@ description: Ordinary Codex GUI launch URL printing. Use when the user says `GUI
 示例：
 
 ```text
-• GUI URLs:
+GUI URLs:
   Local: http://127.0.0.1:12345/?threadId=t#token=x
   LAN:   http://192.168.3.165:12345/?threadId=t#token=x
   VPN:   http://100.88.28.119:12345/?threadId=t#token=x

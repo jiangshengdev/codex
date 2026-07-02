@@ -10,6 +10,7 @@ import {
   type TranscriptEntry,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
+import { MarkdownText } from "./MarkdownText";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
 
@@ -30,22 +31,31 @@ const entryText = (entry: TranscriptEntry): string => {
   return exhaustiveEntry;
 };
 
-const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => (
-  <Card
-    className={`committed-transcript-entry committed-transcript-entry-${entry.type} min-w-0`}
-    role="article"
-    variant={entry.type === "message" && entry.role === "user" ? "secondary" : "default"}
-  >
-    <Card.Content className="grid min-w-0 gap-2">
-      <Typography
-        className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
-        type="body-sm"
-      >
-        {entryText(entry)}
-      </Typography>
-    </Card.Content>
-  </Card>
-);
+const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => {
+  const shouldRenderMarkdown =
+    entry.type === "message" && entry.role === "assistant" && entry.sourceKind === "markdown";
+
+  return (
+    <Card
+      className={`committed-transcript-entry committed-transcript-entry-${entry.type} min-w-0`}
+      role="article"
+      variant={entry.type === "message" && entry.role === "user" ? "secondary" : "default"}
+    >
+      <Card.Content className="grid min-w-0 gap-2">
+        {shouldRenderMarkdown ? (
+          <MarkdownText source={entry.source} />
+        ) : (
+          <Typography
+            className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
+            type="body-sm"
+          >
+            {entryText(entry)}
+          </Typography>
+        )}
+      </Card.Content>
+    </Card>
+  );
+};
 
 const intermediateUpdatesLabel = (count: number): string =>
   `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;

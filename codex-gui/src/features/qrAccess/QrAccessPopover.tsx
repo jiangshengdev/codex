@@ -1,4 +1,4 @@
-import { Button, Popover } from "@heroui/react";
+import { Button, Popover, Typography } from "@heroui/react";
 import { QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo } from "react";
@@ -43,9 +43,9 @@ export function QrAccessPopover({
         <Popover.Dialog>
           <Popover.Heading>Scan with phone</Popover.Heading>
           {qrUrl == null ? (
-            <p className="text-sm text-default-500">
+            <Typography.Paragraph color="muted" size="sm">
               QR access is unavailable until the GUI launch token is ready.
-            </p>
+            </Typography.Paragraph>
           ) : (
             <div className="grid gap-3">
               <div className="rounded-lg p-3">
@@ -56,7 +56,9 @@ export function QrAccessPopover({
                   value={qrUrl}
                 />
               </div>
-              <p className="break-all text-xs text-default-500">{qrUrl}</p>
+              <Typography.Paragraph className="break-all" color="muted" size="xs">
+                {qrUrl}
+              </Typography.Paragraph>
             </div>
           )}
         </Popover.Dialog>

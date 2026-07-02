@@ -1,7 +1,6 @@
 import { createAppSlice } from "@/app/createAppSlice";
 import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
 import {
-  normalizeThreadRuntimeEventPayload,
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
@@ -358,7 +357,7 @@ export const transcriptStateSlice = createAppSlice({
         );
       })
       .addCase(threadRuntimeEventBuffered, (state, action) => {
-        const { notification, replay } = normalizeThreadRuntimeEventPayload(action.payload);
+        const { notification, replay } = action.payload;
         if (replay === "snapshotDuplicate") {
           return;
         }
