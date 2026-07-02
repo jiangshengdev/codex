@@ -1,4 +1,3 @@
-import { Children, cloneElement, isValidElement } from "react";
 import { Typography } from "@heroui/react";
 import ReactMarkdown, { type Components } from "react-markdown";
 
@@ -25,11 +24,22 @@ const markdownComponents: Components = {
   blockquote: ({ children }) => (
     <blockquote className="min-w-0 border-l border-border pl-3 text-muted">{children}</blockquote>
   ),
-  code: ({ children, className }) => (
-    <code className={className ?? "rounded bg-muted px-1 py-0.5 font-mono text-sm wrap-break-word"}>
-      {children}
-    </code>
-  ),
+  code: ({ children, className, node }) => {
+    const isBlockCode =
+      className != null || node?.position?.start.line !== node?.position?.end.line;
+
+    return (
+      <code
+        className={
+          isBlockCode
+            ? "font-mono text-sm whitespace-pre"
+            : "rounded bg-muted px-1 py-0.5 font-mono text-sm wrap-break-word"
+        }
+      >
+        {children}
+      </code>
+    );
+  },
   h1: ({ children }) => (
     <Typography.Heading className="min-w-0 wrap-break-word" level={1}>
       {children}
@@ -70,13 +80,7 @@ const markdownComponents: Components = {
     </Typography>
   ),
   pre: ({ children }) => (
-    <pre className="min-w-0 overflow-x-auto rounded bg-muted p-3 text-sm leading-6">
-      {Children.map(children, (child) =>
-        isValidElement<{ className?: string }>(child)
-          ? cloneElement(child, { className: "font-mono text-sm whitespace-pre" })
-          : child,
-      )}
-    </pre>
+    <pre className="min-w-0 overflow-x-auto rounded bg-muted p-3 text-sm leading-6">{children}</pre>
   ),
   ul: ({ children }) => (
     <ul className="grid min-w-0 list-disc gap-1 pl-5 wrap-break-word">{children}</ul>
