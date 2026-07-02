@@ -3,10 +3,9 @@ import { code } from "@streamdown/code";
 import { Streamdown, defaultRehypePlugins, type AllowElement } from "streamdown";
 
 const streamdownPlugins = { code, cjk };
-const streamdownRehypePlugins = [
-  defaultRehypePlugins.sanitize,
-  defaultRehypePlugins.harden,
-].filter((plugin): plugin is NonNullable<typeof plugin> => plugin != null);
+const streamdownRehypePlugins = [defaultRehypePlugins.sanitize, defaultRehypePlugins.harden].filter(
+  (plugin): plugin is NonNullable<typeof plugin> => plugin != null,
+);
 
 const allowMarkdownElement: AllowElement = ({ tagName }) => tagName !== "img";
 

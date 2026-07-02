@@ -157,7 +157,7 @@ test("keeps raw html and images inactive while allowing markdown links", async (
           agentMessage(
             "agent-markdown-safety",
             [
-              'Before <strong>raw html</strong> and <em>raw emphasis</em> after.',
+              "Before <strong>raw html</strong> and <em>raw emphasis</em> after.",
               "",
               '<a href="https://example.invalid/raw">raw link</a>',
               "",
