@@ -194,11 +194,6 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
   die "branch already exists: $BRANCH"
 fi
 
-REMOTE_BRANCH="$(git for-each-ref --format='%(refname:short)' "refs/remotes/*/$BRANCH" | head -n 1)"
-if [[ -n "$REMOTE_BRANCH" ]]; then
-  die "remote branch already exists: $REMOTE_BRANCH"
-fi
-
 for sparse_path in "${SPARSE_PATHS[@]}"; do
   require_path_exists "$REPO_ROOT/$sparse_path"
 done
