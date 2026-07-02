@@ -72,14 +72,15 @@ describe("transcript state reconnect reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithChat));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-before",
           "turn-before-reconnect",
           agentMessage("agent-live-before", "Live before"),
         ),
-      ),
+        replay: "live",
+      }),
     );
     store.dispatch(
       threadRuntimeManualReconnectRequired({
@@ -90,14 +91,15 @@ describe("transcript state reconnect reducer", () => {
     );
     store.dispatch(threadRuntimeAttached(replacementAttach));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-before",
           "turn-after-reconnect",
           agentMessage("agent-live-after", "Live after reconnect"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-after-reconnect"]);

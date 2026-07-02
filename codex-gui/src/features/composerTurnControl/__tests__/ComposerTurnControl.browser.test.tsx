@@ -195,7 +195,7 @@ test("active turn disables Send and enables Stop", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
   const event = eventTurnStarted;
-  screen.store.dispatch(threadRuntimeEventBuffered(event));
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
 
   await screen.getByPlaceholder("Message Codex").fill("Next draft");
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
@@ -273,7 +273,7 @@ test("stop failure keeps draft and shows a toast", async () => {
   vi.mocked(commandHandle.interruptTurn).mockRejectedValueOnce(new Error("interrupt failed"));
   const screen = await renderAttached(commandHandle);
   const event = eventTurnStarted;
-  screen.store.dispatch(threadRuntimeEventBuffered(event));
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
   const composer = screen.getByPlaceholder("Message Codex");
 
   await composer.fill("Draft while stopping");

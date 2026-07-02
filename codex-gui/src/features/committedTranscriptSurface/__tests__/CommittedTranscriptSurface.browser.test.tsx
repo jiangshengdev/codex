@@ -207,19 +207,21 @@ test("renders live completed items without rendering started items", async () =>
 
   store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   store.dispatch(
-    threadRuntimeEventBuffered(
-      turnStarted(eventTurnStarted, "commit-turn-live", inProgressTurn("turn-live")),
-    ),
+    threadRuntimeEventBuffered({
+      notification: turnStarted(eventTurnStarted, "commit-turn-live", inProgressTurn("turn-live")),
+      replay: "live",
+    }),
   );
   store.dispatch(
-    threadRuntimeEventBuffered(
-      itemStarted(
+    threadRuntimeEventBuffered({
+      notification: itemStarted(
         eventItemStarted,
         "commit-started",
         "turn-live",
         agentMessage("agent-started", "Draft answer"),
       ),
-    ),
+      replay: "live",
+    }),
   );
 
   await expect.element(screen.getByText("Draft answer")).not.toBeInTheDocument();
@@ -229,14 +231,15 @@ test("renders live completed items without rendering started items", async () =>
     .not.toBeInTheDocument();
 
   store.dispatch(
-    threadRuntimeEventBuffered(
-      itemCompleted(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
         eventItemCompleted,
         "commit-completed",
         "turn-live",
         agentMessage("agent-live", "Final answer"),
       ),
-    ),
+      replay: "live",
+    }),
   );
 
   await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();

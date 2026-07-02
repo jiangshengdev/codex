@@ -41,14 +41,15 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-live-commentary",
           "turn-live-phase",
           agentMessage("agent-live-commentary", "Still working", "commentary"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(
@@ -88,29 +89,36 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        turnStarted(eventTurnStarted, "commit-live-turn", inProgressTurn("turn-live")),
-      ),
+      threadRuntimeEventBuffered({
+        notification: turnStarted(
+          eventTurnStarted,
+          "commit-live-turn",
+          inProgressTurn("turn-live"),
+        ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemStarted(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
           eventItemStarted,
           "commit-live-started",
           "turn-live",
           agentMessage("agent-started", "Started should be ignored"),
         ),
-      ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-live-agent",
           "turn-live",
           agentMessage("agent-live", "Live answer"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-live")).toStrictEqual({
@@ -176,40 +184,43 @@ describe("transcript state live events reducer", () => {
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemStarted(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
           eventItemStarted,
           "commit-started-no-dom",
           "turn-scroll-key",
           agentMessage("agent-started-no-dom", "Started should be ignored"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-filtered-no-dom",
           "turn-scroll-key",
           planItem("hidden-plan"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-visible-dom",
           "turn-scroll-key",
           agentMessage("agent-visible-dom", "Visible committed message"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
@@ -217,14 +228,15 @@ describe("transcript state live events reducer", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-visible-dom",
           "turn-scroll-key",
           agentMessage("agent-duplicate-dom", "Duplicate should be ignored"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
@@ -269,17 +281,23 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        turnStarted(eventTurnStarted, "commit-start-done", inProgressTurn("turn-done")),
-      ),
+      threadRuntimeEventBuffered({
+        notification: turnStarted(
+          eventTurnStarted,
+          "commit-start-done",
+          inProgressTurn("turn-done"),
+        ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        turnCompleted(eventTurnCompleted, "commit-complete-done", {
+      threadRuntimeEventBuffered({
+        notification: turnCompleted(eventTurnCompleted, "commit-complete-done", {
           ...baseTurn("turn-done", []),
           status: "completed",
         }),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-done")).toStrictEqual({
@@ -297,44 +315,48 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-empty-user",
           "turn-live-filtered",
           userMessage("empty-user", [textInput("")]),
         ),
-      ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-empty-agent",
           "turn-live-filtered",
           agentMessage("empty-agent", ""),
         ),
-      ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-plan",
           "turn-live-filtered",
           planItem("hidden-plan"),
         ),
-      ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-sleep",
           "turn-live-filtered",
           sleepItem("hidden-sleep"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-live-filtered"]);
@@ -353,24 +375,26 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-duplicate",
           "turn-duplicate",
           agentMessage("agent-first", "First"),
         ),
-      ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-duplicate",
           "turn-duplicate",
           agentMessage("agent-second", "Second should be ignored"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-duplicate")).toMatchObject({
@@ -393,26 +417,28 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-first",
           "turn-update",
           agentMessage("agent-update", "First", "commentary"),
         ),
-      ),
+        replay: "live",
+      }),
     );
     const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-update:chunk:0");
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-second",
           "turn-update",
           agentMessage("agent-update", "Second", "commentary"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-update")).toStrictEqual({
@@ -457,26 +483,28 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-phase-first",
           "turn-phase-update",
           agentMessage("agent-phase-update", "Working", "commentary"),
         ),
-      ),
+        replay: "live",
+      }),
     );
     const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0");
 
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-phase-second",
           "turn-phase-update",
           agentMessage("agent-phase-update", "Done", "final_answer"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptEntry(store.getState(), "agent-phase-update")).toStrictEqual({
@@ -513,24 +541,26 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-final-first",
           "turn-final-update",
           agentMessage("agent-final-update", "First", "final_answer"),
         ),
-      ),
+        replay: "live",
+      }),
     );
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-final-second",
           "turn-final-update",
           agentMessage("agent-final-update", "Second", "final_answer"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-final-update")).toStrictEqual({
@@ -558,27 +588,29 @@ describe("transcript state live events reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-leading",
           "turn-middle-chunked",
           userMessage("user-leading-live", [textInput("Prompt")]),
         ),
-      ),
+        replay: "live",
+      }),
     );
     let firstChunkAfterLimit: ReturnType<typeof selectTranscriptChunk> | null = null;
 
     for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
       store.dispatch(
-        threadRuntimeEventBuffered(
-          itemCompleted(
+        threadRuntimeEventBuffered({
+          notification: itemCompleted(
             eventItemCompleted,
             `commit-middle-${String(index)}`,
             "turn-middle-chunked",
             agentMessage(`agent-middle-${String(index)}`, `Middle ${String(index)}`, "commentary"),
           ),
-        ),
+          replay: "live",
+        }),
       );
 
       if (index === TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1) {
@@ -589,14 +621,15 @@ describe("transcript state live events reducer", () => {
       }
     }
     store.dispatch(
-      threadRuntimeEventBuffered(
-        itemCompleted(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
           eventItemCompleted,
           "commit-final",
           "turn-middle-chunked",
           agentMessage("agent-final-live", "Final", "final_answer"),
         ),
-      ),
+        replay: "live",
+      }),
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-middle-chunked")).toStrictEqual({
