@@ -64,6 +64,93 @@ test("renders committed user and assistant messages from an attached baseline", 
   ]);
 });
 
+test("renders assistant transcript markdown", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-markdown", [
+          agentMessage(
+            "agent-markdown",
+            [
+              "# Heading",
+              "",
+              "> Quoted text",
+              "",
+              "- First item",
+              "- Second item",
+              "",
+              "Use `inline code` here.",
+              "",
+              "```",
+              "fenced code",
+              "```",
+            ].join("\n"),
+          ),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByRole("heading", { name: "Heading" })).toBeVisible();
+  await expect.element(screen.getByText("Quoted text")).toBeVisible();
+  await expect.element(screen.getByText("First item")).toBeVisible();
+  await expect.element(screen.getByText("Second item")).toBeVisible();
+  expect(document.querySelector("blockquote")?.textContent).toContain("Quoted text");
+  expect(document.querySelector("code")?.textContent).toContain("inline code");
+  expect(document.querySelector("pre")?.textContent).toContain("fenced code");
+});
+
+test("keeps user markdown syntax as plain text", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-user-markdown-literal", [
+          userMessage("user-markdown-literal", [textInput("# User heading\n- User item")]),
+          agentMessage("agent-user-markdown-literal", "Assistant response"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("# User heading\n- User item")).toBeVisible();
+  await expect
+    .element(screen.getByRole("heading", { name: "User heading" }))
+    .not.toBeInTheDocument();
+});
+
+test("does not render unsafe markdown nodes as active DOM", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-markdown-safety", [
+          agentMessage(
+            "agent-markdown-safety",
+            [
+              "Before <strong>raw html</strong> after.",
+              "",
+              "![blocked image](https://example.invalid/image.png)",
+              "",
+              "[blocked link](https://example.invalid)",
+            ].join("\n"),
+          ),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText(/Before/)).toBeVisible();
+  expect(document.querySelector(".committed-transcript-entry-markdown strong")).toBeNull();
+  expect(document.querySelector(".committed-transcript-entry-markdown img")).toBeNull();
+  expect(document.querySelector(".committed-transcript-entry-markdown a")).toBeNull();
+  await expect.element(screen.getByText("blocked link")).toBeVisible();
+});
+
 test("updates committed message text after snapshot reattach with stable ids", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 
@@ -189,6 +276,34 @@ test("renders temporary content collapsed beside the final answer once final ans
   await trigger.click();
 
   await expect.element(screen.getByText("Hidden working note")).toBeVisible();
+});
+
+test("does not mount collapsed temporary markdown before expansion", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-collapsed-markdown", [
+          agentMessage("agent-collapsed-markdown", "# Hidden markdown heading", "commentary"),
+          agentMessage("agent-collapsed-markdown-final", "Visible final answer", "final_answer"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  await expect
+    .element(screen.getByRole("heading", { name: "Hidden markdown heading" }))
+    .not.toBeInTheDocument();
+  await expect.element(screen.getByText("# Hidden markdown heading")).not.toBeInTheDocument();
+
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 1 item" });
+  await trigger.click();
+
+  await expect
+    .element(screen.getByRole("heading", { name: "Hidden markdown heading" }))
+    .toBeVisible();
 });
 
 test("renders one collapsed temporary module for a turn split across chunks", async () => {
