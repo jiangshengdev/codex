@@ -581,8 +581,14 @@ export const transcriptStateSlice = createAppSlice({
           return;
         }
 
-        const { turnId, itemId, delta } = notification.delta.notification;
-        appendAgentMessageDeltaToLiveSlot(state, turnId, itemId, delta);
+        switch (notification.delta.type) {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Keep projection deltas handled by discriminant switch.
+          case "agentMessage": {
+            const { turnId, itemId, delta } = notification.delta.notification;
+            appendAgentMessageDeltaToLiveSlot(state, turnId, itemId, delta);
+            return;
+          }
+        }
       })
       .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
         if (state.threadId !== action.payload.threadId) {
