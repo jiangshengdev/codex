@@ -60,6 +60,9 @@ describe("Rust-generated projection fixtures", () => {
 
   it("imports projection delta notifications with expected discriminators", () => {
     expect(eventAgentMessageDelta.delta.type).toBe("agentMessage");
+    if (eventAgentMessageDelta.delta.type !== "agentMessage") {
+      throw new Error("fixture must contain an agentMessage projection delta");
+    }
     expect(eventAgentMessageDelta.delta.notification).toMatchObject({
       threadId: attachBaseline.snapshot.thread.id,
       turnId: "turn-in-progress",
