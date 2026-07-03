@@ -109,6 +109,11 @@ export const agentMessageDelta = (
   itemId: string,
   delta: string,
 ): ThreadProjectionDeltaNotification => {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Keep projection delta test builders guarded by discriminant.
+  if (eventAgentMessageDelta.delta.type !== "agentMessage") {
+    throw new Error("fixture must contain an agentMessage projection delta");
+  }
+
   return {
     ...eventAgentMessageDelta,
     delta: {
