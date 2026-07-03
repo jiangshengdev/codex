@@ -84,12 +84,16 @@ test("renders assistant transcript markdown", async () => {
               "1. First ordered item",
               "2. Second ordered item",
               "",
+              "Soft line one",
+              "Soft line two",
+              "",
               "Use `inline code` here.",
               "",
               "[Allowed link](https://example.invalid/docs)",
               "",
               "```ts",
               'const value: string = "fenced code";',
+              "console.log(value);",
               "```",
             ].join("\n"),
           ),
@@ -114,23 +118,31 @@ test("renders assistant transcript markdown", async () => {
   expect(markdown.querySelector("blockquote")?.textContent).toContain("Quoted text");
   expect(markdown.querySelector("ul")?.textContent).toContain("First item");
   expect(markdown.querySelector("ol")?.textContent).toContain("First ordered item");
+  const softBreakParagraph = Array.from(markdown.querySelectorAll("p")).find((paragraph) =>
+    paragraph.textContent?.includes("Soft line one"),
+  );
+  expect(softBreakParagraph?.textContent).toContain("Soft line one\nSoft line two");
+  expect(softBreakParagraph ? window.getComputedStyle(softBreakParagraph).whiteSpace : null).toBe(
+    "pre-wrap",
+  );
   const inlineCode = markdown.querySelector("p code");
   expect(inlineCode?.textContent).toContain("inline code");
 
   const fencedCodeBlock = markdown.querySelector("pre");
   expect(fencedCodeBlock?.textContent).toContain('const value: string = "fenced code";');
+  expect(fencedCodeBlock?.textContent).toContain("console.log(value);");
   const fencedCode = fencedCodeBlock?.querySelector<HTMLElement>("code");
   expect(fencedCode).not.toBeNull();
   if (!fencedCode) {
     throw new Error("Expected fenced code element to render");
   }
   expect(fencedCode.className).not.toContain("counter-reset:line");
-  const firstCodeLine = fencedCodeBlock?.querySelector<HTMLElement>("code > span");
-  expect(firstCodeLine).not.toBeNull();
-  if (!firstCodeLine) {
-    throw new Error("Expected fenced code line element to render");
+  const codeLines = Array.from(fencedCode.querySelectorAll<HTMLElement>(":scope > span"));
+  expect(codeLines.length).toBeGreaterThanOrEqual(2);
+  for (const codeLine of codeLines) {
+    expect(codeLine.className).not.toContain("before:content-[counter(line)]");
+    expect(window.getComputedStyle(codeLine).display).toBe("block");
   }
-  expect(firstCodeLine.className).not.toContain("before:content-[counter(line)]");
 
   const allowedLink = markdown.querySelector<HTMLAnchorElement>(
     'a[href="https://example.invalid/docs"]',
