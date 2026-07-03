@@ -664,10 +664,7 @@ describe("transcript state live events reducer", () => {
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
     const beforeTurn = selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live");
-    const beforeEntry = selectTranscriptEntry(
-      store.getState(),
-      "agent-snapshot-duplicate-live",
-    );
+    const beforeEntry = selectTranscriptEntry(store.getState(), "agent-snapshot-duplicate-live");
 
     store.dispatch(
       threadRuntimeEventBuffered({
