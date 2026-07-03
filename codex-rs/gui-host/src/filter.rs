@@ -18,7 +18,7 @@ pub fn is_allowed_client_notification_method(_method: &str) -> bool {
 pub fn is_allowed_server_notification_method(method: &str) -> bool {
     matches!(
         method,
-        "thread/projection/event" | "thread/projection/closed"
+        "thread/projection/event" | "thread/projection/delta" | "thread/projection/closed"
     )
 }
 
@@ -41,9 +41,12 @@ mod tests {
     }
 
     #[test]
-    fn server_notification_allowlist_contains_projection_event_and_closed() {
+    fn server_notification_allowlist_contains_projection_event_delta_and_closed() {
         assert!(is_allowed_server_notification_method(
             "thread/projection/event"
+        ));
+        assert!(is_allowed_server_notification_method(
+            "thread/projection/delta"
         ));
         assert!(is_allowed_server_notification_method(
             "thread/projection/closed"
