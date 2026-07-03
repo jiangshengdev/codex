@@ -2,6 +2,7 @@ import { createAppSlice } from "@/app/createAppSlice";
 import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -250,6 +251,22 @@ const upsertStartedLiveSlot = (state: TranscriptState, turnId: string, item: Thr
     completedItem: null,
     revision: 0,
   };
+};
+
+const appendAgentMessageDeltaToLiveSlot = (
+  state: TranscriptState,
+  turnId: string,
+  itemId: string,
+  delta: string,
+) => {
+  const slot = state.liveSlotsByKey[liveSlotKey(turnId, itemId)];
+  if (slot == null) {
+    return;
+  }
+
+  slot.transientText += delta;
+  slot.status = "streaming";
+  slot.revision += 1;
 };
 
 const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
@@ -554,6 +571,20 @@ export const transcriptStateSlice = createAppSlice({
             const { item, turnId } = notification.event.notification;
             ensureTurnExists(state, turnId);
             upsertStartedLiveSlot(state, turnId, item);
+            return;
+          }
+        }
+      })
+      .addCase(threadRuntimeDeltaAccepted, (state, action) => {
+        const { notification } = action.payload;
+        if (state.threadId !== notification.threadId) {
+          return;
+        }
+
+        switch (notification.delta.type) {
+          case "agentMessage": {
+            const { turnId, itemId, delta } = notification.delta.notification;
+            appendAgentMessageDeltaToLiveSlot(state, turnId, itemId, delta);
             return;
           }
         }

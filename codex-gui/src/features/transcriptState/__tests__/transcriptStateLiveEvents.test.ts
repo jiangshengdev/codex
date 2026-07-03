@@ -3,6 +3,7 @@ import { makeStore } from "@/app/store";
 import {
   attachBaseline,
   attachReplacement,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
   eventTurnCompleted,
@@ -10,6 +11,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -24,6 +26,7 @@ import {
 } from "../transcriptStateSlice";
 import {
   agentMessage,
+  agentMessageDelta,
   attachWithTurns,
   baseTurn,
   inProgressTurn,
@@ -74,6 +77,83 @@ describe("transcript state live events reducer", () => {
     expect(selectTranscriptEntry(store.getState(), "agent-live-started")).toBeNull();
     expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toBeNull();
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("appends accepted agent message deltas into an existing live slot", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    const initialItem = agentMessage("agent-streaming", "");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-streaming-started",
+          "turn-streaming",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-streaming",
+          "agent-streaming",
+          "Hello",
+        ),
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-streaming",
+          "agent-streaming",
+          " world",
+        ),
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-streaming", "agent-streaming"),
+    ).toStrictEqual({
+      key: "turn-streaming:agent-streaming",
+      turnId: "turn-streaming",
+      itemId: "agent-streaming",
+      status: "streaming",
+      initialItem,
+      transientText: "Hello world",
+      completedItem: null,
+      revision: 2,
+    });
+    expect(selectTranscriptEntry(store.getState(), "agent-streaming")).toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-streaming:chunk:0")).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("ignores accepted agent message deltas when the live slot is missing", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const beforeState = store.getState().transcriptState;
+
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-missing",
+          "agent-missing",
+          "Ignored",
+        ),
+      }),
+    );
+
+    expect(store.getState().transcriptState).toBe(beforeState);
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing")).toStrictEqual([]);
   });
 
   it("keeps itemStarted slot order stable and ignores duplicate live slot insertion", () => {
