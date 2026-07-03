@@ -32,6 +32,7 @@ export const MarkdownText = ({ source }: { source: string }) => (
       className="min-w-0 wrap-break-word"
       components={streamdownComponents}
       linkSafety={{ enabled: false }}
+      lineNumbers={false}
       mode="static"
       plugins={streamdownPlugins}
       rehypePlugins={streamdownRehypePlugins}

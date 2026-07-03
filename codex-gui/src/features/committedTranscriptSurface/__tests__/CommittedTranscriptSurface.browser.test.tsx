@@ -119,6 +119,18 @@ test("renders assistant transcript markdown", async () => {
 
   const fencedCodeBlock = markdown.querySelector("pre");
   expect(fencedCodeBlock?.textContent).toContain('const value: string = "fenced code";');
+  const fencedCode = fencedCodeBlock?.querySelector<HTMLElement>("code");
+  expect(fencedCode).not.toBeNull();
+  if (!fencedCode) {
+    throw new Error("Expected fenced code element to render");
+  }
+  expect(fencedCode.className).not.toContain("counter-reset:line");
+  const firstCodeLine = fencedCodeBlock?.querySelector<HTMLElement>("code > span");
+  expect(firstCodeLine).not.toBeNull();
+  if (!firstCodeLine) {
+    throw new Error("Expected fenced code line element to render");
+  }
+  expect(firstCodeLine.className).not.toContain("before:content-[counter(line)]");
 
   const allowedLink = markdown.querySelector<HTMLAnchorElement>(
     'a[href="https://example.invalid/docs"]',
