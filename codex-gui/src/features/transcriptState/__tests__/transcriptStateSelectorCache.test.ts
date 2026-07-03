@@ -10,10 +10,7 @@ import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import {
-  selectTranscriptChunk,
-  selectTranscriptLiveItemsForTurn,
-} from "../transcriptStateSlice";
+import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
 import {
   agentMessage,
   attachWithTurns,
@@ -243,7 +240,10 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache-update");
+    const afterUpdate = selectTranscriptLiveItemsForTurn(
+      store.getState(),
+      "turn-live-cache-update",
+    );
     expect(afterUpdate).not.toBe(beforeUpdate);
     expect(afterUpdate.map((item) => item.itemId)).toStrictEqual([
       "agent-live-cache-first",
