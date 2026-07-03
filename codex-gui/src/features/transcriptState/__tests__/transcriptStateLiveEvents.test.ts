@@ -17,6 +17,8 @@ import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptEntry,
+  selectTranscriptLiveItem,
+  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
@@ -36,6 +38,162 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state live events reducer", () => {
+  it("creates a started live slot from itemStarted without committing transcript entries", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    const initialItem = agentMessage("agent-live-started", "Initial text should stay live only");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-started-slot",
+          "turn-live-started-slot",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-started-slot"),
+    ).toStrictEqual([
+      {
+        key: "turn-live-started-slot:agent-live-started",
+        turnId: "turn-live-started-slot",
+        itemId: "agent-live-started",
+        status: "started",
+        initialItem,
+        transientText: "",
+        completedItem: null,
+        revision: 0,
+      },
+    ]);
+    expect(selectTranscriptEntry(store.getState(), "agent-live-started")).toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("keeps itemStarted slot order stable and ignores duplicate live slot insertion", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const firstItem = agentMessage("agent-slot-first", "First");
+    const secondItem = agentMessage("agent-slot-second", "Second");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-slot-first",
+          "turn-slot-order",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-slot-first-duplicate-id",
+          "turn-slot-order",
+          agentMessage("agent-slot-first", "Updated initial"),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-slot-second",
+          "turn-slot-order",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-slot-order").map(
+        (item) => item.itemId,
+      ),
+    ).toStrictEqual(["agent-slot-first", "agent-slot-second"]);
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-slot-order", "agent-slot-first"),
+    ).toStrictEqual({
+      key: "turn-slot-order:agent-slot-first",
+      turnId: "turn-slot-order",
+      itemId: "agent-slot-first",
+      status: "started",
+      initialItem: firstItem,
+      transientText: "",
+      completedItem: null,
+      revision: 0,
+    });
+  });
+
+  it("rebuilds cached live turn view when a slot revision changes without turn revision", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-cache-slot", "Initial");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-cache-slot",
+          "turn-cache-slot",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const cachedView = selectTranscriptLiveItemsForTurn(store.getState(), "turn-cache-slot");
+    const state = store.getState();
+    const slotKey = "turn-cache-slot:agent-cache-slot";
+    const slot = state.transcriptState.liveSlotsByKey[slotKey];
+    expect(slot).toBeDefined();
+    if (slot == null) {
+      throw new Error("expected live slot to exist");
+    }
+
+    const nextState: ReturnType<typeof store.getState> = {
+      ...state,
+      transcriptState: {
+        ...state.transcriptState,
+        liveSlotsByKey: {
+          ...state.transcriptState.liveSlotsByKey,
+          [slotKey]: {
+            ...slot,
+            status: "streaming",
+            transientText: "Streamed text",
+            revision: slot.revision + 1,
+          },
+        },
+      },
+    };
+
+    const nextView = selectTranscriptLiveItemsForTurn(nextState, "turn-cache-slot");
+    expect(nextView).not.toBe(cachedView);
+    expect(nextView).toStrictEqual([
+      {
+        key: "turn-cache-slot:agent-cache-slot",
+        turnId: "turn-cache-slot",
+        itemId: "agent-cache-slot",
+        status: "streaming",
+        initialItem,
+        transientText: "Streamed text",
+        completedItem: null,
+        revision: 1,
+      },
+    ]);
+  });
+
   it("preserves assistant message phase in live completed transcript entries", () => {
     const store = makeStore();
 
