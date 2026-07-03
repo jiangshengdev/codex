@@ -12,7 +12,10 @@ const allowMarkdownElement: AllowElement = ({ tagName }) => tagName !== "img";
 const streamdownComponents: Components = {
   inlineCode: ({ children, className, node: _node, ...props }) => (
     <code
-      className={["rounded bg-muted px-1.5 py-0.5 font-mono text-sm wrap-break-word", className]
+      className={[
+        "rounded border border-border bg-default px-1 py-0.5 font-mono text-sm text-default-700 wrap-break-word",
+        className,
+      ]
         .filter(Boolean)
         .join(" ")}
       {...props}
