@@ -10,7 +10,10 @@ import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { selectTranscriptChunk } from "../transcriptStateSlice";
+import {
+  selectTranscriptChunk,
+  selectTranscriptLiveItemsForTurn,
+} from "../transcriptStateSlice";
 import {
   agentMessage,
   attachWithTurns,
@@ -167,5 +170,84 @@ describe("transcript state selector cache", () => {
         },
       ],
     });
+  });
+
+  it("returns a stable live item view while the live turn is unchanged", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-cache-started",
+          "turn-live-cache",
+          agentMessage("agent-live-cache", "Live cache"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const firstLiveItems = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache");
+    expect(firstLiveItems).toHaveLength(1);
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache")).toBe(
+      firstLiveItems,
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-unrelated-committed",
+          "turn-unrelated-committed",
+          agentMessage("agent-unrelated-committed", "Unrelated committed"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache")).toBe(
+      firstLiveItems,
+    );
+  });
+
+  it("returns a new live item view when the live turn order changes", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-cache-first",
+          "turn-live-cache-update",
+          agentMessage("agent-live-cache-first", "First"),
+        ),
+        replay: "live",
+      }),
+    );
+    const beforeUpdate = selectTranscriptLiveItemsForTurn(
+      store.getState(),
+      "turn-live-cache-update",
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-cache-second",
+          "turn-live-cache-update",
+          agentMessage("agent-live-cache-second", "Second"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const afterUpdate = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache-update");
+    expect(afterUpdate).not.toBe(beforeUpdate);
+    expect(afterUpdate.map((item) => item.itemId)).toStrictEqual([
+      "agent-live-cache-first",
+      "agent-live-cache-second",
+    ]);
   });
 });
