@@ -3,6 +3,7 @@ import { setupI18n } from "@lingui/core";
 import { userEvent } from "vitest/browser";
 import type { RenderOptions } from "vitest-browser-react";
 import { render } from "vitest-browser-react";
+import "@/index.css";
 import type { AppStore, RootState } from "@/app/store";
 import { makeStore } from "@/app/store";
 import { loadCatalog } from "@/i18n";
