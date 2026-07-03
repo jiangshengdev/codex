@@ -101,6 +101,23 @@ describe("ProjectionIngressAdapter", () => {
     });
   });
 
+  it("accepts contiguous events already represented in the attach snapshot", () => {
+    const adapter = new ProjectionIngressAdapter(projectionThreadId);
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    const snapshotAheadWithOldHead = attachWithTurnsAndHead(
+      [eventTurnStarted.event.notification.turn],
+      eventTurnStarted.parentCommitId,
+    );
+    adapter.handleAttach(snapshotAheadWithOldHead);
+
+    expect(adapter.handleEvent(eventTurnStarted)).toStrictEqual({
+      type: "eventAccepted",
+      notification: eventTurnStarted,
+    });
+  });
+
   it("requires manual reconnect when parent commit does not match local head", () => {
     const adapter = new ProjectionIngressAdapter(projectionThreadId);
     adapter.handleAttach(attachBaseline);

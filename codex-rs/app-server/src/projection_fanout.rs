@@ -14,8 +14,8 @@ use crate::outgoing_message::OutgoingEnvelope;
 use crate::outgoing_message::OutgoingMessage;
 use crate::thread_projection::InvalidatedProjectionSubscriber;
 use crate::thread_projection::ProjectionDelivery;
+use crate::thread_projection::ProjectionDeliveryPayload;
 use crate::thread_projection::ThreadProjectionManager;
-use crate::thread_projection_cut::ProjectionHistoryCursor;
 
 pub(crate) const PROJECTION_FANOUT_QUEUE_CAPACITY: usize = 32;
 
@@ -43,17 +43,11 @@ impl ThreadProjectionFacade {
         sender: mpsc::Sender<OutgoingEnvelope>,
         thread_id: ThreadId,
         notification: &ServerNotification,
-        projection_history_cursor: Option<ProjectionHistoryCursor>,
     ) {
-        let deliveries = if let Some(cursor) = projection_history_cursor {
-            self.manager
-                .project_notification_at_cursor(thread_id, notification, cursor)
-                .await
-        } else {
-            self.manager
-                .project_notification(thread_id, notification)
-                .await
-        };
+        let deliveries = self
+            .manager
+            .project_notification(thread_id, notification)
+            .await;
 
         if deliveries.is_empty() {
             return;
@@ -252,9 +246,20 @@ async fn send_projection_delivery_if_current_or_cancelled(
     delivery: ProjectionDelivery,
     cancellation: &CancellationToken,
 ) {
-    let outgoing_message = OutgoingMessage::AppServerNotification(
-        ServerNotification::ThreadProjectionEvent(delivery.notification),
-    );
+    let ProjectionDelivery {
+        connection_id,
+        generation,
+        payload,
+    } = delivery;
+    let notification = match payload {
+        ProjectionDeliveryPayload::Event(notification) => {
+            ServerNotification::ThreadProjectionEvent(*notification)
+        }
+        ProjectionDeliveryPayload::Delta(notification) => {
+            ServerNotification::ThreadProjectionDelta(notification)
+        }
+    };
+    let outgoing_message = OutgoingMessage::AppServerNotification(notification);
     let permit = tokio::select! {
         permit = sender.reserve() => match permit {
             Ok(permit) => permit,
@@ -267,9 +272,9 @@ async fn send_projection_delivery_if_current_or_cancelled(
     };
 
     manager
-        .run_if_generation_matches(thread_id, delivery.generation, || {
+        .run_if_generation_matches(thread_id, generation, || {
             permit.send(OutgoingEnvelope::ToConnection {
-                connection_id: delivery.connection_id,
+                connection_id,
                 message: outgoing_message,
                 write_complete_tx: None,
             });
@@ -314,7 +319,9 @@ fn spawn_projection_closed_notifications(
 mod tests {
     use std::time::Duration;
 
+    use codex_app_server_protocol::AgentMessageDeltaNotification;
     use codex_app_server_protocol::ConfigWarningNotification;
+    use codex_app_server_protocol::ThreadProjectionDelta;
     use codex_app_server_protocol::ThreadProjectionEvent;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnItemsView;
@@ -341,6 +348,20 @@ mod tests {
                 completed_at: None,
                 duration_ms: None,
             },
+        })
+    }
+
+    fn agent_message_delta_notification(
+        thread_id: ThreadId,
+        turn_id: &str,
+        item_id: &str,
+        delta: &str,
+    ) -> ServerNotification {
+        ServerNotification::AgentMessageDelta(AgentMessageDeltaNotification {
+            thread_id: thread_id.to_string(),
+            turn_id: turn_id.to_string(),
+            item_id: item_id.to_string(),
+            delta: delta.to_string(),
         })
     }
 
@@ -374,6 +395,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fanout_worker_preserves_event_and_delta_order() {
+        let facade = ThreadProjectionFacade::new();
+        let thread_id = ThreadId::new();
+        let subscription_id = attach_projection(&facade, thread_id, ConnectionId(3)).await;
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(8);
+
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &turn_started_notification(thread_id, "turn-1"),
+            )
+            .await;
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &agent_message_delta_notification(thread_id, "turn-1", "item-1", "hello"),
+            )
+            .await;
+
+        let first = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("first projection envelope should arrive")
+            .expect("first projection envelope should exist");
+        let second = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("second projection envelope should arrive")
+            .expect("second projection envelope should exist");
+
+        let OutgoingEnvelope::ToConnection {
+            message:
+                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(event)),
+            ..
+        } = first
+        else {
+            panic!("expected first projection event");
+        };
+        assert!(matches!(
+            event.event,
+            ThreadProjectionEvent::TurnStarted { .. }
+        ));
+
+        let OutgoingEnvelope::ToConnection {
+            message:
+                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionDelta(delta)),
+            ..
+        } = second
+        else {
+            panic!("expected second projection delta");
+        };
+
+        assert_eq!(subscription_id, delta.subscription_id);
+        assert_eq!(thread_id.to_string(), delta.thread_id);
+        assert_eq!(
+            ThreadProjectionDelta::AgentMessage {
+                notification: AgentMessageDeltaNotification {
+                    thread_id: thread_id.to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "item-1".to_string(),
+                    delta: "hello".to_string(),
+                },
+            },
+            delta.delta
+        );
+    }
+
+    #[tokio::test]
     async fn enqueue_notification_returns_before_worker_has_outgoing_capacity() {
         let facade = ThreadProjectionFacade::new();
         let thread_id = ThreadId::new();
@@ -390,7 +479,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
             ),
         )
         .await
@@ -428,7 +516,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
             )
             .await;
         facade
@@ -436,7 +523,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                /*projection_history_cursor*/ None,
             )
             .await;
 
@@ -506,7 +592,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
             )
             .await;
         tokio::task::yield_now().await;
@@ -515,7 +600,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                /*projection_history_cursor*/ None,
             )
             .await;
         facade
@@ -523,7 +607,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-3"),
-                /*projection_history_cursor*/ None,
             )
             .await;
 
@@ -565,6 +648,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delta_backpressure_closes_projection() {
+        let manager = ThreadProjectionManager::new();
+        let fanout =
+            ProjectionFanoutManager::new_with_capacity(manager.clone(), /*capacity*/ 1);
+        let facade = ThreadProjectionFacade { manager, fanout };
+        let thread_id = ThreadId::new();
+        let subscription_id = attach_projection(&facade, thread_id, ConnectionId(9)).await;
+        let (tx, mut rx) = mpsc::channel::<OutgoingEnvelope>(1);
+        tx.send(capacity_holder())
+            .await
+            .expect("capacity holder should enqueue");
+
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &agent_message_delta_notification(thread_id, "turn-1", "item-1", "first"),
+            )
+            .await;
+        tokio::task::yield_now().await;
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &agent_message_delta_notification(thread_id, "turn-1", "item-1", "second"),
+            )
+            .await;
+        facade
+            .enqueue_notification(
+                tx.clone(),
+                thread_id,
+                &agent_message_delta_notification(thread_id, "turn-1", "item-1", "third"),
+            )
+            .await;
+
+        let _capacity_holder = rx.recv().await.expect("capacity holder should be present");
+        let envelope = timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("closed notification should arrive")
+            .expect("closed notification should exist");
+
+        let OutgoingEnvelope::ToConnection {
+            connection_id,
+            message:
+                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionClosed(
+                    closed,
+                )),
+            write_complete_tx,
+        } = envelope
+        else {
+            panic!("expected projection closed notification");
+        };
+
+        assert_eq!(ConnectionId(9), connection_id);
+        assert_eq!(thread_id.to_string(), closed.thread_id);
+        assert_eq!(subscription_id, closed.subscription_id);
+        assert_eq!(ThreadProjectionClosedReason::Backpressure, closed.reason);
+        assert!(write_complete_tx.is_none());
+    }
+
+    #[tokio::test]
     async fn queue_full_closed_notification_does_not_wait_for_outgoing_capacity() {
         let manager = ThreadProjectionManager::new();
         let fanout =
@@ -583,7 +727,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
             )
             .await;
         tokio::task::yield_now().await;
@@ -593,7 +736,6 @@ mod tests {
                 tx.clone(),
                 thread_id,
                 &turn_started_notification(thread_id, "turn-2"),
-                /*projection_history_cursor*/ None,
             ),
         )
         .await
@@ -605,7 +747,6 @@ mod tests {
                 tx,
                 thread_id,
                 &turn_started_notification(thread_id, "turn-3"),
-                /*projection_history_cursor*/ None,
             ),
         )
         .await
@@ -630,7 +771,6 @@ mod tests {
                 tx,
                 thread_id,
                 &turn_started_notification(thread_id, "turn-1"),
-                /*projection_history_cursor*/ None,
             )
             .await;
         facade.remove_thread(thread_id).await;

@@ -357,28 +357,33 @@ export const transcriptStateSlice = createAppSlice({
         );
       })
       .addCase(threadRuntimeEventBuffered, (state, action) => {
-        if (state.threadId !== action.payload.threadId) {
+        const { notification, replay } = action.payload;
+        if (replay === "snapshotDuplicate") {
           return;
         }
 
-        if (hasAppliedEvent(state, action.payload.commitId)) {
+        if (state.threadId !== notification.threadId) {
           return;
         }
 
-        recordAppliedEvent(state, action.payload.commitId);
+        if (hasAppliedEvent(state, notification.commitId)) {
+          return;
+        }
 
-        switch (action.payload.event.type) {
+        recordAppliedEvent(state, notification.commitId);
+
+        switch (notification.event.type) {
           case "turnStarted":
           case "turnCompleted":
-            upsertTurnFromPayload(state, action.payload.event.notification.turn);
+            upsertTurnFromPayload(state, notification.event.notification.turn);
             return;
           case "itemCompleted": {
-            const { item, turnId } = action.payload.event.notification;
+            const { item, turnId } = notification.event.notification;
             ensureTurnExists(state, turnId);
             const entry = materializeTranscriptItem(item, turnId);
             if (entry != null) {
               upsertLiveCommittedEntry(state, entry);
-              state.committedScrollCommitKey = `event:${action.payload.commitId}`;
+              state.committedScrollCommitKey = `event:${notification.commitId}`;
             }
             return;
           }

@@ -4630,6 +4630,49 @@
       ],
       "type": "string"
     },
+    "ThreadProjectionDelta": {
+      "oneOf": [
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/AgentMessageDeltaNotification"
+            },
+            "type": {
+              "enum": [
+                "agentMessage"
+              ],
+              "title": "AgentMessageThreadProjectionDeltaType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "AgentMessageThreadProjectionDelta",
+          "type": "object"
+        }
+      ]
+    },
+    "ThreadProjectionDeltaNotification": {
+      "properties": {
+        "delta": {
+          "$ref": "#/definitions/ThreadProjectionDelta"
+        },
+        "subscriptionId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delta",
+        "subscriptionId",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadProjectionEvent": {
       "oneOf": [
         {
@@ -6052,6 +6095,26 @@
         "params"
       ],
       "title": "Thread/projection/eventNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "thread/projection/delta"
+          ],
+          "title": "Thread/projection/deltaNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadProjectionDeltaNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Thread/projection/deltaNotification",
       "type": "object"
     },
     {

@@ -234,7 +234,7 @@ impl ThreadRequestProcessor {
             .thread_watch_manager
             .loaded_status_for_thread(&thread.id)
             .await;
-        let mut history_items = match self.load_thread_turns_list_history(thread_id).await {
+        let history_items = match self.load_thread_turns_list_history(thread_id).await {
             Ok(items) => items,
             Err(ThreadReadViewError::InvalidRequest(message))
                 if message
@@ -246,11 +246,10 @@ impl ThreadRequestProcessor {
             }
             Err(err) => return Err(err),
         };
-        history_items.truncate(cut.history_cursor.item_count());
         let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
 
         // The thread store only exposes current metadata, so reconcile the
-        // visible preview from the same truncated history used for turns.
+        // visible preview from the same persisted history used for turns.
         thread.preview = preview_from_rollout_items(&history_items);
 
         thread.turns = reconstruct_thread_turns_for_turns_list(
@@ -337,9 +336,6 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
     use tempfile::TempDir;
-
-    const CREATED_THREAD_HISTORY_ITEM_COUNT: usize = 1;
-    const VISIBLE_TURN_HISTORY_ITEM_COUNT: usize = CREATED_THREAD_HISTORY_ITEM_COUNT + 1;
 
     #[tokio::test]
     async fn projection_snapshot_turns_match_canonical_reconstruction_for_live_active_turn()
@@ -483,9 +479,6 @@ mod tests {
                 .capture_current_generation(thread_id)
                 .await,
             head_commit_id: None,
-            history_cursor: crate::thread_projection_cut::ProjectionHistoryCursor::new(
-                CREATED_THREAD_HISTORY_ITEM_COUNT + persisted_items.len(),
-            ),
         };
         let snapshot = processor
             .read_thread_projection_snapshot_at_cut(thread_id, cut)
@@ -527,7 +520,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn projection_snapshot_at_cut_excludes_history_after_cursor() -> Result<()> {
+    async fn projection_snapshot_at_cut_includes_full_persisted_history() -> Result<()> {
         let fixture = projection_snapshot_fixture_with_history(vec![
             RolloutItem::EventMsg(EventMsg::TurnStarted(
                 codex_protocol::protocol::TurnStartedEvent {
@@ -558,18 +551,14 @@ mod tests {
                 .capture_current_generation(fixture.thread_id)
                 .await,
             head_commit_id: None,
-            history_cursor: crate::thread_projection_cut::ProjectionHistoryCursor::new(
-                VISIBLE_TURN_HISTORY_ITEM_COUNT,
-            ),
         };
-        let snapshot = match fixture
+        let snapshot = fixture
             .processor
             .read_thread_projection_snapshot_at_cut(fixture.thread_id, cut)
             .await
-        {
-            Ok(snapshot) => snapshot,
-            Err(_) => panic!("projection snapshot at cut should read materialized history"),
-        };
+            .unwrap_or_else(|_| {
+                panic!("projection snapshot at cut should read materialized history")
+            });
 
         let turn_ids = snapshot
             .thread
@@ -577,7 +566,70 @@ mod tests {
             .iter()
             .map(|turn| turn.id.as_str())
             .collect::<Vec<_>>();
-        assert_eq!(turn_ids, vec!["turn-visible"]);
+        assert_eq!(turn_ids, vec!["turn-visible", "turn-pending"]);
+        assert_eq!(snapshot.head_commit_id, None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn projection_snapshot_preserves_final_after_physical_only_history_item() -> Result<()> {
+        let fixture = projection_snapshot_fixture_with_history(vec![
+            RolloutItem::EventMsg(EventMsg::TurnStarted(
+                codex_protocol::protocol::TurnStartedEvent {
+                    turn_id: "turn-final".to_string(),
+                    trace_id: None,
+                    started_at: Some(1),
+                    model_context_window: None,
+                    collaboration_mode_kind: Default::default(),
+                },
+            )),
+            RolloutItem::EventMsg(EventMsg::ContextCompacted(
+                codex_protocol::protocol::ContextCompactedEvent,
+            )),
+            RolloutItem::EventMsg(EventMsg::AgentMessage(
+                codex_protocol::protocol::AgentMessageEvent {
+                    message: "final answer".to_string(),
+                    phase: None,
+                    memory_citation: None,
+                },
+            )),
+            RolloutItem::EventMsg(EventMsg::TurnComplete(
+                codex_protocol::protocol::TurnCompleteEvent {
+                    turn_id: "turn-final".to_string(),
+                    last_agent_message: Some("final answer".to_string()),
+                    completed_at: Some(2),
+                    duration_ms: None,
+                    time_to_first_token_ms: None,
+                },
+            )),
+        ])
+        .await?;
+
+        let cut = crate::thread_projection_cut::ProjectionSnapshotCut {
+            generation: fixture
+                .processor
+                .outgoing
+                .thread_projection_manager()
+                .capture_current_generation(fixture.thread_id)
+                .await,
+            head_commit_id: None,
+        };
+        let snapshot = fixture
+            .processor
+            .read_thread_projection_snapshot_at_cut(fixture.thread_id, cut)
+            .await
+            .unwrap_or_else(|_| panic!("projection snapshot should preserve final answer"));
+
+        assert_eq!(snapshot.thread.turns.len(), 1);
+        let turn = &snapshot.thread.turns[0];
+        assert_eq!(turn.id, "turn-final");
+        assert_eq!(turn.status, TurnStatus::Completed);
+        assert!(turn.items.iter().any(|item| {
+            matches!(
+                item,
+                ThreadItem::AgentMessage { text, .. } if text == "final answer"
+            )
+        }));
         assert_eq!(snapshot.head_commit_id, None);
         Ok(())
     }

@@ -92,10 +92,14 @@ describe("live event handling", () => {
 
     const store = makeStore();
     store.dispatch(threadRuntimeAttached(attachBaseline));
-    store.dispatch(threadRuntimeEventBuffered(eventTurnStarted));
-    store.dispatch(threadRuntimeEventBuffered(eventItemStarted));
-    store.dispatch(threadRuntimeEventBuffered(eventItemCompleted));
-    store.dispatch(threadRuntimeEventBuffered(eventTurnCompleted));
+    store.dispatch(threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }));
+    store.dispatch(threadRuntimeEventBuffered({ notification: eventItemStarted, replay: "live" }));
+    store.dispatch(
+      threadRuntimeEventBuffered({ notification: eventItemCompleted, replay: "live" }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({ notification: eventTurnCompleted, replay: "live" }),
+    );
 
     const expectedMaterials = [
       {
@@ -119,12 +123,30 @@ describe("live event handling", () => {
     expect(selectLiveEventMaterials(store.getState())).toStrictEqual(expectedMaterials);
   });
 
+  it("does not derive live material from snapshot duplicate events", () => {
+    const store = makeStore();
+    store.dispatch(threadRuntimeAttached(attachBaseline));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: eventTurnStarted,
+        replay: "snapshotDuplicate",
+      }),
+    );
+
+    expect(selectLiveEventMaterials(store.getState())).toStrictEqual([]);
+    expect(selectThreadTimelineMaterials(store.getState())).toStrictEqual(
+      selectSnapshotReplayMaterials(store.getState()),
+    );
+  });
+
   it("does not collapse item started and completed lifecycle material", () => {
     const store = makeStore();
     store.dispatch(threadRuntimeAttached(attachBaseline));
-    store.dispatch(threadRuntimeEventBuffered(eventTurnStarted));
-    store.dispatch(threadRuntimeEventBuffered(eventItemStarted));
-    store.dispatch(threadRuntimeEventBuffered(eventItemCompleted));
+    store.dispatch(threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }));
+    store.dispatch(threadRuntimeEventBuffered({ notification: eventItemStarted, replay: "live" }));
+    store.dispatch(
+      threadRuntimeEventBuffered({ notification: eventItemCompleted, replay: "live" }),
+    );
 
     expect(selectLiveEventMaterials(store.getState()).slice(1)).toStrictEqual(
       expectedItemLifecycleMaterials(),
@@ -168,7 +190,7 @@ describe("live event handling", () => {
 
     const store = makeStore();
     store.dispatch(threadRuntimeAttached(attachBaseline));
-    store.dispatch(threadRuntimeEventBuffered(eventTurnStarted));
+    store.dispatch(threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }));
     store.dispatch(
       threadRuntimeManualReconnectRequired({
         reason: "backpressure",
@@ -200,8 +222,10 @@ describe("live event handling", () => {
   it("does not mutate or consume the runtime event buffer", () => {
     const store = makeStore();
     store.dispatch(threadRuntimeAttached(attachBaseline));
-    store.dispatch(threadRuntimeEventBuffered(eventTurnStarted));
-    const expectedBuffer = [{ type: "projectionEvent", notification: eventTurnStarted }];
+    store.dispatch(threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }));
+    const expectedBuffer = [
+      { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
+    ];
 
     selectLiveEventMaterials(store.getState());
     selectThreadTimelineMaterials(store.getState());

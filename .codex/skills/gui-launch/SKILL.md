@@ -5,50 +5,49 @@ description: Ordinary Codex GUI launch URL printing. Use when the user says `GUI
 
 # GUI Launch
 
-## 基本规则
+## Core Rules
 
-- 回复用户使用简体中文。
-- 这是普通 GUI 启动流程；行为必须和 CLI `/gui` 保持一致。
-- 只调用 Codex 外层 `launch_gui` 工具并打印返回的 URL 列表。
-- 不要运行 `.codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs`。
-- 不要启动或控制浏览器，不要使用 Playwright，不要进入响应式模式，不要截图，不要验证页面。
-- 不要启动、停止或管理 `codex-gui` Vite dev server。
-- 不要选择 LAN、Local 或 VPN；不要添加优先级、fallback、可用性判断或地址筛选。
-- URL、label、顺序和 token 必须来自本次 `launch_gui` 返回值；不要手写、猜测、拼接或复用旧 URL。
+- This is the ordinary GUI launch flow; behavior must match CLI `/gui`.
+- Only call the outer Codex `launch_gui` tool and print the returned URL list.
+- Do not run `.codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs`.
+- Do not start or control a browser, use Playwright, enter responsive mode, take screenshots, or verify the page.
+- Do not start, stop, or manage the `codex-gui` Vite dev server.
+- Do not choose among LAN, Local, or VPN; do not add priority, fallback, availability checks, or URL filtering.
+- URL, label, order, and token values must come from the current `launch_gui` result. Do not hand-write, guess, splice, or reuse old URLs.
 
-## 输出格式
+## Output Format
 
-调用 `launch_gui` 后，按 CLI `/gui` 的文本格式打印全部返回条目：
+After calling `launch_gui`, print all returned entries in the CLI `/gui` text format:
 
 ```text
-• GUI URLs:
+GUI URLs:
   <label>:<padding><url>
 ```
 
-具体规则：
+Rules:
 
-- 第一行固定为 `• GUI URLs:`。
-- 后续每个 URL 条目一行，格式为两个空格、label、冒号、padding、URL。
-- padding 使用 CLI `/gui` 的对齐语义：以返回条目中最长 label 宽度为准，让 URL 起始列对齐。
-- 如果只返回 `Local`，只打印 `Local`。
-- 如果返回 `Local`、`LAN`、`VPN` 或其他 label，全部按 `launch_gui` 返回顺序打印。
-- 最终回复不要额外添加解释、Markdown 链接、调试状态、验证结果或替代地址。
+- The first line is exactly `GUI URLs:`. Do not include a real bullet character in the text; the TUI assistant message renderer adds the outer bullet to the first line on its own.
+- Print one URL entry per following line: two spaces, label, colon, padding, URL.
+- Use the CLI `/gui` alignment semantics for padding: align URL start columns based on the longest returned label.
+- If only `Local` is returned, print only `Local`.
+- If `Local`, `LAN`, `VPN`, or any other label is returned, print every entry in the order returned by `launch_gui`.
+- Do not add extra explanation, Markdown links, debug status, verification results, or alternative addresses to the final response.
 
-示例：
+Example:
 
 ```text
-• GUI URLs:
+GUI URLs:
   Local: http://127.0.0.1:12345/?threadId=t#token=x
   LAN:   http://192.168.3.165:12345/?threadId=t#token=x
   VPN:   http://100.88.28.119:12345/?threadId=t#token=x
 ```
 
-## 错误处理
+## Error Handling
 
-如果 `launch_gui` 失败，按 CLI `/gui` 的语义报告失败信息：
+If `launch_gui` fails, report the failure using CLI `/gui` semantics:
 
 ```text
 Failed to launch GUI: <error>
 ```
 
-不要自动切换到 debug skill，不要启动 Vite，不要打开浏览器。
+Do not automatically switch to the debug skill, start Vite, or open a browser.

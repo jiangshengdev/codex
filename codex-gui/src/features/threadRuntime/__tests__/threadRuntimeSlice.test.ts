@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
@@ -9,23 +9,30 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  agentMessage,
   attachWithTurns,
+  itemCompleted,
+  itemStarted,
   turnCompleted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
+  replayForProjectionEvent,
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
   selectThreadRuntimeSubscription,
   selectThreadRuntimeSubscriptionState,
   selectThreadRuntimeThreadId,
+  snapshotReplayIndexFromTurns,
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
   threadRuntimeSlice,
+  type ThreadRuntimeProjectionEventPayload,
   type ThreadRuntimeState,
 } from "../threadRuntimeSlice";
+import type { ThreadProjectionEventNotification } from "@codex-protocol/v2";
 
 const reduce = (
   state: ThreadRuntimeState | undefined,
@@ -64,6 +71,7 @@ describe("thread runtime reducer", () => {
       sessionId: attachBaseline.snapshot.thread.sessionId,
       thread: threadMetadata,
       snapshotTurns,
+      snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
       eventBuffer: [],
       activeTurnId: null,
       subscription: { state: "active" },
@@ -97,15 +105,34 @@ describe("thread runtime reducer", () => {
 
   it("buffers turn lifecycle events and tracks the active turn", () => {
     const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
-    const started = reduce(attached, threadRuntimeEventBuffered(eventTurnStarted));
-    const completed = reduce(started, threadRuntimeEventBuffered(eventTurnCompleted));
+    const started = reduce(
+      attached,
+      threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+    );
+    const completed = reduce(
+      started,
+      threadRuntimeEventBuffered({ notification: eventTurnCompleted, replay: "live" }),
+    );
 
     expect(started.current?.activeTurnId).toBe("turn-in-progress");
     expect(completed.current?.activeTurnId).toBeNull();
     expect(completed.current?.eventBuffer).toStrictEqual([
-      { type: "projectionEvent", notification: eventTurnStarted },
-      { type: "projectionEvent", notification: eventTurnCompleted },
+      { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
+      { type: "projectionEvent", notification: eventTurnCompleted, replay: "live" },
     ]);
+  });
+
+  it("requires projection payloads for buffered events", () => {
+    expectTypeOf<
+      Parameters<typeof threadRuntimeEventBuffered>[0]
+    >().toEqualTypeOf<ThreadRuntimeProjectionEventPayload>();
+    expectTypeOf<ThreadProjectionEventNotification>().not.toExtend<
+      Parameters<typeof threadRuntimeEventBuffered>[0]
+    >();
+
+    expect(
+      threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }).payload,
+    ).toStrictEqual({ notification: eventTurnStarted, replay: "live" });
   });
 
   it("does not clear active turn when a different turn completes", () => {
@@ -113,34 +140,177 @@ describe("thread runtime reducer", () => {
       throw new Error("fixture must contain a turnCompleted projection event");
     }
     const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
-    const started = reduce(attached, threadRuntimeEventBuffered(eventTurnStarted));
+    const started = reduce(
+      attached,
+      threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+    );
     const nonMatchingCompleted = turnCompleted(eventTurnCompleted, eventTurnCompleted.commitId, {
       ...eventTurnCompleted.event.notification.turn,
       id: "another-turn",
     });
 
-    const state = reduce(started, threadRuntimeEventBuffered(nonMatchingCompleted));
+    const state = reduce(
+      started,
+      threadRuntimeEventBuffered({ notification: nonMatchingCompleted, replay: "live" }),
+    );
 
     expect(state.current?.activeTurnId).toBe("turn-in-progress");
     expect(state.current?.eventBuffer.at(-1)).toStrictEqual({
       type: "projectionEvent",
       notification: nonMatchingCompleted,
+      replay: "live",
     });
   });
 
   it("buffers item events without upserting them into snapshot turns", () => {
     const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
-    const itemStarted = reduce(attached, threadRuntimeEventBuffered(eventTurnStarted));
-    const itemBuffered = reduce(itemStarted, threadRuntimeEventBuffered(eventItemStarted));
-    const itemCompleted = reduce(itemBuffered, threadRuntimeEventBuffered(eventItemCompleted));
+    const itemStarted = reduce(
+      attached,
+      threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+    );
+    const itemBuffered = reduce(
+      itemStarted,
+      threadRuntimeEventBuffered({ notification: eventItemStarted, replay: "live" }),
+    );
+    const itemCompleted = reduce(
+      itemBuffered,
+      threadRuntimeEventBuffered({ notification: eventItemCompleted, replay: "live" }),
+    );
 
     expect(itemCompleted.current?.snapshotTurns).toStrictEqual(
       attachBaseline.snapshot.thread.turns,
     );
     expect(itemCompleted.current?.eventBuffer).toStrictEqual([
-      { type: "projectionEvent", notification: eventTurnStarted },
-      { type: "projectionEvent", notification: eventItemStarted },
-      { type: "projectionEvent", notification: eventItemCompleted },
+      { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
+      { type: "projectionEvent", notification: eventItemStarted, replay: "live" },
+      { type: "projectionEvent", notification: eventItemCompleted, replay: "live" },
+    ]);
+  });
+
+  it("marks live turn events already present in the attach snapshot as snapshot duplicates", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [eventTurnStarted.event.notification.turn]),
+      ),
+    );
+    const replay = replayForProjectionEvent(
+      snapshotReplayIndexFromTurns([eventTurnStarted.event.notification.turn]),
+      eventTurnStarted,
+    );
+
+    const state = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: eventTurnStarted,
+        replay,
+      }),
+    );
+
+    expect(replay).toBe("snapshotDuplicate");
+    expect(state.current?.activeTurnId).toBe(eventTurnStarted.event.notification.turn.id);
+    expect(state.current?.eventBuffer).toStrictEqual([
+      {
+        type: "projectionEvent",
+        notification: eventTurnStarted,
+        replay: "snapshotDuplicate",
+      },
+    ]);
+  });
+
+  it("keeps a completed turn live when the snapshot only has the same turn in progress", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    if (eventTurnCompleted.event.type !== "turnCompleted") {
+      throw new Error("fixture must contain a turnCompleted projection event");
+    }
+    const snapshotReplayIndex = snapshotReplayIndexFromTurns([
+      eventTurnStarted.event.notification.turn,
+    ]);
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [eventTurnStarted.event.notification.turn]),
+      ),
+    );
+    const replay = replayForProjectionEvent(snapshotReplayIndex, eventTurnCompleted);
+
+    const state = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: eventTurnCompleted,
+        replay,
+      }),
+    );
+
+    expect(replay).toBe("live");
+    expect(state.current?.activeTurnId).toBeNull();
+    expect(state.current?.eventBuffer).toStrictEqual([
+      {
+        type: "projectionEvent",
+        notification: eventTurnCompleted,
+        replay: "live",
+      },
+    ]);
+  });
+
+  it("marks live item events already present in the attach snapshot as snapshot duplicates", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    const snapshotItem = agentMessage("agent-snapshot-duplicate", "Already in snapshot");
+    const snapshotTurn = {
+      ...eventTurnStarted.event.notification.turn,
+      items: [snapshotItem],
+    };
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])),
+    );
+    const duplicateStarted = itemStarted(
+      eventItemStarted,
+      "commit-started-snapshot-duplicate",
+      eventTurnStarted.event.notification.turn.id,
+      snapshotItem,
+    );
+    const duplicateCompleted = itemCompleted(
+      eventItemCompleted,
+      "commit-completed-snapshot-duplicate",
+      eventTurnStarted.event.notification.turn.id,
+      snapshotItem,
+    );
+    const snapshotReplayIndex = snapshotReplayIndexFromTurns([snapshotTurn]);
+
+    const started = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: duplicateStarted,
+        replay: replayForProjectionEvent(snapshotReplayIndex, duplicateStarted),
+      }),
+    );
+    const completed = reduce(
+      started,
+      threadRuntimeEventBuffered({
+        notification: duplicateCompleted,
+        replay: replayForProjectionEvent(snapshotReplayIndex, duplicateCompleted),
+      }),
+    );
+
+    expect(completed.current?.eventBuffer).toStrictEqual([
+      {
+        type: "projectionEvent",
+        notification: duplicateStarted,
+        replay: "snapshotDuplicate",
+      },
+      {
+        type: "projectionEvent",
+        notification: duplicateCompleted,
+        replay: "snapshotDuplicate",
+      },
     ]);
   });
 
@@ -157,11 +327,14 @@ describe("thread runtime reducer", () => {
       state = reduce(
         state,
         threadRuntimeEventBuffered({
-          ...turnStarted(eventTurnStarted, `commit-buffer-${commitIndex}`, {
-            ...eventTurnStarted.event.notification.turn,
-            id: `turn-buffer-${commitIndex}`,
-          }),
-          parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
+          notification: {
+            ...turnStarted(eventTurnStarted, `commit-buffer-${commitIndex}`, {
+              ...eventTurnStarted.event.notification.turn,
+              id: `turn-buffer-${commitIndex}`,
+            }),
+            parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
+          },
+          replay: "live",
         }),
       );
     }
@@ -182,7 +355,10 @@ describe("thread runtime reducer", () => {
         subscriptionId: attachBaseline.subscriptionId,
       }),
     );
-    const afterEvent = reduce(interrupted, threadRuntimeEventBuffered(eventTurnStarted));
+    const afterEvent = reduce(
+      interrupted,
+      threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+    );
 
     expect(interrupted.current?.subscription).toStrictEqual({
       state: "manualReconnectRequired",

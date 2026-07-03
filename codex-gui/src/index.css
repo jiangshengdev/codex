@@ -1,6 +1,18 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
+@source "../node_modules/@streamdown/cjk/dist/*.js";
+
+.committed-transcript-entry-markdown p {
+  white-space: pre-wrap;
+}
+
+.committed-transcript-entry-markdown [data-streamdown="code-block-body"] code > span {
+  display: block;
+}
+
 :root {
   background-color: var(--background);
   color: var(--foreground);

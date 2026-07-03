@@ -163,6 +163,7 @@ Example with notification opt-out:
 - `thread/projection/attach` — subscribe this connection to GUI projection events for a loaded thread. The response returns a `subscriptionId` and `snapshot` containing the current `thread` plus `headCommitId`.
 - `thread/projection/detach` — remove this connection's projection subscription for a thread. The response `status` is `detached`, `notSubscribed`, or `notLoaded`.
 - `thread/projection/event` — notification emitted to projection subscribers. Each event has `threadId`, `subscriptionId`, `commitId`, `parentCommitId`, and wraps one of `turn/started`, `turn/completed`, `item/started`, or `item/completed`.
+- `thread/projection/delta` — notification emitted to projection subscribers for transient stream progress that does not advance `headCommitId`. The first supported delta is `{ type: "agentMessage", notification }`, where `notification` has the same shape as `item/agentMessage/delta`. It is not final content and does not carry phase; clients get authoritative assistant text and phase from the later `item/completed` event.
 - `thread/projection/closed` — notification emitted when the server terminates a projection subscription. Currently `reason` is `backpressure`, which means the per-thread projection fanout queue filled and the client must call `thread/projection/attach` again to get a fresh snapshot baseline.
 - `thread/name/set` — set or update a thread’s user-facing name for either a loaded thread or a persisted rollout; returns `{}` on success and emits `thread/name/updated` to initialized, opted-in clients. Thread names are not required to be unique; name lookups resolve to the most recently updated thread.
 - `thread/unarchive` — move an archived rollout file back into the sessions directory; returns the restored `thread` on success and emits `thread/unarchived`.
@@ -482,7 +483,7 @@ Later, after the idle unload timeout:
 
 ### Example: Attach to a thread projection
 
-Use `thread/projection/attach` to receive a GUI projection stream for a loaded thread. The response includes a `subscriptionId` and a snapshot with the current `thread` and `headCommitId`. Later `thread/projection/event` notifications wrap only four typed notifications: `turn/started`, `turn/completed`, `item/started`, and `item/completed`.
+Use `thread/projection/attach` to receive a GUI projection stream for a loaded thread. The response includes a `subscriptionId` and a snapshot with the current `thread` and `headCommitId`. Projection subscribers receive two live notification classes. `thread/projection/event` carries structural events with `commitId` and `parentCommitId`; clients use those events to advance `headCommitId`. `thread/projection/delta` carries transient progress for the same `subscriptionId` and does not include commit fields. Clients should ignore stale `subscriptionId` deltas and use the final `item/completed` event as the authoritative assistant message content. For assistant messages, `item/completed` also carries `phase`; clients should not infer final-answer or commentary state from delta.
 
 Normal thread subscriptions and projection subscriptions are independent. `thread/unsubscribe` does not detach a projection subscription, and `thread/projection/detach` does not unsubscribe normal turn/item notifications.
 

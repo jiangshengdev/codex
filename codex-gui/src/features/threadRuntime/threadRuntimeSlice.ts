@@ -16,9 +16,17 @@ export type ThreadRuntimeSubscription =
       subscriptionId: string | null;
     };
 
+export type ThreadRuntimeEventReplay = "live" | "snapshotDuplicate";
+
+export type ThreadRuntimeProjectionEventPayload = {
+  notification: ThreadProjectionEventNotification;
+  replay: ThreadRuntimeEventReplay;
+};
+
 export type ThreadRuntimeBufferedEvent = {
   type: "projectionEvent";
   notification: ThreadProjectionEventNotification;
+  replay: ThreadRuntimeEventReplay;
 };
 
 export type ThreadRuntimeRecord = {
@@ -26,6 +34,7 @@ export type ThreadRuntimeRecord = {
   sessionId: string;
   thread: Omit<Thread, "turns">;
   snapshotTurns: Turn[];
+  snapshotReplayIndex: SnapshotReplayIndex;
   eventBuffer: ThreadRuntimeBufferedEvent[];
   activeTurnId: string | null;
   subscription: ThreadRuntimeSubscription;
@@ -51,6 +60,41 @@ const MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH = 500;
 const activeTurnIdFromSnapshot = (turns: Turn[]): string | null =>
   turns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null;
 
+export type SnapshotReplayIndex = {
+  turnStatusById: Partial<Record<string, Turn["status"]>>;
+  itemIdsById: Record<string, true>;
+};
+
+const idsById = (ids: string[]): Record<string, true> =>
+  Object.fromEntries(ids.map((id) => [id, true]));
+
+export const snapshotReplayIndexFromTurns = (turns: Turn[]): SnapshotReplayIndex => ({
+  turnStatusById: Object.fromEntries(turns.map((turn) => [turn.id, turn.status])),
+  itemIdsById: idsById(turns.flatMap((turn) => turn.items.map((item) => item.id))),
+});
+
+export const replayForProjectionEvent = (
+  index: SnapshotReplayIndex,
+  notification: ThreadProjectionEventNotification,
+): ThreadRuntimeEventReplay => {
+  switch (notification.event.type) {
+    case "turnStarted":
+      return index.turnStatusById[notification.event.notification.turn.id] != null
+        ? "snapshotDuplicate"
+        : "live";
+    case "turnCompleted":
+      return index.turnStatusById[notification.event.notification.turn.id] ===
+        notification.event.notification.turn.status
+        ? "snapshotDuplicate"
+        : "live";
+    case "itemStarted":
+    case "itemCompleted":
+      return index.itemIdsById[notification.event.notification.item.id] === true
+        ? "snapshotDuplicate"
+        : "live";
+  }
+};
+
 export const threadRuntimeSlice = createAppSlice({
   name: "threadRuntime",
   initialState,
@@ -64,6 +108,7 @@ export const threadRuntimeSlice = createAppSlice({
           sessionId: thread.sessionId,
           thread,
           snapshotTurns,
+          snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
           eventBuffer: [],
           activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
           subscription: { state: "active" },
@@ -71,15 +116,17 @@ export const threadRuntimeSlice = createAppSlice({
       },
     ),
     threadRuntimeEventBuffered: create.reducer(
-      (state, action: PayloadAction<ThreadProjectionEventNotification>) => {
+      (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {
         const runtime = state.current;
         if (runtime?.subscription.state !== "active") {
           return;
         }
+        const { notification, replay } = action.payload;
 
         runtime.eventBuffer.push({
           type: "projectionEvent",
-          notification: action.payload,
+          notification,
+          replay,
         });
 
         if (runtime.eventBuffer.length > MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH) {
@@ -89,12 +136,16 @@ export const threadRuntimeSlice = createAppSlice({
           );
         }
 
-        switch (action.payload.event.type) {
+        if (replay === "snapshotDuplicate") {
+          return;
+        }
+
+        switch (notification.event.type) {
           case "turnStarted":
-            runtime.activeTurnId = action.payload.event.notification.turn.id;
+            runtime.activeTurnId = notification.event.notification.turn.id;
             return;
           case "turnCompleted":
-            if (runtime.activeTurnId === action.payload.event.notification.turn.id) {
+            if (runtime.activeTurnId === notification.event.notification.turn.id) {
               runtime.activeTurnId = null;
             }
             return;

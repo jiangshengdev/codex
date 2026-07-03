@@ -422,6 +422,8 @@ export type { ThreadProjectionAttachParams } from "./ThreadProjectionAttachParam
 export type { ThreadProjectionAttachResponse } from "./ThreadProjectionAttachResponse";
 export type { ThreadProjectionClosedNotification } from "./ThreadProjectionClosedNotification";
 export type { ThreadProjectionClosedReason } from "./ThreadProjectionClosedReason";
+export type { ThreadProjectionDelta } from "./ThreadProjectionDelta";
+export type { ThreadProjectionDeltaNotification } from "./ThreadProjectionDeltaNotification";
 export type { ThreadProjectionDetachParams } from "./ThreadProjectionDetachParams";
 export type { ThreadProjectionDetachResponse } from "./ThreadProjectionDetachResponse";
 export type { ThreadProjectionDetachStatus } from "./ThreadProjectionDetachStatus";

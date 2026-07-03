@@ -30,6 +30,20 @@ pub fn create_final_assistant_message_sse_response(message: &str) -> anyhow::Res
     ]))
 }
 
+pub fn create_streaming_assistant_message_sse_response(
+    item_id: &str,
+    delta: &str,
+    final_message: &str,
+) -> anyhow::Result<String> {
+    Ok(responses::sse(vec![
+        responses::ev_response_created("resp-1"),
+        responses::ev_message_item_added(item_id, ""),
+        responses::ev_output_text_delta(delta),
+        responses::ev_assistant_message(item_id, final_message),
+        responses::ev_completed("resp-1"),
+    ]))
+}
+
 pub fn create_apply_patch_sse_response(
     patch_content: &str,
     call_id: &str,
