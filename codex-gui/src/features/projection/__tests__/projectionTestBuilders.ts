@@ -1,6 +1,7 @@
 import type {
   ThreadItem,
   ThreadProjectionAttachResponse,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   Turn,
   UserInput,
@@ -99,6 +100,30 @@ export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): Threa
     activeTurnId:
       snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,
     subscription: { state: "active" },
+  };
+};
+
+export const agentMessageDelta = (
+  eventAgentMessageDelta: ThreadProjectionDeltaNotification,
+  turnId: string,
+  itemId: string,
+  delta: string,
+): ThreadProjectionDeltaNotification => {
+  if (eventAgentMessageDelta.delta.type !== "agentMessage") {
+    throw new Error("fixture must contain an agentMessage projection delta");
+  }
+
+  return {
+    ...eventAgentMessageDelta,
+    delta: {
+      ...eventAgentMessageDelta.delta,
+      notification: {
+        ...eventAgentMessageDelta.delta.notification,
+        turnId,
+        itemId,
+        delta,
+      },
+    },
   };
 };
 

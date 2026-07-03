@@ -3,6 +3,7 @@ import {
   attachBaseline,
   attachReplacement,
   closedBackpressure,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
   eventSubscriptionReplacement,
@@ -19,6 +20,7 @@ const fixturePayloads = [
   eventItemCompleted,
   eventTurnCompleted,
   eventSubscriptionReplacement,
+  eventAgentMessageDelta,
 ];
 
 const assertFieldAbsentRecursive = (value: unknown, fieldName: string): void => {
@@ -56,6 +58,16 @@ describe("Rust-generated projection fixtures", () => {
     expect(eventSubscriptionReplacement.event.type).toBe("turnStarted");
   });
 
+  it("imports projection delta notifications with expected discriminators", () => {
+    expect(eventAgentMessageDelta.delta.type).toBe("agentMessage");
+    expect(eventAgentMessageDelta.delta.notification).toMatchObject({
+      threadId: attachBaseline.snapshot.thread.id,
+      turnId: "turn-in-progress",
+      itemId: "assistant-message",
+      delta: "streamed text",
+    });
+  });
+
   it("imports projection closed notifications with expected reason", () => {
     expect(closedBackpressure.threadId).toBe(attachBaseline.snapshot.thread.id);
     expect(closedBackpressure.subscriptionId).toBe(attachBaseline.subscriptionId);
@@ -78,7 +90,7 @@ describe("Rust-generated projection fixtures", () => {
   });
 
   it("does not contain historical sequence projection fields", () => {
-    expect(fixturePayloads).toHaveLength(8);
+    expect(fixturePayloads).toHaveLength(9);
 
     for (const payload of fixturePayloads) {
       for (const fieldName of [
