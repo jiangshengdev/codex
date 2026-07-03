@@ -19,6 +19,7 @@ import {
   snapshotReplayIndexFromTurns,
   type SnapshotReplayIndex,
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -57,6 +58,9 @@ export function GuiHostConnectionBridge({
                   : replayForProjectionEvent(snapshotReplayIndex, outcome.notification),
             }),
           );
+          return;
+        case "deltaAccepted":
+          dispatch(threadRuntimeDeltaAccepted({ notification: outcome.notification }));
           return;
         case "manualReconnectRequired":
           dispatch(
@@ -107,6 +111,13 @@ export function GuiHostConnectionBridge({
           }
 
           dispatchProjectionOutcome(projectionIngress.handleEvent(notification));
+        },
+        onProjectionDelta: (notification) => {
+          if (projectionIngress == null) {
+            return;
+          }
+
+          dispatchProjectionOutcome(projectionIngress.handleDelta(notification));
         },
         onProjectionClosed: (notification) => {
           if (projectionIngress == null) {
