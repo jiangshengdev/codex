@@ -269,6 +269,17 @@ const appendAgentMessageDeltaToLiveSlot = (
   slot.revision += 1;
 };
 
+const settleLiveSlotIfPresent = (state: TranscriptState, turnId: string, item: ThreadItem) => {
+  const slot = state.liveSlotsByKey[liveSlotKey(turnId, item.id)];
+  if (slot == null) {
+    return;
+  }
+
+  slot.status = "completed";
+  slot.completedItem = item;
+  slot.revision += 1;
+};
+
 const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
   const existingTurn = state.turnsById[turn.id];
   if (existingTurn == null) {
@@ -560,6 +571,7 @@ export const transcriptStateSlice = createAppSlice({
           case "itemCompleted": {
             const { item, turnId } = notification.event.notification;
             ensureTurnExists(state, turnId);
+            settleLiveSlotIfPresent(state, turnId, item);
             const entry = materializeTranscriptItem(item, turnId);
             if (entry != null) {
               upsertLiveCommittedEntry(state, entry);
