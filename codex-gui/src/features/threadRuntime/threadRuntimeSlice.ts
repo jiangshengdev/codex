@@ -121,7 +121,7 @@ export const threadRuntimeSlice = createAppSlice({
       },
     ),
     threadRuntimeDeltaAccepted: create.reducer(
-      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltaPayload>) => {},
+      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltaPayload>) => undefined,
     ),
     threadRuntimeEventBuffered: create.reducer(
       (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {

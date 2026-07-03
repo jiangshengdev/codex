@@ -581,13 +581,8 @@ export const transcriptStateSlice = createAppSlice({
           return;
         }
 
-        switch (notification.delta.type) {
-          case "agentMessage": {
-            const { turnId, itemId, delta } = notification.delta.notification;
-            appendAgentMessageDeltaToLiveSlot(state, turnId, itemId, delta);
-            return;
-          }
-        }
+        const { turnId, itemId, delta } = notification.delta.notification;
+        appendAgentMessageDeltaToLiveSlot(state, turnId, itemId, delta);
       })
       .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
         if (state.threadId !== action.payload.threadId) {

@@ -109,10 +109,6 @@ export const agentMessageDelta = (
   itemId: string,
   delta: string,
 ): ThreadProjectionDeltaNotification => {
-  if (eventAgentMessageDelta.delta.type !== "agentMessage") {
-    throw new Error("fixture must contain an agentMessage projection delta");
-  }
-
   return {
     ...eventAgentMessageDelta,
     delta: {
