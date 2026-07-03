@@ -1,6 +1,7 @@
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 
@@ -92,6 +93,21 @@ export function isThreadProjectionClosedNotification(
   );
 }
 
+export function isThreadProjectionDeltaNotification(
+  value: unknown,
+): value is ThreadProjectionDeltaNotification {
+  if (
+    !isRecord(value) ||
+    typeof value.threadId !== "string" ||
+    typeof value.subscriptionId !== "string"
+  ) {
+    return false;
+  }
+
+  const delta = value.delta;
+  return isThreadProjectionDelta(delta);
+}
+
 function isThreadProjectionEvent(value: unknown): boolean {
   if (!isRecord(value) || typeof value.type !== "string" || !isRecord(value.notification)) {
     return false;
@@ -132,6 +148,28 @@ function isProjectionTurn(value: unknown): boolean {
 
 function isProjectionItem(value: unknown): boolean {
   return isRecord(value) && typeof value.id === "string";
+}
+
+function isThreadProjectionDelta(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.type !== "string" || !isRecord(value.notification)) {
+    return false;
+  }
+
+  switch (value.type) {
+    case "agentMessage":
+      return isAgentMessageDeltaNotification(value.notification);
+    default:
+      return false;
+  }
+}
+
+function isAgentMessageDeltaNotification(value: Record<string, unknown>): boolean {
+  return (
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    typeof value.itemId === "string" &&
+    typeof value.delta === "string"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

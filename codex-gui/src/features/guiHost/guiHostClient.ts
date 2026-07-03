@@ -1,6 +1,7 @@
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   TurnInterruptParams,
   TurnInterruptResponse,
@@ -11,6 +12,7 @@ import {
   formatRpcId,
   isThreadProjectionAttachResponse,
   isThreadProjectionClosedNotification,
+  isThreadProjectionDeltaNotification,
   isThreadProjectionEventNotification,
   parseRpcMessage,
   type RpcMessage,
@@ -42,6 +44,7 @@ export type StartGuiHostConnectionOptions = {
   onStatus?: (status: GuiHostStatus) => void;
   onLaunchParams?: (params: LaunchParams) => void;
   onProjectionAttached?: (response: ThreadProjectionAttachResponse) => void;
+  onProjectionDelta?: (notification: ThreadProjectionDeltaNotification) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
   onProjectionClosed?: (notification: ThreadProjectionClosedNotification) => void;
   onCommandsReady?: (commands: GuiHostCommands) => void;
@@ -95,6 +98,7 @@ export function startGuiHostConnection({
   onStatus,
   onLaunchParams,
   onProjectionAttached,
+  onProjectionDelta,
   onProjectionEvent,
   onProjectionClosed,
   onCommandsReady,
@@ -334,6 +338,19 @@ export function startGuiHostConnection({
 
       const notification = message.params;
       onProjectionEvent?.(notification);
+    }
+
+    if (message.method === "thread/projection/delta") {
+      if (!isThreadProjectionDeltaNotification(message.params)) {
+        failProtocolAndClose(
+          "thread/projection/delta returned malformed params payload",
+          "protocol error",
+        );
+        return;
+      }
+
+      const notification = message.params;
+      onProjectionDelta?.(notification);
     }
 
     if (message.method === "thread/projection/closed") {
