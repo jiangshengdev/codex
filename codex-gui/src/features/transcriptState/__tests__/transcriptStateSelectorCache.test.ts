@@ -250,4 +250,64 @@ describe("transcript state selector cache", () => {
       "agent-live-cache-second",
     ]);
   });
+
+  it("returns a new live item view when itemCompleted settles an existing slot", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-live-cache-settled", "");
+    const completedItem = agentMessage(
+      "agent-live-cache-settled",
+      "Completed cache answer",
+      "final_answer",
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-cache-settled-started",
+          "turn-live-cache-settled",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const beforeSettlement = selectTranscriptLiveItemsForTurn(
+      store.getState(),
+      "turn-live-cache-settled",
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-live-cache-settled-completed",
+          "turn-live-cache-settled",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const afterSettlement = selectTranscriptLiveItemsForTurn(
+      store.getState(),
+      "turn-live-cache-settled",
+    );
+
+    expect(afterSettlement).not.toBe(beforeSettlement);
+    expect(afterSettlement).toStrictEqual([
+      {
+        key: "turn-live-cache-settled:agent-live-cache-settled",
+        turnId: "turn-live-cache-settled",
+        itemId: "agent-live-cache-settled",
+        status: "completed",
+        initialItem,
+        transientText: "",
+        completedItem,
+        revision: 1,
+      },
+    ]);
+  });
 });
