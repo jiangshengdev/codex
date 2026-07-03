@@ -656,6 +656,54 @@ describe("transcript state live events reducer", () => {
     );
   });
 
+  it("ignores snapshot duplicate itemStarted and itemCompleted without touching live slots", () => {
+    const store = makeStore();
+    const snapshotItem = agentMessage("agent-snapshot-duplicate-live", "Already attached");
+    const snapshotTurn = baseTurn("turn-snapshot-duplicate-live", [snapshotItem]);
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const beforeTurn = selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live");
+    const beforeEntry = selectTranscriptEntry(
+      store.getState(),
+      "agent-snapshot-duplicate-live",
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-duplicate-started",
+          "turn-snapshot-duplicate-live",
+          snapshotItem,
+        ),
+        replay: "snapshotDuplicate",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-duplicate-completed",
+          "turn-snapshot-duplicate-live",
+          agentMessage("agent-snapshot-duplicate-live", "Replay ignored"),
+        ),
+        replay: "snapshotDuplicate",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-snapshot-duplicate-live"),
+    ).toStrictEqual([]);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+    expect(selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live")).toStrictEqual(
+      beforeTurn,
+    );
+    expect(selectTranscriptEntry(store.getState(), "agent-snapshot-duplicate-live")).toStrictEqual(
+      beforeEntry,
+    );
+  });
+
   it("updates turn terminal status from live turnCompleted", () => {
     const store = makeStore();
 
