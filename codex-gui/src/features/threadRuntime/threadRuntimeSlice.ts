@@ -121,7 +121,8 @@ export const threadRuntimeSlice = createAppSlice({
       },
     ),
     threadRuntimeDeltaAccepted: create.reducer(
-      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltaPayload>) => undefined,
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- Accepted projection deltas are a cross-slice signal; runtime intentionally does not mutate buffers.
+      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltaPayload>) => {},
     ),
     threadRuntimeEventBuffered: create.reducer(
       (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {
