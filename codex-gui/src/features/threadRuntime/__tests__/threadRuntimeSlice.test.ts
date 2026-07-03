@@ -3,6 +3,7 @@ import { makeStore } from "@/app/store";
 import {
   attachBaseline,
   attachReplacement,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
   eventTurnCompleted,
@@ -26,6 +27,7 @@ import {
   selectThreadRuntimeThreadId,
   snapshotReplayIndexFromTurns,
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
   threadRuntimeSlice,
@@ -38,6 +40,7 @@ const reduce = (
   state: ThreadRuntimeState | undefined,
   action:
     | ReturnType<typeof threadRuntimeAttached>
+    | ReturnType<typeof threadRuntimeDeltaAccepted>
     | ReturnType<typeof threadRuntimeEventBuffered>
     | ReturnType<typeof threadRuntimeManualReconnectRequired>,
 ) => threadRuntimeSlice.reducer(state, action);
@@ -185,6 +188,16 @@ describe("thread runtime reducer", () => {
       { type: "projectionEvent", notification: eventItemStarted, replay: "live" },
       { type: "projectionEvent", notification: eventItemCompleted, replay: "live" },
     ]);
+  });
+
+  it("exports accepted projection delta actions without mutating runtime buffers", () => {
+    const state = reduce(undefined, threadRuntimeAttached(attachBaseline));
+    const nextState = reduce(
+      state,
+      threadRuntimeDeltaAccepted({ notification: eventAgentMessageDelta }),
+    );
+
+    expect(nextState).toStrictEqual(state);
   });
 
   it("marks live turn events already present in the attach snapshot as snapshot duplicates", () => {

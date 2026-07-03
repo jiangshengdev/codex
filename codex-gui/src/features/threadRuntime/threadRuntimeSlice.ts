@@ -4,6 +4,7 @@ import type { ProjectionManualReconnectReason } from "@/features/projectionIngre
 import type {
   Thread,
   ThreadProjectionAttachResponse,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   Turn,
 } from "@codex-protocol/v2";
@@ -21,6 +22,10 @@ export type ThreadRuntimeEventReplay = "live" | "snapshotDuplicate";
 export type ThreadRuntimeProjectionEventPayload = {
   notification: ThreadProjectionEventNotification;
   replay: ThreadRuntimeEventReplay;
+};
+
+export type ThreadRuntimeProjectionDeltaPayload = {
+  notification: ThreadProjectionDeltaNotification;
 };
 
 export type ThreadRuntimeBufferedEvent = {
@@ -115,6 +120,9 @@ export const threadRuntimeSlice = createAppSlice({
         };
       },
     ),
+    threadRuntimeDeltaAccepted: create.reducer(
+      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltaPayload>) => {},
+    ),
     threadRuntimeEventBuffered: create.reducer(
       (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {
         const runtime = state.current;
@@ -184,6 +192,7 @@ export const threadRuntimeSlice = createAppSlice({
 
 export const {
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } = threadRuntimeSlice.actions;
