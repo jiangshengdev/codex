@@ -119,7 +119,7 @@ test("renders assistant transcript markdown", async () => {
   expect(markdown.querySelector("ul")?.textContent).toContain("First item");
   expect(markdown.querySelector("ol")?.textContent).toContain("First ordered item");
   const softBreakParagraph = Array.from(markdown.querySelectorAll("p")).find((paragraph) =>
-    paragraph.textContent?.includes("Soft line one"),
+    paragraph.textContent.includes("Soft line one"),
   );
   expect(softBreakParagraph?.textContent).toContain("Soft line one\nSoft line two");
   expect(softBreakParagraph ? window.getComputedStyle(softBreakParagraph).whiteSpace : null).toBe(
