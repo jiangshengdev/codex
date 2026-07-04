@@ -27,6 +27,14 @@ export type ComposerTurnControlProps = {
   launchParams: LaunchParams | null;
 };
 
+function isMacAppleWebKitRuntime(): boolean {
+  return (
+    navigator.vendor === "Apple Computer, Inc." &&
+    navigator.platform === "MacIntel" &&
+    navigator.maxTouchPoints <= 1
+  );
+}
+
 export function ComposerTurnControl({
   commands,
   guiHostStatus,
@@ -40,6 +48,7 @@ export function ComposerTurnControl({
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
   const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
+  const shouldGuardCompositionEndEnter = isMacAppleWebKitRuntime();
 
   const connectionUsable =
     commands != null &&
@@ -108,7 +117,7 @@ export function ComposerTurnControl({
   const onCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
     const wasComposing = isComposingRef.current;
     isComposingRef.current = false;
-    if (wasComposing) {
+    if (wasComposing && shouldGuardCompositionEndEnter) {
       suppressNextEnterRef.current = true;
     }
     setDraft(event.currentTarget.value);
@@ -134,12 +143,6 @@ export function ComposerTurnControl({
     void submit();
   };
 
-  const onKeyUp = (): void => {
-    if (suppressNextEnterRef.current) {
-      suppressNextEnterRef.current = false;
-    }
-  };
-
   return (
     <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 pt-3 pb-0">
       <Surface
@@ -155,7 +158,6 @@ export function ComposerTurnControl({
           onCompositionEnd={onCompositionEnd}
           onCompositionStart={onCompositionStart}
           onKeyDown={onKeyDown}
-          onKeyUp={onKeyUp}
           placeholder="Message Codex"
           value={draft}
           variant="primary"

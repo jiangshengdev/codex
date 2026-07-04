@@ -7,6 +7,8 @@
 - 稳定事实二：Safari 最新版本中，Enter 确认候选后 `compositionend` 紧贴 `keydown Enter`，这一下会被当前 guard 吞掉；后续再次 Enter 才真实发送。
 - 稳定事实三：Chrome 中，空格确认候选后约 905ms 的 `keydown Enter` 是真实发送，但当前 guard 会误吞。
 - 稳定事实四：Chrome 中，Enter 确认候选后没有紧贴 `compositionend` 的尾随 `keydown Enter`；约 520ms 后的 `keydown Enter` 是真实发送，但当前 guard 会误吞。
+- 2026-07-05 补充：iOS Safari 虚拟键盘路径和 macOS Safari 硬件键盘/系统 IME 路径不能合并为同一类；浏览器/平台分支可以作为确定性条件，时间差阈值不应作为主判断依据。
+- 2026-07-05 补充：当前回退后的代码仍是 `compositionend` 后设置 `suppressNextEnterRef`，但 `keyup` 会清掉该 guard；这会让 macOS Safari 的 `compositionend -> keyup Enter -> keydown Enter` 路径重新落到 `submit`。
 
 ## 现象
 
@@ -139,6 +141,34 @@
 - Chrome 中 Enter 确认候选不会产生同类紧贴尾随 Enter；后续相隔约 `520ms` 的 Enter 应发送。
 - 因此 guard 应按 `compositionend` 与后续 `keydown Enter` 的时间距离收窄，而不是在所有 `compositionend` 后吞下一次 Enter。
 
+### 2026-07-05 追加到 2026-07-04 历史：iOS 与 macOS Safari 分歧
+
+背景：用户要求在手机 Safari 远程调试界面中给 `ComposerTurnControl.tsx` 增加无条件 `[ime]` 日志，并用 iOS Safari 虚拟键盘重新观察输入法事件。
+
+已观察到的 iOS Safari 日志尾段：
+
+1. `compositionend:before`。
+2. `compositionend:after`。
+3. `keydown:suppressed-next-enter`，`key: "Enter"`。
+4. 后续再次出现 `keydown:submit`，`key: "Enter"`。
+
+结论：在 iOS Safari 虚拟键盘路径下，`compositionend` 后出现的 Enter 可能是用户发送意图；把所有 `compositionend` 后的下一次 Enter 都作为候选确认尾随事件吞掉，会导致 iOS 需要按两次发送。
+
+随后试过的思路：用 `lastCompositionKeyRef` 只在组合态内最后一次 key 是 `Enter` 时才 suppress `compositionend` 后的 Enter。用户反馈该方向让 iOS Safari 路径恢复正常，但代码回退后，macOS Safari 又出现“按回车选词后直接发送”。
+
+当前回退代码的风险点：
+
+1. `onCompositionEnd` 在 `wasComposing` 时设置 `suppressNextEnterRef.current = true`。
+2. `onKeyUp` 只要看到 `suppressNextEnterRef.current` 为 true 就清掉它。
+3. 如果 macOS Safari 的真实顺序是 `compositionend -> keyup Enter -> keydown Enter`，`keyup` 会先清掉 guard，后续 `keydown Enter` 就会进入 `submit`。
+
+约束更新：
+
+- 允许使用浏览器/平台判断，因为浏览器事件模型相对确定；不要把 iOS Safari、macOS Safari 和 Chrome 合并成同一个 IME Enter 路径。
+- 不应优先使用时间差阈值作为主判断，因为它会把浏览器事件模型和人类再次按 Enter 的手速混在一起。
+- 后续方案应优先考虑确定性分支：例如仅对桌面 Safari 的候选确认尾随 Enter 保留 suppress，而 iOS Safari 虚拟键盘和 Chrome 不走同一条 suppress 路径。
+- `keyup` 不应作为清理桌面 Safari 尾随 Enter guard 的核心依据；它可能发生在需要吞掉的尾随 `keydown Enter` 之前。
+
 ### 对照日志采集状态
 
 已完成四组稳定对照日志采集：
@@ -147,3 +177,4 @@
 2. Safari + Enter 确认候选。
 3. Chrome + Space 确认候选。
 4. Chrome + Enter 确认候选。
+5. iOS Safari 虚拟键盘补充观察：已有远程 Web Inspector `[ime]` 日志证明无条件 `compositionend` 后 suppress 会误吞发送 Enter，但仍缺一组与最终修复方案绑定的完整稳定对照日志。
