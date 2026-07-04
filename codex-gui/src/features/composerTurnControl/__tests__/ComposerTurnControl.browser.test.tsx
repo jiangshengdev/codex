@@ -158,13 +158,29 @@ test("uses Enter to send and Shift Enter to insert newline", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
+  const setComposerText = async (value: string): Promise<void> => {
+    const textarea = composer.element();
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      throw new Error("composer textarea must render");
+    }
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )?.set;
+    if (valueSetter == null) {
+      throw new Error("textarea value setter must exist");
+    }
+    valueSetter.call(textarea, value);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    await expect.element(composer).toHaveValue(value);
+  };
 
-  await composer.fill("Line 1");
+  await setComposerText("Line 1");
   await composer.click();
   await screen.user.keyboard("{Shift>}{Enter}{/Shift}");
   await expect.element(composer).toHaveValue("Line 1\n");
 
-  await composer.fill("Line 1");
+  await setComposerText("Line 1");
   await composer.click();
   await screen.user.keyboard("{Enter}");
 
@@ -178,7 +194,7 @@ test("keeps composing Enter from sending draft", async () => {
 
   await composer.fill("正在输入");
   await composer.click();
-  composer.element().dispatchEvent(
+  const eventAllowed = composer.element().dispatchEvent(
     new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
@@ -187,8 +203,42 @@ test("keeps composing Enter from sending draft", async () => {
     }),
   );
 
+  expect(eventAllowed).toBe(true);
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
   await expect.element(composer).toHaveValue("正在输入");
+});
+
+test("keeps the Enter that confirms a completed composition from sending draft", async () => {
+  const commandHandle = createGuiHostCommands();
+  const screen = await renderAttached(commandHandle);
+  const composer = screen.getByPlaceholder("Message Codex");
+  const textarea = composer.element();
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    throw new Error("composer textarea must render");
+  }
+
+  await composer.click();
+  textarea.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  textarea.value = "你好呀";
+  textarea.dispatchEvent(
+    new CompositionEvent("compositionend", {
+      bubbles: true,
+      data: "你好呀",
+    }),
+  );
+  await expect.element(composer).toHaveValue("你好呀");
+
+  await screen.user.keyboard("{Enter}");
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
+  await expect.element(composer).toHaveValue("你好呀");
+
+  await screen.user.keyboard("{Enter}");
+  expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
+  expect(commandHandle.startTurn).toHaveBeenCalledWith({
+    threadId,
+    clientUserMessageId: null,
+    input: [{ type: "text", text: "你好呀", text_elements: [] }],
+  });
 });
 
 test("active turn disables Send and enables Stop", async () => {
