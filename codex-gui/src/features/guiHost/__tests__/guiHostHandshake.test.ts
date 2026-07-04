@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   attachBaseline,
   closedBackpressure,
+  eventAgentMessageDelta,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 import { startGuiHostConnection, type LaunchParams } from "../guiHostClient";
@@ -28,10 +30,12 @@ describe("guiHostClient handshake", () => {
     const statuses: string[] = [];
     const attached: ThreadProjectionAttachResponse[] = [];
     const projectionEvents: ThreadProjectionEventNotification[] = [];
+    const projectionDeltas: ThreadProjectionDeltaNotification[] = [];
     const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
     const launchParams: LaunchParams[] = [];
     const attachResponse = attachBaseline;
     const projectionEvent = eventTurnStarted;
+    const projectionDelta = eventAgentMessageDelta;
     const projectionClosed = closedBackpressure;
 
     startGuiHostConnection({
@@ -52,6 +56,9 @@ describe("guiHostClient handshake", () => {
       },
       onProjectionEvent: (notification) => {
         projectionEvents.push(notification);
+      },
+      onProjectionDelta: (notification) => {
+        projectionDeltas.push(notification);
       },
       onProjectionClosed: (notification) => {
         projectionClosedNotifications.push(notification);
@@ -78,6 +85,13 @@ describe("guiHostClient handshake", () => {
     socket.onmessage?.({
       data: JSON.stringify({
         jsonrpc: "2.0",
+        method: "thread/projection/delta",
+        params: projectionDelta,
+      }),
+    });
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
         method: "thread/projection/closed",
         params: projectionClosed,
       }),
@@ -94,6 +108,7 @@ describe("guiHostClient handshake", () => {
     ]);
     expect(attached).toEqual([attachResponse]);
     expect(projectionEvents).toEqual([projectionEvent]);
+    expect(projectionDeltas).toEqual([projectionDelta]);
     expect(projectionClosedNotifications).toEqual([projectionClosed]);
   });
 
@@ -157,6 +172,49 @@ describe("guiHostClient handshake", () => {
     expect(statuses.at(-1)).toEqual({
       label: "error",
       message: "thread/projection/event returned malformed params payload",
+    });
+  });
+
+  it("reports malformed projection delta payloads without forwarding them", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const projectionDeltas: ThreadProjectionDeltaNotification[] = [];
+    const attachResponse = attachBaseline;
+
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse,
+      onStatus,
+      onProjectionDelta: (notification) => {
+        projectionDeltas.push(notification);
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    sendAttachResult(socket, attachResponse);
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/projection/delta",
+        params: {
+          threadId: attachResponse.snapshot.thread.id,
+          subscriptionId: attachResponse.subscriptionId,
+          delta: {
+            type: "agentMessage",
+            notification: {
+              threadId: attachResponse.snapshot.thread.id,
+              turnId: "turn-1",
+              itemId: "item-1",
+            },
+          },
+        },
+      }),
+    });
+
+    expect(projectionDeltas).toEqual([]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "thread/projection/delta returned malformed params payload",
     });
   });
 

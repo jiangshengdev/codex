@@ -3,6 +3,7 @@ import {
   attachBaseline,
   attachReplacement,
   closedBackpressure,
+  eventAgentMessageDelta,
   eventItemStarted,
   eventSubscriptionReplacement,
   eventTurnStarted,
@@ -10,6 +11,7 @@ import {
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   Turn,
 } from "@codex-protocol/v2";
@@ -22,6 +24,14 @@ const deriveEvent = (
   overrides: Partial<ThreadProjectionEventNotification>,
 ): ThreadProjectionEventNotification => ({
   ...event,
+  ...overrides,
+});
+
+const deriveDelta = (
+  delta: ThreadProjectionDeltaNotification,
+  overrides: Partial<ThreadProjectionDeltaNotification>,
+): ThreadProjectionDeltaNotification => ({
+  ...delta,
   ...overrides,
 });
 
@@ -61,6 +71,20 @@ describe("ProjectionIngressAdapter", () => {
     });
   });
 
+  it("accepts matching projection deltas without advancing the commit chain", () => {
+    const adapter = new ProjectionIngressAdapter(projectionThreadId);
+    adapter.handleAttach(attachBaseline);
+
+    expect(adapter.handleDelta(eventAgentMessageDelta)).toStrictEqual({
+      type: "deltaAccepted",
+      notification: eventAgentMessageDelta,
+    });
+    expect(adapter.handleEvent(eventTurnStarted)).toStrictEqual({
+      type: "eventAccepted",
+      notification: eventTurnStarted,
+    });
+  });
+
   it("ignores wrong-thread events", () => {
     const adapter = new ProjectionIngressAdapter(projectionThreadId);
     adapter.handleAttach(attachBaseline);
@@ -82,6 +106,26 @@ describe("ProjectionIngressAdapter", () => {
       type: "ignored",
       reason: "staleSubscription",
     });
+  });
+
+  it("ignores wrong-thread and stale-subscription deltas", () => {
+    const adapter = new ProjectionIngressAdapter(projectionThreadId);
+    adapter.handleAttach(attachBaseline);
+
+    expect(
+      adapter.handleDelta(
+        deriveDelta(eventAgentMessageDelta, {
+          threadId: "00000000-0000-0000-0000-000000000099",
+        }),
+      ),
+    ).toStrictEqual({ type: "ignored", reason: "wrongThread" });
+    expect(
+      adapter.handleDelta(
+        deriveDelta(eventAgentMessageDelta, {
+          subscriptionId: "projection-fixture-replacement-subscription",
+        }),
+      ),
+    ).toStrictEqual({ type: "ignored", reason: "staleSubscription" });
   });
 
   it("ignores duplicate latest commit events", () => {
@@ -152,6 +196,17 @@ describe("ProjectionIngressAdapter", () => {
     adapter.handleEvent(eventItemStarted);
 
     expect(adapter.handleEvent(eventTurnStarted)).toStrictEqual({
+      type: "ignored",
+      reason: "alreadyRequiresManualReconnect",
+    });
+  });
+
+  it("ignores deltas after manual reconnect is required", () => {
+    const adapter = new ProjectionIngressAdapter(projectionThreadId);
+    adapter.handleAttach(attachBaseline);
+    adapter.handleClosed(closed());
+
+    expect(adapter.handleDelta(eventAgentMessageDelta)).toStrictEqual({
       type: "ignored",
       reason: "alreadyRequiresManualReconnect",
     });

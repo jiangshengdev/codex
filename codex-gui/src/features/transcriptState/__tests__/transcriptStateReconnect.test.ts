@@ -2,24 +2,31 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
+  eventAgentMessageDelta,
   eventItemCompleted,
+  eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,
+  selectTranscriptLiveItem,
+  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
+  agentMessageDelta,
   attachWithTurns,
   baseTurn,
   itemCompleted,
+  itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state reconnect reducer", () => {
@@ -107,5 +114,97 @@ describe("transcript state reconnect reducer", () => {
       finalAssistantEntryIds: ["agent-after", "agent-live-after"],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
+
+  it("preserves live slots during manual reconnect and clears them on replacement attach", () => {
+    const store = makeStore();
+    const initialItem = agentMessage("agent-reconnect-live", "");
+    const completedItem = agentMessage("agent-reconnect-live", "Completed before reconnect");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-reconnect-started",
+          "turn-reconnect-live",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-reconnect-live",
+          "agent-reconnect-live",
+          "Partial",
+        ),
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-reconnect-completed",
+          "turn-reconnect-live",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    store.dispatch(
+      threadRuntimeManualReconnectRequired({
+        reason: "backpressure",
+        threadId: attachBaseline.snapshot.thread.id,
+        subscriptionId: attachBaseline.subscriptionId,
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-reconnect-live", "agent-reconnect-live"),
+    ).toMatchObject({
+      status: "completed",
+      transientText: "Partial",
+      completedItem,
+    });
+    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
+      {
+        id: `subscriptionInterrupted:${attachBaseline.snapshot.thread.id}:${attachBaseline.subscriptionId}:backpressure`,
+        status: "subscriptionInterrupted",
+        reason: "backpressure",
+        subscriptionId: attachBaseline.subscriptionId,
+      },
+    ]);
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-after-reconnect", [
+            agentMessage("agent-after-reconnect", "After reconnect"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-reconnect-live")).toStrictEqual(
+      [],
+    );
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-after-reconnect"),
+    ).toStrictEqual([]);
+    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+    expect(selectTranscriptEntry(store.getState(), "agent-after-reconnect")).toStrictEqual({
+      type: "message",
+      id: "agent-after-reconnect",
+      turnId: "turn-after-reconnect",
+      role: "assistant",
+      source: "After reconnect",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 0,
+    });
   });
 });
