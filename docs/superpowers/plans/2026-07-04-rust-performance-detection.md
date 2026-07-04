@@ -4,7 +4,7 @@
 
 **Goal:** Execute a Rust-only performance detection pass for current `dev` against `rust-v0.142.0`, using subagents for all analysis and producing file-split summary reports.
 
-**Architecture:** The controller coordinates small read-only subagent investigations, updates research after each batch, and writes final reports under `docs/superpowers/reports/2026-07-04-rust-performance-detection/`. Each task covers one narrow risk path or output file and must distinguish known issue status from new findings.
+**Architecture:** The controller coordinates small read-only subagent investigations, updates research after each batch, and writes final reports under `docs/superpowers/reports/2026-07-04-rust-performance-detection/`. Each task covers one narrow risk path or output file, focuses on time/space complexity risks rather than constant overhead, and must distinguish known issue status from new findings.
 
 **Tech Stack:** Git read-only diff/stat commands, Rust source inspection, `docs/superpowers/issues/**`, `docs/superpowers/research/**`, optional narrow `just test -p <crate> <filter>` only when explicitly authorized during execution.
 
@@ -35,6 +35,13 @@ Execution must not modify Rust source files. If a subagent finds a likely bug, r
 - Do not run benchmark, full test, crate-wide test, schema generation, snapshot accept, formatting, or install commands unless the user explicitly authorizes that exact command shape during execution.
 - Do not analyze `codex-gui/**`.
 - Do not report known issues as new findings.
+- Treat performance as time/space complexity risk, not constant-factor tuning.
+- Only report risks attributable to current `dev` changes relative to `rust-v0.142.0`.
+- Exclude upstream baseline performance problems, no matter how severe, when current `dev` did not introduce, amplify, expose, or change them.
+- If attribution to current `dev` is unclear, mark the item as `证据不足` and state the missing diff or call-chain evidence instead of reporting it as confirmed.
+- Each subagent must identify the relevant scale variables, such as history items, events, threads, subscribers, connections, messages, queue depth, or retained map entries.
+- Deprioritize constant-only details such as one-time URL construction, one-time argument parsing, small fixed JSON serialization, or fixed host startup steps.
+- Record constant costs only when they sit inside a hot loop or repeat with a growing scale variable.
 - Update `execution-log.md` before and after every task.
 - Update `current-findings.md` whenever a task produces stable planning or detection conclusions.
 
@@ -54,6 +61,12 @@ Every subagent must return exactly these sections:
 ## 下一阶段建议
 ```
 
+The `结论` or `风险` section must explicitly state:
+
+- the scale variable;
+- whether the finding is a complexity risk, unbounded growth risk, constant-only cost, or evidence gap;
+- whether the risk is attributable to current `dev` changes relative to `rust-v0.142.0`.
+
 If command execution is explicitly authorized later, the subagent may add `### 命令输出摘要` under `关键证据路径/行号`.
 
 ## Report Entry Status Values
@@ -67,6 +80,9 @@ Use only these status values in final reports:
 - `新发现`
 - `证据不足`
 - `排除`
+
+Do not use `新发现` for constant-only slowdowns unless the slowdown repeats with a growing scale variable.
+Do not use `新发现` for upstream baseline issues unless current `dev` introduced, amplified, exposed, or changed the issue.
 
 ## Task 1: Preflight And Report Skeleton
 
@@ -534,6 +550,10 @@ Confirm every finding is tagged as known issue status, new finding, or evidence 
 
 Confirm `execution-log.md` records no benchmark, full test, crate-wide test, schema generation, snapshot accept, install, or git remote command unless the user explicitly authorized it during execution.
 
-- [ ] **Step 5: Final handoff**
+- [ ] **Step 5: Verify dev-increment attribution**
+
+Confirm every reported risk is attributable to current `dev` changes relative to `rust-v0.142.0`, or is explicitly marked `证据不足`. Confirm baseline-only upstream issues are excluded even if severe.
+
+- [ ] **Step 6: Final handoff**
 
 Report the created files and say whether any items remain `证据不足`. Do not stage or commit unless the user explicitly asks.
