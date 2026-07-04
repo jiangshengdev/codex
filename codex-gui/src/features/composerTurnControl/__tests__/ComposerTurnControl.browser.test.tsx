@@ -280,6 +280,45 @@ test("clears completed composition suppression on the next non Enter keydown", a
   });
 });
 
+test.each([" ", "Enter"])("clears completed composition suppression on keyup %s", async (key) => {
+  const commandHandle = createGuiHostCommands();
+  const screen = await renderAttached(commandHandle);
+  const composer = screen.getByPlaceholder("Message Codex");
+  const textarea = composer.element();
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    throw new Error("composer textarea must render");
+  }
+
+  await composer.click();
+  textarea.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  textarea.value = "你好呀";
+  textarea.dispatchEvent(
+    new CompositionEvent("compositionend", {
+      bubbles: true,
+      data: "你好呀",
+    }),
+  );
+  await expect.element(composer).toHaveValue("你好呀");
+
+  const keyupAllowed = textarea.dispatchEvent(
+    new KeyboardEvent("keyup", {
+      bubbles: true,
+      cancelable: true,
+      key,
+    }),
+  );
+  expect(keyupAllowed).toBe(true);
+
+  await screen.user.keyboard("{Enter}");
+
+  expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
+  expect(commandHandle.startTurn).toHaveBeenCalledWith({
+    threadId,
+    clientUserMessageId: null,
+    input: [{ type: "text", text: "你好呀", text_elements: [] }],
+  });
+});
+
 test("active turn disables Send and enables Stop", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);

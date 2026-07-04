@@ -2,8 +2,11 @@
 
 ## 状态
 
-- 已修复，并已添加浏览器回归测试。
-- 仍建议在真实移动端或桌面 IME 中做一次手动验证。
+- 已确认需要重新采集真实浏览器 IME 事件序列：上下文压缩前后的早期记录可能混入误读，只把用户重新发送并确认准确的完整日志作为稳定事实。
+- 稳定事实一：Safari 最新版本中，空格确认候选后同一时间片出现的是 `keydown Space`，约 1 秒后的 `keydown Enter` 是真实发送。
+- 稳定事实二：Safari 最新版本中，Enter 确认候选后 `compositionend` 紧贴 `keydown Enter`，这一下会被当前 guard 吞掉；后续再次 Enter 才真实发送。
+- 稳定事实三：Chrome 中，空格确认候选后约 905ms 的 `keydown Enter` 是真实发送，但当前 guard 会误吞。
+- 稳定事实四：Chrome 中，Enter 确认候选后没有紧贴 `compositionend` 的尾随 `keydown Enter`；约 520ms 后的 `keydown Enter` 是真实发送，但当前 guard 会误吞。
 
 ## 现象
 
@@ -26,3 +29,121 @@
 
 - 用真实中文、日文或韩文 IME 手动验证组合态 Enter 不发送消息。
 - 保持现有自动化覆盖：composing Enter 不发送，普通 Enter 发送，Shift+Enter 换行。
+
+## 2026-07-04 真实浏览器调试记录
+
+### 稳定事实：Safari + 空格确认候选
+
+浏览器：Safari 最新版本。
+输入法：macOS 自带中文拼音。
+输入内容：`你好呀`。
+操作方式：用 Space 确认候选，再按 Enter 发送。
+来源：用户重新发送并明确确认准确的完整日志；该组日志作为当前唯一稳定事实。
+
+关键尾段：
+
+1. `input` 发生在 `1039961`，随后 `change:before` 发生在 `1039961`，`change:after` 发生在 `1039962`。
+2. `beforeinput` 发生在 `1039968`。
+3. `input` 发生在 `1039969`，随后 `change:before` 和 `change:after` 都发生在 `1039969`。
+4. `compositionend:before` 发生在 `1039971`。
+5. `compositionend:after` 发生在 `1039972`。
+6. 同一时间片出现 `keydown Space`，发生在 `1039972`，组件记录为 `keydown:ignored-cleared-suppress`。
+7. `keyup Space` 发生在 `1040076`。
+8. 约 `1118ms` 后出现 `keydown Enter`，发生在 `1041090`，组件记录为 `keydown:submit`。
+9. `keyup Enter` 发生在 `1041188`。
+
+结论：Safari 的空格确认候选不会产生紧贴 `compositionend` 的尾随 Enter。后续相隔明显时间的 Enter 是用户真实发送意图，应正常 submit。
+
+### 稳定事实：Safari + Enter 确认候选
+
+浏览器：Safari 最新版本。
+输入法：macOS 自带中文拼音。
+输入内容：`你好呀`。
+操作方式：用 Enter 确认候选，再按 Enter 发送。
+来源：用户重新发送并明确确认准确的完整日志；该组日志作为当前稳定事实。
+
+关键尾段：
+
+1. 组合态内 `keydown Enter` 发生在 `1408054`，组件随后在 `1408055` 记录为 `keydown:composing-return`。
+2. `keyup Enter` 发生在 `1408091`。
+3. 后续仍出现候选导航 keydown，包括 `ArrowDown`、`ArrowRight`、`ArrowLeft`。
+4. 组合态内第二次 `keydown Enter` 发生在 `1409769`，组件同一时间记录为 `keydown:composing-return`。
+5. `keyup Enter` 发生在 `1409819`。
+6. 之后仍出现 `ArrowRight`、`ArrowLeft` 等候选导航 keydown。
+7. `input` 发生在 `1411193`，随后 `change:before` 和 `change:after` 都发生在 `1411194`。
+8. `beforeinput` 发生在 `1411202`。
+9. `input`、`change:before`、`change:after` 都发生在 `1411203`。
+10. `compositionend:before` 和 `compositionend:after` 都发生在 `1411206`。
+11. 紧贴的 `keydown Enter` 发生在 `1411207`，组件记录为 `keydown:suppressed-next-enter`。
+12. `keyup Enter` 发生在 `1411270`。
+13. 约 `499ms` 后再次出现 `keydown Enter`，发生在 `1411705`，组件在 `1411706` 记录为 `keydown:submit`。
+14. `keyup Enter` 发生在 `1411775`。
+
+结论：Safari 的 Enter 确认候选会在 `compositionend` 后约 `1ms` 产生尾随 `keydown Enter`。这一下不是发送意图，应被吞掉；后续相隔明显时间的 Enter 才是用户真实发送。
+
+### 稳定事实：Chrome + 空格确认候选
+
+浏览器：Chrome。
+输入法：macOS 自带中文拼音。
+输入内容：`你好呀`。
+操作方式：用 Space 确认候选，再按 Enter 发送。
+来源：用户重新发送的完整 Chrome 控制台日志；该组日志作为当前稳定事实。
+
+关键尾段：
+
+1. 最后一次 `keydown Space` 发生在 `1045694`，组件在 `1045695` 记录为 `keydown:ignored-cleared-suppress`。
+2. `beforeinput` 发生在 `1045696`。
+3. `input` 发生在 `1045697`，随后 `change:before` 发生在 `1045697`，`change:after` 发生在 `1045698`。
+4. `compositionend:before` 和 `compositionend:after` 都发生在 `1045708`。
+5. `keyup Space` 发生在 `1045771`。
+6. 约 `905ms` 后出现 `keydown Enter`，发生在 `1046613`，组件记录为 `keydown:suppressed-next-enter`。
+7. `keyup Enter` 发生在 `1046676`。
+8. 约 `786ms` 后再次出现 `keydown Enter`，发生在 `1047494`，组件在 `1047495` 记录为 `keydown:submit`。
+9. `keyup Enter` 发生在 `1047547`。
+
+结论：Chrome 的空格确认候选后，后续相隔约 `905ms` 的 Enter 是用户真实发送意图，但当前“compositionend 后无条件吞下一次 Enter”的 guard 会误吞，导致 Chrome 下需要按两次 Enter 才发送。
+
+### 稳定事实：Chrome + Enter 确认候选
+
+浏览器：Chrome。
+输入法：macOS 自带中文拼音。
+输入内容：`你好呀`。
+操作方式：用 Enter 确认候选，再按 Enter 发送。
+来源：用户重新发送的完整 Chrome 控制台日志；该组日志作为当前稳定事实。
+
+关键尾段：
+
+1. 组合态内 `keydown Enter` 发生在 `1082031`，组件同一时间记录为 `keydown:composing-return`。
+2. 随后 `input` 发生在 `1082032`，`change:before` 和 `change:after` 都发生在 `1082033`，`keyup Enter` 发生在 `1082075`。
+3. 组合态内第二次 `keydown Enter` 发生在 `1085601`，组件同一时间记录为 `keydown:composing-return`。
+4. 随后 `input`、`change:before`、`change:after` 都发生在 `1085602`，`keyup Enter` 发生在 `1085650`。
+5. 组合态内最后一次 `keydown Enter` 发生在 `1087020`，组件同一时间记录为 `keydown:composing-return`。
+6. `beforeinput` 发生在 `1087020`。
+7. `input`、`change:before`、`change:after` 都发生在 `1087021`。
+8. `compositionend:before` 发生在 `1087028`，`compositionend:after` 发生在 `1087029`。
+9. `keyup Enter` 发生在 `1087090`。
+10. 约 `520ms` 后出现 `keydown Enter`，发生在 `1087549`，组件记录为 `keydown:suppressed-next-enter`。
+11. `keyup Enter` 发生在 `1087614`。
+12. 约 `980ms` 后再次出现 `keydown Enter`，发生在 `1088529`，组件在 `1088530` 记录为 `keydown:submit`。
+13. `keyup Enter` 发生在 `1088570`。
+
+结论：Chrome 的 Enter 确认候选不会在 `compositionend` 后产生紧贴的尾随 `keydown Enter`。后续相隔约 `520ms` 的 Enter 是用户真实发送意图，但当前“compositionend 后无条件吞下一次 Enter”的 guard 会误吞，导致 Chrome 下需要按两次 Enter 才发送。
+
+### 当前可用推论
+
+- 不能在每次 `compositionend` 后无条件吞掉下一次 Enter；至少 Safari 空格确认路径会被这种策略误伤。
+- 不能只依赖“非 Enter keydown 清 guard”：Chrome 空格确认路径中，最终确认用的 `keydown Space` 发生在 `compositionend` 之前，`compositionend` 之后只有 `keyup Space`，所以仍会保留 suppress 并误吞后续 Enter。
+- `compositionend` 后如果先出现非 Enter keydown，例如 Safari 空格确认路径中的 Space，应清掉尾随 Enter guard。
+- 与 `compositionend` 间隔明显的后续 `keydown Enter` 应视为用户真实发送。
+- Safari 中需要吞掉 `compositionend` 后极近的 `keydown Enter`，已由 Safari Enter 确认候选日志确认。
+- Chrome 中 Enter 确认候选不会产生同类紧贴尾随 Enter；后续相隔约 `520ms` 的 Enter 应发送。
+- 因此 guard 应按 `compositionend` 与后续 `keydown Enter` 的时间距离收窄，而不是在所有 `compositionend` 后吞下一次 Enter。
+
+### 对照日志采集状态
+
+已完成四组稳定对照日志采集：
+
+1. Safari + Space 确认候选。
+2. Safari + Enter 确认候选。
+3. Chrome + Space 确认候选。
+4. Chrome + Enter 确认候选。

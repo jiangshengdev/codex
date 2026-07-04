@@ -134,6 +134,12 @@ export function ComposerTurnControl({
     void submit();
   };
 
+  const onKeyUp = (): void => {
+    if (suppressNextEnterRef.current) {
+      suppressNextEnterRef.current = false;
+    }
+  };
+
   return (
     <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 pt-3 pb-0">
       <Surface
@@ -149,6 +155,7 @@ export function ComposerTurnControl({
           onCompositionEnd={onCompositionEnd}
           onCompositionStart={onCompositionStart}
           onKeyDown={onKeyDown}
+          onKeyUp={onKeyUp}
           placeholder="Message Codex"
           value={draft}
           variant="primary"
