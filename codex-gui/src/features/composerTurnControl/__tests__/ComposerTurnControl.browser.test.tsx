@@ -158,29 +158,13 @@ test("uses Enter to send and Shift Enter to insert newline", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
-  const setComposerText = async (value: string): Promise<void> => {
-    const textarea = composer.element();
-    if (!(textarea instanceof HTMLTextAreaElement)) {
-      throw new Error("composer textarea must render");
-    }
-    const valueSetter = Object.getOwnPropertyDescriptor(
-      HTMLTextAreaElement.prototype,
-      "value",
-    )?.set;
-    if (valueSetter == null) {
-      throw new Error("textarea value setter must exist");
-    }
-    valueSetter.call(textarea, value);
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    await expect.element(composer).toHaveValue(value);
-  };
 
-  await setComposerText("Line 1");
+  await composer.fill("Line 1");
   await composer.click();
   await screen.user.keyboard("{Shift>}{Enter}{/Shift}");
   await expect.element(composer).toHaveValue("Line 1\n");
 
-  await setComposerText("Line 1");
+  await composer.fill("Line 1");
   await composer.click();
   await screen.user.keyboard("{Enter}");
 
