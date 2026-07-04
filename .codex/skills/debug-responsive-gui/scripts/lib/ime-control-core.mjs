@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const SESSION_ROOT = '/tmp/codex-ime-control';
-export const COMMAND_VERSION = 'ime-control-task-3';
+export const COMMAND_VERSION = 'ime-control-task-4';
+const CHROME_FOR_TESTING_OWNER = 'Google Chrome for Testing';
 
 const KEY_CODES = new Map([
   ['arrow-up', 126],
@@ -483,6 +484,32 @@ export function buildDrainEventsExpression(sessionId, lastEventId) {
   })()`;
 }
 
+export function buildTextareaStateExpression() {
+  return `(() => {
+    const preferred = document.querySelector('textarea[placeholder="Message Codex"]');
+    const textareas = Array.from(document.querySelectorAll('textarea'));
+    const target = preferred ?? (textareas.length === 1 ? textareas[0] : null);
+    if (!target) {
+      return {
+        ok: false,
+        error: {
+          code: 'textarea_not_found',
+          message: 'Could not find textarea[placeholder="Message Codex"] or a unique fallback textarea.',
+        },
+      };
+    }
+    return {
+      ok: true,
+      textarea: {
+        value: target.value,
+        focused: document.activeElement === target,
+        selectionStart: target.selectionStart,
+        selectionEnd: target.selectionEnd,
+      },
+    };
+  })()`;
+}
+
 export function nextCapturePaths(sessionDir, existingCaptureFileNames = []) {
   const highestIndex = existingCaptureFileNames.reduce((highest, fileName) => {
     const match = /^(\d{4})-candidate\.json$/.exec(fileName);
@@ -501,35 +528,268 @@ export function nextCapturePaths(sessionDir, existingCaptureFileNames = []) {
   };
 }
 
-export function writePlaceholderCapture({
+export function relativePath(fromDir, targetPath) {
+  return path.relative(fromDir, targetPath).split(path.sep).join('/');
+}
+
+export function buildScreencaptureArgs(windowId, pngPath) {
+  if (!Number.isInteger(windowId) || windowId <= 0) {
+    throw new Error('screencapture window id must be a positive integer');
+  }
+  return ['-x', '-o', '-l', String(windowId), pngPath];
+}
+
+export function writeCandidateCapture({
   sessionDir,
   sessionId,
   action,
-  textarea = null,
+  capture,
   at = Date.now(),
 }) {
   const capturesDir = path.join(sessionDir, 'captures');
   const capturePaths = nextCapturePaths(sessionDir, fs.readdirSync(capturesDir));
-  const capture = {
+  const candidate = {
     type: 'ime-control-capture',
-    status: 'not_implemented',
     sessionId,
     action,
     at,
-    present: false,
-    window: null,
-    mode: 'none',
-    candidates: [],
-    textarea,
-    screenshot: null,
-    notes: [
-      'AX candidate capture is not implemented in Task 3.',
-      'No candidate order is inferred by this placeholder capture.',
-    ],
+    ...capture,
   };
-  fs.writeFileSync(capturePaths.jsonPath, `${JSON.stringify(capture, null, 2)}\n`);
-  fs.writeFileSync(path.join(sessionDir, 'latest-candidate.json'), `${JSON.stringify(capture, null, 2)}\n`);
-  return capture;
+  fs.writeFileSync(capturePaths.jsonPath, `${JSON.stringify(candidate, null, 2)}\n`);
+  fs.writeFileSync(path.join(sessionDir, 'latest-candidate.json'), `${JSON.stringify(candidate, null, 2)}\n`);
+  return {
+    candidate,
+    paths: capturePaths,
+  };
+}
+
+export function shapeCandidateCapture({
+  sessionDir,
+  capturePaths,
+  textarea,
+  axResult,
+  screenshotCaptured = false,
+  screenshotError = null,
+}) {
+  const notes = [
+    'index is inferred from visible candidate order, not exposed by AX',
+  ];
+  const candidateWindow = axResult?.candidateWindow ?? null;
+  const rawCandidates = Array.isArray(candidateWindow?.candidates) ? candidateWindow.candidates : [];
+  const candidates = assignCandidateIndexes(rawCandidates);
+  const windowFrame = candidateWindow?.frame ?? null;
+  const windowId = Number.isInteger(candidateWindow?.windowId) ? candidateWindow.windowId : null;
+  if (axResult?.note) {
+    notes.push(axResult.note);
+  }
+  for (const note of axResult?.notes ?? []) {
+    notes.push(note);
+  }
+
+  if (!candidateWindow) {
+    return {
+      present: false,
+      window: null,
+      mode: 'none',
+      candidates: [],
+      textarea,
+      screenshot: null,
+      notes,
+    };
+  }
+
+  if (windowId === null) {
+    notes.push('AX candidate window was found, but no matching CGWindow id was found for screenshot capture.');
+  }
+  if (screenshotError) {
+    notes.push(`screencapture failed: ${screenshotError}`);
+  }
+
+  return {
+    present: true,
+    window: {
+      id: windowId,
+      frame: windowFrame,
+    },
+    mode: inferCandidateMode(windowFrame, candidates),
+    candidates,
+    textarea,
+    screenshot: screenshotCaptured ? relativePath(sessionDir, capturePaths.pngPath) : null,
+    notes,
+  };
+}
+
+export function buildCandidateCaptureSwiftSource() {
+  return `import AppKit
+import ApplicationServices
+import CoreGraphics
+import Foundation
+
+let targetOwner = "${CHROME_FOR_TESTING_OWNER}"
+let frameTolerance: Double = 12
+
+struct Rect: Codable {
+  let x: Double
+  let y: Double
+  let width: Double
+  let height: Double
+}
+
+struct Candidate: Codable {
+  let text: String
+  let title: String?
+  let description: String?
+  let frame: Rect
+}
+
+struct CandidateWindow: Codable {
+  let title: String
+  let frame: Rect
+  let windowId: Int?
+  let candidates: [Candidate]
+}
+
+struct Output: Codable {
+  let ok: Bool
+  let candidateWindow: CandidateWindow?
+  let notes: [String]
+}
+
+func stringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
+  var value: CFTypeRef?
+  let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+  guard result == .success else { return nil }
+  return value as? String
+}
+
+func children(_ element: AXUIElement) -> [AXUIElement] {
+  var value: CFTypeRef?
+  let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
+  guard result == .success else { return [] }
+  return value as? [AXUIElement] ?? []
+}
+
+func rectForElement(_ element: AXUIElement) -> Rect? {
+  var positionValue: CFTypeRef?
+  var sizeValue: CFTypeRef?
+  guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
+        AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
+        let positionAx = positionValue,
+        let sizeAx = sizeValue else {
+    return nil
+  }
+  var point = CGPoint.zero
+  var size = CGSize.zero
+  guard AXValueGetValue(positionAx as! AXValue, .cgPoint, &point),
+        AXValueGetValue(sizeAx as! AXValue, .cgSize, &size) else {
+    return nil
+  }
+  return Rect(x: point.x, y: point.y, width: size.width, height: size.height)
+}
+
+func role(_ element: AXUIElement) -> String {
+  stringAttribute(element, kAXRoleAttribute) ?? ""
+}
+
+func collectButtons(_ element: AXUIElement) -> [AXUIElement] {
+  var result: [AXUIElement] = []
+  for child in children(element) {
+    if role(child) == kAXButtonRole as String {
+      result.append(child)
+    }
+    result.append(contentsOf: collectButtons(child))
+  }
+  return result
+}
+
+func candidatesInWindow(_ window: AXUIElement) -> [Candidate] {
+  var buttons: [AXUIElement] = []
+  for child in children(window) {
+    if role(child) == kAXListRole as String {
+      buttons.append(contentsOf: collectButtons(child))
+    }
+  }
+  return buttons.compactMap { button in
+    let title = stringAttribute(button, kAXTitleAttribute)
+    let description = stringAttribute(button, kAXDescriptionAttribute)
+    let text = (title?.isEmpty == false ? title : description) ?? ""
+    guard let frame = rectForElement(button) else { return nil }
+    return Candidate(text: text, title: title, description: description, frame: frame)
+  }
+}
+
+func close(_ left: Double, _ right: Double) -> Bool {
+  abs(left - right) <= frameTolerance
+}
+
+func scoreCgWindow(_ info: [String: Any], frame: Rect) -> Int? {
+  guard (info[kCGWindowOwnerName as String] as? String) == targetOwner,
+        let bounds = info[kCGWindowBounds as String] as? [String: Any] else {
+    return nil
+  }
+  let x = bounds["X"] as? Double ?? bounds["x"] as? Double ?? 0
+  let y = bounds["Y"] as? Double ?? bounds["y"] as? Double ?? 0
+  let width = bounds["Width"] as? Double ?? bounds["width"] as? Double ?? 0
+  let height = bounds["Height"] as? Double ?? bounds["height"] as? Double ?? 0
+  guard close(x, frame.x), close(y, frame.y), close(width, frame.width), close(height, frame.height) else {
+    return nil
+  }
+  let layer = info[kCGWindowLayer as String] as? Int ?? 0
+  return (layer > 0 ? 1000 : 0) - Int(abs(width * height - frame.width * frame.height))
+}
+
+func matchingWindowId(frame: Rect) -> Int? {
+  guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+    return nil
+  }
+  let matches = list.compactMap { info -> (id: Int, score: Int)? in
+    guard let id = info[kCGWindowNumber as String] as? Int,
+          let score = scoreCgWindow(info, frame: frame) else {
+      return nil
+    }
+    return (id, score)
+  }
+  return matches.sorted { $0.score > $1.score }.first?.id
+}
+
+let app = NSWorkspace.shared.runningApplications.first { $0.localizedName == targetOwner }
+guard let processIdentifier = app?.processIdentifier else {
+  let output = Output(ok: true, candidateWindow: nil, notes: ["Google Chrome for Testing is not running."])
+  let data = try JSONEncoder().encode(output)
+  print(String(data: data, encoding: .utf8)!)
+  exit(0)
+}
+
+let axApp = AXUIElementCreateApplication(processIdentifier)
+var windowsValue: CFTypeRef?
+guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsValue) == .success,
+      let windows = windowsValue as? [AXUIElement] else {
+  let output = Output(ok: true, candidateWindow: nil, notes: ["AX windows were unavailable for Google Chrome for Testing."])
+  let data = try JSONEncoder().encode(output)
+  print(String(data: data, encoding: .utf8)!)
+  exit(0)
+}
+
+let candidates = windows.compactMap { window -> CandidateWindow? in
+  guard role(window) == kAXWindowRole as String else { return nil }
+  let title = stringAttribute(window, kAXTitleAttribute) ?? ""
+  guard title.isEmpty, let frame = rectForElement(window) else { return nil }
+  let candidates = candidatesInWindow(window)
+  guard !candidates.isEmpty else { return nil }
+  return CandidateWindow(title: title, frame: frame, windowId: matchingWindowId(frame: frame), candidates: candidates)
+}
+
+let preferred = candidates.sorted {
+  let leftId = $0.windowId == nil ? 0 : 1
+  let rightId = $1.windowId == nil ? 0 : 1
+  if leftId != rightId { return leftId > rightId }
+  return $0.candidates.count > $1.candidates.count
+}.first
+
+let output = Output(ok: true, candidateWindow: preferred, notes: [])
+let data = try JSONEncoder().encode(output)
+print(String(data: data, encoding: .utf8)!)
+`;
 }
 
 function frameOf(candidate) {

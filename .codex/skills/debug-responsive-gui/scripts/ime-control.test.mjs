@@ -8,10 +8,13 @@ import {
   assignCandidateIndexes,
   appendActionRecord,
   appendEventsAndUpdateMetadata,
+  buildCandidateCaptureSwiftSource,
   buildKeyAppleScript,
   buildDrainEventsExpression,
   buildLoggerCheckExpression,
+  buildScreencaptureArgs,
   buildStartPageExpression,
+  buildTextareaStateExpression,
   buildTypeAppleScript,
   createSessionFiles,
   generateSessionId,
@@ -21,10 +24,11 @@ import {
   nextCapturePaths,
   normalizeKeyName,
   parseArgs,
+  shapeCandidateCapture,
   sessionDirForId,
   sortCandidatesForIndex,
   validatePinyin,
-  writePlaceholderCapture,
+  writeCandidateCapture,
 } from './lib/ime-control-core.mjs';
 
 const allowedKeys = [
@@ -246,7 +250,7 @@ test('appendActionRecord appends stable before and after action jsonl records', 
   );
 });
 
-test('writePlaceholderCapture records a stable not implemented capture artifact', () => {
+test('writeCandidateCapture records candidate artifact and latest candidate', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ime-control-test-'));
   const sessionDir = path.join(root, 'session-capture-test');
   createSessionFiles({
@@ -258,22 +262,35 @@ test('writePlaceholderCapture records a stable not implemented capture artifact'
     textarea: {},
   });
 
-  const capture = writePlaceholderCapture({
+  const capture = {
+    present: false,
+    window: null,
+    mode: 'none',
+    candidates: [],
+    textarea: { value: 'nihao', focused: true },
+    screenshot: null,
+    notes: ['no candidate window found'],
+  };
+  const written = writeCandidateCapture({
     sessionDir,
     sessionId: 'session-capture-test',
     action: 'key',
-    textarea: { value: 'nihao', focused: true },
+    capture,
     at: 123,
   });
 
-  assert.equal(capture.present, false);
-  assert.equal(capture.status, 'not_implemented');
-  assert.equal(capture.screenshot, null);
-  assert.equal(capture.textarea.value, 'nihao');
+  assert.equal(written.candidate.type, 'ime-control-capture');
+  assert.equal(written.candidate.present, false);
+  assert.equal(written.candidate.screenshot, null);
+  assert.equal(written.candidate.textarea.value, 'nihao');
   assert.equal(fs.existsSync(path.join(sessionDir, 'latest-candidate.json')), true);
   assert.deepEqual(
     JSON.parse(fs.readFileSync(path.join(sessionDir, 'captures', '0001-candidate.json'), 'utf8')),
-    capture,
+    written.candidate,
+  );
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(sessionDir, 'latest-candidate.json'), 'utf8')),
+    written.candidate,
   );
 });
 
@@ -303,6 +320,14 @@ test('logger expressions contain the event contract and session marker', () => {
   assert.match(buildLoggerCheckExpression('session-marker'), /session-marker/);
   assert.match(buildLoggerCheckExpression('session-marker'), /session_mismatch/);
   assert.match(buildDrainEventsExpression('session-marker', 7), /drainEvents\(7\)/);
+});
+
+test('textarea capture expression independently reads textarea state', () => {
+  const expression = buildTextareaStateExpression();
+  assert.match(expression, /textarea\[placeholder="Message Codex"\]/);
+  assert.match(expression, /focused: document\.activeElement === target/);
+  assert.match(expression, /selectionStart: target\.selectionStart/);
+  assert.match(expression, /selectionEnd: target\.selectionEnd/);
 });
 
 test('candidate helpers filter visible candidates and sort by row-major frame order', () => {
@@ -335,4 +360,121 @@ test('inferCandidateMode distinguishes no candidates, compact row, and expanded 
     { text: '一', frame: { x: 10, y: 10, width: 10, height: 10 } },
     { text: '二', frame: { x: 10, y: 30, width: 10, height: 10 } },
   ]), 'expanded');
+});
+
+test('shapeCandidateCapture records no-window output without screenshot', () => {
+  const capture = shapeCandidateCapture({
+    sessionDir: '/tmp/codex-ime-control/session-1',
+    capturePaths: {
+      jsonPath: '/tmp/codex-ime-control/session-1/captures/0001-candidate.json',
+      pngPath: '/tmp/codex-ime-control/session-1/captures/0001-candidate.png',
+    },
+    textarea: { value: '', focused: true, selectionStart: 0, selectionEnd: 0 },
+    axResult: { ok: true, candidateWindow: null, notes: ['no candidate'] },
+  });
+
+  assert.deepEqual(capture, {
+    present: false,
+    window: null,
+    mode: 'none',
+    candidates: [],
+    textarea: { value: '', focused: true, selectionStart: 0, selectionEnd: 0 },
+    screenshot: null,
+    notes: [
+      'index is inferred from visible candidate order, not exposed by AX',
+      'no candidate',
+    ],
+  });
+});
+
+test('shapeCandidateCapture sorts candidates, assigns indexes, infers mode, and uses relative screenshot path', () => {
+  const capture = shapeCandidateCapture({
+    sessionDir: '/tmp/codex-ime-control/session-1',
+    capturePaths: {
+      jsonPath: '/tmp/codex-ime-control/session-1/captures/0004-candidate.json',
+      pngPath: '/tmp/codex-ime-control/session-1/captures/0004-candidate.png',
+    },
+    textarea: { value: 'nihao', focused: true, selectionStart: 5, selectionEnd: 5 },
+    axResult: {
+      ok: true,
+      candidateWindow: {
+        windowId: 4332,
+        frame: { x: -1636, y: 763, width: 397, height: 182 },
+        candidates: [
+          { text: '二', frame: { x: -1600, y: 790, width: 50, height: 20 } },
+          { text: '一', title: '一', description: 'candidate one', frame: { x: -1630, y: 790, width: 50, height: 20 } },
+          { text: '三', frame: { x: -1630, y: 820, width: 50, height: 20 } },
+        ],
+      },
+      notes: [],
+    },
+    screenshotCaptured: true,
+  });
+
+  assert.equal(capture.present, true);
+  assert.deepEqual(capture.window, {
+    id: 4332,
+    frame: { x: -1636, y: 763, width: 397, height: 182 },
+  });
+  assert.equal(capture.mode, 'expanded');
+  assert.deepEqual(capture.candidates.map(({ index, text }) => ({ index, text })), [
+    { index: 1, text: '一' },
+    { index: 2, text: '二' },
+    { index: 3, text: '三' },
+  ]);
+  assert.equal(capture.candidates[0].title, '一');
+  assert.equal(capture.screenshot, 'captures/0004-candidate.png');
+});
+
+test('shapeCandidateCapture keeps candidate window present when screenshot id is missing', () => {
+  const capture = shapeCandidateCapture({
+    sessionDir: '/tmp/codex-ime-control/session-1',
+    capturePaths: {
+      jsonPath: '/tmp/codex-ime-control/session-1/captures/0001-candidate.json',
+      pngPath: '/tmp/codex-ime-control/session-1/captures/0001-candidate.png',
+    },
+    textarea: { value: 'nihao', focused: true, selectionStart: 5, selectionEnd: 5 },
+    axResult: {
+      ok: true,
+      candidateWindow: {
+        windowId: null,
+        frame: { x: 10, y: 20, width: 100, height: 30 },
+        candidates: [
+          { text: '你好', frame: { x: 12, y: 22, width: 50, height: 20 } },
+        ],
+      },
+    },
+  });
+
+  assert.equal(capture.present, true);
+  assert.equal(capture.window.id, null);
+  assert.equal(capture.mode, 'compact');
+  assert.equal(capture.screenshot, null);
+  assert.match(capture.notes.join('\n'), /no matching CGWindow id/);
+});
+
+test('Swift source contains AX window traversal and CGWindow mapping logic', () => {
+  const source = buildCandidateCaptureSwiftSource();
+  assert.match(source, /Google Chrome for Testing/);
+  assert.match(source, /AXUIElementCreateApplication/);
+  assert.match(source, /kAXWindowsAttribute/);
+  assert.match(source, /kAXListRole/);
+  assert.match(source, /kAXButtonRole/);
+  assert.match(source, /kAXTitleAttribute/);
+  assert.match(source, /kAXDescriptionAttribute/);
+  assert.match(source, /CGWindowListCopyWindowInfo/);
+  assert.match(source, /kCGWindowNumber/);
+  assert.match(source, /kCGWindowLayer/);
+  assert.match(source, /kCGWindowBounds/);
+});
+
+test('screencapture args target a single candidate window id', () => {
+  assert.deepEqual(buildScreencaptureArgs(4332, '/tmp/candidate.png'), [
+    '-x',
+    '-o',
+    '-l',
+    '4332',
+    '/tmp/candidate.png',
+  ]);
+  assert.throws(() => buildScreencaptureArgs(0, '/tmp/candidate.png'), /positive integer/);
 });

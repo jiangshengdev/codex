@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { evalJson } from './lib/playwright-cli.mjs';
@@ -9,17 +11,22 @@ import {
   COMMAND_VERSION,
   appendActionRecord,
   appendEventsAndUpdateMetadata,
+  buildCandidateCaptureSwiftSource,
   buildKeyAppleScript,
   buildDrainEventsExpression,
   buildLoggerCheckExpression,
+  buildScreencaptureArgs,
   buildStartPageExpression,
+  buildTextareaStateExpression,
   buildTypeAppleScript,
   createSessionFiles,
   generateSessionId,
+  nextCapturePaths,
   parseArgs,
   readSessionMetadata,
   sessionDirForId,
-  writePlaceholderCapture,
+  shapeCandidateCapture,
+  writeCandidateCapture,
 } from './lib/ime-control-core.mjs';
 
 const usage = [
@@ -119,6 +126,86 @@ function runAppleScript(source) {
   };
 }
 
+function runSwiftCandidateCapture() {
+  const result = spawnSync('/usr/bin/swift', ['-'], {
+    input: buildCandidateCaptureSwiftSource(),
+    encoding: 'utf8',
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || 'swift candidate capture failed').trim());
+  }
+  try {
+    const parsed = JSON.parse(result.stdout);
+    if (parsed?.ok === false) {
+      throw new Error(parsed.error?.message ?? 'swift candidate capture returned ok=false');
+    }
+    return parsed;
+  } catch (error) {
+    throw new Error(`swift candidate capture returned invalid JSON: ${errorMessage(error)}`);
+  }
+}
+
+function runScreencapture(windowId, pngPath) {
+  const args = buildScreencaptureArgs(windowId, pngPath);
+  const result = spawnSync('screencapture', args, {
+    encoding: 'utf8',
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || 'screencapture failed').trim());
+  }
+}
+
+function readTextareaStateForCapture() {
+  const result = requireEvalOk(evalJson(buildTextareaStateExpression()));
+  return result.textarea;
+}
+
+function runRealCapture({ sessionDir, sessionId, action }) {
+  const capturesDir = path.join(sessionDir, 'captures');
+  const capturePaths = nextCapturePaths(sessionDir, fs.readdirSync(capturesDir));
+  const textarea = readTextareaStateForCapture();
+  const axResult = runSwiftCandidateCapture();
+  const windowId = axResult?.candidateWindow?.windowId;
+  let screenshotCaptured = false;
+  let screenshotError = null;
+
+  if (Number.isInteger(windowId) && windowId > 0) {
+    try {
+      runScreencapture(windowId, capturePaths.pngPath);
+      screenshotCaptured = true;
+    } catch (error) {
+      screenshotError = errorMessage(error);
+    }
+  }
+
+  const capture = shapeCandidateCapture({
+    sessionDir,
+    capturePaths,
+    textarea,
+    axResult,
+    screenshotCaptured,
+    screenshotError,
+  });
+  const written = writeCandidateCapture({
+    sessionDir,
+    sessionId,
+    action,
+    capture,
+  });
+
+  if (screenshotError) {
+    throw new Error(`candidate screenshot failed: ${screenshotError}`);
+  }
+
+  return written.candidate;
+}
+
 async function startSession(options) {
   const sessionId = generateSessionId();
   const sessionDir = sessionDirForId(sessionId);
@@ -189,11 +276,10 @@ async function runActionCommand(options) {
   }
 
   const capture = options.capture
-    ? writePlaceholderCapture({
+    ? runRealCapture({
       sessionDir,
       sessionId: options.sessionId,
       action: options.command,
-      textarea: drained.textarea,
     })
     : null;
 
@@ -218,11 +304,10 @@ async function runCaptureCommand(options) {
     sessionDir,
     lastEventId: metadata.lastEventId,
   });
-  const capture = writePlaceholderCapture({
+  const capture = runRealCapture({
     sessionDir,
     sessionId: options.sessionId,
     action: 'capture',
-    textarea: drained.textarea,
   });
 
   printJson({
