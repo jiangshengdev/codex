@@ -4,6 +4,15 @@
 范围:批次 2(核心状态)
 优先级:中高(资源泄漏,长期累积)
 
+## 当前状态
+
+2026-07-04 只读性能检测核对：仍成立。`thread_generations` 当前仍无回收路径，
+长期内存上界随被 projection 捕获 generation 或 materialize projection entry 的 distinct
+`ThreadId` 数量线性增长。
+
+本次核对未运行测试、benchmark 或修复实现；后续修复仍需要先设计 generation retention
+的安全窗口和回收触发点，避免破坏 stale-generation attach 防护。
+
 ## 问题
 
 `ThreadProjectionManagerInner::thread_generations: HashMap<ThreadId, ProjectionGeneration>`

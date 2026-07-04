@@ -4,6 +4,17 @@
 范围:批次 5(Projection 测试)
 优先级:中(覆盖缺口 —— 已知高风险路径无集成测试把守,重构易回归且不可见)
 
+## 当前状态
+
+2026-07-04 只读性能检测核对：仍需回归覆盖。fanout/backpressure 的核心 silent
+invalidation 问题已经由 `thread/projection/closed(reason=backpressure)` 路径修复，
+但本次限定范围内仍没有确认真实 app-server v2 端到端慢客户端链路已经闭环覆盖。
+
+后续回归应覆盖：慢/卡住 projection client 触发 queue full 后收到
+`thread/projection/closed(reason=backpressure)`；ordinary notification 仍能送达/返回；
+重新 attach 能拿到新的 snapshot baseline；并覆盖多 subscriber / 多 connection 场景。
+本次核对未运行测试、benchmark 或修复实现。
+
 ## 问题
 
 两个投影集成测试(`tests/suite/v2/thread_projection.rs`)自身确定性良好(全程 `tokio::time::timeout` + 缓冲读取,无 sleep 碰运气、无 flaky),但本特性最容易回归的几条路径在集成层完全无人把守,仅靠 manager 单测(不经真实 outgoing channel / per-thread listener task)间接覆盖。

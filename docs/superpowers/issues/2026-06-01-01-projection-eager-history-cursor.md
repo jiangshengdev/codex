@@ -4,6 +4,18 @@
 范围:app-server thread lifecycle / projection 接入点
 优先级:中高(旧路径额外 I/O 和事件处理开销)
 
+## 当前状态
+
+2026-07-04 只读性能检测核对：已过期。当前 `thread_lifecycle.rs` /
+`thread_processor.rs` 入口中未见 `ProjectionHistoryCursor`、
+`projection_history_cursor_for_listener_start` 或 `history_cursor`，listener 启动没有为
+projection cursor 读取完整 history，event loop 中也未见每个 event 推进 projection
+cursor。
+
+当前仍有 projection subscriber watcher 进入普通 listener 生命周期，但本次核对只发现
+常数级 watcher 成本，不是本 issue 描述的 history-size 或 per-event cursor 成本。本次
+核对未运行测试、benchmark 或修复实现。
+
 ## 问题
 
 `thread_lifecycle.rs` 在 listener 启动和事件循环中无条件维护 projection history cursor,
