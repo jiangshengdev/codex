@@ -1,6 +1,7 @@
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEvent,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
@@ -24,6 +25,10 @@ export type ProjectionIngressOutcome =
   | {
       type: "eventAccepted";
       notification: ThreadProjectionEventNotification;
+    }
+  | {
+      type: "deltaAccepted";
+      notification: ThreadProjectionDeltaNotification;
     }
   | {
       type: "manualReconnectRequired";
@@ -103,6 +108,18 @@ export class ProjectionIngressAdapter {
     this.recordKnownTurn(notification.event);
 
     return { type: "eventAccepted", notification };
+  }
+
+  handleDelta(notification: ThreadProjectionDeltaNotification): ProjectionIngressOutcome {
+    const ignored = this.ignoreReasonForNotification(
+      notification.threadId,
+      notification.subscriptionId,
+    );
+    if (ignored != null) {
+      return { type: "ignored", reason: ignored };
+    }
+
+    return { type: "deltaAccepted", notification };
   }
 
   handleClosed(notification: ThreadProjectionClosedNotification): ProjectionIngressOutcome {

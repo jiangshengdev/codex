@@ -139,6 +139,7 @@ export function startGuiHostConnectionWithSocket({
   onCommandsUnavailable,
   onProjectionAttached,
   onProjectionClosed,
+  onProjectionDelta,
   onProjectionEvent,
   onStatus,
 }: {
@@ -147,6 +148,7 @@ export function startGuiHostConnectionWithSocket({
   onCommandsUnavailable?: StartGuiHostConnectionOptions["onCommandsUnavailable"];
   onProjectionAttached?: StartGuiHostConnectionOptions["onProjectionAttached"];
   onProjectionClosed?: StartGuiHostConnectionOptions["onProjectionClosed"];
+  onProjectionDelta?: StartGuiHostConnectionOptions["onProjectionDelta"];
   onProjectionEvent?: StartGuiHostConnectionOptions["onProjectionEvent"];
   onStatus?: StartGuiHostConnectionOptions["onStatus"];
 }): {
@@ -166,6 +168,7 @@ export function startGuiHostConnectionWithSocket({
     onCommandsUnavailable,
     onProjectionAttached,
     onProjectionClosed,
+    onProjectionDelta,
     onProjectionEvent,
     onStatus,
   });

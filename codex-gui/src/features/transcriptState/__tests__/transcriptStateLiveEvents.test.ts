@@ -3,6 +3,7 @@ import { makeStore } from "@/app/store";
 import {
   attachBaseline,
   attachReplacement,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
   eventTurnCompleted,
@@ -10,6 +11,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -17,11 +19,14 @@ import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptEntry,
+  selectTranscriptLiveItem,
+  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
+  agentMessageDelta,
   attachWithTurns,
   baseTurn,
   inProgressTurn,
@@ -36,6 +41,239 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state live events reducer", () => {
+  it("creates a started live slot from itemStarted without committing transcript entries", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    const initialItem = agentMessage("agent-live-started", "Initial text should stay live only");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-started-slot",
+          "turn-live-started-slot",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-started-slot"),
+    ).toStrictEqual([
+      {
+        key: "turn-live-started-slot:agent-live-started",
+        turnId: "turn-live-started-slot",
+        itemId: "agent-live-started",
+        status: "started",
+        initialItem,
+        transientText: "",
+        completedItem: null,
+        revision: 0,
+      },
+    ]);
+    expect(selectTranscriptEntry(store.getState(), "agent-live-started")).toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("appends accepted agent message deltas into an existing live slot", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    const initialItem = agentMessage("agent-streaming", "");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-streaming-started",
+          "turn-streaming",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-streaming",
+          "agent-streaming",
+          "Hello",
+        ),
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-streaming",
+          "agent-streaming",
+          " world",
+        ),
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-streaming", "agent-streaming"),
+    ).toStrictEqual({
+      key: "turn-streaming:agent-streaming",
+      turnId: "turn-streaming",
+      itemId: "agent-streaming",
+      status: "streaming",
+      initialItem,
+      transientText: "Hello world",
+      completedItem: null,
+      revision: 2,
+    });
+    expect(selectTranscriptEntry(store.getState(), "agent-streaming")).toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-streaming:chunk:0")).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("ignores accepted agent message deltas when the live slot is missing", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const beforeState = store.getState().transcriptState;
+
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-missing",
+          "agent-missing",
+          "Ignored",
+        ),
+      }),
+    );
+
+    expect(store.getState().transcriptState).toBe(beforeState);
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing")).toStrictEqual([]);
+  });
+
+  it("keeps itemStarted slot order stable and ignores duplicate live slot insertion", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const firstItem = agentMessage("agent-slot-first", "First");
+    const secondItem = agentMessage("agent-slot-second", "Second");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-slot-first",
+          "turn-slot-order",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-slot-first-duplicate-id",
+          "turn-slot-order",
+          agentMessage("agent-slot-first", "Updated initial"),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-slot-second",
+          "turn-slot-order",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-slot-order").map(
+        (item) => item.itemId,
+      ),
+    ).toStrictEqual(["agent-slot-first", "agent-slot-second"]);
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-slot-order", "agent-slot-first"),
+    ).toStrictEqual({
+      key: "turn-slot-order:agent-slot-first",
+      turnId: "turn-slot-order",
+      itemId: "agent-slot-first",
+      status: "started",
+      initialItem: firstItem,
+      transientText: "",
+      completedItem: null,
+      revision: 0,
+    });
+  });
+
+  it("rebuilds cached live turn view when a slot revision changes without turn revision", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-cache-slot", "Initial");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-cache-slot",
+          "turn-cache-slot",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const cachedView = selectTranscriptLiveItemsForTurn(store.getState(), "turn-cache-slot");
+    const state = store.getState();
+    const slotKey = "turn-cache-slot:agent-cache-slot";
+    const slot = state.transcriptState.liveSlotsByKey[slotKey];
+    expect(slot).toBeDefined();
+    if (slot == null) {
+      throw new Error("expected live slot to exist");
+    }
+
+    const nextState: ReturnType<typeof store.getState> = {
+      ...state,
+      transcriptState: {
+        ...state.transcriptState,
+        liveSlotsByKey: {
+          ...state.transcriptState.liveSlotsByKey,
+          [slotKey]: {
+            ...slot,
+            status: "streaming",
+            transientText: "Streamed text",
+            revision: slot.revision + 1,
+          },
+        },
+      },
+    };
+
+    const nextView = selectTranscriptLiveItemsForTurn(nextState, "turn-cache-slot");
+    expect(nextView).not.toBe(cachedView);
+    expect(nextView).toStrictEqual([
+      {
+        key: "turn-cache-slot:agent-cache-slot",
+        turnId: "turn-cache-slot",
+        itemId: "agent-cache-slot",
+        status: "streaming",
+        initialItem,
+        transientText: "Streamed text",
+        completedItem: null,
+        revision: 1,
+      },
+    ]);
+  });
+
   it("preserves assistant message phase in live completed transcript entries", () => {
     const store = makeStore();
 
@@ -139,6 +377,148 @@ describe("transcript state live events reducer", () => {
       phase: "final_answer",
       revision: 0,
     });
+  });
+
+  it("settles an existing streaming live slot from itemCompleted while preserving transient text", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-settled", "");
+    const completedItem = agentMessage("agent-settled", "Completed answer", "final_answer");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-settled-started",
+          "turn-settled",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-settled",
+          "agent-settled",
+          "Partial",
+        ),
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-settled-completed",
+          "turn-settled",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-settled", "agent-settled"),
+    ).toStrictEqual({
+      key: "turn-settled:agent-settled",
+      turnId: "turn-settled",
+      itemId: "agent-settled",
+      status: "completed",
+      initialItem,
+      transientText: "Partial",
+      completedItem,
+      revision: 2,
+    });
+    expect(selectTranscriptEntry(store.getState(), "agent-settled")).toStrictEqual({
+      type: "message",
+      id: "agent-settled",
+      turnId: "turn-settled",
+      role: "assistant",
+      source: "Completed answer",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 0,
+    });
+  });
+
+  it("does not create a live slot when itemCompleted arrives without itemStarted", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-missing-slot-completed",
+          "turn-missing-slot-completed",
+          agentMessage("agent-missing-slot-completed", "Committed without live slot"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing-slot-completed"),
+    ).toStrictEqual([]);
+    expect(selectTranscriptEntry(store.getState(), "agent-missing-slot-completed")).toStrictEqual({
+      type: "message",
+      id: "agent-missing-slot-completed",
+      turnId: "turn-missing-slot-completed",
+      role: "assistant",
+      source: "Committed without live slot",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 0,
+    });
+  });
+
+  it("settles an existing live slot even when the completed agent message is not materialized", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-empty-settled", "");
+    const completedItem = agentMessage("agent-empty-settled", "");
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-settled-started",
+          "turn-empty-settled",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-empty-settled-completed",
+          "turn-empty-settled",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-empty-settled", "agent-empty-settled"),
+    ).toStrictEqual({
+      key: "turn-empty-settled:agent-empty-settled",
+      turnId: "turn-empty-settled",
+      itemId: "agent-empty-settled",
+      status: "completed",
+      initialItem,
+      transientText: "",
+      completedItem,
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), "agent-empty-settled")).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 
   it("applies normalized live itemCompleted projection payloads into committed transcript chunks", () => {
@@ -272,6 +652,51 @@ describe("transcript state live events reducer", () => {
       beforeTurn,
     );
     expect(selectTranscriptEntry(store.getState(), "agent-snapshot-duplicate")).toStrictEqual(
+      beforeEntry,
+    );
+  });
+
+  it("ignores snapshot duplicate itemStarted and itemCompleted without touching live slots", () => {
+    const store = makeStore();
+    const snapshotItem = agentMessage("agent-snapshot-duplicate-live", "Already attached");
+    const snapshotTurn = baseTurn("turn-snapshot-duplicate-live", [snapshotItem]);
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const beforeTurn = selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live");
+    const beforeEntry = selectTranscriptEntry(store.getState(), "agent-snapshot-duplicate-live");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-duplicate-started",
+          "turn-snapshot-duplicate-live",
+          snapshotItem,
+        ),
+        replay: "snapshotDuplicate",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-duplicate-completed",
+          "turn-snapshot-duplicate-live",
+          agentMessage("agent-snapshot-duplicate-live", "Replay ignored"),
+        ),
+        replay: "snapshotDuplicate",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-snapshot-duplicate-live"),
+    ).toStrictEqual([]);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+    expect(selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live")).toStrictEqual(
+      beforeTurn,
+    );
+    expect(selectTranscriptEntry(store.getState(), "agent-snapshot-duplicate-live")).toStrictEqual(
       beforeEntry,
     );
   });

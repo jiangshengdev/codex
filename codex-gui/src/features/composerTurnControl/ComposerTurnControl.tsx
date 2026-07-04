@@ -1,5 +1,5 @@
 import { Button, Surface, TextArea, toast } from "@heroui/react";
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type {
   GuiHostCommands,
@@ -34,6 +34,8 @@ export function ComposerTurnControl({
 }: ComposerTurnControlProps) {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const isComposingRef = useRef(false);
+  const suppressNextEnterRef = useRef(false);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
@@ -98,12 +100,44 @@ export function ComposerTurnControl({
     }
   };
 
+  const onCompositionStart = (): void => {
+    isComposingRef.current = true;
+    suppressNextEnterRef.current = false;
+  };
+
+  const onCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
+    const wasComposing = isComposingRef.current;
+    isComposingRef.current = false;
+    if (wasComposing) {
+      suppressNextEnterRef.current = true;
+    }
+    setDraft(event.currentTarget.value);
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      suppressNextEnterRef.current = false;
       return;
     }
+
+    if (event.nativeEvent.isComposing || isComposingRef.current) {
+      return;
+    }
+
+    if (suppressNextEnterRef.current) {
+      event.preventDefault();
+      suppressNextEnterRef.current = false;
+      return;
+    }
+
     event.preventDefault();
     void submit();
+  };
+
+  const onKeyUp = (): void => {
+    if (suppressNextEnterRef.current) {
+      suppressNextEnterRef.current = false;
+    }
   };
 
   return (
@@ -118,7 +152,10 @@ export function ComposerTurnControl({
           onChange={(event) => {
             setDraft(event.target.value);
           }}
+          onCompositionEnd={onCompositionEnd}
+          onCompositionStart={onCompositionStart}
           onKeyDown={onKeyDown}
+          onKeyUp={onKeyUp}
           placeholder="Message Codex"
           value={draft}
           variant="primary"
