@@ -6,10 +6,13 @@ import test from 'node:test';
 
 import {
   assignCandidateIndexes,
+  appendActionRecord,
   appendEventsAndUpdateMetadata,
+  buildKeyAppleScript,
   buildDrainEventsExpression,
   buildLoggerCheckExpression,
   buildStartPageExpression,
+  buildTypeAppleScript,
   createSessionFiles,
   generateSessionId,
   inferCandidateMode,
@@ -21,6 +24,7 @@ import {
   sessionDirForId,
   sortCandidatesForIndex,
   validatePinyin,
+  writePlaceholderCapture,
 } from './lib/ime-control-core.mjs';
 
 const allowedKeys = [
@@ -111,6 +115,20 @@ test('key helpers normalize and map all first-version keys', () => {
   assert.throws(() => keyCodeForKey('digit-0'), /allowed keys: arrow-up/);
 });
 
+test('AppleScript helpers activate Chrome for Testing and emit key codes only', () => {
+  const typeScript = buildTypeAppleScript('abc', { delaySeconds: 0.02 });
+  assert.match(typeScript, /tell application "Google Chrome for Testing" to activate/);
+  assert.match(typeScript, /key code 0/);
+  assert.match(typeScript, /key code 11/);
+  assert.match(typeScript, /key code 8/);
+  assert.doesNotMatch(typeScript, /key code 49/);
+  assert.doesNotMatch(typeScript, /key code 36/);
+
+  const keyScript = buildKeyAppleScript('arrow-down', { delaySeconds: 0.01 });
+  assert.match(keyScript, /tell application "Google Chrome for Testing" to activate/);
+  assert.match(keyScript, /key code 125/);
+});
+
 test('session paths are shaped under the IME temp root', () => {
   assert.equal(sessionDirForId('abc-123'), '/tmp/codex-ime-control/abc-123');
   assert.throws(() => sessionDirForId('../abc'), /filesystem-safe/);
@@ -191,6 +209,72 @@ test('appendEventsAndUpdateMetadata appends jsonl and advances last event id', (
     '{"id":1,"type":"input"}\n{"id":3,"type":"compositionend"}\n',
   );
   assert.equal(JSON.parse(fs.readFileSync(path.join(sessionDir, 'metadata.json'), 'utf8')).lastEventId, 3);
+});
+
+test('appendActionRecord appends stable before and after action jsonl records', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ime-control-test-'));
+  const sessionDir = path.join(root, 'session-actions-test');
+  createSessionFiles({
+    sessionId: 'session-actions-test',
+    sessionDir,
+    createdAt: '2026-07-04T00:00:00.000Z',
+    commandVersion: 'test-version',
+    page: {},
+    textarea: {},
+  });
+
+  appendActionRecord(sessionDir, {
+    phase: 'before',
+    action: 'type',
+    pinyin: 'nihao',
+    at: 10,
+  });
+  appendActionRecord(sessionDir, {
+    phase: 'after',
+    action: 'key',
+    key: 'enter',
+    keyCode: 36,
+    at: 11,
+  });
+
+  assert.deepEqual(
+    fs.readFileSync(path.join(sessionDir, 'actions.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line)),
+    [
+      { type: 'ime-control-action', phase: 'before', action: 'type', pinyin: 'nihao', at: 10 },
+      { type: 'ime-control-action', phase: 'after', action: 'key', key: 'enter', keyCode: 36, at: 11 },
+    ],
+  );
+});
+
+test('writePlaceholderCapture records a stable not implemented capture artifact', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ime-control-test-'));
+  const sessionDir = path.join(root, 'session-capture-test');
+  createSessionFiles({
+    sessionId: 'session-capture-test',
+    sessionDir,
+    createdAt: '2026-07-04T00:00:00.000Z',
+    commandVersion: 'test-version',
+    page: {},
+    textarea: {},
+  });
+
+  const capture = writePlaceholderCapture({
+    sessionDir,
+    sessionId: 'session-capture-test',
+    action: 'key',
+    textarea: { value: 'nihao', focused: true },
+    at: 123,
+  });
+
+  assert.equal(capture.present, false);
+  assert.equal(capture.status, 'not_implemented');
+  assert.equal(capture.screenshot, null);
+  assert.equal(capture.textarea.value, 'nihao');
+  assert.equal(fs.existsSync(path.join(sessionDir, 'latest-candidate.json')), true);
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(sessionDir, 'captures', '0001-candidate.json'), 'utf8')),
+    capture,
+  );
 });
 
 test('logger expressions contain the event contract and session marker', () => {

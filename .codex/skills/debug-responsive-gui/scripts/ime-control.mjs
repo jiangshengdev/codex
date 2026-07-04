@@ -1,20 +1,25 @@
 #!/usr/bin/env node
 
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { evalJson } from './lib/playwright-cli.mjs';
 import {
   ALLOWED_KEYS,
   COMMAND_VERSION,
+  appendActionRecord,
   appendEventsAndUpdateMetadata,
+  buildKeyAppleScript,
   buildDrainEventsExpression,
   buildLoggerCheckExpression,
   buildStartPageExpression,
+  buildTypeAppleScript,
   createSessionFiles,
   generateSessionId,
   parseArgs,
   readSessionMetadata,
   sessionDirForId,
+  writePlaceholderCapture,
 } from './lib/ime-control-core.mjs';
 
 const usage = [
@@ -98,6 +103,22 @@ function drainEvents({ sessionId, sessionDir, lastEventId }) {
   return { events, lastEventId: updatedLastEventId, textarea: result.textarea ?? null };
 }
 
+function runAppleScript(source) {
+  const result = spawnSync('osascript', ['-e', source], {
+    encoding: 'utf8',
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || 'osascript failed').trim());
+  }
+  return {
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+}
+
 async function startSession(options) {
   const sessionId = generateSessionId();
   const sessionDir = sessionDirForId(sessionId);
@@ -126,7 +147,70 @@ async function startSession(options) {
   return 0;
 }
 
-async function runSessionBoundaryCommand(options) {
+function actionRecordForOptions(options, phase, extra = {}) {
+  return {
+    phase,
+    action: options.command,
+    ...(options.command === 'type' ? { pinyin: options.pinyin } : {}),
+    ...(options.command === 'key' ? { key: options.key, keyCode: options.keyCode } : {}),
+    ...extra,
+  };
+}
+
+async function runActionCommand(options) {
+  const { sessionDir, metadata } = readSession(options);
+  checkLogger(options.sessionId);
+  appendActionRecord(sessionDir, actionRecordForOptions(options, 'before'));
+
+  let actionError = null;
+  try {
+    if (options.command === 'type') {
+      runAppleScript(buildTypeAppleScript(options.pinyin));
+    } else {
+      runAppleScript(buildKeyAppleScript(options.key));
+    }
+  } catch (error) {
+    actionError = error;
+  }
+
+  appendActionRecord(sessionDir, actionRecordForOptions(options, 'after', {
+    ok: actionError === null,
+    ...(actionError === null ? {} : { error: errorMessage(actionError) }),
+  }));
+
+  const drained = drainEvents({
+    sessionId: options.sessionId,
+    sessionDir,
+    lastEventId: metadata.lastEventId,
+  });
+
+  if (actionError) {
+    throw actionError;
+  }
+
+  const capture = options.capture
+    ? writePlaceholderCapture({
+      sessionDir,
+      sessionId: options.sessionId,
+      action: options.command,
+      textarea: drained.textarea,
+    })
+    : null;
+
+  printJson({
+    ok: true,
+    command: options.command,
+    sessionId: options.sessionId,
+    sessionDir,
+    eventCount: drained.events.length,
+    lastEventId: drained.lastEventId,
+    captured: options.capture,
+    capture,
+  });
+  return 0;
+}
+
+async function runCaptureCommand(options) {
   const { sessionDir, metadata } = readSession(options);
   checkLogger(options.sessionId);
   const drained = drainEvents({
@@ -134,22 +218,24 @@ async function runSessionBoundaryCommand(options) {
     sessionDir,
     lastEventId: metadata.lastEventId,
   });
+  const capture = writePlaceholderCapture({
+    sessionDir,
+    sessionId: options.sessionId,
+    action: 'capture',
+    textarea: drained.textarea,
+  });
 
   printJson({
-    ok: false,
+    ok: true,
     command: options.command,
     sessionId: options.sessionId,
     sessionDir,
     eventCount: drained.events.length,
     lastEventId: drained.lastEventId,
-    errors: [
-      {
-        code: 'not_implemented',
-        message: `${options.command} is not implemented in Task 2`,
-      },
-    ],
+    captured: true,
+    capture,
   });
-  return 2;
+  return 0;
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -171,7 +257,11 @@ export async function main(argv = process.argv.slice(2)) {
       return await startSession(options);
     }
 
-    return await runSessionBoundaryCommand(options);
+    if (options.command === 'capture') {
+      return await runCaptureCommand(options);
+    }
+
+    return await runActionCommand(options);
   } catch (error) {
     printFailure('ime_control_failed', errorMessage(error));
     return 1;

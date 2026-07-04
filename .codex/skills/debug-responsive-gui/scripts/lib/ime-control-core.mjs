@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const SESSION_ROOT = '/tmp/codex-ime-control';
-export const COMMAND_VERSION = 'ime-control-task-2';
+export const COMMAND_VERSION = 'ime-control-task-3';
 
 const KEY_CODES = new Map([
   ['arrow-up', 126],
@@ -22,6 +22,35 @@ const KEY_CODES = new Map([
   ['space', 49],
   ['enter', 36],
   ['escape', 53],
+]);
+
+const LETTER_KEY_CODES = new Map([
+  ['a', 0],
+  ['b', 11],
+  ['c', 8],
+  ['d', 2],
+  ['e', 14],
+  ['f', 3],
+  ['g', 5],
+  ['h', 4],
+  ['i', 34],
+  ['j', 38],
+  ['k', 40],
+  ['l', 37],
+  ['m', 46],
+  ['n', 45],
+  ['o', 31],
+  ['p', 35],
+  ['q', 12],
+  ['r', 15],
+  ['s', 1],
+  ['t', 17],
+  ['u', 32],
+  ['v', 9],
+  ['w', 13],
+  ['x', 7],
+  ['y', 16],
+  ['z', 6],
 ]);
 
 export const ALLOWED_KEYS = [...KEY_CODES.keys()];
@@ -152,6 +181,34 @@ export function validatePinyin(text) {
   return text;
 }
 
+function delayLine(delaySeconds) {
+  const delay = Number(delaySeconds);
+  return Number.isFinite(delay) && delay > 0 ? `  delay ${delay}` : null;
+}
+
+function buildAppleScriptForKeyCodes(keyCodes, { delaySeconds = 0.03 } = {}) {
+  const lines = [
+    'tell application "Google Chrome for Testing" to activate',
+    'delay 0.05',
+    'tell application "System Events"',
+  ];
+  for (const keyCode of keyCodes) {
+    lines.push(`  key code ${keyCode}`);
+    const delay = delayLine(delaySeconds);
+    if (delay) {
+      lines.push(delay);
+    }
+  }
+  lines.push('end tell');
+  return `${lines.join('\n')}\n`;
+}
+
+export function buildTypeAppleScript(pinyin, options = {}) {
+  const text = validatePinyin(pinyin);
+  const keyCodes = [...text].map((letter) => LETTER_KEY_CODES.get(letter));
+  return buildAppleScriptForKeyCodes(keyCodes, options);
+}
+
 export function normalizeKeyName(key) {
   const normalized = key.trim().toLowerCase();
   if (!KEY_CODES.has(normalized)) {
@@ -163,6 +220,10 @@ export function normalizeKeyName(key) {
 export function keyCodeForKey(key) {
   const normalized = normalizeKeyName(key);
   return KEY_CODES.get(normalized);
+}
+
+export function buildKeyAppleScript(key, options = {}) {
+  return buildAppleScriptForKeyCodes([keyCodeForKey(key)], options);
 }
 
 export function sessionDirForId(sessionId) {
@@ -224,6 +285,22 @@ export function appendEventsAndUpdateMetadata(sessionDir, events) {
   metadata.lastEventId = lastEventId;
   writeSessionMetadata(sessionDir, metadata);
   return lastEventId;
+}
+
+export function appendActionRecord(sessionDir, actionRecord) {
+  const record = {
+    type: 'ime-control-action',
+    phase: actionRecord.phase,
+    action: actionRecord.action,
+    ...(actionRecord.pinyin === undefined ? {} : { pinyin: actionRecord.pinyin }),
+    ...(actionRecord.key === undefined ? {} : { key: actionRecord.key }),
+    ...(actionRecord.keyCode === undefined ? {} : { keyCode: actionRecord.keyCode }),
+    at: actionRecord.at ?? Date.now(),
+    ...(actionRecord.ok === undefined ? {} : { ok: actionRecord.ok }),
+    ...(actionRecord.error === undefined ? {} : { error: actionRecord.error }),
+  };
+  fs.appendFileSync(path.join(sessionDir, 'actions.jsonl'), `${JSON.stringify(record)}\n`);
+  return record;
 }
 
 function jsonLiteral(value) {
@@ -422,6 +499,37 @@ export function nextCapturePaths(sessionDir, existingCaptureFileNames = []) {
     jsonPath: path.join(capturesDir, `${paddedIndex}-candidate.json`),
     pngPath: path.join(capturesDir, `${paddedIndex}-candidate.png`),
   };
+}
+
+export function writePlaceholderCapture({
+  sessionDir,
+  sessionId,
+  action,
+  textarea = null,
+  at = Date.now(),
+}) {
+  const capturesDir = path.join(sessionDir, 'captures');
+  const capturePaths = nextCapturePaths(sessionDir, fs.readdirSync(capturesDir));
+  const capture = {
+    type: 'ime-control-capture',
+    status: 'not_implemented',
+    sessionId,
+    action,
+    at,
+    present: false,
+    window: null,
+    mode: 'none',
+    candidates: [],
+    textarea,
+    screenshot: null,
+    notes: [
+      'AX candidate capture is not implemented in Task 3.',
+      'No candidate order is inferred by this placeholder capture.',
+    ],
+  };
+  fs.writeFileSync(capturePaths.jsonPath, `${JSON.stringify(capture, null, 2)}\n`);
+  fs.writeFileSync(path.join(sessionDir, 'latest-candidate.json'), `${JSON.stringify(capture, null, 2)}\n`);
+  return capture;
 }
 
 function frameOf(candidate) {
