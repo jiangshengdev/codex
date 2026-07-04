@@ -208,7 +208,7 @@ test("keeps composing Enter from sending draft", async () => {
   await expect.element(composer).toHaveValue("正在输入");
 });
 
-test("sends completed composition text on the next stable Enter", async () => {
+test("keeps the Enter that confirms a completed composition from sending draft", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
@@ -226,6 +226,10 @@ test("sends completed composition text on the next stable Enter", async () => {
       data: "你好呀",
     }),
   );
+  await expect.element(composer).toHaveValue("你好呀");
+
+  await screen.user.keyboard("{Enter}");
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
   await expect.element(composer).toHaveValue("你好呀");
 
   await screen.user.keyboard("{Enter}");
