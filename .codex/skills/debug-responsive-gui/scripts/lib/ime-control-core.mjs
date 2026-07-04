@@ -1,6 +1,9 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 
 const SESSION_ROOT = '/tmp/codex-ime-control';
+export const COMMAND_VERSION = 'ime-control-task-2';
 
 const KEY_CODES = new Map([
   ['arrow-up', 126],
@@ -167,6 +170,240 @@ export function sessionDirForId(sessionId) {
     throw new Error('session id must be filesystem-safe');
   }
   return path.join(SESSION_ROOT, sessionId);
+}
+
+export function generateSessionId(now = new Date()) {
+  const timestamp = now.toISOString().replace(/[^0-9A-Za-z]/g, '').slice(0, 17);
+  return `${timestamp}-${crypto.randomBytes(6).toString('hex')}`;
+}
+
+export function createSessionFiles({
+  sessionId,
+  sessionDir,
+  createdAt,
+  commandVersion,
+  page,
+  textarea,
+}) {
+  const capturesDir = path.join(sessionDir, 'captures');
+  fs.mkdirSync(capturesDir, { recursive: true });
+  const metadata = {
+    sessionId,
+    createdAt,
+    commandVersion,
+    page,
+    textarea,
+    lastEventId: 0,
+  };
+  fs.writeFileSync(path.join(sessionDir, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`, { flag: 'wx' });
+  fs.writeFileSync(path.join(sessionDir, 'events.jsonl'), '', { flag: 'wx' });
+  fs.writeFileSync(path.join(sessionDir, 'actions.jsonl'), '', { flag: 'wx' });
+  return { sessionId, sessionDir, capturesDir };
+}
+
+export function readSessionMetadata(sessionDir) {
+  return JSON.parse(fs.readFileSync(path.join(sessionDir, 'metadata.json'), 'utf8'));
+}
+
+function writeSessionMetadata(sessionDir, metadata) {
+  fs.writeFileSync(path.join(sessionDir, 'metadata.json'), `${JSON.stringify(metadata, null, 2)}\n`);
+}
+
+export function appendEventsAndUpdateMetadata(sessionDir, events) {
+  const metadata = readSessionMetadata(sessionDir);
+  let lastEventId = Number(metadata.lastEventId) || 0;
+  if (events.length > 0) {
+    const jsonl = events.map((event) => JSON.stringify(event)).join('\n');
+    fs.appendFileSync(path.join(sessionDir, 'events.jsonl'), `${jsonl}\n`);
+    for (const event of events) {
+      if (Number.isInteger(event.id)) {
+        lastEventId = Math.max(lastEventId, event.id);
+      }
+    }
+  }
+  metadata.lastEventId = lastEventId;
+  writeSessionMetadata(sessionDir, metadata);
+  return lastEventId;
+}
+
+function jsonLiteral(value) {
+  return JSON.stringify(value);
+}
+
+export function buildStartPageExpression({ sessionId, preserve }) {
+  return `(() => {
+    const sessionId = ${jsonLiteral(sessionId)};
+    const page = {
+      url: window.location.href,
+      title: document.title,
+    };
+    const preferred = document.querySelector('textarea[placeholder="Message Codex"]');
+    const textareas = Array.from(document.querySelectorAll('textarea'));
+    const target = preferred ?? (textareas.length === 1 ? textareas[0] : null);
+    if (!target) {
+      return {
+        ok: false,
+        page,
+        error: {
+          code: 'textarea_not_found',
+          message: 'Could not find textarea[placeholder="Message Codex"] or a unique fallback textarea.',
+        },
+      };
+    }
+
+    target.focus();
+    ${preserve ? '' : `
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      if (typeof valueSetter !== 'function') {
+        return {
+          ok: false,
+          page,
+          error: {
+            code: 'textarea_value_setter_missing',
+            message: 'Could not locate the native textarea value setter.',
+          },
+        };
+      }
+      valueSetter.call(target, '');
+      target.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        cancelable: false,
+        data: null,
+        inputType: 'deleteContentBackward',
+      }));
+    `}
+
+    if (window.__codexImeControl?.dispose) {
+      window.__codexImeControl.dispose();
+    }
+
+    let nextId = 0;
+    const events = [];
+    const eventNames = [
+      'compositionstart',
+      'compositionupdate',
+      'compositionend',
+      'keydown',
+      'keyup',
+      'beforeinput',
+      'input',
+      'change',
+    ];
+    const textareaState = () => ({
+      value: target.value,
+      focused: document.activeElement === target,
+      selectionStart: target.selectionStart,
+      selectionEnd: target.selectionEnd,
+    });
+    const record = (event) => {
+      events.push({
+        id: ++nextId,
+        type: event.type,
+        key: 'key' in event ? event.key : null,
+        code: 'code' in event ? event.code : null,
+        isComposing: typeof event.isComposing === 'boolean' ? event.isComposing : null,
+        inputType: 'inputType' in event ? event.inputType : null,
+        data: 'data' in event ? event.data : null,
+        value: target.value,
+        selectionStart: target.selectionStart,
+        selectionEnd: target.selectionEnd,
+        timeStamp: event.timeStamp,
+        performanceNow: performance.now(),
+        defaultPrevented: event.defaultPrevented,
+      });
+    };
+    for (const eventName of eventNames) {
+      target.addEventListener(eventName, record);
+    }
+
+    window.__codexImeControl = {
+      marker: 'codex-ime-control',
+      sessionId,
+      eventNames,
+      drainEvents(afterId) {
+        const numericAfterId = Number(afterId) || 0;
+        return events.filter((event) => event.id > numericAfterId);
+      },
+      textareaState,
+      dispose() {
+        for (const eventName of eventNames) {
+          target.removeEventListener(eventName, record);
+        }
+      },
+    };
+
+    return {
+      ok: true,
+      page,
+      textarea: textareaState(),
+      sessionId,
+    };
+  })()`;
+}
+
+export function buildLoggerCheckExpression(sessionId) {
+  return `(() => {
+    const sessionId = ${jsonLiteral(sessionId)};
+    const logger = window.__codexImeControl;
+    if (!logger || logger.marker !== 'codex-ime-control') {
+      return {
+        ok: false,
+        error: {
+          code: 'logger_missing',
+          message: 'IME control logger is missing. Run start again for this page before continuing.',
+        },
+      };
+    }
+    if (logger.sessionId !== sessionId) {
+      return {
+        ok: false,
+        error: {
+          code: 'session_mismatch',
+          message: 'IME control logger belongs to a different session. Run start again for this page before continuing.',
+          actualSessionId: logger.sessionId,
+          expectedSessionId: sessionId,
+        },
+      };
+    }
+    return {
+      ok: true,
+      sessionId,
+      textarea: typeof logger.textareaState === 'function' ? logger.textareaState() : null,
+    };
+  })()`;
+}
+
+export function buildDrainEventsExpression(sessionId, lastEventId) {
+  return `(() => {
+    const sessionId = ${jsonLiteral(sessionId)};
+    const logger = window.__codexImeControl;
+    if (!logger || logger.marker !== 'codex-ime-control') {
+      return {
+        ok: false,
+        error: {
+          code: 'logger_missing',
+          message: 'IME control logger is missing. Run start again for this page before continuing.',
+        },
+      };
+    }
+    if (logger.sessionId !== sessionId) {
+      return {
+        ok: false,
+        error: {
+          code: 'session_mismatch',
+          message: 'IME control logger belongs to a different session. Run start again for this page before continuing.',
+          actualSessionId: logger.sessionId,
+          expectedSessionId: sessionId,
+        },
+      };
+    }
+    return {
+      ok: true,
+      sessionId,
+      events: logger.drainEvents(${jsonLiteral(lastEventId)}),
+      textarea: typeof logger.textareaState === 'function' ? logger.textareaState() : null,
+    };
+  })()`;
 }
 
 export function nextCapturePaths(sessionDir, existingCaptureFileNames = []) {

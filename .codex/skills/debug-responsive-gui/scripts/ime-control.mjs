@@ -2,7 +2,20 @@
 
 import { fileURLToPath } from 'node:url';
 
-import { ALLOWED_KEYS, parseArgs } from './lib/ime-control-core.mjs';
+import { evalJson } from './lib/playwright-cli.mjs';
+import {
+  ALLOWED_KEYS,
+  COMMAND_VERSION,
+  appendEventsAndUpdateMetadata,
+  buildDrainEventsExpression,
+  buildLoggerCheckExpression,
+  buildStartPageExpression,
+  createSessionFiles,
+  generateSessionId,
+  parseArgs,
+  readSessionMetadata,
+  sessionDirForId,
+} from './lib/ime-control-core.mjs';
 
 const usage = [
   'node .codex/skills/debug-responsive-gui/scripts/ime-control.mjs start [--preserve]',
@@ -41,18 +54,102 @@ function printInvalidArgument(error) {
   });
 }
 
-function printNotImplemented(options) {
+function printFailure(code, message, details = undefined) {
   printJson({
     ok: false,
-    command: options.command,
-    parsed: options,
     errors: [
       {
-        code: 'not_implemented',
-        message: `${options.command} is not implemented in Task 1`,
+        code,
+        message,
+        ...(details === undefined ? {} : { details }),
       },
     ],
   });
+}
+
+function requireEvalOk(result) {
+  if (result?.ok) {
+    return result;
+  }
+  const error = result?.error ?? {
+    code: 'page_eval_failed',
+    message: 'Page evaluation failed.',
+  };
+  throw new Error(`${error.code}: ${error.message}`);
+}
+
+function readSession(options) {
+  const sessionDir = sessionDirForId(options.sessionId);
+  const metadata = readSessionMetadata(sessionDir);
+  if (metadata.sessionId !== options.sessionId) {
+    throw new Error(`Session metadata mismatch for ${options.sessionId}`);
+  }
+  return { sessionDir, metadata };
+}
+
+function checkLogger(sessionId) {
+  return requireEvalOk(evalJson(buildLoggerCheckExpression(sessionId)));
+}
+
+function drainEvents({ sessionId, sessionDir, lastEventId }) {
+  const result = requireEvalOk(evalJson(buildDrainEventsExpression(sessionId, lastEventId)));
+  const events = Array.isArray(result.events) ? result.events : [];
+  const updatedLastEventId = appendEventsAndUpdateMetadata(sessionDir, events);
+  return { events, lastEventId: updatedLastEventId, textarea: result.textarea ?? null };
+}
+
+async function startSession(options) {
+  const sessionId = generateSessionId();
+  const sessionDir = sessionDirForId(sessionId);
+  const pageResult = requireEvalOk(evalJson(buildStartPageExpression({
+    sessionId,
+    preserve: options.preserve,
+  })));
+  const createdAt = new Date().toISOString();
+  createSessionFiles({
+    sessionId,
+    sessionDir,
+    createdAt,
+    commandVersion: COMMAND_VERSION,
+    page: pageResult.page,
+    textarea: pageResult.textarea,
+  });
+  const drained = drainEvents({ sessionId, sessionDir, lastEventId: 0 });
+
+  printJson({
+    ok: true,
+    command: 'start',
+    sessionId,
+    sessionDir,
+    eventCount: drained.events.length,
+  });
+  return 0;
+}
+
+async function runSessionBoundaryCommand(options) {
+  const { sessionDir, metadata } = readSession(options);
+  checkLogger(options.sessionId);
+  const drained = drainEvents({
+    sessionId: options.sessionId,
+    sessionDir,
+    lastEventId: metadata.lastEventId,
+  });
+
+  printJson({
+    ok: false,
+    command: options.command,
+    sessionId: options.sessionId,
+    sessionDir,
+    eventCount: drained.events.length,
+    lastEventId: drained.lastEventId,
+    errors: [
+      {
+        code: 'not_implemented',
+        message: `${options.command} is not implemented in Task 2`,
+      },
+    ],
+  });
+  return 2;
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -69,8 +166,16 @@ export async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  printNotImplemented(options);
-  return 2;
+  try {
+    if (options.command === 'start') {
+      return await startSession(options);
+    }
+
+    return await runSessionBoundaryCommand(options);
+  } catch (error) {
+    printFailure('ime_control_failed', errorMessage(error));
+    return 1;
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

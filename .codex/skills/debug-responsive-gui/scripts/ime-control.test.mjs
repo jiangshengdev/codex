@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
   assignCandidateIndexes,
+  appendEventsAndUpdateMetadata,
+  buildDrainEventsExpression,
+  buildLoggerCheckExpression,
+  buildStartPageExpression,
+  createSessionFiles,
+  generateSessionId,
   inferCandidateMode,
   isVisibleCandidate,
   keyCodeForKey,
@@ -117,6 +126,99 @@ test('session paths are shaped under the IME temp root', () => {
     jsonPath: '/tmp/codex-ime-control/abc-123/captures/0002-candidate.json',
     pngPath: '/tmp/codex-ime-control/abc-123/captures/0002-candidate.png',
   });
+});
+
+test('generateSessionId returns filesystem-safe unique ids', () => {
+  const first = generateSessionId();
+  const second = generateSessionId();
+
+  assert.notEqual(first, second);
+  assert.match(first, /^[A-Za-z0-9._-]+$/);
+  assert.equal(sessionDirForId(first), `/tmp/codex-ime-control/${first}`);
+});
+
+test('createSessionFiles creates metadata and empty jsonl files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ime-control-test-'));
+  const sessionId = 'session-create-test';
+  const sessionDir = path.join(root, sessionId);
+
+  const result = createSessionFiles({
+    sessionId,
+    sessionDir,
+    createdAt: '2026-07-04T00:00:00.000Z',
+    commandVersion: 'test-version',
+    page: { url: 'http://localhost:3000' },
+    textarea: { value: '', focused: true, selectionStart: 0, selectionEnd: 0 },
+  });
+
+  assert.deepEqual(result, {
+    sessionId,
+    sessionDir,
+    capturesDir: path.join(sessionDir, 'captures'),
+  });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(sessionDir, 'metadata.json'), 'utf8')), {
+    sessionId,
+    createdAt: '2026-07-04T00:00:00.000Z',
+    commandVersion: 'test-version',
+    page: { url: 'http://localhost:3000' },
+    textarea: { value: '', focused: true, selectionStart: 0, selectionEnd: 0 },
+    lastEventId: 0,
+  });
+  assert.equal(fs.readFileSync(path.join(sessionDir, 'events.jsonl'), 'utf8'), '');
+  assert.equal(fs.readFileSync(path.join(sessionDir, 'actions.jsonl'), 'utf8'), '');
+  assert.equal(fs.statSync(path.join(sessionDir, 'captures')).isDirectory(), true);
+});
+
+test('appendEventsAndUpdateMetadata appends jsonl and advances last event id', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ime-control-test-'));
+  const sessionDir = path.join(root, 'session-events-test');
+  createSessionFiles({
+    sessionId: 'session-events-test',
+    sessionDir,
+    createdAt: '2026-07-04T00:00:00.000Z',
+    commandVersion: 'test-version',
+    page: {},
+    textarea: {},
+  });
+
+  assert.equal(appendEventsAndUpdateMetadata(sessionDir, [
+    { id: 1, type: 'input' },
+    { id: 3, type: 'compositionend' },
+  ]), 3);
+  assert.equal(appendEventsAndUpdateMetadata(sessionDir, []), 3);
+  assert.equal(
+    fs.readFileSync(path.join(sessionDir, 'events.jsonl'), 'utf8'),
+    '{"id":1,"type":"input"}\n{"id":3,"type":"compositionend"}\n',
+  );
+  assert.equal(JSON.parse(fs.readFileSync(path.join(sessionDir, 'metadata.json'), 'utf8')).lastEventId, 3);
+});
+
+test('logger expressions contain the event contract and session marker', () => {
+  const startExpression = buildStartPageExpression({ sessionId: 'session-marker', preserve: false });
+  assert.match(startExpression, /__codexImeControl/);
+  assert.match(startExpression, /session-marker/);
+  assert.match(startExpression, /textarea\[placeholder="Message Codex"\]/);
+  for (const eventName of [
+    'compositionstart',
+    'compositionupdate',
+    'compositionend',
+    'keydown',
+    'keyup',
+    'beforeinput',
+    'input',
+    'change',
+  ]) {
+    assert.match(startExpression, new RegExp(eventName));
+  }
+  assert.match(startExpression, /HTMLTextAreaElement\.prototype/);
+  assert.match(startExpression, /dispatchEvent\(new InputEvent\('input'/);
+
+  const preserveExpression = buildStartPageExpression({ sessionId: 'session-marker', preserve: true });
+  assert.doesNotMatch(preserveExpression, /dispatchEvent\(new InputEvent\('input'/);
+
+  assert.match(buildLoggerCheckExpression('session-marker'), /session-marker/);
+  assert.match(buildLoggerCheckExpression('session-marker'), /session_mismatch/);
+  assert.match(buildDrainEventsExpression('session-marker', 7), /drainEvents\(7\)/);
 });
 
 test('candidate helpers filter visible candidates and sort by row-major frame order', () => {
