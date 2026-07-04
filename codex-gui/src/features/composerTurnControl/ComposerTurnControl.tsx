@@ -116,6 +116,7 @@ export function ComposerTurnControl({
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key !== "Enter" || event.shiftKey) {
+      suppressNextEnterRef.current = false;
       return;
     }
 
