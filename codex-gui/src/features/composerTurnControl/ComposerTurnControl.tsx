@@ -35,7 +35,6 @@ export function ComposerTurnControl({
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const isComposingRef = useRef(false);
-  const suppressNextEnterRef = useRef(false);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
@@ -102,15 +101,10 @@ export function ComposerTurnControl({
 
   const onCompositionStart = (): void => {
     isComposingRef.current = true;
-    suppressNextEnterRef.current = false;
   };
 
   const onCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
-    const wasComposing = isComposingRef.current;
     isComposingRef.current = false;
-    if (wasComposing) {
-      suppressNextEnterRef.current = true;
-    }
     setDraft(event.currentTarget.value);
   };
 
@@ -120,12 +114,6 @@ export function ComposerTurnControl({
     }
 
     if (event.nativeEvent.isComposing || isComposingRef.current) {
-      return;
-    }
-
-    if (suppressNextEnterRef.current) {
-      event.preventDefault();
-      suppressNextEnterRef.current = false;
       return;
     }
 
