@@ -142,6 +142,10 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerPanel.classList.contains("shadow-md")).toBe(true);
   expect(composerPanel.classList.contains("shadow-lg")).toBe(false);
   expect(composerShell.classList.contains("composer-shell")).toBe(true);
+  expect(composerShell.classList.contains("sticky")).toBe(true);
+  expect(composerShell.classList.contains("bottom-0")).toBe(true);
+  expect(composerShell.classList.contains("fixed")).toBe(false);
+  expect(composerShell.classList.contains("inset-x-0")).toBe(false);
   expect(composerShell.classList.contains("px-4")).toBe(false);
   expect(composerShell.classList.contains("pb-0")).toBe(true);
   expect(composerShell.classList.contains("pb-3")).toBe(false);
@@ -468,7 +472,8 @@ test("send failure keeps draft and shows a toast", async () => {
 test("pending send disables duplicate submission", async () => {
   const { commandHandle, composer, pending, screen } = await beginPendingSend("Send once");
   await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-  await composer.click();
+  composer.element().focus();
+  await expect.element(composer).toHaveFocus();
   await screen.user.keyboard("{Enter}");
 
   expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
