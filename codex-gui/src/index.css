@@ -14,11 +14,11 @@
 }
 
 @media (pointer: coarse) and (hover: none) {
-  .composer-shell:focus-within {
+  .composer-shell:has(textarea:focus) {
     padding-bottom: 0.75rem;
   }
 
-  .composer-shell:focus-within .composer-panel {
+  .composer-shell:has(textarea:focus) .composer-panel {
     border-radius: 20px;
     padding-bottom: 0.5rem;
   }

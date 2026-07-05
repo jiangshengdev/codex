@@ -69,6 +69,22 @@ const expectComposerDisabled = async (
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
 
+const collectComposerShellSelectors = (rules: CSSRuleList): string[] =>
+  Array.from(rules).flatMap((rule): string[] => {
+    if (rule instanceof CSSStyleRule && rule.selectorText.includes(".composer-shell")) {
+      return [rule.selectorText];
+    }
+    if (rule instanceof CSSMediaRule) {
+      return collectComposerShellSelectors(rule.cssRules);
+    }
+    return [];
+  });
+
+const composerShellSelectors = (): string[] =>
+  Array.from(document.styleSheets).flatMap((sheet) =>
+    collectComposerShellSelectors(sheet.cssRules),
+  );
+
 async function beginPendingSend(draft: string) {
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
   const commandHandle = createGuiHostCommands();
@@ -155,6 +171,32 @@ test("keeps CSS hooks for virtual-keyboard focus styles", async () => {
   expect(composerPanel.classList.contains("pb-5")).toBe(true);
   expect(composerShell.classList.contains("pb-0")).toBe(true);
   expect(composerShell.classList.contains("pb-3")).toBe(false);
+});
+
+test("limits virtual-keyboard focus styles to textarea focus", async () => {
+  const screen = await renderAttached();
+  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
+  if (!(composerShell instanceof HTMLElement)) {
+    throw new Error("composer shell must render");
+  }
+  const composer = screen.getByPlaceholder("Message Codex");
+  const sendButton = screen.getByRole("button", { name: "Send" });
+
+  const textareaFocusSelector = ".composer-shell:has(textarea:focus)";
+  const selectors = composerShellSelectors();
+  expect(selectors).toContain(textareaFocusSelector);
+  expect(selectors).toContain(`${textareaFocusSelector} .composer-panel`);
+  expect(selectors.some((selector) => selector.includes(".composer-shell:focus-within"))).toBe(
+    false,
+  );
+
+  await composer.click();
+  expect(composerShell.matches(textareaFocusSelector)).toBe(true);
+
+  await composer.fill("Hello Codex");
+  sendButton.element().focus();
+  await expect.element(sendButton).toHaveFocus();
+  expect(composerShell.matches(textareaFocusSelector)).toBe(false);
 });
 
 test("sends non-empty draft and clears it after success", async () => {
