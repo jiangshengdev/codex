@@ -69,21 +69,19 @@ const expectComposerDisabled = async (
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
 
-const collectComposerShellSelectors = (rules: CSSRuleList): string[] =>
+const collectComposerSelectors = (rules: CSSRuleList): string[] =>
   Array.from(rules).flatMap((rule): string[] => {
-    if (rule instanceof CSSStyleRule && rule.selectorText.includes(".composer-shell")) {
+    if (rule instanceof CSSStyleRule && rule.selectorText.includes(".composer-")) {
       return [rule.selectorText];
     }
     if (rule instanceof CSSMediaRule) {
-      return collectComposerShellSelectors(rule.cssRules);
+      return collectComposerSelectors(rule.cssRules);
     }
     return [];
   });
 
-const composerShellSelectors = (): string[] =>
-  Array.from(document.styleSheets).flatMap((sheet) =>
-    collectComposerShellSelectors(sheet.cssRules),
-  );
+const composerSelectors = (): string[] =>
+  Array.from(document.styleSheets).flatMap((sheet) => collectComposerSelectors(sheet.cssRules));
 
 async function beginPendingSend(draft: string) {
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
@@ -135,7 +133,7 @@ test("renders a white composer panel with a primary textarea and actions", async
     .filter((label) => label.length > 0);
 
   expect(composerPanel.classList.contains("p-2")).toBe(true);
-  expect(composerPanel.classList.contains("pb-5")).toBe(true);
+  expect(composerPanel.classList.contains("pb-5")).toBe(false);
   expect(composerPanel.classList.contains("p-3")).toBe(false);
   expect(composerPanel.classList.contains("composer-panel")).toBe(true);
   expect(composerPanel.classList.contains("rounded-t-[20px]")).toBe(true);
@@ -172,9 +170,14 @@ test("keeps CSS hooks for virtual-keyboard focus styles", async () => {
   expect(composerPanel.classList.contains("rounded-[20px]")).toBe(false);
   expect(composerPanel.classList.contains("composer-panel")).toBe(true);
   expect(composerShell.classList.contains("composer-shell")).toBe(true);
-  expect(composerPanel.classList.contains("pb-5")).toBe(true);
   expect(composerShell.classList.contains("pb-0")).toBe(true);
   expect(composerShell.classList.contains("pb-3")).toBe(false);
+
+  const textareaFocusSelector = ".composer-shell:has(textarea:focus)";
+  const selectors = composerSelectors();
+  expect(selectors).toContain(".composer-panel");
+  expect(selectors).toContain(textareaFocusSelector);
+  expect(selectors).toContain(`${textareaFocusSelector} .composer-panel`);
 });
 
 test("limits virtual-keyboard focus styles to textarea focus", async () => {
@@ -187,7 +190,7 @@ test("limits virtual-keyboard focus styles to textarea focus", async () => {
   const sendButton = screen.getByRole("button", { name: "Send" });
 
   const textareaFocusSelector = ".composer-shell:has(textarea:focus)";
-  const selectors = composerShellSelectors();
+  const selectors = composerSelectors();
   expect(selectors).toContain(textareaFocusSelector);
   expect(selectors).toContain(`${textareaFocusSelector} .composer-panel`);
   expect(selectors.some((selector) => selector.includes(".composer-shell:focus-within"))).toBe(
