@@ -13,6 +13,21 @@
   display: block;
 }
 
+@media (pointer: coarse) and (hover: none) {
+  .composer-panel {
+    padding-bottom: 1.25rem;
+  }
+
+  .composer-shell:has(textarea:focus) {
+    padding-bottom: 0.75rem;
+  }
+
+  .composer-shell:has(textarea:focus) .composer-panel {
+    border-radius: 20px;
+    padding-bottom: 0.5rem;
+  }
+}
+
 :root {
   background-color: var(--background);
   color: var(--foreground);

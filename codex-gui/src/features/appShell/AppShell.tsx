@@ -44,7 +44,7 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
 
   return (
     <main
-      className="min-h-svh w-full bg-background px-4 py-6 pb-44 text-foreground sm:px-6 lg:px-8"
+      className="min-h-svh w-full bg-background text-foreground"
       data-gui-host-status={status.label}
     >
       <Toast.Provider placement="top" />

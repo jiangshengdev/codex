@@ -150,11 +150,31 @@ test("App renders the committed transcript shell without visible host debug deta
 
 test("App renders composer in the shell without visible host debug details", async () => {
   const screen = await renderWithProviders(<App />);
+  const main = screen.getByRole("main").element();
+  const transcriptBottomSentinel = screen.container.querySelector(
+    ".committed-transcript-bottom-sentinel",
+  );
+  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
+  expect(main.classList.contains("pb-44")).toBe(false);
+  expect(main.classList.contains("px-4")).toBe(false);
+  expect(main.classList.contains("py-6")).toBe(false);
+  expect(main.classList.contains("sm:px-6")).toBe(false);
+  expect(main.classList.contains("lg:px-8")).toBe(false);
+  if (
+    !(transcriptBottomSentinel instanceof HTMLElement) ||
+    !(composerShell instanceof HTMLElement)
+  ) {
+    throw new Error("transcript sentinel and composer shell must render");
+  }
+  expect(
+    transcriptBottomSentinel.compareDocumentPosition(composerShell) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
 });
 
 test("App keeps the transcript surface flush with the shell padding", async () => {
