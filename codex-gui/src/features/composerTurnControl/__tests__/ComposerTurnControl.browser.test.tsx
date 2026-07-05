@@ -119,15 +119,42 @@ test("renders a white composer panel with a primary textarea and actions", async
     .filter((label) => label.length > 0);
 
   expect(composerPanel.classList.contains("p-2")).toBe(true);
+  expect(composerPanel.classList.contains("pb-5")).toBe(true);
   expect(composerPanel.classList.contains("p-3")).toBe(false);
+  expect(composerPanel.classList.contains("composer-panel")).toBe(true);
+  expect(composerPanel.classList.contains("rounded-t-[20px]")).toBe(true);
+  expect(composerPanel.classList.contains("shadow-md")).toBe(true);
+  expect(composerPanel.classList.contains("shadow-lg")).toBe(false);
+  expect(composerShell.classList.contains("composer-shell")).toBe(true);
   expect(composerShell.classList.contains("px-4")).toBe(false);
   expect(composerShell.classList.contains("pb-0")).toBe(true);
+  expect(composerShell.classList.contains("pb-3")).toBe(false);
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
   expect(actions).toEqual(["Stop", "Send"]);
+});
+
+test("keeps CSS hooks for virtual-keyboard focus styles", async () => {
+  const screen = await renderAttached();
+  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
+  if (!(composerShell instanceof HTMLElement)) {
+    throw new Error("composer shell must render");
+  }
+  const composerPanel = composerShell.firstElementChild;
+  if (!(composerPanel instanceof HTMLElement)) {
+    throw new Error("composer panel must render");
+  }
+
+  expect(composerPanel.classList.contains("rounded-t-[20px]")).toBe(true);
+  expect(composerPanel.classList.contains("rounded-[20px]")).toBe(false);
+  expect(composerPanel.classList.contains("composer-panel")).toBe(true);
+  expect(composerShell.classList.contains("composer-shell")).toBe(true);
+  expect(composerPanel.classList.contains("pb-5")).toBe(true);
+  expect(composerShell.classList.contains("pb-0")).toBe(true);
+  expect(composerShell.classList.contains("pb-3")).toBe(false);
 });
 
 test("sends non-empty draft and clears it after success", async () => {

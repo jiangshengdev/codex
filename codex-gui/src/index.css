@@ -13,6 +13,17 @@
   display: block;
 }
 
+@media (pointer: coarse) and (hover: none) {
+  .composer-shell:focus-within {
+    padding-bottom: 0.75rem;
+  }
+
+  .composer-shell:focus-within .composer-panel {
+    border-radius: 20px;
+    padding-bottom: 0.5rem;
+  }
+}
+
 :root {
   background-color: var(--background);
   color: var(--foreground);
