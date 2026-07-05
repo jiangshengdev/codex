@@ -14,6 +14,14 @@ export type AppShellProps = {
   launchParams: LaunchParams | null;
 };
 
+function isMacAppleWebKitRuntime(): boolean {
+  return (
+    navigator.vendor === "Apple Computer, Inc." &&
+    navigator.platform === "MacIntel" &&
+    navigator.maxTouchPoints <= 1
+  );
+}
+
 function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   if (status.label !== "error") {
     return null;
@@ -32,6 +40,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
 
 export function AppShell({ status, commands, launchParams }: AppShellProps) {
   const transcriptBottomRef = useCommittedTranscriptStickyBottom();
+  const guardCompositionEndEnter = isMacAppleWebKitRuntime();
 
   return (
     <main
@@ -51,7 +60,12 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
         className="committed-transcript-bottom-sentinel h-px w-full"
         ref={transcriptBottomRef}
       />
-      <ComposerTurnControl commands={commands} guiHostStatus={status} launchParams={launchParams} />
+      <ComposerTurnControl
+        commands={commands}
+        guardCompositionEndEnter={guardCompositionEndEnter}
+        guiHostStatus={status}
+        launchParams={launchParams}
+      />
     </main>
   );
 }
