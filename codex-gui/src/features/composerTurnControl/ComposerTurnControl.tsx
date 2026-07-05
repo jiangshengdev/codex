@@ -23,20 +23,14 @@ import {
 
 export type ComposerTurnControlProps = {
   commands: GuiHostCommands | null;
+  guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
   launchParams: LaunchParams | null;
 };
 
-function isMacAppleWebKitRuntime(): boolean {
-  return (
-    navigator.vendor === "Apple Computer, Inc." &&
-    navigator.platform === "MacIntel" &&
-    navigator.maxTouchPoints <= 1
-  );
-}
-
 export function ComposerTurnControl({
   commands,
+  guardCompositionEndEnter,
   guiHostStatus,
   launchParams,
 }: ComposerTurnControlProps) {
@@ -48,7 +42,6 @@ export function ComposerTurnControl({
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
   const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
-  const shouldGuardCompositionEndEnter = isMacAppleWebKitRuntime();
 
   const connectionUsable =
     commands != null &&
@@ -117,7 +110,7 @@ export function ComposerTurnControl({
   const onCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
     const wasComposing = isComposingRef.current;
     isComposingRef.current = false;
-    if (wasComposing && shouldGuardCompositionEndEnter) {
+    if (wasComposing && guardCompositionEndEnter) {
       suppressNextEnterRef.current = true;
     }
     setDraft(event.currentTarget.value);
