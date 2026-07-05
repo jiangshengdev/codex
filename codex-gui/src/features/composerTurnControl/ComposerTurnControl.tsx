@@ -23,12 +23,14 @@ import {
 
 export type ComposerTurnControlProps = {
   commands: GuiHostCommands | null;
+  guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
   launchParams: LaunchParams | null;
 };
 
 export function ComposerTurnControl({
   commands,
+  guardCompositionEndEnter,
   guiHostStatus,
   launchParams,
 }: ComposerTurnControlProps) {
@@ -108,7 +110,7 @@ export function ComposerTurnControl({
   const onCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
     const wasComposing = isComposingRef.current;
     isComposingRef.current = false;
-    if (wasComposing) {
+    if (wasComposing && guardCompositionEndEnter) {
       suppressNextEnterRef.current = true;
     }
     setDraft(event.currentTarget.value);
@@ -134,12 +136,6 @@ export function ComposerTurnControl({
     void submit();
   };
 
-  const onKeyUp = (): void => {
-    if (suppressNextEnterRef.current) {
-      suppressNextEnterRef.current = false;
-    }
-  };
-
   return (
     <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 pt-3 pb-0">
       <Surface
@@ -155,7 +151,6 @@ export function ComposerTurnControl({
           onCompositionEnd={onCompositionEnd}
           onCompositionStart={onCompositionStart}
           onKeyDown={onKeyDown}
-          onKeyUp={onKeyUp}
           placeholder="Message Codex"
           value={draft}
           variant="primary"
