@@ -127,7 +127,7 @@ const MiddleTranscriptModule = ({
 
   return (
     <Disclosure
-      className="committed-transcript-temporary-module grid min-w-0 gap-2"
+      className="committed-transcript-temporary-module grid min-w-0"
       isDisabled={!hasFinalAnswer}
       isExpanded={shouldShowEntries}
       onExpandedChange={setIsExpanded}
