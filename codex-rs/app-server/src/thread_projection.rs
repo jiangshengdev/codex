@@ -516,6 +516,21 @@ fn projection_delta_from_notification(
                 notification: notification.clone(),
             })
         }
+        ServerNotification::ReasoningSummaryTextDelta(notification) => {
+            Some(ThreadProjectionDelta::ReasoningSummaryText {
+                notification: notification.clone(),
+            })
+        }
+        ServerNotification::ReasoningSummaryPartAdded(notification) => {
+            Some(ThreadProjectionDelta::ReasoningSummaryPartAdded {
+                notification: notification.clone(),
+            })
+        }
+        ServerNotification::ReasoningTextDelta(notification) => {
+            Some(ThreadProjectionDelta::ReasoningText {
+                notification: notification.clone(),
+            })
+        }
         _ => None,
     }
 }
@@ -523,6 +538,9 @@ fn projection_delta_from_notification(
 #[cfg(test)]
 mod tests {
     use codex_app_server_protocol::AgentMessageDeltaNotification;
+    use codex_app_server_protocol::ReasoningSummaryPartAddedNotification;
+    use codex_app_server_protocol::ReasoningSummaryTextDeltaNotification;
+    use codex_app_server_protocol::ReasoningTextDeltaNotification;
     use codex_app_server_protocol::ServerNotification;
     use codex_app_server_protocol::ThreadArchivedNotification;
     use codex_app_server_protocol::ThreadProjectionDelta;
@@ -572,6 +590,78 @@ mod tests {
         ServerNotification::ThreadArchived(ThreadArchivedNotification {
             thread_id: thread_id.to_string(),
         })
+    }
+
+    #[test]
+    fn projection_delta_wraps_reasoning_summary_text_delta() {
+        let notification =
+            ServerNotification::ReasoningSummaryTextDelta(ReasoningSummaryTextDeltaNotification {
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                item_id: "reasoning-1".to_string(),
+                delta: "considering".to_string(),
+                summary_index: 0,
+            });
+
+        assert_eq!(
+            Some(ThreadProjectionDelta::ReasoningSummaryText {
+                notification: ReasoningSummaryTextDeltaNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "reasoning-1".to_string(),
+                    delta: "considering".to_string(),
+                    summary_index: 0,
+                },
+            }),
+            projection_delta_from_notification(&notification)
+        );
+    }
+
+    #[test]
+    fn projection_delta_wraps_reasoning_summary_part_added() {
+        let notification =
+            ServerNotification::ReasoningSummaryPartAdded(ReasoningSummaryPartAddedNotification {
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                item_id: "reasoning-1".to_string(),
+                summary_index: 1,
+            });
+
+        assert_eq!(
+            Some(ThreadProjectionDelta::ReasoningSummaryPartAdded {
+                notification: ReasoningSummaryPartAddedNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "reasoning-1".to_string(),
+                    summary_index: 1,
+                },
+            }),
+            projection_delta_from_notification(&notification)
+        );
+    }
+
+    #[test]
+    fn projection_delta_wraps_reasoning_text_delta() {
+        let notification = ServerNotification::ReasoningTextDelta(ReasoningTextDeltaNotification {
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            item_id: "reasoning-1".to_string(),
+            delta: "raw detail".to_string(),
+            content_index: 0,
+        });
+
+        assert_eq!(
+            Some(ThreadProjectionDelta::ReasoningText {
+                notification: ReasoningTextDeltaNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "reasoning-1".to_string(),
+                    delta: "raw detail".to_string(),
+                    content_index: 0,
+                },
+            }),
+            projection_delta_from_notification(&notification)
+        );
     }
 
     #[tokio::test]
