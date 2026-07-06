@@ -6,6 +6,11 @@ import {
   eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
+  eventReasoningItemCompleted,
+  eventReasoningItemStarted,
+  eventReasoningSummaryPartAddedDelta,
+  eventReasoningSummaryTextDelta,
+  eventReasoningTextDelta,
   eventSubscriptionReplacement,
   eventTurnCompleted,
   eventTurnStarted,
@@ -18,9 +23,14 @@ const fixturePayloads = [
   eventTurnStarted,
   eventItemStarted,
   eventItemCompleted,
+  eventReasoningItemStarted,
+  eventReasoningItemCompleted,
   eventTurnCompleted,
   eventSubscriptionReplacement,
   eventAgentMessageDelta,
+  eventReasoningSummaryTextDelta,
+  eventReasoningSummaryPartAddedDelta,
+  eventReasoningTextDelta,
 ];
 
 const assertFieldAbsentRecursive = (value: unknown, fieldName: string): void => {
@@ -54,6 +64,8 @@ describe("Rust-generated projection fixtures", () => {
     expect(eventTurnStarted.event.type).toBe("turnStarted");
     expect(eventItemStarted.event.type).toBe("itemStarted");
     expect(eventItemCompleted.event.type).toBe("itemCompleted");
+    expect(eventReasoningItemStarted.event.type).toBe("itemStarted");
+    expect(eventReasoningItemCompleted.event.type).toBe("itemCompleted");
     expect(eventTurnCompleted.event.type).toBe("turnCompleted");
     expect(eventSubscriptionReplacement.event.type).toBe("turnStarted");
   });
@@ -70,6 +82,41 @@ describe("Rust-generated projection fixtures", () => {
       itemId: "assistant-message",
       delta: "streamed text",
     });
+
+    expect(eventReasoningSummaryTextDelta.delta.type).toBe("reasoningSummaryText");
+    if (eventReasoningSummaryTextDelta.delta.type !== "reasoningSummaryText") {
+      throw new Error("fixture must contain a reasoningSummaryText projection delta");
+    }
+    expect(eventReasoningSummaryTextDelta.delta.notification).toMatchObject({
+      threadId: attachBaseline.snapshot.thread.id,
+      turnId: "turn-in-progress",
+      itemId: "reasoning-item",
+      delta: "thinking summary",
+      summaryIndex: 0,
+    });
+
+    expect(eventReasoningSummaryPartAddedDelta.delta.type).toBe("reasoningSummaryPartAdded");
+    if (eventReasoningSummaryPartAddedDelta.delta.type !== "reasoningSummaryPartAdded") {
+      throw new Error("fixture must contain a reasoningSummaryPartAdded projection delta");
+    }
+    expect(eventReasoningSummaryPartAddedDelta.delta.notification).toMatchObject({
+      threadId: attachBaseline.snapshot.thread.id,
+      turnId: "turn-in-progress",
+      itemId: "reasoning-item",
+      summaryIndex: 1,
+    });
+
+    expect(eventReasoningTextDelta.delta.type).toBe("reasoningText");
+    if (eventReasoningTextDelta.delta.type !== "reasoningText") {
+      throw new Error("fixture must contain a reasoningText projection delta");
+    }
+    expect(eventReasoningTextDelta.delta.notification).toMatchObject({
+      threadId: attachBaseline.snapshot.thread.id,
+      turnId: "turn-in-progress",
+      itemId: "reasoning-item",
+      delta: "raw reasoning",
+      contentIndex: 0,
+    });
   });
 
   it("imports projection closed notifications with expected reason", () => {
@@ -82,7 +129,9 @@ describe("Rust-generated projection fixtures", () => {
     expect(eventTurnStarted.parentCommitId).toBeNull();
     expect(eventItemStarted.parentCommitId).toBe(eventTurnStarted.commitId);
     expect(eventItemCompleted.parentCommitId).toBe(eventItemStarted.commitId);
-    expect(eventTurnCompleted.parentCommitId).toBe(eventItemCompleted.commitId);
+    expect(eventReasoningItemStarted.parentCommitId).toBe(eventItemCompleted.commitId);
+    expect(eventReasoningItemCompleted.parentCommitId).toBe(eventReasoningItemStarted.commitId);
+    expect(eventTurnCompleted.parentCommitId).toBe(eventReasoningItemCompleted.commitId);
   });
 
   it("keeps the replacement subscription chain separate", () => {
@@ -94,7 +143,7 @@ describe("Rust-generated projection fixtures", () => {
   });
 
   it("does not contain historical sequence projection fields", () => {
-    expect(fixturePayloads).toHaveLength(9);
+    expect(fixturePayloads).toHaveLength(14);
 
     for (const payload of fixturePayloads) {
       for (const fieldName of [
