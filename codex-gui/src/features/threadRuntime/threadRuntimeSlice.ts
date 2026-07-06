@@ -28,6 +28,10 @@ export type ThreadRuntimeProjectionDeltaPayload = {
   notification: ThreadProjectionDeltaNotification;
 };
 
+export type ThreadRuntimeProjectionDeltasPayload = {
+  notifications: ThreadProjectionDeltaNotification[];
+};
+
 export type ThreadRuntimeBufferedEvent = {
   type: "projectionEvent";
   notification: ThreadProjectionEventNotification;
@@ -124,6 +128,10 @@ export const threadRuntimeSlice = createAppSlice({
       // eslint-disable-next-line @typescript-eslint/no-empty-function -- Accepted projection deltas are a cross-slice signal; runtime intentionally does not mutate buffers.
       (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltaPayload>) => {},
     ),
+    threadRuntimeDeltasAccepted: create.reducer(
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- Accepted projection delta batches are a cross-slice signal; runtime intentionally does not mutate buffers.
+      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltasPayload>) => {},
+    ),
     threadRuntimeEventBuffered: create.reducer(
       (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {
         const runtime = state.current;
@@ -194,6 +202,7 @@ export const threadRuntimeSlice = createAppSlice({
 export const {
   threadRuntimeAttached,
   threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } = threadRuntimeSlice.actions;

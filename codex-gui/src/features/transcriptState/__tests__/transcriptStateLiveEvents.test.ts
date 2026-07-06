@@ -12,6 +12,7 @@ import {
 import {
   threadRuntimeAttached,
   threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -131,6 +132,65 @@ describe("transcript state live events reducer", () => {
     expect(selectTranscriptEntry(store.getState(), "agent-streaming")).toBeNull();
     expect(selectTranscriptChunk(store.getState(), "turn-streaming:chunk:0")).toBeNull();
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("applies accepted agent message delta batches in notification order", () => {
+    const singleStore = makeStore();
+    const batchStore = makeStore();
+    const initialItem = agentMessage("agent-streaming-batch", "");
+    const started = itemStarted(
+      eventItemStarted,
+      "commit-streaming-batch-started",
+      "turn-streaming-batch",
+      initialItem,
+    );
+    const firstDelta = agentMessageDelta(
+      eventAgentMessageDelta,
+      "turn-streaming-batch",
+      "agent-streaming-batch",
+      "Hello",
+    );
+    const secondDelta = agentMessageDelta(
+      eventAgentMessageDelta,
+      "turn-streaming-batch",
+      "agent-streaming-batch",
+      " world",
+    );
+
+    for (const store of [singleStore, batchStore]) {
+      store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: started,
+          replay: "live",
+        }),
+      );
+    }
+
+    singleStore.dispatch(threadRuntimeDeltaAccepted({ notification: firstDelta }));
+    singleStore.dispatch(threadRuntimeDeltaAccepted({ notification: secondDelta }));
+    batchStore.dispatch(
+      threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(
+        batchStore.getState(),
+        "turn-streaming-batch",
+        "agent-streaming-batch",
+      ),
+    ).toStrictEqual(
+      selectTranscriptLiveItem(
+        singleStore.getState(),
+        "turn-streaming-batch",
+        "agent-streaming-batch",
+      ),
+    );
+    expect(
+      selectTranscriptLiveItemsForTurn(batchStore.getState(), "turn-streaming-batch"),
+    ).toStrictEqual(
+      selectTranscriptLiveItemsForTurn(singleStore.getState(), "turn-streaming-batch"),
+    );
   });
 
   it("ignores accepted agent message deltas when the live slot is missing", () => {
