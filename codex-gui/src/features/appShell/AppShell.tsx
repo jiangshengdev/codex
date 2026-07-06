@@ -41,10 +41,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
 
 function AppShellTopNotices({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="sticky top-0 z-20 border-b border-border bg-background px-4 py-3 sm:px-6 lg:px-8"
-      data-app-shell-top-notices=""
-    >
+    <div className="sticky top-0 z-20" data-app-shell-top-notices="">
       <div className="mx-auto grid w-full max-w-3xl gap-2">{children}</div>
     </div>
   );
@@ -57,7 +54,7 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
 
   return (
     <main
-      className="flex min-h-svh w-full flex-col bg-background text-foreground"
+      className="flex min-h-svh w-full flex-col gap-4 bg-background text-foreground"
       data-gui-host-status={status.label}
     >
       <Toast.Provider placement="top" />
