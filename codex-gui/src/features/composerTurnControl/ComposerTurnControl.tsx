@@ -20,6 +20,7 @@ import {
   errorDescription,
   isConnectionUsable,
 } from "./composerTurnControlModel";
+import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
   commands: GuiHostCommands | null;
@@ -36,6 +37,7 @@ export function ComposerTurnControl({
 }: ComposerTurnControlProps) {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const composerShellRef = useRef<HTMLElement | null>(null);
   const isComposingRef = useRef(false);
   const suppressNextEnterRef = useRef(false);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
@@ -61,6 +63,8 @@ export function ComposerTurnControl({
     connectionUsable,
     activeTurnId,
   });
+
+  useRevealComposerOnViewportResize(composerShellRef);
 
   const submit = async (): Promise<void> => {
     if (!sendEnabled || threadId == null || commands == null) {
@@ -140,6 +144,7 @@ export function ComposerTurnControl({
     <section
       aria-label="Message composer"
       className="composer-shell sticky bottom-0 z-10 pt-3 pb-0"
+      ref={composerShellRef}
     >
       <Surface
         className="composer-panel mx-auto grid w-full max-w-3xl gap-2 rounded-t-[20px] p-2 shadow-md"
