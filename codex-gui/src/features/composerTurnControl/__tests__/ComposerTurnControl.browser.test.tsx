@@ -258,7 +258,7 @@ test("scrolls once after visual viewport resize when composer remains covered", 
     await nextAnimationFrame();
 
     expect(scrollBy).toHaveBeenCalledTimes(1);
-    expect(scrollBy).toHaveBeenCalledWith({ top: 346 });
+    expect(scrollBy).toHaveBeenCalledWith({ top: 346, behavior: "smooth" });
 
     expect(visualViewport.dispatchResize()).toBe(true);
     await nextAnimationFrame();
