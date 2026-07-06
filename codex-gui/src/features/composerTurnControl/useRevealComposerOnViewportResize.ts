@@ -57,7 +57,10 @@ export function useRevealComposerOnViewportResize(
         return;
       }
 
-      window.scrollBy({ top: overlap + COMPOSER_KEYBOARD_CLEARANCE_PX });
+      window.scrollBy({
+        top: overlap + COMPOSER_KEYBOARD_CLEARANCE_PX,
+        behavior: "smooth",
+      });
     };
 
     const onFocus = (): void => {
