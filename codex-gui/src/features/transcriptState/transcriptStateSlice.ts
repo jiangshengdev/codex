@@ -234,7 +234,7 @@ const liveItemForKey = (
 ): TranscriptRenderableLiveItem | null => {
   const key = liveItemKey(turnId, itemId);
   const itemIndex = state.liveItemIndexByKey[key];
-  if (itemIndex == null || itemIndex.turnId !== turnId) {
+  if (itemIndex?.turnId !== turnId) {
     return null;
   }
 
@@ -261,7 +261,7 @@ const appendAgentMessageDeltaToLiveItem = (
 const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, itemId: string) => {
   const key = liveItemKey(turnId, itemId);
   const itemIndex = state.liveItemIndexByKey[key];
-  if (itemIndex == null || itemIndex.turnId !== turnId) {
+  if (itemIndex?.turnId !== turnId) {
     return;
   }
 
