@@ -143,11 +143,11 @@ export function ComposerTurnControl({
   return (
     <section
       aria-label="Message composer"
-      className="composer-shell sticky bottom-0 z-10 pb-0"
+      className="composer-shell sticky bottom-0 z-10 pb-3"
       ref={composerShellRef}
     >
       <Surface
-        className="composer-panel mx-auto grid w-full max-w-3xl gap-2 rounded-t-[20px] p-2 shadow-md"
+        className="composer-panel mx-auto grid w-full max-w-3xl gap-2 rounded-[20px] p-2 shadow-md"
         variant="default"
       >
         <TextArea

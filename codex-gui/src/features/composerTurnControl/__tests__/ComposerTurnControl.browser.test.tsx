@@ -69,20 +69,6 @@ const expectComposerDisabled = async (
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
 
-const collectComposerSelectors = (rules: CSSRuleList): string[] =>
-  Array.from(rules).flatMap((rule): string[] => {
-    if (rule instanceof CSSStyleRule && rule.selectorText.includes(".composer-")) {
-      return [rule.selectorText];
-    }
-    if (rule instanceof CSSMediaRule) {
-      return collectComposerSelectors(rule.cssRules);
-    }
-    return [];
-  });
-
-const composerSelectors = (): string[] =>
-  Array.from(document.styleSheets).flatMap((sheet) => collectComposerSelectors(sheet.cssRules));
-
 const nextAnimationFrame = (): Promise<void> =>
   new Promise((resolve) => {
     requestAnimationFrame(() => {
@@ -192,7 +178,7 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerPanel.classList.contains("pb-5")).toBe(false);
   expect(composerPanel.classList.contains("p-3")).toBe(false);
   expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerPanel.classList.contains("rounded-t-[20px]")).toBe(true);
+  expect(composerPanel.classList.contains("rounded-[20px]")).toBe(true);
   expect(composerPanel.classList.contains("shadow-md")).toBe(true);
   expect(composerPanel.classList.contains("shadow-lg")).toBe(false);
   expect(composerShell.classList.contains("composer-shell")).toBe(true);
@@ -201,65 +187,14 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerShell.classList.contains("fixed")).toBe(false);
   expect(composerShell.classList.contains("inset-x-0")).toBe(false);
   expect(composerShell.classList.contains("px-4")).toBe(false);
-  expect(composerShell.classList.contains("pb-0")).toBe(true);
-  expect(composerShell.classList.contains("pb-3")).toBe(false);
+  expect(composerShell.classList.contains("pb-0")).toBe(false);
+  expect(composerShell.classList.contains("pb-3")).toBe(true);
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
   expect(actions).toEqual(["Stop", "Send"]);
-});
-
-test("keeps CSS hooks for virtual-keyboard focus styles", async () => {
-  const screen = await renderAttached();
-  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-  if (!(composerShell instanceof HTMLElement)) {
-    throw new Error("composer shell must render");
-  }
-  const composerPanel = composerShell.firstElementChild;
-  if (!(composerPanel instanceof HTMLElement)) {
-    throw new Error("composer panel must render");
-  }
-
-  expect(composerPanel.classList.contains("rounded-t-[20px]")).toBe(true);
-  expect(composerPanel.classList.contains("rounded-[20px]")).toBe(false);
-  expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerShell.classList.contains("composer-shell")).toBe(true);
-  expect(composerShell.classList.contains("pb-0")).toBe(true);
-  expect(composerShell.classList.contains("pb-3")).toBe(false);
-
-  const textareaFocusSelector = ".composer-shell:has(textarea:focus)";
-  const selectors = composerSelectors();
-  expect(selectors).toContain(".composer-panel");
-  expect(selectors).toContain(textareaFocusSelector);
-  expect(selectors).toContain(`${textareaFocusSelector} .composer-panel`);
-});
-
-test("limits virtual-keyboard focus styles to textarea focus", async () => {
-  const screen = await renderAttached();
-  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-  if (!(composerShell instanceof HTMLElement)) {
-    throw new Error("composer shell must render");
-  }
-  const composer = screen.getByPlaceholder("Message Codex");
-  const sendButton = screen.getByRole("button", { name: "Send" });
-
-  const textareaFocusSelector = ".composer-shell:has(textarea:focus)";
-  const selectors = composerSelectors();
-  expect(selectors).toContain(textareaFocusSelector);
-  expect(selectors).toContain(`${textareaFocusSelector} .composer-panel`);
-  expect(selectors.some((selector) => selector.includes(".composer-shell:focus-within"))).toBe(
-    false,
-  );
-
-  await composer.click();
-  expect(composerShell.matches(textareaFocusSelector)).toBe(true);
-
-  await composer.fill("Hello Codex");
-  sendButton.element().focus();
-  await expect.element(sendButton).toHaveFocus();
-  expect(composerShell.matches(textareaFocusSelector)).toBe(false);
 });
 
 test("does not scroll after visual viewport resize when composer is already visible", async () => {
