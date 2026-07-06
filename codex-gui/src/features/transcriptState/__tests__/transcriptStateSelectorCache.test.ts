@@ -288,10 +288,7 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptLiveItemsForTurn(
-      store.getState(),
-      "turn-live-cache-delta",
-    );
+    const afterUpdate = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache-delta");
 
     expect(afterUpdate).not.toBe(beforeUpdate);
     expect(afterUpdate).toStrictEqual([
