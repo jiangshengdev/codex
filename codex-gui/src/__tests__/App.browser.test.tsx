@@ -87,6 +87,11 @@ const expectDocumentAtBottom = (): void => {
   expect(distanceFromDocumentBottom()).toBeLessThanOrEqual(4);
 };
 
+const expectElementBottomAlignedWithViewport = (element: HTMLElement): void => {
+  const { bottom } = element.getBoundingClientRect();
+  expect(Math.abs(window.innerHeight - bottom)).toBeLessThanOrEqual(1);
+};
+
 const waitForBrowserFrame = (): Promise<void> =>
   new Promise((resolve) => {
     requestAnimationFrame(() => {
@@ -175,6 +180,7 @@ test("App renders composer in the shell without visible host debug details", asy
     transcriptBottomSentinel.compareDocumentPosition(composerShell) &
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).not.toBe(0);
+  expectElementBottomAlignedWithViewport(composerShell);
 });
 
 test("App keeps the transcript surface flush with the shell padding", async () => {
