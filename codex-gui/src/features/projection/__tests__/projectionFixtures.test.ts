@@ -72,7 +72,7 @@ describe("Rust-generated projection fixtures", () => {
 
   it("imports projection delta notifications with expected discriminators", () => {
     expect(eventAgentMessageDelta.delta.type).toBe("agentMessage");
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Keep projection delta fixture test guarded by discriminant.
+
     if (eventAgentMessageDelta.delta.type !== "agentMessage") {
       throw new Error("fixture must contain an agentMessage projection delta");
     }

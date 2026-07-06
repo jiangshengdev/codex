@@ -268,7 +268,6 @@ const applyAcceptedProjectionDelta = (
   }
 
   switch (notification.delta.type) {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Keep projection deltas handled by discriminant switch.
     case "agentMessage": {
       const { turnId, itemId, delta } = notification.delta.notification;
       appendAgentMessageDeltaToLiveItem(state, turnId, itemId, delta);
