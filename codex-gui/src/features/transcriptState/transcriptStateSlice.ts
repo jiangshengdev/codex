@@ -28,23 +28,11 @@ export type TranscriptChunk = {
   revision: number;
 };
 
-export type TranscriptLiveSlotStatus = "started" | "streaming" | "completed";
+export type TranscriptLiveItemStatus = "started" | "streaming";
 
-export type TranscriptLiveSlot = {
-  key: string;
+export type TranscriptLiveItemIndex = {
   turnId: string;
-  itemId: string;
-  initialItem: ThreadItem;
-  status: TranscriptLiveSlotStatus;
-  transientText: string;
-  completedItem: ThreadItem | null;
-  revision: number;
-};
-
-export type TranscriptLiveTurn = {
-  id: string;
-  slotOrder: string[];
-  revision: number;
+  index: number;
 };
 
 export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
@@ -86,10 +74,9 @@ export type TranscriptRenderableLiveItem = {
   key: string;
   turnId: string;
   itemId: string;
-  status: TranscriptLiveSlotStatus;
+  status: TranscriptLiveItemStatus;
   initialItem: ThreadItem;
   transientText: string;
-  completedItem: ThreadItem | null;
   revision: number;
 };
 
@@ -102,8 +89,8 @@ export type TranscriptState = {
   chunksById: Record<string, TranscriptChunk>;
   entriesById: Record<string, TranscriptEntry>;
   entryChunkById: Record<string, string>;
-  liveTurnsById: Record<string, TranscriptLiveTurn>;
-  liveSlotsByKey: Record<string, TranscriptLiveSlot>;
+  liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>;
+  liveItemIndexByKey: Record<string, TranscriptLiveItemIndex>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;
   appliedEventOrder: string[];
@@ -116,18 +103,6 @@ type TranscriptChunkViewCacheEntry = {
 
 const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
 
-type TranscriptLiveTurnViewCacheEntry = {
-  revision: number;
-  slotKeys: string[];
-  slotRevisions: number[];
-  view: TranscriptRenderableLiveItem[];
-};
-
-const transcriptLiveTurnViewCache = new WeakMap<
-  TranscriptLiveTurn,
-  TranscriptLiveTurnViewCacheEntry
->();
-
 const initialState: TranscriptState = {
   threadId: null,
   subscriptionId: null,
@@ -137,8 +112,8 @@ const initialState: TranscriptState = {
   chunksById: {},
   entriesById: {},
   entryChunkById: {},
-  liveTurnsById: {},
-  liveSlotsByKey: {},
+  liveItemsByTurnId: {},
+  liveItemIndexByKey: {},
   globalStatus: [],
   appliedEventIdsById: {},
   appliedEventOrder: [],
@@ -153,8 +128,8 @@ const createEmptyState = (): TranscriptState => ({
   chunksById: {},
   entriesById: {},
   entryChunkById: {},
-  liveTurnsById: {},
-  liveSlotsByKey: {},
+  liveItemsByTurnId: {},
+  liveItemIndexByKey: {},
   globalStatus: [],
   appliedEventIdsById: {},
   appliedEventOrder: [],
@@ -169,8 +144,8 @@ const resetState = (state: TranscriptState, nextState: TranscriptState) => {
   state.chunksById = nextState.chunksById;
   state.entriesById = nextState.entriesById;
   state.entryChunkById = nextState.entryChunkById;
-  state.liveTurnsById = nextState.liveTurnsById;
-  state.liveSlotsByKey = nextState.liveSlotsByKey;
+  state.liveItemsByTurnId = nextState.liveItemsByTurnId;
+  state.liveItemIndexByKey = nextState.liveItemIndexByKey;
   state.globalStatus = nextState.globalStatus;
   state.appliedEventIdsById = nextState.appliedEventIdsById;
   state.appliedEventOrder = nextState.appliedEventOrder;
@@ -196,7 +171,9 @@ const recordAppliedEvent = (state: TranscriptState, commitId: string) => {
 const chunkIdForIndex = (turnId: string, index: number): string =>
   `${turnId}:chunk:${String(index)}`;
 
-const liveSlotKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
+const EMPTY_LIVE_ITEMS: TranscriptRenderableLiveItem[] = [];
+
+const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
 
 const ensureTurnExists = (state: TranscriptState, turnId: string): TranscriptTurn => {
   const existingTurn = state.turnsById[turnId];
@@ -217,67 +194,95 @@ const ensureTurnExists = (state: TranscriptState, turnId: string): TranscriptTur
   return turn;
 };
 
-const ensureLiveTurnExists = (state: TranscriptState, turnId: string): TranscriptLiveTurn => {
-  const existingTurn = state.liveTurnsById[turnId];
-  if (existingTurn != null) {
-    return existingTurn;
+const ensureLiveItemsForTurn = (
+  state: TranscriptState,
+  turnId: string,
+): TranscriptRenderableLiveItem[] => {
+  const existingItems = state.liveItemsByTurnId[turnId];
+  if (existingItems != null) {
+    return existingItems;
   }
 
-  const liveTurn: TranscriptLiveTurn = {
-    id: turnId,
-    slotOrder: [],
-    revision: 0,
-  };
-  state.liveTurnsById[turnId] = liveTurn;
-  return liveTurn;
+  const items: TranscriptRenderableLiveItem[] = [];
+  state.liveItemsByTurnId[turnId] = items;
+  return items;
 };
 
-const upsertStartedLiveSlot = (state: TranscriptState, turnId: string, item: ThreadItem) => {
-  const key = liveSlotKey(turnId, item.id);
-  if (state.liveSlotsByKey[key] != null) {
+const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: ThreadItem) => {
+  const key = liveItemKey(turnId, item.id);
+  if (state.liveItemIndexByKey[key] != null) {
     return;
   }
 
-  const liveTurn = ensureLiveTurnExists(state, turnId);
-  liveTurn.slotOrder.push(item.id);
-  liveTurn.revision += 1;
-  state.liveSlotsByKey[key] = {
+  const items = ensureLiveItemsForTurn(state, turnId);
+  state.liveItemIndexByKey[key] = { turnId, index: items.length };
+  items.push({
     key,
     turnId,
     itemId: item.id,
     initialItem: item,
     status: "started",
     transientText: "",
-    completedItem: null,
     revision: 0,
-  };
+  });
 };
 
-const appendAgentMessageDeltaToLiveSlot = (
+const liveItemForKey = (
+  state: TranscriptState,
+  turnId: string,
+  itemId: string,
+): TranscriptRenderableLiveItem | null => {
+  const key = liveItemKey(turnId, itemId);
+  const itemIndex = state.liveItemIndexByKey[key];
+  if (itemIndex == null || itemIndex.turnId !== turnId) {
+    return null;
+  }
+
+  return state.liveItemsByTurnId[turnId]?.[itemIndex.index] ?? null;
+};
+
+const appendAgentMessageDeltaToLiveItem = (
   state: TranscriptState,
   turnId: string,
   itemId: string,
   delta: string,
 ) => {
-  const slot = state.liveSlotsByKey[liveSlotKey(turnId, itemId)];
-  if (slot == null) {
+  const item = liveItemForKey(state, turnId, itemId);
+  if (item == null) {
     return;
   }
 
-  slot.transientText += delta;
-  slot.status = "streaming";
-  slot.revision += 1;
+  item.transientText += delta;
+  item.status = "streaming";
+  item.revision += 1;
 };
 
-const settleLiveSlotIfPresent = (state: TranscriptState, turnId: string, item: ThreadItem) => {
-  const slot = state.liveSlotsByKey[liveSlotKey(turnId, item.id)];
-  if (slot == null) {
+const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, itemId: string) => {
+  const key = liveItemKey(turnId, itemId);
+  const itemIndex = state.liveItemIndexByKey[key];
+  if (itemIndex == null || itemIndex.turnId !== turnId) {
     return;
   }
 
-  slot.status = "completed";
-  slot.completedItem = item;
-  slot.revision += 1;
+  const items = state.liveItemsByTurnId[turnId];
+  if (items == null || itemIndex.index >= items.length) {
+    Reflect.deleteProperty(state.liveItemIndexByKey, key);
+    return;
+  }
+
+  items.splice(itemIndex.index, 1);
+  Reflect.deleteProperty(state.liveItemIndexByKey, key);
+
+  for (let index = itemIndex.index; index < items.length; index += 1) {
+    const shiftedItem = items[index];
+    if (shiftedItem != null) {
+      state.liveItemIndexByKey[shiftedItem.key] = { turnId, index };
+    }
+  }
+
+  if (items.length === 0) {
+    Reflect.deleteProperty(state.liveItemsByTurnId, turnId);
+  }
 };
 
 const upsertTurnFromPayload = (state: TranscriptState, turn: Turn) => {
@@ -438,49 +443,6 @@ const selectCachedTranscriptChunkView = (
   return view;
 };
 
-const selectCachedLiveItemsForTurn = (
-  transcriptState: TranscriptState,
-  liveTurn: TranscriptLiveTurn,
-): TranscriptRenderableLiveItem[] => {
-  const slots = liveTurn.slotOrder.flatMap((itemId) => {
-    const key = liveSlotKey(liveTurn.id, itemId);
-    const slot = transcriptState.liveSlotsByKey[key];
-    return slot == null ? [] : [{ key, slot }];
-  });
-  const slotKeys = slots.map(({ key }) => key);
-  const slotRevisions = slots.map(({ slot }) => slot.revision);
-
-  const cachedEntry = transcriptLiveTurnViewCache.get(liveTurn);
-  if (
-    cachedEntry?.revision === liveTurn.revision &&
-    cachedEntry.slotKeys.length === slotKeys.length &&
-    cachedEntry.slotKeys.every((slotKey, index) => slotKey === slotKeys[index]) &&
-    cachedEntry.slotRevisions.length === slotRevisions.length &&
-    cachedEntry.slotRevisions.every((slotRevision, index) => slotRevision === slotRevisions[index])
-  ) {
-    return cachedEntry.view;
-  }
-
-  const view = slots.map(({ slot }) => ({
-    key: slot.key,
-    turnId: slot.turnId,
-    itemId: slot.itemId,
-    status: slot.status,
-    initialItem: slot.initialItem,
-    transientText: slot.transientText,
-    completedItem: slot.completedItem,
-    revision: slot.revision,
-  }));
-
-  transcriptLiveTurnViewCache.set(liveTurn, {
-    revision: liveTurn.revision,
-    slotKeys,
-    slotRevisions,
-    view,
-  });
-  return view;
-};
-
 export const transcriptStateSlice = createAppSlice({
   name: "transcriptState",
   initialState,
@@ -505,34 +467,12 @@ export const transcriptStateSlice = createAppSlice({
       transcriptState,
       turnId: string,
       itemId: string,
-    ): TranscriptRenderableLiveItem | null => {
-      const slot = transcriptState.liveSlotsByKey[liveSlotKey(turnId, itemId)];
-      if (slot == null) {
-        return null;
-      }
-
-      return {
-        key: slot.key,
-        turnId: slot.turnId,
-        itemId: slot.itemId,
-        status: slot.status,
-        initialItem: slot.initialItem,
-        transientText: slot.transientText,
-        completedItem: slot.completedItem,
-        revision: slot.revision,
-      };
-    },
+    ): TranscriptRenderableLiveItem | null => liveItemForKey(transcriptState, turnId, itemId),
     selectTranscriptLiveItemsForTurn: (
       transcriptState,
       turnId: string,
-    ): TranscriptRenderableLiveItem[] => {
-      const liveTurn = transcriptState.liveTurnsById[turnId];
-      if (liveTurn == null) {
-        return [];
-      }
-
-      return selectCachedLiveItemsForTurn(transcriptState, liveTurn);
-    },
+    ): TranscriptRenderableLiveItem[] =>
+      transcriptState.liveItemsByTurnId[turnId] ?? EMPTY_LIVE_ITEMS,
     selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
       transcriptState.globalStatus,
   },
@@ -571,7 +511,7 @@ export const transcriptStateSlice = createAppSlice({
           case "itemCompleted": {
             const { item, turnId } = notification.event.notification;
             ensureTurnExists(state, turnId);
-            settleLiveSlotIfPresent(state, turnId, item);
+            removeLiveItemIfPresent(state, turnId, item.id);
             const entry = materializeTranscriptItem(item, turnId);
             if (entry != null) {
               upsertLiveCommittedEntry(state, entry);
@@ -582,7 +522,7 @@ export const transcriptStateSlice = createAppSlice({
           case "itemStarted": {
             const { item, turnId } = notification.event.notification;
             ensureTurnExists(state, turnId);
-            upsertStartedLiveSlot(state, turnId, item);
+            appendStartedLiveItem(state, turnId, item);
             return;
           }
         }
@@ -597,7 +537,7 @@ export const transcriptStateSlice = createAppSlice({
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Keep projection deltas handled by discriminant switch.
           case "agentMessage": {
             const { turnId, itemId, delta } = notification.delta.notification;
-            appendAgentMessageDeltaToLiveSlot(state, turnId, itemId, delta);
+            appendAgentMessageDeltaToLiveItem(state, turnId, itemId, delta);
             return;
           }
         }

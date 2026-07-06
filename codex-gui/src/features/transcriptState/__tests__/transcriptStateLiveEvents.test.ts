@@ -70,7 +70,6 @@ describe("transcript state live events reducer", () => {
         status: "started",
         initialItem,
         transientText: "",
-        completedItem: null,
         revision: 0,
       },
     ]);
@@ -127,7 +126,6 @@ describe("transcript state live events reducer", () => {
       status: "streaming",
       initialItem,
       transientText: "Hello world",
-      completedItem: null,
       revision: 2,
     });
     expect(selectTranscriptEntry(store.getState(), "agent-streaming")).toBeNull();
@@ -211,12 +209,11 @@ describe("transcript state live events reducer", () => {
       status: "started",
       initialItem: firstItem,
       transientText: "",
-      completedItem: null,
       revision: 0,
     });
   });
 
-  it("rebuilds cached live turn view when a slot revision changes without turn revision", () => {
+  it("returns the store-owned live item array when live item state changes", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -235,25 +232,31 @@ describe("transcript state live events reducer", () => {
 
     const cachedView = selectTranscriptLiveItemsForTurn(store.getState(), "turn-cache-slot");
     const state = store.getState();
-    const slotKey = "turn-cache-slot:agent-cache-slot";
-    const slot = state.transcriptState.liveSlotsByKey[slotKey];
-    expect(slot).toBeDefined();
-    if (slot == null) {
-      throw new Error("expected live slot to exist");
+    const liveItems = state.transcriptState.liveItemsByTurnId["turn-cache-slot"];
+    expect(liveItems).toBeDefined();
+    if (liveItems == null) {
+      throw new Error("expected live item array to exist");
+    }
+    const liveItem = liveItems[0];
+    expect(liveItem).toBeDefined();
+    if (liveItem == null) {
+      throw new Error("expected live item to exist");
     }
 
     const nextState: ReturnType<typeof store.getState> = {
       ...state,
       transcriptState: {
         ...state.transcriptState,
-        liveSlotsByKey: {
-          ...state.transcriptState.liveSlotsByKey,
-          [slotKey]: {
-            ...slot,
-            status: "streaming",
-            transientText: "Streamed text",
-            revision: slot.revision + 1,
-          },
+        liveItemsByTurnId: {
+          ...state.transcriptState.liveItemsByTurnId,
+          "turn-cache-slot": [
+            {
+              ...liveItem,
+              status: "streaming",
+              transientText: "Streamed text",
+              revision: liveItem.revision + 1,
+            },
+          ],
         },
       },
     };
@@ -268,7 +271,6 @@ describe("transcript state live events reducer", () => {
         status: "streaming",
         initialItem,
         transientText: "Streamed text",
-        completedItem: null,
         revision: 1,
       },
     ]);
@@ -379,7 +381,7 @@ describe("transcript state live events reducer", () => {
     });
   });
 
-  it("settles an existing streaming live slot from itemCompleted while preserving transient text", () => {
+  it("removes the live item after committing the completed agent message", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -419,18 +421,8 @@ describe("transcript state live events reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-settled", "agent-settled"),
-    ).toStrictEqual({
-      key: "turn-settled:agent-settled",
-      turnId: "turn-settled",
-      itemId: "agent-settled",
-      status: "completed",
-      initialItem,
-      transientText: "Partial",
-      completedItem,
-      revision: 2,
-    });
+    expect(selectTranscriptLiveItem(store.getState(), "turn-settled", "agent-settled")).toBeNull();
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-settled")).toStrictEqual([]);
     expect(selectTranscriptEntry(store.getState(), "agent-settled")).toStrictEqual({
       type: "message",
       id: "agent-settled",
@@ -474,7 +466,7 @@ describe("transcript state live events reducer", () => {
     });
   });
 
-  it("settles an existing live slot even when the completed agent message is not materialized", () => {
+  it("removes the live item after an empty completed agent message without committing an entry", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -507,16 +499,10 @@ describe("transcript state live events reducer", () => {
 
     expect(
       selectTranscriptLiveItem(store.getState(), "turn-empty-settled", "agent-empty-settled"),
-    ).toStrictEqual({
-      key: "turn-empty-settled:agent-empty-settled",
-      turnId: "turn-empty-settled",
-      itemId: "agent-empty-settled",
-      status: "completed",
-      initialItem,
-      transientText: "",
-      completedItem,
-      revision: 1,
-    });
+    ).toBeNull();
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-empty-settled")).toStrictEqual(
+      [],
+    );
     expect(selectTranscriptEntry(store.getState(), "agent-empty-settled")).toBeNull();
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
