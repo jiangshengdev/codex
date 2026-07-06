@@ -228,6 +228,10 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   if (!(topNotices instanceof HTMLElement)) {
     throw new Error("top notices region must render");
   }
+  const topNoticesContent = topNotices.firstElementChild;
+  if (!(topNoticesContent instanceof HTMLElement)) {
+    throw new Error("top notices content must render");
+  }
 
   await expect.element(screen.getByRole("main")).toHaveAttribute("data-gui-host-status", "error");
   await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
@@ -235,6 +239,8 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   expect(topNotices.classList.contains("sticky")).toBe(true);
   expect(topNotices.classList.contains("top-0")).toBe(true);
   expect(topNotices.classList.contains("z-20")).toBe(true);
+  expect(topNotices.classList.contains("pt-3")).toBe(false);
+  expect(topNoticesContent.classList.contains("pt-3")).toBe(true);
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();

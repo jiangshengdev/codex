@@ -42,7 +42,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
 function AppShellTopNotices({ children }: { children: ReactNode }) {
   return (
     <div className="sticky top-0 z-20" data-app-shell-top-notices="">
-      <div className="mx-auto grid w-full max-w-3xl gap-2">{children}</div>
+      <div className="mx-auto grid w-full max-w-3xl gap-2 pt-3">{children}</div>
     </div>
   );
 }
