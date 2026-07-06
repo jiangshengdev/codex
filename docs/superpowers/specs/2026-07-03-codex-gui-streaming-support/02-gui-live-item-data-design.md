@@ -112,6 +112,23 @@
 - 扩展流式 item 类型。
 - 复杂错误恢复 UI。
 
+### 02e: live agent message render state 修正
+
+目标: 修正 02a/02b/02c/02d 中关于 live slot normalized 存储、selector 拼装和 completed 后 settled slot 保留的结论。
+
+必须决策:
+
+- agent message delta 的 live state 必须在 reducer 写入时维护为可渲染列表。
+- selector 必须 O(1) 返回已有 live list，不做 read-time materialization。
+- `itemCompleted` 写入 committed transcript 后，从 live list 移除对应 live item。
+- 命令行输出、exec output、tool output 不纳入本次 agent message delta 设计。
+
+关系:
+
+- `02e` 是 02 的修正设计。
+- 后续 implementation plan 若与 02a/02b/02c/02d 冲突，以 `02e` 为准。
+- 02a/02b/02c/02d 中未冲突的 projection ingress、snapshot duplicate 和 attach replacement 语义继续保留。
+
 ## 跨步骤不变量
 
 ### 顺序由 itemStarted 决定
@@ -154,11 +171,13 @@ delta 不进入 committed transcript chunk，不产生 committed entry，不推�
 
 ## 后续推进方式
 
-后续按 `02a` 到 `02d` 顺序推进。每一步都必须单独完成:
+后续按 `02a` 到 `02e` 顺序推进。每一步都必须单独完成:
 
 - 先说明该步骤要解决的唯一数据层问题。
 - 再列出候选方案和取舍。
 - 然后确认一个方案。
 - 最后落盘对应细化设计文档。
 
-每个步骤的设计被确认后，可以为该步骤编写 implementation plan 并进入代码实现。不需要等全部 `02a` 到 `02d` 设计完成后才开始实现。
+每个步骤的设计被确认后，可以为该步骤编写 implementation plan 并进入代码实现。不需要等全部 `02a` 到 `02e` 设计完成后才开始实现。
+
+`02e` 是后续实现 agent message delta 数据层时的最新依据。若旧 02a/02b/02c/02d 与 `02e` 冲突，计划和实现应采用 `02e`。
