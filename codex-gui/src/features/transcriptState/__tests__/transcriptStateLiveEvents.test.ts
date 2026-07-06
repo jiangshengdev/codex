@@ -169,9 +169,7 @@ describe("transcript state live events reducer", () => {
 
     singleStore.dispatch(threadRuntimeDeltaAccepted({ notification: firstDelta }));
     singleStore.dispatch(threadRuntimeDeltaAccepted({ notification: secondDelta }));
-    batchStore.dispatch(
-      threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }),
-    );
+    batchStore.dispatch(threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }));
 
     expect(
       selectTranscriptLiveItem(

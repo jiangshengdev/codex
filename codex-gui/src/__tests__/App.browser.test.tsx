@@ -304,12 +304,7 @@ test("App batches accepted projection deltas until the next animation frame", as
       inProgressTurn("turn-raf-batch"),
     );
     const itemStartedEvent = {
-      ...itemStarted(
-        eventItemStarted,
-        "commit-raf-batch-started",
-        "turn-raf-batch",
-        initialItem,
-      ),
+      ...itemStarted(eventItemStarted, "commit-raf-batch-started", "turn-raf-batch", initialItem),
       parentCommitId: turnStartedEvent.commitId,
     };
     emitProjectionEvent(options, turnStartedEvent);

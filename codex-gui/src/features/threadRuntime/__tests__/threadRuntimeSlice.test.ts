@@ -215,10 +215,11 @@ describe("thread runtime reducer", () => {
     );
 
     expect(nextState).toStrictEqual(state);
-    expect(threadRuntimeDeltasAccepted({ notifications: [eventAgentMessageDelta] }).payload)
-      .toStrictEqual({
-        notifications: [eventAgentMessageDelta],
-      });
+    expect(
+      threadRuntimeDeltasAccepted({ notifications: [eventAgentMessageDelta] }).payload,
+    ).toStrictEqual({
+      notifications: [eventAgentMessageDelta],
+    });
   });
 
   it("marks live turn events already present in the attach snapshot as snapshot duplicates", () => {

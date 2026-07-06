@@ -19,7 +19,7 @@ import {
   snapshotReplayIndexFromTurns,
   type SnapshotReplayIndex,
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
+  type threadRuntimeDeltaAccepted,
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
