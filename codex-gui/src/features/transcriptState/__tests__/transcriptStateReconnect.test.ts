@@ -116,7 +116,7 @@ describe("transcript state reconnect reducer", () => {
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
   });
 
-  it("preserves live slots during manual reconnect and clears them on replacement attach", () => {
+  it("keeps committed transcript during manual reconnect after live item settlement", () => {
     const store = makeStore();
     const initialItem = agentMessage("agent-reconnect-live", "");
     const completedItem = agentMessage("agent-reconnect-live", "Completed before reconnect");
@@ -165,10 +165,19 @@ describe("transcript state reconnect reducer", () => {
 
     expect(
       selectTranscriptLiveItem(store.getState(), "turn-reconnect-live", "agent-reconnect-live"),
-    ).toMatchObject({
-      status: "completed",
-      transientText: "Partial",
-      completedItem,
+    ).toBeNull();
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-reconnect-live")).toStrictEqual(
+      [],
+    );
+    expect(selectTranscriptEntry(store.getState(), "agent-reconnect-live")).toStrictEqual({
+      type: "message",
+      id: "agent-reconnect-live",
+      turnId: "turn-reconnect-live",
+      role: "assistant",
+      source: "Completed before reconnect",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 0,
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
       {

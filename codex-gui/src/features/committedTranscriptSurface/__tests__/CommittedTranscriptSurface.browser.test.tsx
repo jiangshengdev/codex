@@ -342,6 +342,29 @@ test("renders temporary content collapsed beside the final answer once final ans
   await expect.element(screen.getByText("Hidden working note")).toBeVisible();
 });
 
+test("renders collapsed temporary disclosure without module gap spacing", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-temporary-spacing", [
+          agentMessage("agent-commentary-spacing", "Hidden spacing note", "commentary"),
+          agentMessage("agent-final-spacing", "Visible final answer", "final_answer"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  await expect.element(screen.getByText("Hidden spacing note")).not.toBeInTheDocument();
+
+  const temporaryModule = document.querySelector<HTMLElement>(
+    ".committed-transcript-temporary-module",
+  );
+  expect(temporaryModule?.classList.contains("gap-2")).toBe(false);
+});
+
 test("does not mount collapsed temporary markdown before expansion", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 

@@ -1,5 +1,5 @@
 import { Toast } from "@heroui/react";
-import { expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import {
@@ -69,19 +69,61 @@ const expectComposerDisabled = async (
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
 
-const collectComposerSelectors = (rules: CSSRuleList): string[] =>
-  Array.from(rules).flatMap((rule): string[] => {
-    if (rule instanceof CSSStyleRule && rule.selectorText.includes(".composer-")) {
-      return [rule.selectorText];
-    }
-    if (rule instanceof CSSMediaRule) {
-      return collectComposerSelectors(rule.cssRules);
-    }
-    return [];
+const nextAnimationFrame = (): Promise<void> =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      resolve();
+    });
   });
 
-const composerSelectors = (): string[] =>
-  Array.from(document.styleSheets).flatMap((sheet) => collectComposerSelectors(sheet.cssRules));
+type MutableVisualViewport = VisualViewport & {
+  height: number;
+  offsetTop: number;
+  pageTop: number;
+};
+
+function installVisualViewport({
+  height,
+  offsetTop = 0,
+  pageTop = 0,
+}: {
+  height: number;
+  offsetTop?: number;
+  pageTop?: number;
+}) {
+  const target = new EventTarget();
+  const originalVisualViewport = window.visualViewport;
+  const viewport = {
+    addEventListener: target.addEventListener.bind(target),
+    dispatchEvent: target.dispatchEvent.bind(target),
+    height,
+    offsetTop,
+    pageTop,
+    removeEventListener: target.removeEventListener.bind(target),
+  } as MutableVisualViewport;
+
+  Object.defineProperty(window, "visualViewport", {
+    configurable: true,
+    value: viewport,
+  });
+
+  return {
+    dispatchResize() {
+      return target.dispatchEvent(new Event("resize"));
+    },
+    restore() {
+      Object.defineProperty(window, "visualViewport", {
+        configurable: true,
+        value: originalVisualViewport,
+      });
+    },
+    viewport,
+  };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 async function beginPendingSend(draft: string) {
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
@@ -136,7 +178,7 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerPanel.classList.contains("pb-5")).toBe(false);
   expect(composerPanel.classList.contains("p-3")).toBe(false);
   expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerPanel.classList.contains("rounded-t-[20px]")).toBe(true);
+  expect(composerPanel.classList.contains("rounded-[20px]")).toBe(true);
   expect(composerPanel.classList.contains("shadow-md")).toBe(true);
   expect(composerPanel.classList.contains("shadow-lg")).toBe(false);
   expect(composerShell.classList.contains("composer-shell")).toBe(true);
@@ -145,8 +187,8 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerShell.classList.contains("fixed")).toBe(false);
   expect(composerShell.classList.contains("inset-x-0")).toBe(false);
   expect(composerShell.classList.contains("px-4")).toBe(false);
-  expect(composerShell.classList.contains("pb-0")).toBe(true);
-  expect(composerShell.classList.contains("pb-3")).toBe(false);
+  expect(composerShell.classList.contains("pb-0")).toBe(false);
+  expect(composerShell.classList.contains("pb-3")).toBe(true);
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
@@ -155,55 +197,110 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(actions).toEqual(["Stop", "Send"]);
 });
 
-test("keeps CSS hooks for virtual-keyboard focus styles", async () => {
-  const screen = await renderAttached();
-  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-  if (!(composerShell instanceof HTMLElement)) {
-    throw new Error("composer shell must render");
-  }
-  const composerPanel = composerShell.firstElementChild;
-  if (!(composerPanel instanceof HTMLElement)) {
-    throw new Error("composer panel must render");
-  }
+test("does not scroll after visual viewport resize when composer is already visible", async () => {
+  const visualViewport = installVisualViewport({ height: 699 });
+  try {
+    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(699);
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
+    const screen = await renderAttached();
+    const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
+    if (!(composerShell instanceof HTMLElement)) {
+      throw new Error("composer shell must render");
+    }
+    vi.spyOn(composerShell, "getBoundingClientRect").mockReturnValue({
+      bottom: 361,
+      height: 152,
+      left: 0,
+      right: 390,
+      top: 209,
+      width: 390,
+      x: 0,
+      y: 209,
+      toJSON: () => ({}),
+    });
 
-  expect(composerPanel.classList.contains("rounded-t-[20px]")).toBe(true);
-  expect(composerPanel.classList.contains("rounded-[20px]")).toBe(false);
-  expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerShell.classList.contains("composer-shell")).toBe(true);
-  expect(composerShell.classList.contains("pb-0")).toBe(true);
-  expect(composerShell.classList.contains("pb-3")).toBe(false);
+    await screen.getByPlaceholder("Message Codex").click();
+    visualViewport.viewport.height = 361;
+    expect(visualViewport.dispatchResize()).toBe(true);
+    await nextAnimationFrame();
 
-  const textareaFocusSelector = ".composer-shell:has(textarea:focus)";
-  const selectors = composerSelectors();
-  expect(selectors).toContain(".composer-panel");
-  expect(selectors).toContain(textareaFocusSelector);
-  expect(selectors).toContain(`${textareaFocusSelector} .composer-panel`);
+    expect(scrollBy).not.toHaveBeenCalled();
+  } finally {
+    visualViewport.restore();
+  }
 });
 
-test("limits virtual-keyboard focus styles to textarea focus", async () => {
-  const screen = await renderAttached();
-  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-  if (!(composerShell instanceof HTMLElement)) {
-    throw new Error("composer shell must render");
+test("scrolls once after visual viewport resize when composer remains covered", async () => {
+  const visualViewport = installVisualViewport({ height: 699 });
+  try {
+    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(699);
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
+    const screen = await renderAttached();
+    const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
+    if (!(composerShell instanceof HTMLElement)) {
+      throw new Error("composer shell must render");
+    }
+    vi.spyOn(composerShell, "getBoundingClientRect").mockReturnValue({
+      bottom: 699,
+      height: 152,
+      left: 0,
+      right: 390,
+      top: 547,
+      width: 390,
+      x: 0,
+      y: 547,
+      toJSON: () => ({}),
+    });
+
+    await screen.getByPlaceholder("Message Codex").click();
+    visualViewport.viewport.height = 361;
+    expect(visualViewport.dispatchResize()).toBe(true);
+    await nextAnimationFrame();
+
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+    expect(scrollBy).toHaveBeenCalledWith({ top: 346, behavior: "smooth" });
+
+    expect(visualViewport.dispatchResize()).toBe(true);
+    await nextAnimationFrame();
+    expect(scrollBy).toHaveBeenCalledTimes(1);
+  } finally {
+    visualViewport.restore();
   }
-  const composer = screen.getByPlaceholder("Message Codex");
-  const sendButton = screen.getByRole("button", { name: "Send" });
+});
 
-  const textareaFocusSelector = ".composer-shell:has(textarea:focus)";
-  const selectors = composerSelectors();
-  expect(selectors).toContain(textareaFocusSelector);
-  expect(selectors).toContain(`${textareaFocusSelector} .composer-panel`);
-  expect(selectors.some((selector) => selector.includes(".composer-shell:focus-within"))).toBe(
-    false,
-  );
+test("does not scroll for visual viewport resize after composer blur", async () => {
+  const visualViewport = installVisualViewport({ height: 699 });
+  try {
+    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(699);
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
+    const screen = await renderAttached();
+    const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
+    if (!(composerShell instanceof HTMLElement)) {
+      throw new Error("composer shell must render");
+    }
+    vi.spyOn(composerShell, "getBoundingClientRect").mockReturnValue({
+      bottom: 699,
+      height: 152,
+      left: 0,
+      right: 390,
+      top: 547,
+      width: 390,
+      x: 0,
+      y: 547,
+      toJSON: () => ({}),
+    });
 
-  await composer.click();
-  expect(composerShell.matches(textareaFocusSelector)).toBe(true);
+    const composer = screen.getByPlaceholder("Message Codex");
+    await composer.click();
+    composer.element().blur();
+    visualViewport.viewport.height = 361;
+    expect(visualViewport.dispatchResize()).toBe(true);
+    await nextAnimationFrame();
 
-  await composer.fill("Hello Codex");
-  sendButton.element().focus();
-  await expect.element(sendButton).toHaveFocus();
-  expect(composerShell.matches(textareaFocusSelector)).toBe(false);
+    expect(scrollBy).not.toHaveBeenCalled();
+  } finally {
+    visualViewport.restore();
+  }
 });
 
 test("sends non-empty draft and clears it after success", async () => {

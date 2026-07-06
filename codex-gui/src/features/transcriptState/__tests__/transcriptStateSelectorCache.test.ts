@@ -3,15 +3,18 @@ import { makeStore } from "@/app/store";
 import {
   attachBaseline,
   attachReplacement,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
 import {
+  agentMessageDelta,
   agentMessage,
   attachWithTurns,
   baseTurn,
@@ -169,7 +172,7 @@ describe("transcript state selector cache", () => {
     });
   });
 
-  it("returns a stable live item view while the live turn is unchanged", () => {
+  it("returns the store-owned live item array while that turn is unchanged", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -208,7 +211,7 @@ describe("transcript state selector cache", () => {
     );
   });
 
-  it("returns a new live item view when the live turn order changes", () => {
+  it("returns a new store-owned live item array when the live turn changes", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -251,16 +254,61 @@ describe("transcript state selector cache", () => {
     ]);
   });
 
-  it("returns a new live item view when itemCompleted settles an existing slot", () => {
+  it("returns a new store-owned live item array when delta updates that live turn", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialItem = agentMessage("agent-live-cache-delta", "");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-cache-delta-started",
+          "turn-live-cache-delta",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const beforeUpdate = selectTranscriptLiveItemsForTurn(
+      store.getState(),
+      "turn-live-cache-delta",
+    );
+
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-live-cache-delta",
+          "agent-live-cache-delta",
+          "Streamed text",
+        ),
+      }),
+    );
+
+    const afterUpdate = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache-delta");
+
+    expect(afterUpdate).not.toBe(beforeUpdate);
+    expect(afterUpdate).toStrictEqual([
+      {
+        key: "turn-live-cache-delta:agent-live-cache-delta",
+        turnId: "turn-live-cache-delta",
+        itemId: "agent-live-cache-delta",
+        status: "streaming",
+        initialItem,
+        transientText: "Streamed text",
+        revision: 1,
+      },
+    ]);
+  });
+
+  it("removes the store-owned live item array when completed settlement empties the turn", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialItem = agentMessage("agent-live-cache-settled", "");
-    const completedItem = agentMessage(
-      "agent-live-cache-settled",
-      "Completed cache answer",
-      "final_answer",
-    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -285,7 +333,7 @@ describe("transcript state selector cache", () => {
           eventItemCompleted,
           "commit-live-cache-settled-completed",
           "turn-live-cache-settled",
-          completedItem,
+          agentMessage("agent-live-cache-settled", "Completed cache answer", "final_answer"),
         ),
         replay: "live",
       }),
@@ -296,18 +344,7 @@ describe("transcript state selector cache", () => {
       "turn-live-cache-settled",
     );
 
+    expect(afterSettlement).toStrictEqual([]);
     expect(afterSettlement).not.toBe(beforeSettlement);
-    expect(afterSettlement).toStrictEqual([
-      {
-        key: "turn-live-cache-settled:agent-live-cache-settled",
-        turnId: "turn-live-cache-settled",
-        itemId: "agent-live-cache-settled",
-        status: "completed",
-        initialItem,
-        transientText: "",
-        completedItem,
-        revision: 1,
-      },
-    ]);
   });
 });
