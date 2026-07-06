@@ -1,4 +1,5 @@
 import { Alert, Surface, Toast } from "@heroui/react";
+import type { ReactNode } from "react";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 import type {
@@ -28,7 +29,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   }
 
   return (
-    <Alert className="mx-auto mb-4 w-full max-w-3xl" status="danger">
+    <Alert className="w-full" status="danger">
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>Unable to start Codex GUI</Alert.Title>
@@ -38,9 +39,21 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   );
 }
 
+function AppShellTopNotices({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="sticky top-0 z-20 border-b border-border bg-background px-4 py-3 sm:px-6 lg:px-8"
+      data-app-shell-top-notices=""
+    >
+      <div className="mx-auto grid w-full max-w-3xl gap-2">{children}</div>
+    </div>
+  );
+}
+
 export function AppShell({ status, commands, launchParams }: AppShellProps) {
   const transcriptBottomRef = useCommittedTranscriptStickyBottom();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
+  const hasTopNotice = status.label === "error";
 
   return (
     <main
@@ -48,7 +61,11 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
       data-gui-host-status={status.label}
     >
       <Toast.Provider placement="top" />
-      <GuiHostErrorAlert status={status} />
+      {hasTopNotice ? (
+        <AppShellTopNotices>
+          <GuiHostErrorAlert status={status} />
+        </AppShellTopNotices>
+      ) : null}
       <Surface
         className="mx-auto grid min-w-0 w-full max-w-3xl flex-1 content-start"
         variant="transparent"

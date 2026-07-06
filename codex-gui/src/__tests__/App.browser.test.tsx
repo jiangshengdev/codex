@@ -143,6 +143,7 @@ afterEach(() => {
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
   const screen = await renderWithProviders(<App />);
+  const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
 
   await expect
     .element(screen.getByRole("main"))
@@ -150,6 +151,7 @@ test("App renders the committed transcript shell without visible host debug deta
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
+  expect(topNotices).toBeNull();
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
 });
 
@@ -213,16 +215,28 @@ test("App keeps host lifecycle status stable while projection events update runt
   ]);
 });
 
-test("App displays GUI host startup errors", async () => {
+test("App displays GUI host startup errors in the sticky top notices region", async () => {
   startGuiHostConnectionMock.mockImplementation(() => {
     throw new Error("Missing launch token fragment");
   });
 
   const screen = await renderWithProviders(<App />);
+  const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
+  const errorTitle = screen.getByText("Unable to start Codex GUI").element();
+  const errorMessage = screen.getByText("Missing launch token fragment").element();
+
+  if (!(topNotices instanceof HTMLElement)) {
+    throw new Error("top notices region must render");
+  }
 
   await expect.element(screen.getByRole("main")).toHaveAttribute("data-gui-host-status", "error");
   await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
   await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
+  expect(topNotices.classList.contains("sticky")).toBe(true);
+  expect(topNotices.classList.contains("top-0")).toBe(true);
+  expect(topNotices.classList.contains("z-20")).toBe(true);
+  expect(topNotices.contains(errorTitle)).toBe(true);
+  expect(topNotices.contains(errorMessage)).toBe(true);
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
 });
 
