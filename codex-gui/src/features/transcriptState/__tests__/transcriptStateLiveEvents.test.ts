@@ -213,6 +213,56 @@ describe("transcript state live events reducer", () => {
     });
   });
 
+  it("returns null when a stale live item index points at a different key", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const firstItem = agentMessage("agent-stale-index-first", "First");
+    const secondItem = agentMessage("agent-stale-index-second", "Second");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-stale-index-first",
+          "turn-stale-index",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-stale-index-second",
+          "turn-stale-index",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const state = store.getState();
+    const nextState: ReturnType<typeof store.getState> = {
+      ...state,
+      transcriptState: {
+        ...state.transcriptState,
+        liveItemIndexByKey: {
+          ...state.transcriptState.liveItemIndexByKey,
+          "turn-stale-index:agent-stale-index-first": {
+            turnId: "turn-stale-index",
+            index: 1,
+          },
+        },
+      },
+    };
+
+    expect(
+      selectTranscriptLiveItem(nextState, "turn-stale-index", "agent-stale-index-first"),
+    ).toBeNull();
+  });
+
   it("returns the store-owned live item array when live item state changes", () => {
     const store = makeStore();
 
@@ -433,6 +483,75 @@ describe("transcript state live events reducer", () => {
       phase: "final_answer",
       revision: 0,
     });
+  });
+
+  it("keeps the later live item addressable after removing an earlier live item", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const firstItem = agentMessage("agent-remove-first", "");
+    const secondItem = agentMessage("agent-remove-second", "Still live");
+    const completedFirstItem = agentMessage("agent-remove-first", "Completed first");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-remove-first-started",
+          "turn-remove-first",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-remove-second-started",
+          "turn-remove-first",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-remove-first-completed",
+          "turn-remove-first",
+          completedFirstItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-remove-first", "agent-remove-first"),
+    ).toBeNull();
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-remove-first", "agent-remove-second"),
+    ).toStrictEqual({
+      key: "turn-remove-first:agent-remove-second",
+      turnId: "turn-remove-first",
+      itemId: "agent-remove-second",
+      status: "started",
+      initialItem: secondItem,
+      transientText: "",
+      revision: 0,
+    });
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-remove-first")).toStrictEqual([
+      {
+        key: "turn-remove-first:agent-remove-second",
+        turnId: "turn-remove-first",
+        itemId: "agent-remove-second",
+        status: "started",
+        initialItem: secondItem,
+        transientText: "",
+        revision: 0,
+      },
+    ]);
   });
 
   it("does not create a live slot when itemCompleted arrives without itemStarted", () => {

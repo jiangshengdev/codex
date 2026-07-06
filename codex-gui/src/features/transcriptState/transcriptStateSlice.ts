@@ -171,7 +171,7 @@ const recordAppliedEvent = (state: TranscriptState, commitId: string) => {
 const chunkIdForIndex = (turnId: string, index: number): string =>
   `${turnId}:chunk:${String(index)}`;
 
-const EMPTY_LIVE_ITEMS: TranscriptRenderableLiveItem[] = [];
+const EMPTY_LIVE_ITEMS: readonly TranscriptRenderableLiveItem[] = Object.freeze([]);
 
 const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
 
@@ -238,7 +238,8 @@ const liveItemForKey = (
     return null;
   }
 
-  return state.liveItemsByTurnId[turnId]?.[itemIndex.index] ?? null;
+  const item = state.liveItemsByTurnId[turnId]?.[itemIndex.index] ?? null;
+  return item?.key === key ? item : null;
 };
 
 const appendAgentMessageDeltaToLiveItem = (
@@ -471,7 +472,7 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptLiveItemsForTurn: (
       transcriptState,
       turnId: string,
-    ): TranscriptRenderableLiveItem[] =>
+    ): readonly TranscriptRenderableLiveItem[] =>
       transcriptState.liveItemsByTurnId[turnId] ?? EMPTY_LIVE_ITEMS,
     selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
       transcriptState.globalStatus,
