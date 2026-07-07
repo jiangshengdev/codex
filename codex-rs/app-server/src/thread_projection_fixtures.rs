@@ -8,6 +8,9 @@ use anyhow::Result;
 use codex_app_server_protocol::AgentMessageDeltaNotification;
 use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
+use codex_app_server_protocol::ReasoningSummaryPartAddedNotification;
+use codex_app_server_protocol::ReasoningSummaryTextDeltaNotification;
+use codex_app_server_protocol::ReasoningTextDeltaNotification;
 use codex_app_server_protocol::SessionSource;
 use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadItem;
@@ -41,6 +44,11 @@ const GENERATED_FIXTURE_NAMES: &[&str] = &[
     "event-agent-message-delta.json",
     "event-item-completed.json",
     "event-item-started.json",
+    "event-reasoning-item-completed.json",
+    "event-reasoning-item-started.json",
+    "event-reasoning-summary-part-added-delta.json",
+    "event-reasoning-summary-text-delta.json",
+    "event-reasoning-text-delta.json",
     "event-subscription-replacement.json",
     "event-turn-completed.json",
     "event-turn-started.json",
@@ -93,6 +101,18 @@ pub(crate) fn generate_fixture_files() -> Result<BTreeMap<&'static str, String>>
         serialize_fixture(&event_agent_message_delta()?)?,
     );
     files.insert(
+        "event-reasoning-summary-text-delta.json",
+        serialize_fixture(&event_reasoning_summary_text_delta()?)?,
+    );
+    files.insert(
+        "event-reasoning-summary-part-added-delta.json",
+        serialize_fixture(&event_reasoning_summary_part_added_delta()?)?,
+    );
+    files.insert(
+        "event-reasoning-text-delta.json",
+        serialize_fixture(&event_reasoning_text_delta()?)?,
+    );
+    files.insert(
         "event-turn-started.json",
         serialize_fixture(&event_turn_started()?)?,
     );
@@ -103,6 +123,14 @@ pub(crate) fn generate_fixture_files() -> Result<BTreeMap<&'static str, String>>
     files.insert(
         "event-item-completed.json",
         serialize_fixture(&event_item_completed()?)?,
+    );
+    files.insert(
+        "event-reasoning-item-started.json",
+        serialize_fixture(&event_reasoning_item_started()?)?,
+    );
+    files.insert(
+        "event-reasoning-item-completed.json",
+        serialize_fixture(&event_reasoning_item_completed()?)?,
     );
     files.insert(
         "event-turn-completed.json",
@@ -251,6 +279,14 @@ fn plan_item(item_id: &str, text: &str) -> ThreadItem {
     }
 }
 
+fn reasoning_item(id: &str, summary: &str, content: &str) -> ThreadItem {
+    ThreadItem::Reasoning {
+        id: id.to_string(),
+        summary: vec![summary.to_string()],
+        content: vec![content.to_string()],
+    }
+}
+
 fn event_turn_started() -> Result<ThreadProjectionEventNotification> {
     projection_event(
         SUBSCRIPTION_ID,
@@ -275,6 +311,53 @@ fn event_agent_message_delta() -> Result<ThreadProjectionDeltaNotification> {
                 turn_id: "turn-in-progress".to_string(),
                 item_id: "assistant-message".to_string(),
                 delta: "streamed text".to_string(),
+            },
+        },
+    })
+}
+
+fn event_reasoning_summary_text_delta() -> Result<ThreadProjectionDeltaNotification> {
+    Ok(ThreadProjectionDeltaNotification {
+        thread_id: THREAD_ID.to_string(),
+        subscription_id: SUBSCRIPTION_ID.to_string(),
+        delta: ThreadProjectionDelta::ReasoningSummaryText {
+            notification: ReasoningSummaryTextDeltaNotification {
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                item_id: "reasoning-item".to_string(),
+                delta: "thinking summary".to_string(),
+                summary_index: 0,
+            },
+        },
+    })
+}
+
+fn event_reasoning_summary_part_added_delta() -> Result<ThreadProjectionDeltaNotification> {
+    Ok(ThreadProjectionDeltaNotification {
+        thread_id: THREAD_ID.to_string(),
+        subscription_id: SUBSCRIPTION_ID.to_string(),
+        delta: ThreadProjectionDelta::ReasoningSummaryPartAdded {
+            notification: ReasoningSummaryPartAddedNotification {
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                item_id: "reasoning-item".to_string(),
+                summary_index: 1,
+            },
+        },
+    })
+}
+
+fn event_reasoning_text_delta() -> Result<ThreadProjectionDeltaNotification> {
+    Ok(ThreadProjectionDeltaNotification {
+        thread_id: THREAD_ID.to_string(),
+        subscription_id: SUBSCRIPTION_ID.to_string(),
+        delta: ThreadProjectionDelta::ReasoningText {
+            notification: ReasoningTextDeltaNotification {
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                item_id: "reasoning-item".to_string(),
+                delta: "raw reasoning".to_string(),
+                content_index: 0,
             },
         },
     })
@@ -312,11 +395,43 @@ fn event_item_completed() -> Result<ThreadProjectionEventNotification> {
     )
 }
 
+fn event_reasoning_item_started() -> Result<ThreadProjectionEventNotification> {
+    projection_event(
+        SUBSCRIPTION_ID,
+        "commit-reasoning-item-started",
+        Some("commit-item-completed"),
+        ThreadProjectionEvent::ItemStarted {
+            notification: ItemStartedNotification {
+                item: reasoning_item("reasoning-item", "thinking summary", "raw reasoning"),
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                started_at_ms: 1_700_000_015_500,
+            },
+        },
+    )
+}
+
+fn event_reasoning_item_completed() -> Result<ThreadProjectionEventNotification> {
+    projection_event(
+        SUBSCRIPTION_ID,
+        "commit-reasoning-item-completed",
+        Some("commit-reasoning-item-started"),
+        ThreadProjectionEvent::ItemCompleted {
+            notification: ItemCompletedNotification {
+                item: reasoning_item("reasoning-item", "thinking summary", "raw reasoning"),
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                completed_at_ms: 1_700_000_015_750,
+            },
+        },
+    )
+}
+
 fn event_turn_completed() -> Result<ThreadProjectionEventNotification> {
     projection_event(
         SUBSCRIPTION_ID,
         "commit-turn-completed",
-        Some("commit-item-completed"),
+        Some("commit-reasoning-item-completed"),
         ThreadProjectionEvent::TurnCompleted {
             notification: TurnCompletedNotification {
                 thread_id: THREAD_ID.to_string(),

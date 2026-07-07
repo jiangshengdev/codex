@@ -4,6 +4,11 @@ import closedBackpressureJson from "../__fixtures__/closed-backpressure.json" wi
 import eventAgentMessageDeltaJson from "../__fixtures__/event-agent-message-delta.json" with { type: "json" };
 import eventItemCompletedJson from "../__fixtures__/event-item-completed.json" with { type: "json" };
 import eventItemStartedJson from "../__fixtures__/event-item-started.json" with { type: "json" };
+import eventReasoningItemCompletedJson from "../__fixtures__/event-reasoning-item-completed.json" with { type: "json" };
+import eventReasoningItemStartedJson from "../__fixtures__/event-reasoning-item-started.json" with { type: "json" };
+import eventReasoningSummaryPartAddedDeltaJson from "../__fixtures__/event-reasoning-summary-part-added-delta.json" with { type: "json" };
+import eventReasoningSummaryTextDeltaJson from "../__fixtures__/event-reasoning-summary-text-delta.json" with { type: "json" };
+import eventReasoningTextDeltaJson from "../__fixtures__/event-reasoning-text-delta.json" with { type: "json" };
 import eventSubscriptionReplacementJson from "../__fixtures__/event-subscription-replacement.json" with { type: "json" };
 import eventTurnCompletedJson from "../__fixtures__/event-turn-completed.json" with { type: "json" };
 import eventTurnStartedJson from "../__fixtures__/event-turn-started.json" with { type: "json" };
@@ -22,6 +27,16 @@ export const eventAgentMessageDelta =
 export const eventTurnStarted = eventTurnStartedJson as ThreadProjectionEventNotification;
 export const eventItemStarted = eventItemStartedJson as ThreadProjectionEventNotification;
 export const eventItemCompleted = eventItemCompletedJson as ThreadProjectionEventNotification;
+export const eventReasoningItemStarted =
+  eventReasoningItemStartedJson as ThreadProjectionEventNotification;
+export const eventReasoningItemCompleted =
+  eventReasoningItemCompletedJson as ThreadProjectionEventNotification;
 export const eventTurnCompleted = eventTurnCompletedJson as ThreadProjectionEventNotification;
 export const eventSubscriptionReplacement =
   eventSubscriptionReplacementJson as ThreadProjectionEventNotification;
+export const eventReasoningSummaryTextDelta =
+  eventReasoningSummaryTextDeltaJson as ThreadProjectionDeltaNotification;
+export const eventReasoningSummaryPartAddedDelta =
+  eventReasoningSummaryPartAddedDeltaJson as ThreadProjectionDeltaNotification;
+export const eventReasoningTextDelta =
+  eventReasoningTextDeltaJson as ThreadProjectionDeltaNotification;

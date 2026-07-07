@@ -1,6 +1,9 @@
 use super::AgentMessageDeltaNotification;
 use super::ItemCompletedNotification;
 use super::ItemStartedNotification;
+use super::ReasoningSummaryPartAddedNotification;
+use super::ReasoningSummaryTextDeltaNotification;
+use super::ReasoningTextDeltaNotification;
 use super::Thread;
 use super::TurnCompletedNotification;
 use super::TurnStartedNotification;
@@ -115,6 +118,15 @@ pub enum ThreadProjectionEvent {
 pub enum ThreadProjectionDelta {
     AgentMessage {
         notification: AgentMessageDeltaNotification,
+    },
+    ReasoningSummaryText {
+        notification: ReasoningSummaryTextDeltaNotification,
+    },
+    ReasoningSummaryPartAdded {
+        notification: ReasoningSummaryPartAddedNotification,
+    },
+    ReasoningText {
+        notification: ReasoningTextDeltaNotification,
     },
 }
 
@@ -276,6 +288,112 @@ mod tests {
                             "itemId": "item_123",
                             "delta": "hello"
                         }
+                    }
+                }
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_projection_delta_reasoning_summary_text() -> Result<()> {
+        let notification = ThreadProjectionDeltaNotification {
+            thread_id: "thread-1".to_string(),
+            subscription_id: "sub-1".to_string(),
+            delta: ThreadProjectionDelta::ReasoningSummaryText {
+                notification: crate::protocol::v2::ReasoningSummaryTextDeltaNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "reasoning-1".to_string(),
+                    delta: "considering".to_string(),
+                    summary_index: 0,
+                },
+            },
+        };
+
+        assert_eq!(
+            serde_json::to_value(&notification)?,
+            json!({
+                "threadId": "thread-1",
+                "subscriptionId": "sub-1",
+                "delta": {
+                    "type": "reasoningSummaryText",
+                    "notification": {
+                        "threadId": "thread-1",
+                        "turnId": "turn-1",
+                        "itemId": "reasoning-1",
+                        "delta": "considering",
+                        "summaryIndex": 0
+                    }
+                }
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_projection_delta_reasoning_summary_part_added() -> Result<()> {
+        let notification = ThreadProjectionDeltaNotification {
+            thread_id: "thread-1".to_string(),
+            subscription_id: "sub-1".to_string(),
+            delta: ThreadProjectionDelta::ReasoningSummaryPartAdded {
+                notification: crate::protocol::v2::ReasoningSummaryPartAddedNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "reasoning-1".to_string(),
+                    summary_index: 1,
+                },
+            },
+        };
+
+        assert_eq!(
+            serde_json::to_value(&notification)?,
+            json!({
+                "threadId": "thread-1",
+                "subscriptionId": "sub-1",
+                "delta": {
+                    "type": "reasoningSummaryPartAdded",
+                    "notification": {
+                        "threadId": "thread-1",
+                        "turnId": "turn-1",
+                        "itemId": "reasoning-1",
+                        "summaryIndex": 1
+                    }
+                }
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_projection_delta_reasoning_text() -> Result<()> {
+        let notification = ThreadProjectionDeltaNotification {
+            thread_id: "thread-1".to_string(),
+            subscription_id: "sub-1".to_string(),
+            delta: ThreadProjectionDelta::ReasoningText {
+                notification: crate::protocol::v2::ReasoningTextDeltaNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "reasoning-1".to_string(),
+                    delta: "raw detail".to_string(),
+                    content_index: 0,
+                },
+            },
+        };
+
+        assert_eq!(
+            serde_json::to_value(&notification)?,
+            json!({
+                "threadId": "thread-1",
+                "subscriptionId": "sub-1",
+                "delta": {
+                    "type": "reasoningText",
+                    "notification": {
+                        "threadId": "thread-1",
+                        "turnId": "turn-1",
+                        "itemId": "reasoning-1",
+                        "delta": "raw detail",
+                        "contentIndex": 0
                     }
                 }
             })

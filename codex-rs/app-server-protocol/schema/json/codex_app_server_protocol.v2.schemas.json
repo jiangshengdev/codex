@@ -16412,6 +16412,66 @@
           ],
           "title": "AgentMessageThreadProjectionDelta",
           "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ReasoningSummaryTextDeltaNotification"
+            },
+            "type": {
+              "enum": [
+                "reasoningSummaryText"
+              ],
+              "title": "ReasoningSummaryTextThreadProjectionDeltaType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ReasoningSummaryTextThreadProjectionDelta",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ReasoningSummaryPartAddedNotification"
+            },
+            "type": {
+              "enum": [
+                "reasoningSummaryPartAdded"
+              ],
+              "title": "ReasoningSummaryPartAddedThreadProjectionDeltaType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ReasoningSummaryPartAddedThreadProjectionDelta",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ReasoningTextDeltaNotification"
+            },
+            "type": {
+              "enum": [
+                "reasoningText"
+              ],
+              "title": "ReasoningTextThreadProjectionDeltaType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ReasoningTextThreadProjectionDelta",
+          "type": "object"
         }
       ]
     },

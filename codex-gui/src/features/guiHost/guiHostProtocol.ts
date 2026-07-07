@@ -158,6 +158,12 @@ function isThreadProjectionDelta(value: unknown): boolean {
   switch (value.type) {
     case "agentMessage":
       return isAgentMessageDeltaNotification(value.notification);
+    case "reasoningSummaryText":
+      return isReasoningSummaryTextDeltaNotification(value.notification);
+    case "reasoningSummaryPartAdded":
+      return isReasoningSummaryPartAddedNotification(value.notification);
+    case "reasoningText":
+      return isReasoningTextDeltaNotification(value.notification);
     default:
       return false;
   }
@@ -169,6 +175,35 @@ function isAgentMessageDeltaNotification(value: Record<string, unknown>): boolea
     typeof value.turnId === "string" &&
     typeof value.itemId === "string" &&
     typeof value.delta === "string"
+  );
+}
+
+function isReasoningSummaryTextDeltaNotification(value: Record<string, unknown>): boolean {
+  return (
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    typeof value.itemId === "string" &&
+    typeof value.delta === "string" &&
+    typeof value.summaryIndex === "number"
+  );
+}
+
+function isReasoningSummaryPartAddedNotification(value: Record<string, unknown>): boolean {
+  return (
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    typeof value.itemId === "string" &&
+    typeof value.summaryIndex === "number"
+  );
+}
+
+function isReasoningTextDeltaNotification(value: Record<string, unknown>): boolean {
+  return (
+    typeof value.threadId === "string" &&
+    typeof value.turnId === "string" &&
+    typeof value.itemId === "string" &&
+    typeof value.delta === "string" &&
+    typeof value.contentIndex === "number"
   );
 }
 

@@ -19,7 +19,8 @@ import {
   snapshotReplayIndexFromTurns,
   type SnapshotReplayIndex,
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
+  type threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -43,12 +44,58 @@ export function GuiHostConnectionBridge({
     let launchThreadId: string | null = null;
     let projectionIngress: ProjectionIngressAdapter | null = null;
     let snapshotReplayIndex: SnapshotReplayIndex | null = null;
+    let pendingDeltaNotifications: Parameters<
+      typeof threadRuntimeDeltasAccepted
+    >[0]["notifications"] = [];
+    let pendingDeltaFrame: number | null = null;
+
+    const cancelPendingDeltaFrame = () => {
+      if (pendingDeltaFrame == null) {
+        return;
+      }
+
+      window.cancelAnimationFrame(pendingDeltaFrame);
+      pendingDeltaFrame = null;
+    };
+
+    const flushPendingDeltas = () => {
+      if (pendingDeltaNotifications.length === 0) {
+        cancelPendingDeltaFrame();
+        return;
+      }
+
+      const notifications = pendingDeltaNotifications;
+      pendingDeltaNotifications = [];
+      cancelPendingDeltaFrame();
+      dispatch(threadRuntimeDeltasAccepted({ notifications }));
+    };
+
+    const schedulePendingDeltaFlush = () => {
+      if (pendingDeltaFrame != null) {
+        return;
+      }
+
+      pendingDeltaFrame = window.requestAnimationFrame(() => {
+        pendingDeltaFrame = null;
+        flushPendingDeltas();
+      });
+    };
+
+    const enqueueProjectionDelta = (
+      notification: Parameters<typeof threadRuntimeDeltaAccepted>[0]["notification"],
+    ) => {
+      pendingDeltaNotifications.push(notification);
+      schedulePendingDeltaFlush();
+    };
+
     const dispatchProjectionOutcome = (outcome: ProjectionIngressOutcome) => {
       switch (outcome.type) {
         case "attachAccepted":
+          flushPendingDeltas();
           dispatch(threadRuntimeAttached(outcome.response));
           return;
         case "eventAccepted":
+          flushPendingDeltas();
           dispatch(
             threadRuntimeEventBuffered({
               notification: outcome.notification,
@@ -60,9 +107,10 @@ export function GuiHostConnectionBridge({
           );
           return;
         case "deltaAccepted":
-          dispatch(threadRuntimeDeltaAccepted({ notification: outcome.notification }));
+          enqueueProjectionDelta(outcome.notification);
           return;
         case "manualReconnectRequired":
+          flushPendingDeltas();
           dispatch(
             threadRuntimeManualReconnectRequired({
               reason: outcome.reason,
@@ -149,6 +197,8 @@ export function GuiHostConnectionBridge({
       isMounted = false;
       setCommands(null);
       setLaunchParams(null);
+      pendingDeltaNotifications = [];
+      cancelPendingDeltaFrame();
       cleanupConnection?.();
     };
   }, [dispatch, setCommands, setLaunchParams, setStatus]);
