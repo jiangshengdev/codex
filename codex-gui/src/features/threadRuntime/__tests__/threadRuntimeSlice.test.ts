@@ -28,9 +28,11 @@ import {
   snapshotReplayIndexFromTurns,
   threadRuntimeAttached,
   threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
   threadRuntimeSlice,
+  type ThreadRuntimeProjectionDeltasPayload,
   type ThreadRuntimeProjectionEventPayload,
   type ThreadRuntimeState,
 } from "../threadRuntimeSlice";
@@ -41,6 +43,7 @@ const reduce = (
   action:
     | ReturnType<typeof threadRuntimeAttached>
     | ReturnType<typeof threadRuntimeDeltaAccepted>
+    | ReturnType<typeof threadRuntimeDeltasAccepted>
     | ReturnType<typeof threadRuntimeEventBuffered>
     | ReturnType<typeof threadRuntimeManualReconnectRequired>,
 ) => threadRuntimeSlice.reducer(state, action);
@@ -198,6 +201,25 @@ describe("thread runtime reducer", () => {
     );
 
     expect(nextState).toStrictEqual(state);
+  });
+
+  it("exports accepted projection delta batch actions without mutating runtime buffers", () => {
+    expectTypeOf<
+      Parameters<typeof threadRuntimeDeltasAccepted>[0]
+    >().toEqualTypeOf<ThreadRuntimeProjectionDeltasPayload>();
+
+    const state = reduce(undefined, threadRuntimeAttached(attachBaseline));
+    const nextState = reduce(
+      state,
+      threadRuntimeDeltasAccepted({ notifications: [eventAgentMessageDelta] }),
+    );
+
+    expect(nextState).toStrictEqual(state);
+    expect(
+      threadRuntimeDeltasAccepted({ notifications: [eventAgentMessageDelta] }).payload,
+    ).toStrictEqual({
+      notifications: [eventAgentMessageDelta],
+    });
   });
 
   it("marks live turn events already present in the attach snapshot as snapshot duplicates", () => {

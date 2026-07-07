@@ -3,6 +3,9 @@ import {
   attachBaseline,
   closedBackpressure,
   eventAgentMessageDelta,
+  eventReasoningSummaryPartAddedDelta,
+  eventReasoningSummaryTextDelta,
+  eventReasoningTextDelta,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import type {
@@ -110,6 +113,43 @@ describe("guiHostClient handshake", () => {
     expect(projectionEvents).toEqual([projectionEvent]);
     expect(projectionDeltas).toEqual([projectionDelta]);
     expect(projectionClosedNotifications).toEqual([projectionClosed]);
+  });
+
+  it("forwards reasoning projection delta payloads", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const projectionDeltas: ThreadProjectionDeltaNotification[] = [];
+    const attachResponse = attachBaseline;
+    const reasoningDeltas = [
+      eventReasoningSummaryTextDelta,
+      eventReasoningSummaryPartAddedDelta,
+      eventReasoningTextDelta,
+    ];
+
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse,
+      onStatus,
+      onProjectionDelta: (notification) => {
+        projectionDeltas.push(notification);
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    sendAttachResult(socket, attachResponse);
+
+    for (const delta of reasoningDeltas) {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "thread/projection/delta",
+          params: delta,
+        }),
+      });
+    }
+
+    expect(projectionDeltas).toEqual(reasoningDeltas);
+    expect(statuses.at(-1)).toEqual({ label: "attached", message: undefined });
   });
 
   it("reports malformed projection attach payloads without forwarding them", () => {

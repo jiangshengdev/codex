@@ -5,6 +5,7 @@ import {
   attachWithCommittedMessages,
   createGuiHostCommands,
   emitProjectionClosed,
+  emitProjectionDelta,
   emitProjectionEvent,
   getCleanupConnectionCallCount,
   getHostOptions,
@@ -18,15 +19,20 @@ import App from "@/App";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   closedBackpressure,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
+  agentMessageDelta,
   agentMessage,
   attachWithTurns,
   baseTurn,
+  inProgressTurn,
   itemCompleted,
+  itemStarted,
+  turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   buildSnapshotReplayMaterials,
@@ -34,6 +40,10 @@ import {
 } from "@/features/snapshotReplay/snapshotReplay";
 import { selectLiveEventMaterials } from "@/features/liveEventHandling/liveEventHandling";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
+import {
+  selectTranscriptEntry,
+  selectTranscriptLiveItem,
+} from "@/features/transcriptState/transcriptStateSlice";
 import {
   selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
@@ -278,6 +288,128 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
   expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
     buildSnapshotReplayMaterials(runtime),
   );
+});
+
+test("App batches accepted projection deltas until the next animation frame", async () => {
+  vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
+  try {
+    const { store } = await renderWithProviders(<App />);
+    const options = getHostOptions(startGuiHostConnectionMock);
+    const initialItem = agentMessage("agent-raf-batch", "");
+
+    attachProjection(options, attachWithTurns(attachResponse, []));
+    const turnStartedEvent = turnStarted(
+      eventTurnStarted,
+      "commit-raf-batch-turn",
+      inProgressTurn("turn-raf-batch"),
+    );
+    const itemStartedEvent = {
+      ...itemStarted(eventItemStarted, "commit-raf-batch-started", "turn-raf-batch", initialItem),
+      parentCommitId: turnStartedEvent.commitId,
+    };
+    emitProjectionEvent(options, turnStartedEvent);
+    emitProjectionEvent(options, itemStartedEvent);
+
+    emitProjectionDelta(
+      options,
+      agentMessageDelta(eventAgentMessageDelta, "turn-raf-batch", "agent-raf-batch", "Hello"),
+    );
+    emitProjectionDelta(
+      options,
+      agentMessageDelta(eventAgentMessageDelta, "turn-raf-batch", "agent-raf-batch", " world"),
+    );
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-raf-batch", "agent-raf-batch"),
+    ).toStrictEqual({
+      key: "turn-raf-batch:agent-raf-batch",
+      turnId: "turn-raf-batch",
+      itemId: "agent-raf-batch",
+      status: "started",
+      initialItem,
+      transientText: "",
+      revision: 0,
+    });
+
+    vi.advanceTimersToNextFrame();
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-raf-batch", "agent-raf-batch"),
+    ).toStrictEqual({
+      key: "turn-raf-batch:agent-raf-batch",
+      turnId: "turn-raf-batch",
+      itemId: "agent-raf-batch",
+      status: "streaming",
+      initialItem,
+      transientText: "Hello world",
+      revision: 2,
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("App flushes pending projection deltas before structural projection events", async () => {
+  vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
+  try {
+    const { store } = await renderWithProviders(<App />);
+    const options = getHostOptions(startGuiHostConnectionMock);
+    const initialItem = agentMessage("agent-raf-flush-event", "");
+
+    attachProjection(options, attachWithTurns(attachResponse, []));
+    const turnStartedEvent = turnStarted(
+      eventTurnStarted,
+      "commit-raf-flush-event-turn",
+      inProgressTurn("turn-raf-flush-event"),
+    );
+    const itemStartedEvent = {
+      ...itemStarted(
+        eventItemStarted,
+        "commit-raf-flush-event-started",
+        "turn-raf-flush-event",
+        initialItem,
+      ),
+      parentCommitId: turnStartedEvent.commitId,
+    };
+    const itemCompletedEvent = {
+      ...itemCompleted(
+        eventItemCompleted,
+        "commit-raf-flush-event-completed",
+        "turn-raf-flush-event",
+        agentMessage("agent-raf-flush-event", "Completed answer"),
+      ),
+      parentCommitId: itemStartedEvent.commitId,
+    };
+    emitProjectionEvent(options, turnStartedEvent);
+    emitProjectionEvent(options, itemStartedEvent);
+
+    emitProjectionDelta(
+      options,
+      agentMessageDelta(
+        eventAgentMessageDelta,
+        "turn-raf-flush-event",
+        "agent-raf-flush-event",
+        "Transient before completion",
+      ),
+    );
+    emitProjectionEvent(options, itemCompletedEvent);
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-raf-flush-event", "agent-raf-flush-event"),
+    ).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), "agent-raf-flush-event")).toStrictEqual({
+      type: "message",
+      id: "agent-raf-flush-event",
+      turnId: "turn-raf-flush-event",
+      role: "assistant",
+      source: "Completed answer",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 0,
+    });
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("App classifies snapshot-ahead projection events as snapshot duplicate replay", async () => {
@@ -576,6 +708,56 @@ test("App closes the host connection when unmounted", async () => {
   await screen.unmount();
 
   expect(getCleanupConnectionCallCount()).toBe(1);
+});
+
+test("App cancels pending projection delta frame dispatch when unmounted", async () => {
+  vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
+  try {
+    const screen = await renderWithProviders(<App />);
+    const { store } = screen;
+    const options = getHostOptions(startGuiHostConnectionMock);
+    const initialItem = agentMessage("agent-raf-cleanup", "");
+
+    attachProjection(options, attachWithTurns(attachResponse, []));
+    const turnStartedEvent = turnStarted(
+      eventTurnStarted,
+      "commit-raf-cleanup-turn",
+      inProgressTurn("turn-raf-cleanup"),
+    );
+    const itemStartedEvent = {
+      ...itemStarted(
+        eventItemStarted,
+        "commit-raf-cleanup-started",
+        "turn-raf-cleanup",
+        initialItem,
+      ),
+      parentCommitId: turnStartedEvent.commitId,
+    };
+    emitProjectionEvent(options, turnStartedEvent);
+    emitProjectionEvent(options, itemStartedEvent);
+    emitProjectionDelta(
+      options,
+      agentMessageDelta(eventAgentMessageDelta, "turn-raf-cleanup", "agent-raf-cleanup", "Lost"),
+    );
+
+    await screen.unmount();
+    vi.advanceTimersToNextFrame();
+
+    expect(getCleanupConnectionCallCount()).toBe(1);
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-raf-cleanup", "agent-raf-cleanup"),
+    ).toStrictEqual({
+      key: "turn-raf-cleanup:agent-raf-cleanup",
+      turnId: "turn-raf-cleanup",
+      itemId: "agent-raf-cleanup",
+      status: "started",
+      initialItem,
+      transientText: "",
+      revision: 0,
+    });
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("App does not render optimistic user messages after send", async () => {

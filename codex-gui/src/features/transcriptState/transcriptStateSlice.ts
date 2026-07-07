@@ -3,6 +3,7 @@ import type { ProjectionManualReconnectReason } from "@/features/projectionIngre
 import {
   threadRuntimeAttached,
   threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -256,6 +257,23 @@ const appendAgentMessageDeltaToLiveItem = (
   item.transientText += delta;
   item.status = "streaming";
   item.revision += 1;
+};
+
+const applyAcceptedProjectionDelta = (
+  state: TranscriptState,
+  notification: Parameters<typeof threadRuntimeDeltaAccepted>[0]["notification"],
+) => {
+  if (state.threadId !== notification.threadId) {
+    return;
+  }
+
+  switch (notification.delta.type) {
+    case "agentMessage": {
+      const { turnId, itemId, delta } = notification.delta.notification;
+      appendAgentMessageDeltaToLiveItem(state, turnId, itemId, delta);
+      return;
+    }
+  }
 };
 
 const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, itemId: string) => {
@@ -529,18 +547,11 @@ export const transcriptStateSlice = createAppSlice({
         }
       })
       .addCase(threadRuntimeDeltaAccepted, (state, action) => {
-        const { notification } = action.payload;
-        if (state.threadId !== notification.threadId) {
-          return;
-        }
-
-        switch (notification.delta.type) {
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Keep projection deltas handled by discriminant switch.
-          case "agentMessage": {
-            const { turnId, itemId, delta } = notification.delta.notification;
-            appendAgentMessageDeltaToLiveItem(state, turnId, itemId, delta);
-            return;
-          }
+        applyAcceptedProjectionDelta(state, action.payload.notification);
+      })
+      .addCase(threadRuntimeDeltasAccepted, (state, action) => {
+        for (const notification of action.payload.notifications) {
+          applyAcceptedProjectionDelta(state, notification);
         }
       })
       .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
