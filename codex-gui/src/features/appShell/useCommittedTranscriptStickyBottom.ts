@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useAppSelector } from "@/app/hooks";
-import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
+import {
+  selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptLiveScrollPulse,
+} from "@/features/transcriptState/transcriptStateSlice";
 
 const documentScroller = (): HTMLElement | null => {
   const scroller = document.scrollingElement;
@@ -16,6 +19,7 @@ export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement |
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const pinnedToBottomRef = useRef(true);
   const scrollCommitKey = useAppSelector(selectCommittedTranscriptScrollCommitKey);
+  const liveScrollPulse = useAppSelector(selectTranscriptLiveScrollPulse);
 
   useEffect(() => {
     const sentinel = bottomSentinelRef.current;
@@ -40,7 +44,7 @@ export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement |
     if (pinnedToBottomRef.current) {
       scrollDocumentToBottom();
     }
-  }, [scrollCommitKey]);
+  }, [liveScrollPulse, scrollCommitKey]);
 
   return bottomSentinelRef;
 }
