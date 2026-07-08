@@ -22,6 +22,7 @@ import {
   selectTranscriptEntry,
   selectTranscriptLiveItem,
   selectTranscriptLiveItemsForTurn,
+  selectTranscriptLiveScrollPulse,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
@@ -784,6 +785,72 @@ describe("transcript state live events reducer", () => {
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-visible-dom",
+    );
+  });
+
+  it("advances a live scroll pulse for live assistant display changes without changing the committed scroll key", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: turnStarted(
+          eventTurnStarted,
+          "commit-live-scroll-pulse-turn",
+          inProgressTurn("turn-live-scroll-pulse"),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-scroll-pulse-started",
+          "turn-live-scroll-pulse",
+          agentMessage("agent-live-scroll-pulse", ""),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const startedPulse = selectTranscriptLiveScrollPulse(store.getState());
+    expect(startedPulse).toBeGreaterThan(initialPulse);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-live-scroll-pulse",
+          "agent-live-scroll-pulse",
+          "Live pulse delta",
+        ),
+      }),
+    );
+
+    const deltaPulse = selectTranscriptLiveScrollPulse(store.getState());
+    expect(deltaPulse).toBeGreaterThan(startedPulse);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-live-scroll-pulse-completed",
+          "turn-live-scroll-pulse",
+          agentMessage("agent-live-scroll-pulse", "Completed pulse answer"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBeGreaterThan(deltaPulse);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-live-scroll-pulse-completed",
     );
   });
 

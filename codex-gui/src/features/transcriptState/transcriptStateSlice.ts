@@ -85,6 +85,7 @@ export type TranscriptState = {
   threadId: string | null;
   subscriptionId: string | null;
   committedScrollCommitKey: string | null;
+  liveScrollPulse: number;
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunksById: Record<string, TranscriptChunk>;
@@ -108,6 +109,7 @@ const initialState: TranscriptState = {
   threadId: null,
   subscriptionId: null,
   committedScrollCommitKey: null,
+  liveScrollPulse: 0,
   turnIds: [],
   turnsById: {},
   chunksById: {},
@@ -124,6 +126,7 @@ const createEmptyState = (): TranscriptState => ({
   threadId: null,
   subscriptionId: null,
   committedScrollCommitKey: null,
+  liveScrollPulse: 0,
   turnIds: [],
   turnsById: {},
   chunksById: {},
@@ -140,6 +143,7 @@ const resetState = (state: TranscriptState, nextState: TranscriptState) => {
   state.threadId = nextState.threadId;
   state.subscriptionId = nextState.subscriptionId;
   state.committedScrollCommitKey = nextState.committedScrollCommitKey;
+  state.liveScrollPulse = nextState.liveScrollPulse;
   state.turnIds = nextState.turnIds;
   state.turnsById = nextState.turnsById;
   state.chunksById = nextState.chunksById;
@@ -175,6 +179,10 @@ const chunkIdForIndex = (turnId: string, index: number): string =>
 const EMPTY_LIVE_ITEMS: readonly TranscriptRenderableLiveItem[] = Object.freeze([]);
 
 const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
+
+const bumpLiveScrollPulse = (state: TranscriptState) => {
+  state.liveScrollPulse += 1;
+};
 
 const ensureTurnExists = (state: TranscriptState, turnId: string): TranscriptTurn => {
   const existingTurn = state.turnsById[turnId];
@@ -226,6 +234,7 @@ const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: Thr
     transientText: "",
     revision: 0,
   });
+  bumpLiveScrollPulse(state);
 };
 
 const liveItemForKey = (
@@ -257,6 +266,7 @@ const appendAgentMessageDeltaToLiveItem = (
   item.transientText += delta;
   item.status = "streaming";
   item.revision += 1;
+  bumpLiveScrollPulse(state);
 };
 
 const applyAcceptedProjectionDelta = (
@@ -291,6 +301,7 @@ const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, itemId:
 
   items.splice(itemIndex.index, 1);
   Reflect.deleteProperty(state.liveItemIndexByKey, key);
+  bumpLiveScrollPulse(state);
 
   for (let index = itemIndex.index; index < items.length; index += 1) {
     const shiftedItem = items[index];
@@ -469,6 +480,8 @@ export const transcriptStateSlice = createAppSlice({
   selectors: {
     selectCommittedTranscriptScrollCommitKey: (transcriptState): string | null =>
       transcriptState.committedScrollCommitKey,
+    selectTranscriptLiveScrollPulse: (transcriptState): number =>
+      transcriptState.liveScrollPulse,
     selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
     selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
       transcriptState.turnsById[turnId] ?? null,
@@ -573,6 +586,7 @@ export const transcriptStateSlice = createAppSlice({
 
 export const {
   selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptLiveScrollPulse,
   selectTranscriptTurnIds,
   selectTranscriptTurn,
   selectTranscriptChunk,
