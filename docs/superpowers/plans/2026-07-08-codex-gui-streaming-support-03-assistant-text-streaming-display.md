@@ -4,67 +4,304 @@
 
 **Goal:** Render live `agentMessage` projection delta text in the Codex GUI transcript surface, then converge to committed final answer content on `itemCompleted`.
 
-**Architecture:** Keep projection and transcript data semantics from 02e unchanged. Add a live assistant display path inside `CommittedTranscriptTurn`, share Streamdown safety configuration between committed and live Markdown renderers, and extend sticky-bottom behavior with a transient live scroll pulse that is separate from the committed scroll commit key.
+**Architecture:** Keep Rust projection and 02e transcript data semantics unchanged. Add a live assistant display branch inside `CommittedTranscriptTurn`, share Streamdown safety configuration between committed and live Markdown renderers, and add an O(1) live scroll pulse field that lets sticky-bottom react to transient live height changes without changing `committedScrollCommitKey`.
 
-**Tech Stack:** React 19, Redux Toolkit slice selectors, HeroUI v3 Card/Typography surface components, Streamdown streaming/static modes, Vitest Browser Mode, Vite, fnm-backed pnpm.
+**Tech Stack:** React 19, Redux Toolkit slice selectors, HeroUI v3 Card compound API, Streamdown static/streaming modes, Vitest Browser Mode, Vite, fnm-backed pnpm.
 
 ---
+
+## Reference Documents Checked
+
+- Design: `docs/superpowers/specs/2026-07-03-codex-gui-streaming-support/03-assistant-text-streaming-display-design.md`
+- GUI local rules: `codex-gui/AGENTS.md`
+- HeroUI Card docs: `codex-gui/.heroui-docs/react/components/(layout)/card.mdx`
+- Vitest Browser assertions: `../vitest/docs/api/browser/assertions.md`
+- Vitest Browser locators: `../vitest/docs/api/browser/locators.md`
+- GUI scripts: `codex-gui/package.json`
+
+Key constraints from references:
+
+- HeroUI Card uses dot-notation compound parts such as `Card.Content`; `role="article"` is valid semantic markup.
+- Browser tests should use `expect.element(...)` for retriable assertions on locators.
+- `codex-gui/package.json` has `type-check`, `format:oxfmt`, and `test:unit`; targeted file checks should use `pnpm exec vitest --run <path>`.
+- No dependency install or lockfile change is needed.
+
+## Design Status
+
+The 03 design does not need to be rewritten.
+
+Reason:
+
+- The design already says live delta participates in sticky-bottom without updating `committedScrollCommitKey`.
+- The design already requires preserving committed transcript chunk boundaries and avoiding read-time live materialization.
+- The new reference docs affect implementation and testing details, not the design decisions.
+
+The plan is rewritten to avoid the previous read-path `Object.values(...).reduce(...)` live scroll selector. The implementation must instead maintain `liveScrollPulse` in the reducer and expose it through an O(1) selector.
 
 ## File Structure
 
-- Modify: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
-  - Add `LiveAssistantMessages` and `LiveAssistantMessageEntry`.
-  - Render live assistant messages between `MiddleTranscriptModule` and `FinalAssistantMessages`.
-  - Treat turns with live assistant content as transcript content so the empty state is hidden while streaming.
-- Modify: `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx`
-  - Move shared Streamdown configuration to `markdownRendering.tsx`.
-  - Keep committed Markdown in `mode="static"`.
-- Create: `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx`
-  - Render live assistant Markdown with `mode="streaming"`, `isAnimating`, and `caret="block"`.
-- Create: `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx`
-  - Own shared Streamdown plugins, rehype hardening, element allowlist, inline code component, and class names.
-- Modify: `codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts`
-  - Add a live scroll pulse dependency so live delta height changes participate in sticky-bottom without changing committed scroll keys.
 - Modify: `codex-gui/src/features/transcriptState/transcriptStateSlice.ts`
-  - Export `selectTranscriptLiveScrollPulse`.
-  - Keep `selectCommittedTranscriptScrollCommitKey` semantics unchanged.
-- Modify: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
-  - Add browser tests for live streaming display, Markdown rendering, placement, and completed convergence.
-  - Update the old started-item expectation so started live items can create an empty live position without showing `initialItem` text.
-- Modify: `codex-gui/src/__tests__/App.browser.test.tsx`
-  - Add sticky-bottom tests for live delta updates.
+  - Add `liveScrollPulse: number` to `TranscriptState`.
+  - Increment `liveScrollPulse` when live item display state is created, updated, or removed.
+  - Export `selectTranscriptLiveScrollPulse` as an O(1) selector.
 - Modify: `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts`
-  - Add selector coverage for live scroll pulse and confirm delta still does not update `committedScrollCommitKey`.
+  - Add reducer-level coverage for `liveScrollPulse`.
+  - Confirm live updates still do not update `committedScrollCommitKey`.
+- Create: `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx`
+  - Own shared Streamdown plugins, hardening, allowlist, inline code component, and class names.
+- Modify: `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx`
+  - Use shared Streamdown config and keep `mode="static"`.
+- Create: `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx`
+  - Use shared Streamdown config with `mode="streaming"`, `isAnimating`, and `caret="block"`.
+- Modify: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
+  - Render live assistant messages between `MiddleTranscriptModule` and `FinalAssistantMessages`.
+  - Keep live items out of committed chunks.
+  - Hide the empty state while a live assistant item is present.
+- Modify: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
+  - Add browser coverage for live text, Markdown rendering, placement, and completed convergence.
+- Modify: `codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts`
+  - Depend on `selectTranscriptLiveScrollPulse` in addition to `selectCommittedTranscriptScrollCommitKey`.
+- Modify: `codex-gui/src/__tests__/App.browser.test.tsx`
+  - Add sticky-bottom browser coverage for live assistant deltas.
 
 ## Verification Commands
 
-Run commands from `codex-gui/` with the user's fnm-managed runtime:
+Run from `codex-gui/` using the user's fnm-managed runtime:
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm --version
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/__tests__/App.browser.test.tsx
-/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+/opt/homebrew/bin/fnm exec --using-file pnpm run format:oxfmt
 ```
 
-`codex-gui/package.json` currently defines `type-check` and `test:unit`; the plan uses `pnpm exec vitest --run <path>` for targeted test files because there is no path-scoped package script.
+Do not run `pnpm install`, `pnpm add`, or any dependency-changing command.
 
 ---
 
-### Task 1: Add Failing Browser Coverage For Live Assistant Display
+### Task 1: Reducer-Owned Live Scroll Pulse
 
 **Files:**
-- Modify: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
+- Modify: `codex-gui/src/features/transcriptState/transcriptStateSlice.ts`
+- Modify: `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts`
 
-- [ ] **Step 1: Add imports for live deltas and scroll key assertions**
+- [ ] **Step 1: Write the failing reducer test**
 
-Update the imports at the top of `CommittedTranscriptSurface.browser.test.tsx`:
+In `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts`, add `selectTranscriptLiveScrollPulse` to the existing selector imports:
 
 ```ts
 import {
   selectCommittedTranscriptScrollCommitKey,
-} from "@/features/transcriptState/transcriptStateSlice";
+  selectTranscriptChunk,
+  selectTranscriptEntry,
+  selectTranscriptLiveItem,
+  selectTranscriptLiveItemsForTurn,
+  selectTranscriptLiveScrollPulse,
+  selectTranscriptTurn,
+} from "../transcriptStateSlice";
+```
+
+Add this test near the existing scroll key tests:
+
+```ts
+it("advances a live scroll pulse for live assistant display changes without changing the committed scroll key", () => {
+  const store = setupStore();
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+  const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: turnStarted(
+        eventTurnStarted,
+        "commit-live-scroll-pulse-turn",
+        inProgressTurn("turn-live-scroll-pulse"),
+      ),
+      replay: "live",
+    }),
+  );
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemStarted(
+        eventItemStarted,
+        "commit-live-scroll-pulse-started",
+        "turn-live-scroll-pulse",
+        agentMessage("agent-live-scroll-pulse", ""),
+      ),
+      replay: "live",
+    }),
+  );
+
+  const startedPulse = selectTranscriptLiveScrollPulse(store.getState());
+  expect(startedPulse).toBeGreaterThan(initialPulse);
+  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+  store.dispatch(
+    threadRuntimeDeltaAccepted({
+      notification: agentMessageDelta(
+        eventAgentMessageDelta,
+        "turn-live-scroll-pulse",
+        "agent-live-scroll-pulse",
+        "Live pulse delta",
+      ),
+    }),
+  );
+
+  const deltaPulse = selectTranscriptLiveScrollPulse(store.getState());
+  expect(deltaPulse).toBeGreaterThan(startedPulse);
+  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-live-scroll-pulse-completed",
+        "turn-live-scroll-pulse",
+        agentMessage("agent-live-scroll-pulse", "Completed pulse answer"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  expect(selectTranscriptLiveScrollPulse(store.getState())).toBeGreaterThan(deltaPulse);
+  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+    "event:commit-live-scroll-pulse-completed",
+  );
+});
+```
+
+- [ ] **Step 2: Run the focused test and confirm it fails**
+
+Run:
+
+```bash
+cd /Users/jiangsheng/cnb/codex/codex-gui
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
+```
+
+Expected: FAIL because `selectTranscriptLiveScrollPulse` does not exist.
+
+- [ ] **Step 3: Add `liveScrollPulse` to transcript state**
+
+In `codex-gui/src/features/transcriptState/transcriptStateSlice.ts`, update `TranscriptState`:
+
+```ts
+  liveScrollPulse: number;
+```
+
+Add the field to `initialState`:
+
+```ts
+  liveScrollPulse: 0,
+```
+
+Add the field to `createEmptyState()`:
+
+```ts
+  liveScrollPulse: 0,
+```
+
+Update `resetState`:
+
+```ts
+  state.liveScrollPulse = nextState.liveScrollPulse;
+```
+
+Add a small reducer helper near the live item helpers:
+
+```ts
+const bumpLiveScrollPulse = (state: TranscriptState) => {
+  state.liveScrollPulse += 1;
+};
+```
+
+- [ ] **Step 4: Bump the pulse only when live display state changes**
+
+In `appendStartedLiveItem`, after `items.push(...)`, add:
+
+```ts
+  bumpLiveScrollPulse(state);
+```
+
+In `appendAgentMessageDeltaToLiveItem`, after incrementing `item.revision`, add:
+
+```ts
+  bumpLiveScrollPulse(state);
+```
+
+In `removeLiveItemIfPresent`, add `bumpLiveScrollPulse(state);` only after a live item has actually been removed:
+
+```ts
+  items.splice(itemIndex.index, 1);
+  Reflect.deleteProperty(state.liveItemIndexByKey, key);
+  bumpLiveScrollPulse(state);
+```
+
+Do not bump the pulse for missing-slot deltas, snapshot duplicates, committed-only updates, manual reconnect status, or attach replacement.
+
+- [ ] **Step 5: Export the O(1) selector**
+
+Add this selector:
+
+```ts
+    selectTranscriptLiveScrollPulse: (transcriptState): number =>
+      transcriptState.liveScrollPulse,
+```
+
+Export it with the existing selectors:
+
+```ts
+export const {
+  selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptTurnIds,
+  selectTranscriptTurn,
+  selectTranscriptChunk,
+  selectTranscriptEntry,
+  selectTranscriptLiveItem,
+  selectTranscriptLiveItemsForTurn,
+  selectTranscriptLiveScrollPulse,
+  selectTranscriptGlobalStatus,
+} = transcriptStateSlice.selectors;
+```
+
+- [ ] **Step 6: Run the focused reducer test**
+
+Run:
+
+```bash
+cd /Users/jiangsheng/cnb/codex/codex-gui
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
+```
+
+Expected: PASS.
+
+- [ ] **Step 7: Commit Task 1**
+
+```bash
+git add codex-gui/src/features/transcriptState/transcriptStateSlice.ts codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
+git commit -m "feat(gui): track live transcript scroll pulse"
+```
+
+---
+
+### Task 2: Live Assistant Surface Coverage
+
+**Files:**
+- Modify: `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
+
+- [ ] **Step 1: Update imports for live delta surface coverage**
+
+In `CommittedTranscriptSurface.browser.test.tsx`, update the transcript selector import:
+
+```ts
+import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
+```
+
+Update the runtime action import:
+
+```ts
 import {
   threadRuntimeAttached,
   threadRuntimeDeltaAccepted,
@@ -73,7 +310,7 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 ```
 
-Update the projection fixture import:
+Update the fixture import:
 
 ```ts
 import {
@@ -85,7 +322,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 ```
 
-Update the projection builder import:
+Update the builder import:
 
 ```ts
 import {
@@ -102,9 +339,9 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 ```
 
-- [ ] **Step 2: Replace the old started-item surface test with live streaming coverage**
+- [ ] **Step 2: Replace the old started-item surface test**
 
-Replace the existing test named `renders live completed items without rendering started items` with this test:
+Replace `renders live completed items without rendering started items` with:
 
 ```ts
 test("renders live assistant text between intermediate updates and final answers", async () => {
@@ -173,6 +410,11 @@ test("renders live assistant text between intermediate updates and final answers
 });
 ```
 
+Notes for the implementer:
+
+- The `screen.getBy*` calls return locators in this project’s browser test wrapper; keep using `expect.element(...)` for retriable assertions.
+- Direct `document.querySelector(...)` checks are acceptable here for class and data attribute assertions after a retriable visible assertion has synchronized the DOM.
+
 - [ ] **Step 3: Run the focused test and confirm it fails**
 
 Run:
@@ -182,25 +424,25 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
 ```
 
-Expected: FAIL because `CommittedTranscriptSurface` does not yet render live assistant items and still shows the empty state for live-only turns.
+Expected: FAIL because the transcript surface does not yet render live assistant items.
 
 - [ ] **Step 4: Keep the failing test unstaged**
 
-Do not commit this failing state. Continue directly to Task 2 and commit the test with the implementation after the focused surface test passes.
+Do not commit this failing state. Continue to Task 3 and commit the test together with the passing implementation.
 
 ---
 
-### Task 2: Render Live Assistant Markdown In The Transcript Surface
+### Task 3: Live Assistant Markdown Rendering
 
 **Files:**
 - Create: `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx`
-- Create: `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx`
 - Modify: `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx`
+- Create: `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx`
 - Modify: `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
 
 - [ ] **Step 1: Create shared Streamdown rendering configuration**
 
-Create `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx`:
+Create `markdownRendering.tsx`:
 
 ```tsx
 import { cjk } from "@streamdown/cjk";
@@ -238,9 +480,9 @@ export const markdownContainerClassName =
 export const markdownStreamdownClassName = "min-w-0 wrap-break-word";
 ```
 
-- [ ] **Step 2: Update committed MarkdownText to use shared configuration**
+- [ ] **Step 2: Keep committed Markdown static**
 
-Replace `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx` with:
+Replace `MarkdownText.tsx` with:
 
 ```tsx
 import { Streamdown } from "streamdown";
@@ -272,9 +514,9 @@ export const MarkdownText = ({ source }: { source: string }) => (
 );
 ```
 
-- [ ] **Step 3: Add LiveMarkdownText**
+- [ ] **Step 3: Add live Markdown renderer**
 
-Create `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx`:
+Create `LiveMarkdownText.tsx`:
 
 ```tsx
 import { Streamdown } from "streamdown";
@@ -308,9 +550,9 @@ export const LiveMarkdownText = ({ source }: { source: string }) => (
 );
 ```
 
-- [ ] **Step 4: Add live assistant rendering to CommittedTranscriptSurface**
+- [ ] **Step 4: Render live assistant messages in the turn body**
 
-Update imports in `CommittedTranscriptSurface.tsx`:
+Update `CommittedTranscriptSurface.tsx` imports:
 
 ```tsx
 import {
@@ -360,7 +602,7 @@ const LiveAssistantMessages = ({ items }: { items: readonly TranscriptRenderable
 };
 ```
 
-Update `CommittedTranscriptTurn` so it selects live items and renders live content:
+Update `CommittedTranscriptTurn`:
 
 ```tsx
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
@@ -413,7 +655,7 @@ Update the surface content predicate:
     selectTranscriptTurnIds(state).some((turnId) => {
       const turn = selectTranscriptTurn(state, turnId);
       const hasLiveAssistantMessages = selectTranscriptLiveItemsForTurn(state, turnId).some(
-        (item) => item.initialItem.type === "agentMessage",
+        isLiveAgentMessage,
       );
       return (
         hasLiveAssistantMessages ||
@@ -426,7 +668,9 @@ Update the surface content predicate:
   );
 ```
 
-Then render the empty state from `!hasTranscriptContent` instead of `!hasCommittedEntries`.
+Use `!hasTranscriptContent` where the component previously used `!hasCommittedEntries`.
+
+HeroUI note: This follows the local HeroUI v3 Card docs by using the compound `Card.Content` API and semantic `role="article"` markup. The live card uses the default card variant, matching committed assistant entries.
 
 - [ ] **Step 5: Run the focused surface test**
 
@@ -439,23 +683,24 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the live display implementation and passing browser coverage**
+- [ ] **Step 6: Commit Task 2 and Task 3 together**
 
 ```bash
-git add codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
+git add codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx
 git commit -m "feat(gui): render live assistant transcript text"
 ```
 
 ---
 
-### Task 3: Add Failing Sticky-Bottom Coverage For Live Deltas
+### Task 4: Sticky-Bottom Uses The Reducer-Owned Live Pulse
 
 **Files:**
+- Modify: `codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts`
 - Modify: `codex-gui/src/__tests__/App.browser.test.tsx`
 
-- [ ] **Step 1: Add live delta sticky-bottom tests**
+- [ ] **Step 1: Add failing App browser coverage for live delta sticky-bottom**
 
-Append these tests after the existing committed sticky-bottom tests:
+In `App.browser.test.tsx`, append these tests after the existing committed sticky-bottom tests:
 
 ```tsx
 test("App keeps the document pinned to the bottom after a live assistant delta", async () => {
@@ -466,7 +711,10 @@ test("App keeps the document pinned to the bottom after a live assistant delta",
     options,
     attachWithTurns(attachResponse, [
       baseTurn("turn-scroll-live-delta", [
-        agentMessage("agent-scroll-live-delta-existing", longTranscriptText("Existing delta transcript")),
+        agentMessage(
+          "agent-scroll-live-delta-existing",
+          longTranscriptText("Existing delta transcript"),
+        ),
       ]),
     ]),
   );
@@ -518,7 +766,10 @@ test("App does not force the document to the bottom after a live assistant delta
     options,
     attachWithTurns(attachResponse, [
       baseTurn("turn-scroll-live-delta-away", [
-        agentMessage("agent-scroll-live-delta-away-existing", longTranscriptText("Readable delta transcript")),
+        agentMessage(
+          "agent-scroll-live-delta-away-existing",
+          longTranscriptText("Readable delta transcript"),
+        ),
       ]),
     ]),
   );
@@ -570,7 +821,7 @@ test("App does not force the document to the bottom after a live assistant delta
 });
 ```
 
-- [ ] **Step 2: Run the App browser test and confirm the pinned-bottom live delta test fails**
+- [ ] **Step 2: Run the App browser test and confirm it fails**
 
 Run:
 
@@ -579,126 +830,9 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/__tests__/App.browser.test.tsx
 ```
 
-Expected: FAIL because `useCommittedTranscriptStickyBottom` only depends on `selectCommittedTranscriptScrollCommitKey`, and live delta does not update that key.
+Expected: FAIL because sticky-bottom does not yet subscribe to `selectTranscriptLiveScrollPulse`.
 
-- [ ] **Step 3: Keep the failing sticky-bottom tests unstaged**
-
-Do not commit this failing state. Continue directly to Task 4 and commit the tests with the implementation after the focused App browser test passes.
-
----
-
-### Task 4: Add A Live Scroll Pulse Without Changing Committed Scroll Keys
-
-**Files:**
-- Modify: `codex-gui/src/features/transcriptState/transcriptStateSlice.ts`
-- Modify: `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts`
-- Modify: `codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts`
-
-- [ ] **Step 1: Add selector tests for the live scroll pulse**
-
-Update imports in `transcriptStateLiveEvents.test.ts` to include `selectTranscriptLiveScrollPulse`.
-
-Add this test near the existing scroll key tests:
-
-```ts
-it("advances the live scroll pulse for live assistant item updates without changing the committed scroll key", () => {
-  const store = setupStore();
-  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-  const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
-  const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
-
-  store.dispatch(
-    threadRuntimeEventBuffered({
-      notification: turnStarted(
-        eventTurnStarted,
-        "commit-live-scroll-pulse-turn",
-        inProgressTurn("turn-live-scroll-pulse"),
-      ),
-      replay: "live",
-    }),
-  );
-  store.dispatch(
-    threadRuntimeEventBuffered({
-      notification: itemStarted(
-        eventItemStarted,
-        "commit-live-scroll-pulse-started",
-        "turn-live-scroll-pulse",
-        agentMessage("agent-live-scroll-pulse", ""),
-      ),
-      replay: "live",
-    }),
-  );
-
-  const startedPulse = selectTranscriptLiveScrollPulse(store.getState());
-  expect(startedPulse).toBeGreaterThan(initialPulse);
-  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
-
-  store.dispatch(
-    threadRuntimeDeltaAccepted({
-      notification: agentMessageDelta(
-        eventAgentMessageDelta,
-        "turn-live-scroll-pulse",
-        "agent-live-scroll-pulse",
-        "Live pulse delta",
-      ),
-    }),
-  );
-
-  const deltaPulse = selectTranscriptLiveScrollPulse(store.getState());
-  expect(deltaPulse).toBeGreaterThan(startedPulse);
-  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
-
-  store.dispatch(
-    threadRuntimeEventBuffered({
-      notification: itemCompleted(
-        eventItemCompleted,
-        "commit-live-scroll-pulse-completed",
-        "turn-live-scroll-pulse",
-        agentMessage("agent-live-scroll-pulse", "Completed pulse answer"),
-      ),
-      replay: "live",
-    }),
-  );
-
-  expect(selectTranscriptLiveScrollPulse(store.getState())).toBeGreaterThan(deltaPulse);
-  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
-    "event:commit-live-scroll-pulse-completed",
-  );
-});
-```
-
-- [ ] **Step 2: Add selectTranscriptLiveScrollPulse**
-
-In `transcriptStateSlice.ts`, add this selector beside the other selectors:
-
-```ts
-    selectTranscriptLiveScrollPulse: (transcriptState): number =>
-      Object.values(transcriptState.liveItemsByTurnId).reduce(
-        (total, items) =>
-          total +
-          items.length +
-          items.reduce((itemTotal, item) => itemTotal + item.revision + item.transientText.length, 0),
-        0,
-      ),
-```
-
-Export it with the existing selectors:
-
-```ts
-export const {
-  selectCommittedTranscriptScrollCommitKey,
-  selectTranscriptTurnIds,
-  selectTranscriptTurn,
-  selectTranscriptChunk,
-  selectTranscriptEntry,
-  selectTranscriptLiveItem,
-  selectTranscriptLiveItemsForTurn,
-  selectTranscriptLiveScrollPulse,
-  selectTranscriptGlobalStatus,
-} = transcriptStateSlice.selectors;
-```
-
-- [ ] **Step 3: Update sticky-bottom hook to depend on the live pulse**
+- [ ] **Step 3: Wire sticky-bottom to the live pulse**
 
 Update `useCommittedTranscriptStickyBottom.ts` imports:
 
@@ -726,28 +860,27 @@ Update the layout effect dependency:
   }, [liveScrollPulse, scrollCommitKey]);
 ```
 
-- [ ] **Step 4: Run focused transcript state and App tests**
+- [ ] **Step 4: Run the focused App browser test**
 
 Run:
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
-/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/__tests__/App.browser.test.tsx
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the sticky-bottom implementation and passing browser coverage**
+- [ ] **Step 5: Commit Task 4**
 
 ```bash
-git add codex-gui/src/features/transcriptState/transcriptStateSlice.ts codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts codex-gui/src/__tests__/App.browser.test.tsx
+git add codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts codex-gui/src/__tests__/App.browser.test.tsx
 git commit -m "feat(gui): keep sticky bottom during live assistant deltas"
 ```
 
 ---
 
-### Task 5: Final Verification And Formatting
+### Task 5: Final Verification
 
 **Files:**
 - Verify all files changed by Tasks 1-4.
@@ -758,9 +891,9 @@ Run:
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/__tests__/App.browser.test.tsx
-/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts
 ```
 
 Expected: PASS.
@@ -785,20 +918,20 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 /opt/homebrew/bin/fnm exec --using-file pnpm run format:oxfmt
 ```
 
-Expected: PASS. If it fails only because formatting is needed, run:
+Expected: PASS. If formatting is needed, run:
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
 /opt/homebrew/bin/fnm exec --using-file pnpm run format:oxfmt:fix
 ```
 
-- [ ] **Step 4: Inspect diff**
+- [ ] **Step 4: Inspect diff for scope**
 
 Run:
 
 ```bash
 git diff --stat
-git diff -- codex-gui/src/features/committedTranscriptSurface codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts codex-gui/src/features/transcriptState
+git diff -- codex-gui/src/features/transcriptState codex-gui/src/features/committedTranscriptSurface codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts codex-gui/src/__tests__/App.browser.test.tsx
 ```
 
 Expected:
@@ -806,15 +939,16 @@ Expected:
 - No Rust files changed.
 - No protocol files changed.
 - No package or lockfile changes.
-- No committed transcript chunk flattening in render paths.
-- No updates to `committedScrollCommitKey` from delta-only live updates.
+- `selectTranscriptLiveScrollPulse` is O(1); it returns `transcriptState.liveScrollPulse`.
+- No live delta updates `committedScrollCommitKey`.
+- No render path flattens committed transcript chunks.
 
-- [ ] **Step 5: Commit final formatting adjustments if any**
+- [ ] **Step 5: Commit formatting-only changes if any**
 
 If formatter changed files after Task 4, commit only those formatting changes:
 
 ```bash
-git add codex-gui/src/features/committedTranscriptSurface codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts codex-gui/src/features/transcriptState
+git add codex-gui/src/features/transcriptState codex-gui/src/features/committedTranscriptSurface codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts codex-gui/src/__tests__/App.browser.test.tsx
 git commit -m "chore(gui): format live assistant streaming display"
 ```
 
@@ -822,7 +956,8 @@ If formatter made no changes, do not create a commit.
 
 ## Self-Review Checklist
 
-- Spec coverage: The plan implements agentMessage-only live rendering, turn placement, streaming Streamdown mode, completed convergence, sticky-bottom behavior, and committed chunk performance boundaries from `03-assistant-text-streaming-display-design.md`.
-- Gap scan: This plan contains no open-ended implementation gaps.
-- Type consistency: The plan consistently uses `TranscriptRenderableLiveItem`, `selectTranscriptLiveItemsForTurn`, `selectTranscriptLiveScrollPulse`, `LiveMarkdownText`, and `LiveAssistantMessages`.
-- Scope check: The plan does not implement thinking/reasoning, tool calls, exec output, protocol changes, Rust changes, package changes, or dependency installs.
+- Spec coverage: Covers agentMessage-only live rendering, turn placement, Streamdown streaming mode, completed convergence, sticky-bottom behavior, and committed chunk performance boundaries.
+- Gap scan: Contains no open-ended implementation gaps.
+- Type consistency: Uses `TranscriptRenderableLiveItem`, `selectTranscriptLiveItemsForTurn`, `selectTranscriptLiveScrollPulse`, `LiveMarkdownText`, and `LiveAssistantMessages` consistently.
+- Reference alignment: Uses HeroUI v3 `Card.Content` compound API and Vitest Browser `expect.element(...)` locator assertions where asynchronous DOM assertions are needed.
+- Scope check: Does not implement thinking/reasoning, tool calls, exec output, protocol changes, Rust changes, package changes, dependency installs, or lockfile updates.
