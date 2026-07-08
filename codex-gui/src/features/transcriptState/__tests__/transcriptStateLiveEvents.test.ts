@@ -25,6 +25,7 @@ import {
   selectTranscriptLiveScrollPulse,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptStateSlice,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
@@ -818,7 +819,7 @@ describe("transcript state live events reducer", () => {
     );
 
     const startedPulse = selectTranscriptLiveScrollPulse(store.getState());
-    expect(startedPulse).toBeGreaterThan(initialPulse);
+    expect(startedPulse).toBe(initialPulse + 1);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
@@ -833,7 +834,7 @@ describe("transcript state live events reducer", () => {
     );
 
     const deltaPulse = selectTranscriptLiveScrollPulse(store.getState());
-    expect(deltaPulse).toBeGreaterThan(startedPulse);
+    expect(deltaPulse).toBe(initialPulse + 2);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
@@ -848,9 +849,91 @@ describe("transcript state live events reducer", () => {
       }),
     );
 
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBeGreaterThan(deltaPulse);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 3);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-live-scroll-pulse-completed",
+    );
+  });
+
+  it("does not remove another live item or bump the pulse when a live item index is stale", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const firstItem = agentMessage("agent-stale-removal-first", "");
+    const secondItem = agentMessage("agent-stale-removal-second", "");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-stale-removal-first-started",
+          "turn-stale-removal",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-stale-removal-second-started",
+          "turn-stale-removal",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const state = store.getState();
+    const staleTranscriptState = {
+      ...state.transcriptState,
+      liveItemIndexByKey: {
+        ...state.transcriptState.liveItemIndexByKey,
+        "turn-stale-removal:agent-stale-removal-first": {
+          turnId: "turn-stale-removal",
+          index: 1,
+        },
+      },
+    };
+    const pulseBeforeStaleCompletion = selectTranscriptLiveScrollPulse({
+      ...state,
+      transcriptState: staleTranscriptState,
+    });
+
+    const nextTranscriptState = transcriptStateSlice.reducer(
+      staleTranscriptState,
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-stale-removal-first-completed",
+          "turn-stale-removal",
+          agentMessage("agent-stale-removal-first", "Completed first despite stale index"),
+        ),
+        replay: "live",
+      }),
+    );
+    const nextState = {
+      ...state,
+      transcriptState: nextTranscriptState,
+    };
+
+    expect(
+      selectTranscriptLiveItem(nextState, "turn-stale-removal", "agent-stale-removal-first"),
+    ).toBeNull();
+    expect(
+      selectTranscriptLiveItem(nextState, "turn-stale-removal", "agent-stale-removal-second"),
+    ).toStrictEqual({
+      key: "turn-stale-removal:agent-stale-removal-second",
+      turnId: "turn-stale-removal",
+      itemId: "agent-stale-removal-second",
+      status: "started",
+      initialItem: secondItem,
+      transientText: "",
+      revision: 0,
+    });
+    expect(selectTranscriptLiveScrollPulse(nextState)).toBe(pulseBeforeStaleCompletion);
+    expect(selectCommittedTranscriptScrollCommitKey(nextState)).toBe(
+      "event:commit-stale-removal-first-completed",
     );
   });
 

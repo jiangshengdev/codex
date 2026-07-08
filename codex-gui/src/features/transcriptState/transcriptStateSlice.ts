@@ -299,6 +299,11 @@ const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, itemId:
     return;
   }
 
+  if (items[itemIndex.index]?.key !== key) {
+    Reflect.deleteProperty(state.liveItemIndexByKey, key);
+    return;
+  }
+
   items.splice(itemIndex.index, 1);
   Reflect.deleteProperty(state.liveItemIndexByKey, key);
   bumpLiveScrollPulse(state);
