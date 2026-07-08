@@ -485,8 +485,7 @@ export const transcriptStateSlice = createAppSlice({
   selectors: {
     selectCommittedTranscriptScrollCommitKey: (transcriptState): string | null =>
       transcriptState.committedScrollCommitKey,
-    selectTranscriptLiveScrollPulse: (transcriptState): number =>
-      transcriptState.liveScrollPulse,
+    selectTranscriptLiveScrollPulse: (transcriptState): number => transcriptState.liveScrollPulse,
     selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
     selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
       transcriptState.turnsById[turnId] ?? null,
