@@ -234,7 +234,9 @@ const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: Thr
     transientText: "",
     revision: 0,
   });
-  bumpLiveScrollPulse(state);
+  if (item.type === "agentMessage") {
+    bumpLiveScrollPulse(state);
+  }
 };
 
 const liveItemForKey = (
@@ -299,14 +301,17 @@ const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, itemId:
     return;
   }
 
-  if (items[itemIndex.index]?.key !== key) {
+  const removedItem = items[itemIndex.index];
+  if (removedItem?.key !== key) {
     Reflect.deleteProperty(state.liveItemIndexByKey, key);
     return;
   }
 
   items.splice(itemIndex.index, 1);
   Reflect.deleteProperty(state.liveItemIndexByKey, key);
-  bumpLiveScrollPulse(state);
+  if (removedItem.initialItem.type === "agentMessage") {
+    bumpLiveScrollPulse(state);
+  }
 
   for (let index = itemIndex.index; index < items.length; index += 1) {
     const shiftedItem = items[index];

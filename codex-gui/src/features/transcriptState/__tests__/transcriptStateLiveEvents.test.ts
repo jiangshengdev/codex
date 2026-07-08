@@ -855,6 +855,60 @@ describe("transcript state live events reducer", () => {
     );
   });
 
+  it("does not advance the live scroll pulse for non-visible live items", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+    const plan = planItem("plan-live-scroll-pulse");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-plan-live-scroll-pulse-started",
+          "turn-plan-live-scroll-pulse",
+          plan,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(
+      selectTranscriptLiveItem(
+        store.getState(),
+        "turn-plan-live-scroll-pulse",
+        "plan-live-scroll-pulse",
+      ),
+    ).toStrictEqual({
+      key: "turn-plan-live-scroll-pulse:plan-live-scroll-pulse",
+      turnId: "turn-plan-live-scroll-pulse",
+      itemId: "plan-live-scroll-pulse",
+      status: "started",
+      initialItem: plan,
+      transientText: "",
+      revision: 0,
+    });
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-plan-live-scroll-pulse-completed",
+          "turn-plan-live-scroll-pulse",
+          plan,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-plan-live-scroll-pulse"),
+    ).toStrictEqual([]);
+  });
+
   it("does not remove another live item or bump the pulse when a live item index is stale", () => {
     const store = makeStore();
 
