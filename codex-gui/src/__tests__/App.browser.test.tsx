@@ -669,7 +669,9 @@ test("App keeps the document pinned to the bottom after a live assistant delta",
     await waitForBrowserFrame();
 
     await expect.element(screen.getByText("Streaming delta transcript line 96")).toBeVisible();
-    await vi.waitFor(() => expect(scrollToSpy).toHaveBeenCalled());
+    await vi.waitFor(() => {
+      expect(scrollToSpy).toHaveBeenCalled();
+    });
     await vi.waitFor(expectDocumentAtBottom);
   } finally {
     scrollToSpy.mockRestore();
