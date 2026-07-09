@@ -615,6 +615,129 @@ test("App does not force the document to the bottom after a live message when th
   await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeMessage + 4);
 });
 
+test("App keeps the document pinned to the bottom after a live assistant delta", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-live-delta", [
+        agentMessage(
+          "agent-scroll-live-delta-existing",
+          longTranscriptText("Existing delta transcript"),
+        ),
+      ]),
+    ]),
+  );
+  await expect.element(screen.getByText("Existing delta transcript line 96")).toBeVisible();
+
+  const turnStartedEvent = turnStarted(
+    eventTurnStarted,
+    "commit-scroll-live-delta-turn",
+    inProgressTurn("turn-scroll-live-delta"),
+  );
+  const itemStartedEvent = {
+    ...itemStarted(
+      eventItemStarted,
+      "commit-scroll-live-delta-started",
+      "turn-scroll-live-delta",
+      agentMessage("agent-scroll-live-delta", ""),
+    ),
+    parentCommitId: turnStartedEvent.commitId,
+  };
+
+  emitProjectionEvent(options, {
+    ...turnStartedEvent,
+    parentCommitId: null,
+  });
+  emitProjectionEvent(options, itemStartedEvent);
+  scrollToDocumentBottom();
+  await waitForBrowserFrame();
+
+  const scrollToSpy = vi.spyOn(documentScroller(), "scrollTo");
+  try {
+    emitProjectionDelta(
+      options,
+      agentMessageDelta(
+        eventAgentMessageDelta,
+        "turn-scroll-live-delta",
+        "agent-scroll-live-delta",
+        longTranscriptText("Streaming delta transcript"),
+      ),
+    );
+    await waitForBrowserFrame();
+
+    await expect.element(screen.getByText("Streaming delta transcript line 96")).toBeVisible();
+    await vi.waitFor(() => expect(scrollToSpy).toHaveBeenCalled());
+    await vi.waitFor(expectDocumentAtBottom);
+  } finally {
+    scrollToSpy.mockRestore();
+  }
+});
+
+test("App does not force the document to the bottom after a live assistant delta when the user scrolled up", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(
+    options,
+    attachWithTurns(attachResponse, [
+      baseTurn("turn-scroll-live-delta-away", [
+        agentMessage(
+          "agent-scroll-live-delta-away-existing",
+          longTranscriptText("Readable delta transcript"),
+        ),
+      ]),
+    ]),
+  );
+  await expect.element(screen.getByText("Readable delta transcript line 96")).toBeVisible();
+
+  const turnStartedEvent = turnStarted(
+    eventTurnStarted,
+    "commit-scroll-live-delta-away-turn",
+    inProgressTurn("turn-scroll-live-delta-away"),
+  );
+  const itemStartedEvent = {
+    ...itemStarted(
+      eventItemStarted,
+      "commit-scroll-live-delta-away-started",
+      "turn-scroll-live-delta-away",
+      agentMessage("agent-scroll-live-delta-away", ""),
+    ),
+    parentCommitId: turnStartedEvent.commitId,
+  };
+
+  emitProjectionEvent(options, {
+    ...turnStartedEvent,
+    parentCommitId: null,
+  });
+  emitProjectionEvent(options, itemStartedEvent);
+  scrollToDocumentBottom();
+  await waitForBrowserFrame();
+
+  const scroller = documentScroller();
+  scrollToDocumentTop();
+  await waitForBrowserFrame();
+  await waitForBrowserFrame();
+  const scrollTopBeforeDelta = scroller.scrollTop;
+  expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
+
+  emitProjectionDelta(
+    options,
+    agentMessageDelta(
+      eventAgentMessageDelta,
+      "turn-scroll-live-delta-away",
+      "agent-scroll-live-delta-away",
+      longTranscriptText("Streaming while reading history"),
+    ),
+  );
+  await waitForBrowserFrame();
+
+  await expect.element(screen.getByText("Streaming while reading history line 96")).toBeVisible();
+  await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeDelta + 4);
+});
+
 test("App records mismatched attach identity without advancing runtime state", async () => {
   const { store } = await renderWithProviders(<App />);
   const mismatchedThreadId = "00000000-0000-0000-0000-000000000999";

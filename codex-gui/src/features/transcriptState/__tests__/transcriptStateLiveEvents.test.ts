@@ -22,8 +22,10 @@ import {
   selectTranscriptEntry,
   selectTranscriptLiveItem,
   selectTranscriptLiveItemsForTurn,
+  selectTranscriptLiveScrollPulse,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptStateSlice,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
@@ -784,6 +786,208 @@ describe("transcript state live events reducer", () => {
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-visible-dom",
+    );
+  });
+
+  it("advances a live scroll pulse for live assistant display changes without changing the committed scroll key", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: turnStarted(
+          eventTurnStarted,
+          "commit-live-scroll-pulse-turn",
+          inProgressTurn("turn-live-scroll-pulse"),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-live-scroll-pulse-started",
+          "turn-live-scroll-pulse",
+          agentMessage("agent-live-scroll-pulse", ""),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const startedPulse = selectTranscriptLiveScrollPulse(store.getState());
+    expect(startedPulse).toBe(initialPulse + 1);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeDeltaAccepted({
+        notification: agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-live-scroll-pulse",
+          "agent-live-scroll-pulse",
+          "Live pulse delta",
+        ),
+      }),
+    );
+
+    const deltaPulse = selectTranscriptLiveScrollPulse(store.getState());
+    expect(deltaPulse).toBe(initialPulse + 2);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-live-scroll-pulse-completed",
+          "turn-live-scroll-pulse",
+          agentMessage("agent-live-scroll-pulse", "Completed pulse answer"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 3);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-live-scroll-pulse-completed",
+    );
+  });
+
+  it("does not advance the live scroll pulse for non-visible live items", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+    const plan = planItem("plan-live-scroll-pulse");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-plan-live-scroll-pulse-started",
+          "turn-plan-live-scroll-pulse",
+          plan,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(
+      selectTranscriptLiveItem(
+        store.getState(),
+        "turn-plan-live-scroll-pulse",
+        "plan-live-scroll-pulse",
+      ),
+    ).toStrictEqual({
+      key: "turn-plan-live-scroll-pulse:plan-live-scroll-pulse",
+      turnId: "turn-plan-live-scroll-pulse",
+      itemId: "plan-live-scroll-pulse",
+      status: "started",
+      initialItem: plan,
+      transientText: "",
+      revision: 0,
+    });
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-plan-live-scroll-pulse-completed",
+          "turn-plan-live-scroll-pulse",
+          plan,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-plan-live-scroll-pulse"),
+    ).toStrictEqual([]);
+  });
+
+  it("does not remove another live item or bump the pulse when a live item index is stale", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const firstItem = agentMessage("agent-stale-removal-first", "");
+    const secondItem = agentMessage("agent-stale-removal-second", "");
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-stale-removal-first-started",
+          "turn-stale-removal",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-stale-removal-second-started",
+          "turn-stale-removal",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const state = store.getState();
+    const staleTranscriptState = {
+      ...state.transcriptState,
+      liveItemIndexByKey: {
+        ...state.transcriptState.liveItemIndexByKey,
+        "turn-stale-removal:agent-stale-removal-first": {
+          turnId: "turn-stale-removal",
+          index: 1,
+        },
+      },
+    };
+    const pulseBeforeStaleCompletion = selectTranscriptLiveScrollPulse({
+      ...state,
+      transcriptState: staleTranscriptState,
+    });
+
+    const nextTranscriptState = transcriptStateSlice.reducer(
+      staleTranscriptState,
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-stale-removal-first-completed",
+          "turn-stale-removal",
+          agentMessage("agent-stale-removal-first", "Completed first despite stale index"),
+        ),
+        replay: "live",
+      }),
+    );
+    const nextState = {
+      ...state,
+      transcriptState: nextTranscriptState,
+    };
+
+    expect(
+      selectTranscriptLiveItem(nextState, "turn-stale-removal", "agent-stale-removal-first"),
+    ).toBeNull();
+    expect(
+      selectTranscriptLiveItem(nextState, "turn-stale-removal", "agent-stale-removal-second"),
+    ).toStrictEqual({
+      key: "turn-stale-removal:agent-stale-removal-second",
+      turnId: "turn-stale-removal",
+      itemId: "agent-stale-removal-second",
+      status: "started",
+      initialItem: secondItem,
+      transientText: "",
+      revision: 0,
+    });
+    expect(selectTranscriptLiveScrollPulse(nextState)).toBe(pulseBeforeStaleCompletion);
+    expect(selectCommittedTranscriptScrollCommitKey(nextState)).toBe(
+      "event:commit-stale-removal-first-completed",
     );
   });
 

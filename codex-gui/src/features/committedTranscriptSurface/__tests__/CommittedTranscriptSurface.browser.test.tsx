@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   agentMessage,
+  agentMessageDelta,
   attachWithTurns,
   baseTurn,
   inProgressTurn,
@@ -12,15 +13,18 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   attachBaseline,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltaAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
+import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 
@@ -237,10 +241,11 @@ test("updates committed message text after snapshot reattach with stable ids", a
   await expect.element(screen.getByText("After reconnect")).toBeVisible();
 });
 
-test("renders live completed items without rendering started items", async () => {
+test("renders live assistant text between intermediate updates and final answers", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 
   store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  const attachScrollKey = selectCommittedTranscriptScrollCommitKey(store.getState());
   store.dispatch(
     threadRuntimeEventBuffered({
       notification: turnStarted(eventTurnStarted, "commit-turn-live", inProgressTurn("turn-live")),
@@ -260,10 +265,29 @@ test("renders live completed items without rendering started items", async () =>
   );
 
   await expect.element(screen.getByText("Draft answer")).not.toBeInTheDocument();
-  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
-  await expect
-    .element(screen.getByRole("article", { name: "Turn turn-live" }))
-    .not.toBeInTheDocument();
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();
+  expect(document.querySelector(".committed-transcript-live-assistant-message")).not.toBeNull();
+
+  store.dispatch(
+    threadRuntimeDeltaAccepted({
+      notification: agentMessageDelta(
+        eventAgentMessageDelta,
+        "turn-live",
+        "agent-started",
+        "**Streaming** answer",
+      ),
+    }),
+  );
+
+  await expect.element(screen.getByText("Streaming")).toBeVisible();
+  await expect.element(screen.getByText("answer")).toBeVisible();
+  expect(
+    document.querySelector(
+      '.committed-transcript-live-assistant-message [data-streamdown="strong"]',
+    ),
+  ).not.toBeNull();
+  expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachScrollKey);
 
   store.dispatch(
     threadRuntimeEventBuffered({
@@ -271,14 +295,15 @@ test("renders live completed items without rendering started items", async () =>
         eventItemCompleted,
         "commit-completed",
         "turn-live",
-        agentMessage("agent-live", "Final answer"),
+        agentMessage("agent-started", "Final answer"),
       ),
       replay: "live",
     }),
   );
 
-  await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();
+  await expect.element(screen.getByText("Streaming")).not.toBeInTheDocument();
   await expect.element(screen.getByText("Final answer")).toBeVisible();
+  expect(document.querySelector(".committed-transcript-live-assistant-message")).toBeNull();
 });
 
 test("renders manual reconnect interruption status", async () => {
