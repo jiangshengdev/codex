@@ -399,6 +399,7 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             crate::skills_watcher::SkillsWatcher::new(thread_manager.skills_service(), outgoing),
+            /*initial_config_warnings*/ Vec::new(),
         );
         let thread_id = thread_manager
             .start_thread(config.as_ref().clone())

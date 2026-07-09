@@ -196,11 +196,13 @@ fn closed_backpressure() -> ThreadProjectionClosedNotification {
 fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thread> {
     Ok(Thread {
         id: thread_id.to_string(),
+        extra: None,
         session_id: thread_id.to_string(),
         forked_from_id: None,
         parent_thread_id: None,
         preview: "Projection fixture thread".to_string(),
         ephemeral: false,
+        history_mode: Default::default(),
         model_provider: "openai".to_string(),
         created_at: 1_700_000_000,
         updated_at: 1_700_000_030,

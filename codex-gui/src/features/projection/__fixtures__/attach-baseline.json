@@ -3,11 +3,13 @@
   "snapshot": {
     "thread": {
       "id": "00000000-0000-0000-0000-000000000001",
+      "extra": null,
       "sessionId": "00000000-0000-0000-0000-000000000001",
       "forkedFromId": null,
       "parentThreadId": null,
       "preview": "Projection fixture thread",
       "ephemeral": false,
+      "historyMode": "legacy",
       "modelProvider": "openai",
       "createdAt": 1700000000,
       "updatedAt": 1700000030,
