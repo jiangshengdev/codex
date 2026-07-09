@@ -1,23 +1,27 @@
 # codex-gui frontend performance hot paths
 
-日期:2026-06-23
-状态:已拆分
+日期: 2026-06-23
+状态: ✅ 已拆分
+范围: `codex-gui` 前端性能热点
+优先级: 未定
 
-这份文件原本混合记录多个 `codex-gui` 前端性能问题。为避免一个问题分散在多个段落中, 问题已拆到
-`docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/` 下, 每个文件只记录一个问题。
+## 摘要
 
-## 问题文件
+该 issue 已拆分为更小的独立问题文件。
 
-1. `codex-gui-frontend-performance-hot-paths/01-projection-event-top-level-react-state.md`
-2. `codex-gui-frontend-performance-hot-paths/02-transcript-chunk-selector-view-rebuild.md`
-3. `codex-gui-frontend-performance-hot-paths/03-item-started-dirties-transcript-state.md`
-4. `codex-gui-frontend-performance-hot-paths/04-long-transcript-no-windowing.md`
-5. `codex-gui-frontend-performance-hot-paths/05-heroui-full-css-import.md`
-6. `codex-gui-frontend-performance-hot-paths/06-temporary-grouping-full-turn-scan.md`
+## 拆分索引
 
-## 迁移说明
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/01-projection-event-top-level-react-state.md`: Projection event 顶层 React state 热路径。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/02-transcript-chunk-selector-view-rebuild.md`: Transcript chunk selector 重建 view 热路径。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/03-item-started-dirties-transcript-state.md`: itemStarted 无可见 transcript 变化仍 dirty transcriptState。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/04-long-transcript-no-windowing.md`: 长 transcript 没有窗口化或渲染裁剪。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/05-heroui-full-css-import.md`: 首屏同步加载 HeroUI 全量 CSS。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/06-temporary-grouping-full-turn-scan.md`: Temporary grouping 重复处理完整 turn entries。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/07-transcript-revision-invariant.md`: Transcript revision invalidation invariant。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/08-projection-delta-redux-action-frequency.md`: Projection delta Redux action 频率热路径。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/09-projection-delta-transient-text-concat.md`: Projection delta transientText 字符串累加热路径。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/10-live-slot-selector-cache-invalidation.md`: Live slot selector cache 高频失效。
 
-- 2026-06-27 和 2026-06-28 的修复状态已移动到对应问题文件。
-- 2026-06-29 新发现的 temporary grouping 完整 turn 扫描问题只记录在
-  `06-temporary-grouping-full-turn-scan.md`。
-- 本文件仅保留索引, 不再承载问题正文。
+## 后续处理
+
+后续更新在对应子 issue 中维护；父 issue 只保留索引。

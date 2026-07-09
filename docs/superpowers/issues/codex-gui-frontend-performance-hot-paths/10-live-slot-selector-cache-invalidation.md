@@ -1,11 +1,15 @@
 # Live slot selector cache 高频失效
 
-日期:2026-07-06
-更新:2026-07-09
-状态:部分过期
-范围:`codex-gui/src/features/transcriptState`, `codex-gui/src/features/committedTranscriptSurface`
+日期: 2026-07-06
+状态: 🟡 部分过期
+范围: `codex-gui/src/features/transcriptState`, `codex-gui/src/features/committedTranscriptSurface`
+优先级: 未定
 
-## 问题摘要
+## 摘要
+
+2026-07-09 更新后，旧 selector cache invalidation 路径已消除，当前仅保留收窄后的 live consumption 扫描边界。
+
+## 问题
 
 原始问题假设是: `selectCachedLiveItemsForTurn` 依赖 `liveTurn.revision`、`slotKeys` 和 `slotRevisions` 判断缓存是否可复用, 每个 projection delta bump `slot.revision` 后都会让当前 turn 的 live item view cache 失效, 并重新 materialize `TranscriptRenderableLiveItem[]`。
 
@@ -13,7 +17,7 @@
 
 该 issue 因此不应继续表述为 selector cache 高频失效仍存在。当前仅保留为收窄后的 03 live consumption 边界: `CommittedTranscriptSurface` 在消费 live items 时仍会执行 `.some()`、`.filter()` 和 empty-surface scan。
 
-## 当前证据
+## 证据
 
 - `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:74`: 当前 live item 已是 reducer state 中的 `TranscriptRenderableLiveItem`。
 - `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:94`: 当前 state 直接保存 `liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>`。
@@ -26,11 +30,15 @@
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:276`: `hasSurfaceContent` 在需要时调用 `selectTranscriptLiveItemsForTurn(...).some(isLiveAgentMessage)`。
 - `docs/superpowers/reports/2026-07-09-codex-gui-03-performance-check/01-03-hot-paths.md:108`: 03 performance check 将该切片校准为 `部分过期`。
 
-## 当前判断
+## 判断
 
-旧 selector cache invalidation 路径已消除: `selectTranscriptLiveItemsForTurn` 的 read-time materialization 成本为 `O(1)` 读取。当前残留边界属于 03 live consumption, 可能产生 `O(D * Lt)` 的 current-turn `.some()` / `.filter()` 扫描, 以及 `O(D * (T + Ls))` 的 `hasSurfaceContent` 空状态判断扫描。
+2026-07-09 更新:旧 selector cache invalidation 路径已消除: `selectTranscriptLiveItemsForTurn` 的 read-time materialization 成本为 `O(1)` 读取。当前残留边界属于 03 live consumption, 可能产生 `O(D * Lt)` 的 current-turn `.some()` / `.filter()` 扫描, 以及 `O(D * (T + Ls))` 的 `hasSurfaceContent` 空状态判断扫描。
 
 这个边界独立于 `09-projection-delta-transient-text-concat.md` 的字符串累加成本。
+
+## 影响
+
+旧 read-time materialization 风险已过期，但 live consumption 扫描仍可能随 delta 数、当前 turn live item 数、turn 数和 surface live item 数增长。
 
 ## 后续处理
 

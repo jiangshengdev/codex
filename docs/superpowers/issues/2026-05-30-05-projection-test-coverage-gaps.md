@@ -1,38 +1,45 @@
 # P2 · Projection 已知风险路径无端到端测试覆盖
 
-日期:2026-05-30
-范围:批次 5(Projection 测试)
-优先级:中(覆盖缺口 —— 已知高风险路径无集成测试把守,重构易回归且不可见)
+日期: 2026-05-30
+状态: 🔴 仍需处理
+范围: 批次 5(Projection 测试)
+优先级: P2
 
-## 当前状态
+## 摘要
 
-2026-07-04 只读性能检测核对：仍需回归覆盖。fanout/backpressure 的核心 silent
-invalidation 问题已经由 `thread/projection/closed(reason=backpressure)` 路径修复，
-但本次限定范围内仍没有确认真实 app-server v2 端到端慢客户端链路已经闭环覆盖。
-
-后续回归应覆盖：慢/卡住 projection client 触发 queue full 后收到
-`thread/projection/closed(reason=backpressure)`；ordinary notification 仍能送达/返回；
-重新 attach 能拿到新的 snapshot baseline；并覆盖多 subscriber / 多 connection 场景。
-本次核对未运行测试、benchmark 或修复实现。
+fanout/backpressure 核心问题已修复，但真实 app-server v2 端到端慢客户端链路仍未确认有回归覆盖。
 
 ## 问题
 
-两个投影集成测试(`tests/suite/v2/thread_projection.rs`)自身确定性良好(全程 `tokio::time::timeout` + 缓冲读取,无 sleep 碰运气、无 flaky),但本特性最容易回归的几条路径在集成层完全无人把守,仅靠 manager 单测(不经真实 outgoing channel / per-thread listener task)间接覆盖。
+两个投影集成测试(`tests/suite/v2/thread_projection.rs`)自身确定性良好，但 projection 最容易回归的几条路径在集成层没有闭环覆盖，仍主要依赖 manager 单测间接把守。
 
-三处高价值缺口:
+高价值缺口包括：detach 后不再投递、慢客户端 queue full 后收到关闭信号并能重新 attach、事件负载内容正确。
 
-1. **detach 后不再投递**——核心契约无端到端覆盖。test 1 调了 detach 后不再跑 turn;test 2 全程不 detach。没有「attach→收事件→detach→再跑 turn→断言该订阅收不到新事件」这条路径(`thread_projection.rs` 整体)。若 detach 在 fanout/投递层没真正退订(listener 仍发),集成层抓不到。
+## 证据
 
-2. **队列满→静默 invalidate**——本特性核心防护无端到端覆盖。生产路径 `projection_fanout.rs:132-139`(`TrySendError::Full` → `invalidate_thread_projection` + `cancel()` + `remove_handle`)只有合成容量单测 `queue_full_invalidates_generation_and_drops_current_job`。没有「慢/卡住客户端把真实 outgoing channel 堵满 → 该订阅被 invalidate 且静默停收,同时其它订阅/线程存活」的集成测试。直接关联已落盘的 [[2026-05-30-01-projection-fanout-silent-invalidation]]。
+- 2026-07-04 只读性能检测核对：仍需回归覆盖。
+- fanout/backpressure 的核心 silent invalidation 问题已由 `thread/projection/closed(reason=backpressure)` 路径修复。
+- 本次限定范围内没有确认真实 app-server v2 端到端慢客户端链路已经闭环覆盖。
+- detach 缺口：现有测试没有覆盖「attach → 收事件 → detach → 再跑 turn → 断言该订阅收不到新事件」。
+- backpressure 缺口：生产路径 `projection_fanout.rs:132-139` 原先只有合成容量单测 `queue_full_invalidates_generation_and_drops_current_job` 间接覆盖。
+- 事件负载缺口：`thread_projection.rs:144-159` 只校验 `thread_id` / `subscription_id` / `commit_id` 与 `parent_commit_id` 链，不断言首事件为 `ThreadProjectionEvent::TurnStarted`，也不断言 turn/item 负载。
+- 映射风险点：`projection_event_from_notification`(`thread_projection.rs:428`) 若发错事件种类或 payload 错配，只要 commit id 链连续，测试可能仍通过。
+- 本次核对未运行测试、benchmark 或修复实现。
 
-3. **事件负载不断言**——`thread_projection.rs:144-159` 只校验 `thread_id`/`subscription_id`/`commit_id`↔`parent_commit_id` 链,从不断言首事件是 `ThreadProjectionEvent::TurnStarted`,也不断言任何 turn/item 负载。生产侧 `projection_event_from_notification`(`thread_projection.rs:428`)的通知→事件映射若回归(发错事件种类、payload 空/错配),只要 commit id 链仍连续,测试照样绿。契约的「事件内容」这一半未覆盖。
+## 判断
 
-## 为何是风险
+仍需处理。既有修复降低了 backpressure 行为风险，但端到端测试覆盖缺口仍成立。
 
-这三条恰好是「客户端与线程保持同步」这一特性最关键、也最容易在重构中破坏的链路:退订是否生效、背压满了如何处置、事件内容对不对。集成测试全绿不代表它们正确 —— 回归会静默通过 CI。
+## 影响
 
-## 次要项(P3,一句话带过)
+这些缺口覆盖的是「客户端与线程保持同步」的核心契约：退订是否生效、背压满后如何处置、事件内容是否正确。缺少端到端覆盖时，相关回归可能在 CI 中静默通过。
 
-- `thread_projection.rs:147` 的 `assert_eq!(attach.snapshot.head_commit_id, first.parent_commit_id)` 实为 `None == None` 恒真(attach 在任何事件前),给人「验证了 snapshot→首事件父链」的错觉,未在 head=Some 的非平凡场景验证。
-- per-thread listener task 在 thread unload/remove 时的生命周期、多订阅者 fanout 路由,均仅单测覆盖,无集成测试。
-- `turn_interrupt.rs:58` 把既有 abort 测试静默切到 `create_config_toml_excluding_tmp_roots`,改动了被中断工具的沙箱面(与 abort 语义无关),仅信息性。
+## 后续处理
+
+进入测试设计/计划阶段，优先定义慢客户端 backpressure、detach 后不投递、重新 attach baseline、多 subscriber / 多 connection 和事件 payload 的端到端验证入口。
+
+## 历史记录
+
+- `thread_projection.rs:147` 的 `assert_eq!(attach.snapshot.head_commit_id, first.parent_commit_id)` 在 attach 发生于任何事件前时等价于 `None == None`，未覆盖 head=Some 的非平凡场景。
+- per-thread listener task 在 thread unload/remove 时的生命周期、多订阅者 fanout 路由，旧记录显示均仅单测覆盖。
+- `turn_interrupt.rs:58` 曾把既有 abort 测试切到 `create_config_toml_excluding_tmp_roots`，改动了被中断工具的沙箱面；该项仅作信息记录。

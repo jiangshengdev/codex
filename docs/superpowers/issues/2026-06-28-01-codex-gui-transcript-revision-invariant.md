@@ -1,19 +1,19 @@
 # codex-gui transcript revision invariant
 
-日期:2026-06-28
-状态:已拆分
+日期: 2026-06-28
+状态: ✅ 已拆分
+范围: `codex-gui` transcript revision invariant 与 temporary grouping 性能问题
+优先级: 未定
 
-这份文件原本同时记录 transcript revision invariant 和 temporary grouping 性能问题。为保持一个
-问题一个文件, 内容已拆分到独立问题文件中。
+## 摘要
 
-## 问题文件
+该 issue 已拆分为更小的独立问题文件。
 
-1. `codex-gui-frontend-performance-hot-paths/07-transcript-revision-invariant.md`
-2. `codex-gui-frontend-performance-hot-paths/06-temporary-grouping-full-turn-scan.md`
+## 拆分索引
 
-## 迁移说明
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/07-transcript-revision-invariant.md`: revision invalidation contract。
+- `docs/superpowers/issues/codex-gui-frontend-performance-hot-paths/06-temporary-grouping-full-turn-scan.md`: temporary module id 和 temporary grouping 完整 turn 扫描。
 
-- revision invalidation contract 只记录在 `07-transcript-revision-invariant.md`。
-- temporary module id 和 temporary grouping 完整 turn 扫描只记录在
-  `06-temporary-grouping-full-turn-scan.md`。
-- 本文件仅保留索引, 不再承载问题正文。
+## 后续处理
+
+后续更新在对应子 issue 中维护；父 issue 只保留索引。
