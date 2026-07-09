@@ -217,6 +217,9 @@ const ensureLiveItemsForTurn = (
   return items;
 };
 
+const hasLiveItem = (state: TranscriptState, turnId: string, itemId: string): boolean =>
+  state.liveItemIndexByKey[liveItemKey(turnId, itemId)] != null;
+
 const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: ThreadItem) => {
   const key = liveItemKey(turnId, item.id);
   if (state.liveItemIndexByKey[key] != null) {
@@ -254,6 +257,23 @@ const liveItemForKey = (
   return item?.key === key ? item : null;
 };
 
+type AgentMessageDeltaBucket = {
+  turnId: string;
+  itemId: string;
+  delta: string;
+};
+
+const appendDeltaToLiveItem = (
+  state: TranscriptState,
+  item: TranscriptRenderableLiveItem,
+  delta: string,
+) => {
+  item.transientText += delta;
+  item.status = "streaming";
+  item.revision += 1;
+  bumpLiveScrollPulse(state);
+};
+
 const appendAgentMessageDeltaToLiveItem = (
   state: TranscriptState,
   turnId: string,
@@ -265,10 +285,7 @@ const appendAgentMessageDeltaToLiveItem = (
     return;
   }
 
-  item.transientText += delta;
-  item.status = "streaming";
-  item.revision += 1;
-  bumpLiveScrollPulse(state);
+  appendDeltaToLiveItem(state, item, delta);
 };
 
 const applyAcceptedProjectionDelta = (
@@ -284,6 +301,42 @@ const applyAcceptedProjectionDelta = (
       const { turnId, itemId, delta } = notification.delta.notification;
       appendAgentMessageDeltaToLiveItem(state, turnId, itemId, delta);
       return;
+    }
+  }
+};
+
+const applyAcceptedProjectionDeltaBatch = (
+  state: TranscriptState,
+  notifications: Parameters<typeof threadRuntimeDeltasAccepted>[0]["notifications"],
+) => {
+  const buckets: AgentMessageDeltaBucket[] = [];
+  const bucketByKey: Record<string, AgentMessageDeltaBucket> = {};
+
+  for (const notification of notifications) {
+    if (state.threadId !== notification.threadId) {
+      continue;
+    }
+
+    switch (notification.delta.type) {
+      case "agentMessage": {
+        const { turnId, itemId, delta } = notification.delta.notification;
+        const key = liveItemKey(turnId, itemId);
+        let bucket = bucketByKey[key];
+        if (bucket == null) {
+          bucket = { turnId, itemId, delta: "" };
+          bucketByKey[key] = bucket;
+          buckets.push(bucket);
+        }
+        bucket.delta += delta;
+        break;
+      }
+    }
+  }
+
+  for (const { turnId, itemId, delta } of buckets) {
+    const item = liveItemForKey(state, turnId, itemId);
+    if (item != null) {
+      appendDeltaToLiveItem(state, item, delta);
     }
   }
 };
@@ -542,6 +595,13 @@ export const transcriptStateSlice = createAppSlice({
           return;
         }
 
+        if (notification.event.type === "itemStarted") {
+          const { item, turnId } = notification.event.notification;
+          if (hasLiveItem(state, turnId, item.id)) {
+            return;
+          }
+        }
+
         recordAppliedEvent(state, notification.commitId);
 
         switch (notification.event.type) {
@@ -572,9 +632,7 @@ export const transcriptStateSlice = createAppSlice({
         applyAcceptedProjectionDelta(state, action.payload.notification);
       })
       .addCase(threadRuntimeDeltasAccepted, (state, action) => {
-        for (const notification of action.payload.notifications) {
-          applyAcceptedProjectionDelta(state, notification);
-        }
+        applyAcceptedProjectionDeltaBatch(state, action.payload.notifications);
       })
       .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
         if (state.threadId !== action.payload.threadId) {

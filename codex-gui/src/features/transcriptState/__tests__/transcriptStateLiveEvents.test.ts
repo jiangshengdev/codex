@@ -6,6 +6,7 @@ import {
   eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
+  eventReasoningTextDelta,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
@@ -136,9 +137,8 @@ describe("transcript state live events reducer", () => {
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 
-  it("applies accepted agent message delta batches in notification order", () => {
-    const singleStore = makeStore();
-    const batchStore = makeStore();
+  it("coalesces accepted agent message delta batches per live item in notification order", () => {
+    const store = makeStore();
     const initialItem = agentMessage("agent-streaming-batch", "");
     const started = itemStarted(
       eventItemStarted,
@@ -159,38 +159,123 @@ describe("transcript state live events reducer", () => {
       " world",
     );
 
-    for (const store of [singleStore, batchStore]) {
-      store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-      store.dispatch(
-        threadRuntimeEventBuffered({
-          notification: started,
-          replay: "live",
-        }),
-      );
-    }
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: started,
+        replay: "live",
+      }),
+    );
+    const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState());
 
-    singleStore.dispatch(threadRuntimeDeltaAccepted({ notification: firstDelta }));
-    singleStore.dispatch(threadRuntimeDeltaAccepted({ notification: secondDelta }));
-    batchStore.dispatch(threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }));
+    store.dispatch(threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }));
+
+    expect(
+      selectTranscriptLiveItem(store.getState(), "turn-streaming-batch", "agent-streaming-batch"),
+    ).toStrictEqual({
+      key: "turn-streaming-batch:agent-streaming-batch",
+      turnId: "turn-streaming-batch",
+      itemId: "agent-streaming-batch",
+      status: "streaming",
+      initialItem,
+      transientText: "Hello world",
+      revision: 1,
+    });
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
+  });
+
+  it("keeps batch delta coalescing isolated per live item", () => {
+    const store = makeStore();
+    const firstItem = agentMessage("agent-streaming-batch-first", "");
+    const secondItem = agentMessage("agent-streaming-batch-second", "");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-streaming-batch-first-started",
+          "turn-streaming-batch-isolated",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-streaming-batch-second-started",
+          "turn-streaming-batch-isolated",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+    const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-streaming-batch-isolated",
+            "agent-streaming-batch-first",
+            "First ",
+          ),
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-streaming-batch-isolated",
+            "agent-streaming-batch-second",
+            "Second ",
+          ),
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-streaming-batch-isolated",
+            "agent-streaming-batch-first",
+            "message",
+          ),
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-streaming-batch-isolated",
+            "agent-streaming-batch-second",
+            "message",
+          ),
+        ],
+      }),
+    );
 
     expect(
       selectTranscriptLiveItem(
-        batchStore.getState(),
-        "turn-streaming-batch",
-        "agent-streaming-batch",
+        store.getState(),
+        "turn-streaming-batch-isolated",
+        "agent-streaming-batch-first",
       ),
-    ).toStrictEqual(
-      selectTranscriptLiveItem(
-        singleStore.getState(),
-        "turn-streaming-batch",
-        "agent-streaming-batch",
-      ),
-    );
+    ).toStrictEqual({
+      key: "turn-streaming-batch-isolated:agent-streaming-batch-first",
+      turnId: "turn-streaming-batch-isolated",
+      itemId: "agent-streaming-batch-first",
+      status: "streaming",
+      initialItem: firstItem,
+      transientText: "First message",
+      revision: 1,
+    });
     expect(
-      selectTranscriptLiveItemsForTurn(batchStore.getState(), "turn-streaming-batch"),
-    ).toStrictEqual(
-      selectTranscriptLiveItemsForTurn(singleStore.getState(), "turn-streaming-batch"),
-    );
+      selectTranscriptLiveItem(
+        store.getState(),
+        "turn-streaming-batch-isolated",
+        "agent-streaming-batch-second",
+      ),
+    ).toStrictEqual({
+      key: "turn-streaming-batch-isolated:agent-streaming-batch-second",
+      turnId: "turn-streaming-batch-isolated",
+      itemId: "agent-streaming-batch-second",
+      status: "streaming",
+      initialItem: secondItem,
+      transientText: "Second message",
+      revision: 1,
+    });
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 2);
   });
 
   it("ignores accepted agent message deltas when the live slot is missing", () => {
@@ -214,6 +299,65 @@ describe("transcript state live events reducer", () => {
     expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing")).toStrictEqual([]);
   });
 
+  it("ignores wrong-thread and unsupported delta notifications in accepted delta batches", () => {
+    const store = makeStore();
+    const initialItem = agentMessage("agent-streaming-filtered-batch", "");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-streaming-filtered-batch-started",
+          "turn-streaming-filtered-batch",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          {
+            ...agentMessageDelta(
+              eventAgentMessageDelta,
+              "turn-streaming-filtered-batch",
+              "agent-streaming-filtered-batch",
+              "Wrong thread",
+            ),
+            threadId: "wrong-thread-id",
+          },
+          eventReasoningTextDelta,
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-streaming-filtered-batch",
+            "agent-streaming-filtered-batch",
+            "Visible text",
+          ),
+        ],
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(
+        store.getState(),
+        "turn-streaming-filtered-batch",
+        "agent-streaming-filtered-batch",
+      ),
+    ).toStrictEqual({
+      key: "turn-streaming-filtered-batch:agent-streaming-filtered-batch",
+      turnId: "turn-streaming-filtered-batch",
+      itemId: "agent-streaming-filtered-batch",
+      status: "streaming",
+      initialItem,
+      transientText: "Visible text",
+      revision: 1,
+    });
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
+  });
+
   it("keeps itemStarted slot order stable and ignores duplicate live slot insertion", () => {
     const store = makeStore();
 
@@ -232,6 +376,8 @@ describe("transcript state live events reducer", () => {
         replay: "live",
       }),
     );
+    const beforeDuplicateState = store.getState().transcriptState;
+
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
@@ -243,6 +389,9 @@ describe("transcript state live events reducer", () => {
         replay: "live",
       }),
     );
+
+    expect(store.getState().transcriptState).toBe(beforeDuplicateState);
+
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
