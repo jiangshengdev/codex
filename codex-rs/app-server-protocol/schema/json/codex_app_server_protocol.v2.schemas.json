@@ -532,6 +532,24 @@
             "null"
           ]
         },
+        "iconAssets": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "iconDarkAssets": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "id": {
           "type": "string"
         },
@@ -990,7 +1008,6 @@
         {
           "enum": [
             "untrusted",
-            "on-failure",
             "on-request",
             "never"
           ],
@@ -1170,6 +1187,7 @@
               "type": "string"
             },
             "path": {
+              "description": "Absolute path for the root in the selected environment.",
               "type": "string"
             },
             "type": {
@@ -3358,6 +3376,7 @@
         {
           "enum": [
             "contextWindowExceeded",
+            "sessionBudgetExceeded",
             "usageLimitExceeded",
             "serverOverloaded",
             "cyberPolicy",
@@ -4683,6 +4702,16 @@
             "object",
             "null"
           ]
+        },
+        "models": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ModelsRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "type": "object"
@@ -4947,6 +4976,13 @@
     "ConsumeAccountRateLimitResetCreditParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
+        "creditId": {
+          "description": "Opaque reset-credit identifier to redeem. When omitted, the backend selects the next available credit.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "idempotencyKey": {
           "description": "Identifies one logical reset attempt. A UUID is recommended; reuse the same value when retrying that attempt.",
           "type": "string"
@@ -8459,6 +8495,12 @@
         },
         "success": {
           "type": "boolean"
+        },
+        "threadId": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -8480,6 +8522,12 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "threadId": {
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -8514,6 +8562,12 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "McpServerRefreshResponse",
       "type": "object"
+    },
+    "McpServerStartupFailureReason": {
+      "enum": [
+        "reauthenticationRequired"
+      ],
+      "type": "string"
     },
     "McpServerStartupState": {
       "enum": [
@@ -8586,6 +8640,16 @@
             "null"
           ]
         },
+        "failureReason": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/McpServerStartupFailureReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "name": {
           "type": "string"
         },
@@ -8653,6 +8717,18 @@
     },
     "McpToolCallAppContext": {
       "properties": {
+        "actionName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "appName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "connectorId": {
           "type": "string"
         },
@@ -8663,6 +8739,12 @@
           ]
         },
         "resourceUri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "templateId": {
           "type": [
             "string",
             "null"
@@ -8840,6 +8922,13 @@
           "default": [],
           "items": {
             "$ref": "#/definitions/SessionMigration"
+          },
+          "type": "array"
+        },
+        "skills": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/SkillMigration"
           },
           "type": "array"
         },
@@ -9094,6 +9183,12 @@
     "ModelSafetyBufferingUpdatedNotification": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
+        "fasterModel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "model": {
           "type": "string"
         },
@@ -9102,6 +9197,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "showBufferingUi": {
+          "type": "boolean"
         },
         "threadId": {
           "type": "string"
@@ -9119,6 +9217,7 @@
       "required": [
         "model",
         "reasons",
+        "showBufferingUi",
         "threadId",
         "turnId",
         "useCases"
@@ -9204,14 +9303,45 @@
       "title": "ModelVerificationNotification",
       "type": "object"
     },
+    "ModelsRequirements": {
+      "properties": {
+        "newThread": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/NewThreadModelDefaults"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
     "MultiAgentMode": {
-      "description": "Controls whether the model receives multi-agent delegation instructions and, when it does, whether it should only spawn sub-agents after an explicit user request or may delegate proactively when doing so would help. `none` leaves the multi-agent tools available without injecting delegation instructions.",
-      "enum": [
-        "none",
-        "explicitRequestOnly",
-        "proactive"
-      ],
-      "type": "string"
+      "description": "Controls the effective multi-agent delegation instructions for a turn. `custom` means the configured mode hint defines the policy instead of a built-in policy.",
+      "oneOf": [
+        {
+          "enum": [
+            "explicitRequestOnly",
+            "proactive"
+          ],
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "custom"
+          ],
+          "title": "CustomMultiAgentMode",
+          "type": "object"
+        }
+      ]
     },
     "NetworkAccess": {
       "enum": [
@@ -9350,6 +9480,33 @@
         "deny"
       ],
       "type": "string"
+    },
+    "NewThreadModelDefaults": {
+      "properties": {
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modelReasoningEffort": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReasoningEffort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "serviceTier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
     },
     "NonSteerableTurnKind": {
       "enum": [
@@ -9718,6 +9875,13 @@
       ],
       "type": "string"
     },
+    "PluginInstallPolicySource": {
+      "enum": [
+        "WORKSPACE_SETTING",
+        "IMPLICIT_CANONICAL_APP"
+      ],
+      "type": "string"
+    },
     "PluginInstallResponse": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
@@ -9859,8 +10023,26 @@
           ],
           "description": "Local logo path, resolved from the installed plugin package."
         },
+        "logoDark": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AbsolutePathBuf"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Local dark-mode logo path, resolved from the installed plugin package."
+        },
         "logoUrl": {
           "description": "Remote logo URL from the plugin catalog.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logoUrlDark": {
+          "description": "Remote dark-mode logo URL from the plugin catalog.",
           "type": [
             "string",
             "null"
@@ -10508,6 +10690,40 @@
           "type": "object"
         },
         {
+          "properties": {
+            "package": {
+              "type": "string"
+            },
+            "registry": {
+              "description": "Optional HTTPS registry URL. Authentication stays in the user's npm config.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "enum": [
+                "npm"
+              ],
+              "title": "NpmPluginSourceType",
+              "type": "string"
+            },
+            "version": {
+              "description": "Optional npm version or version range.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "package",
+            "type"
+          ],
+          "title": "NpmPluginSource",
+          "type": "object"
+        },
+        {
           "description": "The plugin is available in the remote catalog. Download metadata is kept server-side and is not exposed through the app-server API.",
           "properties": {
             "type": {
@@ -10548,6 +10764,16 @@
         },
         "installPolicy": {
           "$ref": "#/definitions/PluginInstallPolicy"
+        },
+        "installPolicySource": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PluginInstallPolicySource"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "installed": {
           "type": "boolean"
@@ -10600,6 +10826,14 @@
         },
         "source": {
           "$ref": "#/definitions/PluginSource"
+        },
+        "version": {
+          "default": null,
+          "description": "Version advertised by the remote marketplace backend when available.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -10775,17 +11009,91 @@
       ],
       "type": "string"
     },
+    "RateLimitResetCredit": {
+      "properties": {
+        "description": {
+          "description": "Backend-provided display description for this credit, or `null` when unavailable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expiresAt": {
+          "description": "Unix timestamp in seconds when the credit expires, or `null` if it does not expire.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "grantedAt": {
+          "description": "Unix timestamp in seconds when the credit was granted.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "description": "Opaque backend identifier for this reset credit.",
+          "type": "string"
+        },
+        "resetType": {
+          "$ref": "#/definitions/RateLimitResetType"
+        },
+        "status": {
+          "$ref": "#/definitions/RateLimitResetCreditStatus"
+        },
+        "title": {
+          "description": "Backend-provided display title for this credit, or `null` when unavailable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "grantedAt",
+        "id",
+        "resetType",
+        "status"
+      ],
+      "type": "object"
+    },
+    "RateLimitResetCreditStatus": {
+      "enum": [
+        "available",
+        "redeeming",
+        "redeemed",
+        "unknown"
+      ],
+      "type": "string"
+    },
     "RateLimitResetCreditsSummary": {
       "properties": {
         "availableCount": {
           "format": "int64",
           "type": "integer"
+        },
+        "credits": {
+          "description": "Detail rows for available reset credits, when the backend provides them.\n\n`null` means only `availableCount` is known, while an empty array means details were fetched and no available credits were returned. The backend may cap this list, so its length can be less than `availableCount`.",
+          "items": {
+            "$ref": "#/definitions/RateLimitResetCredit"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
         "availableCount"
       ],
       "type": "object"
+    },
+    "RateLimitResetType": {
+      "enum": [
+        "codexRateLimits",
+        "unknown"
+      ],
+      "type": "string"
     },
     "RateLimitSnapshot": {
       "properties": {
@@ -11776,6 +12084,12 @@
             "name": {
               "type": "string"
             },
+            "namespace": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "status": {
               "type": [
                 "string",
@@ -12028,16 +12342,6 @@
         },
         {
           "properties": {
-            "internal_chat_message_metadata_passthrough": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/InternalChatMessageMetadataPassthrough"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "type": {
               "enum": [
                 "compaction_trigger"
@@ -14206,6 +14510,17 @@
       ],
       "type": "object"
     },
+    "SkillMigration": {
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
     "SkillScope": {
       "enum": [
         "user",
@@ -14700,6 +15015,7 @@
           "description": "Optional Git metadata captured when the thread was created."
         },
         "id": {
+          "description": "Identifier for this thread. Codex-generated thread IDs are UUIDv7.",
           "type": "string"
         },
         "modelProvider": {
@@ -14921,6 +15237,10 @@
       "title": "ThreadDeletedNotification",
       "type": "object"
     },
+    "ThreadExtra": {
+      "description": "Extra app-server data for a thread.",
+      "type": "object"
+    },
     "ThreadForkParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "description": "There are two ways to fork a thread: 1. By thread_id: load the thread from disk by thread_id and fork it into a new thread. 2. By path: load the thread from disk by path and fork it into a new thread.\n\nIf using a non-empty path, the thread_id param will be ignored. Empty string path values are treated as absent.\n\nPrefer using thread_id whenever possible.",
@@ -14973,6 +15293,13 @@
         },
         "ephemeral": {
           "type": "boolean"
+        },
+        "lastTurnId": {
+          "description": "Optional last turn id to fork through, inclusive.\n\nWhen specified, turns after `last_turn_id` are omitted from the fork. The referenced turn cannot be in progress.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "model": {
           "description": "Configuration overrides for the forked thread, if any.",
@@ -15292,6 +15619,13 @@
       ],
       "title": "ThreadGoalUpdatedNotification",
       "type": "object"
+    },
+    "ThreadHistoryMode": {
+      "enum": [
+        "legacy",
+        "paginated"
+      ],
+      "type": "string"
     },
     "ThreadId": {
       "type": "string"
@@ -15903,7 +16237,7 @@
               "type": "string"
             },
             "path": {
-              "$ref": "#/definitions/AbsolutePathBuf"
+              "$ref": "#/definitions/LegacyAppPathString"
             },
             "type": {
               "enum": [
@@ -17140,6 +17474,7 @@
     },
     "ThreadRollbackParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
+      "description": "DEPRECATED: `thread/rollback` will be removed soon.",
       "properties": {
         "numTurns": {
           "description": "The number of turns to drop from the end of the thread. Must be >= 1.\n\nThis only modifies the thread's history and does not revert local file changes that have been made by the agent. Clients are responsible for reverting these changes.",
@@ -17896,6 +18231,7 @@
           "description": "Only populated when the Turn's status is failed."
         },
         "id": {
+          "description": "Identifier for this turn. Codex-generated turn IDs are UUIDv7.",
           "type": "string"
         },
         "items": {
