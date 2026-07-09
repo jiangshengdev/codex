@@ -26,8 +26,11 @@
 - `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:109`: `deltaAccepted` 走 `enqueueProjectionDelta`。
 - `codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts:127`: 单 delta action 在 runtime slice 中是跨 slice 信号。
 - `codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts:131`: batch delta action 在 runtime slice 中也是跨 slice 信号。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:257`: 每个 `agentMessage` delta 写 live item、revision 和 `liveScrollPulse`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:571`: batch action 内逐 notification 调用 `applyAcceptedProjectionDelta`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:268`: 每个 `agentMessage` delta 仍在 reducer 内拼接 `transientText`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:270`: 每个 `agentMessage` delta 递增 live item `revision`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:271`: 每个 `agentMessage` delta 递增 `liveScrollPulse`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:574`: batch action reducer 仍遍历 `action.payload.notifications`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:576`: batch 内逐 notification 调用 `applyAcceptedProjectionDelta`。
 - `docs/superpowers/reports/2026-07-09-codex-gui-03-performance-check/01-03-hot-paths.md:19`: 03 performance check 将该切片校准为 `部分过期`。
 
 ## 判断
@@ -42,4 +45,4 @@
 
 ## 后续处理
 
-如需继续处理 batch 内 per-delta 同步 reducer 成本, 应单独进入设计或计划阶段。本 issue 只记录当前复杂度边界和证据, 不给代码改动方向。
+如需继续处理 batch 内 per-delta 同步 reducer 成本, 应单独进入设计/计划门禁，先设计、再计划。本 issue 只记录当前复杂度边界和证据, 不给代码改动方向。

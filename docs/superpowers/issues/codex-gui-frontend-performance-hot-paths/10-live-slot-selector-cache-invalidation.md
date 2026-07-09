@@ -19,10 +19,16 @@
 
 ## 证据
 
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:74`: 当前 live item 已是 reducer state 中的 `TranscriptRenderableLiveItem`。
+2026-07-09 当前代码复核:
+
+- 限定范围内搜索 `selectCachedLiveItemsForTurn` / `liveTurn` / `slotKeys` / `slotRevisions` / `slotOrder` 未命中，旧 selector cache / slot revision 路径未见。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:80`: 当前 live item 已是 reducer state 中的 `TranscriptRenderableLiveItem`。
 - `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:94`: 当前 state 直接保存 `liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>`。
 - `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:206`: `ensureLiveItemsForTurn` 只创建并保存 reducer-owned live item array。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:257`: 当前 delta 通过 key/index 找到 live item 后原地更新 `transientText`、`status`、`revision` 和 `liveScrollPulse`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:253`: 当前 delta 通过 key/index 找到 live item。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:268`: 当前 delta 原地更新 `transientText`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:270`: 当前 delta 递增 live item `revision`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:271`: 当前 delta 递增 `liveScrollPulse`。
 - `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:512`: `selectTranscriptLiveItemsForTurn` 直接返回 live item array 引用或 `EMPTY_LIVE_ITEMS`。
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:205`: `LiveAssistantMessages` 对 live items 执行 `.filter(isLiveAgentMessage)`。
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:228`: 当前 turn 判空对 live items 执行 `.some(isLiveAgentMessage)`。
@@ -42,4 +48,4 @@
 
 ## 后续处理
 
-如需继续处理收窄后的 live consumption 扫描边界, 应单独进入设计或计划阶段。本 issue 只记录当前复杂度边界和证据, 不给代码改动方向。
+如需继续处理收窄后的 live consumption 扫描边界, 应单独进入设计/计划门禁，先设计、再计划。本 issue 只记录当前复杂度边界和证据, 不给代码改动方向。

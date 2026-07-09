@@ -44,6 +44,13 @@ Finding 3 的证据:
 - 至少 `thread/archive` (`codex-rs/app-server/src/request_processors/thread_processor.rs:730`, `codex-rs/app-server/src/request_processors/thread_processor.rs:746`)、core 已不可见时的 `thread/unsubscribe` (`codex-rs/app-server/src/request_processors/thread_processor.rs:710`)、以及 core 已移除 thread 时的 `connection_closed` (`codex-rs/app-server/src/request_processors/thread_processor.rs:2243`) 都会进入 `finalize_thread_teardown`，且这三个入口都跳过 `pending_thread_unloads` guard。
 - 与 `rust-v0.130.0` 的差异: tag 上没有 projection commit chain，也没有在普通 notification fan-out 前维护独立 PM head 的状态；当前分支新增了 PM head 与 outgoing queue 之间的异步边界。
 
+2026-07-09 当前代码补证:
+
+- Attach 路径在 request processor 侧捕获当前 generation (`codex-rs/app-server/src/request_processors/thread_projection.rs:109`)，listener 侧先用 `capture_snapshot_cut_if_generation_matches` 校验 generation (`codex-rs/app-server/src/thread_projection_runtime.rs:90`)，最终注册前再调用 `attach_if_generation_matches` (`codex-rs/app-server/src/thread_projection_runtime.rs:153`)。
+- `ThreadProjectionManager::attach_if_generation_matches` 在同一 manager 锁内比较 `thread_generations` 后才 attach (`codex-rs/app-server/src/thread_projection.rs:164`)；`remove_thread` 会先 bump generation，再移除 thread entry 和 connection index (`codex-rs/app-server/src/thread_projection.rs:210`)。
+- Projection-only attach lease 仍在 attach 准备阶段登记 (`codex-rs/app-server/src/request_processors/thread_projection.rs:155`)，connection close 前后检查会释放 lease 或移除已注册 projection attach (`codex-rs/app-server/src/thread_projection_runtime.rs:123`, `codex-rs/app-server/src/thread_projection_runtime.rs:174`, `codex-rs/app-server/src/thread_projection_runtime.rs:248`)。
+- Delivery 侧保留 generation 校验入口 `run_if_generation_matches` (`codex-rs/app-server/src/thread_projection.rs:150`)；回归测试 `projection_delivery_waiting_for_queue_capacity_is_dropped_after_thread_teardown` 覆盖 queue capacity 等待后 teardown 的 stale delivery 丢弃 (`codex-rs/app-server/src/thread_projection_runtime.rs:858`)。
+
 ## 判断
 
 三个 finding 当前均为已修复状态。

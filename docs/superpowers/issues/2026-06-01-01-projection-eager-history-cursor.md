@@ -22,11 +22,14 @@
 - listener 启动没有为 projection cursor 读取完整 history。
 - event loop 中也未见每个 event 推进 projection cursor。
 - 当前仍有 projection subscriber watcher 进入普通 listener 生命周期，但本次核对只发现常数级 watcher 成本。
+- 2026-07-09 当前限定路径复核：`thread_projection.rs`、`thread_projection_runtime.rs`、`request_processors/thread_projection.rs`、`outgoing_message.rs`、`doctor/updates.rs` 中未见 `ProjectionHistoryCursor`、`history_cursor` 或 `projection_history_cursor_for_listener_start`。
+- 当前 snapshot cut API 是按 attach generation 捕获 head 的窄接口 (`codex-rs/app-server/src/thread_projection.rs:295`)；watcher API 仍由 `subscribe_to_has_subscribers` 暴露，并会为 thread entry 创建或复用 `has_subscribers` watch receiver (`codex-rs/app-server/src/thread_projection.rs:311`)。
+- `invalidate_thread_projection_preserves_has_subscribers_watcher` 显示 invalidation 后 watcher 保持打开并收到 false，这支持“剩余边界是 watcher 生命周期/常数成本”而不是原始 history cursor 成本 (`codex-rs/app-server/src/thread_projection.rs:1019`)。
 - 本次核对未运行测试、benchmark 或修复实现。
 
 ## 判断
 
-部分过期。原 issue 描述的 history-size 或 per-event cursor 成本不再成立；剩余边界较窄，需要后续量化 watcher 成本是否值得处理。
+部分过期。原 issue 描述的 history-size 或 per-event cursor 成本不再成立；当前残留边界收窄为 projection subscriber watcher 的生命周期和固定开销，需要更宽范围量化后再判断是否值得处理。
 
 ## 影响
 

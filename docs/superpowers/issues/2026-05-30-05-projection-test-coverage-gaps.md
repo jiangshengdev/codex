@@ -20,6 +20,8 @@ fanout/backpressure 核心问题已修复，但真实 app-server v2 端到端慢
 - 2026-07-04 只读性能检测核对：仍需回归覆盖。
 - fanout/backpressure 的核心 silent invalidation 问题已由 `thread/projection/closed(reason=backpressure)` 路径修复。
 - 本次限定范围内没有确认真实 app-server v2 端到端慢客户端链路已经闭环覆盖。
+- 2026-07-09 当前限定代码补证：可见覆盖仍主要落在 runtime / manager / outgoing 层；例如 connection close 后 attach 不会订阅的 runtime 回归测试 (`codex-rs/app-server/src/thread_projection_runtime.rs:701`)、manager invalidation 清理 subscriber/head/generation 的单测 (`codex-rs/app-server/src/thread_projection.rs:955`)、projection backpressure 不阻塞 ordinary notification 的 outgoing 层测试 (`codex-rs/app-server/src/outgoing_message.rs:1411`)。
+- 2026-07-09 限定路径未见真实 app-server v2 端到端慢客户端闭环：本轮只核对 `thread_projection.rs`、`thread_projection_runtime.rs`、`request_processors/thread_projection.rs`、`outgoing_message.rs`，未看到从 v2 request attach、慢客户端 backpressure、server closed notification、重新 attach snapshot baseline 到客户端可观察结果的完整测试链路。
 - detach 缺口：现有测试没有覆盖「attach → 收事件 → detach → 再跑 turn → 断言该订阅收不到新事件」。
 - backpressure 缺口：生产路径 `projection_fanout.rs:132-139` 原先只有合成容量单测 `queue_full_invalidates_generation_and_drops_current_job` 间接覆盖。
 - 事件负载缺口：`thread_projection.rs:144-159` 只校验 `thread_id` / `subscription_id` / `commit_id` 与 `parent_commit_id` 链，不断言首事件为 `ThreadProjectionEvent::TurnStarted`，也不断言 turn/item 负载。
@@ -28,7 +30,7 @@ fanout/backpressure 核心问题已修复，但真实 app-server v2 端到端慢
 
 ## 判断
 
-仍需处理。既有修复降低了 backpressure 行为风险，但端到端测试覆盖缺口仍成立。
+仍需处理。既有修复降低了 backpressure 行为风险，当前限定证据也显示关键内部层已有回归测试；但真实 app-server v2 端到端慢客户端链路仍未在限定范围内看到闭环覆盖，因此测试覆盖缺口仍成立。
 
 ## 影响
 

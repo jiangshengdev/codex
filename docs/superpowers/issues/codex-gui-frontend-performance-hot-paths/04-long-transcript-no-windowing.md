@@ -19,6 +19,14 @@ turn 列表。
 
 ## 证据
 
+2026-07-09 当前代码复核:
+
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:313`: surface 仍对 `turnIds.map(...)` 渲染完整 turn 列表。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:155`: `MiddleTranscriptModule` 展开时对 `chunkIds.map(...)` 渲染完整 middle chunks。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:108`: `MiddleTranscriptChunk` 对 `chunk.entries.map(...)` 渲染完整 chunk entries。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:182`: `FinalAssistantMessages` 对 final assistant entries 执行完整 `entries.map(...)`。
+- 限定范围内搜索 `virtual` / `window` / `react-window` / `react-virtual` / `Virtuoso` / `content-visibility` 未发现窗口化或渲染裁剪实现；命中项仅为 browser test 中的全局 `window`。
+
 原始证据:
 
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:170`
@@ -31,7 +39,7 @@ turn 列表。
 
 ## 判断
 
-未修复。selector 和 memo 优化不能替代渲染裁剪或窗口化；当前风险仍是结构性的长会话前端性能问题。
+未修复。2026-07-09 复核确认 selector、chunk-level render boundary 和 memo 优化不能替代渲染裁剪或窗口化；当前风险仍是结构性的长会话前端性能问题。
 
 ## 影响
 
@@ -40,7 +48,7 @@ turn 列表。
 
 ## 后续处理
 
-设计 committed transcript 的渲染裁剪或窗口化方案。该方案应保留:
+如需继续处理，单独进入设计/计划阶段评估 committed transcript 的渲染裁剪或窗口化。该阶段应保留:
 
 - sticky-bottom 语义。
 - snapshot attach 后的历史浏览能力。

@@ -16,12 +16,13 @@
 
 ## 证据
 
-- `codex-gui/src/index.css:2`
+- `codex-gui/src/index.css:1`: 入口 CSS 仍同步导入 `tailwindcss`。
+- `codex-gui/src/index.css:2`: 入口 CSS 仍同步导入 `@heroui/styles`。
 - `codex-gui/src/main.tsx:10`
 
 ## 判断
 
-待量化，当前未修复。现有证据能定位同步加载路径，但还不足以判断当前分支中的体积和首屏影响严重程度。
+待量化，当前未修复。2026-07-09 本轮未执行 fresh build；现有代码证据只能定位同步加载路径，不能量化当前分支中的 CSS 体积和首屏影响严重程度。
 
 ## 影响
 
@@ -30,7 +31,7 @@
 
 ## 后续处理
 
-先量化, 再决定优化方式:
+先量化, 再决定是否进入设计/计划阶段:
 
 - 用当前分支 fresh build 记录 CSS 体积。
 - 评估 HeroUI 是否支持按组件样式、按 route 或其他方式缩小首屏 CSS。

@@ -1,7 +1,7 @@
 # GUI launch 输出在聊天渲染中出现重复 bullet
 
 日期: 2026-06-30
-状态: 🟡 已修复待回归确认
+状态: 🟡 skill 已修正，待聊天渲染回归
 范围: `.codex/skills/gui-launch/SKILL.md` / 聊天渲染
 优先级: 未定
 
@@ -15,15 +15,15 @@
 
 ## 证据
 
-- `.codex/skills/gui-launch/SKILL.md` 当前要求最终回复第一行固定为 `GUI URLs:`。
-- `.codex/skills/gui-launch/SKILL.md` 当前明确不要在文本中包含真实 bullet 字符。
-- `.codex/skills/gui-launch/SKILL.md` 当前使用 `text` 代码块示例承载 CLI 文本，避免 Markdown 列表二次渲染。
+- `.codex/skills/gui-launch/SKILL.md:20` 要求最终回复使用 CLI `/gui` text format。
+- `.codex/skills/gui-launch/SKILL.md:22` 至 `:25` 当前使用 `text` 代码块示例承载 CLI 文本，首行是 `GUI URLs:`。
+- `.codex/skills/gui-launch/SKILL.md:29` 明确第一行必须精确为 `GUI URLs:`，且文本中不要包含真实 bullet 字符。
 - 当最终消息渲染层把该行再识别为列表项时，可能出现额外的外层 bullet，形成 `• • GUI URLs:`。
 - URL 内容、label 顺序和 `launch_gui` 返回值本身没有在本次问题中显示异常。
 
 ## 判断
 
-部分完成。skill 输出约束已修复，但尚未记录普通 `GUI启动` 的实际聊天渲染回归结果。
+部分完成。skill 输出约束已修复，当前静态证据显示 skill 文本不会主动输出真实 bullet；但尚未记录普通 `GUI启动` 的实际聊天渲染回归结果，因此不能升级为 ✅。
 
 ## 修复记录
 
@@ -36,4 +36,4 @@
 
 ## 后续处理
 
-下次执行普通 `GUI启动` 时，只读确认首行是否只显示外层 bullet 加 `GUI URLs:`。若回归通过，可更新为已验证修复。
+下次执行普通 `GUI启动` 时，只读确认最终聊天消息首行是否只显示外层 bullet 加 `GUI URLs:`，并记录渲染截图或 transcript 观察结果。若回归通过，可更新为已验证修复。

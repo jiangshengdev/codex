@@ -17,15 +17,17 @@ Codex GUI committed transcript 中的本地绝对路径链接会被浏览器解�
 
 - 原始目标应为：`/Users/jiangsheng/cnb/codex/codex-rs/app-server/tests/suite/v2/thread_projection.rs`。
 - 当前被浏览器解析为：`http://192.168.3.221:51393/Users/jiangsheng/cnb/codex/codex-rs/app-server/tests/suite/v2/thread_projection.rs:355`。
-- 当前 committed transcript 的 Markdown 渲染入口是 `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx`。
+- 当前 committed transcript 的 Markdown 渲染入口是 `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx:13`，仍直接渲染 `Streamdown`。
+- `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx:17` 仍设置 `linkSafety={{ enabled: false }}`；该配置只关闭链接安全提示，不禁用 Markdown 链接生成。
+- `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx:12` 的 `allowMarkdownElement` 只排除 `img`，没有排除 `a`。
+- `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx:151` 至 `:155` 仍断言 Markdown 链接会渲染为 anchor，并保留链接文本。
 - Streamdown 默认会把 Markdown 链接渲染为 `<a href="...">`。
-- `linkSafety={{ enabled: false }}` 只关闭链接确认弹窗，不会禁用链接生成。
 - 当前 DOM 中 anchor 的 `href` 属性可以保留为 `/Users/.../thread_projection.rs:355`，但浏览器读取或跳转时会把它解析成当前 origin 下的完整 HTTP URL。
 - 当前宿主命令只支持启动和中断 turn；尚未提供打开本地文件或在编辑器中 reveal 文件的能力。
 
 ## 判断
 
-仍需处理。根因是 Markdown 链接仍然生成可点击 anchor，而浏览器会把以 `/` 开头的 `href` 当作当前站点的绝对路径处理。在没有宿主打开文件能力的前提下，让这类内容保持可点击会产生误导。
+仍需处理。当前代码仍允许 committed transcript 中的 Markdown 链接生成可点击 anchor，而浏览器会把以 `/` 开头的 `href` 当作当前站点的绝对路径处理。在没有宿主打开文件能力的前提下，让这类本地路径内容保持可点击会产生误导。
 
 ## 影响
 
@@ -33,7 +35,7 @@ Codex GUI committed transcript 中的本地绝对路径链接会被浏览器解�
 
 ## 后续处理
 
-进入设计/计划阶段确认 committed transcript 链接策略。候选方向是先移除 Markdown 链接交互、保留链接文本显示，并用 browser test 验证链接文本仍显示且 committed transcript 中不生成可点击 anchor。
+进入单独设计/计划阶段确认 committed transcript 链接策略；后续验证入口至少需要覆盖链接文本仍显示、committed transcript 中是否生成可点击 anchor，以及本地绝对路径不会被误导性导航到 GUI HTTP origin。
 
 ## 历史记录
 

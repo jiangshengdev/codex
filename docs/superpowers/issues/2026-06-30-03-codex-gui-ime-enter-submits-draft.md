@@ -1,13 +1,13 @@
 # 输入法组合过程中按 Enter 会提交 composer draft
 
 日期: 2026-06-30
-状态: 🟡 已修复，仍需真实 IME 验证
+状态: 🟡 静态已收窄，仍需真实 IME 验证
 范围: codex-gui composerTurnControl / IME 输入提交
 优先级: P1
 
 ## 摘要
 
-composer 曾在输入法组合过程中把 Enter 当作发送键处理；当前已通过 composing guard 和后续 IME suppress 调整修复主要路径，但仍需要绑定最终实现的真实 IME 手动验证，尤其是 macOS Safari、Chrome 和 iOS Safari 的分支行为。
+composer 曾在输入法组合过程中把 Enter 当作发送键处理；当前代码已通过 composing guard 和桌面 Apple WebKit 专用 suppress 分支收窄风险，但仍需要绑定最终实现的真实 IME 手动验证，尤其是 macOS Safari、Chrome 和 iOS Safari 的分支行为。
 
 ## 问题
 
@@ -18,8 +18,12 @@ composer 曾在输入法组合过程中把 Enter 当作发送键处理；当前�
 ## 证据
 
 - 原因位于 `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx` 的 `onKeyDown`：此前只检查 `event.key !== "Enter"` 和 `event.shiftKey`。
-- 修复后，`onKeyDown` 在 `event.nativeEvent.isComposing` 为 true 时直接返回，不再拦截 Enter，也不会调用 `submit()`。
-- 已在 `codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx` 添加回归测试，覆盖 composing Enter 不应调用 `startTurn`，并保持 draft 内容不变。
+- `codex-gui/src/features/appShell/AppShell.tsx:18` 至 `:23` 只把 `guardCompositionEndEnter` 打开给桌面 Apple WebKit 运行时，`AppShell.tsx:77` 至 `:80` 将该分支传入 composer。
+- `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:109` 至 `:120` 在 composition 生命周期中维护 `isComposingRef`，并且只在 `guardCompositionEndEnter` 为 true 时设置 `suppressNextEnterRef`。
+- `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:123` 至 `:140` 在 `event.nativeEvent.isComposing` 或 `isComposingRef.current` 为 true 时直接返回；若 `suppressNextEnterRef` 为 true，则只吞掉下一次 Enter 并清理 guard。
+- `codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx:352` 覆盖 composing Enter 不调用 `startTurn`，并保持 draft 内容不变。
+- `codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx:402` 覆盖 guard 开启时 completed composition 后第一下 Enter 被吞掉、第二下 Enter 才发送。
+- `codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx:474` 覆盖 `keyup` 不会清理 completed composition suppress。
 - 稳定事实一：Safari 最新版本中，空格确认候选后同一时间片出现的是 `keydown Space`，约 1 秒后的 `keydown Enter` 是真实发送。
 - 稳定事实二：Safari 最新版本中，Enter 确认候选后 `compositionend` 紧贴 `keydown Enter`，这一下会被当前 guard 吞掉；后续再次 Enter 才真实发送。
 - 稳定事实三：Chrome 中，空格确认候选后约 905ms 的 `keydown Enter` 是真实发送，但旧 guard 会误吞。
@@ -29,22 +33,22 @@ composer 曾在输入法组合过程中把 Enter 当作发送键处理；当前�
 
 ## 判断
 
-该问题看起来已通过代码与浏览器测试修复，但最终状态仍是 🟡：需要用真实中文、日文或韩文 IME 对最终实现重新手动验证。现有日志支持的判断是：
+当前静态评估为已收窄，但不能升级为真实 IME 已修复。最终状态仍是 🟡：需要用真实中文、日文或韩文 IME 对最终实现重新手动验证。现有日志和当前代码支持的判断是：
 
 - 组合态内 `isComposing` 的 Enter 必须直接交还给浏览器/输入法，不能触发 `submit()`。
 - 不能在每次 `compositionend` 后无条件吞掉下一次 Enter；Chrome 和 iOS Safari 都有真实发送 Enter 被误吞的证据。
 - 不应优先使用时间差阈值作为主判断，因为它会把浏览器事件模型和人类再次按 Enter 的手速混在一起。
-- 后续方案应优先考虑确定性分支，例如仅对桌面 Safari 的候选确认尾随 Enter 保留 suppress，而 iOS Safari 虚拟键盘和 Chrome 不走同一条 suppress 路径。
+- 当前代码已经采用确定性运行时分支：仅桌面 Apple WebKit 保留 `compositionend` 后 Enter suppress，iOS Safari 虚拟键盘和 Chrome 不走同一条 suppress 路径。
 - `keyup` 不应作为清理桌面 Safari 尾随 Enter guard 的核心依据；它可能发生在需要吞掉的尾随 `keydown Enter` 之前。
 
 ## 修复记录
 
-- `ComposerTurnControl.tsx` 的 `onKeyDown` 已在 `event.nativeEvent.isComposing` 为 true 时 return，避免组合态 Enter 触发发送。
-- 后续 IME suppress 行为经过真实浏览器日志复核，约束已从“`compositionend` 后无条件吞下一次 Enter”收窄为按浏览器/平台分支处理候选确认尾随 Enter。
+- `ComposerTurnControl.tsx` 的 `onKeyDown` 已在 `event.nativeEvent.isComposing` 或本地 `isComposingRef.current` 为 true 时 return，避免组合态 Enter 触发发送。
+- 后续 IME suppress 行为经过真实浏览器日志复核，约束已从“`compositionend` 后无条件吞下一次 Enter”收窄为桌面 Apple WebKit 专用候选确认尾随 Enter guard。
 
 ## 验证记录
 
-- 自动化：`codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx` 覆盖 composing Enter 不调用 `startTurn`，并保持 draft 内容不变。
+- 自动化：`codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx` 覆盖 composing Enter 不调用 `startTurn`，guard 开关差异，非 Enter 清理 suppress，以及 `keyup` 不清理 suppress。
 - 真实浏览器日志：已完成四组稳定对照日志采集，包括 Safari + Space 确认候选、Safari + Enter 确认候选、Chrome + Space 确认候选、Chrome + Enter 确认候选。
 - iOS Safari 虚拟键盘补充观察：已有远程 Web Inspector `[ime]` 日志证明无条件 `compositionend` 后 suppress 会误吞发送 Enter，但仍缺一组与最终修复方案绑定的完整稳定对照日志。
 

@@ -25,13 +25,16 @@ JS 字符串不可变。长回答如果按小 delta 高频追加, `transientText
 
 ## 证据
 
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:74`: `TranscriptRenderableLiveItem.transientText` 当前仍是 `string`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:228`: live item 创建时 `transientText` 初始化为空字符串。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:257`: `appendAgentMessageDeltaToLiveItem` 执行 `item.transientText += delta`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:282`: `agentMessage` delta 分支把 `delta` 交给 append 函数。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:571`: 单个和批量 accepted delta 都进入 `applyAcceptedProjectionDelta`。
-- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:189`: live assistant entry 将 `item.transientText` 传给 `LiveMarkdownText source`。
-- `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx:11`: `source` 作为 `Streamdown` children 渲染。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:80`: `TranscriptRenderableLiveItem.transientText` 当前仍是 `string`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:234`: live item 创建时 `transientText` 初始化为空字符串。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:268`: `appendAgentMessageDeltaToLiveItem` 执行 `item.transientText += delta`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:285`: `agentMessage` delta 分支把 `delta` 交给 append 函数。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:572`: 单个 accepted delta 进入 `applyAcceptedProjectionDelta`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:574`: 批量 accepted delta action 遍历 notifications。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:576`: 批量 action 内每个 notification 都进入 `applyAcceptedProjectionDelta`。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:195`: live assistant entry 将 `item.transientText` 传给 `LiveMarkdownText source`。
+- `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx:11`: `source` 作为 `LiveMarkdownText` 入参。
+- `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx:26`: `source` 作为 `Streamdown` children 渲染。
 - `docs/superpowers/reports/2026-07-09-codex-gui-03-performance-check/01-03-hot-paths.md:65`: 03 performance check 将该切片校准为 `仍成立`。
 
 ## 判断
@@ -46,4 +49,4 @@ JS 字符串不可变。长回答如果按小 delta 高频追加, `transientText
 
 ## 后续处理
 
-如需继续处理该 text accumulation 风险, 应单独进入设计或计划阶段。本 issue 只记录当前复杂度边界和证据, 不给代码改动方向。
+如需继续处理该 text accumulation 风险, 应单独进入设计/计划门禁，先设计、再计划。本 issue 只记录当前复杂度边界和证据, 不给代码改动方向。

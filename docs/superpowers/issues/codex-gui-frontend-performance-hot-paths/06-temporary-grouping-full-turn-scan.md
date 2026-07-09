@@ -21,6 +21,16 @@ entries, 累计成本会呈二次增长形态。
 
 ## 证据
 
+2026-07-09 当前代码复核:
+
+- 限定范围内搜索 `committedTranscriptDisplayGroups` / `groupTranscriptEntriesForDisplay` 未命中，旧 render-time grouping 文件和入口未见。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:127`: temporary module label 来自 reducer-owned `middleEntryCount`。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:155`: 展开时按 `chunkIds.map(...)` 渲染 `MiddleTranscriptChunk`。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:251`: `MiddleTranscriptModule` 接收 `turn.middleChunkIds`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:384`: `middleEntryCount` 在 append middle entry 时递增。
+
+历史修复前证据:
+
 完整 turn entries 派生路径:
 
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:141`

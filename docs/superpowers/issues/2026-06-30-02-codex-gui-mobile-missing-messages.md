@@ -1,7 +1,7 @@
 # 手机访问 Codex GUI 时消息显示不完整
 
 日期: 2026-06-30
-状态: 🟡 静态评估已修复，仍需真实端回归
+状态: 🟡 静态截断路径已移除，仍需真实端回归
 范围: Codex GUI / app-server projection snapshot
 优先级: 未定
 
@@ -27,13 +27,17 @@
 - dropped 区域包含：`event_msg.agent_message.final_answer,response_item.message.assistant,event_msg.token_count,event_msg.turn_complete`。
 - rollout line 95-98 是 final agent message、assistant final response item、token count 和 task complete。
 - cursor advance 日志显示 final/complete 相关 events 已从 90 推进到 94；GUI attach 时 listener 匹配且没有 cursor regression。
-- 当前 `dev` 分支评估结论：`ProjectionSnapshotCut` 已不再携带 projection history cursor/item count。
-- 当前 `thread/projection/attach` snapshot 通过 `load_thread_turns_list_history` 读取完整 persisted history 后重建 turns。
-- 已有 `projection_snapshot_preserves_final_after_physical_only_history_item` 回归测试覆盖 physical-only history item 后 final answer 不丢失。
+- 当前 `codex-rs/app-server/src/thread_projection_cut.rs:4` 至 `:7` 显示 `ProjectionSnapshotCut` 只携带 `generation` 和 `head_commit_id`，已不再携带 projection history cursor/item count。
+- `codex-rs/app-server/src/thread_projection.rs:295` 至 `:308` 捕获 snapshot cut 时只保存 generation 和 head commit。
+- 当前 `thread/projection/attach` snapshot 通过 `codex-rs/app-server/src/request_processors/thread_projection.rs:237` 调用 `load_thread_turns_list_history` 读取 persisted history，并在 `:255` 至 `:260` 用 `reconstruct_thread_turns_for_turns_list` 重建 turns。
+- `codex-rs/app-server/src/request_processors/thread_projection.rs:575` 的 `projection_snapshot_preserves_final_after_physical_only_history_item` 回归测试覆盖 physical-only history item 后 final answer 不丢失，`:608` 至 `:624` 断言 snapshot 可保留 final turn。
+- `codex-gui/src/features/guiHost/guiHostClient.ts:301` 至 `:303` 在初始化完成后发送 `thread/projection/attach`，`:323` 至 `:326` 在 attach response 合法后进入 attached/commands ready。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:91` 至 `:96` 收到 attach accepted 后 dispatch `threadRuntimeAttached`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:438` 至 `:460` 的 `rebuildFromSnapshot` 从 snapshot turns 重建 transcript baseline，`:522` 至 `:529` 在 `threadRuntimeAttached` 时调用该路径。
 
 ## 判断
 
-部分完成。历史根因对应的截断路径已不存在，但尚未记录桌面浏览器和手机浏览器在真实运行时刷新旧 URL 后的 payload、Redux state 和 DOM 一致性回归。
+部分完成。历史根因对应的 projection snapshot 截断路径静态看已不存在，但尚未记录桌面浏览器和手机浏览器在真实运行时刷新旧 URL 后的 attach payload、Redux transcript state 和 DOM 一致性回归。
 
 ## 修复记录
 
@@ -44,6 +48,7 @@
 
 - 静态评估确认旧的 `history_items.truncate(cut.history_cursor.item_count())` 截断路径已移除。
 - 已记录回归测试名：`projection_snapshot_preserves_final_after_physical_only_history_item`。
+- 当前只读核对确认 GUI attach response 会进入 `threadRuntimeAttached` 并由 `rebuildFromSnapshot` 重建 transcript baseline；尚未做真实浏览器 payload/Redux/DOM 三点对照。
 
 ## 影响
 

@@ -19,6 +19,8 @@
 - 当时已改的姊妹文件：`codex-rs/tui/src/updates.rs:67`，`const LATEST_RELEASE_URL = "https://api.github.com/repos/jiangshengdev/codex/releases/latest"`。
 - 原始影响面：`fetch_latest_version`(`doctor/updates.rs:147-155`) 对 `Npm | Bun | Standalone | Other` 四种安装方式全部走 `fetch_latest_github_release_version()`(`:157-168`)。
 - 修复复核记录：`GITHUB_LATEST_RELEASE_URL` 已改为 `jiangshengdev/codex`(`doctor/updates.rs:26-27`)，已 grep 复核工作区为该值。
+- 2026-07-09 当前代码补证：`GITHUB_LATEST_RELEASE_URL` 仍指向 `https://api.github.com/repos/jiangshengdev/codex/releases/latest` (`codex-rs/cli/src/doctor/updates.rs:26`)。
+- 2026-07-09 当前代码补证：`fetch_latest_version` 中非 Brew 安装方式仍走 GitHub latest release probe，因而上述常量仍覆盖 `Npm | Bun | Standalone | Other` 路径 (`codex-rs/cli/src/doctor/updates.rs:148`)。
 
 ## 判断
 

@@ -15,6 +15,9 @@
 
 ## 证据
 
+- `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx:13` 的 committed Markdown 路径仍直接使用 `Streamdown`。
+- `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx:13` 的 live Markdown 路径也直接使用 `Streamdown`，并在 `LiveMarkdownText.tsx:18` 设置 `isAnimating`。
+- `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx:14` 至 `:28` 只定制 `inlineCode` 组件；限定证据范围内没有发现 Codex GUI 自定义 clipboard fallback、secure context 检测或 LAN HTTP 特判。
 - Streamdown 的交互控件包含复制能力，复制按钮通常依赖浏览器 `navigator.clipboard`。
 - 现代浏览器的 Clipboard API 要求页面处于 secure context。
 - `http://localhost` 和 `http://127.0.0.1` 通常会被浏览器视为本地安全上下文。
@@ -24,7 +27,7 @@
 
 ## 判断
 
-待验证。最可能的根因是通过局域网 IP 的 HTTP 地址访问 Codex GUI 时，浏览器没有把页面视为 secure context，导致 Streamdown 复制按钮无法使用 Clipboard API。
+待验证。最可能的根因仍是通过局域网 IP 的 HTTP 地址访问 Codex GUI 时，浏览器没有把页面视为 secure context，导致 Streamdown 复制按钮无法使用 Clipboard API。当前静态代码证据只能说明限定路径内没有 GUI 自定义 clipboard/secure context 处理，不能替代真实 LAN HTTP 浏览器验证。
 
 该问题不是 Streamdown 必须运行在公网 HTTPS 下，而是浏览器对剪贴板能力的安全上下文要求。
 

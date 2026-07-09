@@ -21,11 +21,18 @@
 
 ## 证据
 
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:182` 记录 applied event window。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:560` 先检查重复 `commitId`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:564` 在事件分支前写入 applied event window。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:582` `itemStarted` 进入 live slot 分支。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:235` `upsertStartedLiveSlot` 创建 live slot, 已存在时直接返回。
+2026-07-09 当前代码复核:
+
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:162`: `recordAppliedEvent` 写入 `appliedEventIdsById` / `appliedEventOrder`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:533`: `threadRuntimeEventBuffered` 对 `snapshotDuplicate` 直接返回。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:552`: 写入前先检查重复 `commitId`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:545`: 在事件分支前写入 applied event window。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:563`: `itemStarted` 进入 live item 分支。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:220`: `appendStartedLiveItem` 在已有 `turnId + item.id` key 时直接返回。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:234`: 新 live item 的 `transientText` 初始化为空字符串，首次 `agentMessage` started item 是 renderable live state。
+
+历史验证证据:
+
 - `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:44` 覆盖 `itemStarted`
   创建 started live slot 且不创建 committed transcript entry。
 - `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:659` 覆盖
@@ -39,7 +46,7 @@
 chunk, 也不更新 committed scroll key。
 
 仍存在的窄边界是: `recordAppliedEvent` 仍在事件分支前执行。如果同一 `turnId + item.id`
-已经有 live slot, 但又收到不同 `commitId` 的 `itemStarted`, `upsertStartedLiveSlot` 会直接返回,
+已经有 live slot, 但又收到不同 `commitId` 的 `itemStarted`, `appendStartedLiveItem` 会直接返回,
 此时除了 `appliedEventIdsById` / `appliedEventOrder` 外没有新增可渲染状态变化。
 
 ## 影响

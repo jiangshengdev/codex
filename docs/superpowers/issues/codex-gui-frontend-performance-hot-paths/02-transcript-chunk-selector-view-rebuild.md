@@ -21,13 +21,23 @@
 
 ## 证据
 
+2026-07-09 当前代码复核:
+
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:106`: `transcriptChunkViewCache` 仍是 module-private `WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:463`: `selectCachedTranscriptChunkView` 按 chunk object 读取缓存。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:467`: `cachedEntry?.revision === chunk.revision` 时直接返回旧 view。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:482`: cache miss 后写回 `{ revision, view }`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:503`: `selectTranscriptChunk` 仍经由 `selectCachedTranscriptChunkView`。
+
+历史修复前证据:
+
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:59`
 - `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:259`
 - `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts:24`
 
 ## 判断
 
-已修复。unchanged chunk 在无关 Redux 更新后不再重复 materialize `entries`。
+已修复。2026-07-09 复核确认 unchanged chunk 在无关 Redux 更新后仍不会重复 materialize `entries`。
 
 ## 修复记录
 

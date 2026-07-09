@@ -20,6 +20,16 @@
 
 ## 证据
 
+2026-07-09 当前代码复核:
+
+- `codex-gui/src/features/guiHost/guiHostClient.ts:340`: `thread/projection/event` 只调用 `onProjectionEvent?.(notification)`。
+- `codex-gui/src/features/guiHost/guiHostClient.ts:366`: `thread/projection/closed` 只调用 `onProjectionClosed?.(notification)`。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:131`: `onStatus` 仍只接入 lifecycle status。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:156`: projection event 通过 `ProjectionIngressAdapter.handleEvent` 后进入 Redux outcome 路径。
+- `codex-gui/src/App.tsx:11`: `App` 顶层仍保留 lifecycle `status` state，但当前 projection event 不再写入该 state。
+
+历史修复前证据:
+
 - `codex-gui/src/features/guiHost/guiHostClient.ts:343`
 - `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:55`
 - `codex-gui/src/App.tsx:7`
@@ -28,7 +38,7 @@
 
 ## 判断
 
-已修复。projection payload 继续通过 `onProjectionEvent` / `onProjectionClosed` 进入 Redux 路径，但不再额外推动顶层 lifecycle status。
+已修复。2026-07-09 复核确认 projection payload 继续通过 `onProjectionEvent` / `onProjectionClosed` 进入 Redux 路径，但不再额外推动顶层 lifecycle status。
 
 ## 修复记录
 

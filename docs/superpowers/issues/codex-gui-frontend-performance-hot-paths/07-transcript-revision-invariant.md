@@ -31,6 +31,19 @@
 
 ## 证据
 
+2026-07-09 当前代码复核:
+
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts:8`: equality 先比较 `type` / `id` / `turnId` / `revision`。
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts:17`: message entry 在 revision 相同后仍比较 `role` / `source` / `sourceKind` / `phase`。
+- `codex-gui/src/features/committedTranscriptSurface/committedTranscriptChunkEquality.ts:25`: status entry 在 revision 相同后仍比较 `status`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:270`: live `agentMessage` delta 会递增 live item `revision`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:386`: live append 到 middle chunk 时按需递增 chunk `revision`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:424`: existing committed entry update 会把 entry `revision` 设为 `existingEntry.revision + 1`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:434`: existing committed entry update 会递增所属 chunk `revision`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:463`: `selectCachedTranscriptChunkView` 仍以 chunk object 和 chunk `revision` 作为 view cache 失效边界。
+
+历史复核与验证证据:
+
 - `areTranscriptChunkViewsEqual` 在 entry `id` 和 `revision` 相同的情况下, 继续比较部分渲染字段:
   - message: `role`、`source`、`sourceKind`、`phase`
   - status: `status`

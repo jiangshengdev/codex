@@ -7,7 +7,7 @@
 
 ## 摘要
 
-本文记录的两个 projection hidden race finding 均已修复；snapshot/head 时间切片问题已通过 listener 侧 projection history cursor 收敛，projection fanout 阻塞普通 notification 的问题已通过 projection-owned per-thread fanout queue 收敛。
+本文记录的两个 projection hidden race finding 均已修复；当前限定证据支持 attach response 的 head cut 边界已收敛，projection fanout 阻塞普通 notification 的问题已通过 projection-owned per-thread fanout queue 收敛。
 
 ## 问题
 
@@ -35,11 +35,17 @@ Finding 2 的证据:
 - 修复前一个 projection subscriber 的 outgoing 队列积压，会先阻塞 projection event 入队，再阻塞普通 thread notification。多个 projection subscriber 会把每个 thread event 放大成 N+1 条 outgoing envelope，并且 projection 的 N 条排在普通订阅者前面。内部 outgoing channel 容量只有 128，慢 projection consumer 因而可以对原本独立的普通 thread event delivery 形成 head-of-line blocking。
 - 与 `rust-v0.130.0` 的差异: tag 上普通 thread notification 直接发给普通订阅 connection，没有新增 projection fanout 这层前置 await。当前分支修复前把 projection transport backpressure 耦合进了旧有普通 thread event path。
 
+2026-07-09 当前代码补证:
+
+- Snapshot attach 仍通过 `capture_snapshot_cut_if_generation_matches` 在 projection manager 内取得 generation 和当前 `head_commit_id` (`codex-rs/app-server/src/thread_projection.rs:295`)；`read_thread_projection_snapshot_at_cut` 随后仍读取当前 thread view 和 turns-list history (`codex-rs/app-server/src/request_processors/thread_projection.rs:215`, `codex-rs/app-server/src/request_processors/thread_projection.rs:237`)，最后只把 `cut.head_commit_id` 写入 attach snapshot (`codex-rs/app-server/src/request_processors/thread_projection.rs:262`)。
+- Ordinary notification 发送顺序仍是先向 ordinary connection 入队，再调用 projection fanout (`codex-rs/app-server/src/outgoing_message.rs:163`, `codex-rs/app-server/src/outgoing_message.rs:175`)；projection fanout 通过 facade enqueue，不在 ordinary notification 前串行等待 projection delivery 完成 (`codex-rs/app-server/src/outgoing_message.rs:612`)。
+- 回归覆盖仍包含 ordinary-before-projection 顺序测试和 backpressure 不阻塞 ordinary notification 测试 (`codex-rs/app-server/src/outgoing_message.rs:1338`, `codex-rs/app-server/src/outgoing_message.rs:1411`)。
+
 ## 判断
 
 两个 finding 当前均为已修复状态。
 
-Finding 1 已通过 `c810a3dc7 feat(app-server): cut projection snapshots at history cursor` 修复。该修复通过 listener 侧 projection history cursor 捕获 snapshot cut，使 `thread/projection/attach` 返回的 `snapshot.thread` 与 `headCommitId` 来自同一个 listener 已处理的 projection cut。
+Finding 1 当前仍按已修复处理，但本轮限定证据只支持 head cut 边界：attach 侧会在 projection manager 内按 generation 捕获当前 head，并把该 head 写入 `headCommitId`；`snapshot.thread` 仍由当前 thread view/history 读取，不应表述为整个 `snapshot.thread` 与 `headCommitId` 来自同一个 cut。
 
 Finding 2 已通过 projection-owned fanout facade 和 per-thread bounded fanout queue 修复。普通 turn/item notification 仍可能和 projection delivery 共享最终 outgoing channel capacity，但 listener / ordinary notification path 不再等待 projection delivery 完成入队；projection queue full 时会 invalidate 该 thread 的 projection stream，而不是无声丢弃 commit chain 中间事件。
 
@@ -47,7 +53,7 @@ Finding 2 已通过 projection-owned fanout facade 和 per-thread bounded fanout
 
 更新日期: 2026-05-28。
 
-- Finding 1: `c810a3dc7 feat(app-server): cut projection snapshots at history cursor` 通过 listener 侧 projection history cursor 捕获 snapshot cut，使 `thread/projection/attach` 返回的 `snapshot.thread` 与 `headCommitId` 来自同一个 listener 已处理的 projection cut。随后 `4ba8af0c8 fix(app-server): preserve rollout preview derivation` 回退了共享 preview helper 的语义扩张，避免影响上游 read 路径。后续 `6af70d99f Refactor app-server projection runtime test harness` 只重构 runtime 测试样板，不改变修复状态。
+- Finding 1: `c810a3dc7 feat(app-server): cut projection snapshots at history cursor` 引入 projection snapshot cut 相关修复；按 2026-07-09 当前代码复核，现有 cut 只提供 generation/head commit，thread view/history 仍由读取路径当前读取，因此该修复记录按 head cut 边界理解。随后 `4ba8af0c8 fix(app-server): preserve rollout preview derivation` 回退了共享 preview helper 的语义扩张，避免影响上游 read 路径。后续 `6af70d99f Refactor app-server projection runtime test harness` 只重构 runtime 测试样板，不改变修复状态。
 - Finding 2: `8ea5570b1 fix(app-server): route projection hook through fanout` 将 projection hook 接到 projection-owned fanout facade；`d31209dd3 fix(app-server): centralize projection cleanup` 将 thread teardown 的 projection cleanup 收口到同一 facade。
 
 ## 验证记录
