@@ -1,41 +1,45 @@
 # itemStarted 无可见 transcript 变化仍 dirty transcriptState
 
 日期: 2026-06-23
-状态: 🟡 部分过期，仍有窄边界
+状态: ✅ 已修复
 范围: `codex-gui/src/features/transcriptState`
 优先级: 未定
 
 ## 摘要
 
-原始 no-op 判断已部分过期：首次 `itemStarted` 现在会创建 renderable live slot，但仍保留重复 live slot 的窄边界。
+首次 `itemStarted` 仍会创建 renderable live slot，属于预期 live-state 写入；重复 live `itemStarted` 的窄边界已修复。
 
 ## 问题
 
-`threadRuntimeEventBuffered` 进入 `transcriptState` 后会先做 duplicate window 记录, 随后
+修复前，`threadRuntimeEventBuffered` 进入 `transcriptState` 后会先做 duplicate window 记录, 随后
 `itemStarted` 分支直接返回。该事件不会产生 committed entry, 也不会更新当前可见 transcript
 内容, 但此时 `appliedEventIdsById` / `appliedEventOrder` 已经被修改。
 
 这会让 transcript slice 在无可见输出变化时变脏, 触发相关 selector 重新运行。
 
-2026-07-04 评估后，首次 `itemStarted` 不再是纯 no-op；当前窄边界是已有 live slot 但不同 `commitId` 的重复 `itemStarted`。
+2026-07-04 评估后，首次 `itemStarted` 不再是纯 no-op；问题边界收窄为已有 live slot 但不同
+`commitId` 的重复 `itemStarted`。2026-07-09 该窄边界已修复。
 
 ## 证据
 
 2026-07-09 当前代码复核:
 
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:162`: `recordAppliedEvent` 写入 `appliedEventIdsById` / `appliedEventOrder`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:533`: `threadRuntimeEventBuffered` 对 `snapshotDuplicate` 直接返回。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:552`: 写入前先检查重复 `commitId`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:545`: 在事件分支前写入 applied event window。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:563`: `itemStarted` 进入 live item 分支。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:220`: `appendStartedLiveItem` 在已有 `turnId + item.id` key 时直接返回。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:234`: 新 live item 的 `transientText` 初始化为空字符串，首次 `agentMessage` started item 是 renderable live state。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:162`: `recordAppliedEvent` 仍负责写入
+  `appliedEventIdsById` / `appliedEventOrder`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:548`: `threadRuntimeEventBuffered` 现在会在
+  `recordAppliedEvent` 前识别已有 live slot 的 `itemStarted` 并直接返回。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:220`: `hasLiveItem` 复用 live item key 规则，
+  使重复 live `itemStarted` 能按 `turnId + item.id` 判断。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:237`: 新 live item 的 `transientText` 初始化为空字符串，
+  首次 `agentMessage` started item 仍是 renderable live state。
+- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:249`: duplicate live
+  `itemStarted` 覆盖 `transcriptState` identity，证明重复事件是 true no-op。
 
 历史验证证据:
 
-- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:44` 覆盖 `itemStarted`
+- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:47` 覆盖 `itemStarted`
   创建 started live slot 且不创建 committed transcript entry。
-- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:659` 覆盖
+- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:1031` 覆盖
   `snapshotDuplicate` 不触碰 live slots。
 
 ## 判断
@@ -45,9 +49,32 @@
 `selectTranscriptLiveItemsForTurn` 暴露 renderable live item。该路径仍不创建 committed entry /
 chunk, 也不更新 committed scroll key。
 
-仍存在的窄边界是: `recordAppliedEvent` 仍在事件分支前执行。如果同一 `turnId + item.id`
-已经有 live slot, 但又收到不同 `commitId` 的 `itemStarted`, `appendStartedLiveItem` 会直接返回,
-此时除了 `appliedEventIdsById` / `appliedEventOrder` 外没有新增可渲染状态变化。
+2026-07-09 判断:该 issue 已修复。首次 `itemStarted` dirty `transcriptState` 属于预期的 renderable
+live slot 写入；同一 `turnId + item.id` 已存在 live slot 时，重复 live `itemStarted` 会在
+`recordAppliedEvent` 前返回，不再写入 applied-event window，也不改变 renderable transcript state。
+
+## 修复记录
+
+2026-07-09:
+
+- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts` 中 duplicate live
+  `itemStarted` 测试新增 `transcriptState` identity 断言，证明重复事件必须 true no-op。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts` 在 `ensureLiveItemsForTurn` 后新增
+  `hasLiveItem` helper。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts` 的 `threadRuntimeEventBuffered` reducer 在
+  `recordAppliedEvent` 前对已有 live slot 的 `itemStarted` 直接 `return`，使不同 `commitId` 但同
+  `turnId + item.id` 的 duplicate live `itemStarted` 不再写入 applied-event window，也不改变 renderable
+  transcript state。
+
+## 验证记录
+
+- 在 `/Users/jiangsheng/cnb/codex/codex-gui` 运行
+  `/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts`:
+  exit 0，`Test Files 1 passed (1)`, `Tests 28 passed (28)`, `Type Errors no errors`。
+- 在 `/Users/jiangsheng/cnb/codex/codex-gui` 运行
+  `/opt/homebrew/bin/fnm exec --using-file pnpm run format:oxfmt`: exit 0，`All matched files use the correct format.`。
+- 在 `/Users/jiangsheng/cnb/codex/codex-gui` 运行
+  `/opt/homebrew/bin/fnm exec --using-file pnpm run type-check`: exit 0，`tsc -b --noEmit` 无错误。
 
 ## 影响
 
@@ -55,13 +82,10 @@ chunk, 也不更新 committed scroll key。
 变化”的问题。对 committed transcript 输出而言, 当前仍不创建 entry/chunk, 且 chunk view / live item
 view 缓存降低了下游重算成本。
 
-残留影响集中在重复 live slot 的不同 `commitId` `itemStarted`: 该事件不会改变 live slot 或 committed
-transcript 输出, 但仍会更新 applied event window, 使 `transcriptState` 变脏。
+重复 live slot 的不同 `commitId` `itemStarted` 现在不会改变 live slot 或 committed transcript 输出，
+也不会更新 applied event window；该 issue 无已知残留影响。
 
 ## 后续处理
 
-复核 `transcriptState` 的 renderable-state 边界:
-
-- 保留首次 `itemStarted` 写入 live slot 的 renderable-state 边界。
-- 如需继续收敛该问题, 进入设计/计划阶段，只处理“已有 live slot + 不同 `commitId` 的重复 `itemStarted`”这一窄边界。
-- 继续区分 `ProjectionIngressAdapter` 的 commit-chain 去重和 `transcriptState` 的 reducer 幂等窗口。
+该 issue 无剩余处理项。未来如果触碰 live item indexing 或 stale-index 防御，可另开 issue 记录新的问题边界；
+本 issue 不再写 implementation plan。

@@ -217,6 +217,9 @@ const ensureLiveItemsForTurn = (
   return items;
 };
 
+const hasLiveItem = (state: TranscriptState, turnId: string, itemId: string): boolean =>
+  state.liveItemIndexByKey[liveItemKey(turnId, itemId)] != null;
+
 const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: ThreadItem) => {
   const key = liveItemKey(turnId, item.id);
   if (state.liveItemIndexByKey[key] != null) {
@@ -540,6 +543,13 @@ export const transcriptStateSlice = createAppSlice({
 
         if (hasAppliedEvent(state, notification.commitId)) {
           return;
+        }
+
+        if (notification.event.type === "itemStarted") {
+          const { item, turnId } = notification.event.notification;
+          if (hasLiveItem(state, turnId, item.id)) {
+            return;
+          }
         }
 
         recordAppliedEvent(state, notification.commitId);

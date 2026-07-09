@@ -232,6 +232,8 @@ describe("transcript state live events reducer", () => {
         replay: "live",
       }),
     );
+    const beforeDuplicateState = store.getState().transcriptState;
+
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
@@ -243,6 +245,9 @@ describe("transcript state live events reducer", () => {
         replay: "live",
       }),
     );
+
+    expect(store.getState().transcriptState).toBe(beforeDuplicateState);
+
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
