@@ -8,15 +8,17 @@ import {
   streamdownRehypePlugins,
 } from "./markdownRendering";
 
-export const MarkdownText = ({ source }: { source: string }) => (
-  <div className={markdownContainerClassName}>
+export const LiveMarkdownText = ({ source }: { source: string }) => (
+  <div className={`${markdownContainerClassName} committed-transcript-live-markdown`}>
     <Streamdown
       allowElement={allowMarkdownElement}
+      caret="block"
       className={markdownStreamdownClassName}
       components={streamdownComponents}
+      isAnimating
       linkSafety={{ enabled: false }}
       lineNumbers={false}
-      mode="static"
+      mode="streaming"
       plugins={streamdownPlugins}
       rehypePlugins={streamdownRehypePlugins}
       skipHtml
