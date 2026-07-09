@@ -293,7 +293,8 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
 test("App batches accepted projection deltas until the next animation frame", async () => {
   vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
   try {
-    const { store } = await renderWithProviders(<App />);
+    const screen = await renderWithProviders(<App />);
+    const { store } = screen;
     const options = getHostOptions(startGuiHostConnectionMock);
     const initialItem = agentMessage("agent-raf-batch", "");
 
@@ -333,6 +334,8 @@ test("App batches accepted projection deltas until the next animation frame", as
 
     vi.advanceTimersToNextFrame();
 
+    await expect.element(screen.getByText("Hello world")).toBeVisible();
+
     expect(
       selectTranscriptLiveItem(store.getState(), "turn-raf-batch", "agent-raf-batch"),
     ).toStrictEqual({
@@ -342,7 +345,7 @@ test("App batches accepted projection deltas until the next animation frame", as
       status: "streaming",
       initialItem,
       transientText: "Hello world",
-      revision: 2,
+      revision: 1,
     });
   } finally {
     vi.useRealTimers();
