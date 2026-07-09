@@ -1,49 +1,37 @@
 # Projection delta Redux action 频率热路径
 
 日期:2026-07-06
-状态:未修复
-范围:`codex-gui/src/features/transcriptState`
+更新:2026-07-09
+状态:部分过期
+范围:`codex-gui/src/features/appShell`, `codex-gui/src/features/threadRuntime`, `codex-gui/src/features/transcriptState`
 
 ## 问题摘要
 
-`thread/projection/delta` 已接入 GUI 后, 每个 transient agent message delta 都会作为一次
-Redux action 进入 `transcriptState`:
+原始问题假设是: `thread/projection/delta` 接入 GUI 后, 每个 transient agent message delta 都会作为一次 Redux action 进入 `transcriptState`, 从而把 Redux action 投递、Immer reducer 写入和 store subscription 通知绑定到网络 delta 频率。
 
-```ts
-.addCase(threadRuntimeDeltaAccepted, (state, action) => {
-  const { notification } = action.payload;
-  if (state.threadId !== notification.threadId) {
-    return;
-  }
+当前 03 实现已改变 action 投递边界。`GuiHostConnectionBridge` 会先收集 delta notifications, 再用 `requestAnimationFrame` flush 为一个 `threadRuntimeDeltasAccepted({ notifications })` batch action；attach/event/reconnect 边界前也会同步 flush pending delta。因此 action 投递和 store subscription 频率不再固定等于 delta 数 `D`, 而是非空 batch flush 数 `F`。
 
-  switch (notification.delta.type) {
-    case "agentMessage": {
-      const { turnId, itemId, delta } = notification.delta.notification;
-      appendAgentMessageDeltaToLiveSlot(state, turnId, itemId, delta);
-      return;
-    }
-  }
-})
-```
+残留边界是 batch reducer 内仍逐 notification 应用 delta。对 `agentMessage` delta, `transcriptStateSlice` 仍会查找 live item, 拼接 `transientText`, 更新 `status`, 递增 item `revision` 和 `liveScrollPulse`。因此该 issue 的原 action-frequency finding 已部分过期, 但 batch 内仍存在 `O(D)` 次同步 reducer 处理；字符串拼接成本另见 `09-projection-delta-transient-text-concat.md`。
 
-如果后端按 token 或小 chunk 高频发送 delta, 前端会对每个 delta 执行一次 Redux dispatch、
-一次 Immer reducer 写入和一次 store subscription 通知。即使实际 UI 只需要按帧刷新, 当前链路也会把
-渲染数据更新频率绑定到网络 delta 频率。
+## 当前证据
 
-## 原始证据
-
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:590`
-- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:62`
-- `codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts:123`
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:47`: bridge 维护 `pendingDeltaNotifications`。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:61`: `flushPendingDeltas` 将累计 notifications 作为一个 `threadRuntimeDeltasAccepted` action 投递。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:73`: `schedulePendingDeltaFlush` 使用 `requestAnimationFrame`。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:84`: `enqueueProjectionDelta` 只入队并安排 flush。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:109`: `deltaAccepted` 走 `enqueueProjectionDelta`。
+- `codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts:127`: 单 delta action 在 runtime slice 中是跨 slice 信号。
+- `codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts:131`: batch delta action 在 runtime slice 中也是跨 slice 信号。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:257`: 每个 `agentMessage` delta 写 live item、revision 和 `liveScrollPulse`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:571`: batch action 内逐 notification 调用 `applyAcceptedProjectionDelta`。
+- `docs/superpowers/reports/2026-07-09-codex-gui-03-performance-check/01-03-hot-paths.md:19`: 03 performance check 将该切片校准为 `部分过期`。
 
 ## 当前判断
 
-`threadRuntimeSlice.ts` 的 `threadRuntimeDeltaAccepted` 自身不改 runtime buffer, 只是跨 slice
-信号。真正的高频状态写入发生在 `transcriptStateSlice.ts`。
+该 issue 不应继续表述为“每个 delta 一次 Redux action / subscription”。当前 action 投递和 subscription 成本为 `O(F)`, reducer 内逐 delta 应用仍为 `O(D)` 次同步处理。
 
-## 建议方向
+`threadRuntimeSlice.ts` 的 delta actions 自身只是跨 slice 信号；真正的 per-delta transcript 写入发生在 `transcriptStateSlice.ts` 的 batch reducer 循环内。
 
-1. 不要把每个 delta 都直接落进 Redux 状态并触发 React 订阅链路。
-2. 评估在 Redux 外做 live text buffer, 再按帧或节流批量提交可渲染状态。
-3. 保持 `itemStarted -> delta -> itemCompleted` 的语义边界: event 建 slot, delta 更新临时文本,
-   completed item 仍是最终权威内容。
+## 后续处理
+
+如需继续处理 batch 内 per-delta 同步 reducer 成本, 应单独进入设计或计划阶段。本 issue 只记录当前复杂度边界和证据, 不给代码改动方向。
