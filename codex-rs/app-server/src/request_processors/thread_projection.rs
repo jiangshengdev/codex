@@ -409,6 +409,7 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*initial_config_warnings*/ Vec::new(),
         );
 
         let new_thread = thread_manager.start_thread(config.as_ref().clone()).await?;
@@ -713,6 +714,7 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*initial_config_warnings*/ Vec::new(),
         );
 
         let thread_id = thread_manager

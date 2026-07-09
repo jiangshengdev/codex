@@ -48,12 +48,12 @@ use crate::transport::start_remote_control;
 use crate::transport::start_stdio_connection;
 use crate::transport::start_websocket_acceptor;
 use codex_analytics::AppServerRpcTransport;
-use codex_app_server_protocol::ConfigLayerSource;
 use codex_app_server_protocol::ConfigWarningNotification;
 use codex_app_server_protocol::JSONRPCMessage;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::TextPosition as AppTextPosition;
 use codex_app_server_protocol::TextRange as AppTextRange;
+use codex_config::ConfigLayerSource;
 use codex_config::ConfigLoadError;
 use codex_config::TextRange as CoreTextRange;
 use codex_core::ExecPolicyError;
@@ -81,11 +81,14 @@ use tracing_subscriber::util::SubscriberInitExt;
 const SQLITE_RECOVERY_CONFIG_WARNING_SUMMARY: &str = "Codex rebuilt its local database.";
 
 mod analytics_utils;
+mod app_info;
 mod app_server_tracing;
 mod attestation;
+mod auth_mode;
 mod bespoke_event_handling;
 mod command_exec;
 mod config;
+mod config_layer;
 mod config_manager;
 mod config_manager_service;
 mod connection_cleanup;
@@ -101,6 +104,7 @@ mod gui_connection_bridge;
 mod gui_host;
 mod gui_launch_service;
 mod gui_transport;
+mod image_url;
 pub mod in_process;
 mod in_process_extra;
 mod mcp_refresh;
@@ -334,6 +338,16 @@ fn exec_policy_warning_location(err: &ExecPolicyError) -> (Option<String>, Optio
             (Some(path.clone()), None)
         }
         _ => (None, None),
+    }
+}
+
+fn exec_policy_config_warning(err: &ExecPolicyError) -> ConfigWarningNotification {
+    let (path, range) = exec_policy_warning_location(err);
+    ConfigWarningNotification {
+        summary: "Error parsing rules; custom rules not applied.".to_string(),
+        details: Some(err.to_string()),
+        path,
+        range,
     }
 }
 
@@ -629,14 +643,7 @@ pub async fn run_main_with_transport_options(
     }
 
     if let Ok(Some(err)) = check_execpolicy_for_warnings(&config.config_layer_stack).await {
-        let (path, range) = exec_policy_warning_location(&err);
-        let message = ConfigWarningNotification {
-            summary: "Error parsing rules; custom rules not applied.".to_string(),
-            details: Some(err.to_string()),
-            path,
-            range,
-        };
-        config_warnings.push(message);
+        config_warnings.push(exec_policy_config_warning(&err));
     }
 
     if let Some(warning) = project_config_warning(&config) {
@@ -938,7 +945,7 @@ pub async fn run_main_with_transport_options(
         async move {
             let mut listen_for_threads = true;
             let mut shutdown_state = ShutdownState::default();
-            loop {
+            let exit_reason = loop {
                 let running_turn_count = {
                     let running_turn_count = running_turn_count_rx.borrow();
                     *running_turn_count
@@ -951,7 +958,7 @@ pub async fn run_main_with_transport_options(
                     let _ = outbound_control_tx
                         .send(OutboundControlEvent::DisconnectAll)
                         .await;
-                    break;
+                    break "shutdown_requested";
                 }
 
                 tokio::select! {
@@ -973,7 +980,7 @@ pub async fn run_main_with_transport_options(
                     }
                     event = transport_event_rx.recv() => {
                         let Some(event) = event else {
-                            break;
+                            break "transport_channel_closed";
                         };
                         match event {
                             TransportEvent::ConnectionOpened {
@@ -1003,7 +1010,7 @@ pub async fn run_main_with_transport_options(
                                     .await
                                     .is_err()
                                 {
-                                    break;
+                                    break "outbound_router_closed";
                                 }
                                 connections.insert(
                                     connection_id,
@@ -1031,10 +1038,10 @@ pub async fn run_main_with_transport_options(
                                         .await;
                                 });
                                 if !outbound_closed {
-                                    break;
+                                    break "outbound_router_closed";
                                 }
                                 if shutdown_when_no_connections && connections.is_empty() {
-                                    break;
+                                    break "last_connection_closed";
                                 }
                             }
                             TransportEvent::IncomingMessage { connection_id, message } => {
@@ -1173,7 +1180,7 @@ pub async fn run_main_with_transport_options(
                         }
                     }
                 }
-            }
+            };
 
             if !shutdown_state.forced() {
                 futures::future::join_all(
@@ -1188,7 +1195,12 @@ pub async fn run_main_with_transport_options(
             } else {
                 connection_cleanup_tasks.abort();
             }
-            info!("processor task exited (channel closed)");
+            info!(
+                exit_reason,
+                remaining_connection_count = connections.len(),
+                shutdown_forced = shutdown_state.forced(),
+                "processor task exited"
+            );
         }
     });
 
