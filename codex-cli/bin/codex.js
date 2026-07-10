@@ -100,7 +100,7 @@ function findCodexExecutable() {
     packageManager === "bun"
       ? "bun install -g @jiangshengdev/codex@latest"
       : packageManager === "pnpm"
-        ? "pnpm add -g @openai/codex@latest"
+        ? "pnpm add -g @jiangshengdev/codex@latest"
         : "npm install -g @jiangshengdev/codex@latest";
   throw new Error(
     `Missing optional dependency ${platformPackage}. Reinstall Codex: ${updateCommand}`,
@@ -122,7 +122,7 @@ function isPnpmOwnedCodexInstall(nodeModulesDir) {
 
   try {
     return (
-      realpathSync(path.join(nodeModulesDir, "@openai", "codex")) ===
+      realpathSync(path.join(nodeModulesDir, "@jiangshengdev", "codex")) ===
       codexPackageRoot
     );
   } catch {

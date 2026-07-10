@@ -139,7 +139,7 @@ fn update_action_label(context: &InstallContext) -> &'static str {
     match &context.method {
         InstallMethod::Npm => "npm install -g @jiangshengdev/codex",
         InstallMethod::Bun => "bun install -g @jiangshengdev/codex",
-        InstallMethod::Pnpm => "pnpm add -g @openai/codex",
+        InstallMethod::Pnpm => "pnpm add -g @jiangshengdev/codex",
         InstallMethod::Brew => "brew upgrade --cask codex",
         InstallMethod::Standalone { .. } => "standalone installer",
         InstallMethod::Other => "manual or unknown",
@@ -236,7 +236,7 @@ mod tests {
                 method: InstallMethod::Pnpm,
                 package_layout: None,
             }),
-            "pnpm add -g @openai/codex"
+            "pnpm add -g @jiangshengdev/codex"
         );
         assert_eq!(
             update_action_label(&InstallContext {
