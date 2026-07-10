@@ -1,0 +1,11 @@
+---
+source: tui/src/history_cell/tests.rs
+expression: rendered
+---
+╭────────────────────────────────────────────────────────╮
+│ ✨ Update available! 0.0.0 -> 9.9.9                    │
+│ Run pnpm add -g @jiangshengdev/codex to update.        │
+│                                                        │
+│ See full release notes:                                │
+│ https://github.com/jiangshengdev/codex/releases/latest │
+╰────────────────────────────────────────────────────────╯
