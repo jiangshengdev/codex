@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::Result;
-use app_test_support::TestAppServer as McpProcess;
+use app_test_support::TestAppServer;
 use app_test_support::create_final_assistant_message_sse_response;
 use app_test_support::create_mock_responses_server_sequence_unchecked;
 use app_test_support::create_streaming_assistant_message_sse_response;
@@ -47,7 +47,11 @@ async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result
         "compact",
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
     timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
     let thread = start_thread(&mut mcp).await?;
 
@@ -115,7 +119,11 @@ async fn thread_projection_emits_commit_chain() -> Result<()> {
         "compact",
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
     timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
     let thread = start_thread(&mut mcp).await?;
 
@@ -180,7 +188,11 @@ async fn thread_projection_emits_transient_agent_message_delta_without_advancing
         "compact",
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
     timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
     let thread = start_thread(&mut mcp).await?;
 
@@ -283,7 +295,11 @@ async fn thread_projection_emits_reasoning_lifecycle_and_deltas() -> Result<()> 
         "compact",
     )?;
 
-    let mut mcp = McpProcess::new(codex_home.path()).await?;
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
     timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
     let thread = start_thread(&mut mcp).await?;
 
@@ -395,7 +411,7 @@ async fn thread_projection_emits_reasoning_lifecycle_and_deltas() -> Result<()> 
     Ok(())
 }
 
-async fn start_thread(mcp: &mut McpProcess) -> Result<codex_app_server_protocol::Thread> {
+async fn start_thread(mcp: &mut TestAppServer) -> Result<codex_app_server_protocol::Thread> {
     let start_id = mcp
         .send_thread_start_request(ThreadStartParams {
             model: Some("mock-model".to_string()),
@@ -411,7 +427,9 @@ async fn start_thread(mcp: &mut McpProcess) -> Result<codex_app_server_protocol:
     Ok(thread)
 }
 
-async fn read_projection_event(mcp: &mut McpProcess) -> Result<ThreadProjectionEventNotification> {
+async fn read_projection_event(
+    mcp: &mut TestAppServer,
+) -> Result<ThreadProjectionEventNotification> {
     let notification: JSONRPCNotification = timeout(
         DEFAULT_READ_TIMEOUT,
         mcp.read_stream_until_notification_message("thread/projection/event"),
@@ -420,7 +438,7 @@ async fn read_projection_event(mcp: &mut McpProcess) -> Result<ThreadProjectionE
     projection_event_from_notification(notification)
 }
 
-async fn read_next_projection_notification(mcp: &mut McpProcess) -> Result<JSONRPCNotification> {
+async fn read_next_projection_notification(mcp: &mut TestAppServer) -> Result<JSONRPCNotification> {
     let notification: JSONRPCNotification = timeout(
         DEFAULT_READ_TIMEOUT,
         mcp.read_stream_until_matching_notification(
@@ -438,7 +456,7 @@ async fn read_next_projection_notification(mcp: &mut McpProcess) -> Result<JSONR
 }
 
 async fn read_projection_event_until_item_started(
-    mcp: &mut McpProcess,
+    mcp: &mut TestAppServer,
     thread_id: &str,
     subscription_id: &str,
     item_id: &str,
@@ -505,7 +523,9 @@ fn projection_event_from_notification(
     Ok(serde_json::from_value(params)?)
 }
 
-async fn read_projection_delta(mcp: &mut McpProcess) -> Result<ThreadProjectionDeltaNotification> {
+async fn read_projection_delta(
+    mcp: &mut TestAppServer,
+) -> Result<ThreadProjectionDeltaNotification> {
     let notification = read_next_projection_notification(mcp).await?;
     projection_delta_from_notification(notification)
 }
