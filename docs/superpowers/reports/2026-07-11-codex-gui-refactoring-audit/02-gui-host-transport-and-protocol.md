@@ -15,10 +15,32 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 状态：完成。
 
 - `02` 拥有 launch params、token storage、浏览器 URL 清理和 transport/protocol 边界的完整证据。
-- `03` 只接收 connection/notification handoff；本报告不审计连接状态进入 Redux 后的 lifecycle、projection ingress 或 thread runtime。
-- `07` 拥有 QR/access UI 和 QR URL 构造；本报告只记录 `LaunchParams` 是其上游输入，不重审其组件职责。
 - Rust GUI host 仅作为前端 launch URL/token 外部契约的定义侧证据；不评价 Rust 内部重构机会。
 - 禁止扩张：timeline、transcript、Redux state shape 和协议重设计。
+
+### Runtime/ingress 交界
+
+- 交界引用: [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)
+- 本报告仅使用的交界事实: `02` 输出 typed connection/notification handoff；连接状态进入 Redux 后的 lifecycle、projection ingress 与 thread runtime 由 `03` 拥有。
+- Evidence owner: `03-projection-ingress-and-thread-runtime.md`
+
+### QR/access 交界
+
+- 交界引用: [RA-07-004](./07-composer-access-and-localization.md#ra-07-004)
+- 本报告仅使用的交界事实: QR/access UI 与 QR URL 构造消费 `LaunchParams`，但其组件和 URL builder 职责不属于 `02`。
+- Evidence owner: `07-composer-access-and-localization.md`
+
+### Timeline materials 交界
+
+- 交界引用: [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001)
+- 本报告仅使用的交界事实: `02` 只拥有 wire decode 与 typed notification 输出；timeline/domain 转换位于该 handoff 下游。
+- Evidence owner: `04-timeline-materials-and-domain-models.md`
+
+### 测试基础设施交界
+
+- 交界引用: [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002)
+- 本报告仅使用的交界事实: GUI host tests 为 transport/protocol 行为提供证据；跨 feature test harness owner 由 `08` 审计。
+- Evidence owner: `08-test-infrastructure-fixtures-and-support.md`
 
 ## 审计进度
 
@@ -35,7 +57,9 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 
 ### RA-02-001 Launch params 生命周期被嵌入 transport owner
 
-- **主报告与 evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有浏览器 launch params、token storage 和 URL 清理边界的完整证据。
+- **Finding ID：** `RA-02-001`。
+- **主报告：** `02-gui-host-transport-and-protocol.md`。
+- **Evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有浏览器 launch params、token storage 和 URL 清理边界的完整证据。
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
 - **结论摘要：** `LaunchParams`、launch URL 解析、token 会话恢复和 fragment 清理具有独立、稳定的领域生命周期，但当前由 `guiHostClient.ts` 与 WebSocket transport 共同拥有。该边界还被 App 和 QR/access 消费，导致上层 UI 通过 transport 实现文件依赖启动契约。
@@ -64,17 +88,19 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - `codex-gui/src/features/guiHost/__tests__/guiHostLaunchParams.test.ts:14-65`：完整行为边界。
   - `codex-gui/src/features/guiHost/guiHostProtocol.ts:8-220`：protocol 文件拥有 JSON-RPC parsing/validation，反证 launch 语义不属于 wire adapter。
   - `codex-gui/src/App.tsx:10-24`、`codex-gui/src/features/qrAccess/QrAccessPopover.tsx:13-27`：transport 外的实际消费者。
-- **关联的既有报告、issue 或专项设计：** 依据 `docs/superpowers/specs/2026-07-11-codex-gui-refactoring-audit-design.md` 的 `02` evidence ownership；无关联 issue 或已有专项设计。QR/access 内部职责仍由 `07-composer-access-and-localization.md` 拥有。
+- **关联的既有报告、issue 或专项设计：** 审计 ownership 依据 `docs/superpowers/specs/2026-07-11-codex-gui-refactoring-audit-design.md`；QR/access 内部职责见 [RA-07-004](./07-composer-access-and-localization.md#ra-07-004)。无关联 issue。
 - **已排除项：** 未把 token 按 thread 分键列为缺陷，因为当前外部契约显示 token 由 GUI host 生成并持有；未把 storage `getItem` 异常缺少专门降级测试升级为独立 finding；本 finding 不拥有 transport/handshake/protocol、Redux/thread runtime 或 Rust 内部结构。
 - **报告建议：** 进入后续独立设计，先确定 launch params owner 和允许的依赖方向，再规划任何代码移动。
 
 ### RA-02-002 Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合
 
-- **主报告与 evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有 WebSocket transport、请求关联、握手状态、commands readiness 和连接关闭边界的完整证据。
+- **Finding ID：** `RA-02-002`。
+- **主报告：** `02-gui-host-transport-and-protocol.md`。
+- **Evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有 WebSocket transport、请求关联、握手状态、commands readiness 和连接关闭边界的完整证据。
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
 - **结论摘要：** `startGuiHostConnection` 使用同一组闭包状态同时管理 WebSocket 生命周期、通用 JSON-RPC request correlation、握手推进、status 单调性、commands availability 和 teardown。最脆弱的耦合是握手阶段由全局 request ID `1/2/3` 隐式编码，而 pending request 只记录是否为终端错误，没有记录请求方法或握手阶段。
-- **当前 owner 与当前职责：** `guiHostClient.ts` 的单一连接函数创建 socket，维护 `terminalError`、`closed`、`nextRequestId`、`pendingRequests` 和 `commandsReady`，构造 handshake/command 请求，处理全部 socket 事件和响应，并负责 cleanup。外部 `GuiHostConnectionBridge` 只接收 connection/notification handoff；其 Redux 和 runtime 状态归报告 `03`。
+- **当前 owner 与当前职责：** `guiHostClient.ts` 的单一连接函数创建 socket，维护 `terminalError`、`closed`、`nextRequestId`、`pendingRequests` 和 `commandsReady`，构造 handshake/command 请求，处理全部 socket 事件和响应，并负责 cleanup。外部 `GuiHostConnectionBridge` 只接收 connection/notification handoff；其 Redux 和 runtime 状态见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)。
 - **问题类型：** 职责混合、状态契约、依赖方向。
 - **影响文件、定义侧、构造方、调用方和消费方：**
   - 定义侧：`codex-gui/src/features/guiHost/guiHostClient.ts:93-117` 定义连接入口并创建共享 session 状态；`guiHostClient.ts:390-394` 的 `PendingRequest` 只保留 `terminalOnError`、resolve 和 reject。
@@ -102,7 +128,7 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - `codex-gui/src/features/guiHost/__tests__/guiHostCommands.test.ts:20-76`：覆盖 ready commands 与非终端 command error；同文件 `78-145` 覆盖 cleanup、socket error/close 和终端 protocol error 下的 pending rejection 与 commands invalidation。
   - `codex-gui/src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts:13-80`：覆盖 cleanup 抑制和 terminal status 单调性；同文件 `82-112` 覆盖 malformed message 与 policy close。
   - `codex-gui/src/features/guiHost/__tests__/guiHostClientTestSupport.ts:88-214`：提供 raw socket、RPC result/error、未完成握手 connection 和 commands-ready 四层测试支持。
-- **关联的既有报告、issue 或专项设计：** 无关联 issue 或已有专项设计。连接和 notification 进入 Redux 后的生命周期归 `03-projection-ingress-and-thread-runtime.md`；测试基础设施跨 feature 归属由 `08-test-infrastructure-fixtures-and-support.md` 审计。
+- **关联的既有报告、issue 或专项设计：** 连接和 notification 进入 Redux 后的生命周期见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)；测试基础设施边界见 [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002)。无关联 issue 或已有专项设计。
 - **已排除项：** 不拥有 bridge 内的 Redux dispatch、projection ingress、snapshot index 或 reconnect；notification parsing/validators 和公共类型 owner 分别由 `RA-02-003` 与本报告 owner 总结覆盖；未将 duplicate/out-of-order response 测试缺口升级为 bug。
 - **报告建议：** 进入后续独立设计，显式确定 transport session、handshake 和 command readiness 的 owner 及依赖方向。
 
@@ -111,11 +137,13 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 - `RecordingWebSocket` 是 GUI host client 测试所需的最小 socket fake。
 - `startGuiHostConnectionWithSocket` 表达“已创建但未完成握手”，`startConnectionUntilCommandsReady` 表达“完整握手成功且 commands ready”；后者具有明确的阶段后置条件，不是表面重复。
 - `sendAuthenticateResult`、`sendInitializeResult` 和 `sendAttachResult` 显式表达协议阶段，当前不建议合并为宽泛公共 helper。
-- 本报告将这些 helper 记录为非 finding；是否存在跨 feature 测试基础设施边界由报告 `08` 独立审计。
+- 本报告将这些 helper 记录为非 finding；跨 feature 测试基础设施边界见 [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002)。
 
 ### RA-02-003 Runtime protocol guards 声明强于实际验证范围
 
-- **主报告与 evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有 GUI host runtime wire parsing、projection guards、command response trust 和 protocol error 边界的完整证据。
+- **Finding ID：** `RA-02-003`。
+- **主报告：** `02-gui-host-transport-and-protocol.md`。
+- **Evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有 GUI host runtime wire parsing、projection guards、command response trust 和 protocol error 边界的完整证据。
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
 - **结论摘要：** `guiHostProtocol.ts` 已经是正确的 feature-private runtime protocol owner，但其 type guards 声明返回完整 `@codex-protocol/v2` 类型，实际只检查前端当前消费的部分字段；command success response 则通过泛型断言直接视为生成类型。wire contract、runtime validation 与 transport consumption 之间缺少明确的“完整验证或收窄 DTO”边界。
@@ -125,7 +153,7 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - 定义侧：`codex-gui/src/features/guiHost/guiHostProtocol.ts:8-220`；生成 wire 类型位于 `codex-rs/app-server-protocol/schema/typescript/v2/**`。
   - 构造方：`guiHostProtocol.ts:19-45` 构造内部 `RpcMessage`；`47-208` 的 guards 将 `unknown` 收窄为生成类型；`guiHostClient.ts:164-185` 将 command result 断言为泛型 response。
   - 调用方：`guiHostClient.ts:239-368` 是 parser/guards 的唯一生产调用者；commands 构造位于 `205-208`。
-  - 消费方：projection callbacks 和 ready command API 消费 typed payload；connection/notification 进入 Redux 后只作为报告 `03` handoff。
+  - 消费方：projection callbacks 和 ready command API 消费 typed payload；connection/notification 进入 Redux 后只作为 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) handoff。
 - **共同语义或变化原因：** wire contract 由生成类型定义；runtime boundary 必须明确保证“完整生成类型”或只保证“前端已验证的最小 DTO”。当前 guards 采用后者的检查范围，却采用前者的返回类型；command success payload 又采用第三种完全信任策略。
 - **推荐边界、建议 owner 和允许的依赖方向：** 保持 `guiHostProtocol.ts` 为 runtime protocol owner。后续设计应在该边界明确选择完整验证生成 wire 类型，或转换为只包含已验证字段的 frontend-owned DTO。依赖方向只能是 generated wire contract → runtime decoder/adapter → transport client → connection/notification handoff；transport、Redux 和 thread runtime 不自行补充 wire shape 判断。
 - **预期收益：** 防止生成 contract 漂移后 guards 继续错误声称完整类型；统一 projection callback 与 command response 的信任策略；让 malformed payload 测试直接对应 runtime boundary，而不是散落在 transport 分支。
@@ -149,7 +177,7 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - `codex-gui/src/features/guiHost/__tests__/guiHostHandshake.test.ts:155-296`：四类 malformed projection payload。
   - `codex-gui/src/features/guiHost/__tests__/guiHostCommands.test.ts:20-76`：command wire request、success 和非终端 error。
   - `codex-gui/src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts:31-112`：JSON-RPC error、malformed JSON 和 close policy。
-- **关联的既有报告、issue 或专项设计：** 无关联 issue 或已有专项设计。connection/notification 进入 Redux 后归 `03-projection-ingress-and-thread-runtime.md`；timeline/domain 转换归 `04-timeline-materials-and-domain-models.md`。
+- **关联的既有报告、issue 或专项设计：** connection/notification 进入 Redux 后见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)；timeline/domain 转换见 [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001)。无关联 issue 或已有专项设计。
 - **已排除项：** 不把 `guiHostProtocol.ts` 本身视为错误 owner；不建议把 validators 移入 transport 或新增宽泛 shared/common protocol 层；不将当前未覆盖场景宣称为已复现 bug。
 - **报告建议：** 进入后续独立设计，明确 runtime decoder 的保证范围、返回类型和单向依赖。
 
@@ -170,19 +198,19 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 | `guiHostHandshake.test.ts` | happy handshake、status、projection forwarding、四类 malformed payload | `RA-02-002` 与 `RA-02-003` |
 | `guiHostCommands.test.ts` | command methods/params/result、非终端 error、pending rejection、commands unavailable | `RA-02-002` 与 `RA-02-003`；malformed success response 为后续验证风险 |
 | `guiHostProtocolErrors.test.ts` | handshake error、terminal status、malformed JSON、policy close | `RA-02-002` 与 `RA-02-003`；valid non-object/version mismatch 为后续验证风险 |
-| `guiHostClientTestSupport.ts` | socket fake、RPC helpers、raw connection、commands-ready setup | 已审核；分层 helper 语义不同，非 finding；跨 feature 基础设施归报告 `08` |
+| `guiHostClientTestSupport.ts` | socket fake、RPC helpers、raw connection、commands-ready setup | 已审核；分层 helper 语义不同，非 finding；跨 feature 基础设施见 [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002) |
 
 ## 已排除项
 
 状态：完成。
 
 - `guiHostProtocol.ts` 不拥有 launch 参数、token storage 或 URL 清理语义；其职责限定为 runtime protocol decoding/validation。
-- `GuiHostConnectionBridge` 只作为 connection/notification handoff 交界；其中 Redux dispatch、projection ingress、snapshot replay、reconnect 和 runtime 生命周期统一归 `03`。
-- QR UI、popover 交互和 QR URL builder 内部组织归 `07`；本报告只记录其对 `LaunchParams` 的消费依赖。
+- `GuiHostConnectionBridge` 只作为 connection/notification handoff 交界；其中 Redux dispatch、projection ingress、snapshot replay、reconnect 和 runtime 生命周期见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)。
+- QR UI、popover 交互和 QR URL builder 内部组织见 [RA-07-004](./07-composer-access-and-localization.md#ra-07-004)；本报告只记录其对 `LaunchParams` 的消费依赖。
 - Rust GUI host 只作为 launch contract 生产方证据，不评价其模块拆分或实现质量。
 - `guiHostClientTestSupport.ts` 中 raw connection、commands-ready helper 和协议阶段 helper 具有不同测试语义，不因表面相似建议公共化。
 - 不重设计 wire protocol、RPC 方法、服务端 schema 或生成类型；生成文件只作为前端 contract 证据。
-- 不进入 thread runtime、projection ingress、timeline 或 transcript；与 `03` 的交界仅为 connection/notification handoff。
+- 不进入 thread runtime、projection ingress、timeline 或 transcript；与 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) 的交界仅为 connection/notification handoff。
 
 ## 风险
 
