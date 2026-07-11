@@ -1,5 +1,5 @@
 import type { ThreadItem, UserInput } from "@codex-protocol/v2";
-import type { TranscriptEntry } from "./transcriptStateSlice";
+import type { TranscriptEntry } from "./transcriptStateModel";
 
 const textFromUserInput = (input: UserInput): string => {
   switch (input.type) {
