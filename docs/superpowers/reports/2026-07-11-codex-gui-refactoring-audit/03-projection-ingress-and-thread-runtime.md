@@ -14,9 +14,9 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 
 状态：完成。
 
-- `02` 拥有 wire decoding、transport 与 connection/notification 输入交界；本报告从 typed handoff 之后开始，不复制 wire、handshake 或 transport 论证。
-- `04` 拥有 snapshot/live timeline material producer 与领域转换；本报告只确认 accepted event/runtime state 是其上游输入，不进入 timeline material 内部。
-- `05` 拥有 transcript action consumer、Redux state/materialization 与既有 transcript 专项设计；本报告只核对 runtime action source 交界，不复制 transcript reducer 或拆分论证。
+- [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001)、[RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) 与 [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) 拥有 launch、wire decoding、transport 与 connection/notification 输入交界；本报告从 typed handoff 之后开始，不复制 wire、handshake 或 transport 论证。
+- [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001) 拥有 snapshot/live timeline material producer 与领域转换；本报告只确认 accepted event/runtime state 是其上游输入，不进入 timeline material 内部。
+- [RA-05-001](./05-transcript-state-and-materialization.md#ra-05-001) 拥有 transcript action consumer、Redux state/materialization 与既有 transcript 专项设计；本报告只核对 runtime action source 交界，不复制 transcript reducer 或拆分论证。
 - 禁止扩张：协议重设计、timeline owner、transcript 内部拆分及相邻报告已拥有的专项设计。
 
 ## 审计进度
@@ -35,7 +35,9 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 
 ### RA-03-001 Bridge 集中承担 projection application coordination
 
-- **主报告与 evidence owner：** `03-projection-ingress-and-thread-runtime.md`；本报告拥有 connection/notification handoff 进入 projection ingress 与 Redux runtime 的职责边界证据。`02-gui-host-transport-and-protocol.md` 只拥有 wire decoding、transport 和该 handoff 的输入侧交界。
+- **Finding ID：** `RA-03-001`。
+- **主报告：** `03-projection-ingress-and-thread-runtime.md`。
+- **Evidence owner：** `03-projection-ingress-and-thread-runtime`。
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
 - **结论摘要：** `GuiHostConnectionBridge` 不只是连接和 notification 的薄 handoff。它在同一个 React effect 中同时拥有连接与 `ProjectionIngressAdapter` 生命周期、launch/attach 身份预检、adapter outcome 到 Redux action 的映射、snapshot replay 分类、projection delta 的 RAF batching/flush 以及连接和 pending frame teardown，形成 application coordination 职责集中。`ProjectionIngressAdapter` 自身只依赖生成协议类型并维护 ingress cursor，依赖方向清晰；本 finding 不声称当前存在功能 bug。
@@ -54,13 +56,15 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 - **风险：** 边界调整可能改变 pending delta 与 attach/event/closed 的相对顺序，导致 completion/reconnect 前 transient delta 丢失或延迟；也可能破坏 mismatch attach 下“记录 attached identity 但不推进 runtime”、manual reconnect 后抑制后续 notification、adapter 随 launch thread 重建，以及卸载时同时取消 frame 和关闭 connection 的行为。
 - **后续实施时建议的验证范围：** 保持现有 App browser 覆盖，并验证 accepted attach/event 进入 runtime、同一 frame delta 合并、结构事件和 closed/manual reconnect 前 flush、mismatch attach 不推进 runtime、manual reconnect 后忽略后续 event、unmount 取消 pending frame 且只清理一次 connection。本轮未运行测试。
 - **关键证据：** `GuiHostConnectionBridge.tsx:41-50` 同时持有 connection cleanup、adapter、snapshot index 与 delta queue；`:52-89` 管理 RAF batching/flush；`:91-125` 映射 outcome、计算 replay 并控制 flush；`:127-181` 组合 connection callbacks、adapter 构造与四类 ingress；`:196-203` 执行联合 teardown。`projectionIngressAdapter.ts:56-67` 仅初始化 ingress cursor，`:69-135` 处理 attach/event/delta/closed，`:137-190` 封装 notification identity、manual reconnect 与 known turn 规则。
-- **与既有成果关系：** `02-gui-host-transport-and-protocol.md:13-21,156-163,175-185` 已明确 `02` 只拥有 launch/transport/protocol 与 connection/notification 输入交界，并把 Redux lifecycle、projection ingress、snapshot index、reconnect 和 thread runtime 交给 `03`。本 finding 接续该边界，不重复 `RA-02-001` 至 `RA-02-003`。
+- **关联的既有报告、issue 或专项设计：** [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001)、[RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) 与 [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) 拥有 launch/transport/protocol 及 connection/notification 输入侧交界；本 finding 接续 typed handoff，不复制其证据。无直接关联 issue 或专项设计。
 - **已排除项：** 排除“production handoff 缺少测试覆盖”。`App.browser.test.tsx:55-64` 只 mock `startGuiHostConnection` facade，实际挂载真实 App、Bridge、adapter 和 Redux store；同文件 `259-291` 覆盖 accepted attach/event handoff，`293-415` 覆盖 delta batching 与结构事件前 flush，`746-831` 覆盖 mismatch/closed/manual reconnect，`833-889` 覆盖 transport 与 pending frame teardown。未发现 adapter 反向依赖 React、Redux、app shell 或 GUI host transport；不将职责集中解释为已复现功能 bug。
 - **报告建议：** 保留为 `RA-03-001`、状态“确认重构点”、优先级 P2；后续设计只确定 application coordination 的职责和依赖方向，不能据此进入 timeline material、transcript reducer 或协议重设计。
 
 ### RA-03-002 Snapshot replay index 在 Bridge 与 Redux runtime 重复持有
 
-- **主报告与 evidence owner：** `03-projection-ingress-and-thread-runtime.md`；本报告拥有 replay classification 进入 thread runtime state 的职责与生产消费者证据。
+- **Finding ID：** `RA-03-002`。
+- **主报告：** `03-projection-ingress-and-thread-runtime.md`。
+- **Evidence owner：** `03-projection-ingress-and-thread-runtime`。
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
 - **结论摘要：** `ThreadRuntimeRecord.snapshotReplayIndex` 在 accepted attach 时由 Redux slice 构造并保留，同时 `GuiHostConnectionBridge` 为实际 event replay classification 单独构造和持有同内容 index。对 `codex-gui/src` 的 production 引用核对（排除测试代码）表明 Redux record 字段没有生产读取者，实际分类只使用 Bridge-local index；这是重复状态与 owner 不唯一的重构点，不是已复现功能 bug，也不作为性能 finding。
@@ -79,13 +83,15 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 - **风险：** 清理重复字段时可能误删实际 classification 所需的 local baseline、改变 launch/attach replacement 时的 reset 顺序，或让 snapshot-ahead event 从 `snapshotDuplicate` 变为 `live`。测试 fixture 的完整对象断言也会随 state shape 调整，需要与生产引用清理区分。
 - **后续实施时建议的验证范围：** 验证 accepted attach 建立唯一 replay baseline、new launch 清空旧 baseline、snapshot-ahead turn/item event 分类保持不变、mismatch attach 不建立 runtime/replay baseline，并核对所有生产 selector/material consumer 不依赖被清理字段。本轮未运行测试。
 - **关键证据：** `threadRuntimeSlice.ts:41-50,72-105,111-124`；`GuiHostConnectionBridge.tsx:46,97-107,132-154`；`snapshotReplay.ts:54-97`；`projectionTestBuilders.ts:98`；`threadRuntimeSlice.test.ts:71-93,235-345`。`codex-gui/src` production 引用核对（排除测试代码）没有发现 `ThreadRuntimeRecord.snapshotReplayIndex` 读取；App browser 只作为直接 handoff 测试证据，不扩张 replay owner。
-- **与既有成果关系：** `docs/superpowers/reports/2026-07-09-codex-gui-system-performance-check/05-retained-state.md:35-36,80` 已观察 Bridge 与 Redux 重复 retained snapshot id map，但因当时不能确认范围外消费者而保留为证据不足/非 finding。本轮通过 `codex-gui/src` production 引用核对（排除测试代码）确认 Redux 字段无生产读取者，因此升级为重构 finding；它仍不是 retained-state 性能 finding。
+- **关联的既有报告、issue 或专项设计：** [历史 retained-state 报告](../2026-07-09-codex-gui-system-performance-check/05-retained-state.md) 曾记录 Bridge 与 Redux 重复 retained snapshot id map，但当时因消费者范围不明而未建立 finding；该历史报告不是本条 Evidence owner。本轮通过 production 引用核对补足证据；无直接关联 issue 或专项设计。
 - **已排除项：** 不把 `snapshotTurns`、snapshot materialization 或 replay helper 本身判为错误 owner；不进入 timeline producer 或 transcript consumer 内部；不把测试 fixture/断言计为生产读取，也不声称重复 index 已导致状态错误或可测性能问题。
 - **报告建议：** 保留为 `RA-03-002`、状态“确认重构点”、优先级 P2；后续设计只确定 replay classification 的单一职责 owner 与单一 index 生命周期，不指定具体实现代码。
 
 ### RA-03-003 单条 runtime delta action 已成为生产遗留与类型耦合
 
-- **主报告与 evidence owner：** `03-projection-ingress-and-thread-runtime.md`；本报告拥有 accepted projection delta 进入 runtime cross-slice action 的生产路径与 owner 证据。
+- **Finding ID：** `RA-03-003`。
+- **主报告：** `03-projection-ingress-and-thread-runtime.md`。
+- **Evidence owner：** `03-projection-ingress-and-thread-runtime`。
 - **状态：** 确认重构点。
 - **重构优先级：** P3。
 - **结论摘要：** `threadRuntimeDeltaAccepted` 已没有生产 dispatch；生产 Bridge 只 dispatch `threadRuntimeDeltasAccepted` batch action。单条 action 仍由 thread runtime 导出，被 transcript reducer 注册为运行时 case、被 delta helper 用作参数类型来源，并被大量测试作为兼容入口 dispatch。这是局部生产遗留与类型耦合清理机会，不泛化为所有 no-op cross-slice action owner 错误，也不声称存在功能 bug。
@@ -103,7 +109,7 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 - **风险：** 直接移除单条 action 可能破坏大量测试 fixture、隐藏单条 delta 行为回归，或误把 helper 类型改为宽泛 payload；若同时调整 batch owner，则会扩大为跨 feature action 架构变更。清理必须区分测试兼容价值和生产 API 必要性。
 - **后续实施时建议的验证范围：** 重新核对生产代码无单条 dispatch，验证 Bridge 仍只投递 batch action、batch 内顺序和同 item 聚合行为不变，并将现有单条 transcript 行为覆盖迁移到不依赖遗留 action creator 的输入边界。本轮未运行测试。
 - **关键证据：** `threadRuntimeSlice.ts:127-134,202-208`；`GuiHostConnectionBridge.tsx:47-50,61-71,84-89`；`transcriptStateSlice.ts:137-142`；`transcriptLiveProjection.ts:106-125`。`codex-gui/src` production 引用核对（排除测试代码）显示单条 action 仅保留 type reference/consumer registration，没有 production dispatch；transcript 只作为 action consumer 交界证据，不扩张其 owner。
-- **与既有成果关系：** `docs/superpowers/plans/2026-07-09-codex-gui-live-agent-delta-accumulation.md:5-30,370-379` 曾有意保留单条 action 作为 compatibility baseline，并在 batch action 中优化同 item delta。`RA-03-003` 不否定该历史设计；它只记录 production handoff 已完全转为 batch 后，当前引用关系产生的局部清理机会。
+- **关联的既有报告、issue 或专项设计：** [live agent delta accumulation 计划](../../plans/2026-07-09-codex-gui-live-agent-delta-accumulation.md) 曾有意保留单条 action 作为 compatibility baseline，并在 batch action 中优化同 item delta；该历史计划不是本条 Evidence owner。本 finding 不否定该设计，只记录 production handoff 完全转为 batch 后的局部清理机会；无直接关联 issue。
 - **已排除项：** 不把 `threadRuntimeDeltasAccepted` 判为错误 owner；不把所有 no-op cross-slice action 泛化为架构问题；不进入 transcript reducer/helper 的专项拆分；不重复 `RA-03-001` 的 RAF batching/flush finding，也不把测试中的单条 dispatch 误报为生产路径。
 - **报告建议：** 保留为 `RA-03-003`、状态“确认重构点”、优先级 P3；后续设计仅处理单条 action 的生产遗留与类型耦合，batch action 保持非 finding，除非新增独立生产 owner 证据。
 
@@ -129,7 +135,7 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 - **风险：** 后续 runtime state/action 调整可能误使 mismatch 建立 runtime、new launch 保留旧 identity、manual reconnect 继续允许推进，或只检查 identity 而漏掉 runtime subscription gate。
 - **后续验证范围：** 保持 launch/matching/mismatch/reset slice tests、accepted attach/event/reconnect runtime tests、App mismatch/reconnect integration tests，以及 Composer 对 identity false、thread 缺失和 subscription 非 active 的 gate 测试。本轮未运行测试。
 - **关键证据：** `threadIdentitySlice.ts:4-47`；`threadRuntimeSlice.ts:41-67,107-215`；`GuiHostConnectionBridge.tsx:91-96,132-154`；`ComposerTurnControl.tsx:43-55`；`composerTurnControlModel.ts:5-23`；`threadIdentitySlice.test.ts:16-72`；`threadRuntimeSlice.test.ts:53-193`；`App.browser.test.tsx:746-831`；`composerTurnControlModel.test.ts:24-69`。
-- **与既有成果关系：** `05-retained-state.md:72` 已记录 thread identity 为固定大小 retained state；`RA-03-001` 拥有 Bridge coordination，`RA-03-002/003` 只拥有 runtime 内部重复 index 与单条 delta action，不改变 identity/runtime 主生命周期结论。
+- **关联的既有报告、issue 或专项设计：** [历史 retained-state 报告](../2026-07-09-codex-gui-system-performance-check/05-retained-state.md) 记录 thread identity 为固定大小 retained state，但不是本条 Evidence owner。[RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)、[RA-03-002](./03-projection-ingress-and-thread-runtime.md#ra-03-002) 与 [RA-03-003](./03-projection-ingress-and-thread-runtime.md#ra-03-003) 分别拥有 Bridge coordination、重复 replay index 与单条 delta action，不改变 identity/runtime 主生命周期结论；无直接关联 issue 或专项设计。
 - **已排除项：** 不把 App browser 或 Composer test 当作 owner 证据；不把双门禁误报为重复状态；不因两个 slice 共同参与 connection usability 就建议合并。
 - **报告建议：** 记录为 `RA-03-004`，状态“已由现有抽象覆盖”，重构优先级“非 finding”；保持现有 identity/runtime 生命周期边界。
 
@@ -155,7 +161,7 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 - **风险：** 后续若移动 adapter 或输出类型，可能破坏 replacement attach reset、delta 不推进 commit head、manual reconnect 后抑制后续 notification，或让下游不再穷举 outcome。
 - **后续验证范围：** 保持 attach/contiguous event、matching delta、identity filtering、duplicate/commit mismatch、missing turn、reconnect suppression/reset 与 closed backpressure adapter tests；Bridge RAF 行为继续由 App browser 测试覆盖。本轮未运行测试。
 - **关键证据：** `projectionIngressAdapter.ts:9-190`；`projectionIngressAdapter.test.ts:60-258`；`GuiHostConnectionBridge.tsx:91-125,132-176`；`threadRuntimeSlice.ts:3,12-18,56-60`；`transcriptStateModel.ts:1,51-56`；`liveEventHandling.ts:11,44-50`。
-- **与既有成果关系：** `RA-03-001` 已把 Bridge RAF batching/application coordination 与 adapter filtering 分开；`RA-03-003` 已拥有单条 delta action coupling。本 finding 只确认 adapter 现有 filtering/reconnect 抽象合理，不复制相邻 owner 论证。
+- **关联的既有报告、issue 或专项设计：** [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) 已把 Bridge RAF batching/application coordination 与 adapter filtering 分开；[RA-03-003](./03-projection-ingress-and-thread-runtime.md#ra-03-003) 已拥有单条 delta action coupling。本 finding 只确认 adapter 现有 filtering/reconnect 抽象合理，不复制相邻 owner 论证；无直接关联 issue 或专项设计。
 - **已排除项：** 不声称 adapter tests 覆盖 Bridge 私有 RAF；不因 reason/outcome 定义在 adapter 文件而报告类型归属问题；不把 transcript/Composer/App browser 消费或测试交界当作 adapter owner。
 - **报告建议：** 记录为 `RA-03-005`，状态“已由现有抽象覆盖”，重构优先级“非 finding”；保持现有 adapter filtering/reconnect 边界。
 
