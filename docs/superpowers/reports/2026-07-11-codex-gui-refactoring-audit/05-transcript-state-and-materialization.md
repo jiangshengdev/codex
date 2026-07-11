@@ -1,16 +1,16 @@
 # 05 Transcript State 与 Materialization
 
-状态：complete
+状态：完成
 
 ## 审计范围
 
-状态：complete。设计映射、materialization、输入/输出边界与去重汇聚均已完成。
+状态：完成。设计映射、materialization、输入/输出边界与去重汇聚均已完成。
 
 计划范围：transcript Redux state、item materialization、reducer/selector 定义侧，以及 snapshot/live/committed 投影的跨 feature 交界。
 
 ## 范围交界
 
-状态：complete。
+状态：完成。
 
 - Transcript State 内部模块拆分与测试拆分属于已有专项设计；本报告只核对覆盖关系、跨 feature 交界与未覆盖残余点，不重复审计或改写该设计。
 - 允许交界：thread runtime action source、timeline material、rendering selector consumer。
@@ -20,12 +20,12 @@
 
 | 微阶段 | 状态 | 压缩结论 | Finding ID / 覆盖状态 | 关键证据 |
 | --- | --- | --- | --- | --- |
-| `R05-DESIGN-MAP` | complete | 既有专项设计与当前 production/测试拆分逐项对应；内部拆分全部标记“已有专项设计”，没有 production 残余。500 项 event-id 淘汰缺少直接测试，只能记录为专项设计内测试覆盖残余。 | `RA-05-001`；已有专项设计；非 finding | 设计：`docs/superpowers/specs/2026-07-11-codex-gui-transcript-state-split-design.md:39-116,118-171,186-225`；实现：`transcriptStateModel.ts:4-141`、`transcriptEventDedup.ts:1-18`、`transcriptLiveProjection.ts:8-194`、`transcriptCommittedProjection.ts:13-183`、`transcriptStateSelectors.ts:9-53`、`transcriptStateSlice.ts:1-172`；测试题目分布为 `6/5/3/4/3/9` |
-| `R05-MATERIALIZATION` | complete | `TranscriptEntry` 由 model 定义，`materializeTranscriptItem` 由 materialization 模块实现，全部 production 直接调用集中在 committed projection 的 live completion 与 snapshot rebuild；无残余反向依赖或未覆盖跨模块重构点。 | `RA-05-001`；已有专项设计；非 finding | `transcriptStateModel.ts:30-49,62,83`；`transcriptEntryMaterialization.ts:1-2,19-77`；`transcriptCommittedProjection.ts:1-11,145-183`；`transcriptStateSlice.ts:23-30,41-52,67-68` |
-| `R05-BOUNDARIES/ACTION-TIMELINE` | complete | `threadRuntime` actions 是 Transcript State 的真实输入；R04 timeline materials 是从 runtime record 派生的并行只读材料，缺少 attach 元数据、event identity/replay 和 delta 语义，且当前无 production consumer，不能直接替代 action 边界。 | 引用 R04 未接入边界；R05 不另建 finding，优先级继承 R04 | `threadRuntimeSlice.ts:20-60,111-188,202-208`；`transcriptStateSlice.ts:1-8,84-156`；`snapshotReplay.ts:8-29,54-97`；`liveEventHandling.ts:14-55,77-156` |
-| `R05-BOUNDARIES/SELECTOR-REACT` | complete | TranscriptState 拥有 state-aware selectors 与 chunk identity/revision cache；CommittedTranscriptSurface 仅通过公开 facade 单向消费，UI equality 独立承担渲染等价判断。 | 已有专项设计；R05 非 finding，优先级：非 finding | `transcriptStateSelectors.ts:9-53`；`transcriptStateSlice.ts:23-35,58-80,160-170`；`CommittedTranscriptSurface.tsx:3-14,84-100,166-174,220-279`；`committedTranscriptChunkEquality.ts:1-59` |
-| `R05-BOUNDARIES` | complete | 输入侧只引用 R04 未接入边界；输出侧 selector/view cache 与 UI equality 保持单向职责。两个子阶段均未发现新的跨 feature 重构点。 | R04/R06 交界引用；R05 非 finding | ACTION-TIMELINE 与 SELECTOR-REACT 两个子阶段证据 |
-| `R05-DEDUP` | complete | R05 只保留 `RA-05-001`：内部拆分由已有专项设计拥有。500 项 oldest-first 淘汰缺少直接测试是验证残余，不改变 owner、职责、依赖或模块边界，不建立新 finding。 | `RA-05-001`；已有专项设计；优先级：非 finding | 本报告设计映射、materialization 与 boundaries 汇聚证据 |
+| `R05-DESIGN-MAP` | 完成 | 既有专项设计与当前 production/测试拆分逐项对应；内部拆分全部标记“已有专项设计”，没有 production 残余。500 项 event-id 淘汰缺少直接测试，只能记录为专项设计内测试覆盖残余。 | `RA-05-001`；已有专项设计；非 finding | 设计：`docs/superpowers/specs/2026-07-11-codex-gui-transcript-state-split-design.md:39-116,118-171,186-225`；实现：`transcriptStateModel.ts:4-141`、`transcriptEventDedup.ts:1-18`、`transcriptLiveProjection.ts:8-194`、`transcriptCommittedProjection.ts:13-183`、`transcriptStateSelectors.ts:9-53`、`transcriptStateSlice.ts:1-172`；测试题目分布为 `6/5/3/4/3/9` |
+| `R05-MATERIALIZATION` | 完成 | `TranscriptEntry` 由 model 定义，`materializeTranscriptItem` 由 materialization 模块实现，全部 production 直接调用集中在 committed projection 的 live completion 与 snapshot rebuild；无残余反向依赖或未覆盖跨模块重构点。 | `RA-05-001`；已有专项设计；非 finding | `transcriptStateModel.ts:30-49,62,83`；`transcriptEntryMaterialization.ts:1-2,19-77`；`transcriptCommittedProjection.ts:1-11,145-183`；`transcriptStateSlice.ts:23-30,41-52,67-68` |
+| `R05-BOUNDARIES/ACTION-TIMELINE` | 完成 | `threadRuntime` actions 是 Transcript State 的真实输入；R04 timeline materials 是从 runtime record 派生的并行只读材料，缺少 attach 元数据、event identity/replay 和 delta 语义，且当前无 production consumer，不能直接替代 action 边界。 | 引用 R04 未接入边界；R05 不另建 finding，优先级继承 R04 | `threadRuntimeSlice.ts:20-60,111-188,202-208`；`transcriptStateSlice.ts:1-8,84-156`；`snapshotReplay.ts:8-29,54-97`；`liveEventHandling.ts:14-55,77-156` |
+| `R05-BOUNDARIES/SELECTOR-REACT` | 完成 | TranscriptState 拥有 state-aware selectors 与 chunk identity/revision cache；CommittedTranscriptSurface 仅通过公开 facade 单向消费，UI equality 独立承担渲染等价判断。 | 已有专项设计；R05 非 finding，优先级：非 finding | `transcriptStateSelectors.ts:9-53`；`transcriptStateSlice.ts:23-35,58-80,160-170`；`CommittedTranscriptSurface.tsx:3-14,84-100,166-174,220-279`；`committedTranscriptChunkEquality.ts:1-59` |
+| `R05-BOUNDARIES` | 完成 | 输入侧只引用 R04 未接入边界；输出侧 selector/view cache 与 UI equality 保持单向职责。两个子阶段均未发现新的跨 feature 重构点。 | R04/R06 交界引用；R05 非 finding | ACTION-TIMELINE 与 SELECTOR-REACT 两个子阶段证据 |
+| `R05-DEDUP` | 完成 | R05 只保留 `RA-05-001`：内部拆分由已有专项设计拥有。500 项 oldest-first 淘汰缺少直接测试是验证残余，不改变 owner、职责、依赖或模块边界，不建立新 finding。 | `RA-05-001`；已有专项设计；优先级：非 finding | 本报告设计映射、materialization 与 boundaries 汇聚证据 |
 
 依赖：`SCAFFOLD-COMMITTED`。
 
@@ -48,7 +48,7 @@
 
 ## Findings
 
-状态：complete。
+状态：完成。
 
 ### RA-05-001 Transcript State 内部拆分已有专项设计
 
@@ -57,7 +57,7 @@
 - 主报告：`docs/superpowers/reports/2026-07-11-codex-gui-refactoring-audit/05-transcript-state-and-materialization.md`
 - Evidence owner：本报告 `05-transcript-state-and-materialization.md`
 - 状态：已有专项设计
-- 优先级：非 finding
+- 重构优先级：非 finding
 - 结论摘要：当前 production、测试和公开 facade 与专项设计逐项对应；没有未覆盖的内部或跨 feature 重构点。
 - 当前 owner / 职责：`transcriptState` feature 拥有领域模型、事件去重、live/committed projection、materialization、selector cache、Redux action 路由与稳定公开 facade。
 - 问题类型：已有专项设计覆盖；非问题、非重构 finding。
