@@ -14,16 +14,23 @@
 
 - 允许交界：GUI host client、projection connection bridge、i18n。
 - 禁止扩张：host transport、projection reducer、transcript UI 内部。
-- 报告 02 交界：`GuiHostStatus`、`GuiHostCommands`、`LaunchParams` 的类型与协议 owner。
-- 报告 03 交界：`GuiHostConnectionBridge` 将 host lifecycle 写入顶层 React 状态。
-- 报告 07 交界候选：Mac Apple WebKit platform heuristic 仅服务 `ComposerTurnControl` 的输入行为；本报告不分配 Finding ID。
+
+- 交界引用：[RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001)、[RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002)
+- 本报告仅使用的交界事实：GUI host 报告拥有 launch params、status、commands 与 transport 生命周期；本报告只拥有这些值在 App 与 AppShell 的顶层接线。
+- Evidence owner：`02-gui-host-transport-and-protocol.md`
+
+- 交界引用：[RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)、[RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004)
+- 本报告仅使用的交界事实：Projection/runtime 报告拥有 Bridge coordination 与 accepted runtime 生命周期；本报告只使用 Bridge 向顶层 React 状态和 shell 交付 host lifecycle 的事实。
+- Evidence owner：`03-projection-ingress-and-thread-runtime.md`
+
+- 本报告自身边界说明：Mac Apple WebKit platform heuristic 仅服务 `ComposerTurnControl` 的输入行为；没有语义匹配的 R07 finding，本报告不建立或借用跨报告 Finding ID。
 
 ## 审计进度
 
 | 微阶段 | 状态 | 压缩结论 | Finding ID / 覆盖状态 | 关键证据 |
 | --- | --- | --- | --- | --- |
 | bootstrap/provider/store owner | 已完成 | bootstrap、provider、router 与 store 的 owner 清晰，当前没有候选 finding；Redux 现有抽象留待微阶段三核对。 | 无候选 finding | `codex-gui/src/main.tsx:13`、`codex-gui/src/router.tsx:5`、`codex-gui/src/app/store.ts:9` |
-| AppShell 与 platform/environment 交界 | 已完成 | App 顶层 host 状态 owner 合理，shell composition 内聚；platform heuristic 仅作为报告 07 交界候选。 | 无报告 01 finding | `codex-gui/src/App.tsx:10`、`codex-gui/src/features/appShell/AppShell.tsx:18`、`codex-gui/src/features/appShell/AppShell.tsx:50` |
+| AppShell 与 platform/environment 交界 | 已完成 | App 顶层 host 状态 owner 合理，shell composition 内聚；platform heuristic 仅作为本报告自身边界事实。 | 无报告 01 finding | `codex-gui/src/App.tsx:10`、`codex-gui/src/features/appShell/AppShell.tsx:18`、`codex-gui/src/features/appShell/AppShell.tsx:50` |
 | 否定结论与报告完整性 | 已完成 | typed hooks 与 slice creator 已由现有抽象覆盖；不建议新增统一 provider wrapper；十个计划主文件均有覆盖状态。 | RA-01-001、RA-01-002、RA-01-003 | `codex-gui/src/app/hooks.ts:7`、`codex-gui/src/app/createAppSlice.ts:4`、`codex-gui/src/app/ThemeProvider.tsx:13` |
 
 ## 文件覆盖状态
@@ -38,7 +45,7 @@
 | `codex-gui/src/app/createAppSlice.ts` | 已审核 | 已由现有抽象覆盖；RA-01-002 | `codex-gui/src/app/createAppSlice.ts:1`、`codex-gui/src/app/createAppSlice.ts:4` |
 | `codex-gui/src/app/hooks.ts` | 已审核 | 已由现有抽象覆盖；RA-01-001 | `codex-gui/src/app/hooks.ts:7`、`codex-gui/src/app/hooks.ts:11` |
 | `codex-gui/src/app/store.ts` | 已审核 | root reducer、store 构造和 Redux 类型 owner 清晰；关联 RA-01-001、RA-01-002 | `codex-gui/src/app/store.ts:9`、`codex-gui/src/app/store.ts:15`、`codex-gui/src/app/store.ts:22` |
-| `codex-gui/src/features/appShell/AppShell.tsx` | 已审核 | shell composition 内聚；platform heuristic 仅为报告 07 交界候选 | `codex-gui/src/features/appShell/AppShell.tsx:18`、`codex-gui/src/features/appShell/AppShell.tsx:50` |
+| `codex-gui/src/features/appShell/AppShell.tsx` | 已审核 | shell composition 内聚；platform heuristic 保留为本报告自身边界事实 | `codex-gui/src/features/appShell/AppShell.tsx:18`、`codex-gui/src/features/appShell/AppShell.tsx:50` |
 | `codex-gui/src/__tests__/App.browser.test.tsx` | 已审核 | 主代理已抽查 App shell/host lifecycle 行为覆盖 | `codex-gui/src/__tests__/App.browser.test.tsx:154`、`codex-gui/src/__tests__/App.browser.test.tsx:165`、`codex-gui/src/__tests__/App.browser.test.tsx:211` |
 
 ## Findings
@@ -55,7 +62,7 @@
 
 `App.tsx` 是三个 host 值在 connection bridge 与 shell 之间的最低共同 owner：setter 直接交给 bridge，值直接交给 `AppShell`，没有多层 prop drilling 或重复状态。`AppShell.tsx` 内聚地组合 host error notice、transcript surface、bottom sentinel、composer 和 toast provider，当前没有稳定的新公共 shell 边界。
 
-`isMacAppleWebKitRuntime` 的结果只传给 `ComposerTurnControl.guardCompositionEndEnter`。该 heuristic 仅记录为报告 07 的交界候选；在未审核 composer 行为与其他消费者前，不形成报告 01 finding，也不分配 Finding ID。
+`isMacAppleWebKitRuntime` 的结果只传给 `ComposerTurnControl.guardCompositionEndEnter`。该 heuristic 仅记录为本报告自身的消费侧交界事实，不形成报告 01 finding，也不借用其他报告 Finding ID。
 
 ### 微阶段三：否定结论与报告完整性
 
@@ -79,7 +86,7 @@
 - 行为、契约、状态、性能和测试风险: 当前保持现状没有行为或状态风险；新增 wrapper 会增加间接层并可能弱化类型错误定位；未来边界调整需确认 selector equality 与 dispatch typing 不变。
 - 后续实施时建议的验证范围: 精确搜索原始 `useDispatch`/`useSelector` 导入，运行受影响 TypeScript 检查和直接消费方测试；本轮未执行这些命令。
 - 当前代码关键证据路径与行号: `codex-gui/src/app/hooks.ts:7-12`；`codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:2,39`；`codex-gui/src/features/appShell/useCommittedTranscriptStickyBottom.ts:2,21-22`；`codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:3,43-46`；`codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:3,85,97,167,221-222,266-268`。
-- 关联的既有报告、issue 或专项设计: 与报告 03、05、06、07 的消费边界相交；未分配其他报告 Finding ID；无关联 issue 或专项设计。
+- 关联的既有报告、issue 或专项设计: [RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004)、[RA-05-001](./05-transcript-state-and-materialization.md#ra-05-001) 与 [RA-06-001](./06-transcript-rendering-streaming-and-scroll.md#ra-06-001) 使用 typed Redux 消费边界；本 finding 仍是应用 typed hook 的唯一 Evidence owner，无关联 issue 或专项设计。
 - 已排除项: 未将 selector 数量、feature 数量或多次 hook 调用视为重复抽象证据。
 - 报告建议: 保持现状，仅保留覆盖索引。
 
@@ -101,7 +108,7 @@
 - 行为、契约、状态、性能和测试风险: 保持现状不改变 reducer 或 state 契约；拆分或复制 factory 可能造成 thunk 配置漂移；本条不提出运行时或性能变更。
 - 后续实施时建议的验证范围: 精确搜索 `createSlice`、`buildCreateSlice` 和 `createAppSlice` 调用，并运行受影响 slice 测试与 TypeScript 检查；本轮未执行这些命令。
 - 当前代码关键证据路径与行号: `codex-gui/src/app/createAppSlice.ts:1-6`；`codex-gui/src/features/threadIdentity/threadIdentitySlice.ts:2,18`；`codex-gui/src/features/threadRuntime/threadRuntimeSlice.ts:2,107`；`codex-gui/src/features/transcriptState/transcriptStateSlice.ts:1,54`；`codex-gui/src/app/store.ts:3-9`。
-- 关联的既有报告、issue 或专项设计: 与报告 03、05 的 feature state 边界相交；未分配其他报告 Finding ID；无关联 issue 或专项设计。
+- 关联的既有报告、issue 或专项设计: [RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004) 与 [RA-05-001](./05-transcript-state-and-materialization.md#ra-05-001) 使用 feature slice 构造边界；本 finding 仍是 app slice factory 的唯一 Evidence owner，无关联 issue 或专项设计。
 - 已排除项: 未读取或评价 feature reducer 逻辑，未因三个 slice 使用同一 factory 而新增更宽公共层。
 - 报告建议: 保持现状，仅保留覆盖索引。
 
@@ -123,7 +130,7 @@
 - 行为、契约、状态、性能和测试风险: 强行统一可能让测试意外启用 theme/router 副作用，或让 production 接受测试注入参数；保持现状没有新增行为、状态或性能风险。
 - 后续实施时建议的验证范围: 若未来调整 provider 边界，应核对 production 启动、主题监听和测试 render helper 行为；本轮未运行测试、build 或 type-check。
 - 当前代码关键证据路径与行号: `codex-gui/src/main.tsx:21-30`；`codex-gui/src/app/ThemeProvider.tsx:4-30`；`codex-gui/src/utils/TestProvider.tsx:12-15`；`codex-gui/src/utils/test-utils.tsx:61-64`。
-- 关联的既有报告、issue 或专项设计: 测试 provider 的内部质量归报告 08；未分配报告 08 Finding ID；无关联 issue 或专项设计。
+- 关联的既有报告、issue 或专项设计: [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002) 拥有测试 provider 与 render helper 的 test-infrastructure 边界；本 finding 只判断 production/test provider 不应统一，无关联 issue 或专项设计。
 - 已排除项: 未将单次 provider 包装、相邻 JSX 嵌套或 production/test 的结构相似视为可抽取公共语义。
 - 报告建议: 保持现状，不进入后续重构设计。
 
@@ -139,6 +146,6 @@
 ## 风险
 
 - 精确符号搜索确认当前 typed hooks 与 slice creator 无旁路，但未来新增代码仍需维持现有 import boundary。
-- platform heuristic 的完整行为、不变量和其他消费者仍需由报告 07 核对；报告 01 不提前判断其最终 owner。
-- GUI host 类型稳定性和 connection lifecycle 分别属于报告 02、03，本报告只记录交界事实。
+- platform heuristic 的完整行为与不变量不属于报告 01；本报告只保留 AppShell 输入侧事实，不提前判断其消费侧 owner。
+- GUI host 类型/connection lifecycle 与 projection/runtime owner 分别见上方 02、03 稳定交界引用；本报告不重复其证据。
 - 测试 provider 的进一步抽象质量属于报告 08；RA-01-003 只判断 production/test provider 不应被强行统一。
