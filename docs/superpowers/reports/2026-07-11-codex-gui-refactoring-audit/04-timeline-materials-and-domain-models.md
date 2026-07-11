@@ -30,7 +30,9 @@
 
 ### RA-04-001 未接入 production 的 timeline-material 并行管道
 
-- **主报告与 evidence owner：** `04-timeline-materials-and-domain-models.md`；本报告拥有 snapshot/live material 定义、组合 selector 与 production transcript/UI 消费路径的证据。
+- **Finding ID：** `RA-04-001`。
+- **主报告：** `04-timeline-materials-and-domain-models.md`。
+- **Evidence owner：** `04-timeline-materials-and-domain-models.md`。
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
 - **结论摘要：** `snapshotReplay` 与 `liveEventHandling` 定义了 snapshot/live materials、selector、组合 union 与测试，但 production bridge → thread runtime actions → transcript state → UI 路径完全绕过该管道。两类 materials 只在类型 union 和数组拼接层汇合，item 生命周期并未统一；这是未接入 production 的并行抽象，不是已复现功能 bug。
@@ -48,7 +50,7 @@
 - **风险：** 删除时可能遗漏测试或未来迁移意图对导出符号的依赖；若误把当前 union 当成稳定语义迁移 production，可能固化完整 `Turn.items` 与 `itemReplayed` 的重复表示，并丢失 live item/delta 生命周期信息。
 - **后续实施时建议的验证范围：** 核对 production 引用仍为零，移除或更新 snapshot/live 专属测试与 App browser 断言，并运行受影响的针对性 GUI 测试；确认 thread runtime、transcript state 与 committed transcript 行为无变更。本轮未运行测试。
 - **关键证据：** `snapshotReplay.ts:8-29,54-97`；`liveEventHandling.ts:16-55,77-156`；两者专属测试；`GuiHostConnectionBridge.tsx:17-25,61-70,91-106`；`transcriptStateSlice.ts:2-8,82-98,137-143`；`CommittedTranscriptSurface.tsx:3-13,265-276`；`codex-gui/src` production 引用核对。
-- **与既有成果关系：** `RA-03-001` 已把 Bridge → runtime actions 的 application coordination 归入 projection ingress/runtime 边界；本 finding 只处理该 production 路径之外未接入的 timeline-material 并行管道，不重复审计 Bridge 或 transcript reducer 职责。
+- **关联的既有报告、issue 或专项设计：** [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) 拥有 Bridge → runtime actions 的 application coordination；本 finding 仅使用 production 路径绕过 timeline materials 的交界事实，不复制 Bridge 或 transcript reducer 证据。无关联 issue 或专项设计。
 - **已排除项：** 不把 `transcriptState` 直接投影判为错误 owner；不声称当前 materials 已造成用户可见重复渲染；不进入 transcript reducer、delta 算法、Markdown 或 rendering 重设计；不建议在本 finding 内统一迁移 production。
 - **报告建议：** 保留为 `RA-04-001`、状态“确认重构点”、优先级 P2；后续最小批次优先删除或收缩未接入管道，而不是新建中立 timeline 抽象。
 
