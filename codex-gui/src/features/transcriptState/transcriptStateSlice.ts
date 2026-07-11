@@ -8,8 +8,8 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import type { ThreadItem, Turn } from "@codex-protocol/v2";
 import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
+import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
 import {
-  MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   createEmptyTranscriptState,
   initialTranscriptState,
@@ -46,23 +46,6 @@ type TranscriptChunkViewCacheEntry = {
 };
 
 const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
-
-const hasAppliedEvent = (state: TranscriptState, commitId: string): boolean =>
-  state.appliedEventIdsById[commitId] === true;
-
-const recordAppliedEvent = (state: TranscriptState, commitId: string) => {
-  state.appliedEventIdsById[commitId] = true;
-  state.appliedEventOrder.push(commitId);
-
-  if (state.appliedEventOrder.length <= MAX_APPLIED_EVENT_ID_WINDOW_LENGTH) {
-    return;
-  }
-
-  const removedCommitId = state.appliedEventOrder.shift();
-  if (removedCommitId != null) {
-    Reflect.deleteProperty(state.appliedEventIdsById, removedCommitId);
-  }
-};
 
 const chunkIdForIndex = (turnId: string, index: number): string =>
   `${turnId}:chunk:${String(index)}`;
@@ -482,7 +465,7 @@ export const transcriptStateSlice = createAppSlice({
           return;
         }
 
-        if (hasAppliedEvent(state, notification.commitId)) {
+        if (hasAppliedTranscriptEvent(state, notification.commitId)) {
           return;
         }
 
@@ -493,7 +476,7 @@ export const transcriptStateSlice = createAppSlice({
           }
         }
 
-        recordAppliedEvent(state, notification.commitId);
+        recordAppliedTranscriptEvent(state, notification.commitId);
 
         switch (notification.event.type) {
           case "turnStarted":
