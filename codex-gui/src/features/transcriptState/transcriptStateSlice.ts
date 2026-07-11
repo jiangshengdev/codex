@@ -17,21 +17,22 @@ import {
   appendStartedLiveItem,
   applyAcceptedProjectionDelta,
   applyAcceptedProjectionDeltaBatch,
-  findLiveItem,
   hasLiveItem,
-  liveItemsForTurn,
   removeLiveItemIfPresent,
 } from "./transcriptLiveProjection";
 import {
   initialTranscriptState,
-  type TranscriptChunk,
   type TranscriptChunkView,
   type TranscriptEntry,
   type TranscriptGlobalStatus,
   type TranscriptRenderableLiveItem,
-  type TranscriptState,
   type TranscriptTurn,
 } from "./transcriptStateModel";
+import {
+  transcriptChunkView,
+  transcriptLiveItem,
+  transcriptLiveItemsForTurn,
+} from "./transcriptStateSelectors";
 
 export {
   MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
@@ -50,36 +51,6 @@ export type {
   TranscriptTurn,
 } from "./transcriptStateModel";
 
-type TranscriptChunkViewCacheEntry = {
-  revision: number;
-  view: TranscriptChunkView;
-};
-
-const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
-
-const selectCachedTranscriptChunkView = (
-  transcriptState: TranscriptState,
-  chunk: TranscriptChunk,
-): TranscriptChunkView => {
-  const cachedEntry = transcriptChunkViewCache.get(chunk);
-  if (cachedEntry?.revision === chunk.revision) {
-    return cachedEntry.view;
-  }
-
-  const view: TranscriptChunkView = {
-    id: chunk.id,
-    turnId: chunk.turnId,
-    revision: chunk.revision,
-    entries: chunk.entryIds.flatMap((entryId) => {
-      const entry = transcriptState.entriesById[entryId];
-      return entry == null ? [] : [entry];
-    }),
-  };
-
-  transcriptChunkViewCache.set(chunk, { revision: chunk.revision, view });
-  return view;
-};
-
 export const transcriptStateSlice = createAppSlice({
   name: "transcriptState",
   initialState: initialTranscriptState,
@@ -91,25 +62,20 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
     selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
       transcriptState.turnsById[turnId] ?? null,
-    selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null => {
-      const chunk = transcriptState.chunksById[chunkId];
-      if (chunk == null) {
-        return null;
-      }
-
-      return selectCachedTranscriptChunkView(transcriptState, chunk);
-    },
+    selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
+      transcriptChunkView(transcriptState, chunkId),
     selectTranscriptEntry: (transcriptState, entryId: string): TranscriptEntry | null =>
       transcriptState.entriesById[entryId] ?? null,
     selectTranscriptLiveItem: (
       transcriptState,
       turnId: string,
       itemId: string,
-    ): TranscriptRenderableLiveItem | null => findLiveItem(transcriptState, turnId, itemId),
+    ): TranscriptRenderableLiveItem | null => transcriptLiveItem(transcriptState, turnId, itemId),
     selectTranscriptLiveItemsForTurn: (
       transcriptState,
       turnId: string,
-    ): readonly TranscriptRenderableLiveItem[] => liveItemsForTurn(transcriptState, turnId),
+    ): readonly TranscriptRenderableLiveItem[] =>
+      transcriptLiveItemsForTurn(transcriptState, turnId),
     selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
       transcriptState.globalStatus,
   },
