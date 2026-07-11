@@ -15,13 +15,13 @@
 - 允许交界：AppShell 与 platform/environment。
 - 禁止扩张：host transport、transcript state。
 
-- 交界引用：[RA-01-001](./01-app-entry-shell-and-platform.md#ra-01-001)
-- 本报告仅使用的交界事实：AppShell 拥有 composition 与 Mac Apple WebKit heuristic 的输入侧，本报告只拥有 Composer 的消费行为。
-- Evidence owner：`01-app-entry-shell-and-platform.md`
+- 本报告自身范围交界：AppShell composition 与 Mac Apple WebKit heuristic 仅作为 Composer 输入侧事实；没有语义匹配的跨报告 finding，本报告自行拥有 Composer 消费行为。
 
 - 交界引用：[RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001)
-- 本报告仅使用的交界事实：`GuiHostStatus`、`GuiHostCommands`、`LaunchParams` 的协议与 transport owner 保持在 GUI host client，本报告只审核 Composer 与 QR 的消费边界。
+- 本报告仅使用的交界事实：RA-02-001 拥有 `LaunchParams` 的定义与 launch 生命周期；本报告只审核其在 QR/access 的消费边界。
 - Evidence owner：`02-gui-host-transport-and-protocol.md`
+
+- 本报告排除范围：`GuiHostCommands`、host status 与 transport 生命周期不由现有匹配 finding 提供 owner 交界，本报告只把 typed commands 当作 Composer 输入，不审计其 transport 实现。
 
 - 交界引用：[RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004)
 - 本报告仅使用的交界事实：thread identity/runtime action 与 selector owner 保持在 projection/runtime，本报告只审核 Composer 的 availability 与 turn action UI。
@@ -78,7 +78,7 @@
 - 行为、契约、状态、性能和测试风险: pending 状态清理必须覆盖 resolve/reject；错误后应重新允许 Stop；不得改变 active turn 判定、draft 内容、send pending 行为或 interrupt payload。
 - 后续实施时建议的验证范围: 增加 deferred interrupt browser test，验证 pending 时 Stop disabled 且只调用一次、成功/失败后恢复；保持现有 send、active turn、manual reconnect 与 toast 测试。本轮未运行测试。
 - 当前代码关键证据路径与行号: `ComposerTurnControl.tsx:38-65,69-107,169-185`；`composerTurnControlModel.ts:26-44`；`ComposerTurnControl.browser.test.tsx:521-613`；`composerTurnControlModel.test.ts:71-98`。
-- 关联的既有报告、issue 或专项设计: [RA-01-001](./01-app-entry-shell-and-platform.md#ra-01-001)、[RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001)、[RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004) 分别提供 app/shell、host transport 与 runtime 交界；本 finding 只拥有 Composer 消费侧 pending 语义。
+- 关联的既有报告、issue 或专项设计: [RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004) 提供 thread identity/runtime availability 交界；AppShell/platform 与 typed commands 仅作为本报告范围输入，不借用不匹配的 finding owner。本 finding 只拥有 Composer 消费侧 pending 语义。
 - 已排除项: 未因 Composer 同时拥有 draft、IME、commands 与 toast 就判定需要全面拆分；未把错误文本归一化或 command transport 纳入 finding；未声称重复 interrupt 已造成用户可见故障。
 - 报告建议: 保留为 RA-07-001、状态“确认重构点”、优先级 P2；后续只实施 stop pending 一致化。
 
@@ -100,7 +100,7 @@
 - 行为、契约、状态、性能和测试风险: 清理 helper 时不得移除仍由 initial locale resolution 使用的 locale 类型、browser/storage 读取或 catalog loader；catalog 更新必须避免留下 stale source 注释；若保留 Switcher 则需要处理 runtime locale 与本地 state 漂移。
 - 后续实施时建议的验证范围: 重新核对三个组件和专属 helper 的 production/test 引用为零，运行 Lingui extract/compile 与受影响 TypeScript/测试检查，并确认 production bootstrap 仍可加载 en/zh-CN catalog。本轮未运行任何命令。
 - 当前代码关键证据路径与行号: `i18n.ts:3-65`；`main.tsx:5-28`；`LanguageSwitcher.tsx:5-56`；`MsgExample.tsx:4-52`；`PluralExample.tsx:4-20`；`locales/en.po:16-38`；`locales/zh-CN.po:16-38`。
-- 关联的既有报告、issue 或专项设计: 与上述稳定 RA 条目无直接 finding 关联；本 finding 独立拥有未接入 i18n feature 与 catalog 维护边界，无已知专项设计要求保留这些示例。
+- 关联的既有报告、issue 或专项设计: 与现有跨报告 RA 无直接 finding 关联；本 finding 独立拥有未接入 i18n feature 与 catalog 维护边界，无已知专项设计要求保留这些示例。
 - 已排除项: 不把 `i18n.ts` 初始化、`main.tsx` provider 或 locale catalog loader 判为错误 owner；不把 production NotFound 翻译并入遗留删除；不据此决定全应用 localization 策略。
 - 报告建议: 保留为 RA-07-002、状态“确认重构点”、优先级 P2；后续优先删除或收缩遗留，不顺带设计新切换器。
 
@@ -122,7 +122,7 @@
 - 行为、契约、状态、性能和测试风险: 邮件链接、返回首页导航和 404 layout 必须保持不变；在未确认 broader localization policy 前直接翻译单页可能造成不一致体验；新增消息需避免手工 catalog 漂移。
 - 后续实施时建议的验证范围: 先补产品/设计范围证据或执行独立 production 文案审计；若升级 finding，再增加 active locale 下的 NotFound browser/route 覆盖并运行 Lingui 流程。本轮未运行命令。
 - 当前代码关键证据路径与行号: `router.tsx:1-17`；`NotFoundPage.tsx:4-39`；`locales/en.po`、`locales/zh-CN.po` 的全部 source 注释；全局 test message/reference 搜索。
-- 关联的既有报告、issue 或专项设计: 与上述稳定 RA 条目无直接 finding 关联；本候选仅拥有 NotFound localization 消费侧，未发现明确的全应用 localization 专项设计。
+- 关联的既有报告、issue 或专项设计: 与现有跨报告 RA 无直接 finding 关联；本候选仅拥有 NotFound localization 消费侧，未发现明确的全应用 localization 专项设计。
 - 已排除项: 本轮未审计所有 production UI 文案；不把未翻译单页直接推广为全应用缺陷；不与 RA-07-002 同批删除；不把 mailto 地址或 router API 纳入候选。
 - 报告建议: 保留为 RA-07-003、状态“候选待补证据”、优先级 P3；补齐产品 localization 范围后再决定是否实施。
 
@@ -144,7 +144,7 @@
 - 行为、契约、状态、性能和测试风险: 现有 viewport one-shot armed 行为可能遗漏后续 keyboard animation resize，但测试明确固化只滚动一次；QR disabled trigger 使 unavailable 文案不可打开。两项均缺少用户可见失败证据，不升级为 finding。
 - 后续实施时建议的验证范围: 维持现有 viewport 可见/遮挡/blur browser tests与 QR URL encoding/popover tests；未来若改行为需针对真实产品需求增加覆盖。本轮未运行测试。
 - 当前代码关键证据路径与行号: `useRevealComposerOnViewportResize.ts:5-93`；`ComposerTurnControl.browser.test.tsx:200-304`；`qrAccessUrl.ts:1-12`；`QrAccessPopover.tsx:8-67`；`qrAccessUrl.test.ts:4-24`；`QrAccessPopover.browser.test.tsx:5-23`。
-- 关联的既有报告、issue 或专项设计: [RA-01-001](./01-app-entry-shell-and-platform.md#ra-01-001) 与 [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) 提供 AppShell/platform 输入侧和 LaunchParams/transport 交界；本条只确认 feature 消费边界，无新的实施设计。
+- 关联的既有报告、issue 或专项设计: [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) 仅提供 LaunchParams/QR access 交界；viewport 的 AppShell/platform 输入侧由本报告自身范围说明拥有。本条只确认 feature 消费边界，无新的实施设计。
 - 已排除项: 不因 hook/URL builder 只有一个调用方就判定应内联；不把 viewport 与 QR 合并；不把 nullable unavailable 文案或 one-shot 风险解释为已复现 bug。
 - 报告建议: 保留为 RA-07-004、状态“已由现有抽象覆盖”、优先级“非 finding”；保持现状。
 
