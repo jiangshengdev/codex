@@ -1,5 +1,4 @@
 import { createAppSlice } from "@/app/createAppSlice";
-import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
 import {
   threadRuntimeAttached,
   threadRuntimeDeltaAccepted,
@@ -7,96 +6,39 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import type { ThreadItem, Turn, TurnStatus } from "@codex-protocol/v2";
+import type { ThreadItem, Turn } from "@codex-protocol/v2";
 import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
+import {
+  MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  createEmptyTranscriptState,
+  initialTranscriptState,
+  resetTranscriptState,
+  type TranscriptChunk,
+  type TranscriptChunkView,
+  type TranscriptEntry,
+  type TranscriptGlobalStatus,
+  type TranscriptRenderableLiveItem,
+  type TranscriptState,
+  type TranscriptTurn,
+} from "./transcriptStateModel";
 
-export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
-export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
-
-export type TranscriptTurn = {
-  id: string;
-  status: TurnStatus;
-  leadingPromptEntryId: string | null;
-  middleChunkIds: string[];
-  middleEntryCount: number;
-  finalAssistantEntryIds: string[];
-};
-
-export type TranscriptChunk = {
-  id: string;
-  turnId: string;
-  entryIds: string[];
-  revision: number;
-};
-
-export type TranscriptLiveItemStatus = "started" | "streaming";
-
-export type TranscriptLiveItemIndex = {
-  turnId: string;
-  index: number;
-};
-
-export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
-
-export type TranscriptEntry =
-  | {
-      type: "message";
-      id: string;
-      turnId: string;
-      role: "user" | "assistant";
-      source: string;
-      sourceKind: "plainText" | "markdown";
-      phase: TranscriptMessagePhase;
-      revision: number;
-    }
-  | {
-      type: "status";
-      id: string;
-      turnId: string;
-      status: "interrupted" | "failed";
-      revision: number;
-    };
-
-export type TranscriptGlobalStatus = {
-  id: string;
-  status: "subscriptionInterrupted";
-  reason: ProjectionManualReconnectReason;
-  subscriptionId: string | null;
-};
-
-export type TranscriptChunkView = {
-  id: string;
-  turnId: string;
-  revision: number;
-  entries: TranscriptEntry[];
-};
-
-export type TranscriptRenderableLiveItem = {
-  key: string;
-  turnId: string;
-  itemId: string;
-  status: TranscriptLiveItemStatus;
-  initialItem: ThreadItem;
-  transientText: string;
-  revision: number;
-};
-
-export type TranscriptState = {
-  threadId: string | null;
-  subscriptionId: string | null;
-  committedScrollCommitKey: string | null;
-  liveScrollPulse: number;
-  turnIds: string[];
-  turnsById: Record<string, TranscriptTurn>;
-  chunksById: Record<string, TranscriptChunk>;
-  entriesById: Record<string, TranscriptEntry>;
-  entryChunkById: Record<string, string>;
-  liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>;
-  liveItemIndexByKey: Record<string, TranscriptLiveItemIndex>;
-  globalStatus: TranscriptGlobalStatus[];
-  appliedEventIdsById: Record<string, true>;
-  appliedEventOrder: string[];
-};
+export {
+  MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+} from "./transcriptStateModel";
+export type {
+  TranscriptChunk,
+  TranscriptChunkView,
+  TranscriptEntry,
+  TranscriptGlobalStatus,
+  TranscriptLiveItemIndex,
+  TranscriptLiveItemStatus,
+  TranscriptMessagePhase,
+  TranscriptRenderableLiveItem,
+  TranscriptState,
+  TranscriptTurn,
+} from "./transcriptStateModel";
 
 type TranscriptChunkViewCacheEntry = {
   revision: number;
@@ -104,57 +46,6 @@ type TranscriptChunkViewCacheEntry = {
 };
 
 const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
-
-const initialState: TranscriptState = {
-  threadId: null,
-  subscriptionId: null,
-  committedScrollCommitKey: null,
-  liveScrollPulse: 0,
-  turnIds: [],
-  turnsById: {},
-  chunksById: {},
-  entriesById: {},
-  entryChunkById: {},
-  liveItemsByTurnId: {},
-  liveItemIndexByKey: {},
-  globalStatus: [],
-  appliedEventIdsById: {},
-  appliedEventOrder: [],
-};
-
-const createEmptyState = (): TranscriptState => ({
-  threadId: null,
-  subscriptionId: null,
-  committedScrollCommitKey: null,
-  liveScrollPulse: 0,
-  turnIds: [],
-  turnsById: {},
-  chunksById: {},
-  entriesById: {},
-  entryChunkById: {},
-  liveItemsByTurnId: {},
-  liveItemIndexByKey: {},
-  globalStatus: [],
-  appliedEventIdsById: {},
-  appliedEventOrder: [],
-});
-
-const resetState = (state: TranscriptState, nextState: TranscriptState) => {
-  state.threadId = nextState.threadId;
-  state.subscriptionId = nextState.subscriptionId;
-  state.committedScrollCommitKey = nextState.committedScrollCommitKey;
-  state.liveScrollPulse = nextState.liveScrollPulse;
-  state.turnIds = nextState.turnIds;
-  state.turnsById = nextState.turnsById;
-  state.chunksById = nextState.chunksById;
-  state.entriesById = nextState.entriesById;
-  state.entryChunkById = nextState.entryChunkById;
-  state.liveItemsByTurnId = nextState.liveItemsByTurnId;
-  state.liveItemIndexByKey = nextState.liveItemIndexByKey;
-  state.globalStatus = nextState.globalStatus;
-  state.appliedEventIdsById = nextState.appliedEventIdsById;
-  state.appliedEventOrder = nextState.appliedEventOrder;
-};
 
 const hasAppliedEvent = (state: TranscriptState, commitId: string): boolean =>
   state.appliedEventIdsById[commitId] === true;
@@ -495,7 +386,7 @@ const rebuildFromSnapshot = (
   headCommitId: string | null,
   turns: Turn[],
 ) => {
-  const nextState = createEmptyState();
+  const nextState = createEmptyTranscriptState();
   nextState.threadId = threadId;
   nextState.subscriptionId = subscriptionId;
   nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
@@ -510,7 +401,7 @@ const rebuildFromSnapshot = (
     }
   }
 
-  resetState(state, nextState);
+  resetTranscriptState(state, nextState);
 };
 
 const selectCachedTranscriptChunkView = (
@@ -538,7 +429,7 @@ const selectCachedTranscriptChunkView = (
 
 export const transcriptStateSlice = createAppSlice({
   name: "transcriptState",
-  initialState,
+  initialState: initialTranscriptState,
   reducers: () => ({}),
   selectors: {
     selectCommittedTranscriptScrollCommitKey: (transcriptState): string | null =>
