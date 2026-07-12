@@ -1,6 +1,8 @@
 #![cfg(target_os = "windows")]
 
+use super::legacy_diagnostics::LegacySpawnWithDiagnostics;
 use super::spawn_windows_sandbox_session_legacy;
+use super::spawn_windows_sandbox_session_legacy_with_diagnostics;
 use crate::WindowsSandboxCancellationToken;
 use crate::ipc_framed::Message;
 use crate::ipc_framed::decode_bytes;
@@ -520,9 +522,24 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 protected_git_dir.to_string_lossy().into_owned(),
             ),
         ]);
+        let observed_paths = vec![
+            test_root.path().to_path_buf(),
+            workspace.clone(),
+            workspace_file.clone(),
+            temp_root.clone(),
+            temp_file.clone(),
+            tmp_root.clone(),
+            tmp_file.clone(),
+            protected_git_dir.clone(),
+            outside_root.clone(),
+            outside_file.clone(),
+        ];
 
         let permission_profile = PermissionProfile::workspace_write();
-        let spawned = spawn_windows_sandbox_session_legacy(
+        let LegacySpawnWithDiagnostics {
+            spawned,
+            report: diagnostics,
+        } = spawn_windows_sandbox_session_legacy_with_diagnostics(
             &permission_profile,
             workspace_roots_for(workspace.as_path()).as_slice(),
             codex_home.path(),
@@ -540,9 +557,10 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
             /*tty*/ false,
             /*stdin_open*/ false,
             /*use_private_desktop*/ true,
+            observed_paths,
         )
         .await
-        .expect("spawn legacy delete session");
+        .expect("spawn legacy delete session with diagnostics");
         let (stdout, exit_code) =
             collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 10))
                 .await;
@@ -558,8 +576,9 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 protected_git_dir.is_dir(),
             ),
             (0, false, false, false, Some("outside".to_string()), true),
-            "stdout={stdout:?}\n{}",
-            sandbox_log(codex_home.path())
+            "stdout={stdout:?}\n{}\n{}",
+            sandbox_log(codex_home.path()),
+            diagnostics.render()
         );
     });
 }

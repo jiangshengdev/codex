@@ -8,12 +8,18 @@
 //!   used by both.
 
 mod backends;
+pub(crate) mod legacy_diagnostics;
 
 use anyhow::Result;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::PermissionProfile;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::SpawnedProcess;
+use legacy_diagnostics::LegacyDiagnosticsRequest;
+#[cfg(test)]
+use legacy_diagnostics::LegacyDiagnosticsOutput;
+#[cfg(test)]
+use legacy_diagnostics::LegacySpawnWithDiagnostics;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -103,7 +109,7 @@ pub async fn spawn_windows_sandbox_session_legacy(
     stdin_open: bool,
     use_private_desktop: bool,
 ) -> Result<SpawnedProcess> {
-    backends::legacy::spawn_windows_sandbox_session_legacy(
+    let result = backends::legacy::spawn_windows_sandbox_session_legacy_impl(
         permission_profile,
         workspace_roots,
         codex_home,
@@ -116,8 +122,52 @@ pub async fn spawn_windows_sandbox_session_legacy(
         tty,
         stdin_open,
         use_private_desktop,
+        LegacyDiagnosticsRequest::Disabled,
     )
-    .await
+    .await?;
+    Ok(result.spawned)
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn spawn_windows_sandbox_session_legacy_with_diagnostics(
+    permission_profile: &PermissionProfile,
+    workspace_roots: &[AbsolutePathBuf],
+    codex_home: &Path,
+    command: Vec<String>,
+    cwd: &Path,
+    env_map: HashMap<String, String>,
+    timeout_ms: Option<u64>,
+    additional_deny_read_paths: &[AbsolutePathBuf],
+    additional_deny_write_paths: &[AbsolutePathBuf],
+    tty: bool,
+    stdin_open: bool,
+    use_private_desktop: bool,
+    observed_paths: Vec<PathBuf>,
+) -> Result<LegacySpawnWithDiagnostics> {
+    let result = backends::legacy::spawn_windows_sandbox_session_legacy_impl(
+        permission_profile,
+        workspace_roots,
+        codex_home,
+        command,
+        cwd,
+        env_map,
+        timeout_ms,
+        additional_deny_read_paths,
+        additional_deny_write_paths,
+        tty,
+        stdin_open,
+        use_private_desktop,
+        LegacyDiagnosticsRequest::Capture { observed_paths },
+    )
+    .await?;
+    let LegacyDiagnosticsOutput::Captured(report) = result.diagnostics else {
+        anyhow::bail!("legacy diagnostics request returned disabled output");
+    };
+    Ok(LegacySpawnWithDiagnostics {
+        spawned: result.spawned,
+        report,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1,7 +1,7 @@
-use crate::acl::add_allow_ace;
-use crate::acl::add_deny_write_ace;
-use crate::acl::allow_null_device;
-use crate::acl::ensure_allow_write_aces;
+use crate::acl::{
+    add_allow_ace, add_deny_write_ace_observed, allow_null_device,
+    ensure_allow_write_aces_observed,
+};
 use crate::allow::AllowDenyPaths;
 use crate::allow::compute_allow_paths_for_permissions;
 use crate::cap::load_or_create_cap_sids;
@@ -28,17 +28,17 @@ use crate::token::create_readonly_token_with_cap;
 use crate::token::create_workspace_write_token_with_caps_from;
 use crate::token::get_current_token_for_restriction;
 use crate::token::get_logon_sid_bytes;
+use crate::unified_exec::legacy_diagnostics::{
+    LegacyAclOperationKind, LegacyDiagnosticsCollector,
+};
 use crate::workspace_acl::is_command_cwd_root;
-use crate::workspace_acl::protect_workspace_agents_dir;
-use crate::workspace_acl::protect_workspace_codex_dir;
 use anyhow::Context;
 use anyhow::Result;
 use codex_protocol::models::PermissionProfile;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Foundation::HANDLE;
 
@@ -276,6 +276,53 @@ pub(crate) fn apply_legacy_session_acl_rules(
     additional_deny_write_paths: &[PathBuf],
     acl_sids: LegacyAclSids<'_>,
 ) -> Result<()> {
+    let mut diagnostics = LegacyDiagnosticsCollector::disabled();
+    apply_legacy_session_acl_rules_impl(
+        permissions,
+        codex_home,
+        current_dir,
+        env_map,
+        additional_deny_read_paths,
+        additional_deny_write_paths,
+        acl_sids,
+        &mut diagnostics,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn apply_legacy_session_acl_rules_with_diagnostics(
+    permissions: &ResolvedWindowsSandboxPermissions,
+    codex_home: &Path,
+    current_dir: &Path,
+    env_map: &HashMap<String, String>,
+    additional_deny_read_paths: &[PathBuf],
+    additional_deny_write_paths: &[PathBuf],
+    acl_sids: LegacyAclSids<'_>,
+    diagnostics: &mut LegacyDiagnosticsCollector,
+) -> Result<()> {
+    apply_legacy_session_acl_rules_impl(
+        permissions,
+        codex_home,
+        current_dir,
+        env_map,
+        additional_deny_read_paths,
+        additional_deny_write_paths,
+        acl_sids,
+        diagnostics,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_legacy_session_acl_rules_impl(
+    permissions: &ResolvedWindowsSandboxPermissions,
+    codex_home: &Path,
+    current_dir: &Path,
+    env_map: &HashMap<String, String>,
+    additional_deny_read_paths: &[PathBuf],
+    additional_deny_write_paths: &[PathBuf],
+    acl_sids: LegacyAclSids<'_>,
+    diagnostics: &mut LegacyDiagnosticsCollector,
+) -> Result<()> {
     let AllowDenyPaths { allow, mut deny } =
         compute_allow_paths_for_permissions(permissions, current_dir, env_map);
     unsafe {
@@ -297,12 +344,26 @@ pub(crate) fn apply_legacy_session_acl_rules(
                 let Some(root_sid) = matching_root_capability(p, acl_sids.write_root_sids) else {
                     continue;
                 };
-                let _ = ensure_allow_write_aces(p, &[root_sid.sid.as_ptr()]);
+                let attempt = ensure_allow_write_aces_observed(p, &[root_sid.sid.as_ptr()]);
+                diagnostics.record_acl_attempt(
+                    LegacyAclOperationKind::EnsureAllowWrite,
+                    p,
+                    &root_sid.sid_str,
+                    &attempt,
+                );
+                let _ = attempt.into_ensure_legacy_result(p);
             }
         }
         for p in &deny {
             for root_sid in deny_root_capabilities_for_path(p, acl_sids.write_root_sids) {
-                let _ = add_deny_write_ace(p, root_sid.sid.as_ptr());
+                let attempt = add_deny_write_ace_observed(p, root_sid.sid.as_ptr());
+                diagnostics.record_acl_attempt(
+                    LegacyAclOperationKind::DenyWrite,
+                    p,
+                    &root_sid.sid_str,
+                    &attempt,
+                );
+                let _ = attempt.into_legacy_result();
             }
         }
         if !additional_deny_read_paths.is_empty() {
@@ -339,8 +400,21 @@ pub(crate) fn apply_legacy_session_acl_rules(
         {
             let canonical_cwd = canonicalize_path(current_dir);
             if is_command_cwd_root(&workspace_sid.root, &canonical_cwd) {
-                let _ = protect_workspace_codex_dir(current_dir, workspace_sid.sid.as_ptr());
-                let _ = protect_workspace_agents_dir(current_dir, workspace_sid.sid.as_ptr());
+                let workspace_sid_ptr = workspace_sid.sid.as_ptr();
+                let workspace_sid_str = workspace_sid.sid_str.as_str();
+                for (subdir, kind) in [
+                    (".codex", LegacyAclOperationKind::ProtectWorkspaceCodex),
+                    (".agents", LegacyAclOperationKind::ProtectWorkspaceAgents),
+                ] {
+                    let path = current_dir.join(subdir);
+                    if path.is_dir() {
+                        let attempt = add_deny_write_ace_observed(&path, workspace_sid_ptr);
+                        diagnostics.record_acl_attempt(kind, &path, workspace_sid_str, &attempt);
+                        let _ = attempt.into_legacy_result();
+                    } else {
+                        diagnostics.record_acl_skipped_missing(kind, &path, workspace_sid_str);
+                    }
+                }
             }
         }
     }
