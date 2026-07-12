@@ -11,14 +11,10 @@ use crate::process::spawn_process_with_pipes;
 use crate::spawn_prep::LegacyAclSids;
 use crate::spawn_prep::SpawnPrepOptions;
 use crate::spawn_prep::allow_null_device_for_workspace_write;
-use crate::spawn_prep::apply_legacy_session_acl_rules_with_diagnostics;
+use crate::spawn_prep::apply_legacy_session_acl_rules;
 use crate::spawn_prep::legacy_session_capability_roots;
 use crate::spawn_prep::prepare_legacy_session_security;
 use crate::spawn_prep::prepare_legacy_spawn_context;
-use crate::unified_exec::legacy_diagnostics::AclSnapshotStage;
-use crate::unified_exec::legacy_diagnostics::LegacyDiagnosticsCollector;
-use crate::unified_exec::legacy_diagnostics::LegacyDiagnosticsOutput;
-use crate::unified_exec::legacy_diagnostics::LegacyDiagnosticsRequest;
 use anyhow::Result;
 use codex_protocol::models::PermissionProfile;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -57,11 +53,6 @@ struct LegacyProcessHandles {
     conpty_owner: Option<ConptyInstance>,
     token_handle: HANDLE,
     desktop: Option<LaunchDesktop>,
-}
-
-pub(crate) struct LegacyBackendSpawn {
-    pub(crate) spawned: SpawnedProcess,
-    pub(crate) diagnostics: LegacyDiagnosticsOutput,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -278,7 +269,7 @@ fn resize_conpty_handle(hpc: &Arc<StdMutex<Option<HANDLE>>>, size: TerminalSize)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn spawn_windows_sandbox_session_legacy_impl(
+pub(crate) async fn spawn_windows_sandbox_session_legacy(
     permission_profile: &PermissionProfile,
     workspace_roots: &[AbsolutePathBuf],
     codex_home: &Path,
@@ -291,8 +282,7 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy_impl(
     tty: bool,
     stdin_open: bool,
     use_private_desktop: bool,
-    diagnostics_request: LegacyDiagnosticsRequest,
-) -> Result<LegacyBackendSpawn> {
+) -> Result<SpawnedProcess> {
     let common = prepare_legacy_spawn_context(
         permission_profile,
         workspace_roots,
@@ -323,18 +313,15 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy_impl(
         &env_map,
         codex_home,
     );
-    let mut diagnostics = LegacyDiagnosticsCollector::from_request(diagnostics_request);
     let security = prepare_legacy_session_security(
         common.uses_write_capabilities,
         codex_home,
         cwd,
         capability_roots,
     )?;
-    diagnostics.capture_token(security.h_token, &security.write_root_sids);
-    diagnostics.capture_paths(AclSnapshotStage::BeforeAcl);
     allow_null_device_for_workspace_write(common.uses_write_capabilities);
 
-    apply_legacy_session_acl_rules_with_diagnostics(
+    apply_legacy_session_acl_rules(
         &common.permissions,
         codex_home,
         &common.current_dir,
@@ -346,10 +333,7 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy_impl(
             readonly_sid_str: security.readonly_sid_str.as_deref(),
             write_root_sids: &security.write_root_sids,
         },
-        &mut diagnostics,
     )?;
-    diagnostics.capture_paths(AclSnapshotStage::AfterAcl);
-    let diagnostics = diagnostics.finish();
 
     let (writer_tx, writer_rx) = mpsc::channel::<Vec<u8>>(128);
     let (stdout_tx, stdout_rx) = broadcast::channel::<Vec<u8>>(256);
@@ -455,9 +439,5 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy_impl(
         }),
     };
 
-    let spawned = finish_driver_spawn(driver, stdin_open);
-    Ok(LegacyBackendSpawn {
-        spawned,
-        diagnostics,
-    })
+    Ok(finish_driver_spawn(driver, stdin_open))
 }
