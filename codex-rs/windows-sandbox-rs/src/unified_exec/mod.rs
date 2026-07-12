@@ -8,6 +8,8 @@
 //!   used by both.
 
 mod backends;
+#[cfg(all(windows, test))]
+mod legacy_temporary_diagnostics;
 
 use anyhow::Result;
 use codex_protocol::config_types::WindowsSandboxLevel;
