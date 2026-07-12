@@ -2062,6 +2062,7 @@ async fn remote_compact_trim_estimate_uses_session_base_instructions() -> Result
             .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
             .with_config(|config| {
                 config.model_context_window = Some(200_000);
+                config.include_skill_instructions = false;
             }),
     )
     .await?;
@@ -2169,6 +2170,7 @@ async fn remote_compact_trim_estimate_uses_session_base_instructions() -> Result
                 move |config| {
                     config.model_context_window = Some(override_context_window);
                     config.base_instructions = Some(override_base_instructions);
+                    config.include_skill_instructions = false;
                 }
             }),
     )
