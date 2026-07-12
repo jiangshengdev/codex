@@ -1,4 +1,6 @@
 use super::windows_common::finish_driver_spawn;
+#[cfg(test)]
+use crate::acl::enable_temporary_acl_diagnostics;
 use crate::conpty::ConptyInstance;
 use crate::conpty::spawn_conpty_process_as_user;
 use crate::desktop::LaunchDesktop;
@@ -9,12 +11,16 @@ use crate::process::StdinMode;
 use crate::process::read_handle_loop;
 use crate::process::spawn_process_with_pipes;
 use crate::spawn_prep::LegacyAclSids;
+#[cfg(test)]
+use crate::spawn_prep::RootCapabilitySid;
 use crate::spawn_prep::SpawnPrepOptions;
 use crate::spawn_prep::allow_null_device_for_workspace_write;
 use crate::spawn_prep::apply_legacy_session_acl_rules;
 use crate::spawn_prep::legacy_session_capability_roots;
 use crate::spawn_prep::prepare_legacy_session_security;
 use crate::spawn_prep::prepare_legacy_spawn_context;
+#[cfg(test)]
+use crate::unified_exec::legacy_temporary_diagnostics;
 use anyhow::Result;
 use codex_protocol::models::PermissionProfile;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -61,6 +67,7 @@ fn spawn_legacy_process(
     command: &[String],
     cwd: &Path,
     env_map: &HashMap<String, String>,
+    #[cfg(test)] temporary_diagnostics: Option<&[RootCapabilitySid]>,
     use_private_desktop: bool,
     tty: bool,
     stdin_open: bool,
@@ -69,6 +76,12 @@ fn spawn_legacy_process(
     writer_rx: mpsc::Receiver<Vec<u8>>,
     logs_base_dir: Option<&Path>,
 ) -> Result<LegacyProcessHandles> {
+    #[cfg(test)]
+    if let Some(capability_roots) = temporary_diagnostics {
+        unsafe {
+            legacy_temporary_diagnostics::dump_spawn_token(h_token, capability_roots);
+        }
+    }
     let (pi, output_join, writer_handle, hpc, conpty_owner, desktop) = if tty {
         let (pi, mut conpty) = spawn_conpty_process_as_user(
             h_token,
@@ -321,7 +334,18 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
     )?;
     allow_null_device_for_workspace_write(common.uses_write_capabilities);
 
-    apply_legacy_session_acl_rules(
+    #[cfg(test)]
+    let temporary_diagnostics_enabled =
+        env_map.contains_key("CODEX_WINDOWS_LEGACY_TEMP_DIAGNOSTICS");
+    #[cfg(test)]
+    if temporary_diagnostics_enabled {
+        legacy_temporary_diagnostics::dump_path_acls("before_acl", &env_map);
+    }
+
+    #[cfg(test)]
+    let temporary_acl_diagnostics_guard =
+        temporary_diagnostics_enabled.then(enable_temporary_acl_diagnostics);
+    let acl_result = apply_legacy_session_acl_rules(
         &common.permissions,
         codex_home,
         &common.current_dir,
@@ -333,7 +357,14 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
             readonly_sid_str: security.readonly_sid_str.as_deref(),
             write_root_sids: &security.write_root_sids,
         },
-    )?;
+    );
+    #[cfg(test)]
+    drop(temporary_acl_diagnostics_guard);
+    acl_result?;
+    #[cfg(test)]
+    if temporary_diagnostics_enabled {
+        legacy_temporary_diagnostics::dump_path_acls("after_acl", &env_map);
+    }
 
     let (writer_tx, writer_rx) = mpsc::channel::<Vec<u8>>(128);
     let (stdout_tx, stdout_rx) = broadcast::channel::<Vec<u8>>(256);
@@ -343,6 +374,9 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
         Some(broadcast::channel::<Vec<u8>>(256))
     };
     let (exit_tx, exit_rx) = oneshot::channel::<i32>();
+    #[cfg(test)]
+    let temporary_diagnostics =
+        temporary_diagnostics_enabled.then_some(security.write_root_sids.as_slice());
 
     let LegacyProcessHandles {
         process: pi,
@@ -357,6 +391,8 @@ pub(crate) async fn spawn_windows_sandbox_session_legacy(
         &command,
         cwd,
         &env_map,
+        #[cfg(test)]
+        temporary_diagnostics,
         use_private_desktop,
         tty,
         stdin_open,

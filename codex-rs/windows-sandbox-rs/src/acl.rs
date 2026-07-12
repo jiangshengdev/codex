@@ -1,10 +1,13 @@
 use crate::winutil::to_wide;
 use anyhow::Result;
 use anyhow::anyhow;
+#[cfg(test)]
+use std::cell::Cell;
 use std::ffi::c_void;
 use std::path::Path;
 use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+use windows_sys::Win32::Foundation::GetLastError;
 use windows_sys::Win32::Foundation::HLOCAL;
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::Foundation::LocalFree;
@@ -55,6 +58,47 @@ const GENERIC_READ_MASK: u32 = 0x8000_0000;
 const GENERIC_WRITE_MASK: u32 = 0x4000_0000;
 const DENY_ACCESS: i32 = 3;
 
+#[cfg(test)]
+std::thread_local! {
+    static TEMPORARY_ACL_DIAGNOSTICS_ENABLED: Cell<bool> = const { Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(crate) struct TemporaryAclDiagnosticsGuard {
+    previous: bool,
+}
+
+#[cfg(test)]
+impl Drop for TemporaryAclDiagnosticsGuard {
+    fn drop(&mut self) {
+        TEMPORARY_ACL_DIAGNOSTICS_ENABLED.with(|enabled| enabled.set(self.previous));
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn enable_temporary_acl_diagnostics() -> TemporaryAclDiagnosticsGuard {
+    let previous = TEMPORARY_ACL_DIAGNOSTICS_ENABLED.with(|enabled| enabled.replace(true));
+    TemporaryAclDiagnosticsGuard { previous }
+}
+
+#[cfg(test)]
+fn temporary_acl_diagnostics_enabled() -> bool {
+    TEMPORARY_ACL_DIAGNOSTICS_ENABLED.with(Cell::get)
+}
+
+#[cfg(test)]
+fn log_acl_mutation_failure(path: &Path, api: &str, code: u32) {
+    if temporary_acl_diagnostics_enabled() {
+        eprintln!(
+            "legacy temporary diagnostics acl mutation api={api} path={} code={code}",
+            path.display()
+        );
+    }
+}
+
+#[cfg(not(test))]
+fn log_acl_mutation_failure(_path: &Path, _api: &str, _code: u32) {}
+
 /// Fetch DACL via handle-based query; caller must LocalFree the returned SD.
 ///
 /// # Safety
@@ -71,7 +115,12 @@ pub unsafe fn fetch_dacl_handle(path: &Path) -> Result<(*mut ACL, *mut c_void)> 
         0,
     );
     if h == INVALID_HANDLE_VALUE {
-        return Err(anyhow!("CreateFileW failed for {}", path.display()));
+        let code = GetLastError();
+        return Err(anyhow!(
+            "CreateFileW failed for {}: {}",
+            path.display(),
+            code
+        ));
     }
     let mut p_sd: *mut c_void = std::ptr::null_mut();
     let mut p_dacl: *mut ACL = std::ptr::null_mut();
@@ -494,10 +543,14 @@ pub unsafe fn add_allow_ace(path: &Path, psid: *mut c_void) -> Result<bool> {
         );
         if code3 == ERROR_SUCCESS {
             added = !dacl_has_write_allow_for_sid(p_dacl, psid);
+        } else {
+            log_acl_mutation_failure(path, "SetNamedSecurityInfoW", code3);
         }
         if !p_new_dacl.is_null() {
             LocalFree(p_new_dacl as HLOCAL);
         }
+    } else {
+        log_acl_mutation_failure(path, "SetEntriesInAclW", code2);
     }
     if !p_sd.is_null() {
         LocalFree(p_sd as HLOCAL);
@@ -513,7 +566,7 @@ pub unsafe fn add_deny_write_ace(path: &Path, psid: *mut c_void) -> Result<bool>
     add_deny_ace(path, psid, DenyAceKind::Write)
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum DenyAceKind {
     Read,
     Write,
@@ -543,6 +596,19 @@ impl DenyAceKind {
         }
     }
 }
+
+#[cfg(test)]
+fn log_deny_acl_mutation_failure(path: &Path, kind: DenyAceKind, api: &str, code: u32) {
+    if temporary_acl_diagnostics_enabled() {
+        eprintln!(
+            "legacy temporary diagnostics acl mutation api={api} path={} kind={kind:?} code={code}",
+            path.display()
+        );
+    }
+}
+
+#[cfg(not(test))]
+fn log_deny_acl_mutation_failure(_path: &Path, _kind: DenyAceKind, _api: &str, _code: u32) {}
 
 unsafe fn add_deny_ace(path: &Path, psid: *mut c_void, kind: DenyAceKind) -> Result<bool> {
     let mut p_sd: *mut c_void = std::ptr::null_mut();
@@ -588,10 +654,14 @@ unsafe fn add_deny_ace(path: &Path, psid: *mut c_void, kind: DenyAceKind) -> Res
             );
             if code3 == ERROR_SUCCESS {
                 added = true;
+            } else {
+                log_deny_acl_mutation_failure(path, kind, "SetNamedSecurityInfoW", code3);
             }
             if !p_new_dacl.is_null() {
                 LocalFree(p_new_dacl as HLOCAL);
             }
+        } else {
+            log_deny_acl_mutation_failure(path, kind, "SetEntriesInAclW", code2);
         }
     }
     if !p_sd.is_null() {
