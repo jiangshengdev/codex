@@ -167,6 +167,55 @@ describe("transcript state live streaming reducer", () => {
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
   });
 
+  it("accepts a single agent message delta batch with one live update", () => {
+    const store = makeStore();
+    const initialItem = agentMessage("agent-streaming-single-batch", "");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-streaming-single-batch-started",
+          "turn-streaming-single-batch",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    const pulseAfterStarted = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-streaming-single-batch",
+            "agent-streaming-single-batch",
+            "Hello",
+          ),
+        ],
+      }),
+    );
+
+    expect(
+      selectTranscriptLiveItem(
+        store.getState(),
+        "turn-streaming-single-batch",
+        "agent-streaming-single-batch",
+      ),
+    ).toStrictEqual({
+      key: "turn-streaming-single-batch:agent-streaming-single-batch",
+      turnId: "turn-streaming-single-batch",
+      itemId: "agent-streaming-single-batch",
+      status: "streaming",
+      initialItem,
+      transientText: "Hello",
+      revision: 1,
+    });
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
+  });
+
   it("keeps batch delta coalescing isolated per live item", () => {
     const store = makeStore();
     const firstItem = agentMessage("agent-streaming-batch-first", "");
@@ -280,6 +329,37 @@ describe("transcript state live streaming reducer", () => {
 
     expect(store.getState().transcriptState).toBe(beforeState);
     expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing")).toStrictEqual([]);
+  });
+
+  it("ignores accepted agent message delta batches when the live slot is missing", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const beforeState = store.getState().transcriptState;
+
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-missing-batch",
+            "agent-missing-batch",
+            "Ignored",
+          ),
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-missing-batch",
+            "agent-missing-batch",
+            " text",
+          ),
+        ],
+      }),
+    );
+
+    expect(store.getState().transcriptState).toBe(beforeState);
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing-batch")).toStrictEqual(
+      [],
+    );
   });
 
   it("ignores wrong-thread and unsupported delta notifications in accepted delta batches", () => {
