@@ -34,6 +34,9 @@ use tokio::time::timeout;
 
 static TEST_HOME_COUNTER: AtomicU64 = AtomicU64::new(0);
 static LEGACY_PROCESS_TEST_LOCK: Mutex<()> = Mutex::new(());
+const LEGACY_DELETE_DIAGNOSTICS_DIR_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_DIR";
+const LEGACY_DELETE_DIAGNOSTICS_TARGET_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_TARGET";
+const LEGACY_DELETE_DIAGNOSTICS_SHARD_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_SHARD";
 
 fn legacy_process_test_guard() -> MutexGuard<'static, ()> {
     LEGACY_PROCESS_TEST_LOCK
@@ -147,6 +150,288 @@ async fn collect_stdout_and_exit(
         })
         .expect("stdout task join");
     (stdout, exit_code)
+}
+
+fn persist_legacy_delete_diagnostics(
+    output_dir: &Path,
+    target: &str,
+    shard: &str,
+    pid: u32,
+    stdout: &[u8],
+) -> std::io::Result<PathBuf> {
+    fs::create_dir_all(output_dir)?;
+    let path = output_dir.join(format!(
+        "windows-legacy-delete-probe-{target}-shard-{shard}-pid-{pid}.log"
+    ));
+    fs::write(&path, stdout)?;
+    Ok(path)
+}
+
+#[test]
+fn legacy_delete_diagnostics_stdout_is_persisted_with_unique_name() {
+    let output_dir = TempDir::new().expect("create diagnostics output dir");
+    let path = persist_legacy_delete_diagnostics(
+        output_dir.path(),
+        "x86_64-pc-windows-msvc",
+        "4",
+        4242,
+        b"probe_begin schema=1\r\nprobe_end status=ok\r\n",
+    )
+    .expect("persist diagnostics stdout");
+
+    assert_eq!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some("windows-legacy-delete-probe-x86_64-pc-windows-msvc-shard-4-pid-4242.log")
+    );
+    assert_eq!(
+        fs::read(path).expect("read diagnostics stdout"),
+        b"probe_begin schema=1\r\nprobe_end status=ok\r\n"
+    );
+}
+
+fn legacy_delete_access_probe_script() -> &'static str {
+    r#"$source = @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+public static class LegacyDeleteAccessProbe {
+    private const uint TOKEN_QUERY = 0x0008;
+    private const int TokenRestrictedSids = 11;
+    private const uint DELETE = 0x00010000;
+    private const uint FILE_DELETE_CHILD = 0x00000040;
+    private const uint FILE_SHARE_READ = 0x00000001;
+    private const uint FILE_SHARE_WRITE = 0x00000002;
+    private const uint FILE_SHARE_DELETE = 0x00000004;
+    private const uint OPEN_EXISTING = 3;
+    private const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SidAndAttributes {
+        public IntPtr Sid;
+        public uint Attributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TokenGroupsOne {
+        public uint GroupCount;
+        public SidAndAttributes Groups;
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeFileHandle token);
+
+    [DllImport("advapi32.dll")]
+    private static extern bool IsTokenRestricted(SafeFileHandle token);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(
+        SafeFileHandle token,
+        int tokenInformationClass,
+        IntPtr tokenInformation,
+        uint tokenInformationLength,
+        out uint returnLength);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool ConvertSidToStringSidW(IntPtr sid, out IntPtr stringSid);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr memory);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFileW(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetVolumePathNameW(string fileName, System.Text.StringBuilder volumePathName, uint bufferLength);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetVolumeInformationW(
+        string rootPathName,
+        System.Text.StringBuilder volumeNameBuffer,
+        uint volumeNameSize,
+        out uint volumeSerialNumber,
+        out uint maximumComponentLength,
+        out uint fileSystemFlags,
+        System.Text.StringBuilder fileSystemNameBuffer,
+        uint fileSystemNameSize);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint GetDriveTypeW(string rootPathName);
+
+    public static void DumpRestrictedToken() {
+        SafeFileHandle token;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out token)) {
+            Console.WriteLine("probe_error stage=token api=OpenProcessToken code={0}", Marshal.GetLastWin32Error());
+            return;
+        }
+
+        using (token) {
+            Console.WriteLine(
+                "child_token is_restricted={0}",
+                IsTokenRestricted(token).ToString().ToLowerInvariant());
+
+            uint returnLength;
+            GetTokenInformation(token, TokenRestrictedSids, IntPtr.Zero, 0, out returnLength);
+            if (returnLength == 0) {
+                Console.WriteLine("probe_error stage=token api=GetTokenInformation code={0}", Marshal.GetLastWin32Error());
+                return;
+            }
+
+            IntPtr tokenInformation = Marshal.AllocHGlobal((int)returnLength);
+            try {
+                if (!GetTokenInformation(
+                    token,
+                    TokenRestrictedSids,
+                    tokenInformation,
+                    returnLength,
+                    out returnLength)) {
+                    Console.WriteLine("probe_error stage=token api=GetTokenInformation code={0}", Marshal.GetLastWin32Error());
+                    return;
+                }
+
+                uint groupCount = (uint)Marshal.ReadInt32(tokenInformation);
+                int groupsOffset = Marshal.OffsetOf(typeof(TokenGroupsOne), "Groups").ToInt32();
+                int groupSize = Marshal.SizeOf(typeof(SidAndAttributes));
+                for (uint index = 0; index < groupCount; index++) {
+                    IntPtr groupPointer = IntPtr.Add(tokenInformation, groupsOffset + ((int)index * groupSize));
+                    SidAndAttributes group = (SidAndAttributes)Marshal.PtrToStructure(
+                        groupPointer,
+                        typeof(SidAndAttributes));
+                    IntPtr stringSid = IntPtr.Zero;
+                    if (!ConvertSidToStringSidW(group.Sid, out stringSid)) {
+                        Console.WriteLine(
+                            "probe_error stage=token api=ConvertSidToStringSidW index={0} code={1}",
+                            index,
+                            Marshal.GetLastWin32Error());
+                        continue;
+                    }
+
+                    try {
+                        Console.WriteLine(
+                            "child_token restricted_sid index={0} sid={1} attributes=0x{2:x8}",
+                            index,
+                            Marshal.PtrToStringUni(stringSid),
+                            group.Attributes);
+                    } finally {
+                        LocalFree(stringSid);
+                    }
+                }
+            } finally {
+                Marshal.FreeHGlobal(tokenInformation);
+            }
+        }
+    }
+
+    public static void ProbeAccess(
+        string key,
+        string path,
+        bool directory,
+        uint desiredAccess,
+        string accessName) {
+        uint flagsAndAttributes = directory ? FILE_FLAG_BACKUP_SEMANTICS : 0;
+        SafeFileHandle handle = CreateFileW(
+            path,
+            desiredAccess,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            IntPtr.Zero,
+            OPEN_EXISTING,
+            flagsAndAttributes,
+            IntPtr.Zero);
+        bool success = !handle.IsInvalid;
+        int code = success ? 0 : Marshal.GetLastWin32Error();
+        handle.Dispose();
+        Console.WriteLine(
+            "access_probe key={0} access={1} success={2} code={3}",
+            key,
+            accessName,
+            success.ToString().ToLowerInvariant(),
+            code);
+    }
+
+    public static void DumpVolume(string key, string path, HashSet<string> seenRoots) {
+        System.Text.StringBuilder rootBuffer = new System.Text.StringBuilder(261);
+        if (!GetVolumePathNameW(path, rootBuffer, (uint)rootBuffer.Capacity)) {
+            Console.WriteLine(
+                "probe_error stage=volume api=GetVolumePathNameW key={0} code={1}",
+                key,
+                Marshal.GetLastWin32Error());
+            return;
+        }
+
+        string root = rootBuffer.ToString();
+        if (!seenRoots.Add(root)) {
+            return;
+        }
+
+        System.Text.StringBuilder volumeName = new System.Text.StringBuilder(261);
+        System.Text.StringBuilder fileSystemName = new System.Text.StringBuilder(261);
+        uint volumeSerialNumber;
+        uint maximumComponentLength;
+        uint fileSystemFlags;
+        if (!GetVolumeInformationW(
+            root,
+            volumeName,
+            (uint)volumeName.Capacity,
+            out volumeSerialNumber,
+            out maximumComponentLength,
+            out fileSystemFlags,
+            fileSystemName,
+            (uint)fileSystemName.Capacity)) {
+            Console.WriteLine(
+                "probe_error stage=volume api=GetVolumeInformationW root={0} code={1}",
+                root,
+                Marshal.GetLastWin32Error());
+            return;
+        }
+
+        Console.WriteLine(
+            "volume root={0} drive_type={1} filesystem={2} flags=0x{3:x8}",
+            root,
+            GetDriveTypeW(root),
+            fileSystemName,
+            fileSystemFlags);
+    }
+}
+'@
+
+Write-Output "probe_begin schema=1"
+try {
+    Add-Type -TypeDefinition $source -Language CSharp -ErrorAction Stop
+    [LegacyDeleteAccessProbe]::DumpRestrictedToken()
+    $targets = @(
+        @{ Key = "workspace_file"; Path = $env:WORKSPACE_DELETE; Directory = $false },
+        @{ Key = "temp_file"; Path = $env:TEMP_DELETE; Directory = $false },
+        @{ Key = "tmp_file"; Path = $env:TMP_DELETE; Directory = $false },
+        @{ Key = "outside_file"; Path = $env:OUTSIDE_DELETE; Directory = $false },
+        @{ Key = "protected_git_dir"; Path = $env:PROTECTED_GIT_DIR; Directory = $true }
+    )
+    $seenRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($target in $targets) {
+        [LegacyDeleteAccessProbe]::ProbeAccess($target.Key, $target.Path, $target.Directory, 0x00010000, "DELETE")
+        $parent = [System.IO.Path]::GetDirectoryName($target.Path)
+        [LegacyDeleteAccessProbe]::ProbeAccess("$($target.Key)_parent", $parent, $true, 0x00000040, "FILE_DELETE_CHILD")
+        [LegacyDeleteAccessProbe]::DumpVolume($target.Key, $target.Path, $seenRoots)
+    }
+    Write-Output "probe_end status=ok"
+    exit 0
+} catch {
+    $message = ($_.Exception.Message -replace "[\r\n]+", " ")
+    Write-Output "probe_error stage=powershell message=$message"
+    Write-Output "probe_end status=error"
+    exit 1
+}
+"#
 }
 
 #[test]
@@ -481,6 +766,9 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         fs::write(&tmp_file, "tmp").expect("seed TMP file");
         fs::write(&outside_file, "outside").expect("seed outside file");
 
+        let probe = workspace.join("delete-access-probe.ps1");
+        fs::write(&probe, legacy_delete_access_probe_script()).expect("write delete access probe");
+
         let script = workspace.join("delete-fixtures.cmd");
         fs::write(
             &script,
@@ -499,6 +787,9 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 "C:\\Windows\\System32\\icacls.exe \"%TEMP_DELETE%\" 2>&1\r\n",
                 "C:\\Windows\\System32\\icacls.exe \"%DIAG_TMP_ROOT%\" 2>&1\r\n",
                 "C:\\Windows\\System32\\icacls.exe \"%TMP_DELETE%\" 2>&1\r\n",
+                "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%DELETE_ACCESS_PROBE%\" 2>&1\r\n",
+                "set \"probe_errorlevel=%errorlevel%\"\r\n",
+                "echo probe_errorlevel=%probe_errorlevel%\r\n",
                 "del /f /q \"%WORKSPACE_DELETE%\" 2>&1\r\n",
                 "echo delete_workspace_errorlevel=%errorlevel%\r\n",
                 "del /f /q \"%TEMP_DELETE%\" 2>&1\r\n",
@@ -517,6 +808,10 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         let env_map = HashMap::from([
             ("TEMP".to_string(), temp_root.to_string_lossy().into_owned()),
             ("TMP".to_string(), tmp_root.to_string_lossy().into_owned()),
+            (
+                "DELETE_ACCESS_PROBE".to_string(),
+                probe.to_string_lossy().into_owned(),
+            ),
             (
                 "CODEX_WINDOWS_LEGACY_TEMP_DIAGNOSTICS".to_string(),
                 "1".to_string(),
@@ -572,7 +867,7 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
             ],
             workspace.as_path(),
             env_map,
-            /*timeout_ms*/ Some(5_000),
+            /*timeout_ms*/ Some(30_000),
             &[],
             &[],
             /*tty*/ false,
@@ -582,8 +877,21 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         .await
         .expect("spawn legacy delete session");
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 10))
+            collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 45))
                 .await;
+        if let (Ok(output_dir), Ok(target), Ok(shard)) = (
+            std::env::var(LEGACY_DELETE_DIAGNOSTICS_DIR_ENV),
+            std::env::var(LEGACY_DELETE_DIAGNOSTICS_TARGET_ENV),
+            std::env::var(LEGACY_DELETE_DIAGNOSTICS_SHARD_ENV),
+        ) && let Err(err) = persist_legacy_delete_diagnostics(
+            Path::new(&output_dir),
+            &target,
+            &shard,
+            std::process::id(),
+            &stdout,
+        ) {
+            eprintln!("failed to persist legacy delete diagnostics: {err}");
+        }
         let stdout = String::from_utf8_lossy(&stdout);
 
         assert_eq!(
