@@ -75,7 +75,7 @@ export const liveItemsForTurn = (
 type AgentMessageDeltaBucket = {
   turnId: string;
   itemId: string;
-  delta: string;
+  deltas: [string, ...string[]];
 };
 
 const appendDeltaToLiveItem = (
@@ -138,21 +138,25 @@ export const applyAcceptedProjectionDeltaBatch = (
         const key = liveItemKey(turnId, itemId);
         let bucket = bucketByKey[key];
         if (bucket == null) {
-          bucket = { turnId, itemId, delta: "" };
+          bucket = { turnId, itemId, deltas: [delta] };
           bucketByKey[key] = bucket;
           buckets.push(bucket);
+        } else {
+          bucket.deltas.push(delta);
         }
-        bucket.delta += delta;
         break;
       }
     }
   }
 
-  for (const { turnId, itemId, delta } of buckets) {
+  for (const { turnId, itemId, deltas } of buckets) {
     const item = findLiveItem(state, turnId, itemId);
-    if (item != null) {
-      appendDeltaToLiveItem(state, item, delta);
+    if (item == null) {
+      continue;
     }
+
+    const delta = deltas.length === 1 ? deltas[0] : deltas.join("");
+    appendDeltaToLiveItem(state, item, delta);
   }
 };
 
