@@ -51,6 +51,10 @@ on:
         required: false
         default: false
         type: boolean
+      windows_legacy_delete_diagnostics:
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   archive:
@@ -357,6 +361,21 @@ jobs:
           name: ${{ env.TEST_HELPERS_ARTIFACT }}
           path: ${{ runner.temp }}/${{ env.TEST_HELPERS_ARTIFACT }}
 
+      - name: Configure Windows legacy delete diagnostics
+        if: ${{ runner.os == 'Windows' && inputs.windows_legacy_delete_diagnostics }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostics_dir="${RUNNER_TEMP}/windows-legacy-delete-diagnostics/${{ inputs.target }}/shard-${{ matrix.shard }}"
+          mkdir -p "${diagnostics_dir}"
+          diagnostics_dir_windows="$(cygpath -w "${diagnostics_dir}")"
+          {
+            echo "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_DIR=${diagnostics_dir_windows}"
+            echo "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_TARGET=${{ inputs.target }}"
+            echo "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_SHARD=${{ matrix.shard }}"
+          } >> "${GITHUB_ENV}"
+
       - name: tests
         id: test
         shell: bash
@@ -420,6 +439,15 @@ jobs:
           RUST_BACKTRACE: 1
           RUST_MIN_STACK: "8388608" # 8 MiB
           NEXTEST_STATUS_LEVEL: leak
+
+      - name: Upload Windows legacy delete diagnostics
+        if: ${{ always() && runner.os == 'Windows' && inputs.windows_legacy_delete_diagnostics }}
+        continue-on-error: true
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: windows-legacy-delete-diagnostics-${{ inputs.target }}-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/windows-legacy-delete-diagnostics/${{ inputs.target }}/shard-${{ matrix.shard }}
+          if-no-files-found: ignore
 
       - name: Upload nextest JUnit report
         if: always()
