@@ -17,6 +17,7 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
@@ -165,6 +166,24 @@ fn persist_legacy_delete_diagnostics(
     ));
     fs::write(&path, stdout)?;
     Ok(path)
+}
+
+fn configure_legacy_delete_probe_acl(path: &Path, trustee: &str, permissions: &str) {
+    let output = Command::new("C:\\Windows\\System32\\icacls.exe")
+        .arg(path)
+        .arg("/inheritance:r")
+        .arg("/grant:r")
+        .arg(format!("{trustee}:{permissions}"))
+        .output()
+        .expect("run icacls for legacy delete access probe");
+    assert!(
+        output.status.success(),
+        "icacls failed for {} with status {}\nstdout={}\nstderr={}",
+        path.display(),
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }
 
 #[test]
@@ -479,6 +498,8 @@ try {
         @{ Key = "temp_file"; Path = $env:TEMP_DELETE; Directory = $false },
         @{ Key = "tmp_file"; Path = $env:TMP_DELETE; Directory = $false },
         @{ Key = "outside_file"; Path = $env:OUTSIDE_DELETE; Directory = $false },
+        @{ Key = "direct_user_file"; Path = $env:DIRECT_USER_FILE; Directory = $false },
+        @{ Key = "authenticated_users_file"; Path = $env:AUTHENTICATED_USERS_FILE; Directory = $false },
         @{ Key = "protected_git_dir"; Path = $env:PROTECTED_GIT_DIR; Directory = $true }
     )
     $seenRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -816,7 +837,14 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         let temp_root = test_root.path().join("temp");
         let tmp_root = test_root.path().join("tmp");
         let outside_root = test_root.path().join("outside");
-        for directory in [&workspace, &temp_root, &tmp_root, &outside_root] {
+        let acl_control_root = test_root.path().join("acl-control");
+        for directory in [
+            &workspace,
+            &temp_root,
+            &tmp_root,
+            &outside_root,
+            &acl_control_root,
+        ] {
             fs::create_dir_all(directory).expect("create legacy delete test directory");
         }
         let protected_git_dir = workspace.join(".git");
@@ -826,10 +854,30 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         let temp_file = temp_root.join("temp-delete.txt");
         let tmp_file = tmp_root.join("tmp-delete.txt");
         let outside_file = outside_root.join("outside-delete.txt");
+        let direct_user_file = acl_control_root.join("direct-user-delete.txt");
+        let authenticated_users_file =
+            acl_control_root.join("authenticated-users-delete.txt");
         fs::write(&workspace_file, "workspace").expect("seed workspace file");
         fs::write(&temp_file, "temp").expect("seed TEMP file");
         fs::write(&tmp_file, "tmp").expect("seed TMP file");
         fs::write(&outside_file, "outside").expect("seed outside file");
+        fs::write(&direct_user_file, "control").expect("seed direct-user control file");
+        fs::write(&authenticated_users_file, "control")
+            .expect("seed authenticated-users control file");
+
+        let runner_user = format!(
+            "{}\\{}",
+            std::env::var("USERDOMAIN").expect("USERDOMAIN is set on Windows runner"),
+            std::env::var("USERNAME").expect("USERNAME is set on Windows runner")
+        );
+        configure_legacy_delete_probe_acl(&direct_user_file, &runner_user, "(M)");
+        configure_legacy_delete_probe_acl(
+            &authenticated_users_file,
+            "*S-1-5-11",
+            "(M)",
+        );
+        configure_legacy_delete_probe_acl(&acl_control_root, "*S-1-1-0", "(GR,GE)");
+        configure_legacy_delete_probe_acl(&acl_control_root, &runner_user, "(DE)");
 
         let probe = workspace.join("delete-access-probe.ps1");
         fs::write(&probe, legacy_delete_access_probe_script()).expect("write delete access probe");
@@ -848,6 +896,9 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 "C:\\Windows\\System32\\icacls.exe \"%PROTECTED_GIT_DIR%\" 2>&1\r\n",
                 "C:\\Windows\\System32\\icacls.exe \"%DIAG_OUTSIDE_ROOT%\" 2>&1\r\n",
                 "C:\\Windows\\System32\\icacls.exe \"%OUTSIDE_DELETE%\" 2>&1\r\n",
+                "C:\\Windows\\System32\\icacls.exe \"%ACL_CONTROL_ROOT%\" 2>&1\r\n",
+                "C:\\Windows\\System32\\icacls.exe \"%DIRECT_USER_FILE%\" 2>&1\r\n",
+                "C:\\Windows\\System32\\icacls.exe \"%AUTHENTICATED_USERS_FILE%\" 2>&1\r\n",
                 "C:\\Windows\\System32\\icacls.exe \"%DIAG_TEMP_ROOT%\" 2>&1\r\n",
                 "C:\\Windows\\System32\\icacls.exe \"%TEMP_DELETE%\" 2>&1\r\n",
                 "C:\\Windows\\System32\\icacls.exe \"%DIAG_TMP_ROOT%\" 2>&1\r\n",
@@ -914,6 +965,18 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 outside_file.to_string_lossy().into_owned(),
             ),
             (
+                "ACL_CONTROL_ROOT".to_string(),
+                acl_control_root.to_string_lossy().into_owned(),
+            ),
+            (
+                "DIRECT_USER_FILE".to_string(),
+                direct_user_file.to_string_lossy().into_owned(),
+            ),
+            (
+                "AUTHENTICATED_USERS_FILE".to_string(),
+                authenticated_users_file.to_string_lossy().into_owned(),
+            ),
+            (
                 "PROTECTED_GIT_DIR".to_string(),
                 protected_git_dir.to_string_lossy().into_owned(),
             ),
@@ -932,7 +995,7 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
             ],
             workspace.as_path(),
             env_map,
-            /*timeout_ms*/ Some(30_000),
+            /*timeout_ms*/ Some(60_000),
             &[],
             &[],
             /*tty*/ false,
@@ -942,7 +1005,7 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         .await
         .expect("spawn legacy delete session");
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 45))
+            collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 75))
                 .await;
         if let (Ok(output_dir), Ok(target), Ok(shard)) = (
             std::env::var(LEGACY_DELETE_DIAGNOSTICS_DIR_ENV),
@@ -966,9 +1029,20 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 temp_file.exists(),
                 tmp_file.exists(),
                 fs::read_to_string(&outside_file).ok(),
+                fs::read_to_string(&direct_user_file).ok(),
+                fs::read_to_string(&authenticated_users_file).ok(),
                 protected_git_dir.is_dir(),
             ),
-            (0, false, false, false, Some("outside".to_string()), true),
+            (
+                0,
+                false,
+                false,
+                false,
+                Some("outside".to_string()),
+                Some("control".to_string()),
+                Some("control".to_string()),
+                true,
+            ),
             "stdout={stdout:?}\n{}",
             sandbox_log(codex_home.path())
         );
