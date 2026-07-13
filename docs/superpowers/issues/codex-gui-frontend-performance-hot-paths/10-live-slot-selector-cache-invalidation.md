@@ -1,77 +1,61 @@
 # Live slot selector cache 高频失效
 
 日期: 2026-07-06
-状态: 🟡 部分过期
+状态: 📏 待量化，旧问题已过期但仍有消费侧扫描
 范围: `codex-gui/src/features/transcriptState`, `codex-gui/src/features/committedTranscriptSurface`
 优先级: 未定
 
 ## 摘要
 
-2026-07-09 更新后，旧 selector cache invalidation 路径已消除；本地提交 `232047dfb Optimize live agent delta batch accumulation` 还把同一 batch/live item 的 `revision` / `liveScrollPulse` 更新收窄到每 bucket 一次。当前 issue 仍保留收窄后的 live consumption 扫描边界。
+旧 live slot selector cache invalidation 路径已不存在，当前按 turn 读取 live items 的 selector 链为 `O(1)`。仍需量化的是 `CommittedTranscriptSurface` 在 batch dispatch 后执行的 turn、assistant item 和 live item 消费侧扫描。
 
 ## 问题
 
-原始问题假设是: `selectCachedLiveItemsForTurn` 依赖 `liveTurn.revision`、`slotKeys` 和 `slotRevisions` 判断缓存是否可复用，每个 projection delta bump `slot.revision` 后都会让当前 turn 的 live item view cache 失效，并重新 materialize `TranscriptRenderableLiveItem[]`。
+原始问题假设是 `selectCachedLiveItemsForTurn` 依赖 `liveTurn.revision`、`slotKeys` 和 `slotRevisions` 判断缓存是否可复用，每个 projection delta 都可能使当前 turn 的 live item view cache 失效并重新 materialize `TranscriptRenderableLiveItem[]`。当前实现已经移除这条 read-time materialization 路径，因此不能继续把问题描述为 selector cache 高频失效。
 
-当前 02e/03 实现已改变该边界。`transcriptState` 直接保存 reducer-owned `liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>`, `selectTranscriptLiveItemsForTurn` 只返回 `transcriptState.liveItemsByTurnId[turnId] ?? EMPTY_LIVE_ITEMS`。当前代码没有旧 `selectCachedLiveItemsForTurn`、`liveTurn.revision`、`slotKeys`、`slotRevisions` 或 `slotOrder` 驱动的 read-time materialization / revision comparison / key scan。
+当前残留问题位于消费侧。每个 RAF flush 最多 dispatch 一个 `threadRuntimeDeltasAccepted` action，action 内可以包含多个 bucket；Redux 消费者接收的是整个 batch action 产生的 state 更新，不是逐 bucket 通知。batch reducer 会按 live item 聚合 delta，同一 item 的字符串片段在 bucket 末尾一次 `join`，并且每个 bucket 只 append 一次、递增一次 `revision`、更新一次 `liveScrollPulse`。
 
-该 issue 因此不应继续表述为 selector cache 高频失效仍存在。本地提交 `232047dfb` 后，也不应继续写成每个 raw delta 都 bump live item `revision` / `liveScrollPulse`；当前 batch reducer 会先按 live item bucket 聚合，随后每个 bucket 才更新一次 live item。当前仅保留为收窄后的 03 live consumption 边界: `CommittedTranscriptSurface` 在消费 live items 时仍会执行 `.some()`、`.filter()` 和 empty-surface scan。
+batch state 更新后，`CommittedTranscriptSurface` 仍会执行 current-turn `.some()`、渲染 `.filter()`，以及 surface-level `turnIds.some()` 和按需 live `.some()`。消费侧总成本约为 batch dispatch / RAF flush 次数 × 每次扫描规模；每次扫描规模由受影响 turn 数、surface turn 数，以及相关 turn 的 live item / assistant item 数决定。bucket 数只有在影响更多 turn 时才会间接扩大消费范围，不会产生逐 bucket Redux 通知。
 
 ## 证据
 
-2026-07-09 当前代码复核:
-
-- 限定范围内搜索 `selectCachedLiveItemsForTurn` / `liveTurn` / `slotKeys` / `slotRevisions` / `slotOrder` 未命中，旧 selector cache / slot revision 路径未见。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:80`: 当前 live item 已是 reducer state 中的 `TranscriptRenderableLiveItem`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:94`: 当前 state 直接保存 `liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:206`: `ensureLiveItemsForTurn` 只创建并保存 reducer-owned live item array。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:253`: 当前 delta 通过 key/index 找到 live item。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:308`: `applyAcceptedProjectionDeltaBatch` 处理 accepted projection delta batch。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:315`: batch reducer 仍遍历 `notifications`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:323`: batch 内按 `liveItemKey(turnId, itemId)` 聚合 bucket。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:330`: 同一 bucket 内执行 `bucket.delta += delta`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:337`: 每个 bucket 才查找一次 live item。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:339`: 每个 bucket 才调用一次 `appendDeltaToLiveItem`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:271`: `appendDeltaToLiveItem` 更新 `transientText`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:273`: `appendDeltaToLiveItem` 递增 live item `revision`；batch action 中同一 live item 已收窄为每 bucket 一次。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:274`: `appendDeltaToLiveItem` 调用 `bumpLiveScrollPulse(state)`；batch action 中同一 live item 已收窄为每 bucket 一次。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:634`: batch action 调用 `applyAcceptedProjectionDeltaBatch`。
-- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:512`: `selectTranscriptLiveItemsForTurn` 直接返回 live item array 引用或 `EMPTY_LIVE_ITEMS`。
-- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:205`: `LiveAssistantMessages` 对 live items 执行 `.filter(isLiveAgentMessage)`。
-- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:228`: 当前 turn 判空对 live items 执行 `.some(isLiveAgentMessage)`。
-- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:268`: surface-level `hasSurfaceContent` 扫描 turns。
-- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:276`: `hasSurfaceContent` 在需要时调用 `selectTranscriptLiveItemsForTurn(...).some(isLiveAgentMessage)`。
-- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:140`: reducer test 覆盖同一 live item batch coalescing。
-- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:187`: reducer test 覆盖多 live item batch isolation。
-- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts:302`: reducer test 覆盖 wrong-thread / unsupported batch filtering。
-- `codex-gui/src/__tests__/App.browser.test.tsx:293`: browser test 覆盖 projection delta RAF batch regression。
-- `codex-gui/src/__tests__/App.browser.test.tsx:337`: browser test 断言 batch 后显示 `Hello world`。
-- `codex-gui/src/__tests__/App.browser.test.tsx:348`: browser test 断言同一 batch/live item 后 `revision: 1`。
-- `docs/superpowers/reports/2026-07-09-codex-gui-03-performance-check/01-03-hot-paths.md:108`: 03 performance check 将该切片校准为 `部分过期`。
+- `codex-gui/src/features/transcriptState/transcriptStateModel.ts:75-86`: transcript state model 定义并保存 reducer-owned `liveItemsByTurnId`。
+- `codex-gui/src/features/transcriptState/transcriptStateSlice.ts:54-81`: transcript state slice 暴露 slice selectors。
+- `codex-gui/src/features/transcriptState/transcriptStateSelectors.ts:44-53`: `selectTranscriptLiveItemsForTurn` 通过 `transcriptLiveItemsForTurn` 读取 turn 对应数组。
+- `codex-gui/src/features/transcriptState/transcriptLiveProjection.ts:8,70-73`: 该模块提供共享的 `EMPTY_LIVE_ITEMS`，`liveItemsForTurn` 直接返回 `state.liveItemsByTurnId[turnId] ?? EMPTY_LIVE_ITEMS`；selector 链 `selectTranscriptLiveItemsForTurn -> transcriptLiveItemsForTurn -> liveItemsForTurn -> state.liveItemsByTurnId[turnId] ?? EMPTY_LIVE_ITEMS` 为 `O(1)`。
+- `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:61-81`: projection deltas 进入 RAF batch，每个 flush 最多 dispatch 一个 `threadRuntimeDeltasAccepted` action，多个 bucket 位于同一个 reducer action 内。
+- `codex-gui/src/features/transcriptState/transcriptLiveProjection.ts:123-160`: batch reducer 按 live item 建 bucket；同一 item 的 deltas 先保存在数组中，在 bucket 末尾一次 `join`，每个 bucket 只执行一次 append、`revision` 和 `liveScrollPulse` 更新。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:200-228`: current-turn 判空使用 `.some()`，live assistant message 渲染使用 `.filter()`。
+- `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:265-279`: surface-level 判空使用 `turnIds.some()`，并在需要时对该 turn 的 live items 执行 `.some()`。
+- `codex-gui/src/features/transcriptState/__tests__/transcriptStateSelectorCache.test.ts:175-305`: 覆盖当前 selector 引用与 cache 行为。
+- `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveStreaming.test.ts:123-310`: 覆盖 live streaming batch 聚合、item 隔离与过滤行为。
+- `codex-gui/src/__tests__/App.browser.test.tsx:293-349`: browser regression 覆盖 projection delta RAF batch，并断言同一 batch/live item 的合并文本和单次 revision 更新。
+- `docs/superpowers/reports/2026-07-09-codex-gui-03-performance-check/01-03-hot-paths.md:108`: 既有性能复核已将原始问题校准为部分过期。
 
 ## 判断
 
-2026-07-09 更新:旧 selector cache invalidation 路径已消除: `selectTranscriptLiveItemsForTurn` 的 read-time materialization 成本为 `O(1)` 读取。本地提交 `232047dfb` 后，同一 batch/live item 的 live item `revision` / `liveScrollPulse` 更新已收窄为每 bucket 一次，不再是每个 raw delta 都 bump。
+原始 selector cache invalidation 问题已过期：当前 selector 不再执行 revision comparison、key scan 或 read-time materialization，按 turn 读取 live items 是 `O(1)`。
 
-当前残留边界属于 03 live consumption。每次 batch bucket 更新后仍会产生 live item state 变化，消费侧仍可能执行 current-turn `.some()` / `.filter()` 扫描，以及 `hasSurfaceContent` 空状态判断扫描。该边界随 batch flush、live item bucket 数、当前 turn live item 数、turn 数和 surface live item 数变化，而不是旧 selector cache 失效路径。
+仍成立但尚未量化的是消费侧扫描。其触发频率取决于 batch dispatch / RAF flush 次数；单次成本取决于受影响 turn 数、surface turn 数，以及相关 turn 内的 live item / assistant item 数。现有证据不足以判断这些扫描是否构成值得优化的实际热路径，因此状态为待量化。
 
-这个边界独立于 `09-projection-delta-transient-text-concat.md` 的字符串累加成本。
+该边界与 `09-projection-delta-transient-text-concat.md` 记录的字符串累加成本不同。`d7a554d9c` 改进的是 delta bucket 内的字符串聚合，并未修复或消除这里的消费侧扫描。
 
 ## 修复记录
 
-- `232047dfb Optimize live agent delta batch accumulation`: 将 accepted projection delta batch 内同一 live item 的 mutation、`revision` 和 `liveScrollPulse` 更新收窄到每 bucket 一次；未修复本 issue 保留的 live consumption 扫描边界。
+- `232047dfb Optimize live agent delta batch accumulation`: 将 accepted projection delta batch 内同一 live item 的 mutation、`revision` 和 `liveScrollPulse` 更新收窄为每 bucket 一次。
+- `d7a554d9c Optimize live delta batching and add regression tests`: 将同一 delta bucket 的字符串片段改为数组聚合并在 bucket 末尾一次 `join`；该提交不视为消费侧扫描修复。
 
 ## 验证记录
 
-- reducer test: `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts`，30 passed。
-- browser test: `codex-gui/src/__tests__/App.browser.test.tsx`，27 passed。
+- 历史 reducer test: `codex-gui/src/features/transcriptState/__tests__/transcriptStateLiveEvents.test.ts`，30 passed；该文件现已拆分，当前相关测试锚点为 `transcriptStateSelectorCache.test.ts:175-305` 和 `transcriptStateLiveStreaming.test.ts:123-310`。
+- browser test: `codex-gui/src/__tests__/App.browser.test.tsx`，27 passed；当前相关 regression 位于 `App.browser.test.tsx:293-349`。
 - type-check: pass。
 - `format:oxfmt`: pass。
 
 ## 影响
 
-旧 read-time materialization 风险已过期，同一 batch/live item 的 revision/pulse 更新频率也已收窄。但 live consumption 扫描仍可能随 batch flush、live item bucket 数、当前 turn live item 数、turn 数和 surface live item 数增长。
+继续沿用旧问题表述会把已经消失的 selector cache invalidation 当成当前瓶颈，并把一个 batch action 内的多个 bucket 误解为逐 bucket Redux 通知。当前真实风险是 batch dispatch 后的消费侧线性扫描可能随 surface turn 数及相关 turn 的 live item / assistant item 数增长，但在缺少 profiler 和计数证据时，无法判断其用户可见影响或优化优先级。
 
 ## 后续处理
 
-如需继续处理收窄后的 live consumption 扫描边界，应单独进入设计/计划门禁，先设计、再计划。本 issue 只记录当前复杂度边界和证据，不给代码改动方向。
+先通过 profiler 和计数量化 surface selector 求值频率、扫描的 turn 前缀长度，以及受影响 turn 的 live item / assistant item 数。取得量化结果后，再决定是否将消费侧扫描作为独立问题进入单独设计与计划；本 issue 不预设具体代码修改方向。
