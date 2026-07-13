@@ -34,6 +34,9 @@ use tokio::time::timeout;
 
 static TEST_HOME_COUNTER: AtomicU64 = AtomicU64::new(0);
 static LEGACY_PROCESS_TEST_LOCK: Mutex<()> = Mutex::new(());
+const LEGACY_DELETE_DIAGNOSTICS_DIR_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_DIR";
+const LEGACY_DELETE_DIAGNOSTICS_TARGET_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_TARGET";
+const LEGACY_DELETE_DIAGNOSTICS_SHARD_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_SHARD";
 
 fn legacy_process_test_guard() -> MutexGuard<'static, ()> {
     LEGACY_PROCESS_TEST_LOCK
@@ -147,6 +150,43 @@ async fn collect_stdout_and_exit(
         })
         .expect("stdout task join");
     (stdout, exit_code)
+}
+
+fn persist_legacy_delete_diagnostics(
+    output_dir: &Path,
+    target: &str,
+    shard: &str,
+    pid: u32,
+    stdout: &[u8],
+) -> std::io::Result<PathBuf> {
+    fs::create_dir_all(output_dir)?;
+    let path = output_dir.join(format!(
+        "windows-legacy-delete-probe-{target}-shard-{shard}-pid-{pid}.log"
+    ));
+    fs::write(&path, stdout)?;
+    Ok(path)
+}
+
+#[test]
+fn legacy_delete_diagnostics_stdout_is_persisted_with_unique_name() {
+    let output_dir = TempDir::new().expect("create diagnostics output dir");
+    let path = persist_legacy_delete_diagnostics(
+        output_dir.path(),
+        "x86_64-pc-windows-msvc",
+        "4",
+        4242,
+        b"probe_begin schema=1\r\nprobe_end status=ok\r\n",
+    )
+    .expect("persist diagnostics stdout");
+
+    assert_eq!(
+        path.file_name().and_then(|name| name.to_str()),
+        Some("windows-legacy-delete-probe-x86_64-pc-windows-msvc-shard-4-pid-4242.log")
+    );
+    assert_eq!(
+        fs::read(path).expect("read diagnostics stdout"),
+        b"probe_begin schema=1\r\nprobe_end status=ok\r\n"
+    );
 }
 
 fn legacy_delete_access_probe_script() -> &'static str {
@@ -839,6 +879,19 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         let (stdout, exit_code) =
             collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 45))
                 .await;
+        if let (Ok(output_dir), Ok(target), Ok(shard)) = (
+            std::env::var(LEGACY_DELETE_DIAGNOSTICS_DIR_ENV),
+            std::env::var(LEGACY_DELETE_DIAGNOSTICS_TARGET_ENV),
+            std::env::var(LEGACY_DELETE_DIAGNOSTICS_SHARD_ENV),
+        ) && let Err(err) = persist_legacy_delete_diagnostics(
+            Path::new(&output_dir),
+            &target,
+            &shard,
+            std::process::id(),
+            &stdout,
+        ) {
+            eprintln!("failed to persist legacy delete diagnostics: {err}");
+        }
         let stdout = String::from_utf8_lossy(&stdout);
 
         assert_eq!(
