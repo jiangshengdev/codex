@@ -474,7 +474,6 @@ jobs:
       target: x86_64-pc-windows-msvc
       profile: ci-test
       artifact_id: windows-x64
-      windows_legacy_delete_diagnostics: true
       test_threads: 1
     secrets: inherit
 
@@ -486,7 +485,6 @@ jobs:
       target: aarch64-pc-windows-msvc
       profile: ci-test
       artifact_id: windows-arm64
-      windows_legacy_delete_diagnostics: true
       test_threads: 1
       use_sccache: true
     secrets: inherit
