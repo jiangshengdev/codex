@@ -199,9 +199,6 @@ using Microsoft.Win32.SafeHandles;
 public static class LegacyDeleteAccessProbe {
     private const uint TOKEN_QUERY = 0x0008;
     private const int TokenRestrictedSids = 11;
-    private const int TokenAccessInformation = 22;
-    private const uint TOKEN_WRITE_RESTRICTED = 0x00000008;
-    private const uint TOKEN_IS_RESTRICTED = 0x00000010;
     private const uint DELETE = 0x00010000;
     private const uint FILE_DELETE_CHILD = 0x00000040;
     private const uint FILE_SHARE_READ = 0x00000001;
@@ -220,34 +217,6 @@ public static class LegacyDeleteAccessProbe {
     private struct TokenGroupsOne {
         public uint GroupCount;
         public SidAndAttributes Groups;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Luid {
-        public uint LowPart;
-        public int HighPart;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TokenMandatoryPolicy {
-        public uint Policy;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TokenAccessInformationData {
-        public IntPtr SidHash;
-        public IntPtr RestrictedSidHash;
-        public IntPtr Privileges;
-        public Luid AuthenticationId;
-        public int TokenType;
-        public int ImpersonationLevel;
-        public TokenMandatoryPolicy MandatoryPolicy;
-        public uint Flags;
-        public uint AppContainerNumber;
-        public IntPtr PackageSid;
-        public IntPtr CapabilitiesHash;
-        public IntPtr TrustLevelSid;
-        public IntPtr SecurityAttributes;
     }
 
     [DllImport("kernel32.dll")]
@@ -311,40 +280,6 @@ public static class LegacyDeleteAccessProbe {
             Console.WriteLine(
                 "child_token is_restricted={0}",
                 IsTokenRestricted(token).ToString().ToLowerInvariant());
-
-            uint accessInformationLength;
-            GetTokenInformation(token, TokenAccessInformation, IntPtr.Zero, 0, out accessInformationLength);
-            if (accessInformationLength == 0) {
-                Console.WriteLine(
-                    "probe_error stage=token api=GetTokenInformation(TokenAccessInformation) code={0}",
-                    Marshal.GetLastWin32Error());
-            } else {
-                IntPtr accessInformation = Marshal.AllocHGlobal((int)accessInformationLength);
-                try {
-                    if (!GetTokenInformation(
-                        token,
-                        TokenAccessInformation,
-                        accessInformation,
-                        accessInformationLength,
-                        out accessInformationLength)) {
-                        Console.WriteLine(
-                            "probe_error stage=token api=GetTokenInformation(TokenAccessInformation) code={0}",
-                            Marshal.GetLastWin32Error());
-                    } else {
-                        TokenAccessInformationData data =
-                            (TokenAccessInformationData)Marshal.PtrToStructure(
-                                accessInformation,
-                                typeof(TokenAccessInformationData));
-                        Console.WriteLine(
-                            "child_token access_flags=0x{0:x8} write_restricted={1} is_restricted={2}",
-                            data.Flags,
-                            ((data.Flags & TOKEN_WRITE_RESTRICTED) != 0).ToString().ToLowerInvariant(),
-                            ((data.Flags & TOKEN_IS_RESTRICTED) != 0).ToString().ToLowerInvariant());
-                    }
-                } finally {
-                    Marshal.FreeHGlobal(accessInformation);
-                }
-            }
 
             uint returnLength;
             GetTokenInformation(token, TokenRestrictedSids, IntPtr.Zero, 0, out returnLength);
