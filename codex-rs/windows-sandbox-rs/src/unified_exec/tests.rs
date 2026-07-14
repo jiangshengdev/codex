@@ -1,6 +1,5 @@
 #![cfg(target_os = "windows")]
 
-use super::legacy_acl_matrix_diagnostics;
 use super::spawn_windows_sandbox_session_legacy;
 use crate::WindowsSandboxCancellationToken;
 use crate::ipc_framed::Message;
@@ -18,7 +17,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
@@ -36,9 +34,6 @@ use tokio::time::timeout;
 
 static TEST_HOME_COUNTER: AtomicU64 = AtomicU64::new(0);
 static LEGACY_PROCESS_TEST_LOCK: Mutex<()> = Mutex::new(());
-const LEGACY_DELETE_DIAGNOSTICS_DIR_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_DIR";
-const LEGACY_DELETE_DIAGNOSTICS_TARGET_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_TARGET";
-const LEGACY_DELETE_DIAGNOSTICS_SHARD_ENV: &str = "CODEX_WINDOWS_LEGACY_DELETE_DIAGNOSTICS_SHARD";
 
 fn legacy_process_test_guard() -> MutexGuard<'static, ()> {
     LEGACY_PROCESS_TEST_LOCK
@@ -152,373 +147,6 @@ async fn collect_stdout_and_exit(
         })
         .expect("stdout task join");
     (stdout, exit_code)
-}
-
-fn persist_legacy_delete_diagnostics(
-    output_dir: &Path,
-    target: &str,
-    shard: &str,
-    pid: u32,
-    stdout: &[u8],
-) -> std::io::Result<PathBuf> {
-    fs::create_dir_all(output_dir)?;
-    let path = output_dir.join(format!(
-        "windows-legacy-delete-probe-{target}-shard-{shard}-pid-{pid}.log"
-    ));
-    fs::write(&path, stdout)?;
-    Ok(path)
-}
-
-fn configure_legacy_delete_probe_acl(path: &Path, trustee: &str, permissions: &str) {
-    let output = Command::new("C:\\Windows\\System32\\icacls.exe")
-        .arg(path)
-        .arg("/inheritance:r")
-        .arg("/grant:r")
-        .arg(format!("{trustee}:{permissions}"))
-        .output()
-        .expect("run icacls for legacy delete access probe");
-    assert!(
-        output.status.success(),
-        "icacls failed for {} with status {}\nstdout={}\nstderr={}",
-        path.display(),
-        output.status,
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-}
-
-#[test]
-fn legacy_delete_diagnostics_stdout_is_persisted_with_unique_name() {
-    let output_dir = TempDir::new().expect("create diagnostics output dir");
-    let path = persist_legacy_delete_diagnostics(
-        output_dir.path(),
-        "x86_64-pc-windows-msvc",
-        "4",
-        4242,
-        b"probe_begin schema=1\r\nprobe_end status=ok\r\n",
-    )
-    .expect("persist diagnostics stdout");
-
-    assert_eq!(
-        path.file_name().and_then(|name| name.to_str()),
-        Some("windows-legacy-delete-probe-x86_64-pc-windows-msvc-shard-4-pid-4242.log")
-    );
-    assert_eq!(
-        fs::read(path).expect("read diagnostics stdout"),
-        b"probe_begin schema=1\r\nprobe_end status=ok\r\n"
-    );
-}
-
-fn legacy_delete_access_probe_script() -> &'static str {
-    r#"$source = @'
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using Microsoft.Win32.SafeHandles;
-
-public static class LegacyDeleteAccessProbe {
-    private const uint TOKEN_QUERY = 0x0008;
-    private const int TokenRestrictedSids = 11;
-    private const int TokenAccessInformation = 22;
-    private const uint TOKEN_WRITE_RESTRICTED = 0x00000008;
-    private const uint TOKEN_IS_RESTRICTED = 0x00000010;
-    private const uint DELETE = 0x00010000;
-    private const uint FILE_DELETE_CHILD = 0x00000040;
-    private const uint FILE_SHARE_READ = 0x00000001;
-    private const uint FILE_SHARE_WRITE = 0x00000002;
-    private const uint FILE_SHARE_DELETE = 0x00000004;
-    private const uint OPEN_EXISTING = 3;
-    private const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SidAndAttributes {
-        public IntPtr Sid;
-        public uint Attributes;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TokenGroupsOne {
-        public uint GroupCount;
-        public SidAndAttributes Groups;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Luid {
-        public uint LowPart;
-        public int HighPart;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TokenMandatoryPolicy {
-        public uint Policy;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct TokenAccessInformationData {
-        public IntPtr SidHash;
-        public IntPtr RestrictedSidHash;
-        public IntPtr Privileges;
-        public Luid AuthenticationId;
-        public int TokenType;
-        public int ImpersonationLevel;
-        public TokenMandatoryPolicy MandatoryPolicy;
-        public uint Flags;
-        public uint AppContainerNumber;
-        public IntPtr PackageSid;
-        public IntPtr CapabilitiesHash;
-        public IntPtr TrustLevelSid;
-        public IntPtr SecurityAttributes;
-    }
-
-    [DllImport("kernel32.dll")]
-    private static extern IntPtr GetCurrentProcess();
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern bool OpenProcessToken(IntPtr process, uint access, out SafeFileHandle token);
-
-    [DllImport("advapi32.dll")]
-    private static extern bool IsTokenRestricted(SafeFileHandle token);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    private static extern bool GetTokenInformation(
-        SafeFileHandle token,
-        int tokenInformationClass,
-        IntPtr tokenInformation,
-        uint tokenInformationLength,
-        out uint returnLength);
-
-    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern bool ConvertSidToStringSidW(IntPtr sid, out IntPtr stringSid);
-
-    [DllImport("kernel32.dll")]
-    private static extern IntPtr LocalFree(IntPtr memory);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern SafeFileHandle CreateFileW(
-        string fileName,
-        uint desiredAccess,
-        uint shareMode,
-        IntPtr securityAttributes,
-        uint creationDisposition,
-        uint flagsAndAttributes,
-        IntPtr templateFile);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern bool GetVolumePathNameW(string fileName, System.Text.StringBuilder volumePathName, uint bufferLength);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern bool GetVolumeInformationW(
-        string rootPathName,
-        System.Text.StringBuilder volumeNameBuffer,
-        uint volumeNameSize,
-        out uint volumeSerialNumber,
-        out uint maximumComponentLength,
-        out uint fileSystemFlags,
-        System.Text.StringBuilder fileSystemNameBuffer,
-        uint fileSystemNameSize);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern uint GetDriveTypeW(string rootPathName);
-
-    public static void DumpRestrictedToken() {
-        SafeFileHandle token;
-        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out token)) {
-            Console.WriteLine("probe_error stage=token api=OpenProcessToken code={0}", Marshal.GetLastWin32Error());
-            return;
-        }
-
-        using (token) {
-            Console.WriteLine(
-                "child_token is_restricted={0}",
-                IsTokenRestricted(token).ToString().ToLowerInvariant());
-
-            uint accessInformationLength;
-            GetTokenInformation(token, TokenAccessInformation, IntPtr.Zero, 0, out accessInformationLength);
-            if (accessInformationLength == 0) {
-                Console.WriteLine(
-                    "probe_error stage=token api=GetTokenInformation(TokenAccessInformation) code={0}",
-                    Marshal.GetLastWin32Error());
-            } else {
-                IntPtr accessInformation = Marshal.AllocHGlobal((int)accessInformationLength);
-                try {
-                    if (!GetTokenInformation(
-                        token,
-                        TokenAccessInformation,
-                        accessInformation,
-                        accessInformationLength,
-                        out accessInformationLength)) {
-                        Console.WriteLine(
-                            "probe_error stage=token api=GetTokenInformation(TokenAccessInformation) code={0}",
-                            Marshal.GetLastWin32Error());
-                    } else {
-                        TokenAccessInformationData data =
-                            (TokenAccessInformationData)Marshal.PtrToStructure(
-                                accessInformation,
-                                typeof(TokenAccessInformationData));
-                        Console.WriteLine(
-                            "child_token access_flags=0x{0:x8} write_restricted={1} is_restricted={2}",
-                            data.Flags,
-                            ((data.Flags & TOKEN_WRITE_RESTRICTED) != 0).ToString().ToLowerInvariant(),
-                            ((data.Flags & TOKEN_IS_RESTRICTED) != 0).ToString().ToLowerInvariant());
-                    }
-                } finally {
-                    Marshal.FreeHGlobal(accessInformation);
-                }
-            }
-
-            uint returnLength;
-            GetTokenInformation(token, TokenRestrictedSids, IntPtr.Zero, 0, out returnLength);
-            if (returnLength == 0) {
-                Console.WriteLine("probe_error stage=token api=GetTokenInformation code={0}", Marshal.GetLastWin32Error());
-                return;
-            }
-
-            IntPtr tokenInformation = Marshal.AllocHGlobal((int)returnLength);
-            try {
-                if (!GetTokenInformation(
-                    token,
-                    TokenRestrictedSids,
-                    tokenInformation,
-                    returnLength,
-                    out returnLength)) {
-                    Console.WriteLine("probe_error stage=token api=GetTokenInformation code={0}", Marshal.GetLastWin32Error());
-                    return;
-                }
-
-                uint groupCount = (uint)Marshal.ReadInt32(tokenInformation);
-                int groupsOffset = Marshal.OffsetOf(typeof(TokenGroupsOne), "Groups").ToInt32();
-                int groupSize = Marshal.SizeOf(typeof(SidAndAttributes));
-                for (uint index = 0; index < groupCount; index++) {
-                    IntPtr groupPointer = IntPtr.Add(tokenInformation, groupsOffset + ((int)index * groupSize));
-                    SidAndAttributes group = (SidAndAttributes)Marshal.PtrToStructure(
-                        groupPointer,
-                        typeof(SidAndAttributes));
-                    IntPtr stringSid = IntPtr.Zero;
-                    if (!ConvertSidToStringSidW(group.Sid, out stringSid)) {
-                        Console.WriteLine(
-                            "probe_error stage=token api=ConvertSidToStringSidW index={0} code={1}",
-                            index,
-                            Marshal.GetLastWin32Error());
-                        continue;
-                    }
-
-                    try {
-                        Console.WriteLine(
-                            "child_token restricted_sid index={0} sid={1} attributes=0x{2:x8}",
-                            index,
-                            Marshal.PtrToStringUni(stringSid),
-                            group.Attributes);
-                    } finally {
-                        LocalFree(stringSid);
-                    }
-                }
-            } finally {
-                Marshal.FreeHGlobal(tokenInformation);
-            }
-        }
-    }
-
-    public static void ProbeAccess(
-        string key,
-        string path,
-        bool directory,
-        uint desiredAccess,
-        string accessName) {
-        uint flagsAndAttributes = directory ? FILE_FLAG_BACKUP_SEMANTICS : 0;
-        SafeFileHandle handle = CreateFileW(
-            path,
-            desiredAccess,
-            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-            IntPtr.Zero,
-            OPEN_EXISTING,
-            flagsAndAttributes,
-            IntPtr.Zero);
-        bool success = !handle.IsInvalid;
-        int code = success ? 0 : Marshal.GetLastWin32Error();
-        handle.Dispose();
-        Console.WriteLine(
-            "access_probe key={0} access={1} success={2} code={3}",
-            key,
-            accessName,
-            success.ToString().ToLowerInvariant(),
-            code);
-    }
-
-    public static void DumpVolume(string key, string path, HashSet<string> seenRoots) {
-        System.Text.StringBuilder rootBuffer = new System.Text.StringBuilder(261);
-        if (!GetVolumePathNameW(path, rootBuffer, (uint)rootBuffer.Capacity)) {
-            Console.WriteLine(
-                "probe_error stage=volume api=GetVolumePathNameW key={0} code={1}",
-                key,
-                Marshal.GetLastWin32Error());
-            return;
-        }
-
-        string root = rootBuffer.ToString();
-        if (!seenRoots.Add(root)) {
-            return;
-        }
-
-        System.Text.StringBuilder volumeName = new System.Text.StringBuilder(261);
-        System.Text.StringBuilder fileSystemName = new System.Text.StringBuilder(261);
-        uint volumeSerialNumber;
-        uint maximumComponentLength;
-        uint fileSystemFlags;
-        if (!GetVolumeInformationW(
-            root,
-            volumeName,
-            (uint)volumeName.Capacity,
-            out volumeSerialNumber,
-            out maximumComponentLength,
-            out fileSystemFlags,
-            fileSystemName,
-            (uint)fileSystemName.Capacity)) {
-            Console.WriteLine(
-                "probe_error stage=volume api=GetVolumeInformationW root={0} code={1}",
-                root,
-                Marshal.GetLastWin32Error());
-            return;
-        }
-
-        Console.WriteLine(
-            "volume root={0} drive_type={1} filesystem={2} flags=0x{3:x8}",
-            root,
-            GetDriveTypeW(root),
-            fileSystemName,
-            fileSystemFlags);
-    }
-}
-'@
-
-Write-Output "probe_begin schema=1"
-try {
-    Add-Type -TypeDefinition $source -Language CSharp -ErrorAction Stop
-    [LegacyDeleteAccessProbe]::DumpRestrictedToken()
-    $targets = @(
-        @{ Key = "workspace_file"; Path = $env:WORKSPACE_DELETE; Directory = $false },
-        @{ Key = "temp_file"; Path = $env:TEMP_DELETE; Directory = $false },
-        @{ Key = "tmp_file"; Path = $env:TMP_DELETE; Directory = $false },
-        @{ Key = "outside_file"; Path = $env:OUTSIDE_DELETE; Directory = $false },
-        @{ Key = "direct_user_file"; Path = $env:DIRECT_USER_FILE; Directory = $false },
-        @{ Key = "authenticated_users_file"; Path = $env:AUTHENTICATED_USERS_FILE; Directory = $false },
-        @{ Key = "protected_git_dir"; Path = $env:PROTECTED_GIT_DIR; Directory = $true }
-    )
-    $seenRoots = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($target in $targets) {
-        [LegacyDeleteAccessProbe]::ProbeAccess($target.Key, $target.Path, $target.Directory, 0x00010000, "DELETE")
-        $parent = [System.IO.Path]::GetDirectoryName($target.Path)
-        [LegacyDeleteAccessProbe]::ProbeAccess("$($target.Key)_parent", $parent, $true, 0x00000040, "FILE_DELETE_CHILD")
-        [LegacyDeleteAccessProbe]::DumpVolume($target.Key, $target.Path, $seenRoots)
-    }
-    Write-Output "probe_end status=ok"
-    exit 0
-} catch {
-    $message = ($_.Exception.Message -replace "[\r\n]+", " ")
-    Write-Output "probe_error stage=powershell message=$message"
-    Write-Output "probe_end status=error"
-    exit 1
-}
-"#
 }
 
 #[test]
@@ -838,14 +466,7 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         let temp_root = test_root.path().join("temp");
         let tmp_root = test_root.path().join("tmp");
         let outside_root = test_root.path().join("outside");
-        let acl_control_root = test_root.path().join("acl-control");
-        for directory in [
-            &workspace,
-            &temp_root,
-            &tmp_root,
-            &outside_root,
-            &acl_control_root,
-        ] {
+        for directory in [&workspace, &temp_root, &tmp_root, &outside_root] {
             fs::create_dir_all(directory).expect("create legacy delete test directory");
         }
         let protected_git_dir = workspace.join(".git");
@@ -855,129 +476,29 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         let temp_file = temp_root.join("temp-delete.txt");
         let tmp_file = tmp_root.join("tmp-delete.txt");
         let outside_file = outside_root.join("outside-delete.txt");
-        let direct_user_file = acl_control_root.join("direct-user-delete.txt");
-        let authenticated_users_file =
-            acl_control_root.join("authenticated-users-delete.txt");
         fs::write(&workspace_file, "workspace").expect("seed workspace file");
         fs::write(&temp_file, "temp").expect("seed TEMP file");
         fs::write(&tmp_file, "tmp").expect("seed TMP file");
         fs::write(&outside_file, "outside").expect("seed outside file");
-        fs::write(&direct_user_file, "control").expect("seed direct-user control file");
-        fs::write(&authenticated_users_file, "control")
-            .expect("seed authenticated-users control file");
 
-        let runner_user = format!(
-            "{}\\{}",
-            std::env::var("USERDOMAIN").expect("USERDOMAIN is set on Windows runner"),
-            std::env::var("USERNAME").expect("USERNAME is set on Windows runner")
-        );
-        let acl_matrix = if legacy_acl_matrix_diagnostics::diagnostics_enabled() {
-            match legacy_acl_matrix_diagnostics::prepare_acl_matrix(
-                test_root.path(),
-                &runner_user,
-            ) {
-                Ok(acl_matrix) => Some(acl_matrix),
-                Err(err) => {
-                    eprintln!("acl_matrix_parent_error stage=prepare error={err:#}");
-                    None
-                }
-            }
-        } else {
-            None
-        };
-        configure_legacy_delete_probe_acl(&direct_user_file, &runner_user, "(M)");
-        configure_legacy_delete_probe_acl(
-            &authenticated_users_file,
-            "*S-1-5-11",
-            "(M)",
-        );
-        configure_legacy_delete_probe_acl(&acl_control_root, "*S-1-1-0", "(GR,GE)");
-        configure_legacy_delete_probe_acl(&acl_control_root, &runner_user, "(DE)");
-
-        let probe = workspace.join("delete-access-probe.ps1");
-        fs::write(&probe, legacy_delete_access_probe_script()).expect("write delete access probe");
-
-        let acl_matrix_command = acl_matrix
-            .as_ref()
-            .map(|_| {
-                format!(
-                    "{} 2>&1\r\necho acl_matrix_probe_errorlevel=%errorlevel%\r\n",
-                    legacy_acl_matrix_diagnostics::child_probe_command()
-                )
-            })
-            .unwrap_or_default();
         let script = workspace.join("delete-fixtures.cmd");
         fs::write(
             &script,
-            [
-                concat!(
+            concat!(
                 "@echo off\r\n",
-                "echo ==== legacy temporary diagnostics: whoami ====\r\n",
-                "C:\\Windows\\System32\\whoami.exe /all 2>&1\r\n",
-                "echo whoami_errorlevel=%errorlevel%\r\n",
-                "echo ==== legacy temporary diagnostics: icacls ====\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%DIAG_WORKSPACE%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%WORKSPACE_DELETE%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%PROTECTED_GIT_DIR%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%DIAG_OUTSIDE_ROOT%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%OUTSIDE_DELETE%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%ACL_CONTROL_ROOT%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%DIRECT_USER_FILE%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%AUTHENTICATED_USERS_FILE%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%DIAG_TEMP_ROOT%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%TEMP_DELETE%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%DIAG_TMP_ROOT%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\icacls.exe \"%TMP_DELETE%\" 2>&1\r\n",
-                "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%DELETE_ACCESS_PROBE%\" 2>&1\r\n",
-                "set \"probe_errorlevel=%errorlevel%\"\r\n",
-                "echo probe_errorlevel=%probe_errorlevel%\r\n",
-                ),
-                &acl_matrix_command,
-                concat!(
-                "del /f /q \"%WORKSPACE_DELETE%\" 2>&1\r\n",
-                "echo delete_workspace_errorlevel=%errorlevel%\r\n",
-                "del /f /q \"%TEMP_DELETE%\" 2>&1\r\n",
-                "echo delete_temp_errorlevel=%errorlevel%\r\n",
-                "del /f /q \"%TMP_DELETE%\" 2>&1\r\n",
-                "echo delete_tmp_errorlevel=%errorlevel%\r\n",
-                "del /f /q \"%OUTSIDE_DELETE%\" 2>&1\r\n",
-                "echo delete_outside_errorlevel=%errorlevel%\r\n",
-                "rmdir \"%PROTECTED_GIT_DIR%\" 2>&1\r\n",
-                "echo remove_git_errorlevel=%errorlevel%\r\n",
+                "del /f /q \"%WORKSPACE_DELETE%\"\r\n",
+                "del /f /q \"%TEMP_DELETE%\"\r\n",
+                "del /f /q \"%TMP_DELETE%\"\r\n",
+                "del /f /q \"%OUTSIDE_DELETE%\"\r\n",
+                "rmdir \"%PROTECTED_GIT_DIR%\"\r\n",
                 "exit /b 0\r\n",
-                ),
-            ]
-            .concat(),
+            ),
         )
         .expect("write delete script");
 
-        let mut env_map = HashMap::from([
+        let env_map = HashMap::from([
             ("TEMP".to_string(), temp_root.to_string_lossy().into_owned()),
             ("TMP".to_string(), tmp_root.to_string_lossy().into_owned()),
-            (
-                "DELETE_ACCESS_PROBE".to_string(),
-                probe.to_string_lossy().into_owned(),
-            ),
-            (
-                "CODEX_WINDOWS_LEGACY_TEMP_DIAGNOSTICS".to_string(),
-                "1".to_string(),
-            ),
-            (
-                "DIAG_WORKSPACE".to_string(),
-                workspace.to_string_lossy().into_owned(),
-            ),
-            (
-                "DIAG_TEMP_ROOT".to_string(),
-                temp_root.to_string_lossy().into_owned(),
-            ),
-            (
-                "DIAG_TMP_ROOT".to_string(),
-                tmp_root.to_string_lossy().into_owned(),
-            ),
-            (
-                "DIAG_OUTSIDE_ROOT".to_string(),
-                outside_root.to_string_lossy().into_owned(),
-            ),
             (
                 "WORKSPACE_DELETE".to_string(),
                 workspace_file.to_string_lossy().into_owned(),
@@ -995,37 +516,10 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 outside_file.to_string_lossy().into_owned(),
             ),
             (
-                "ACL_CONTROL_ROOT".to_string(),
-                acl_control_root.to_string_lossy().into_owned(),
-            ),
-            (
-                "DIRECT_USER_FILE".to_string(),
-                direct_user_file.to_string_lossy().into_owned(),
-            ),
-            (
-                "AUTHENTICATED_USERS_FILE".to_string(),
-                authenticated_users_file.to_string_lossy().into_owned(),
-            ),
-            (
                 "PROTECTED_GIT_DIR".to_string(),
                 protected_git_dir.to_string_lossy().into_owned(),
             ),
         ]);
-        if let Some(acl_matrix) = &acl_matrix {
-            env_map.insert(
-                legacy_acl_matrix_diagnostics::ACL_MATRIX_MANIFEST_ENV.to_string(),
-                acl_matrix.manifest_path.to_string_lossy().into_owned(),
-            );
-            env_map.insert(
-                legacy_acl_matrix_diagnostics::ACL_MATRIX_SCRIPT_ENV.to_string(),
-                acl_matrix.script_path.to_string_lossy().into_owned(),
-            );
-            for key in ["RUNNER_OS", "ImageOS"] {
-                if let Ok(value) = std::env::var(key) {
-                    env_map.insert(key.to_string(), value);
-                }
-            }
-        }
 
         let permission_profile = PermissionProfile::workspace_write();
         let spawned = spawn_windows_sandbox_session_legacy(
@@ -1040,7 +534,7 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
             ],
             workspace.as_path(),
             env_map,
-            /*timeout_ms*/ Some(60_000),
+            /*timeout_ms*/ Some(5_000),
             &[],
             &[],
             /*tty*/ false,
@@ -1050,21 +544,8 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         .await
         .expect("spawn legacy delete session");
         let (stdout, exit_code) =
-            collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 75))
+            collect_stdout_and_exit(spawned, codex_home.path(), Duration::from_secs(/*secs*/ 10))
                 .await;
-        if let (Ok(output_dir), Ok(target), Ok(shard)) = (
-            std::env::var(LEGACY_DELETE_DIAGNOSTICS_DIR_ENV),
-            std::env::var(LEGACY_DELETE_DIAGNOSTICS_TARGET_ENV),
-            std::env::var(LEGACY_DELETE_DIAGNOSTICS_SHARD_ENV),
-        ) && let Err(err) = persist_legacy_delete_diagnostics(
-            Path::new(&output_dir),
-            &target,
-            &shard,
-            std::process::id(),
-            &stdout,
-        ) {
-            eprintln!("failed to persist legacy delete diagnostics: {err}");
-        }
         let stdout = String::from_utf8_lossy(&stdout);
 
         assert_eq!(
@@ -1074,20 +555,9 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 temp_file.exists(),
                 tmp_file.exists(),
                 fs::read_to_string(&outside_file).ok(),
-                fs::read_to_string(&direct_user_file).ok(),
-                fs::read_to_string(&authenticated_users_file).ok(),
                 protected_git_dir.is_dir(),
             ),
-            (
-                0,
-                false,
-                false,
-                false,
-                Some("outside".to_string()),
-                Some("control".to_string()),
-                Some("control".to_string()),
-                true,
-            ),
+            (0, false, false, false, Some("outside".to_string()), true),
             "stdout={stdout:?}\n{}",
             sandbox_log(codex_home.path())
         );
