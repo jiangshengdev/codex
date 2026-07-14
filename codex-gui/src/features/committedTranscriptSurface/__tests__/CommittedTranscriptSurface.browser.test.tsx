@@ -147,6 +147,11 @@ test("renders assistant transcript markdown", async () => {
     expect(codeLine.className).not.toContain("before:content-[counter(line)]");
     expect(window.getComputedStyle(codeLine).display).toBe("block");
   }
+  const clipboardWriteAvailable =
+    window.isSecureContext &&
+    typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.writeText === "function";
+  const codeCopyButton = markdown.querySelector('[data-streamdown="code-block-copy-button"]');
+  expect(codeCopyButton !== null).toBe(clipboardWriteAvailable);
 
   const allowedLink = markdown.querySelector<HTMLAnchorElement>(
     'a[href="https://example.invalid/docs"]',

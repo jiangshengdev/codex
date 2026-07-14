@@ -4,6 +4,7 @@ import {
   markdownContainerClassName,
   markdownStreamdownClassName,
   streamdownComponents,
+  streamdownControls,
   streamdownPlugins,
   streamdownRehypePlugins,
 } from "./markdownRendering";
@@ -15,6 +16,7 @@ export const LiveMarkdownText = ({ source }: { source: string }) => (
       caret="block"
       className={markdownStreamdownClassName}
       components={streamdownComponents}
+      controls={streamdownControls}
       isAnimating
       linkSafety={{ enabled: false }}
       lineNumbers={false}

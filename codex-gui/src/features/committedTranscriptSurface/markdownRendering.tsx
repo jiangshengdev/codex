@@ -1,8 +1,26 @@
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
-import { defaultRehypePlugins, type AllowElement, type Components } from "streamdown";
+import {
+  defaultRehypePlugins,
+  type AllowElement,
+  type Components,
+  type ControlsConfig,
+} from "streamdown";
 
 export const streamdownPlugins = { code, cjk };
+
+const clipboardWriteAvailable =
+  typeof window !== "undefined" &&
+  window.isSecureContext &&
+  typeof (navigator as Partial<Pick<Navigator, "clipboard">>).clipboard?.writeText === "function";
+
+export const streamdownControls: ControlsConfig = clipboardWriteAvailable
+  ? true
+  : {
+      code: { copy: false },
+      mermaid: { copy: false },
+      table: { copy: false },
+    };
 
 export const streamdownRehypePlugins = [
   defaultRehypePlugins.sanitize,

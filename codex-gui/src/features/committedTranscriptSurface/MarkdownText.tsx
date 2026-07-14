@@ -4,6 +4,7 @@ import {
   markdownContainerClassName,
   markdownStreamdownClassName,
   streamdownComponents,
+  streamdownControls,
   streamdownPlugins,
   streamdownRehypePlugins,
 } from "./markdownRendering";
@@ -14,6 +15,7 @@ export const MarkdownText = ({ source }: { source: string }) => (
       allowElement={allowMarkdownElement}
       className={markdownStreamdownClassName}
       components={streamdownComponents}
+      controls={streamdownControls}
       linkSafety={{ enabled: false }}
       lineNumbers={false}
       mode="static"
