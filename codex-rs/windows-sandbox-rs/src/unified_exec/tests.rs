@@ -1,6 +1,5 @@
 #![cfg(target_os = "windows")]
 
-use super::legacy_acl_matrix_diagnostics;
 use super::spawn_windows_sandbox_session_legacy;
 use crate::WindowsSandboxCancellationToken;
 use crate::ipc_framed::Message;
@@ -871,20 +870,6 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
             std::env::var("USERDOMAIN").expect("USERDOMAIN is set on Windows runner"),
             std::env::var("USERNAME").expect("USERNAME is set on Windows runner")
         );
-        let acl_matrix = if legacy_acl_matrix_diagnostics::diagnostics_enabled() {
-            match legacy_acl_matrix_diagnostics::prepare_acl_matrix(
-                test_root.path(),
-                &runner_user,
-            ) {
-                Ok(acl_matrix) => Some(acl_matrix),
-                Err(err) => {
-                    eprintln!("acl_matrix_parent_error stage=prepare error={err:#}");
-                    None
-                }
-            }
-        } else {
-            None
-        };
         configure_legacy_delete_probe_acl(&direct_user_file, &runner_user, "(M)");
         configure_legacy_delete_probe_acl(
             &authenticated_users_file,
@@ -897,20 +882,10 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
         let probe = workspace.join("delete-access-probe.ps1");
         fs::write(&probe, legacy_delete_access_probe_script()).expect("write delete access probe");
 
-        let acl_matrix_command = acl_matrix
-            .as_ref()
-            .map(|_| {
-                format!(
-                    "{} 2>&1\r\necho acl_matrix_probe_errorlevel=%errorlevel%\r\n",
-                    legacy_acl_matrix_diagnostics::child_probe_command()
-                )
-            })
-            .unwrap_or_default();
         let script = workspace.join("delete-fixtures.cmd");
         fs::write(
             &script,
-            [
-                concat!(
+            concat!(
                 "@echo off\r\n",
                 "echo ==== legacy temporary diagnostics: whoami ====\r\n",
                 "C:\\Windows\\System32\\whoami.exe /all 2>&1\r\n",
@@ -931,9 +906,6 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%DELETE_ACCESS_PROBE%\" 2>&1\r\n",
                 "set \"probe_errorlevel=%errorlevel%\"\r\n",
                 "echo probe_errorlevel=%probe_errorlevel%\r\n",
-                ),
-                &acl_matrix_command,
-                concat!(
                 "del /f /q \"%WORKSPACE_DELETE%\" 2>&1\r\n",
                 "echo delete_workspace_errorlevel=%errorlevel%\r\n",
                 "del /f /q \"%TEMP_DELETE%\" 2>&1\r\n",
@@ -945,13 +917,11 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 "rmdir \"%PROTECTED_GIT_DIR%\" 2>&1\r\n",
                 "echo remove_git_errorlevel=%errorlevel%\r\n",
                 "exit /b 0\r\n",
-                ),
-            ]
-            .concat(),
+            ),
         )
         .expect("write delete script");
 
-        let mut env_map = HashMap::from([
+        let env_map = HashMap::from([
             ("TEMP".to_string(), temp_root.to_string_lossy().into_owned()),
             ("TMP".to_string(), tmp_root.to_string_lossy().into_owned()),
             (
@@ -1011,21 +981,6 @@ fn legacy_workspace_write_delete_is_limited_to_writable_roots() {
                 protected_git_dir.to_string_lossy().into_owned(),
             ),
         ]);
-        if let Some(acl_matrix) = &acl_matrix {
-            env_map.insert(
-                legacy_acl_matrix_diagnostics::ACL_MATRIX_MANIFEST_ENV.to_string(),
-                acl_matrix.manifest_path.to_string_lossy().into_owned(),
-            );
-            env_map.insert(
-                legacy_acl_matrix_diagnostics::ACL_MATRIX_SCRIPT_ENV.to_string(),
-                acl_matrix.script_path.to_string_lossy().into_owned(),
-            );
-            for key in ["RUNNER_OS", "ImageOS"] {
-                if let Ok(value) = std::env::var(key) {
-                    env_map.insert(key.to_string(), value);
-                }
-            }
-        }
 
         let permission_profile = PermissionProfile::workspace_write();
         let spawned = spawn_windows_sandbox_session_legacy(

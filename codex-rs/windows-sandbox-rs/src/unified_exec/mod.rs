@@ -9,8 +9,6 @@
 
 mod backends;
 #[cfg(all(windows, test))]
-mod legacy_acl_matrix_diagnostics;
-#[cfg(all(windows, test))]
 mod legacy_temporary_diagnostics;
 
 use anyhow::Result;
