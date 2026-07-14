@@ -2,7 +2,7 @@
 
 ## 背景
 
-`codex-gui` 的 assistant Markdown 由 Streamdown 渲染。committed 与 live 两个入口分别是：
+`codex-gui` 使用 Streamdown 渲染 assistant Markdown。committed 与 live 的入口分别为：
 
 - `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx`
 - `codex-gui/src/features/committedTranscriptSurface/LiveMarkdownText.tsx`
@@ -11,139 +11,194 @@
 `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx`
 中的插件、安全过滤、组件覆盖和样式配置。
 
-当前 Markdown 链接会生成 `<a>`。当目标是不带 URI scheme 的本地文件地址时，例如：
+Streamdown 默认把 Markdown link 转换为 `<a>`。当目标是本地文件地址时，例如：
 
 ```md
 [thread_projection.rs](/Users/jiangsheng/cnb/codex/codex-rs/app-server/tests/suite/v2/thread_projection.rs:355)
 ```
 
-DOM 中的 `href` 属性可以保留原始路径，但浏览器会按当前 GUI HTTP origin 解析并导航到错误的
-Web URL。对应问题记录位于
+浏览器会把 `/Users/...` 解释为当前 GUI HTTP origin 下的路径。页面只显示链接文字，用户既看不到完整文件地址，点击后也不会打开本地文件，而是导航到错误的 Web URL。对应问题记录位于
 `docs/superpowers/issues/2026-07-03-02-codex-gui-markdown-links-render-as-browser-urls.md`。
 
-Codex GUI transcript 不存在需要保留的站内 Web 相对链接语义。因此，本设计不把无 scheme 目标
-继续交给浏览器解析，而是将其显示为不可点击的标准 Markdown 形式。
+本设计只定义最终用户效果，不预设通过 React component、remark plugin 或 rehype plugin 达成。经过对 Streamdown 2.5.0 和其 Markdown 转换链路的检查，选择在 `remark-rehype` 的 link handler 边界实现，以复用默认处理并避免重写或反向恢复数据。
 
 ## 目标
 
-- 带 URI scheme 的 Markdown 链接继续使用 Streamdown 原生链接行为。
-- 不带 URI scheme 的 Markdown 链接不生成 anchor。
-- 无 scheme 链接显示为标准 Markdown 形式：`[标签](目标)`。
-- 同时覆盖 committed assistant Markdown 和 live assistant Markdown。
-- 保留现有 `sanitize`、`harden`、raw HTML 禁用和图片禁用边界。
-- 不依赖 Markdown 原始源码位置，不承诺逐字符还原输入。
+- 保持 Streamdown 对浏览器可处理的带 URI scheme 链接的默认行为。
+- 所有无 URI scheme 的 Markdown link 不生成可点击 anchor。
+- 无 scheme link 显示为 `[链接文字](目标)`，同时显示默认链接文字和文件地址。
+- 链接文字内部的 emphasis、inline code 等 Markdown 语义继续按默认方式渲染。
+- 目标显示 Markdown parser 已解析出的值，不显示浏览器解析后的绝对 URL，也不显示 URI-normalize 后的百分号编码值。
+- committed 与 live 共用同一分类和转换逻辑，同时保留 Streamdown 默认的不同解析生命周期。
+- 保留现有 `sanitize`、`harden`、raw HTML 禁用、图片禁用和 link safety 配置边界。
 
 ## 非目标
 
-- 不新增宿主打开本地文件、编辑器 reveal 或 IDE deep link 能力。
+- 不新增宿主打开文件、编辑器 reveal 或 IDE deep link 能力。
 - 不生成或导航到 `file://` URL。
 - 不把本地文件地址转换成 GUI HTTP origin 下的 URL。
-- 不恢复原始 Markdown 中的空格、转义、reference link 写法或可选 title。
-- 不改变 user message 按纯文本显示的现有行为。
+- 不保留 Web 相对导航语义；无 scheme 的 fragment、query、protocol-relative 和相对路径同样按文件地址显示。
+- 不保证逐字符还原 Markdown 源码中的尖括号、转义或空白写法。
+- 不显示无 scheme link 的可选 title。
+- 不为 live reference link 增加跨 block definition cache、回溯更新或整段重解析。
+- 不修改 user message 的纯文本行为。
 - 不修改 transcript state、projection、app-server 或 Rust 代码。
-- 不调整 Streamdown link safety 交互。
 
-## 链接分类
+## 已确认的用户效果
 
-分类只使用 Markdown parser 已经解析出的 link 目标。
+### 带 URI scheme
 
-### Windows drive 路径
-
-以单个英文字母和冒号开头的目标优先视为 Windows drive 文件地址，例如：
-
-```text
-C:\work\codex\file.rs
-C:/work/codex/file.rs
-C:relative\file.rs
-```
-
-该规则先于 URI scheme 判断，避免把盘符误判成单字母协议。代价是单字母自定义 URI scheme
-不会作为协议链接处理；Codex transcript 当前没有这类链接需求。
-
-### URI scheme
-
-除 Windows drive 路径外，目标符合以下语义时视为带 scheme：
-
-```text
-字母 + 零个或多个字母、数字、加号、连字符或点 + 冒号
-```
-
-例如：
-
-```text
-https://example.com/docs
-mailto:user@example.com
-vscode://file/path
-```
-
-带 scheme 的 link 节点保持不变，继续进入 Streamdown 的默认链接渲染和现有安全管线。
-
-当前 Streamdown harden 配置允许所有可解析的协议，但仍强制阻止
-`javascript:`、`data:`、`file:` 和 `vbscript:` 等危险协议。本设计保持该行为，不新增协议白名单。
-
-### 无 scheme 目标
-
-其余目标全部按文件地址处理，包括：
-
-- POSIX 绝对路径，如 `/Users/.../file.rs`；
-- 显式相对路径，如 `./file.rs`、`../src/file.rs`；
-- 无前缀相对路径，如 `src/file.rs`；
-- protocol-relative、fragment、query 等没有 scheme 的目标。
-
-Codex GUI transcript 不为这些形式保留 Web 相对导航语义。
-
-## Markdown AST 转换
-
-共享 Markdown 配置新增一个 remark 插件。插件在 Markdown AST 阶段遍历 `link` 节点：
-
-1. 读取 parser 已解析出的目标地址。
-2. 按“Windows drive 路径优先、随后判断 URI scheme”的规则分类。
-3. 带 scheme 的 link 节点不做修改。
-4. 无 scheme 的 link 节点替换为普通 AST 内容：
-   - 文本节点 `[`；
-   - 原 link 的标签子节点；
-   - 文本节点 `](`；
-   - 包含已解析目标地址的文本节点；
-   - 文本节点 `)`。
-
-转换发生在 Markdown 已经完成语法解析之后，因此插入的括号和目标地址只作为普通文本继续渲染，
-不会再次被解析成链接。
-
-原标签子节点保持原有 inline 语义。例如标签内已有 emphasis 或 inline code 时，这些内容仍按
-Streamdown 的正常标签内容渲染，只是在可见内容外增加 `[`、`](`、目标和 `)`。
-
-该转换不读取原始 source slice。下列输入可以统一显示为标准形式，但不保证保持原始写法：
+带 scheme 的链接完全交还 Streamdown 默认链路。例如：
 
 ```md
-[file][source]
-
-[source]: src/file.rs "optional title"
+[OpenAI](https://openai.com)
+[Email](mailto:user@example.com)
+[Editor](vscode://file/path)
+[Custom](x:resource)
 ```
 
-可显示为：
+本功能不改变这些节点。它们是否最终生成 anchor，继续由 Streamdown 的 `sanitize`、`harden` 和现有配置决定。危险 scheme 不因本功能获得放行。
+
+### 无 URI scheme
+
+无 scheme 的链接显示为不可点击的 Markdown 形式。例如：
+
+```md
+[thread_projection.rs](/Users/a/thread_projection.rs:355)
+[config.toml](../config.toml)
+[README](README.md)
+[Section](#details)
+```
+
+页面分别显示：
 
 ```text
-[file](src/file.rs)
+[thread_projection.rs](/Users/a/thread_projection.rs:355)
+[config.toml](../config.toml)
+[README](README.md)
+[Section](#details)
+```
+
+这些内容不包含 `<a>`，因此不存在浏览器导航行为。
+
+### Windows 文件地址
+
+明确的 Windows 绝对路径和 UNC 路径按文件地址处理。显示值使用 Markdown parser 已解析出的目标，而不是 HAST `href` 的编码结果：
+
+| Markdown 输入 | 显示结果 |
+| --- | --- |
+| `[file](C:/work/file.rs:10)` | `[file](C:/work/file.rs:10)` |
+| `[file](C:\work\file.rs:10)` | `[file](C:\work\file.rs:10)` |
+| `[file](<C:\work folder\file.rs:10>)` | `[file](C:\work folder\file.rs:10)` |
+
+因此不会把反斜杠显示为 `%5C`，也不会把空格显示为 `%20`。
+
+UNC destination 中的反斜杠仍按 Markdown 语法解析。最终显示 `node.url` 中的 parser 结果，不承诺逐字符保留源码中用于转义的连续反斜杠；但分类结果仍为不可点击的文件地址。
+
+### 链接文字格式
+
+链接文字继续使用默认转换结果。例如：
+
+```md
+[查看 **thread_projection.rs**](/Users/a/thread_projection.rs)
+```
+
+最终不生成 anchor，但 `thread_projection.rs` 仍保持粗体；方括号、圆括号和目标由普通 HAST text 节点提供。
+
+### Reference link
+
+committed 模式拥有完整 Markdown 时，reference link 使用默认 definition resolution，再按 definition 的目标分类：
+
+```md
+[file.rs][source]
+
+[source]: /Users/a/file.rs:355 "source file"
+```
+
+最终显示：
+
+```text
+[file.rs](/Users/a/file.rs:355)
 ```
 
 可选 title 不显示。
 
-## 组件与配置边界
+live 模式保留 Streamdown 默认分块行为。如果引用和 definition 不在同一个解析 block，未解析的引用继续显示：
 
-remark 插件及共享插件列表放在
-`codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx`。该文件已经负责两个
-Markdown 入口共用的 Streamdown 配置，链接分类属于同一语义边界。
+```text
+[file.rs][source]
+```
 
-`MarkdownText` 和 `LiveMarkdownText` 都向 Streamdown 传入同一个共享 remark plugin 列表。
-两个入口现有差异保持不变：
+不为稍后到达的 definition 回溯更新旧 block。消息提交后，committed 使用完整 Markdown 重新解析并得到最终结果。
 
-- committed 使用 `mode="static"`；
-- live 保持 streaming mode、`isAnimating` 和 caret 行为。
+## 链接分类
 
-不覆盖 `components.a`。协议链接继续使用 Streamdown 原生 anchor 组件，从而保留现有样式、
-`rel="noreferrer"`、`target="_blank"`、安全过滤和依赖内部行为。
+分类使用 Markdown parser 已解析出的目标值，顺序固定如下：
 
-不引入 HeroUI 组件。这里处理的是 Markdown AST 与语义输出，不是新的交互控件。
+1. 使用 `pathe.isAbsolute` 识别明确的 POSIX、Windows 绝对路径和 UNC 路径。这些目标按文件地址处理。
+2. 对其余目标使用 `uri-js.parse(target).scheme` 判断是否存在 URI scheme。
+3. 存在 scheme 时保持 Streamdown 默认 link；不存在 scheme 时按文件地址处理。
+
+该顺序避免把 `C:\work\file.rs` 和 `C:/work/file.rs` 误判成 `c:` scheme，同时不需要手写 scheme 或 Windows drive 正则。
+
+有歧义的 drive-relative 写法不作猜测：
+
+- `C:\work\file.rs`、`C:/work/file.rs`：明确的 Windows 绝对路径，按文件地址处理。
+- `C:file.rs`：不是绝对路径，按 RFC URI scheme 结果处理。
+- `x:resource`：按单字母 URI scheme 处理。
+
+其余无 scheme 目标统一按文件地址处理，包括 POSIX 绝对路径、显式相对路径、裸相对路径、fragment、query 和 protocol-relative 目标。
+
+## 架构
+
+### 共享 Streamdown 配置
+
+在 `markdownRendering.tsx` 中定义共享 `remarkRehypeOptions`，并由 `MarkdownText` 与 `LiveMarkdownText` 同时传给 Streamdown。
+
+该配置只覆盖：
+
+- `handlers.link`
+- `handlers.linkReference`
+
+其他 mdast 节点继续使用 `mdast-util-to-hast` 默认 handler。
+
+### 包装默认 handler
+
+自定义 handler 不自行重建 link/reference 转换。它首先调用 `mdast-util-to-hast` 导出的 `defaultHandlers.link` 或 `defaultHandlers.linkReference`，复用默认行为：
+
+- link label 子节点转换；
+- reference definition lookup；
+- HAST position 传递；
+- 默认 anchor 属性和规范化 `href` 生成；
+- unresolved reference 的默认回退表现。
+
+随后只做目标分类和输出选择。
+
+### Direct link
+
+对于 `link`：
+
+1. 调用 `defaultHandlers.link(state, node)` 获得默认 HAST anchor。
+2. 使用 `node.url` 分类。
+3. 有 scheme 时原样返回默认 anchor。
+4. 无 scheme 时返回普通 HAST 内容：
+   - text `[`；
+   - 默认 anchor 的 children；
+   - text `](`；
+   - text `node.url`；
+   - text `)`。
+
+### Reference link
+
+对于 `linkReference`：
+
+1. 调用 `defaultHandlers.linkReference(state, node)`。
+2. 如果当前 handler state 中不存在匹配 definition，原样返回默认 unresolved-reference 结果。
+3. 如果 definition 存在，使用 `definition.url` 分类。
+4. 有 scheme 时返回默认 anchor。
+5. 无 scheme 时使用默认 anchor children 和 `definition.url` 生成与 direct link 相同的普通 HAST 内容。
+
+reference lookup 继续由 `mdast-util-to-hast` 的 `state.definitionById` 提供，不自行遍历或收集 definition。
 
 ## 数据流
 
@@ -151,103 +206,136 @@ Markdown 入口共用的 Streamdown 配置，链接分类属于同一语义边�
 
 ```text
 Markdown source
-  -> Streamdown Markdown parser
-  -> remark 插件保持 link 节点
-  -> sanitize / harden
-  -> Streamdown 原生 anchor
+  -> Streamdown remark parse
+  -> wrapped default link handler
+  -> target has scheme: return default anchor
+  -> existing sanitize / harden
+  -> Streamdown default anchor component or existing blocked result
 ```
 
 ### 无 scheme 文件地址
 
 ```text
 Markdown source
-  -> Streamdown Markdown parser
-  -> remark 插件将 link 替换为普通 AST 内容
-  -> sanitize / harden
-  -> 普通文本和原标签内容，不生成 anchor
+  -> Streamdown remark parse
+  -> wrapped default link handler
+  -> target has no scheme: emit ordinary HAST content
+  -> existing sanitize / harden
+  -> [default label children](parsed target) without anchor
 ```
 
-live 与 committed 共用同一转换，因此完整链接在 live 阶段完成解析后即采用最终显示语义，提交时
-不会从可点击链接切换成不可点击文本。
+### Live reference
+
+```text
+reference block without visible definition
+  -> default linkReference handler returns unresolved source representation
+  -> wrapper preserves it
+
+committed full Markdown with definition
+  -> default handler resolves definition
+  -> wrapper converts a no-scheme result to [label](definition.url)
+```
+
+## 依赖边界
+
+实现只复用现有依赖树中已经存在的公开能力，但凡生产源码直接 import 的包都必须在 `codex-gui/package.json` 中声明为直接依赖：
+
+- `mdast-util-to-hast`：`defaultHandlers`、handler/state 类型和默认转换行为；
+- `pathe`：跨平台绝对文件路径识别；
+- `uri-js`：RFC URI scheme 解析。
+
+不引入或直接使用：
+
+- `unist-util-visit`；
+- `mdast-util-to-markdown`；
+- `mdast-util-from-markdown`；
+- 自定义 AST 类型；
+- 手写递归或 scheme 正则。
+
+这些包当前已存在于 pnpm lock/store 的传递依赖中，但传递安装状态不是源码可依赖的 API 契约。计划和实现阶段需要把实际 import 的包声明为 direct dependency；这不等同于重新实现依赖已经提供的能力。
+
+## 安全与异常边界
+
+- 无 scheme 目标被写入 HAST text 节点，不成为 URL 属性，不具备导航或脚本执行能力。
+- link label children 仍经过后续 sanitize；raw HTML 和图片的现有处理不变。
+- 有 scheme 节点不绕过 `sanitize` 或 `harden`。
+- `javascript:`、`data:`、`file:`、`vbscript:` 等危险 scheme 继续服从 Streamdown 当前安全结果。
+- 自定义 scheme 是否可用继续由 Streamdown 当前配置决定，本功能不增加 allowlist。
+- `uri-js` 解析异常或没有 scheme 时按无 scheme 处理；分类函数不抛出到 React render。
+- 空目标属于无 scheme，显示为 `[链接文字]()`。
+- bare 文件路径如果没有 Markdown link 语法，本来就是普通文本，不进入 handler。
+- 无 scheme link 的 title 不显示，因为最终效果只要求链接文字和目标。
+- handler 不能取得合法 default anchor children 时，应保留默认 handler 结果，不生成不完整的自定义结构。
+
+## 性能边界
+
+- 不遍历整棵 mdast 或 HAST；工作量只发生在被默认转换访问到的 link/linkReference 节点。
+- 不读取或切片完整 Markdown source。
+- 不增加 React state、Redux state、effect、事件监听或跨消息缓存。
+- 不改变 Streamdown 的 live block splitter、remend 或 memoization。
+- committed 与 live 继续保持现有 static/streaming 模式差异。
 
 ## 行为矩阵
 
 | Markdown 目标 | 分类 | 可见结果 | Anchor |
 | --- | --- | --- | --- |
-| `https://example.com/docs` | 带 scheme | 原链接标签 | 保留 |
-| `mailto:user@example.com` | 带 scheme | 原链接标签 | 保留 |
-| `vscode://file/path` | 带 scheme | 原链接标签 | 保留，继续受 harden 约束 |
-| `javascript:alert(1)` | 危险 scheme | 保持现有 harden 阻止结果 | 不放行 |
-| `/Users/name/file.rs:10` | 无 scheme | `[标签](/Users/name/file.rs:10)` | 不生成 |
-| `src/file.rs` | 无 scheme | `[标签](src/file.rs)` | 不生成 |
-| `../src/file.rs` | 无 scheme | `[标签](../src/file.rs)` | 不生成 |
-| `C:/work/file.rs:10` | Windows drive 路径 | `[标签](C:/work/file.rs:10)` | 不生成 |
+| `https://example.com/docs` | 带 scheme | 默认链接标签 | 保持默认 |
+| `mailto:user@example.com` | 带 scheme | 默认链接标签 | 保持默认 |
+| `x:resource` | 单字母 scheme | 保持 Streamdown 默认安全结果 | 保持默认 |
+| `C:file.rs` | 有歧义，按 scheme | 保持 Streamdown 默认安全结果 | 保持默认 |
+| `javascript:alert(1)` | 危险 scheme | 保持 Streamdown 默认阻止结果 | 不放行 |
+| `/Users/name/file.rs:10` | 无 scheme 文件地址 | `[标签](/Users/name/file.rs:10)` | 不生成 |
+| `src/file.rs` | 无 scheme 文件地址 | `[标签](src/file.rs)` | 不生成 |
+| `../src/file.rs` | 无 scheme 文件地址 | `[标签](../src/file.rs)` | 不生成 |
+| `C:/work/file.rs:10` | Windows 绝对路径 | `[标签](C:/work/file.rs:10)` | 不生成 |
+| `C:\work\file.rs:10` | Windows 绝对路径 | `[标签](C:\work\file.rs:10)` | 不生成 |
 | `#section` | 无 scheme | `[标签](#section)` | 不生成 |
-
-## 安全与异常边界
-
-- 无 scheme 链接在 remark 阶段失去 link 语义，浏览器不会获得可导航 `href`。
-- 带 scheme 链接不绕过现有 `sanitize` 和 `harden`。
-- 危险 scheme 的处理结果保持现状；本设计不复制或替代 harden 的协议安全逻辑。
-- raw HTML 继续由现有 `skipHtml` 和 sanitize 配置处理。
-- Markdown 图片继续由现有元素过滤阻止。
-- 空目标同样属于无 scheme，显示为 `[标签]()`，不生成 anchor。
-- bare 文件路径本来就是普通文本，不属于 link 节点，保持不变。
-- 未完成的 live Markdown 继续由 Streamdown 的 streaming parser 处理；插件只转换已经形成的
-  link 节点，不自行解析或修补未完成链接语法。
-
-## 性能边界
-
-remark 插件只遍历当前交给 Streamdown 解析的 Markdown AST，不读取 transcript state，不扫描
-其他 entry，也不改变 committed chunk 或 live item 边界。
-
-该遍历与现有 Markdown parse/render 同属单条 Markdown 内容的有界工作，不新增 React state、
-Redux state、effect、事件监听或跨消息缓存。协议链接保持原节点，无 scheme 链接只进行局部节点
-替换。
+| 空目标 | 无 scheme | `[标签]()` | 不生成 |
 
 ## 测试策略
 
-在现有
-`codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
-中扩展用户可观察行为覆盖。
+在现有 Browser Mode 测试中覆盖用户可观察行为，不锁定 Streamdown 内部 class 或实现细节。
 
-committed assistant Markdown 至少覆盖：
+### Committed
 
-- `http:`、`https:`、`mailto:` 和一个自定义安全 scheme 继续生成 anchor；
-- 危险 scheme 不因新分类逻辑被放行；
-- POSIX 绝对路径显示标准 Markdown 形式且不生成 anchor；
-- 无前缀和显式相对路径显示标准 Markdown 形式且不生成 anchor；
-- Windows drive 路径显示标准 Markdown 形式且不生成 anchor；
-- fragment 等其他无 scheme 目标不生成 anchor；
-- reference link 被规范化为 `[标签](目标)`；
-- 可选 title 不显示；
-- raw HTML 和图片的现有安全断言继续通过。
+- `http:`、`https:`、`mailto:` 继续使用默认 anchor 行为。
+- `x:resource` 和 `C:file.rs` 不被本功能转换为 `[标签](目标)`，最终结果服从现有安全过滤。
+- 危险 scheme 不因新 handler 获得放行。
+- POSIX 绝对路径、裸相对路径、显式相对路径、fragment、query、protocol-relative 和空目标显示 `[标签](目标)`，且不存在对应 anchor。
+- `C:/...`、`C:\...`、带空格的 Windows 路径显示 parser 目标值，不出现 `%5C` 或 `%20`。
+- UNC 路径按文件地址处理，并断言显示 Markdown parser 得到的目标值，不断言逐字符保留源码中的转义反斜杠。
+- link label 中的 emphasis 和 inline code 保持默认样式。
+- 无 scheme link 的 title 不显示。
+- reference definition 可见时，committed 显示 `[标签](definition.url)` 且不生成 anchor。
+- raw HTML、图片、copy controls 和现有 Markdown 安全测试继续通过。
 
-live assistant Markdown 至少覆盖：
+### Live
 
-- 完整的无 scheme link 在 live 阶段显示标准 Markdown 形式且不生成 anchor；
-- 同一内容提交后可见文本和 anchor 语义不发生变化；
-- 带 scheme link 在 live 与 committed 阶段都保持正常链接行为。
+- 完整 direct 无 scheme link 在形成 link 节点后显示 `[标签](目标)`，且不生成 anchor。
+- unresolved reference 保持 Streamdown 默认原文表现。
+- 后置 definition 位于其他 live block 时，不要求旧 reference block 回溯更新。
+- 同一内容进入 committed 后按完整 Markdown definition resolution 得到最终结果。
+- 带 scheme link 保持 Streamdown 默认 live 行为。
 
-断言以可见文本、`getAttribute("href")` 和 `.committed-transcript-entry-markdown a` 是否存在为主，
-不锁定 Streamdown 内部 Tailwind 类名。
+### 验证范围
 
-`codex-gui` 当前没有 insta UI snapshot 基础设施；本变化使用现有 Vitest Browser Mode DOM 行为测试
-覆盖，不为该局部语义变化引入 Rust/TUI snapshot 或新的前端截图框架。
+计划阶段应包含：
 
-计划阶段应列出聚焦 Browser Mode 测试、类型检查和格式检查。具体命令在实施计划中确定，本设计
-不授权执行实现或验证命令。
+- 聚焦 Browser Mode 测试；
+- TypeScript type-check；
+- GUI format 与 lint；
+- direct dependency 与 lockfile importer 检查。
+
+本设计不授权执行实现、依赖变更或验证命令；具体命令和提交边界在实施计划中确定。
 
 ## 风险与约束
 
-- 无 scheme 目标统一失去 Web 相对导航能力；这是已确认的产品语义，而不是兼容性遗漏。
-- 单字母加冒号的目标优先按 Windows drive 路径处理，因此不支持单字母自定义 URI scheme。
-- reference link、转义和 title 会被规范化，不保证与输入源码逐字符一致。
-- remark AST 类型或 Streamdown remark plugin 接口未来升级时，TypeScript 类型检查应暴露接口漂移。
-- Streamdown 如果改变 streaming parser 形成完整 link 节点的时机，live 中间态可能变化，但最终
-  完整链接的分类和 committed 结果不应变化。
+- 无 scheme 目标统一失去 Web 相对导航能力，这是已确认产品语义。
+- `C:file.rs` 按 scheme 处理，可能不符合极少数 Windows drive-relative 使用场景；这是为避免误判单字母自定义 scheme 作出的明确取舍。
+- Markdown parser 会消解部分源码转义或尖括号包装；本设计显示 parser 目标值，不承诺源码逐字符一致。
+- live reference 可能长期保持 `[label][id]`，直到 committed 重新解析；这是 Streamdown 默认分块边界，不是本功能新增的不一致。
+- `mdast-util-to-hast` handler API 或 Streamdown `remarkRehypeOptions` 升级时，类型检查应暴露接口漂移。
 
 ## 后续阶段门禁
 
-本文件只定义设计。用户确认该设计文档后，下一轮才能编写实施计划；计划被用户明确确认前，
-不得修改 `codex-gui` 源码、测试或 issue 状态。
+本文件只定义设计。设计文档经用户确认后，下一轮才能编写实施计划；计划被明确确认前，不得修改 `codex-gui` 源码、测试、依赖或 issue 状态。
