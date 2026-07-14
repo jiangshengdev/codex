@@ -276,11 +276,6 @@ pub(crate) fn apply_legacy_session_acl_rules(
     additional_deny_write_paths: &[PathBuf],
     acl_sids: LegacyAclSids<'_>,
 ) -> Result<()> {
-    #[cfg(test)]
-    let temporary_diagnostics_enabled =
-        env_map.contains_key("CODEX_WINDOWS_LEGACY_TEMP_DIAGNOSTICS");
-    #[cfg(not(test))]
-    let temporary_diagnostics_enabled = false;
     let AllowDenyPaths { allow, mut deny } =
         compute_allow_paths_for_permissions(permissions, current_dir, env_map);
     unsafe {
@@ -295,45 +290,19 @@ pub(crate) fn apply_legacy_session_acl_rules(
         }
         if let Some(readonly_sid) = acl_sids.readonly_sid {
             for p in &allow {
-                let result = add_allow_ace(p, readonly_sid.as_ptr());
-                if temporary_diagnostics_enabled {
-                    eprintln!(
-                        "legacy temporary diagnostics acl operation=allow_readonly path={} sid={} result={result:?}",
-                        p.display(),
-                        acl_sids
-                            .readonly_sid_str
-                            .unwrap_or("<missing-readonly-sid>")
-                    );
-                }
-                let _ = result;
+                let _ = add_allow_ace(p, readonly_sid.as_ptr());
             }
         } else {
             for p in &allow {
                 let Some(root_sid) = matching_root_capability(p, acl_sids.write_root_sids) else {
                     continue;
                 };
-                let result = ensure_allow_write_aces(p, &[root_sid.sid.as_ptr()]);
-                if temporary_diagnostics_enabled {
-                    eprintln!(
-                        "legacy temporary diagnostics acl operation=ensure_allow_write path={} sid={} result={result:?}",
-                        p.display(),
-                        root_sid.sid_str
-                    );
-                }
-                let _ = result;
+                let _ = ensure_allow_write_aces(p, &[root_sid.sid.as_ptr()]);
             }
         }
         for p in &deny {
             for root_sid in deny_root_capabilities_for_path(p, acl_sids.write_root_sids) {
-                let result = add_deny_write_ace(p, root_sid.sid.as_ptr());
-                if temporary_diagnostics_enabled {
-                    eprintln!(
-                        "legacy temporary diagnostics acl operation=deny_write path={} sid={} result={result:?}",
-                        p.display(),
-                        root_sid.sid_str
-                    );
-                }
-                let _ = result;
+                let _ = add_deny_write_ace(p, root_sid.sid.as_ptr());
             }
         }
         if !additional_deny_read_paths.is_empty() {
@@ -370,49 +339,8 @@ pub(crate) fn apply_legacy_session_acl_rules(
         {
             let canonical_cwd = canonicalize_path(current_dir);
             if is_command_cwd_root(&workspace_sid.root, &canonical_cwd) {
-                let codex_dir = current_dir.join(".codex");
-                let codex_dir_status = if temporary_diagnostics_enabled {
-                    Some(if !codex_dir.exists() {
-                        "missing"
-                    } else if !codex_dir.is_dir() {
-                        "not_directory"
-                    } else {
-                        "mutation"
-                    })
-                } else {
-                    None
-                };
-                let result = protect_workspace_codex_dir(current_dir, workspace_sid.sid.as_ptr());
-                if let Some(codex_dir_status) = codex_dir_status {
-                    eprintln!(
-                        "legacy temporary diagnostics acl operation=protect_workspace_codex path={} sid={} status={codex_dir_status} result={result:?}",
-                        codex_dir.display(),
-                        workspace_sid.sid_str
-                    );
-                }
-                let _ = result;
-
-                let agents_dir = current_dir.join(".agents");
-                let agents_dir_status = if temporary_diagnostics_enabled {
-                    Some(if !agents_dir.exists() {
-                        "missing"
-                    } else if !agents_dir.is_dir() {
-                        "not_directory"
-                    } else {
-                        "mutation"
-                    })
-                } else {
-                    None
-                };
-                let result = protect_workspace_agents_dir(current_dir, workspace_sid.sid.as_ptr());
-                if let Some(agents_dir_status) = agents_dir_status {
-                    eprintln!(
-                        "legacy temporary diagnostics acl operation=protect_workspace_agents path={} sid={} status={agents_dir_status} result={result:?}",
-                        agents_dir.display(),
-                        workspace_sid.sid_str
-                    );
-                }
-                let _ = result;
+                let _ = protect_workspace_codex_dir(current_dir, workspace_sid.sid.as_ptr());
+                let _ = protect_workspace_agents_dir(current_dir, workspace_sid.sid.as_ptr());
             }
         }
     }
