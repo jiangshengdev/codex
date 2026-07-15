@@ -87,6 +87,20 @@ export const attachWithTurns = (
   },
 });
 
+export const attachWithThreadId = (
+  attach: ThreadProjectionAttachResponse,
+  threadId: string,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    thread: {
+      ...attach.snapshot.thread,
+      id: threadId,
+    },
+  },
+});
+
 export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
   const { turns: snapshotTurns, ...thread } = attach.snapshot.thread;
 
