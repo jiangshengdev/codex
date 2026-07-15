@@ -84,6 +84,17 @@ export const attachWithTurns = (
   },
 });
 
+export const attachWithHeadCommitId = (
+  attach: ThreadProjectionAttachResponse,
+  headCommitId: string | null,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    headCommitId,
+  },
+});
+
 export const attachWithThreadId = (
   attach: ThreadProjectionAttachResponse,
   threadId: string,
