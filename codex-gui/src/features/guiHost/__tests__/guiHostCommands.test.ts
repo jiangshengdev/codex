@@ -16,6 +16,13 @@ const turnStartParams = (threadId: string): TurnStartParams => ({
   input: [{ type: "text", text: "Hello", text_elements: [] }],
 });
 
+function expectPlainError(error: unknown, message: string): asserts error is Error {
+  expect(error).toBeInstanceOf(Error);
+  expect(error?.constructor).toBe(Error);
+  expect(error).toMatchObject({ name: "Error", message });
+  expect("source" in (error as Error)).toBe(false);
+}
+
 describe("guiHostClient commands", () => {
   it("sends turn/start through the ready command API", async () => {
     const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
@@ -87,7 +94,8 @@ describe("guiHostClient commands", () => {
       message: "active turn already running",
     });
 
-    await expect(promise).rejects.toThrow("active turn already running");
+    const error = await promise.catch((reason: unknown) => reason);
+    expectPlainError(error, "JSON-RPC error (id=4, code=-32000): active turn already running");
     expect(socket.closed).toEqual([]);
     expect(statuses.at(-1)).toBe("attached");
   });
@@ -110,7 +118,8 @@ describe("guiHostClient commands", () => {
     cleanup();
     cleanup();
 
-    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
+    const error = await promise.catch((reason: unknown) => reason);
+    expectPlainError(error, "GUI host WebSocket is not available");
     expect(calls).toEqual(["commands-unavailable"]);
     expect(socket.closed).toEqual([{ code: 1000, reason: "cleanup" }]);
   });

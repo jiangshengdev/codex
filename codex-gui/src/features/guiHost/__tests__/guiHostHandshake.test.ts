@@ -54,7 +54,86 @@ async function completeHandshake(
   await Promise.resolve();
 }
 
+function throwValue(value: unknown): never {
+  throw value;
+}
+
 describe("guiHostClient handshake", () => {
+  it("reports a public handshake callback Error through the queued facade reporter", async () => {
+    const scheduled: (() => void)[] = [];
+    const queueMicrotaskStub = vi.fn<(callback: () => void) => void>((callback) => {
+      scheduled.push(callback);
+    });
+    const original = new Error("authenticated status callback failed");
+    vi.stubGlobal("queueMicrotask", queueMicrotaskStub);
+
+    try {
+      const { socket } = startGuiHostConnectionWithSocket({
+        attachResponse: attachBaseline,
+        onStatus: (status) => {
+          if (status.label === "authenticated") {
+            throw original;
+          }
+        },
+      });
+
+      socket.onopen?.();
+      sendAuthenticateResult(socket);
+      await vi.waitFor(() => {
+        expect(scheduled).toHaveLength(1);
+      });
+
+      let reported: unknown;
+      try {
+        scheduled[0]?.();
+      } catch (error) {
+        reported = error;
+      }
+      expect(reported).toBe(original);
+      expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("wraps a non-Error public handshake callback failure in the queued facade reporter", async () => {
+    const scheduled: (() => void)[] = [];
+    const queueMicrotaskStub = vi.fn<(callback: () => void) => void>((callback) => {
+      scheduled.push(callback);
+    });
+    const original = { reason: "projection callback failed" };
+    vi.stubGlobal("queueMicrotask", queueMicrotaskStub);
+
+    try {
+      const { socket } = startGuiHostConnectionWithSocket({
+        attachResponse: attachBaseline,
+        onProjectionAttached: () => throwValue(original),
+      });
+
+      socket.onopen?.();
+      await completeHandshake(socket, attachBaseline);
+      await vi.waitFor(() => {
+        expect(scheduled).toHaveLength(1);
+      });
+
+      let reported: unknown;
+      try {
+        scheduled[0]?.();
+      } catch (error) {
+        reported = error;
+      }
+      expect(reported).toBeInstanceOf(Error);
+      expect(reported).toMatchObject({
+        constructor: Error,
+        name: "Error",
+        message: "Unexpected GUI host handshake error",
+        cause: original,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("clears the fragment and authenticates when launch token storage fails", () => {
     const socket = new RecordingWebSocket();
     const replaceState = vi.fn<History["replaceState"]>();

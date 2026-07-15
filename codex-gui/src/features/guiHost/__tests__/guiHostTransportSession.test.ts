@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import * as transportSessionModule from "../guiHostTransportSession";
 
-const { GuiHostRequestError, GuiHostTransportSession } = transportSessionModule;
-const getRequestFailureSource = (error: unknown) =>
-  (
-    transportSessionModule as typeof transportSessionModule & {
-      getGuiHostRequestFailureSource: (error: unknown) => string | undefined;
-    }
-  ).getGuiHostRequestFailureSource(error);
+const { getGuiHostRequestFailureSource, GuiHostTransportSession } = transportSessionModule;
 
 type SocketCloseEvent = {
   code: number;
@@ -69,7 +63,32 @@ function readRequest(socket: TransportSocket, index: number): Record<string, unk
   return JSON.parse(socket.sent[index] ?? "") as Record<string, unknown>;
 }
 
+function expectPlainError(error: unknown, message: string): asserts error is Error {
+  expect(error).toBeInstanceOf(Error);
+  expect(error?.constructor).toBe(Error);
+  expect(error).toMatchObject({ name: "Error", message });
+  expect("source" in (error as Error)).toBe(false);
+}
+
+async function createRpcFailure(message: string): Promise<Error> {
+  const socket = new TransportSocket();
+  const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
+  const request = session.request("probe", {});
+  const rpcRequest = readRequest(socket, 0) as { id: number };
+
+  session.correlate({ id: rpcRequest.id, error: { code: -32000, message } });
+  const error = await request.catch((reason: unknown) => reason);
+  if (!(error instanceof Error)) {
+    throw new Error("Expected an RPC Error");
+  }
+  return error;
+}
+
 describe("GuiHostTransportSession", () => {
+  it("does not export the request failure source setter", () => {
+    expect("setGuiHostRequestFailureSource" in transportSessionModule).toBe(false);
+  });
+
   it("allocates request IDs in order and correlates only the matching response", async () => {
     const socket = new TransportSocket();
     const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
@@ -109,7 +128,7 @@ describe("GuiHostTransportSession", () => {
     expect(firstSettled).toHaveBeenCalledWith({ result: { value: "first" } });
   });
 
-  it("rejects a correlated JSON-RPC error with its exact source and message", async () => {
+  it("rejects a correlated JSON-RPC error as a plain Error with internal classification", async () => {
     const socket = new TransportSocket();
     const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
     const request = session.request("turn/start", {});
@@ -121,12 +140,9 @@ describe("GuiHostTransportSession", () => {
       }),
     ).toBe(true);
 
-    await expect(request).rejects.toMatchObject({
-      name: "GuiHostRequestError",
-      source: "rpc",
-      message: "JSON-RPC error (id=1, code=-32000): active turn already running",
-    });
-    await expect(request).rejects.toBeInstanceOf(GuiHostRequestError);
+    const error = await request.catch((reason: unknown) => reason);
+    expectPlainError(error, "JSON-RPC error (id=1, code=-32000): active turn already running");
+    expect(getGuiHostRequestFailureSource(error)).toBe("rpc");
   });
 
   it("preserves a synchronous socket send Error while classifying its source", async () => {
@@ -138,7 +154,8 @@ describe("GuiHostTransportSession", () => {
 
     await expect(request).rejects.toBe(original);
     expect(original.message).toBe("write failed");
-    expect(getRequestFailureSource(original)).toBe("send");
+    expect("source" in original).toBe(false);
+    expect(getGuiHostRequestFailureSource(original)).toBe("send");
     expect(session.correlate({ id: 1, result: {} })).toBe(false);
   });
 
@@ -155,19 +172,21 @@ describe("GuiHostTransportSession", () => {
     expect(request).toBeDefined();
     await expect(request).rejects.toBe(original);
     expect(original.message).toBe("write failed");
-    expect(getRequestFailureSource(original)).toBe("send");
+    expect("source" in original).toBe(false);
+    expect(getGuiHostRequestFailureSource(original)).toBe("send");
   });
 
   it("prefers the transport send classification for an existing request error", async () => {
     const socket = new TransportSocket();
-    const original = new GuiHostRequestError("rpc", "upstream failure");
+    const original = await createRpcFailure("upstream failure");
+    expect(getGuiHostRequestFailureSource(original)).toBe("rpc");
     socket.sendError = original;
     const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
     const request = session.request("turn/start", {});
 
     await expect(request).rejects.toBe(original);
-    expect(original.source).toBe("rpc");
-    expect(getRequestFailureSource(original)).toBe("send");
+    expect("source" in original).toBe(false);
+    expect(getGuiHostRequestFailureSource(original)).toBe("send");
   });
 
   it("preserves a frozen serialization Error and returns it through the Promise", async () => {
@@ -187,7 +206,8 @@ describe("GuiHostTransportSession", () => {
     expect(request).toBeDefined();
     await expect(request).rejects.toBe(original);
     expect(original.message).toBe("serialization failed");
-    expect(getRequestFailureSource(original)).toBe("send");
+    expect("source" in original).toBe(false);
+    expect(getGuiHostRequestFailureSource(original)).toBe("send");
     expect(socket.sent).toEqual([]);
   });
 
@@ -196,10 +216,9 @@ describe("GuiHostTransportSession", () => {
     socket.sendError = "write failed";
     const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
 
-    await expect(session.request("turn/start", {})).rejects.toMatchObject({
-      source: "send",
-      message: "GUI host WebSocket is not available",
-    });
+    const error = await session.request("turn/start", {}).catch((reason: unknown) => reason);
+    expectPlainError(error, "GUI host WebSocket is not available");
+    expect(getGuiHostRequestFailureSource(error)).toBe("send");
   });
 
   it("does not send when params serialization invalidates the session", async () => {
@@ -212,10 +231,9 @@ describe("GuiHostTransportSession", () => {
       },
     };
 
-    await expect(session.request("turn/start", params)).rejects.toMatchObject({
-      source: "unavailable",
-      message: "GUI host WebSocket is not available",
-    });
+    const error = await session.request("turn/start", params).catch((reason: unknown) => reason);
+    expectPlainError(error, "GUI host WebSocket is not available");
+    expect(getGuiHostRequestFailureSource(error)).toBe("unavailable");
     expect(socket.sent).toEqual([]);
   });
 
@@ -226,14 +244,14 @@ describe("GuiHostTransportSession", () => {
 
     session.invalidate();
 
-    await expect(pending).rejects.toMatchObject({
-      source: "unavailable",
-      message: "GUI host WebSocket is not available",
-    });
-    await expect(session.request("turn/interrupt", {})).rejects.toMatchObject({
-      source: "unavailable",
-      message: "GUI host WebSocket is not available",
-    });
+    const pendingError = await pending.catch((reason: unknown) => reason);
+    const futureError = await session
+      .request("turn/interrupt", {})
+      .catch((reason: unknown) => reason);
+    expectPlainError(pendingError, "GUI host WebSocket is not available");
+    expectPlainError(futureError, "GUI host WebSocket is not available");
+    expect(getGuiHostRequestFailureSource(pendingError)).toBe("unavailable");
+    expect(getGuiHostRequestFailureSource(futureError)).toBe("unavailable");
   });
 
   it("reuses one unavailable error for all requests rejected by an invalidation", async () => {
@@ -246,10 +264,8 @@ describe("GuiHostTransportSession", () => {
 
     const [firstError, secondError] = await Promise.all([first, second]);
     expect(firstError).toBe(secondError);
-    expect(firstError).toMatchObject({
-      source: "unavailable",
-      message: "GUI host WebSocket is not available",
-    });
+    expectPlainError(firstError, "GUI host WebSocket is not available");
+    expect(getGuiHostRequestFailureSource(firstError)).toBe("unavailable");
   });
 
   it.each([WebSocket.CLOSING, WebSocket.CLOSED])(
@@ -259,10 +275,9 @@ describe("GuiHostTransportSession", () => {
       socket.readyState = readyState;
       const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
 
-      await expect(session.request("turn/start", {})).rejects.toMatchObject({
-        source: "unavailable",
-        message: "GUI host WebSocket is not available",
-      });
+      const error = await session.request("turn/start", {}).catch((reason: unknown) => reason);
+      expectPlainError(error, "GUI host WebSocket is not available");
+      expect(getGuiHostRequestFailureSource(error)).toBe("unavailable");
       expect(socket.sent).toEqual([]);
     },
   );
@@ -307,7 +322,9 @@ describe("GuiHostTransportSession", () => {
 
     dispatch(socket);
     expect(calls).toEqual(["pending-rejected", `${event}-callback`]);
-    await expect(observedError).resolves.toMatchObject({ source: "unavailable" });
+    const error = await observedError;
+    expectPlainError(error, "GUI host WebSocket is not available");
+    expect(getGuiHostRequestFailureSource(error)).toBe("unavailable");
   });
 
   it("forwards open and message events while the session is active", () => {
@@ -336,10 +353,9 @@ describe("GuiHostTransportSession", () => {
     session.dispose(1000, "cleanup");
     socket.onopen?.();
 
-    await expect(pending).rejects.toMatchObject({
-      source: "unavailable",
-      message: "GUI host WebSocket is not available",
-    });
+    const error = await pending.catch((reason: unknown) => reason);
+    expectPlainError(error, "GUI host WebSocket is not available");
+    expect(getGuiHostRequestFailureSource(error)).toBe("unavailable");
     expect(socket.onerror).toBeNull();
     expect(socket.onclose).toBeNull();
     expect(socket.onmessage).toBeNull();
