@@ -18,6 +18,7 @@ import { startGuiHostConnection, type LaunchParams } from "../guiHostClient";
 import {
   MemoryStorage,
   RecordingWebSocket,
+  ThrowingSetItemStorage,
   recordStatusSummaries,
   readRpcMethod,
   sendAttachResult,
@@ -28,6 +29,58 @@ import {
 } from "./guiHostClientTestSupport";
 
 describe("guiHostClient handshake", () => {
+  it("clears the fragment and authenticates when launch token storage fails", () => {
+    const socket = new RecordingWebSocket();
+    const replaceState = vi.fn<History["replaceState"]>();
+
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState,
+      tokenStorage: new ThrowingSetItemStorage(),
+      createWebSocket: () => socket as unknown as WebSocket,
+    });
+
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/?threadId=thread-abc");
+
+    socket.onopen?.();
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+  });
+
+  it("calls onLaunchParams synchronously before creating the WebSocket", () => {
+    const socket = new RecordingWebSocket();
+    const calls: string[] = [];
+
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState: vi.fn<History["replaceState"]>(),
+      tokenStorage: new MemoryStorage(),
+      onLaunchParams: (params) => {
+        calls.push(`launch:${params.threadId}:${params.token}`);
+      },
+      createWebSocket: () => {
+        calls.push("create-websocket");
+        return socket as unknown as WebSocket;
+      },
+    });
+
+    expect(calls).toEqual(["launch:thread-abc:secret", "create-websocket"]);
+  });
+
+  it("does not create a WebSocket when launch params consumption fails", () => {
+    const createWebSocket = vi.fn<(url: string) => WebSocket>();
+
+    expect(() =>
+      startGuiHostConnection({
+        location: new URL("http://127.0.0.1:4567/#token=secret"),
+        replaceState: vi.fn<History["replaceState"]>(),
+        tokenStorage: new MemoryStorage(),
+        createWebSocket,
+      }),
+    ).toThrowError(new Error("Missing threadId query parameter"));
+    expect(createWebSocket).not.toHaveBeenCalled();
+  });
+
   it("sends authenticate, initialize, attach, and forwards projection payloads", () => {
     const socket = new RecordingWebSocket();
     const statuses: string[] = [];
