@@ -103,6 +103,14 @@
 | B10 | [RA-07-002](./07-composer-access-and-localization.md#ra-07-002) | 删除或收缩未接入的 i18n 示例、切换表面及专属消息 | 与 G01 分离，不包含 NotFound localization |
 | G01（证据门禁） | [RA-07-003](./07-composer-access-and-localization.md#ra-07-003) | 先确认 production localization 范围与 NotFound 测试要求 | 补足证据并重新裁决前不得实施；不得并入 B10 |
 
+## 实施状态更新
+
+状态：持续更新。本节只记录已完成批次的实施进度，不改变 Finding 的稳定审计状态、优先级、Evidence owner 或既有统计。
+
+| 批次 | 实施状态 | 完成日期 | 本地提交 | 验证结果 |
+| --- | --- | --- | --- | --- |
+| B04 | 已完成 | 2026-07-15 | `74def529c` `test(gui): cover replay baseline lifecycle`；`39c036c25` `refactor(gui): remove duplicate replay index state` | fnm-managed `pnpm 10.33.0` 下 `pnpm run ci` 通过（24 个 unit 文件、157 个测试）；定向 `App.browser.test.tsx` Browser Mode 通过（3 个执行实例、87 个测试）；结构检查确认 Bridge 为唯一 production runtime replay index owner。 |
+
 ## 依赖顺序
 
 状态：完成。
