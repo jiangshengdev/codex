@@ -44,7 +44,7 @@
 | [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) | Launch params 生命周期被嵌入 transport owner | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
 | [RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) | Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
 | [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) | Runtime protocol guards 声明强于实际验证范围 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
-| [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) | Bridge 集中承担 projection application coordination | [03](./03-projection-ingress-and-thread-runtime.md) | 确认重构点 | P2 |
+| [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) | Bridge 集中承担 projection application coordination | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B05） | P2 |
 | [RA-03-002](./03-projection-ingress-and-thread-runtime.md#ra-03-002) | Snapshot replay index 在 Bridge 与 Redux runtime 重复持有 | [03](./03-projection-ingress-and-thread-runtime.md) | 确认重构点 | P2 |
 | [RA-03-003](./03-projection-ingress-and-thread-runtime.md#ra-03-003) | 单条 runtime delta action 已成为生产遗留与类型耦合 | [03](./03-projection-ingress-and-thread-runtime.md) | 确认重构点 | P3 |
 | [RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004) | Thread identity 与 runtime 主生命周期边界已由现有抽象覆盖 | [03](./03-projection-ingress-and-thread-runtime.md) | 已由现有抽象覆盖 | 非 finding |

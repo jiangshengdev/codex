@@ -38,10 +38,11 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 - **Finding ID：** `RA-03-001`。
 - **主报告：** `03-projection-ingress-and-thread-runtime.md`。
 - **Evidence owner：** `03-projection-ingress-and-thread-runtime`。
-- **状态：** 确认重构点。
+- **状态：** 已实施（B05）。
 - **重构优先级：** P2。
+- **实施结果：** React-independent、instance-scoped coordinator 已成为 projection application coordination owner；`GuiHostConnectionBridge` 已收缩为 React/connection wiring。
 - **结论摘要：** `GuiHostConnectionBridge` 不只是连接和 notification 的薄 handoff。它在同一个 React effect 中同时拥有连接与 `ProjectionIngressAdapter` 生命周期、launch/attach 身份预检、adapter outcome 到 Redux action 的映射、snapshot replay 分类、projection delta 的 RAF batching/flush 以及连接和 pending frame teardown，形成 application coordination 职责集中。`ProjectionIngressAdapter` 自身只依赖生成协议类型并维护 ingress cursor，依赖方向清晰；本 finding 不声称当前存在功能 bug。
-- **当前 owner 与当前职责：** `GuiHostConnectionBridge` 启动和清理 GUI host connection，依据 launch thread 构造并持有 adapter，观察 attached identity，在进入 adapter 前拦截不匹配 attach，持有 snapshot replay index，将 adapter outcome 转换为 thread identity/thread runtime Redux action，并通过 animation frame 批量投递 delta、在 attach/event/manual reconnect 前刷新 pending delta。`ProjectionIngressAdapter` 负责 thread/subscription/commit chain/known turn/manual reconnect cursor，以及 attach/event/delta/closed 的 accepted、ignored 或 manual reconnect 判定。
+- **审计时 owner 与职责：** `GuiHostConnectionBridge` 启动和清理 GUI host connection，依据 launch thread 构造并持有 adapter，观察 attached identity，在进入 adapter 前拦截不匹配 attach，持有 snapshot replay index，将 adapter outcome 转换为 thread identity/thread runtime Redux action，并通过 animation frame 批量投递 delta、在 attach/event/manual reconnect 前刷新 pending delta。`ProjectionIngressAdapter` 负责 thread/subscription/commit chain/known turn/manual reconnect cursor，以及 attach/event/delta/closed 的 accepted、ignored 或 manual reconnect 判定。
 - **问题类型：** application coordination 职责集中、生命周期混合、具体依赖耦合；不是 adapter 的依赖倒置、循环依赖或 wire protocol 问题。
 - **影响文件、定义侧、构造方、调用方和消费方：**
   - 定义侧：`codex-gui/src/features/projectionIngress/projectionIngressAdapter.ts:20-54` 定义 outcome、ignored/manual reconnect reason 与 ingress cursor；同文件 `56-190` 定义 adapter 及四类 ingress 处理。
@@ -54,11 +55,11 @@ Bridge application coordination、adapter filtering/reconnect、thread runtime s
 - **预期收益：** 将协议 ingress 判定之后的顺序和状态推进集中为可识别的 application boundary，降低 React lifecycle、transport callback、replay 语义与 Redux action 变化互相牵动的范围；保留 adapter 的纯领域依赖方向，并使 connection teardown 与 projection ordering 的审查边界更明确。
 - **建议变更范围、最小可审查批次和明确排除范围：** 最小批次只移动或封装 Bridge 当前已有的 application coordination 职责，保持公开 connection callbacks、adapter accepted/ignored/manual reconnect 语义、Redux action payload、delta RAF 批次与 flush 顺序、identity observation 和 teardown 行为不变。明确排除 timeline material、transcript reducer、wire shape、RPC 方法、runtime protocol decoder 和服务端协议重设计。
 - **风险：** 边界调整可能改变 pending delta 与 attach/event/closed 的相对顺序，导致 completion/reconnect 前 transient delta 丢失或延迟；也可能破坏 mismatch attach 下“记录 attached identity 但不推进 runtime”、manual reconnect 后抑制后续 notification、adapter 随 launch thread 重建，以及卸载时同时取消 frame 和关闭 connection 的行为。
-- **后续实施时建议的验证范围：** 保持现有 App browser 覆盖，并验证 accepted attach/event 进入 runtime、同一 frame delta 合并、结构事件和 closed/manual reconnect 前 flush、mismatch attach 不推进 runtime、manual reconnect 后忽略后续 event、unmount 取消 pending frame 且只清理一次 connection。本轮未运行测试。
-- **关键证据：** `GuiHostConnectionBridge.tsx:41-50` 同时持有 connection cleanup、adapter、snapshot index 与 delta queue；`:52-89` 管理 RAF batching/flush；`:91-125` 映射 outcome、计算 replay 并控制 flush；`:127-181` 组合 connection callbacks、adapter 构造与四类 ingress；`:196-203` 执行联合 teardown。`projectionIngressAdapter.ts:56-67` 仅初始化 ingress cursor，`:69-135` 处理 attach/event/delta/closed，`:137-190` 封装 notification identity、manual reconnect 与 known turn 规则。
+- **已完成实施验证：** coordinator 提交为 `3ae09b518`，Bridge 收缩提交为 `b89880e1f`；coordinator 单文件测试 `19/19` 通过；App browser 回归在 Chromium、Firefox、WebKit 各 `29/29` 通过；完整 GUI CI 共 `25` 个文件、`176` 个测试通过，format、oxlint、eslint、type-check 均通过；最终审查无 findings；未操作远程。
+- **审计时关键证据：** `GuiHostConnectionBridge.tsx:41-50` 同时持有 connection cleanup、adapter、snapshot index 与 delta queue；`:52-89` 管理 RAF batching/flush；`:91-125` 映射 outcome、计算 replay 并控制 flush；`:127-181` 组合 connection callbacks、adapter 构造与四类 ingress；`:196-203` 执行联合 teardown。`projectionIngressAdapter.ts:56-67` 仅初始化 ingress cursor，`:69-135` 处理 attach/event/delta/closed，`:137-190` 封装 notification identity、manual reconnect 与 known turn 规则。
 - **关联的既有报告、issue 或专项设计：** [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001)、[RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) 与 [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) 拥有 launch/transport/protocol 及 connection/notification 输入侧交界；本 finding 接续 typed handoff，不复制其证据。无直接关联 issue 或专项设计。
 - **已排除项：** 排除“production handoff 缺少测试覆盖”。`App.browser.test.tsx:55-64` 只 mock `startGuiHostConnection` facade，实际挂载真实 App、Bridge、adapter 和 Redux store；同文件 `259-291` 覆盖 accepted attach/event handoff，`293-415` 覆盖 delta batching 与结构事件前 flush，`746-831` 覆盖 mismatch/closed/manual reconnect，`833-889` 覆盖 transport 与 pending frame teardown。未发现 adapter 反向依赖 React、Redux、app shell 或 GUI host transport；不将职责集中解释为已复现功能 bug。
-- **报告建议：** 保留为 `RA-03-001`、状态“确认重构点”、优先级 P2；后续设计只确定 application coordination 的职责和依赖方向，不能据此进入 timeline material、transcript reducer 或协议重设计。
+- **报告建议：** 保留 `RA-03-001` 的历史审计证据，状态更新为“已实施（B05）”，优先级 P2 已完成；不扩大到 B06、timeline material、transcript reducer 或协议重设计。
 
 ### RA-03-002 Snapshot replay index 在 Bridge 与 Redux runtime 重复持有
 
