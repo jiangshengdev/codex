@@ -6,24 +6,7 @@ import type {
   LaunchParams,
 } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
-import {
-  ProjectionIngressAdapter,
-  type ProjectionIngressOutcome,
-} from "@/features/projectionIngress/projectionIngressAdapter";
-import {
-  attachedThreadIdObserved,
-  launchThreadIdRecorded,
-} from "@/features/threadIdentity/threadIdentitySlice";
-import {
-  replayForProjectionEvent,
-  snapshotReplayIndexFromTurns,
-  type SnapshotReplayIndex,
-  threadRuntimeAttached,
-  type threadRuntimeDeltaAccepted,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import { ProjectionApplicationCoordinator } from "@/features/projectionCoordination/projectionApplicationCoordinator";
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
@@ -41,88 +24,15 @@ export function GuiHostConnectionBridge({
   useEffect(() => {
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
-    let launchThreadId: string | null = null;
-    let projectionIngress: ProjectionIngressAdapter | null = null;
-    let snapshotReplayIndex: SnapshotReplayIndex | null = null;
-    let pendingDeltaNotifications: Parameters<
-      typeof threadRuntimeDeltasAccepted
-    >[0]["notifications"] = [];
-    let pendingDeltaFrame: number | null = null;
-
-    const cancelPendingDeltaFrame = () => {
-      if (pendingDeltaFrame == null) {
-        return;
-      }
-
-      window.cancelAnimationFrame(pendingDeltaFrame);
-      pendingDeltaFrame = null;
-    };
-
-    const flushPendingDeltas = () => {
-      if (pendingDeltaNotifications.length === 0) {
-        cancelPendingDeltaFrame();
-        return;
-      }
-
-      const notifications = pendingDeltaNotifications;
-      pendingDeltaNotifications = [];
-      cancelPendingDeltaFrame();
-      dispatch(threadRuntimeDeltasAccepted({ notifications }));
-    };
-
-    const schedulePendingDeltaFlush = () => {
-      if (pendingDeltaFrame != null) {
-        return;
-      }
-
-      pendingDeltaFrame = window.requestAnimationFrame(() => {
-        pendingDeltaFrame = null;
-        flushPendingDeltas();
-      });
-    };
-
-    const enqueueProjectionDelta = (
-      notification: Parameters<typeof threadRuntimeDeltaAccepted>[0]["notification"],
-    ) => {
-      pendingDeltaNotifications.push(notification);
-      schedulePendingDeltaFlush();
-    };
-
-    const dispatchProjectionOutcome = (outcome: ProjectionIngressOutcome) => {
-      switch (outcome.type) {
-        case "attachAccepted":
-          flushPendingDeltas();
-          dispatch(threadRuntimeAttached(outcome.response));
-          return;
-        case "eventAccepted":
-          flushPendingDeltas();
-          dispatch(
-            threadRuntimeEventBuffered({
-              notification: outcome.notification,
-              replay:
-                snapshotReplayIndex == null
-                  ? "live"
-                  : replayForProjectionEvent(snapshotReplayIndex, outcome.notification),
-            }),
-          );
-          return;
-        case "deltaAccepted":
-          enqueueProjectionDelta(outcome.notification);
-          return;
-        case "manualReconnectRequired":
-          flushPendingDeltas();
-          dispatch(
-            threadRuntimeManualReconnectRequired({
-              reason: outcome.reason,
-              threadId: outcome.threadId,
-              subscriptionId: outcome.subscriptionId,
-            }),
-          );
-          return;
-        case "ignored":
-          return;
-      }
-    };
+    const coordinator = new ProjectionApplicationCoordinator({
+      dispatch,
+      scheduler: {
+        requestFrame: (callback) => window.requestAnimationFrame(callback),
+        cancelFrame: (frameId) => {
+          window.cancelAnimationFrame(frameId);
+        },
+      },
+    });
 
     try {
       cleanupConnection = startGuiHostConnection({
@@ -131,48 +41,19 @@ export function GuiHostConnectionBridge({
         onStatus: setStatus,
         onLaunchParams: (params) => {
           setLaunchParams(params);
-          launchThreadId = params.threadId;
-          projectionIngress = new ProjectionIngressAdapter(params.threadId);
-          snapshotReplayIndex = null;
-          dispatch(launchThreadIdRecorded(params.threadId));
+          coordinator.handleLaunchThread(params.threadId);
         },
         onProjectionAttached: (response) => {
-          const attachedThreadId = response.snapshot.thread.id;
-          dispatch(attachedThreadIdObserved(attachedThreadId));
-
-          if (launchThreadId !== attachedThreadId || projectionIngress == null) {
-            return;
-          }
-
-          const outcome = projectionIngress.handleAttach(response);
-          if (outcome.type === "attachAccepted") {
-            snapshotReplayIndex = snapshotReplayIndexFromTurns(
-              outcome.response.snapshot.thread.turns,
-            );
-          }
-
-          dispatchProjectionOutcome(outcome);
+          coordinator.handleProjectionAttached(response);
         },
         onProjectionEvent: (notification) => {
-          if (projectionIngress == null) {
-            return;
-          }
-
-          dispatchProjectionOutcome(projectionIngress.handleEvent(notification));
+          coordinator.handleProjectionEvent(notification);
         },
         onProjectionDelta: (notification) => {
-          if (projectionIngress == null) {
-            return;
-          }
-
-          dispatchProjectionOutcome(projectionIngress.handleDelta(notification));
+          coordinator.handleProjectionDelta(notification);
         },
         onProjectionClosed: (notification) => {
-          if (projectionIngress == null) {
-            return;
-          }
-
-          dispatchProjectionOutcome(projectionIngress.handleClosed(notification));
+          coordinator.handleProjectionClosed(notification);
         },
         onCommandsReady: setCommands,
         onCommandsUnavailable: () => {
@@ -197,8 +78,7 @@ export function GuiHostConnectionBridge({
       isMounted = false;
       setCommands(null);
       setLaunchParams(null);
-      pendingDeltaNotifications = [];
-      cancelPendingDeltaFrame();
+      coordinator.dispose();
       cleanupConnection?.();
     };
   }, [dispatch, setCommands, setLaunchParams, setStatus]);
