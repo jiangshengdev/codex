@@ -1,16 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
-import type { GuiHostCommands, StartGuiHostConnectionOptions } from "../guiHostClient";
+import type { GuiHostCommands } from "../guiHostClient";
 import {
   recordStatusLabels,
   recordStatusSummaries,
   readLatestRpcRequest,
   readRpcMethod,
-  sendAttachResult,
   sendAuthenticateResult,
-  sendInitializeResult,
   sendJsonRpcError,
+  startConnectionUntilCommandsReady,
   startGuiHostConnectionWithSocket,
 } from "./guiHostClientTestSupport";
 
@@ -21,37 +20,6 @@ async function sendAuthenticationAndWaitForInitialize(
   await vi.waitFor(() => {
     expect(socket.sent.map(readRpcMethod)).toContain("initialize");
   });
-}
-
-async function startConnectionUntilCommandsReady({
-  attachResponse,
-  onCommandsUnavailable,
-  onStatus,
-}: {
-  attachResponse: ThreadProjectionAttachResponse;
-  onCommandsUnavailable?: StartGuiHostConnectionOptions["onCommandsUnavailable"];
-  onStatus?: StartGuiHostConnectionOptions["onStatus"];
-}): Promise<ReturnType<typeof startGuiHostConnectionWithSocket>> {
-  const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-  const connection = startGuiHostConnectionWithSocket({
-    attachResponse,
-    onCommandsReady: commandsReady,
-    onCommandsUnavailable,
-    onStatus,
-  });
-
-  connection.socket.onopen?.();
-  await sendAuthenticationAndWaitForInitialize(connection.socket);
-  sendInitializeResult(connection.socket);
-  await vi.waitFor(() => {
-    expect(connection.socket.sent.map(readRpcMethod)).toContain("thread/projection/attach");
-  });
-  sendAttachResult(connection.socket, attachResponse);
-  await vi.waitFor(() => {
-    expect(commandsReady).toHaveBeenCalledOnce();
-  });
-
-  return connection;
 }
 
 describe("guiHostClient protocol errors", () => {
@@ -84,7 +52,7 @@ describe("guiHostClient protocol errors", () => {
     expect(socket.closed).toEqual([{ code: 1000, reason: "cleanup" }]);
   });
 
-  it("ignores messages delivered through a captured handler after cleanup", () => {
+  it("ignores a pending attach result delivered through a captured handler after cleanup", async () => {
     const attached = vi.fn<(response: ThreadProjectionAttachResponse) => void>();
     const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
     const { cleanup, socket } = startGuiHostConnectionWithSocket({
@@ -92,12 +60,23 @@ describe("guiHostClient protocol errors", () => {
       onProjectionAttached: attached,
       onCommandsReady: commandsReady,
     });
+    socket.onopen?.();
+    await sendAuthenticationAndWaitForInitialize(socket);
+    const initializeRequest = readLatestRpcRequest(socket, "initialize");
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: initializeRequest.id, result: {} }),
+    });
+    await vi.waitFor(() => {
+      expect(socket.sent.map(readRpcMethod)).toContain("thread/projection/attach");
+    });
+    const attachRequest = readLatestRpcRequest(socket, "thread/projection/attach");
     const onMessage = socket.onmessage;
 
     cleanup();
     onMessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachBaseline }),
+      data: JSON.stringify({ jsonrpc: "2.0", id: attachRequest.id, result: attachBaseline }),
     });
+    await Promise.resolve();
 
     expect(attached).not.toHaveBeenCalled();
     expect(commandsReady).not.toHaveBeenCalled();

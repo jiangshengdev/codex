@@ -5,9 +5,9 @@ const { GuiHostRequestError, GuiHostTransportSession } = transportSessionModule;
 const getRequestFailureSource = (error: unknown) =>
   (
     transportSessionModule as typeof transportSessionModule & {
-      getGuiHostRequestFailureSource?: (error: unknown) => string | undefined;
+      getGuiHostRequestFailureSource: (error: unknown) => string | undefined;
     }
-  ).getGuiHostRequestFailureSource?.(error);
+  ).getGuiHostRequestFailureSource(error);
 
 type SocketCloseEvent = {
   code: number;
@@ -29,6 +29,7 @@ class TransportSocket {
 
   send(message: string): void {
     if (this.sendError !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- Model non-Error socket failures.
       throw this.sendError;
     }
     this.sent.push(message);
@@ -38,6 +39,7 @@ class TransportSocket {
   close(code?: number, reason?: string): void {
     this.closeCalls += 1;
     if (this.closeError !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- Model non-Error socket failures.
       throw this.closeError;
     }
     this.closed.push({ code, reason });
@@ -71,8 +73,8 @@ describe("GuiHostTransportSession", () => {
   it("allocates request IDs in order and correlates only the matching response", async () => {
     const socket = new TransportSocket();
     const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
-    const firstSettled = vi.fn();
-    const secondSettled = vi.fn();
+    const firstSettled = vi.fn<(response: unknown) => void>();
+    const secondSettled = vi.fn<(response: unknown) => void>();
 
     const first = session.request<{ value: string }>("first", { sequence: 1 });
     const second = session.request<{ value: string }>("second", { sequence: 2 });
@@ -177,6 +179,7 @@ describe("GuiHostTransportSession", () => {
     expect(() => {
       request = session.request("turn/start", {
         toJSON: () => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error -- Preserve the frozen Error identity.
           throw original;
         },
       });
@@ -266,12 +269,11 @@ describe("GuiHostTransportSession", () => {
 
   it("stores a pending request before sending so a synchronous response can correlate", async () => {
     const socket = new TransportSocket();
-    let session: InstanceType<typeof GuiHostTransportSession>;
+    const session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
     socket.onSend = (message) => {
       const request = JSON.parse(message) as { id: number };
       expect(session.correlate({ id: request.id, result: { value: "synchronous" } })).toBe(true);
     };
-    session = new GuiHostTransportSession(asWebSocket(socket), transportCallbacks());
 
     await expect(session.request<{ value: string }>("synchronous", {})).resolves.toEqual({
       result: { value: "synchronous" },
@@ -287,8 +289,7 @@ describe("GuiHostTransportSession", () => {
   ])("rejects pending requests before the socket %s callback", async (event, dispatch) => {
     const socket = new TransportSocket();
     const calls: string[] = [];
-    let session: InstanceType<typeof GuiHostTransportSession>;
-    session = new GuiHostTransportSession(
+    const session = new GuiHostTransportSession(
       asWebSocket(socket),
       transportCallbacks({
         onError: () => {
@@ -302,17 +303,17 @@ describe("GuiHostTransportSession", () => {
       }),
     );
     const pending = session.request("turn/start", {});
-    const rejection = expect(pending).rejects.toMatchObject({ source: "unavailable" });
+    const observedError = pending.catch((error: unknown) => error);
 
     dispatch(socket);
     expect(calls).toEqual(["pending-rejected", `${event}-callback`]);
-    await rejection;
+    await expect(observedError).resolves.toMatchObject({ source: "unavailable" });
   });
 
   it("forwards open and message events while the session is active", () => {
     const socket = new TransportSocket();
-    const onOpen = vi.fn();
-    const onMessage = vi.fn();
+    const onOpen = vi.fn<() => void>();
+    const onMessage = vi.fn<(data: string) => void>();
     new GuiHostTransportSession(asWebSocket(socket), transportCallbacks({ onOpen, onMessage }));
 
     socket.onopen?.();
@@ -324,7 +325,7 @@ describe("GuiHostTransportSession", () => {
 
   it("disposes once by rejecting pending work, clearing handlers, and closing the socket", async () => {
     const socket = new TransportSocket();
-    const onOpen = vi.fn();
+    const onOpen = vi.fn<() => void>();
     const session = new GuiHostTransportSession(
       asWebSocket(socket),
       transportCallbacks({ onOpen }),
@@ -355,7 +356,9 @@ describe("GuiHostTransportSession", () => {
       transportCallbacks(),
     );
 
-    expect(() => closeSession.close(1000, "cleanup")).not.toThrow();
+    expect(() => {
+      closeSession.close(1000, "cleanup");
+    }).not.toThrow();
     expect(closeSocket.closeCalls).toBe(1);
 
     const disposeSocket = new TransportSocket();
@@ -365,8 +368,12 @@ describe("GuiHostTransportSession", () => {
       transportCallbacks(),
     );
 
-    expect(() => disposeSession.dispose(1000, "cleanup")).not.toThrow();
-    expect(() => disposeSession.dispose(1000, "cleanup")).not.toThrow();
+    expect(() => {
+      disposeSession.dispose(1000, "cleanup");
+    }).not.toThrow();
+    expect(() => {
+      disposeSession.dispose(1000, "cleanup");
+    }).not.toThrow();
     expect(disposeSocket.closeCalls).toBe(1);
   });
 });

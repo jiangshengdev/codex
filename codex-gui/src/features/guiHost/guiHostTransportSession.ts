@@ -16,9 +16,9 @@ export type GuiHostRpcResponse<T> = {
   result: T | undefined;
 };
 
-export interface GuiHostRequestClient {
+export type GuiHostRequestClient = {
   request<T>(method: string, params: unknown): Promise<GuiHostRpcResponse<T>>;
-}
+};
 
 type TransportCallbacks = {
   onOpen: () => void;
@@ -123,7 +123,9 @@ export class GuiHostTransportSession implements GuiHostRequestClient {
 
     return new Promise<GuiHostRpcResponse<T>>((resolve, reject) => {
       this.pendingRequests.set(id, {
-        resolve: (response) => resolve(response as GuiHostRpcResponse<T>),
+        resolve: (response) => {
+          resolve(response as GuiHostRpcResponse<T>);
+        },
         reject,
       });
 
