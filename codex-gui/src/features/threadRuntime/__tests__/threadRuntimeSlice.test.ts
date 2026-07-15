@@ -77,7 +77,6 @@ describe("thread runtime reducer", () => {
       sessionId: attachBaseline.snapshot.thread.sessionId,
       thread: threadMetadata,
       snapshotTurns,
-      snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
       eventBuffer: [],
       activeTurnId: null,
       subscription: { state: "active" },

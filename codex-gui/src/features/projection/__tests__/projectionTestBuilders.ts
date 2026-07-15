@@ -6,10 +6,7 @@ import type {
   Turn,
   UserInput,
 } from "@codex-protocol/v2";
-import {
-  snapshotReplayIndexFromTurns,
-  type ThreadRuntimeRecord,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 
 export const textInput = (text: string): UserInput => ({
   type: "text",
@@ -87,6 +84,31 @@ export const attachWithTurns = (
   },
 });
 
+export const attachWithHeadCommitId = (
+  attach: ThreadProjectionAttachResponse,
+  headCommitId: string | null,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    headCommitId,
+  },
+});
+
+export const attachWithThreadId = (
+  attach: ThreadProjectionAttachResponse,
+  threadId: string,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    thread: {
+      ...attach.snapshot.thread,
+      id: threadId,
+    },
+  },
+});
+
 export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
   const { turns: snapshotTurns, ...thread } = attach.snapshot.thread;
 
@@ -95,7 +117,6 @@ export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): Threa
     sessionId: thread.sessionId,
     thread,
     snapshotTurns,
-    snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
     eventBuffer: [],
     activeTurnId:
       snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,

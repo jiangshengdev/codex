@@ -18,15 +18,18 @@ import {
 import App from "@/App";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
+  attachReplacement,
   closedBackpressure,
   eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
+  eventSubscriptionReplacement,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   agentMessageDelta,
   agentMessage,
+  attachWithThreadId,
   attachWithTurns,
   baseTurn,
   inProgressTurn,
@@ -447,6 +450,83 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
   expect(selectLiveEventMaterials(store.getState())).toStrictEqual([]);
 });
 
+test("App replaces the replay baseline after an accepted replacement attach", async () => {
+  const { store } = await renderWithProviders(<App />);
+  if (eventSubscriptionReplacement.event.type !== "turnStarted") {
+    throw new Error("fixture must contain a turnStarted projection event");
+  }
+
+  const oldOnlyTurn = inProgressTurn("old-baseline-only");
+  const replacementTurn = eventSubscriptionReplacement.event.notification.turn;
+  const oldAttach = attachWithTurns(attachResponse, [oldOnlyTurn]);
+  const replacementAttach = attachWithTurns(attachReplacement, [replacementTurn]);
+  const oldOnlyEvent = {
+    ...turnStarted(eventSubscriptionReplacement, "commit-old-baseline-only", oldOnlyTurn),
+    parentCommitId: replacementAttach.snapshot.headCommitId,
+  };
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(options, oldAttach);
+  attachProjection(options, replacementAttach);
+  emitProjectionEvent(options, oldOnlyEvent);
+
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
+    { type: "projectionEvent", notification: oldOnlyEvent, replay: "live" },
+  ]);
+
+  attachProjection(options, replacementAttach);
+  emitProjectionEvent(options, eventSubscriptionReplacement);
+
+  expect(selectThreadRuntimeRecord(store.getState())?.snapshotTurns).toStrictEqual([
+    replacementTurn,
+  ]);
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
+    {
+      type: "projectionEvent",
+      notification: eventSubscriptionReplacement,
+      replay: "snapshotDuplicate",
+    },
+  ]);
+});
+
+test("App classifies from the new snapshot after new launch params and attach", async () => {
+  const { store } = await renderWithProviders(<App />);
+  if (eventSubscriptionReplacement.event.type !== "turnStarted") {
+    throw new Error("fixture must contain a turnStarted projection event");
+  }
+
+  const oldOnlyTurn = inProgressTurn("old-launch-baseline-only");
+  const replacementTurn = eventSubscriptionReplacement.event.notification.turn;
+  const oldAttach = attachWithTurns(attachResponse, [oldOnlyTurn]);
+  const replacementAttach = attachWithTurns(attachReplacement, [replacementTurn]);
+  const oldOnlyEvent = {
+    ...turnStarted(eventSubscriptionReplacement, "commit-old-launch-baseline", oldOnlyTurn),
+    parentCommitId: replacementAttach.snapshot.headCommitId,
+  };
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  attachProjection(options, oldAttach);
+  options.onLaunchParams?.({ threadId: launchThreadId, token: "replacement-secret" });
+  attachProjection(options, replacementAttach);
+  emitProjectionEvent(options, oldOnlyEvent);
+
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
+    { type: "projectionEvent", notification: oldOnlyEvent, replay: "live" },
+  ]);
+
+  options.onLaunchParams?.({ threadId: launchThreadId, token: "replacement-secret-2" });
+  attachProjection(options, replacementAttach);
+  emitProjectionEvent(options, eventSubscriptionReplacement);
+
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
+    {
+      type: "projectionEvent",
+      notification: eventSubscriptionReplacement,
+      replay: "snapshotDuplicate",
+    },
+  ]);
+});
+
 test("App passes ready commands to composer and sends plain text", async () => {
   const commandHandle = createGuiHostCommands();
   const { screen } = await renderReadyApp(commandHandle);
@@ -743,32 +823,41 @@ test("App does not force the document to the bottom after a live assistant delta
   await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeDelta + 4);
 });
 
-test("App records mismatched attach identity without advancing runtime state", async () => {
+test("App keeps the accepted replay baseline after a mismatched attach", async () => {
   const { store } = await renderWithProviders(<App />);
+  if (eventTurnStarted.event.type !== "turnStarted") {
+    throw new Error("fixture must contain a turnStarted projection event");
+  }
+
   const mismatchedThreadId = "00000000-0000-0000-0000-000000000999";
-  const mismatchedAttachResponse: ThreadProjectionAttachResponse = {
-    ...attachResponse,
+  const validAttach = attachWithTurns(attachResponse, [eventTurnStarted.event.notification.turn]);
+  const validAttachWithOldHead: ThreadProjectionAttachResponse = {
+    ...validAttach,
     snapshot: {
-      ...attachResponse.snapshot,
-      thread: {
-        ...attachResponse.snapshot.thread,
-        id: mismatchedThreadId,
-      },
+      ...validAttach.snapshot,
+      headCommitId: eventTurnStarted.parentCommitId,
     },
   };
+  const mismatchedAttach = attachWithThreadId(attachResponse, mismatchedThreadId);
 
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options, mismatchedAttachResponse);
+  attachProjection(options, validAttachWithOldHead);
+  const runtimeBeforeMismatch = selectThreadRuntimeRecord(store.getState());
+  attachProjection(options, mismatchedAttach);
 
   expect(selectThreadIdentityState(store.getState())).toStrictEqual({
     launchThreadId,
     attachedThreadId: mismatchedThreadId,
     attachStatus: "mismatch",
   });
-  expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
-  expect(selectThreadRuntimeSubscription(store.getState())).toBeNull();
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
-  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual([]);
+  expect(selectThreadRuntimeRecord(store.getState())).toStrictEqual(runtimeBeforeMismatch);
+
+  emitProjectionEvent(options, eventTurnStarted);
+
+  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
+    { type: "projectionEvent", notification: eventTurnStarted, replay: "snapshotDuplicate" },
+  ]);
+  expect(selectLiveEventMaterials(store.getState())).toStrictEqual([]);
 });
 
 test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
