@@ -82,7 +82,7 @@ describe("guiHostClient handshake", () => {
         tokenStorage: new MemoryStorage(),
         createWebSocket,
       }),
-    ).toThrowError(new Error("Missing threadId query parameter"));
+    ).toThrow(new Error("Missing threadId query parameter"));
     expect(createWebSocket).not.toHaveBeenCalled();
   });
 

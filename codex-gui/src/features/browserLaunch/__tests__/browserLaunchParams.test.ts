@@ -82,8 +82,8 @@ describe("consumeBrowserLaunchParams", () => {
 
   it("treats an empty token fragment as absent without overwriting storage", () => {
     const tokenStorage = {
-      getItem: vi.fn(() => "stored"),
-      setItem: vi.fn(),
+      getItem: vi.fn<(key: string) => string>(() => "stored"),
+      setItem: vi.fn<(key: string, value: string) => void>(),
     };
 
     expect(
@@ -108,7 +108,7 @@ describe("consumeBrowserLaunchParams", () => {
           replaceState: vi.fn<History["replaceState"]>(),
           tokenStorage: new MemoryStorage(),
         }),
-      ).toThrowError(new Error("Missing threadId query parameter"));
+      ).toThrow(new Error("Missing threadId query parameter"));
     }
   });
 
@@ -123,7 +123,7 @@ describe("consumeBrowserLaunchParams", () => {
           replaceState: vi.fn<History["replaceState"]>(),
           tokenStorage: new MemoryStorage(),
         }),
-      ).toThrowError(new Error("Missing launch token fragment"));
+      ).toThrow(new Error("Missing launch token fragment"));
     }
   });
 
@@ -154,7 +154,7 @@ describe("consumeBrowserLaunchParams", () => {
         replaceState,
         tokenStorage: new MemoryStorage(),
       }),
-    ).toThrowError(new Error("Missing threadId query parameter"));
+    ).toThrow(new Error("Missing threadId query parameter"));
     expect(replaceState).toHaveBeenCalledWith(null, "", "/app");
   });
 
@@ -173,7 +173,7 @@ describe("consumeBrowserLaunchParams", () => {
         replaceState: vi.fn<History["replaceState"]>(),
         tokenStorage: new ThrowingGetItemStorage(),
       }),
-    ).toThrowError(new Error("sessionStorage read failed"));
+    ).toThrow(new Error("sessionStorage read failed"));
   });
 
   it("falls back to no storage when default sessionStorage access throws", () => {
