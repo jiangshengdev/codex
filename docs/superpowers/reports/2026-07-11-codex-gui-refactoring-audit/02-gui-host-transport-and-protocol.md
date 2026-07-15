@@ -60,10 +60,11 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 - **Finding ID：** `RA-02-001`。
 - **主报告：** `02-gui-host-transport-and-protocol.md`。
 - **Evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有浏览器 launch params、token storage 和 URL 清理边界的完整证据。
-- **状态：** 确认重构点。
+- **状态：** 已实施（B01）。
 - **重构优先级：** P2。
+- **实施结果：** `features/browserLaunch/browserLaunchParams.ts` 已成为 browser launch params 的唯一 production owner；`guiHostClient`、App handoff、Composer 与 QR/access 均改为单向依赖该 owner，旧 transport-owned 类型与生命周期 helper 已删除。
 - **结论摘要：** `LaunchParams`、launch URL 解析、token 会话恢复和 fragment 清理具有独立、稳定的领域生命周期，但当前由 `guiHostClient.ts` 与 WebSocket transport 共同拥有。该边界还被 App 和 QR/access 消费，导致上层 UI 通过 transport 实现文件依赖启动契约。
-- **当前 owner 与当前职责：** `guiHostClient.ts` 同时定义 `LaunchParams` 和连接 options，拥有 token storage key、query/fragment 解析、storage 读写、地址栏 fragment 清理，并在 `startGuiHostConnection` 内立即进入 WebSocket 连接编排。`App.tsx` 保存解析结果，`GuiHostConnectionBridge` 负责 handoff，QR/access 链路消费该结果。
+- **审计时 owner 与职责：** `guiHostClient.ts` 同时定义 `LaunchParams` 和连接 options，拥有 token storage key、query/fragment 解析、storage 读写、地址栏 fragment 清理，并在 `startGuiHostConnection` 内立即进入 WebSocket 连接编排。`App.tsx` 保存解析结果，`GuiHostConnectionBridge` 负责 handoff，QR/access 链路消费该结果。
 - **问题类型：** 职责混合、类型归属、依赖方向。
 - **影响文件、定义侧、构造方、调用方和消费方：**
   - 定义侧：`codex-gui/src/features/guiHost/guiHostClient.ts:29-45` 定义 `LaunchParams` 及其回调接口；外部契约由 `codex-rs/gui-host/src/token.rs:6-20` 和 `codex-rs/gui-host/src/url.rs:59-110` 表达。
@@ -80,8 +81,8 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - 状态风险：必须保持 URL 快照解析、sessionStorage 恢复和 App handoff 的先后关系，不能扩大 token 的存储期限或可见范围。
   - 性能风险：当前证据未显示性能敏感路径；不得以本 finding 引入额外渲染状态或重复解析。
   - 测试风险：现有测试同时锁定直接解析、刷新恢复、缺参、fragment 清理和 storage 失败降级，后续边界调整不能只保留 transport happy path。
-- **后续实施时建议的验证范围：** 运行并保持 launch params 行为测试；核对 GUI authenticate 使用原 token、刷新恢复、地址栏清理和 QR URL 构造。若后续设计改变公开类型导入边界，还应验证 App、connection bridge、composer/QR 消费链的类型与行为，但本轮不执行任何命令。
-- **当前代码关键证据路径与行号：**
+- **已完成实施验证：** lifecycle characterization 提交为 `b8875b53a`，原子 owner 迁移提交为 `ca4e3cd18`，计划内 lint 闭环提交为 `76c055797`；聚焦 Node tests `18/18` 通过，Chromium App browser regression `29/29` 通过，限定文件 format、oxlint、ESLint、type-check 与 owner/排除边界搜索均通过；最终专项审查无 findings；未操作远程。
+- **审计时代码关键证据路径与行号：**
   - `codex-gui/src/features/guiHost/guiHostClient.ts:29-32`：启动参数公共类型。
   - `codex-gui/src/features/guiHost/guiHostClient.ts:56-91`：storage key、参数解析、刷新恢复与 fragment 清理。
   - `codex-gui/src/features/guiHost/guiHostClient.ts:93-112`：launch 生命周期嵌入连接启动编排。
@@ -90,7 +91,7 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - `codex-gui/src/App.tsx:10-24`、`codex-gui/src/features/qrAccess/QrAccessPopover.tsx:13-27`：transport 外的实际消费者。
 - **关联的既有报告、issue 或专项设计：** 审计 ownership 依据 `docs/superpowers/specs/2026-07-11-codex-gui-refactoring-audit-design.md`；QR/access 内部职责见 [RA-07-004](./07-composer-access-and-localization.md#ra-07-004)。无关联 issue。
 - **已排除项：** 未把 token 按 thread 分键列为缺陷，因为当前外部契约显示 token 由 GUI host 生成并持有；未把 storage `getItem` 异常缺少专门降级测试升级为独立 finding；本 finding 不拥有 transport/handshake/protocol、Redux/thread runtime 或 Rust 内部结构。
-- **报告建议：** 进入后续独立设计，先确定 launch params owner 和允许的依赖方向，再规划任何代码移动。
+- **报告建议：** 保留 `RA-02-001` 的历史审计证据，状态更新为“已实施（B01）”，优先级 P2 已完成；不扩大到 B02 transport/handshake、B03 runtime validation、QR URL/UI、Rust host、Redux 或 thread runtime。
 
 ### RA-02-002 Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合
 

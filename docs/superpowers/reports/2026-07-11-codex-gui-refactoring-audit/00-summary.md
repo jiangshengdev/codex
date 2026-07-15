@@ -41,7 +41,7 @@
 | [RA-01-001](./01-app-entry-shell-and-platform.md#ra-01-001) | Typed Redux hooks 已覆盖应用状态访问边界 | [01](./01-app-entry-shell-and-platform.md) | 已由现有抽象覆盖 | 非 finding |
 | [RA-01-002](./01-app-entry-shell-and-platform.md#ra-01-002) | App slice creator 已覆盖当前 slice 构造语义 | [01](./01-app-entry-shell-and-platform.md) | 已由现有抽象覆盖 | 非 finding |
 | [RA-01-003](./01-app-entry-shell-and-platform.md#ra-01-003) | 不建议新增统一 provider wrapper | [01](./01-app-entry-shell-and-platform.md) | 不建议重构 | 非 finding |
-| [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) | Launch params 生命周期被嵌入 transport owner | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
+| [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) | Launch params 生命周期被嵌入 transport owner | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B01） | P2 |
 | [RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) | Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
 | [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) | Runtime protocol guards 声明强于实际验证范围 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
 | [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) | Bridge 集中承担 projection application coordination | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B05） | P2 |
@@ -109,6 +109,7 @@
 
 | 批次 | 实施状态 | 完成日期 | 本地提交 | 验证结果 |
 | --- | --- | --- | --- | --- |
+| B01 | 已完成 | 2026-07-15 | `b8875b53a` `test(gui): lock browser launch lifecycle`；`ca4e3cd18` `refactor(gui): extract browser launch params owner`；`76c055797` `test(gui): satisfy browser launch lint` | 聚焦 Node tests `18/18` 通过；Chromium `App.browser.test.tsx` `29/29` 通过；限定文件 format、oxlint、ESLint、type-check 与 owner/排除边界搜索通过；最终专项审查无 findings；未操作远程。 |
 | B04 | 已完成 | 2026-07-15 | `74def529c` `test(gui): cover replay baseline lifecycle`；`39c036c25` `refactor(gui): remove duplicate replay index state` | fnm-managed `pnpm 10.33.0` 下 `pnpm run ci` 通过（24 个 unit 文件、157 个测试）；定向 `App.browser.test.tsx` Browser Mode 通过（3 个执行实例、87 个测试）；结构检查确认 Bridge 为唯一 production runtime replay index owner。 |
 
 ## 依赖顺序
