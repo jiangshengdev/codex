@@ -7,7 +7,7 @@
 状态：完成。
 
 - 01–08 共形成 20 个稳定 Finding ID；09 完成 owner、coverage、跨域依赖与去重收敛，不建立自有 Finding。
-- 状态分布为：确认重构点 10、候选待补证据 1、已由现有抽象覆盖 7、不建议重构 1、已有专项设计 1。
+- 审计完成时状态分布为：确认重构点 10、候选待补证据 1、已由现有抽象覆盖 7、不建议重构 1、已有专项设计 1。
 - 优先级分布为：P2 8、P3 3、非 finding 9。
 - 88 个 canonical paths 已全部覆盖，01–08 分布为 `9/2/4/2/7/6/12/46`，无遗漏、重复 canonical owner 或 secondary overlap 冲突。
 - 10 个确认重构点归入 9 个必需实施批次和 1 个条件批次；另保留 1 个证据门禁，不在证据补足前实施。
@@ -25,7 +25,7 @@
 | 分报告 | 状态 | 稳定 Finding 覆盖 | Canonical paths |
 | --- | --- | --- | ---: |
 | [01 App 入口、Shell 与平台边界](./01-app-entry-shell-and-platform.md) | 完成 | 3 个：2 个已由现有抽象覆盖、1 个不建议重构 | 9 |
-| [02 GUI Host 传输与协议](./02-gui-host-transport-and-protocol.md) | 完成 | 3 个确认重构点，均为 P2 | 2 |
+| [02 GUI Host 传输与协议](./02-gui-host-transport-and-protocol.md) | 完成 | 审计完成时 3 个确认重构点，均为 P2 | 2 |
 | [03 Projection Ingress 与 Thread Runtime](./03-projection-ingress-and-thread-runtime.md) | 完成 | 5 个：2 个 P2、1 个 P3、2 个已由现有抽象覆盖 | 4 |
 | [04 Timeline Materials 与领域模型](./04-timeline-materials-and-domain-models.md) | 完成 | 1 个确认重构点，P2 | 2 |
 | [05 Transcript State 与 Materialization](./05-transcript-state-and-materialization.md) | 完成 | 1 个已有专项设计，非 finding | 7 |
@@ -42,7 +42,7 @@
 | [RA-01-002](./01-app-entry-shell-and-platform.md#ra-01-002) | App slice creator 已覆盖当前 slice 构造语义 | [01](./01-app-entry-shell-and-platform.md) | 已由现有抽象覆盖 | 非 finding |
 | [RA-01-003](./01-app-entry-shell-and-platform.md#ra-01-003) | 不建议新增统一 provider wrapper | [01](./01-app-entry-shell-and-platform.md) | 不建议重构 | 非 finding |
 | [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) | Launch params 生命周期被嵌入 transport owner | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B01） | P2 |
-| [RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) | Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
+| [RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) | Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合 | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B02） | P2 |
 | [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) | Runtime protocol guards 声明强于实际验证范围 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
 | [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) | Bridge 集中承担 projection application coordination | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B05） | P2 |
 | [RA-03-002](./03-projection-ingress-and-thread-runtime.md#ra-03-002) | Snapshot replay index 在 Bridge 与 Redux runtime 重复持有 | [03](./03-projection-ingress-and-thread-runtime.md) | 确认重构点 | P2 |
@@ -105,11 +105,12 @@
 
 ## 实施状态更新
 
-状态：持续更新。本节只记录已完成批次的实施进度，不改变 Finding 的稳定审计状态、优先级、Evidence owner 或既有统计。
+状态：持续更新。本节记录当前实施进度；已实施批次更新 Finding 当前状态，但不改变标题、优先级、Evidence owner 或审计完成时统计。
 
 | 批次 | 实施状态 | 完成日期 | 本地提交 | 验证结果 |
 | --- | --- | --- | --- | --- |
 | B01 | 已完成 | 2026-07-15 | `b8875b53a` `test(gui): lock browser launch lifecycle`；`ca4e3cd18` `refactor(gui): extract browser launch params owner`；`76c055797` `test(gui): satisfy browser launch lint` | 聚焦 Node tests `18/18` 通过；Chromium `App.browser.test.tsx` `29/29` 通过；限定文件 format、oxlint、ESLint、type-check 与 owner/排除边界搜索通过；最终专项审查无 findings；未操作远程。 |
+| B02 | 已完成 | 2026-07-15 | `5636f0fad` `test(gui): lock gui host connection lifecycle`；`5c0832add` `refactor(gui): add gui host transport session`；`bcd78e75f` `refactor(gui): add gui host handshake and command owners`；`796706d50` `refactor(gui): split gui host connection owners`；`c725e8b3c` `fix(gui): close B02 verification findings` | 聚焦 GUI host `6` 个文件、`77/77` tests 通过，Type Errors none；`pnpm run lint` 与 `pnpm run type-check` 通过；`pnpm run ci` 通过（`28/28` test files、`239/239` tests、Type Errors none；format check 通过（检查 `112` files），lint/type-check 通过）。四项 source search 均无匹配：production `message.id === 1/2/3`、facade old shared state（`terminalOnError`、`commandsReady`、`pendingRequests`、`nextRequestId`）、transport handshake/command methods、transport projection notification methods。范围仅含 `4` 个 production 与 `7` 个 feature-local test/support 文件，排除 protocol、browserLaunch、Bridge、Redux、projection、UI、Rust、lock/snapshot/generated。总量为 `1754` additions + `264` deletions = `2018` lines，超过 `800`；已按现有四个独立审查阶段拆分并经用户确认继续状态更新：characterization + TransportSession `763`、HandshakeController + CommandGateway `687`、facade `570`、verification fix `470`，每阶段均小于 `800`，最后两阶段不可合并（`852`）。未操作远程、未安装依赖，未运行 Browser/Playwright/snapshot/Rust tests。 |
 | B04 | 已完成 | 2026-07-15 | `74def529c` `test(gui): cover replay baseline lifecycle`；`39c036c25` `refactor(gui): remove duplicate replay index state` | fnm-managed `pnpm 10.33.0` 下 `pnpm run ci` 通过（24 个 unit 文件、157 个测试）；定向 `App.browser.test.tsx` Browser Mode 通过（3 个执行实例、87 个测试）；结构检查确认 Bridge 为唯一 production runtime replay index owner。 |
 
 ## 依赖顺序
