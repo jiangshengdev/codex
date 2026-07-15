@@ -14,11 +14,11 @@ import type {
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
-import { startGuiHostConnection, type LaunchParams } from "../guiHostClient";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import { startGuiHostConnection } from "../guiHostClient";
 import {
   MemoryStorage,
   RecordingWebSocket,
-  ThrowingSetItemStorage,
   recordStatusSummaries,
   readRpcMethod,
   sendAttachResult,
@@ -36,7 +36,12 @@ describe("guiHostClient handshake", () => {
     startGuiHostConnection({
       location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
       replaceState,
-      tokenStorage: new ThrowingSetItemStorage(),
+      tokenStorage: {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error("sessionStorage unavailable");
+        },
+      },
       createWebSocket: () => socket as unknown as WebSocket,
     });
 
@@ -88,7 +93,7 @@ describe("guiHostClient handshake", () => {
     const projectionEvents: ThreadProjectionEventNotification[] = [];
     const projectionDeltas: ThreadProjectionDeltaNotification[] = [];
     const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
-    const launchParams: LaunchParams[] = [];
+    const launchParams: BrowserLaunchParams[] = [];
     const attachResponse = attachBaseline;
     const projectionEvent = eventTurnStarted;
     const projectionDelta = eventAgentMessageDelta;

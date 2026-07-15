@@ -23,12 +23,6 @@ export class MemoryStorage {
   }
 }
 
-export class ThrowingSetItemStorage extends MemoryStorage {
-  override setItem(): void {
-    throw new Error("sessionStorage unavailable");
-  }
-}
-
 type SocketCloseEvent = {
   code: number;
   reason: string;

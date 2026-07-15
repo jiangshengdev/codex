@@ -9,6 +9,10 @@ import type {
   TurnStartResponse,
 } from "@codex-protocol/v2";
 import {
+  consumeBrowserLaunchParams,
+  type BrowserLaunchParams,
+} from "@/features/browserLaunch/browserLaunchParams";
+import {
   formatRpcId,
   isThreadProjectionAttachResponse,
   isThreadProjectionClosedNotification,
@@ -26,11 +30,6 @@ export type GuiHostStatus =
   | { label: "closed" }
   | { label: "error"; message: string };
 
-export type LaunchParams = {
-  threadId: string;
-  token: string;
-};
-
 export type GuiHostCommands = {
   startTurn: (params: TurnStartParams) => Promise<TurnStartResponse>;
   interruptTurn: (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
@@ -42,7 +41,7 @@ export type StartGuiHostConnectionOptions = {
   tokenStorage?: Pick<Storage, "getItem" | "setItem">;
   createWebSocket?: (url: string) => WebSocket;
   onStatus?: (status: GuiHostStatus) => void;
-  onLaunchParams?: (params: LaunchParams) => void;
+  onLaunchParams?: (params: BrowserLaunchParams) => void;
   onProjectionAttached?: (response: ThreadProjectionAttachResponse) => void;
   onProjectionDelta?: (notification: ThreadProjectionDeltaNotification) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
@@ -52,43 +51,6 @@ export type StartGuiHostConnectionOptions = {
 };
 
 export type GuiHostConnectionCleanup = () => void;
-
-const launchTokenStorageKey = "codex-gui.launchToken";
-
-export function readLaunchParams(
-  url: URL,
-  tokenStorage?: Pick<Storage, "getItem" | "setItem">,
-): LaunchParams {
-  const threadId = url.searchParams.get("threadId");
-  const fragmentToken = new URLSearchParams(url.hash.replace(/^#/, "")).get("token");
-
-  if (!threadId) {
-    throw new Error("Missing threadId query parameter");
-  }
-
-  if (fragmentToken) {
-    try {
-      tokenStorage?.setItem(launchTokenStorageKey, fragmentToken);
-    } catch {
-      // The fragment token is still valid for this connection if storage is unavailable.
-    }
-    return { threadId, token: fragmentToken };
-  }
-
-  const storedToken = tokenStorage?.getItem(launchTokenStorageKey);
-  if (!storedToken) {
-    throw new Error("Missing launch token fragment");
-  }
-
-  return { threadId, token: storedToken };
-}
-
-export function clearLaunchTokenFragment(
-  location: URL,
-  replaceState: History["replaceState"],
-): void {
-  replaceState(null, "", `${location.pathname}${location.search}`);
-}
 
 export function startGuiHostConnection({
   location,
@@ -104,8 +66,11 @@ export function startGuiHostConnection({
   onCommandsReady,
   onCommandsUnavailable,
 }: StartGuiHostConnectionOptions): GuiHostConnectionCleanup {
-  clearLaunchTokenFragment(location, replaceState);
-  const launchParams = readLaunchParams(location, tokenStorage ?? readSessionStorage());
+  const launchParams = consumeBrowserLaunchParams({
+    location,
+    replaceState,
+    tokenStorage,
+  });
   const { threadId, token } = launchParams;
   onLaunchParams?.(launchParams);
 
@@ -399,12 +364,4 @@ function webSocketProtocol(location: URL): "ws" | "wss" {
 
 function sendRequest(socket: WebSocket, id: number, method: string, params: unknown): void {
   socket.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
-}
-
-function readSessionStorage(): Pick<Storage, "getItem" | "setItem"> | undefined {
-  try {
-    return globalThis.sessionStorage;
-  } catch {
-    return undefined;
-  }
 }

@@ -1,18 +1,15 @@
 import { Alert, Surface, Toast } from "@heroui/react";
 import type { ReactNode } from "react";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
-import type {
-  GuiHostCommands,
-  GuiHostStatus,
-  LaunchParams,
-} from "@/features/guiHost/guiHostClient";
+import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { useCommittedTranscriptStickyBottom } from "./useCommittedTranscriptStickyBottom";
 
 export type AppShellProps = {
   status: GuiHostStatus;
   commands: GuiHostCommands | null;
-  launchParams: LaunchParams | null;
+  launchParams: BrowserLaunchParams | null;
 };
 
 function isMacAppleWebKitRuntime(): boolean {
