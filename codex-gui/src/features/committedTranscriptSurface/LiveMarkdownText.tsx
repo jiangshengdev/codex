@@ -7,6 +7,7 @@ import {
   streamdownControls,
   streamdownPlugins,
   streamdownRehypePlugins,
+  streamdownRemarkRehypeOptions,
 } from "./markdownRendering";
 
 export const LiveMarkdownText = ({ source }: { source: string }) => (
@@ -23,6 +24,7 @@ export const LiveMarkdownText = ({ source }: { source: string }) => (
       mode="streaming"
       plugins={streamdownPlugins}
       rehypePlugins={streamdownRehypePlugins}
+      remarkRehypeOptions={streamdownRemarkRehypeOptions}
       skipHtml
     >
       {source}

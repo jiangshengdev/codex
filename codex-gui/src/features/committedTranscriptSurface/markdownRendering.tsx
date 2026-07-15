@@ -1,11 +1,65 @@
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
+import { defaultHandlers, type Handler } from "mdast-util-to-hast";
+import { isAbsolute } from "pathe";
 import {
   defaultRehypePlugins,
   type AllowElement,
   type Components,
   type ControlsConfig,
+  type StreamdownProps,
 } from "streamdown";
+import { parse as parseUri } from "uri-js";
+
+const isAbsolutePath = isAbsolute as (path: string) => boolean;
+
+const isProtocolLessFileTarget = (target: string) =>
+  isAbsolutePath(target) || parseUri(target).scheme === undefined;
+
+const renderProtocolLessLinkAsText = (
+  anchor: ReturnType<typeof defaultHandlers.link>,
+  target: string,
+): ReturnType<Handler> => [
+  { type: "text", value: "[" },
+  ...anchor.children,
+  { type: "text", value: "](" },
+  { type: "text", value: target },
+  { type: "text", value: ")" },
+];
+
+const renderLink: Handler = (state, linkNode: Parameters<typeof defaultHandlers.link>[1]) => {
+  const anchor = defaultHandlers.link(state, linkNode);
+  return isProtocolLessFileTarget(linkNode.url)
+    ? renderProtocolLessLinkAsText(anchor, linkNode.url)
+    : anchor;
+};
+
+const renderLinkReference: Handler = (
+  state,
+  referenceNode: Parameters<typeof defaultHandlers.linkReference>[1],
+) => {
+  const defaultResult = defaultHandlers.linkReference(state, referenceNode);
+  const definition = state.definitionById.get(referenceNode.identifier.toUpperCase());
+
+  if (
+    !definition ||
+    !isProtocolLessFileTarget(definition.url) ||
+    Array.isArray(defaultResult) ||
+    defaultResult.type !== "element" ||
+    defaultResult.tagName !== "a"
+  ) {
+    return defaultResult;
+  }
+
+  return renderProtocolLessLinkAsText(defaultResult, definition.url);
+};
+
+export const streamdownRemarkRehypeOptions: NonNullable<StreamdownProps["remarkRehypeOptions"]> = {
+  handlers: {
+    link: renderLink,
+    linkReference: renderLinkReference,
+  },
+};
 
 export const streamdownPlugins = { code, cjk };
 
