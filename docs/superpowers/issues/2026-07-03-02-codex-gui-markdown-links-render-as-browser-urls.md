@@ -1,47 +1,58 @@
 # Codex GUI Markdown 链接被浏览器解析为当前来源 URL
 
 日期: 2026-07-03
-状态: 🔴 仍需处理
-范围: Codex GUI / committed transcript Markdown / Streamdown links
+状态: ✅ 已修复
+范围: Codex GUI / live 与 committed transcript Markdown / Streamdown links
 优先级: 未定
 
 ## 摘要
 
-Codex GUI committed transcript 中的本地绝对路径链接会被浏览器解析成当前 GUI HTTP origin 下的 URL，仍需处理。
+Codex GUI 已将无 URI scheme 的 Markdown 链接显示为不可点击的 `[链接文字](目标)`，不再让本地路径被浏览器解析成当前 GUI HTTP origin 下的 URL。
 
 ## 问题
 
-在 Codex GUI 的 committed transcript Markdown 渲染中，本地绝对路径被识别为链接后，浏览器会按当前页面来源解析它。这会让本地路径显示成可点击链接，但点击目标不是本地文件，而是当前 GUI HTTP origin 下的路径。
+修复前，Codex GUI 的 committed transcript Markdown 会把本地绝对路径生成为 anchor，浏览器随后按当前页面来源解析目标。这会让本地路径显示成可点击链接，但点击目标不是本地文件，而是当前 GUI HTTP origin 下的路径。live 与 committed 渲染也缺少统一的无协议链接处理边界。
 
 ## 证据
 
-- 原始目标应为：`/Users/jiangsheng/cnb/codex/codex-rs/app-server/tests/suite/v2/thread_projection.rs`。
-- 当前被浏览器解析为：`http://192.168.3.221:51393/Users/jiangsheng/cnb/codex/codex-rs/app-server/tests/suite/v2/thread_projection.rs:355`。
-- 当前 committed transcript 的 Markdown 渲染入口是 `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx:13`，仍直接渲染 `Streamdown`。
-- `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx:17` 仍设置 `linkSafety={{ enabled: false }}`；该配置只关闭链接安全提示，不禁用 Markdown 链接生成。
-- `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx:12` 的 `allowMarkdownElement` 只排除 `img`，没有排除 `a`。
-- `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx:151` 至 `:155` 仍断言 Markdown 链接会渲染为 anchor，并保留链接文本。
-- Streamdown 默认会把 Markdown 链接渲染为 `<a href="...">`。
-- 当前 DOM 中 anchor 的 `href` 属性可以保留为 `/Users/.../thread_projection.rs:355`，但浏览器读取或跳转时会把它解析成当前 origin 下的完整 HTTP URL。
-- 当前宿主命令只支持启动和中断 turn；尚未提供打开本地文件或在编辑器中 reveal 文件的能力。
+- 原始复现目标为 `/Users/jiangsheng/cnb/codex/codex-rs/app-server/tests/suite/v2/thread_projection.rs:355`，修复前会被浏览器解析为 `http://192.168.3.221:51393/Users/jiangsheng/cnb/codex/codex-rs/app-server/tests/suite/v2/thread_projection.rs:355`。
+- `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx:16` 至 `:17` 先用 `pathe.isAbsolute` 识别绝对路径，再用 `uri-js` 判断 URI scheme。
+- `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx:30` 至 `:55` 包装 `mdast-util-to-hast` 的默认 `link` 与 `linkReference` handler，只把无 scheme 目标改成普通 HAST 文本；默认 handler 仍负责 label children、reference resolution 和 anchor 构造。
+- `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx:57` 至 `:62` 集中导出共享 `remarkRehypeOptions`，没有新增 AST 全树遍历、正则或 URI 反向解码。
+- `codex-gui/src/features/committedTranscriptSurface/MarkdownText.tsx:25` 与 `LiveMarkdownText.tsx:27` 让 committed 和 live Streamdown 使用同一组 handlers。
+- `codex-gui/src/features/committedTranscriptSurface/markdownRendering.tsx:79` 至 `:84` 保留原有 `sanitize`、`harden` 和图片过滤安全边界；带 scheme 链接仍走 Streamdown 默认链路。
+- `codex-gui/src/features/committedTranscriptSurface/__tests__/MarkdownFileLinks.browser.test.tsx:6` 至 `:143` 覆盖 POSIX、相对路径、fragment、query、protocol-relative、空目标、Windows 路径、UNC、reference、live/committed 一致性及危险 scheme 边界。
 
 ## 判断
 
-仍需处理。当前代码仍允许 committed transcript 中的 Markdown 链接生成可点击 anchor，而浏览器会把以 `/` 开头的 `href` 当作当前站点的绝对路径处理。在没有宿主打开文件能力的前提下，让这类本地路径内容保持可点击会产生误导。
+已修复。无 URI scheme 的 direct link 和已解析 reference link 不再生成 anchor，而是保留完整的 `[链接文字](目标)` 可见文本；浏览器因此不会再把本地路径导航到 GUI HTTP origin。`http:`、`https:`、`mailto:` 以及其他带 scheme 目标仍由 Streamdown 的默认 handler 和安全链路处理。
+
+## 修复记录
+
+- `c3cac989f Add markdown and URI utility dependencies for codex-gui`：将 `mdast-util-to-hast@13.2.1`、`pathe@2.0.3`、`uri-js@4.4.1` 声明为 production direct dependencies，复用 lockfile 中已有版本。
+- `8324fb833 fix(gui): render protocol-less markdown links as text`：增加共享默认 handler 包装，接入 live/committed Streamdown，并添加专用 Browser Mode 测试。
+
+## 验证记录
+
+- Browser Mode RED：新增测试在旧行为下 Chromium 4/4 失败，失败集中在无 scheme 链接仍生成 anchor 及 Windows 目标被 URI 编码。
+- Browser Mode GREEN：专用测试在 Chromium、Firefox、WebKit 共 12/12 通过。
+- 最终 Browser 回归：三浏览器全部 8 个 Browser Mode 测试文件，共 213/213 通过，Type Errors 为 0。
+- `pnpm run type-check`、`pnpm run format:oxfmt`、`pnpm run lint` 均通过。
+- 最终规格、代码质量和整体代码审查均无 findings。
 
 ## 影响
 
-本地文件路径可能被误显示为可点击 HTTP URL。用户点击后不会打开本地文件，只会跳到 GUI 服务 origin 下的错误路径。任何 Markdown link 都仍然具备导航行为，风险不只限于本地路径。
+本 issue 记录的误导性导航已消除：无 scheme 文件路径不再可点击，同时完整目标仍对用户可见。正常 Web、邮件和其他带 scheme 链接的默认行为不受影响。
 
 ## 后续处理
 
-进入单独设计/计划阶段确认 committed transcript 链接策略；后续验证入口至少需要覆盖链接文本仍显示、committed transcript 中是否生成可点击 anchor，以及本地绝对路径不会被误导性导航到 GUI HTTP origin。
+本 issue 无需继续处理。宿主打开本地文件、IDE reveal、`file://` 跳转或恢复文件链接点击能力仍不在本次修复范围；如需这些能力，应单独进入设计与计划阶段。
 
 ## 历史记录
 
-- 候选处理：在 `MarkdownText.tsx` 的 Streamdown 配置层禁用 `a` 元素。
-- 候选处理：使用 `unwrapDisallowed` 保留链接节点的子文本，使 `[label](url)` 显示为 `label`，但不生成 `<a>`。
-- 候选处理：同步更新 committed transcript browser test，断言 Markdown 链接文本仍显示，同时 `.committed-transcript-entry-markdown a` 不存在。
+- 已放弃候选：在 `MarkdownText.tsx` 的 Streamdown 配置层禁用所有 `a` 元素。
+- 已放弃候选：使用 `unwrapDisallowed` 只保留链接 label；最终实现保留完整 `[label](target)` 文本。
+- 已完成：增加 live/committed 专用 Browser Mode 覆盖，验证无 scheme 链接不生成 anchor。
 - 暂不处理：不新增宿主打开本地文件能力。
 - 暂不处理：不引入 `file://` 跳转。
 - 暂不处理：不设计 IDE reveal/open file 协议。
