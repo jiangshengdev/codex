@@ -46,9 +46,9 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 
 | 微阶段 | 状态 | 压缩结论 | Finding ID / 覆盖状态 | 关键证据 |
 | --- | --- | --- | --- | --- |
-| Launch params/token/URL owner | 已完成 | 启动参数具有独立生命周期和稳定依赖方向，但浏览器侧类型、解析、存储与地址栏清理被嵌入 transport owner。 | RA-02-001 | `guiHostClient.ts:29-110`、`guiHostLaunchParams.test.ts:14-65` |
-| Transport/request/handshake | 已完成 | WebSocket 生命周期、通用请求关联、握手推进、commands readiness 与 teardown 共置；握手阶段还由 request ID `1/2/3` 隐式编码。 | RA-02-002 | `guiHostClient.ts:112-394`、`guiHostHandshake.test.ts:31-116`、`guiHostCommands.test.ts:20-145`、`guiHostProtocolErrors.test.ts:13-112` |
-| Protocol parsing/commands/errors | 已完成 | Runtime protocol guards 声明为完整生成类型，但只验证部分字段；command success response 另以泛型断言直接信任。 | RA-02-003 | `guiHostProtocol.ts:8-220`、`guiHostClient.ts:164-185`、`guiHostHandshake.test.ts:155-296` |
+| Launch params/token/URL owner | 已完成 | 审计时：启动参数具有独立生命周期和稳定依赖方向，但浏览器侧类型、解析、存储与地址栏清理被嵌入 transport owner。 | RA-02-001 | 审计时：`guiHostClient.ts:29-110`、`guiHostLaunchParams.test.ts:14-65` |
+| Transport/request/handshake | 已完成 | 审计时：WebSocket 生命周期、通用请求关联、握手推进、commands readiness 与 teardown 共置；握手阶段还由 request ID `1/2/3` 隐式编码。 | RA-02-002 | 审计时：`guiHostClient.ts:112-394`、`guiHostHandshake.test.ts:31-116`、`guiHostCommands.test.ts:20-145`、`guiHostProtocolErrors.test.ts:13-112` |
+| Protocol parsing/commands/errors | 已完成 | 审计时：Runtime protocol guards 声明为完整生成类型，但只验证部分字段；command success response 另以泛型断言直接信任。 | RA-02-003 | 审计时：`guiHostProtocol.ts:8-220`、`guiHostClient.ts:164-185`、`guiHostHandshake.test.ts:155-296` |
 | 报告完成门禁 | 已完成 | launch、transport、handshake、protocol 四类职责、公共类型 owner、与 `03` 的 handoff 及五个测试/支持文件覆盖状态均已明确。 | RA-02-001 至 RA-02-003 | 本报告“职责与公共类型 owner”及“测试与支持文件覆盖状态”章节 |
 
 ## Findings
@@ -100,7 +100,7 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 - **Evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有 WebSocket transport、请求关联、握手状态、commands readiness 和连接关闭边界的完整证据。
 - **状态：** 已实施（B02）。
 - **重构优先级：** P2。
-- **实施结果：** `guiHostTransportSession.ts`、`guiHostHandshakeController.ts` 和 `guiHostCommandGateway.ts` 已分别成为 feature-private transport session、handshake 与 command owner；`guiHostClient.ts` 保持公开 facade，只负责装配这些 owner 与既有 callbacks。握手阶段现在由 `GuiHostHandshakeController` 的显式 authenticate → initialize → attach 流程拥有，不再由 literal request IDs 编码。
+- **实施结果：** `guiHostTransportSession.ts`、`guiHostHandshakeController.ts` 和 `guiHostCommandGateway.ts` 已分别成为 feature-private transport session、handshake 与 command owner；`guiHostClient.ts` 保持公开 facade，负责装配三个 owner，并继续拥有 `GuiHostStatus`、terminal/closed gates、parse 后 unmatched message routing、projection notification guards/forwarding、protocol terminal close 与公开 callback 顺序；`disposed` 是 `GuiHostTransportSession` 的私有 gate。握手阶段现在由 `GuiHostHandshakeController` 的显式 authenticate → initialize → attach 流程拥有，不再由 literal request IDs 编码。
 - **审计时结论摘要：** `startGuiHostConnection` 使用同一组闭包状态同时管理 WebSocket 生命周期、通用 JSON-RPC request correlation、握手推进、status 单调性、commands availability 和 teardown。最脆弱的耦合是握手阶段由全局 request ID `1/2/3` 隐式编码，而 pending request 只记录是否为终端错误，没有记录请求方法或握手阶段。
 - **审计时 owner 与职责：** `guiHostClient.ts` 的单一连接函数创建 socket，维护 `terminalError`、`closed`、`nextRequestId`、`pendingRequests` 和 `commandsReady`，构造 handshake/command 请求，处理全部 socket 事件和响应，并负责 cleanup。外部 `GuiHostConnectionBridge` 只接收 connection/notification handoff；其 Redux 和 runtime 状态见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)。
 - **问题类型：** 职责混合、状态契约、依赖方向。
@@ -120,7 +120,7 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - 性能风险：当前证据未显示性能问题；后续边界不得增加额外 React 状态、消息复制或重复 parsing。
   - 测试风险：cleanup 必须保持幂等并抑制后续 socket callbacks；审计时测试未覆盖 duplicate/out-of-order handshake response，不能把该缺口推断为已确认 bug。
 - **审计时建议的验证范围：** 保持完整握手顺序与 status 序列、ready commands 成功请求、command 非终端错误、各关闭路径下 pending rejection 与 commands invalidation、terminal error 单调性、cleanup 抑制和 malformed message 关闭行为。审计阶段未运行测试。
-- **已完成实施验证：** 本地 code/fix commits 为 `5636f0fad` `test(gui): lock gui host connection lifecycle`、`5c0832add` `refactor(gui): add gui host transport session`、`bcd78e75f` `refactor(gui): add gui host handshake and command owners`、`796706d50` `refactor(gui): split gui host connection owners`、`c725e8b3c` `fix(gui): close B02 verification findings`。聚焦 GUI host `6` 个文件、`77/77` tests 通过，Type Errors none；`pnpm run lint`、`pnpm run type-check` 通过；`pnpm run ci` 通过（`28/28` test files、`239/239` tests、Type Errors none；format check 通过（检查 `112` files），lint/type-check 通过）。四项 source search 均无匹配：production `message.id === 1/2/3`、facade old shared state（`terminalOnError`、`commandsReady`、`pendingRequests`、`nextRequestId`）、transport handshake/command methods、transport projection notification methods。实际范围仅含 `4` 个 production 与 `7` 个 feature-local test/support 文件，排除 protocol、browserLaunch、Bridge、Redux、projection、UI、Rust、lock/snapshot/generated。总 diff 为 `1754` additions + `264` deletions = `2018` lines，超过 `800`；已按现有 commit boundaries 记录为四个独立审查阶段并经用户确认继续状态更新：characterization + TransportSession `763`、HandshakeController + CommandGateway `687`、facade `570`、verification fix `470`，每阶段均小于 `800`，最后两阶段不可合并（`852`）。未操作远程、未安装依赖，未运行 Browser/Playwright/snapshot/Rust tests。
+- **已完成实施验证：** 本地 code/fix commits 为 `5636f0fad` `test(gui): lock gui host connection lifecycle`、`5c0832add` `refactor(gui): add gui host transport session`、`bcd78e75f` `refactor(gui): add gui host handshake and command owners`、`796706d50` `refactor(gui): split gui host connection owners`、`c725e8b3c` `fix(gui): close B02 verification findings`、`94035eb81` `fix(gui): preserve B02 public error semantics`。聚焦 GUI host `6` 个文件、`81/81` tests 通过，Type Errors none；`pnpm run lint`、`pnpm run type-check` 通过；`pnpm run ci` 通过（`28/28` test files、`243/243` tests、Type Errors none；format check 通过（检查 `112` files），lint/type-check 通过）。四项 source search 均无匹配：production `message.id === 1/2/3`、facade old shared state（`terminalOnError`、`commandsReady`、`pendingRequests`、`nextRequestId`）、transport handshake/command methods、transport projection notification methods。实际范围仍仅含 `4` 个 production 与 `7` 个 feature-local test/support 文件，共 `11` 个文件，排除 protocol、browserLaunch、Bridge、Redux、projection、UI、Rust、lock/snapshot/generated。总 diff 为 `1924` additions + `266` deletions = `2190` lines，超过 `800`；已按现有 commit boundaries 记录为五个独立审查阶段：characterization + TransportSession `763`、HandshakeController + CommandGateway `687`、facade `570`、第一轮 verification fix `470`、公开错误语义 fix `372`，每阶段均小于 `800`；排除审计文档后，两个 fix 阶段的 code/test 合并净 diff 为 `808`，不可合并。未操作远程、未安装依赖，未运行 Browser/Playwright/snapshot/Rust tests。
 - **审计时代码关键证据路径与行号：**
   - `codex-gui/src/features/guiHost/guiHostClient.ts:112-162`：socket、终端状态、pending rejection、commands invalidation 和 protocol close 共用生命周期状态。
   - `codex-gui/src/features/guiHost/guiHostClient.ts:164-212`：通用 request、command request 和 handshake request 只以 `terminalOnError` 区分。
@@ -150,13 +150,14 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
 - **结论摘要：** `guiHostProtocol.ts` 已经是正确的 feature-private runtime protocol owner，但其 type guards 声明返回完整 `@codex-protocol/v2` 类型，实际只检查前端当前消费的部分字段；command success response 则通过泛型断言直接视为生成类型。wire contract、runtime validation 与 transport consumption 之间缺少明确的“完整验证或收窄 DTO”边界。
-- **当前 owner 与当前职责：** `guiHostProtocol.ts` 解析 JSON-RPC envelope/error，并验证 attach response 与 projection event/delta/closed notifications；`guiHostClient.ts` 消费这些 guards，决定 protocol error、连接关闭和 typed callback forwarding。生成的 `@codex-protocol/v2` 类型拥有编译时 wire contract；command facade 使用其 params/response 类型，但 runtime result 由 transport 泛型断言。
+- **当前 owner 与当前职责：** `guiHostProtocol.ts:19-220` 拥有 JSON-RPC parser 与 attach/projection guards；`guiHostClient.ts:108-171` 消费 parser，在 response correlation 后处理 unmatched message routing，并拥有 projection notification guards/forwarding。attach result guard 由 `guiHostHandshakeController.ts:80-98` 消费；command result trust 位于 `guiHostCommandGateway.ts:39-48`，仍使用 `response.result ?? ({} as TResponse)`；`guiHostTransportSession.ts:81-86` 只转交 `String(event.data)`，不拥有 raw parsing。生成的 `@codex-protocol/v2` 类型继续拥有编译时 wire contract；B02 未解决 B03 的 runtime validation/trust boundary。
 - **问题类型：** 协议契约、类型归属、重复语义、依赖方向。
 - **影响文件、定义侧、构造方、调用方和消费方：**
-  - 定义侧：`codex-gui/src/features/guiHost/guiHostProtocol.ts:8-220`；生成 wire 类型位于 `codex-rs/app-server-protocol/schema/typescript/v2/**`。
-  - 构造方：`guiHostProtocol.ts:19-45` 构造内部 `RpcMessage`；`47-208` 的 guards 将 `unknown` 收窄为生成类型；`guiHostClient.ts:164-185` 将 command result 断言为泛型 response。
-  - 调用方：`guiHostClient.ts:239-368` 是 parser/guards 的唯一生产调用者；commands 构造位于 `205-208`。
-  - 消费方：projection callbacks 和 ready command API 消费 typed payload；connection/notification 进入 Redux 后只作为 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) handoff。
+  - 当前定义侧：`codex-gui/src/features/guiHost/guiHostProtocol.ts:19-220` 拥有 parser 与 guards；生成 wire 类型位于 `codex-rs/app-server-protocol/schema/typescript/v2/**`。
+  - 当前调用方：`guiHostClient.ts:108-171` 消费 parser、处理 correlation 后的 unmatched routing，并执行 projection notification guards/forwarding；`guiHostHandshakeController.ts:80-98` 消费 attach result guard。
+  - 当前 command trust：`guiHostCommandGateway.ts:39-48` 使用 `response.result ?? ({} as TResponse)` 将 command success result 视为泛型 response。
+  - 当前 transport 边界：`guiHostTransportSession.ts:81-86` 仅把 `String(event.data)` 交给上层，不负责 raw parsing。
+  - 当前消费方：projection callbacks 和 ready command API 消费 typed payload；connection/notification 进入 Redux 后只作为 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) handoff。
 - **共同语义或变化原因：** wire contract 由生成类型定义；runtime boundary 必须明确保证“完整生成类型”或只保证“前端已验证的最小 DTO”。当前 guards 采用后者的检查范围，却采用前者的返回类型；command success payload 又采用第三种完全信任策略。
 - **推荐边界、建议 owner 和允许的依赖方向：** 保持 `guiHostProtocol.ts` 为 runtime protocol owner。后续设计应在该边界明确选择完整验证生成 wire 类型，或转换为只包含已验证字段的 frontend-owned DTO。依赖方向只能是 generated wire contract → runtime decoder/adapter → transport client → connection/notification handoff；transport、Redux 和 thread runtime 不自行补充 wire shape 判断。
 - **预期收益：** 防止生成 contract 漂移后 guards 继续错误声称完整类型；统一 projection callback 与 command response 的信任策略；让 malformed payload 测试直接对应 runtime boundary，而不是散落在 transport 分支。
@@ -169,27 +170,27 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - 测试风险：valid-but-non-object JSON、错误 `jsonrpc` version、缺少生成类型必需字段和 malformed command success response 尚无完整覆盖；不能把这些缺口宣称为已复现 bug。
 - **后续实施时建议的验证范围：** 覆盖 attach/event/delta/closed 的有效与 malformed payload、生成 `Thread`/`Turn`/`ThreadItem` 必需字段缺失、JSON-RPC envelope/version/error、`turn/start` 与 `turn/interrupt` success/error，并保持现有关闭策略。本轮不执行测试。
 - **当前代码关键证据路径与行号：**
-  - `codex-gui/src/features/guiHost/guiHostProtocol.ts:8-45`：宽松 JSON-RPC envelope/error parsing。
-  - `codex-gui/src/features/guiHost/guiHostProtocol.ts:47-109`：attach 与 notification 顶层 guards。
-  - `codex-gui/src/features/guiHost/guiHostProtocol.ts:111-208`：只验证前端当前使用字段的嵌套 guards。
-  - `codex-gui/src/features/guiHost/guiHostClient.ts:11-19`、`239-368`：transport 单向依赖 protocol adapter 并负责 error/forwarding。
-  - `codex-gui/src/features/guiHost/guiHostClient.ts:164-185`：command success payload 使用泛型断言。
+  - `codex-gui/src/features/guiHost/guiHostProtocol.ts:19-220`：拥有 JSON-RPC parser、attach result guard 与 projection notification guards；guards 只验证前端当前使用的字段。
+  - `codex-gui/src/features/guiHost/guiHostClient.ts:108-171`：消费 parser，完成 response correlation 后处理 unmatched message routing，并执行 projection notification guards/forwarding。
+  - `codex-gui/src/features/guiHost/guiHostHandshakeController.ts:80-98`：消费 attach result guard。
+  - `codex-gui/src/features/guiHost/guiHostCommandGateway.ts:39-48`：command success payload 仍通过 `response.result ?? ({} as TResponse)` 信任为泛型 response。
+  - `codex-gui/src/features/guiHost/guiHostTransportSession.ts:81-86`：只将 `String(event.data)` 转交上层，不拥有 raw parsing。
   - `codex-rs/app-server-protocol/schema/typescript/v2/ThreadProjectionAttachResponse.ts:1-6`、`ThreadProjectionSnapshot.ts:1-6`、`Thread.ts:11-77`：完整生成 attach/thread contract。
   - `codex-rs/app-server-protocol/schema/typescript/v2/Turn.ts:9-37`：完整生成 turn contract。
   - `codex-rs/app-server-protocol/schema/typescript/v2/ThreadProjectionEvent.ts:1-9`、`ThreadProjectionDelta.ts:1-9`：生成 discriminated unions。
-  - `codex-gui/src/features/guiHost/__tests__/guiHostHandshake.test.ts:155-296`：四类 malformed projection payload。
-  - `codex-gui/src/features/guiHost/__tests__/guiHostCommands.test.ts:20-76`：command wire request、success 和非终端 error。
-  - `codex-gui/src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts:31-112`：JSON-RPC error、malformed JSON 和 close policy。
+  - `codex-gui/src/features/guiHost/__tests__/guiHostHandshake.test.ts:386-525`：四类 malformed projection tests。
+  - `codex-gui/src/features/guiHost/__tests__/guiHostCommands.test.ts:27-101`：command request、success 和非终端 error。
+  - `codex-gui/src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts:85-119`：JSON-RPC error；同文件 `207-235`：malformed JSON 与 policy close。
 - **关联的既有报告、issue 或专项设计：** connection/notification 进入 Redux 后见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)；timeline/domain 转换见 [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001)。无关联 issue 或已有专项设计。
 - **已排除项：** 不把 `guiHostProtocol.ts` 本身视为错误 owner；不建议把 validators 移入 transport 或新增宽泛 shared/common protocol 层；不将当前未覆盖场景宣称为已复现 bug。
-- **报告建议：** 进入后续独立设计，明确 runtime decoder 的保证范围、返回类型和单向依赖。
+- **报告建议：** B02 owner 拆分未解决本 finding；B03 仍应进入后续独立设计，明确 runtime decoder 的保证范围、command result trust boundary、返回类型和单向依赖。
 
 ## 四类职责与公共类型 owner
 
 - **Launch：** launch URL、token storage、刷新恢复和 fragment 清理由独立 launch params owner 统一拥有；transport、App handoff 和 QR/access 单向依赖它。见 `RA-02-001`。
 - **Transport：** transport session 拥有 socket、通用 request correlation、pending rejection 和 close，不拥有 handshake 阶段或 Redux lifecycle。见 `RA-02-002`。
 - **Handshake：** handshake owner 显式拥有 authenticate → initialize → attach 的阶段推进与终端错误；不再依赖 request ID `1/2/3` 表达阶段。见 `RA-02-002`。
-- **Protocol：** `guiHostProtocol.ts` 继续作为 feature-private runtime decoder/adapter owner；生成类型拥有 wire contract，transport 只消费 decoder 结果。见 `RA-02-003`。
+- **Protocol：** `guiHostProtocol.ts` 继续作为 feature-private runtime decoder/adapter owner，生成类型拥有 wire contract；transport session 只转交 raw string，公开 facade 调用 `guiHostProtocol.ts` parser/guards 并路由消息，HandshakeController 消费 attach guard，CommandGateway 保留 command result trust。B03 的 runtime validation/trust boundary 尚未解决。见 `RA-02-003`。
 - **公共类型：** `RpcMessage` 保持 protocol adapter 私有；generated projection/turn types 继续归 `@codex-protocol/v2`；`GuiHostStatus`、`GuiHostCommands`、`StartGuiHostConnectionOptions` 和 cleanup 是 GUI host client facade，当前归属合理；`LaunchParams` 归属调整已由 `RA-02-001` 覆盖。
 - **与 `03` 的唯一交界：** connection/notification handoff。连接状态进入 Redux 后的 lifecycle、projection ingress、snapshot index、reconnect 和 thread runtime 均不属于本报告。
 
