@@ -1,17 +1,14 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
-import type {
-  GuiHostCommands,
-  GuiHostStatus,
-  LaunchParams,
-} from "@/features/guiHost/guiHostClient";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
 import { ProjectionApplicationCoordinator } from "@/features/projectionCoordination/projectionApplicationCoordinator";
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
   setCommands: (commands: GuiHostCommands | null) => void;
-  setLaunchParams: (params: LaunchParams | null) => void;
+  setLaunchParams: (params: BrowserLaunchParams | null) => void;
 };
 
 export function GuiHostConnectionBridge({

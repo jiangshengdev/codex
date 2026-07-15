@@ -23,12 +23,6 @@ export class MemoryStorage {
   }
 }
 
-export class ThrowingSetItemStorage extends MemoryStorage {
-  override setItem(): void {
-    throw new Error("sessionStorage unavailable");
-  }
-}
-
 type SocketCloseEvent = {
   code: number;
   reason: string;
@@ -52,6 +46,17 @@ export function readRpcMethod(message: string): string | undefined {
   }
 
   return typeof parsed.method === "string" ? parsed.method : undefined;
+}
+
+export function readLatestRpcRequest(socket: RecordingWebSocket, method: string): ParsedRpcRequest {
+  const request = socket.sent
+    .map(readRpcRequest)
+    .findLast((candidate) => candidate.method === method);
+  if (!request) {
+    throw new Error(`Expected ${method} request`);
+  }
+
+  return request;
 }
 
 export function recordStatusLabels(): {
@@ -119,18 +124,21 @@ export function sendJsonRpcError(
 }
 
 export function sendAuthenticateResult(socket: RecordingWebSocket): void {
-  sendJsonRpcResult(socket, 1, { authenticated: true });
+  const request = readLatestRpcRequest(socket, "gui/authenticate");
+  sendJsonRpcResult(socket, request.id, { authenticated: true });
 }
 
 export function sendInitializeResult(socket: RecordingWebSocket): void {
-  sendJsonRpcResult(socket, 2, {});
+  const request = readLatestRpcRequest(socket, "initialize");
+  sendJsonRpcResult(socket, request.id, {});
 }
 
 export function sendAttachResult(
   socket: RecordingWebSocket,
   attachResponse: ThreadProjectionAttachResponse,
 ): void {
-  sendJsonRpcResult(socket, 3, attachResponse);
+  const request = readLatestRpcRequest(socket, "thread/projection/attach");
+  sendJsonRpcResult(socket, request.id, attachResponse);
 }
 
 export function startGuiHostConnectionWithSocket({
@@ -176,7 +184,7 @@ export function startGuiHostConnectionWithSocket({
   return { cleanup, socket, threadId };
 }
 
-export function startConnectionUntilCommandsReady({
+export async function startConnectionUntilCommandsReady({
   attachResponse,
   onCommandsUnavailable,
   onStatus,
@@ -184,13 +192,13 @@ export function startConnectionUntilCommandsReady({
   attachResponse: ThreadProjectionAttachResponse;
   onCommandsUnavailable?: () => void;
   onStatus?: Parameters<typeof startGuiHostConnection>[0]["onStatus"];
-}): {
+}): Promise<{
   attachResponse: ThreadProjectionAttachResponse;
   cleanup: () => void;
   commands: GuiHostCommands;
   socket: RecordingWebSocket;
   threadId: string;
-} {
+}> {
   const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
   const { cleanup, socket, threadId } = startGuiHostConnectionWithSocket({
     attachResponse,
@@ -201,10 +209,18 @@ export function startConnectionUntilCommandsReady({
 
   socket.onopen?.();
   sendAuthenticateResult(socket);
+  await vi.waitFor(() => {
+    expect(socket.sent.map(readRpcMethod)).toContain("initialize");
+  });
   sendInitializeResult(socket);
+  await vi.waitFor(() => {
+    expect(socket.sent.map(readRpcMethod)).toContain("thread/projection/attach");
+  });
   sendAttachResult(socket, attachResponse);
+  await vi.waitFor(() => {
+    expect(commandsReady).toHaveBeenCalledOnce();
+  });
 
-  expect(commandsReady).toHaveBeenCalledTimes(1);
   const commands = commandsReady.mock.calls[0]?.[0];
   if (!commands) {
     throw new Error("Expected commands to be ready");

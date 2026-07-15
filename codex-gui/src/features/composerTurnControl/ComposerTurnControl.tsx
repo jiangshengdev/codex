@@ -1,11 +1,8 @@
 import { Button, Surface, TextArea, toast } from "@heroui/react";
 import { useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
-import type {
-  GuiHostCommands,
-  GuiHostStatus,
-  LaunchParams,
-} from "@/features/guiHost/guiHostClient";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
 import {
@@ -26,7 +23,7 @@ export type ComposerTurnControlProps = {
   commands: GuiHostCommands | null;
   guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
-  launchParams: LaunchParams | null;
+  launchParams: BrowserLaunchParams | null;
 };
 
 export function ComposerTurnControl({

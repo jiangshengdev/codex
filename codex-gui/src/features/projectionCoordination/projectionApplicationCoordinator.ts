@@ -12,7 +12,6 @@ import {
   snapshotReplayIndexFromTurns,
   type SnapshotReplayIndex,
   threadRuntimeAttached,
-  type threadRuntimeDeltaAccepted,
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
@@ -152,9 +151,7 @@ export class ProjectionApplicationCoordinator {
     }
   }
 
-  private enqueueProjectionDelta(
-    notification: Parameters<typeof threadRuntimeDeltaAccepted>[0]["notification"],
-  ): void {
+  private enqueueProjectionDelta(notification: ThreadProjectionDeltaNotification): void {
     this.pendingDeltaNotifications.push(notification);
     this.schedulePendingDeltaFlush();
   }
