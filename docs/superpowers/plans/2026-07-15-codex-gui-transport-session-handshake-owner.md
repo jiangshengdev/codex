@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**状态：** 待确认
+**状态：** 已确认
 
-**设计依据：** [Codex GUI Transport Session 与 Handshake Owner 设计](../specs/2026-07-15-codex-gui-transport-session-handshake-owner-design.md)（用户已在聊天中确认设计；本计划当前等待确认。进入实现后，Task 0 先同步两份文档的确认状态并独立提交）
+**设计依据：** [Codex GUI Transport Session 与 Handshake Owner 设计](../specs/2026-07-15-codex-gui-transport-session-handshake-owner-design.md)（用户已在聊天中确认设计；本计划已确认。进入实现后，Task 0 先同步两份文档的确认状态并独立提交）
 
 **Goal:** 在保持公开 callbacks、成功 status 序列、RPC method/params、command Promise、projection handoff、错误文本、关闭理由和各终止路径 callback 顺序不变的前提下，把 GUI host 连接拆为 feature-private `TransportSession`、`HandshakeController` 与 `CommandGateway` 三个 owner，并移除握手对 request ID `1/2/3` 的阶段依赖。
 

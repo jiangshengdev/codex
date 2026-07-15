@@ -1,6 +1,6 @@
 # Codex GUI Transport Session 与 Handshake Owner 设计
 
-状态：待确认
+状态：已确认
 
 ## 唯一主目标
 
