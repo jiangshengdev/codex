@@ -14,11 +14,14 @@ import type {
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
-import { startGuiHostConnection, type LaunchParams } from "../guiHostClient";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import { startGuiHostConnection, type GuiHostCommands } from "../guiHostClient";
 import {
   MemoryStorage,
   RecordingWebSocket,
+  recordStatusLabels,
   recordStatusSummaries,
+  readLatestRpcRequest,
   readRpcMethod,
   sendAttachResult,
   sendAuthenticateResult,
@@ -27,15 +30,225 @@ import {
   startGuiHostConnectionWithSocket,
 } from "./guiHostClientTestSupport";
 
+async function sendAuthenticationAndWaitForInitialize(socket: RecordingWebSocket): Promise<void> {
+  sendAuthenticateResult(socket);
+  await vi.waitFor(() => {
+    expect(socket.sent.map(readRpcMethod)).toContain("initialize");
+  });
+}
+
+async function sendInitializationAndWaitForAttach(socket: RecordingWebSocket): Promise<void> {
+  sendInitializeResult(socket);
+  await vi.waitFor(() => {
+    expect(socket.sent.map(readRpcMethod)).toContain("thread/projection/attach");
+  });
+}
+
+async function completeHandshake(
+  socket: RecordingWebSocket,
+  attachResponse: ThreadProjectionAttachResponse,
+): Promise<void> {
+  await sendAuthenticationAndWaitForInitialize(socket);
+  await sendInitializationAndWaitForAttach(socket);
+  sendAttachResult(socket, attachResponse);
+  await Promise.resolve();
+}
+
+function throwValue(value: unknown): never {
+  throw value;
+}
+
 describe("guiHostClient handshake", () => {
-  it("sends authenticate, initialize, attach, and forwards projection payloads", () => {
+  it("reports a public handshake callback Error through the queued facade reporter", async () => {
+    const scheduled: (() => void)[] = [];
+    const queueMicrotaskStub = vi.fn<(callback: () => void) => void>((callback) => {
+      scheduled.push(callback);
+    });
+    const original = new Error("authenticated status callback failed");
+    vi.stubGlobal("queueMicrotask", queueMicrotaskStub);
+
+    try {
+      const { socket } = startGuiHostConnectionWithSocket({
+        attachResponse: attachBaseline,
+        onStatus: (status) => {
+          if (status.label === "authenticated") {
+            throw original;
+          }
+        },
+      });
+
+      socket.onopen?.();
+      sendAuthenticateResult(socket);
+      await vi.waitFor(() => {
+        expect(scheduled).toHaveLength(1);
+      });
+
+      let reported: unknown;
+      try {
+        scheduled[0]?.();
+      } catch (error) {
+        reported = error;
+      }
+      expect(reported).toBe(original);
+      expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("wraps a non-Error public handshake callback failure in the queued facade reporter", async () => {
+    const scheduled: (() => void)[] = [];
+    const queueMicrotaskStub = vi.fn<(callback: () => void) => void>((callback) => {
+      scheduled.push(callback);
+    });
+    const original = { reason: "projection callback failed" };
+    vi.stubGlobal("queueMicrotask", queueMicrotaskStub);
+
+    try {
+      const { socket } = startGuiHostConnectionWithSocket({
+        attachResponse: attachBaseline,
+        onProjectionAttached: () => throwValue(original),
+      });
+
+      socket.onopen?.();
+      await completeHandshake(socket, attachBaseline);
+      await vi.waitFor(() => {
+        expect(scheduled).toHaveLength(1);
+      });
+
+      let reported: unknown;
+      try {
+        scheduled[0]?.();
+      } catch (error) {
+        reported = error;
+      }
+      expect(reported).toBeInstanceOf(Error);
+      expect(reported).toMatchObject({
+        constructor: Error,
+        name: "Error",
+        message: "Unexpected GUI host handshake error",
+        cause: original,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("clears the fragment and authenticates when launch token storage fails", () => {
+    const socket = new RecordingWebSocket();
+    const replaceState = vi.fn<History["replaceState"]>();
+
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState,
+      tokenStorage: {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error("sessionStorage unavailable");
+        },
+      },
+      createWebSocket: () => socket as unknown as WebSocket,
+    });
+
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/?threadId=thread-abc");
+
+    socket.onopen?.();
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+  });
+
+  it("calls onLaunchParams synchronously before creating the WebSocket", () => {
+    const socket = new RecordingWebSocket();
+    const calls: string[] = [];
+
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+      replaceState: vi.fn<History["replaceState"]>(),
+      tokenStorage: new MemoryStorage(),
+      onLaunchParams: (params) => {
+        calls.push(`launch:${params.threadId}:${params.token}`);
+      },
+      createWebSocket: () => {
+        calls.push("create-websocket");
+        return socket as unknown as WebSocket;
+      },
+    });
+
+    expect(calls).toEqual(["launch:thread-abc:secret", "create-websocket"]);
+  });
+
+  it("does not create a WebSocket when launch params consumption fails", () => {
+    const createWebSocket = vi.fn<(url: string) => WebSocket>();
+
+    expect(() =>
+      startGuiHostConnection({
+        location: new URL("http://127.0.0.1:4567/#token=secret"),
+        replaceState: vi.fn<History["replaceState"]>(),
+        tokenStorage: new MemoryStorage(),
+        createWebSocket,
+      }),
+    ).toThrow(new Error("Missing threadId query parameter"));
+    expect(createWebSocket).not.toHaveBeenCalled();
+  });
+
+  it("ignores a duplicate authenticate response after the request is settled", async () => {
+    const { labels, onStatus } = recordStatusLabels();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    socket.onopen?.();
+    const request = readLatestRpcRequest(socket, "gui/authenticate");
+    sendJsonRpcResult(socket, request.id, { authenticated: true });
+    await vi.waitFor(() => {
+      expect(labels).toEqual(["connecting", "authenticated"]);
+    });
+    const sentAfterAuthentication = [...socket.sent];
+    sendJsonRpcResult(socket, request.id, { authenticated: true });
+
+    expect(socket.sent).toEqual(sentAfterAuthentication);
+    expect(labels).toEqual(["connecting", "authenticated"]);
+  });
+
+  it("ignores initialize and attach responses before their requests exist", async () => {
+    const { labels, onStatus } = recordStatusLabels();
+    const attached = vi.fn<(response: ThreadProjectionAttachResponse) => void>();
+    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+      onProjectionAttached: attached,
+      onCommandsReady: commandsReady,
+    });
+
+    socket.onopen?.();
+    sendJsonRpcResult(socket, 2, {});
+    sendJsonRpcResult(socket, 3, attachBaseline);
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(labels).toEqual(["connecting"]);
+    expect(attached).not.toHaveBeenCalled();
+    expect(commandsReady).not.toHaveBeenCalled();
+
+    await sendAuthenticationAndWaitForInitialize(socket);
+    await sendInitializationAndWaitForAttach(socket);
+    sendAttachResult(socket, attachBaseline);
+    await vi.waitFor(() => {
+      expect(labels).toEqual(["connecting", "authenticated", "initialized", "attached"]);
+    });
+    expect(attached).toHaveBeenCalledWith(attachBaseline);
+    expect(commandsReady).toHaveBeenCalledOnce();
+  });
+
+  it("sends authenticate, initialize, attach, and forwards projection payloads", async () => {
     const socket = new RecordingWebSocket();
     const statuses: string[] = [];
     const attached: ThreadProjectionAttachResponse[] = [];
     const projectionEvents: ThreadProjectionEventNotification[] = [];
     const projectionDeltas: ThreadProjectionDeltaNotification[] = [];
     const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
-    const launchParams: LaunchParams[] = [];
+    const launchParams: BrowserLaunchParams[] = [];
     const attachResponse = attachBaseline;
     const projectionEvent = eventTurnStarted;
     const projectionDelta = eventAgentMessageDelta;
@@ -69,15 +282,7 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
-    socket.onmessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
-    });
-    socket.onmessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
-    });
-    socket.onmessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
-    });
+    await completeHandshake(socket, attachResponse);
     socket.onmessage?.({
       data: JSON.stringify({
         jsonrpc: "2.0",
@@ -115,7 +320,35 @@ describe("guiHostClient handshake", () => {
     expect(projectionClosedNotifications).toEqual([projectionClosed]);
   });
 
-  it("forwards reasoning projection delta payloads", () => {
+  it("orders projection attachment before attached status and command readiness", async () => {
+    const calls: string[] = [];
+    const attachResponse = attachBaseline;
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse,
+      onProjectionAttached: () => {
+        calls.push("projection-attached");
+      },
+      onStatus: (status) => {
+        calls.push(`status:${status.label}`);
+      },
+      onCommandsReady: () => {
+        calls.push("commands-ready");
+      },
+    });
+
+    socket.onopen?.();
+    await sendAuthenticationAndWaitForInitialize(socket);
+    await sendInitializationAndWaitForAttach(socket);
+    calls.length = 0;
+    sendAttachResult(socket, attachResponse);
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(3);
+    });
+
+    expect(calls).toEqual(["projection-attached", "status:attached", "commands-ready"]);
+  });
+
+  it("forwards reasoning projection delta payloads", async () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const projectionDeltas: ThreadProjectionDeltaNotification[] = [];
     const attachResponse = attachBaseline;
@@ -134,9 +367,7 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendAttachResult(socket, attachResponse);
+    await completeHandshake(socket, attachResponse);
 
     for (const delta of reasoningDeltas) {
       socket.onmessage?.({
@@ -152,7 +383,7 @@ describe("guiHostClient handshake", () => {
     expect(statuses.at(-1)).toEqual({ label: "attached", message: undefined });
   });
 
-  it("reports malformed projection attach payloads without forwarding them", () => {
+  it("reports malformed projection attach payloads without forwarding them", async () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const attached: ThreadProjectionAttachResponse[] = [];
     const attachResponse = attachBaseline;
@@ -166,9 +397,14 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendJsonRpcResult(socket, 3, { subscriptionId: "sub-1" });
+    await sendAuthenticationAndWaitForInitialize(socket);
+    await sendInitializationAndWaitForAttach(socket);
+    const request = readLatestRpcRequest(socket, "thread/projection/attach");
+    sendJsonRpcResult(socket, request.id, { subscriptionId: "sub-1" });
+
+    await vi.waitFor(() => {
+      expect(statuses.at(-1)?.label).toBe("error");
+    });
 
     expect(attached).toEqual([]);
     expect(statuses.at(-1)).toEqual({
@@ -177,7 +413,7 @@ describe("guiHostClient handshake", () => {
     });
   });
 
-  it("reports malformed projection event payloads without forwarding them", () => {
+  it("reports malformed projection event payloads without forwarding them", async () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const projectionEvents: ThreadProjectionEventNotification[] = [];
     const attachResponse = attachBaseline;
@@ -191,9 +427,7 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendAttachResult(socket, attachResponse);
+    await completeHandshake(socket, attachResponse);
     socket.onmessage?.({
       data: JSON.stringify({
         jsonrpc: "2.0",
@@ -215,7 +449,7 @@ describe("guiHostClient handshake", () => {
     });
   });
 
-  it("reports malformed projection delta payloads without forwarding them", () => {
+  it("reports malformed projection delta payloads without forwarding them", async () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const projectionDeltas: ThreadProjectionDeltaNotification[] = [];
     const attachResponse = attachBaseline;
@@ -229,9 +463,7 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendAttachResult(socket, attachResponse);
+    await completeHandshake(socket, attachResponse);
     socket.onmessage?.({
       data: JSON.stringify({
         jsonrpc: "2.0",
@@ -258,7 +490,7 @@ describe("guiHostClient handshake", () => {
     });
   });
 
-  it("reports malformed projection closed payloads without forwarding them", () => {
+  it("reports malformed projection closed payloads without forwarding them", async () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const projectionClosedNotifications: ThreadProjectionClosedNotification[] = [];
     const attachResponse = attachBaseline;
@@ -272,9 +504,7 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
-    sendAuthenticateResult(socket);
-    sendInitializeResult(socket);
-    sendAttachResult(socket, attachResponse);
+    await completeHandshake(socket, attachResponse);
     socket.onmessage?.({
       data: JSON.stringify({
         jsonrpc: "2.0",

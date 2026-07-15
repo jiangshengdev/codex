@@ -15,7 +15,7 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -109,13 +109,10 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltaAccepted({
-        notification: agentMessageDelta(
-          eventAgentMessageDelta,
-          "turn-settled",
-          "agent-settled",
-          "Partial",
-        ),
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, "turn-settled", "agent-settled", "Partial"),
+        ],
       }),
     );
     store.dispatch(

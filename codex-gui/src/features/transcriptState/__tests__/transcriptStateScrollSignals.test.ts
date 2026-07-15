@@ -20,7 +20,7 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -148,13 +148,15 @@ describe("transcript state scroll signals", () => {
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
-      threadRuntimeDeltaAccepted({
-        notification: agentMessageDelta(
-          eventAgentMessageDelta,
-          "turn-live-scroll-pulse",
-          "agent-live-scroll-pulse",
-          "Live pulse delta",
-        ),
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-live-scroll-pulse",
+            "agent-live-scroll-pulse",
+            "Live pulse delta",
+          ),
+        ],
       }),
     );
 

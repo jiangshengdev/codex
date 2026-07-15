@@ -1,7 +1,6 @@
 import { createAppSlice } from "@/app/createAppSlice";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
@@ -15,7 +14,6 @@ import {
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
 import {
   appendStartedLiveItem,
-  applyAcceptedProjectionDelta,
   applyAcceptedProjectionDeltaBatch,
   hasLiveItem,
   removeLiveItemIfPresent,
@@ -133,9 +131,6 @@ export const transcriptStateSlice = createAppSlice({
             return;
           }
         }
-      })
-      .addCase(threadRuntimeDeltaAccepted, (state, action) => {
-        applyAcceptedProjectionDelta(state, action.payload.notification);
       })
       .addCase(threadRuntimeDeltasAccepted, (state, action) => {
         applyAcceptedProjectionDeltaBatch(state, action.payload.notifications);

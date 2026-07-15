@@ -4,7 +4,7 @@ import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBu
 import type { TurnStartParams, TurnStartResponse } from "@codex-protocol/v2";
 import {
   recordStatusLabels,
-  readRpcRequest,
+  readLatestRpcRequest,
   sendJsonRpcError,
   sendJsonRpcResult,
   startConnectionUntilCommandsReady,
@@ -16,9 +16,16 @@ const turnStartParams = (threadId: string): TurnStartParams => ({
   input: [{ type: "text", text: "Hello", text_elements: [] }],
 });
 
+function expectPlainError(error: unknown, message: string): asserts error is Error {
+  expect(error).toBeInstanceOf(Error);
+  expect(error?.constructor).toBe(Error);
+  expect(error).toMatchObject({ name: "Error", message });
+  expect("source" in (error as Error)).toBe(false);
+}
+
 describe("guiHostClient commands", () => {
   it("sends turn/start through the ready command API", async () => {
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+    const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
     });
     const params = turnStartParams(threadId);
@@ -26,68 +33,95 @@ describe("guiHostClient commands", () => {
       turn: inProgressTurn("turn-started-by-command"),
     };
     const promise = commands.startTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/start");
 
-    expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
+    expect(typeof request.id).toBe("number");
+    expect(request).toEqual({
       jsonrpc: "2.0",
-      id: 4,
+      id: request.id,
       method: "turn/start",
       params,
     });
 
-    sendJsonRpcResult(socket, 4, response);
+    sendJsonRpcResult(socket, request.id, response);
 
     await expect(promise).resolves.toEqual(response);
   });
 
   it("sends turn/interrupt through the ready command API", async () => {
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+    const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
     });
 
     const params = { threadId, turnId: "turn-active" };
     const promise = commands.interruptTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/interrupt");
 
-    expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
+    expect(typeof request.id).toBe("number");
+    expect(request).toEqual({
       jsonrpc: "2.0",
-      id: 4,
+      id: request.id,
       method: "turn/interrupt",
       params,
     });
 
-    sendJsonRpcResult(socket, 4, {});
+    sendJsonRpcResult(socket, request.id, {});
 
     await expect(promise).resolves.toEqual({});
   });
 
   it("rejects command JSON-RPC errors without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+    const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
       onStatus,
     });
 
-    const promise = commands.startTurn(turnStartParams(threadId));
+    const params = turnStartParams(threadId);
+    const promise = commands.startTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/start");
 
-    sendJsonRpcError(socket, 4, { code: -32000, message: "active turn already running" });
+    expect(typeof request.id).toBe("number");
+    expect(request).toEqual({
+      jsonrpc: "2.0",
+      id: request.id,
+      method: "turn/start",
+      params,
+    });
 
-    await expect(promise).rejects.toThrow("active turn already running");
+    sendJsonRpcError(socket, request.id, {
+      code: -32000,
+      message: "active turn already running",
+    });
+
+    const error = await promise.catch((reason: unknown) => reason);
+    expectPlainError(error, "JSON-RPC error (id=4, code=-32000): active turn already running");
     expect(socket.closed).toEqual([]);
     expect(statuses.at(-1)).toBe("attached");
   });
 
   it("rejects pending command requests during cleanup", async () => {
-    const commandsUnavailable = vi.fn<() => void>();
-    const { cleanup, commands, threadId } = startConnectionUntilCommandsReady({
+    const calls: string[] = [];
+    const { cleanup, commands, socket, threadId } = await startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
-      onCommandsUnavailable: commandsUnavailable,
+      onCommandsUnavailable: () => {
+        calls.push("commands-unavailable");
+      },
+      onStatus: (status) => {
+        calls.push(`status:${status.label}`);
+      },
     });
 
     const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
 
+    calls.length = 0;
+    cleanup();
     cleanup();
 
-    await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
-    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
+    const error = await promise.catch((reason: unknown) => reason);
+    expectPlainError(error, "GUI host WebSocket is not available");
+    expect(calls).toEqual(["commands-unavailable"]);
+    expect(socket.closed).toEqual([{ code: 1000, reason: "cleanup" }]);
   });
 
   it.each([
@@ -101,7 +135,7 @@ describe("guiHostClient commands", () => {
     "rejects pending command requests and marks commands unavailable on %s",
     async (_, closeSocket) => {
       const commandsUnavailable = vi.fn<() => void>();
-      const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
         attachResponse: attachBaseline,
         onCommandsUnavailable: commandsUnavailable,
       });
@@ -117,7 +151,7 @@ describe("guiHostClient commands", () => {
 
   it("closes the socket and marks commands unavailable on terminal projection protocol errors", async () => {
     const commandsUnavailable = vi.fn<() => void>();
-    const { attachResponse, commands, socket, threadId } = startConnectionUntilCommandsReady({
+    const { attachResponse, commands, socket, threadId } = await startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
       onCommandsUnavailable: commandsUnavailable,
     });

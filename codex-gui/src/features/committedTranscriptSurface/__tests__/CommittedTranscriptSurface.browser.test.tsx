@@ -20,7 +20,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -275,13 +275,15 @@ test("renders live assistant text between intermediate updates and final answers
   expect(document.querySelector(".committed-transcript-live-assistant-message")).not.toBeNull();
 
   store.dispatch(
-    threadRuntimeDeltaAccepted({
-      notification: agentMessageDelta(
-        eventAgentMessageDelta,
-        "turn-live",
-        "agent-started",
-        "**Streaming** answer",
-      ),
+    threadRuntimeDeltasAccepted({
+      notifications: [
+        agentMessageDelta(
+          eventAgentMessageDelta,
+          "turn-live",
+          "agent-started",
+          "**Streaming** answer",
+        ),
+      ],
     }),
   );
 

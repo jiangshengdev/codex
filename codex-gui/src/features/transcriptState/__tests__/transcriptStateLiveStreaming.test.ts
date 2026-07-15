@@ -14,7 +14,6 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -84,23 +83,17 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltaAccepted({
-        notification: agentMessageDelta(
-          eventAgentMessageDelta,
-          "turn-streaming",
-          "agent-streaming",
-          "Hello",
-        ),
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, "turn-streaming", "agent-streaming", "Hello"),
+        ],
       }),
     );
     store.dispatch(
-      threadRuntimeDeltaAccepted({
-        notification: agentMessageDelta(
-          eventAgentMessageDelta,
-          "turn-streaming",
-          "agent-streaming",
-          " world",
-        ),
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, "turn-streaming", "agent-streaming", " world"),
+        ],
       }),
     );
 
@@ -317,13 +310,10 @@ describe("transcript state live streaming reducer", () => {
     const beforeState = store.getState().transcriptState;
 
     store.dispatch(
-      threadRuntimeDeltaAccepted({
-        notification: agentMessageDelta(
-          eventAgentMessageDelta,
-          "turn-missing",
-          "agent-missing",
-          "Ignored",
-        ),
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, "turn-missing", "agent-missing", "Ignored"),
+        ],
       }),
     );
 

@@ -2,11 +2,11 @@ import { Button, Popover, Typography } from "@heroui/react";
 import { QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo } from "react";
-import type { LaunchParams } from "@/features/guiHost/guiHostClient";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
 import { buildQrAccessUrl } from "./qrAccessUrl";
 
 export type QrAccessPopoverProps = {
-  launchParams: LaunchParams | null;
+  launchParams: BrowserLaunchParams | null;
   origin?: string;
 };
 
