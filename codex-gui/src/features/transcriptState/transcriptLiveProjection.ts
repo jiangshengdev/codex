@@ -1,8 +1,4 @@
-import type {
-  threadRuntimeDeltaAccepted,
-  threadRuntimeDeltasAccepted,
-} from "@/features/threadRuntime/threadRuntimeSlice";
-import type { ThreadItem } from "@codex-protocol/v2";
+import type { ThreadItem, ThreadProjectionDeltaNotification } from "@codex-protocol/v2";
 import type { TranscriptRenderableLiveItem, TranscriptState } from "./transcriptStateModel";
 
 const EMPTY_LIVE_ITEMS: readonly TranscriptRenderableLiveItem[] = Object.freeze([]);
@@ -89,40 +85,9 @@ const appendDeltaToLiveItem = (
   bumpLiveScrollPulse(state);
 };
 
-const appendAgentMessageDeltaToLiveItem = (
-  state: TranscriptState,
-  turnId: string,
-  itemId: string,
-  delta: string,
-) => {
-  const item = findLiveItem(state, turnId, itemId);
-  if (item == null) {
-    return;
-  }
-
-  appendDeltaToLiveItem(state, item, delta);
-};
-
-export const applyAcceptedProjectionDelta = (
-  state: TranscriptState,
-  notification: Parameters<typeof threadRuntimeDeltaAccepted>[0]["notification"],
-) => {
-  if (state.threadId !== notification.threadId) {
-    return;
-  }
-
-  switch (notification.delta.type) {
-    case "agentMessage": {
-      const { turnId, itemId, delta } = notification.delta.notification;
-      appendAgentMessageDeltaToLiveItem(state, turnId, itemId, delta);
-      return;
-    }
-  }
-};
-
 export const applyAcceptedProjectionDeltaBatch = (
   state: TranscriptState,
-  notifications: Parameters<typeof threadRuntimeDeltasAccepted>[0]["notifications"],
+  notifications: ThreadProjectionDeltaNotification[],
 ) => {
   const buckets: AgentMessageDeltaBucket[] = [];
   const bucketByKey: Record<string, AgentMessageDeltaBucket> = {};

@@ -8,7 +8,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -134,13 +134,15 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltaAccepted({
-        notification: agentMessageDelta(
-          eventAgentMessageDelta,
-          "turn-reconnect-live",
-          "agent-reconnect-live",
-          "Partial",
-        ),
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-reconnect-live",
+            "agent-reconnect-live",
+            "Partial",
+          ),
+        ],
       }),
     );
     store.dispatch(

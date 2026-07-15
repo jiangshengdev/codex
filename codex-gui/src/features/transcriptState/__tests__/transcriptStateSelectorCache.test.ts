@@ -9,7 +9,7 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
@@ -278,13 +278,15 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeDeltaAccepted({
-        notification: agentMessageDelta(
-          eventAgentMessageDelta,
-          "turn-live-cache-delta",
-          "agent-live-cache-delta",
-          "Streamed text",
-        ),
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-live-cache-delta",
+            "agent-live-cache-delta",
+            "Streamed text",
+          ),
+        ],
       }),
     );
 

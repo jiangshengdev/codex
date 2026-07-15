@@ -27,7 +27,6 @@ import {
   selectThreadRuntimeThreadId,
   snapshotReplayIndexFromTurns,
   threadRuntimeAttached,
-  threadRuntimeDeltaAccepted,
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
@@ -42,7 +41,6 @@ const reduce = (
   state: ThreadRuntimeState | undefined,
   action:
     | ReturnType<typeof threadRuntimeAttached>
-    | ReturnType<typeof threadRuntimeDeltaAccepted>
     | ReturnType<typeof threadRuntimeDeltasAccepted>
     | ReturnType<typeof threadRuntimeEventBuffered>
     | ReturnType<typeof threadRuntimeManualReconnectRequired>,
@@ -190,16 +188,6 @@ describe("thread runtime reducer", () => {
       { type: "projectionEvent", notification: eventItemStarted, replay: "live" },
       { type: "projectionEvent", notification: eventItemCompleted, replay: "live" },
     ]);
-  });
-
-  it("exports accepted projection delta actions without mutating runtime buffers", () => {
-    const state = reduce(undefined, threadRuntimeAttached(attachBaseline));
-    const nextState = reduce(
-      state,
-      threadRuntimeDeltaAccepted({ notification: eventAgentMessageDelta }),
-    );
-
-    expect(nextState).toStrictEqual(state);
   });
 
   it("exports accepted projection delta batch actions without mutating runtime buffers", () => {
