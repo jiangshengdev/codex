@@ -43,7 +43,6 @@ export type ThreadRuntimeRecord = {
   sessionId: string;
   thread: Omit<Thread, "turns">;
   snapshotTurns: Turn[];
-  snapshotReplayIndex: SnapshotReplayIndex;
   eventBuffer: ThreadRuntimeBufferedEvent[];
   activeTurnId: string | null;
   subscription: ThreadRuntimeSubscription;
@@ -117,7 +116,6 @@ export const threadRuntimeSlice = createAppSlice({
           sessionId: thread.sessionId,
           thread,
           snapshotTurns,
-          snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
           eventBuffer: [],
           activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
           subscription: { state: "active" },
