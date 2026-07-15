@@ -4,7 +4,7 @@ import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBu
 import type { TurnStartParams, TurnStartResponse } from "@codex-protocol/v2";
 import {
   recordStatusLabels,
-  readRpcRequest,
+  readLatestRpcRequest,
   sendJsonRpcError,
   sendJsonRpcResult,
   startConnectionUntilCommandsReady,
@@ -26,15 +26,17 @@ describe("guiHostClient commands", () => {
       turn: inProgressTurn("turn-started-by-command"),
     };
     const promise = commands.startTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/start");
 
-    expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
+    expect(typeof request.id).toBe("number");
+    expect(request).toEqual({
       jsonrpc: "2.0",
-      id: 4,
+      id: request.id,
       method: "turn/start",
       params,
     });
 
-    sendJsonRpcResult(socket, 4, response);
+    sendJsonRpcResult(socket, request.id, response);
 
     await expect(promise).resolves.toEqual(response);
   });
@@ -46,15 +48,17 @@ describe("guiHostClient commands", () => {
 
     const params = { threadId, turnId: "turn-active" };
     const promise = commands.interruptTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/interrupt");
 
-    expect(readRpcRequest(socket.sent.at(-1) ?? "")).toEqual({
+    expect(typeof request.id).toBe("number");
+    expect(request).toEqual({
       jsonrpc: "2.0",
-      id: 4,
+      id: request.id,
       method: "turn/interrupt",
       params,
     });
 
-    sendJsonRpcResult(socket, 4, {});
+    sendJsonRpcResult(socket, request.id, {});
 
     await expect(promise).resolves.toEqual({});
   });
@@ -66,9 +70,22 @@ describe("guiHostClient commands", () => {
       onStatus,
     });
 
-    const promise = commands.startTurn(turnStartParams(threadId));
+    const params = turnStartParams(threadId);
+    const promise = commands.startTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/start");
 
-    sendJsonRpcError(socket, 4, { code: -32000, message: "active turn already running" });
+    expect(typeof request.id).toBe("number");
+    expect(request).toEqual({
+      jsonrpc: "2.0",
+      id: request.id,
+      method: "turn/start",
+      params,
+    });
+
+    sendJsonRpcError(socket, request.id, {
+      code: -32000,
+      message: "active turn already running",
+    });
 
     await expect(promise).rejects.toThrow("active turn already running");
     expect(socket.closed).toEqual([]);
@@ -76,18 +93,26 @@ describe("guiHostClient commands", () => {
   });
 
   it("rejects pending command requests during cleanup", async () => {
-    const commandsUnavailable = vi.fn<() => void>();
-    const { cleanup, commands, threadId } = startConnectionUntilCommandsReady({
+    const calls: string[] = [];
+    const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
-      onCommandsUnavailable: commandsUnavailable,
+      onCommandsUnavailable: () => {
+        calls.push("commands-unavailable");
+      },
+      onStatus: (status) => {
+        calls.push(`status:${status.label}`);
+      },
     });
 
     const promise = commands.interruptTurn({ threadId, turnId: "turn-active" });
 
+    calls.length = 0;
+    cleanup();
     cleanup();
 
     await expect(promise).rejects.toThrow("GUI host WebSocket is not available");
-    expect(commandsUnavailable).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(["commands-unavailable"]);
+    expect(socket.closed).toEqual([{ code: 1000, reason: "cleanup" }]);
   });
 
   it.each([

@@ -20,6 +20,7 @@ import {
   MemoryStorage,
   RecordingWebSocket,
   recordStatusSummaries,
+  readLatestRpcRequest,
   readRpcMethod,
   sendAttachResult,
   sendAuthenticateResult,
@@ -127,15 +128,9 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
-    socket.onmessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: 1, result: { authenticated: true } }),
-    });
-    socket.onmessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
-    });
-    socket.onmessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: 3, result: attachResponse }),
-    });
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    sendAttachResult(socket, attachResponse);
     socket.onmessage?.({
       data: JSON.stringify({
         jsonrpc: "2.0",
@@ -171,6 +166,31 @@ describe("guiHostClient handshake", () => {
     expect(projectionEvents).toEqual([projectionEvent]);
     expect(projectionDeltas).toEqual([projectionDelta]);
     expect(projectionClosedNotifications).toEqual([projectionClosed]);
+  });
+
+  it("orders projection attachment before attached status and command readiness", () => {
+    const calls: string[] = [];
+    const attachResponse = attachBaseline;
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse,
+      onProjectionAttached: () => {
+        calls.push("projection-attached");
+      },
+      onStatus: (status) => {
+        calls.push(`status:${status.label}`);
+      },
+      onCommandsReady: () => {
+        calls.push("commands-ready");
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    calls.length = 0;
+    sendAttachResult(socket, attachResponse);
+
+    expect(calls).toEqual(["projection-attached", "status:attached", "commands-ready"]);
   });
 
   it("forwards reasoning projection delta payloads", () => {
@@ -226,7 +246,8 @@ describe("guiHostClient handshake", () => {
     socket.onopen?.();
     sendAuthenticateResult(socket);
     sendInitializeResult(socket);
-    sendJsonRpcResult(socket, 3, { subscriptionId: "sub-1" });
+    const request = readLatestRpcRequest(socket, "thread/projection/attach");
+    sendJsonRpcResult(socket, request.id, { subscriptionId: "sub-1" });
 
     expect(attached).toEqual([]);
     expect(statuses.at(-1)).toEqual({

@@ -48,6 +48,17 @@ export function readRpcMethod(message: string): string | undefined {
   return typeof parsed.method === "string" ? parsed.method : undefined;
 }
 
+export function readLatestRpcRequest(socket: RecordingWebSocket, method: string): ParsedRpcRequest {
+  const request = socket.sent
+    .map(readRpcRequest)
+    .findLast((candidate) => candidate.method === method);
+  if (!request) {
+    throw new Error(`Expected ${method} request`);
+  }
+
+  return request;
+}
+
 export function recordStatusLabels(): {
   labels: string[];
   onStatus: NonNullable<StartGuiHostConnectionOptions["onStatus"]>;
@@ -113,18 +124,21 @@ export function sendJsonRpcError(
 }
 
 export function sendAuthenticateResult(socket: RecordingWebSocket): void {
-  sendJsonRpcResult(socket, 1, { authenticated: true });
+  const request = readLatestRpcRequest(socket, "gui/authenticate");
+  sendJsonRpcResult(socket, request.id, { authenticated: true });
 }
 
 export function sendInitializeResult(socket: RecordingWebSocket): void {
-  sendJsonRpcResult(socket, 2, {});
+  const request = readLatestRpcRequest(socket, "initialize");
+  sendJsonRpcResult(socket, request.id, {});
 }
 
 export function sendAttachResult(
   socket: RecordingWebSocket,
   attachResponse: ThreadProjectionAttachResponse,
 ): void {
-  sendJsonRpcResult(socket, 3, attachResponse);
+  const request = readLatestRpcRequest(socket, "thread/projection/attach");
+  sendJsonRpcResult(socket, request.id, attachResponse);
 }
 
 export function startGuiHostConnectionWithSocket({
