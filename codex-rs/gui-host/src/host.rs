@@ -431,6 +431,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn websocket_route_is_registered_in_dev_and_prod() {
+        let dev_handle = start_host(NoopBackend).await;
+        let (websocket, response) = connect_websocket(&dev_handle).await;
+        assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
+        drop(websocket);
+        dev_handle.shutdown().await;
+
+        let (_package_root, config) = prod_config().await;
+        let prod_handle = GuiHost::start(config, NoopBackend)
+            .await
+            .expect("prod host should start");
+        let (websocket, response) = connect_websocket(&prod_handle).await;
+        assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
+        drop(websocket);
+        prod_handle.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn websocket_disconnect_aborts_backend_connection() {
         let (backend, mut aborted_rx) = AbortSignalBackend::new();
         let handle = start_host(backend).await;

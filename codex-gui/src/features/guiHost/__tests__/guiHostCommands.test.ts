@@ -115,6 +115,20 @@ describe("guiHostClient commands", () => {
     expect(socket.closed).toEqual([{ code: 1000, reason: "cleanup" }]);
   });
 
+  it("invalidates the ready command API during cleanup", async () => {
+    const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+    });
+    const sentBeforeCleanup = [...socket.sent];
+
+    cleanup();
+
+    await expect(
+      commands.interruptTurn({ threadId, turnId: "turn-after-cleanup" }),
+    ).rejects.toThrow("GUI host WebSocket is not available");
+    expect(socket.sent).toEqual(sentBeforeCleanup);
+  });
+
   it.each([
     ["socket error", (socket: { onerror?: (() => void) | null }) => socket.onerror?.()],
     [

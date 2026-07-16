@@ -64,13 +64,13 @@ describe("guiHostClient handshake", () => {
       onLaunchParams: (params) => {
         calls.push(`launch:${params.threadId}:${params.token}`);
       },
-      createWebSocket: () => {
-        calls.push("create-websocket");
+      createWebSocket: (url) => {
+        calls.push(`create-websocket:${url}`);
         return socket as unknown as WebSocket;
       },
     });
 
-    expect(calls).toEqual(["launch:thread-abc:secret", "create-websocket"]);
+    expect(calls).toEqual(["launch:thread-abc:secret", "create-websocket:ws://127.0.0.1:4567/ws"]);
   });
 
   it("does not create a WebSocket when launch params consumption fails", () => {
@@ -128,8 +128,32 @@ describe("guiHostClient handshake", () => {
     });
 
     socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    expect(authenticateRequest).toEqual({
+      jsonrpc: "2.0",
+      id: authenticateRequest.id,
+      method: "gui/authenticate",
+      params: { token: "secret" },
+    });
     sendAuthenticateResult(socket);
+    const initializeRequest = readLatestRpcRequest(socket, "initialize");
+    expect(initializeRequest).toEqual({
+      jsonrpc: "2.0",
+      id: initializeRequest.id,
+      method: "initialize",
+      params: {
+        clientInfo: { name: "codex-gui", version: "0.0.0" },
+        capabilities: {},
+      },
+    });
     sendInitializeResult(socket);
+    const attachRequest = readLatestRpcRequest(socket, "thread/projection/attach");
+    expect(attachRequest).toEqual({
+      jsonrpc: "2.0",
+      id: attachRequest.id,
+      method: "thread/projection/attach",
+      params: { threadId: attachResponse.snapshot.thread.id },
+    });
     sendAttachResult(socket, attachResponse);
     socket.onmessage?.({
       data: JSON.stringify({
@@ -254,6 +278,7 @@ describe("guiHostClient handshake", () => {
       label: "error",
       message: "thread/projection/attach returned malformed result payload",
     });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
   });
 
   it("reports malformed projection event payloads without forwarding them", () => {
@@ -292,6 +317,7 @@ describe("guiHostClient handshake", () => {
       label: "error",
       message: "thread/projection/event returned malformed params payload",
     });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
   });
 
   it("reports malformed projection delta payloads without forwarding them", () => {
@@ -335,6 +361,7 @@ describe("guiHostClient handshake", () => {
       label: "error",
       message: "thread/projection/delta returned malformed params payload",
     });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
   });
 
   it("reports malformed projection closed payloads without forwarding them", () => {
@@ -371,5 +398,6 @@ describe("guiHostClient handshake", () => {
       label: "error",
       message: "thread/projection/closed returned malformed params payload",
     });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
   });
 });
