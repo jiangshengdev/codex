@@ -1,5 +1,6 @@
 use crate::ClientNotification;
 use crate::ClientRequest;
+use crate::JSONRPCMessage;
 use crate::ServerNotification;
 use crate::ServerRequest;
 use crate::experimental_api::experimental_fields;
@@ -17,6 +18,7 @@ use crate::protocol::common::EXPERIMENTAL_CLIENT_METHODS;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHOD_PARAM_TYPES;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHOD_RESPONSE_TYPES;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHODS;
+use crate::protocol::common::client_request_definitions;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -27,6 +29,7 @@ use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::OsStr;
@@ -121,6 +124,7 @@ pub fn generate_ts_with_options(
     ensure_dir(out_dir)?;
     ensure_dir(&v2_out_dir)?;
 
+    JSONRPCMessage::export_all_to(out_dir)?;
     ClientRequest::export_all_to(out_dir)?;
     export_client_responses(out_dir)?;
     ClientNotification::export_all_to(out_dir)?;
@@ -132,6 +136,17 @@ pub fn generate_ts_with_options(
     if !options.experimental_api {
         filter_experimental_ts(out_dir)?;
     }
+    let client_request_definition_path = out_dir.join("ClientRequestDefinition.ts");
+    fs::write(
+        &client_request_definition_path,
+        client_request_definition_ts(options.experimental_api),
+    )
+    .with_context(|| {
+        format!(
+            "Failed to write {}",
+            client_request_definition_path.display()
+        )
+    })?;
 
     if options.generate_indices {
         generate_index_ts(out_dir)?;
@@ -242,12 +257,77 @@ pub fn generate_json_with_experimental(out_dir: &Path, experimental_api: bool) -
         out_dir.join("codex_app_server_protocol.v2.schemas.json"),
         &flat_v2_bundle,
     )?;
-
     if !experimental_api {
         filter_experimental_json_files(out_dir)?;
     }
+    let client_request_definitions = client_request_definitions(experimental_api)
+        .into_iter()
+        .map(|definition| {
+            let response_schema = definition.response.schema_path.with_context(|| {
+                format!(
+                    "client request response for method {} does not have a schema",
+                    definition.method
+                )
+            })?;
+            Ok(ClientRequestDefinitionManifestEntry {
+                method: definition.method,
+                params_schema: definition.params.schema_path,
+                response_schema,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    write_pretty_json(
+        out_dir.join("client-request-definitions.json"),
+        &client_request_definitions,
+    )?;
 
     Ok(())
+}
+
+pub(crate) fn client_request_definition_ts(experimental_api: bool) -> String {
+    let definitions = client_request_definitions(experimental_api);
+    let mut imports = BTreeSet::new();
+    for definition in &definitions {
+        for type_definition in [&definition.params, &definition.response] {
+            if let (Some(import_name), Some(import_path)) =
+                (&type_definition.import_name, &type_definition.import_path)
+            {
+                let import_path = import_path
+                    .with_extension("")
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                imports.insert((import_name.clone(), import_path));
+            }
+        }
+    }
+
+    let mut content = String::new();
+    for (type_name, import_path) in imports {
+        content.push_str(&format!(
+            "import type {{ {type_name} }} from \"./{import_path}\";\n"
+        ));
+    }
+    if !content.is_empty() {
+        content.push('\n');
+    }
+    content.push_str("export type ClientRequestDefinition =\n");
+    for definition in definitions {
+        content.push_str(&format!(
+            "  | {{ method: {:?}; params: {}; response: {}; }}\n",
+            definition.method, definition.params.name, definition.response.name
+        ));
+    }
+    content
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClientRequestDefinitionManifestEntry {
+    method: String,
+    params_schema: Option<String>,
+    response_schema: String,
 }
 
 fn filter_experimental_ts(out_dir: &Path) -> Result<()> {

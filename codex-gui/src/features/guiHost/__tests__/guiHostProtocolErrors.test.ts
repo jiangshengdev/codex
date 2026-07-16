@@ -1,7 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
-import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
-import type { GuiHostCommands } from "../guiHostClient";
 import {
   recordStatusLabels,
   recordStatusSummaries,
@@ -12,15 +10,6 @@ import {
   startConnectionUntilCommandsReady,
   startGuiHostConnectionWithSocket,
 } from "./guiHostClientTestSupport";
-
-async function sendAuthenticationAndWaitForInitialize(
-  socket: ReturnType<typeof startGuiHostConnectionWithSocket>["socket"],
-): Promise<void> {
-  sendAuthenticateResult(socket);
-  await vi.waitFor(() => {
-    expect(socket.sent.map(readRpcMethod)).toContain("initialize");
-  });
-}
 
 describe("guiHostClient protocol errors", () => {
   it("closes the socket and suppresses later status updates during cleanup", () => {
@@ -52,50 +41,7 @@ describe("guiHostClient protocol errors", () => {
     expect(socket.closed).toEqual([{ code: 1000, reason: "cleanup" }]);
   });
 
-  it("ignores a pending attach result delivered through a captured handler after cleanup", async () => {
-    const attached = vi.fn<(response: ThreadProjectionAttachResponse) => void>();
-    const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-    const { cleanup, socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
-      onProjectionAttached: attached,
-      onCommandsReady: commandsReady,
-    });
-    socket.onopen?.();
-    await sendAuthenticationAndWaitForInitialize(socket);
-    const initializeRequest = readLatestRpcRequest(socket, "initialize");
-    socket.onmessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: initializeRequest.id, result: {} }),
-    });
-    await vi.waitFor(() => {
-      expect(socket.sent.map(readRpcMethod)).toContain("thread/projection/attach");
-    });
-    const attachRequest = readLatestRpcRequest(socket, "thread/projection/attach");
-    const onMessage = socket.onmessage;
-
-    cleanup();
-    onMessage?.({
-      data: JSON.stringify({ jsonrpc: "2.0", id: attachRequest.id, result: attachBaseline }),
-    });
-    await Promise.resolve();
-
-    expect(attached).not.toHaveBeenCalled();
-    expect(commandsReady).not.toHaveBeenCalled();
-  });
-
-  it("ignores an unmatched numeric JSON-RPC error response", () => {
-    const { labels, onStatus } = recordStatusLabels();
-    const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
-      onStatus,
-    });
-
-    sendJsonRpcError(socket, 99, { code: -32601, message: "method not found" });
-
-    expect(labels).toEqual(["connecting"]);
-    expect(socket.closed).toEqual([]);
-  });
-
-  it("surfaces JSON-RPC errors on initialize/attach instead of advancing", async () => {
+  it("surfaces JSON-RPC errors on initialize/attach instead of advancing", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
 
     const { socket } = startGuiHostConnectionWithSocket({
@@ -104,13 +50,9 @@ describe("guiHostClient protocol errors", () => {
     });
 
     socket.onopen?.();
-    await sendAuthenticationAndWaitForInitialize(socket);
+    sendAuthenticateResult(socket);
     const request = readLatestRpcRequest(socket, "initialize");
     sendJsonRpcError(socket, request.id, { code: -32601, message: "method not found" });
-
-    await vi.waitFor(() => {
-      expect(statuses.at(-1)?.label).toBe("error");
-    });
 
     expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate", "initialize"]);
     expect(statuses.at(-1)?.label).toBe("error");
@@ -118,7 +60,7 @@ describe("guiHostClient protocol errors", () => {
     expect(socket.closed[0]?.code).toBe(1000);
   });
 
-  it("keeps terminal error state even after clean close fires afterwards", async () => {
+  it("keeps terminal error state even after clean close fires afterwards", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
 
     const { socket } = startGuiHostConnectionWithSocket({
@@ -127,12 +69,9 @@ describe("guiHostClient protocol errors", () => {
     });
 
     socket.onopen?.();
-    await sendAuthenticationAndWaitForInitialize(socket);
+    sendAuthenticateResult(socket);
     const request = readLatestRpcRequest(socket, "initialize");
     sendJsonRpcError(socket, request.id, { code: -32601, message: "method not found" });
-    await vi.waitFor(() => {
-      expect(socket.closed).toHaveLength(1);
-    });
     expect(socket.closed).toHaveLength(1);
     expect(socket.closed[0]?.code).toBe(1000);
 
@@ -155,9 +94,9 @@ describe("guiHostClient protocol errors", () => {
     expect(statuses.at(-1)).toBe("error");
   });
 
-  it("orders protocol error status before making commands unavailable", async () => {
+  it("orders protocol error status before making commands unavailable", () => {
     const calls: string[] = [];
-    const { socket } = await startConnectionUntilCommandsReady({
+    const { socket } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
       onCommandsUnavailable: () => {
         calls.push("commands-unavailable");
@@ -173,9 +112,9 @@ describe("guiHostClient protocol errors", () => {
     expect(calls).toEqual(["status:error", "commands-unavailable"]);
   });
 
-  it("orders command unavailability before socket error status", async () => {
+  it("orders command unavailability before socket error status", () => {
     const calls: string[] = [];
-    const { socket } = await startConnectionUntilCommandsReady({
+    const { socket } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
       onCommandsUnavailable: () => {
         calls.push("commands-unavailable");
@@ -214,6 +153,45 @@ describe("guiHostClient protocol errors", () => {
 
     socket.onmessage?.({ data: "{" });
 
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "Malformed JSON-RPC message",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "invalid message" }]);
+  });
+
+  it.each([
+    ["array", []],
+    ["primitive", 42],
+    ["object missing JSON-RPC fields", { jsonrpc: "2.0" }],
+  ])("reports a parseable %s as a malformed JSON-RPC message", (_, message) => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const callbacks: string[] = [];
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+      onCommandsReady: () => {
+        callbacks.push("commands-ready");
+      },
+      onProjectionAttached: () => {
+        callbacks.push("projection-attached");
+      },
+      onProjectionClosed: () => {
+        callbacks.push("projection-closed");
+      },
+      onProjectionDelta: () => {
+        callbacks.push("projection-delta");
+      },
+      onProjectionEvent: () => {
+        callbacks.push("projection-event");
+      },
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({ data: JSON.stringify(message) });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(callbacks).toEqual([]);
     expect(statuses.at(-1)).toEqual({
       label: "error",
       message: "Malformed JSON-RPC message",

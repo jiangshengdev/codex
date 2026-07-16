@@ -131,7 +131,7 @@ export class ProjectionIngressAdapter {
       return { type: "ignored", reason: ignored };
     }
 
-    return this.requireManualReconnect("backpressure");
+    return this.requireManualReconnect(notification.reason);
   }
 
   private ignoreReasonForNotification(
@@ -174,6 +174,9 @@ export class ProjectionIngressAdapter {
       case "itemStarted":
       case "itemCompleted":
         return !this.cursor.knownTurnIds.has(event.notification.turnId);
+      default:
+        event satisfies never;
+        return false;
     }
   }
 
@@ -186,6 +189,8 @@ export class ProjectionIngressAdapter {
       case "itemStarted":
       case "itemCompleted":
         return;
+      default:
+        event satisfies never;
     }
   }
 }

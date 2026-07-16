@@ -1,5 +1,9 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "src/generated/appServerProtocol/standaloneValidators*.js",
+    "src/generated/guiHostContract/standaloneValidators*.js"
+  ],
   "printWidth": 100,
   "singleQuote": false,
   "trailingComma": "all"

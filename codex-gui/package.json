@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "ci": "pnpm run format:oxfmt && pnpm run lint && pnpm run type-check && pnpm run test:unit",
+    "ci": "pnpm run protocol:check-validators && pnpm run format:oxfmt && pnpm run lint && pnpm run type-check && pnpm run test:unit",
     "format:prettier": "prettier --check .",
     "format:prettier:fix": "prettier --write .",
     "format:oxfmt": "oxfmt --check .",
@@ -26,7 +26,9 @@
     "messages:extract": "lingui extract",
     "messages:extract:clean": "lingui extract --clean",
     "analyze:large-files": "tsx scripts/large-files/cli.ts",
-    "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts"
+    "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts",
+    "protocol:generate-validators": "tsx scripts/protocolValidators/cli.ts --write",
+    "protocol:check-validators": "tsx scripts/protocolValidators/cli.ts --check"
   },
   "dependencies": {
     "@heroui/react": "^3.2.1",
@@ -39,6 +41,7 @@
     "@streamdown/math": "^1.0.2",
     "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-router": "^1.170.16",
+    "ajv": "^8.17.1",
     "lucide-react": "^1.21.0",
     "mdast-util-to-hast": "13.2.1",
     "pathe": "2.0.3",
@@ -66,6 +69,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/browser-playwright": "^4.1.9",
     "@vitest/eslint-plugin": "^1.6.20",
+    "esbuild": "^0.28.1",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-lingui": "^0.13.1",

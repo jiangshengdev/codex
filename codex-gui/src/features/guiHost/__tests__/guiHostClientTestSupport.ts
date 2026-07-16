@@ -1,4 +1,5 @@
 import { expect, vi } from "vitest";
+import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 import {
   startGuiHostConnection,
@@ -130,7 +131,13 @@ export function sendAuthenticateResult(socket: RecordingWebSocket): void {
 
 export function sendInitializeResult(socket: RecordingWebSocket): void {
   const request = readLatestRpcRequest(socket, "initialize");
-  sendJsonRpcResult(socket, request.id, {});
+  const response: InitializeResponse = {
+    userAgent: "codex-test",
+    codexHome: "/codex-home",
+    platformFamily: "test",
+    platformOs: "test",
+  };
+  sendJsonRpcResult(socket, request.id, response);
 }
 
 export function sendAttachResult(
@@ -184,7 +191,7 @@ export function startGuiHostConnectionWithSocket({
   return { cleanup, socket, threadId };
 }
 
-export async function startConnectionUntilCommandsReady({
+export function startConnectionUntilCommandsReady({
   attachResponse,
   onCommandsUnavailable,
   onStatus,
@@ -192,13 +199,13 @@ export async function startConnectionUntilCommandsReady({
   attachResponse: ThreadProjectionAttachResponse;
   onCommandsUnavailable?: () => void;
   onStatus?: Parameters<typeof startGuiHostConnection>[0]["onStatus"];
-}): Promise<{
+}): {
   attachResponse: ThreadProjectionAttachResponse;
   cleanup: () => void;
   commands: GuiHostCommands;
   socket: RecordingWebSocket;
   threadId: string;
-}> {
+} {
   const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
   const { cleanup, socket, threadId } = startGuiHostConnectionWithSocket({
     attachResponse,
@@ -209,18 +216,10 @@ export async function startConnectionUntilCommandsReady({
 
   socket.onopen?.();
   sendAuthenticateResult(socket);
-  await vi.waitFor(() => {
-    expect(socket.sent.map(readRpcMethod)).toContain("initialize");
-  });
   sendInitializeResult(socket);
-  await vi.waitFor(() => {
-    expect(socket.sent.map(readRpcMethod)).toContain("thread/projection/attach");
-  });
   sendAttachResult(socket, attachResponse);
-  await vi.waitFor(() => {
-    expect(commandsReady).toHaveBeenCalledOnce();
-  });
 
+  expect(commandsReady).toHaveBeenCalledTimes(1);
   const commands = commandsReady.mock.calls[0]?.[0];
   if (!commands) {
     throw new Error("Expected commands to be ready");

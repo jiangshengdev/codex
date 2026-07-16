@@ -12,10 +12,13 @@ import {
 import {
   agentMessage,
   attachWithTurns,
+  eventWithEnvelope,
   itemCompleted,
   itemStarted,
   turnCompleted,
   turnStarted,
+  turnWithId,
+  turnWithItems,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   replayForProjectionEvent,
@@ -147,10 +150,11 @@ describe("thread runtime reducer", () => {
       attached,
       threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
     );
-    const nonMatchingCompleted = turnCompleted(eventTurnCompleted, eventTurnCompleted.commitId, {
-      ...eventTurnCompleted.event.notification.turn,
-      id: "another-turn",
-    });
+    const nonMatchingCompleted = turnCompleted(
+      eventTurnCompleted,
+      eventTurnCompleted.commitId,
+      turnWithId(eventTurnCompleted.event.notification.turn, "another-turn"),
+    );
 
     const state = reduce(
       started,
@@ -285,10 +289,7 @@ describe("thread runtime reducer", () => {
       throw new Error("fixture must contain a turnStarted projection event");
     }
     const snapshotItem = agentMessage("agent-snapshot-duplicate", "Already in snapshot");
-    const snapshotTurn = {
-      ...eventTurnStarted.event.notification.turn,
-      items: [snapshotItem],
-    };
+    const snapshotTurn = turnWithItems(eventTurnStarted.event.notification.turn, [snapshotItem]);
     const attached = reduce(
       undefined,
       threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])),
@@ -349,13 +350,16 @@ describe("thread runtime reducer", () => {
       state = reduce(
         state,
         threadRuntimeEventBuffered({
-          notification: {
-            ...turnStarted(eventTurnStarted, `commit-buffer-${commitIndex}`, {
-              ...eventTurnStarted.event.notification.turn,
-              id: `turn-buffer-${commitIndex}`,
-            }),
-            parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
-          },
+          notification: eventWithEnvelope(
+            turnStarted(
+              eventTurnStarted,
+              `commit-buffer-${commitIndex}`,
+              turnWithId(eventTurnStarted.event.notification.turn, `turn-buffer-${commitIndex}`),
+            ),
+            {
+              parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
+            },
+          ),
           replay: "live",
         }),
       );
