@@ -1,22 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
-import type {
-  ThreadProjectionAttachResponse,
-  TurnStartParams,
-  TurnStartResponse,
-} from "@codex-protocol/v2";
-import type { GuiHostCommands, StartGuiHostConnectionOptions } from "../guiHostClient";
+import type { TurnStartParams, TurnStartResponse } from "@codex-protocol/v2";
 import {
   recordStatusLabels,
   readLatestRpcRequest,
-  readRpcMethod,
-  sendAttachResult,
-  sendAuthenticateResult,
-  sendInitializeResult,
   sendJsonRpcError,
   sendJsonRpcResult,
-  startGuiHostConnectionWithSocket,
+  startConnectionUntilCommandsReady,
 } from "./guiHostClientTestSupport";
 
 const turnStartParams = (threadId: string): TurnStartParams => ({
@@ -25,53 +16,9 @@ const turnStartParams = (threadId: string): TurnStartParams => ({
   input: [{ type: "text", text: "Hello", text_elements: [] }],
 });
 
-async function startConnectionUntilCommandsReady({
-  attachResponse,
-  onCommandsUnavailable,
-  onStatus,
-}: {
-  attachResponse: ThreadProjectionAttachResponse;
-  onCommandsUnavailable?: StartGuiHostConnectionOptions["onCommandsUnavailable"];
-  onStatus?: StartGuiHostConnectionOptions["onStatus"];
-}): Promise<{
-  attachResponse: ThreadProjectionAttachResponse;
-  cleanup: () => void;
-  commands: GuiHostCommands;
-  socket: ReturnType<typeof startGuiHostConnectionWithSocket>["socket"];
-  threadId: string;
-}> {
-  const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-  const { cleanup, socket, threadId } = startGuiHostConnectionWithSocket({
-    attachResponse,
-    onCommandsReady: commandsReady,
-    onCommandsUnavailable,
-    onStatus,
-  });
-
-  socket.onopen?.();
-  sendAuthenticateResult(socket);
-  await vi.waitFor(() => {
-    expect(socket.sent.map(readRpcMethod)).toContain("initialize");
-  });
-  sendInitializeResult(socket);
-  await vi.waitFor(() => {
-    expect(socket.sent.map(readRpcMethod)).toContain("thread/projection/attach");
-  });
-  sendAttachResult(socket, attachResponse);
-  await vi.waitFor(() => {
-    expect(commandsReady).toHaveBeenCalledOnce();
-  });
-  const commands = commandsReady.mock.calls[0]?.[0];
-  if (!commands) {
-    throw new Error("Expected commands to be ready");
-  }
-
-  return { attachResponse, cleanup, commands, socket, threadId };
-}
-
 describe("guiHostClient commands", () => {
   it("sends turn/start through the ready command API", async () => {
-    const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
     });
     const params = turnStartParams(threadId);
@@ -95,7 +42,7 @@ describe("guiHostClient commands", () => {
   });
 
   it("sends turn/interrupt through the ready command API", async () => {
-    const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
     });
 
@@ -118,7 +65,7 @@ describe("guiHostClient commands", () => {
 
   it("rejects command JSON-RPC errors without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
-    const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
       onStatus,
     });
@@ -147,7 +94,7 @@ describe("guiHostClient commands", () => {
 
   it("rejects pending command requests during cleanup", async () => {
     const calls: string[] = [];
-    const { cleanup, commands, socket, threadId } = await startConnectionUntilCommandsReady({
+    const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
       onCommandsUnavailable: () => {
         calls.push("commands-unavailable");
@@ -179,7 +126,7 @@ describe("guiHostClient commands", () => {
     "rejects pending command requests and marks commands unavailable on %s",
     async (_, closeSocket) => {
       const commandsUnavailable = vi.fn<() => void>();
-      const { commands, socket, threadId } = await startConnectionUntilCommandsReady({
+      const { commands, socket, threadId } = startConnectionUntilCommandsReady({
         attachResponse: attachBaseline,
         onCommandsUnavailable: commandsUnavailable,
       });
@@ -195,7 +142,7 @@ describe("guiHostClient commands", () => {
 
   it("closes the socket and marks commands unavailable on terminal projection protocol errors", async () => {
     const commandsUnavailable = vi.fn<() => void>();
-    const { attachResponse, commands, socket, threadId } = await startConnectionUntilCommandsReady({
+    const { attachResponse, commands, socket, threadId } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
       onCommandsUnavailable: commandsUnavailable,
     });
