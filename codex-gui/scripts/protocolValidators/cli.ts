@@ -4,8 +4,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 type ArtifactMap = ReadonlyMap<string, string>;
 
+type GeneratedArtifactGroup = {
+  outputDirectory: string;
+  generate: () => Promise<ArtifactMap>;
+};
+
 type WriteFileSystem = {
   rename: typeof rename;
+};
+
+type PreparedArtifactGroup = {
+  outputDirectory: string;
+  stagingDirectory: string;
+  backupDirectory: string | null;
+  switched: boolean;
 };
 
 function validateArtifactNames(artifacts: ArtifactMap): void {
@@ -68,6 +80,13 @@ export async function writeGeneratedArtifacts(
   artifacts: ArtifactMap,
   fileSystem: WriteFileSystem = { rename },
 ): Promise<void> {
+  await writePreparedGeneratedArtifacts(outputDirectory, artifacts, fileSystem);
+}
+
+async function prepareGeneratedArtifacts(
+  outputDirectory: string,
+  artifacts: ArtifactMap,
+): Promise<PreparedArtifactGroup> {
   validateArtifactNames(artifacts);
 
   const parentDirectory = path.dirname(outputDirectory);
@@ -75,45 +94,142 @@ export async function writeGeneratedArtifacts(
   await mkdir(parentDirectory, { recursive: true });
 
   const stagingDirectory = await mkdtemp(path.join(parentDirectory, `.${outputName}.staging-`));
-  let backupDirectory: string | null = null;
-
   try {
     await Promise.all(
       [...artifacts].map(([fileName, contents]) =>
         writeFile(path.join(stagingDirectory, fileName), contents, "utf8"),
       ),
     );
-
-    if (await pathExists(outputDirectory)) {
-      backupDirectory = await unusedSiblingPath(parentDirectory, `.${outputName}.backup-`);
-      await fileSystem.rename(outputDirectory, backupDirectory);
-    }
-
-    try {
-      await fileSystem.rename(stagingDirectory, outputDirectory);
-    } catch (switchError) {
-      if (backupDirectory !== null) {
-        const backupPath = backupDirectory;
-        try {
-          await fileSystem.rename(backupPath, outputDirectory);
-          backupDirectory = null;
-        } catch (restoreError) {
-          throw new AggregateError(
-            [switchError, restoreError],
-            `Failed to restore generated artifacts from ${backupPath}: ${errorMessage(restoreError)}`,
-            { cause: restoreError },
-          );
-        }
-      }
-      throw switchError;
-    }
-
-    if (backupDirectory !== null) {
-      await rm(backupDirectory, { recursive: true });
-      backupDirectory = null;
-    }
-  } finally {
+  } catch (error) {
     await rm(stagingDirectory, { force: true, recursive: true });
+    throw error;
+  }
+  return {
+    outputDirectory,
+    stagingDirectory,
+    backupDirectory: null,
+    switched: false,
+  };
+}
+
+async function rollbackGeneratedArtifactGroups(
+  groups: readonly PreparedArtifactGroup[],
+  fileSystem: WriteFileSystem,
+): Promise<unknown[]> {
+  const rollbackErrors: unknown[] = [];
+  for (const group of groups.toReversed()) {
+    try {
+      if (group.switched) {
+        await rm(group.outputDirectory, { force: true, recursive: true });
+        group.switched = false;
+      }
+      if (group.backupDirectory !== null) {
+        const backupDirectory = group.backupDirectory;
+        await fileSystem.rename(backupDirectory, group.outputDirectory);
+        group.backupDirectory = null;
+      }
+    } catch (error) {
+      rollbackErrors.push(error);
+    }
+  }
+  return rollbackErrors;
+}
+
+async function commitGeneratedArtifactGroups(
+  groups: readonly PreparedArtifactGroup[],
+  fileSystem: WriteFileSystem,
+): Promise<void> {
+  let switchError: Error | undefined;
+  try {
+    for (const group of groups) {
+      const parentDirectory = path.dirname(group.outputDirectory);
+      const outputName = path.basename(group.outputDirectory);
+      if (await pathExists(group.outputDirectory)) {
+        const backupDirectory = await unusedSiblingPath(parentDirectory, `.${outputName}.backup-`);
+        await fileSystem.rename(group.outputDirectory, backupDirectory);
+        group.backupDirectory = backupDirectory;
+      }
+      await fileSystem.rename(group.stagingDirectory, group.outputDirectory);
+      group.switched = true;
+    }
+  } catch (error) {
+    switchError = errorObject(error);
+  }
+
+  if (switchError !== undefined) {
+    const rollbackErrors = await rollbackGeneratedArtifactGroups(groups, fileSystem);
+    if (rollbackErrors.length > 0) {
+      const remainingBackups = groups
+        .map(({ backupDirectory }) => backupDirectory)
+        .filter((backupDirectory): backupDirectory is string => backupDirectory !== null);
+      const restoreError = rollbackErrors.at(-1);
+      throw new AggregateError(
+        [switchError, ...rollbackErrors],
+        `Failed to restore generated artifacts from ${remainingBackups.join(", ")}: ${rollbackErrors.map(errorMessage).join("; ")}`,
+        { cause: restoreError },
+      );
+    }
+    throw switchError;
+  }
+
+  for (const group of groups) {
+    if (group.backupDirectory !== null) {
+      await rm(group.backupDirectory, { recursive: true });
+      group.backupDirectory = null;
+    }
+  }
+}
+
+async function cleanupPreparedArtifactGroups(
+  groups: readonly PreparedArtifactGroup[],
+): Promise<void> {
+  await Promise.all(
+    groups.map(({ stagingDirectory }) => rm(stagingDirectory, { force: true, recursive: true })),
+  );
+}
+
+async function prepareAllGeneratedArtifactGroups(
+  groups: readonly { outputDirectory: string; artifacts: ArtifactMap }[],
+): Promise<PreparedArtifactGroup[]> {
+  const prepared: PreparedArtifactGroup[] = [];
+  try {
+    for (const group of groups) {
+      prepared.push(await prepareGeneratedArtifacts(group.outputDirectory, group.artifacts));
+    }
+    return prepared;
+  } catch (error) {
+    await cleanupPreparedArtifactGroups(prepared);
+    throw error;
+  }
+}
+
+/*
+ * The commit helper intentionally operates only after every output directory has
+ * a complete staging tree. This prevents one source group from advancing while
+ * another source group is still on an older generated contract generation.
+ */
+async function commitAllGeneratedArtifactGroups(
+  groups: readonly { outputDirectory: string; artifacts: ArtifactMap }[],
+  fileSystem: WriteFileSystem,
+): Promise<void> {
+  const prepared = await prepareAllGeneratedArtifactGroups(groups);
+  try {
+    await commitGeneratedArtifactGroups(prepared, fileSystem);
+  } finally {
+    await cleanupPreparedArtifactGroups(prepared);
+  }
+}
+
+async function writePreparedGeneratedArtifacts(
+  outputDirectory: string,
+  artifacts: ArtifactMap,
+  fileSystem: WriteFileSystem,
+): Promise<void> {
+  const prepared = await prepareGeneratedArtifacts(outputDirectory, artifacts);
+  try {
+    await commitGeneratedArtifactGroups([prepared], fileSystem);
+  } finally {
+    await cleanupPreparedArtifactGroups([prepared]);
   }
 }
 
@@ -143,7 +259,31 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function errorObject(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error), { cause: error });
+}
+
 type Mode = "check" | "write";
+
+export async function syncGeneratedArtifactGroups(
+  mode: Mode,
+  groups: readonly GeneratedArtifactGroup[],
+  fileSystem: WriteFileSystem = { rename },
+): Promise<void> {
+  const generatedGroups = await Promise.all(
+    groups.map(async ({ outputDirectory, generate }) => ({
+      outputDirectory,
+      artifacts: await generate(),
+    })),
+  );
+  if (mode === "check") {
+    for (const { outputDirectory, artifacts } of generatedGroups) {
+      await checkGeneratedArtifacts(outputDirectory, artifacts);
+    }
+    return;
+  }
+  await commitAllGeneratedArtifactGroups(generatedGroups, fileSystem);
+}
 
 function parseMode(args: readonly string[]): Mode {
   if (args.length !== 1 || (args[0] !== "--check" && args[0] !== "--write")) {
@@ -172,26 +312,43 @@ async function main(): Promise<void> {
   const mode = parseMode(process.argv.slice(2));
   const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const schemaDirectory = path.resolve(projectRoot, "../codex-rs/app-server-protocol/schema/json");
-  const outputDirectory = path.join(projectRoot, "src/generated/appServerProtocol");
+  const guiHostSchemaDirectory = path.resolve(projectRoot, "../codex-rs/gui-host/schema/json");
 
   const appServerProtocolModulePath = "../../src/features/guiHost/appServerProtocol";
-  const { generateProtocolArtifacts, loadProtocolInputs } = await import("./core");
+  const {
+    generateGuiHostContractArtifacts,
+    generateProtocolArtifacts,
+    loadGuiHostContractInputs,
+    loadProtocolInputs,
+  } = await import("./core");
   const appServerProtocolModule: unknown = await import(appServerProtocolModulePath);
-  const inputs = await loadProtocolInputs({
+  const appServerInputs = await loadProtocolInputs({
     requestDefinitionsPath: path.join(schemaDirectory, "client-request-definitions.json"),
     schemaBundlePath: path.join(schemaDirectory, "codex_app_server_protocol.schemas.json"),
   });
-  const generated = await generateProtocolArtifacts({
-    ...inputs,
-    selectedMethods: requestMethodsFromModule(appServerProtocolModule),
+  const guiHostInputs = await loadGuiHostContractInputs({
+    paramsSchemaPath: path.join(guiHostSchemaDirectory, "GuiAuthenticateParams.json"),
+    resultSchemaPath: path.join(guiHostSchemaDirectory, "GuiAuthenticateResult.json"),
   });
-  const artifacts = new Map(Object.entries(generated));
-
-  if (mode === "check") {
-    await checkGeneratedArtifacts(outputDirectory, artifacts);
-  } else {
-    await writeGeneratedArtifacts(outputDirectory, artifacts);
-  }
+  await syncGeneratedArtifactGroups(mode, [
+    {
+      outputDirectory: path.join(projectRoot, "src/generated/appServerProtocol"),
+      generate: async () =>
+        new Map(
+          Object.entries(
+            await generateProtocolArtifacts({
+              ...appServerInputs,
+              selectedMethods: requestMethodsFromModule(appServerProtocolModule),
+            }),
+          ),
+        ),
+    },
+    {
+      outputDirectory: path.join(projectRoot, "src/generated/guiHostContract"),
+      generate: async () =>
+        new Map(Object.entries(await generateGuiHostContractArtifacts(guiHostInputs))),
+    },
+  ]);
 }
 
 if (import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

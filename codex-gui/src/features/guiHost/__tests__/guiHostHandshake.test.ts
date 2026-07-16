@@ -15,6 +15,7 @@ import type {
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import { validateGuiAuthenticateResult } from "@/generated/guiHostContract";
 import { startGuiHostConnection } from "../guiHostClient";
 import {
   MemoryStorage,
@@ -212,6 +213,71 @@ describe("guiHostClient handshake", () => {
       message: "initialize returned no result payload",
     });
     expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
+  });
+
+  it.each([
+    ["missing authenticated", {}],
+    ["wrong authenticated type", { authenticated: "true" }],
+  ])("keeps an authenticate result with %s terminal", (_, result) => {
+    expect(validateGuiAuthenticateResult(result)).toBe(false);
+
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    sendJsonRpcResult(socket, authenticateRequest.id, result);
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "gui/authenticate returned malformed result payload",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
+  });
+
+  it("keeps an authenticate result with authenticated false terminal", () => {
+    const result = { authenticated: false };
+    expect(validateGuiAuthenticateResult(result)).toBe(true);
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    sendJsonRpcResult(socket, authenticateRequest.id, result);
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "gui/authenticate returned malformed result payload",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
+  });
+
+  it("accepts extra authenticate result fields and continues to initialize", () => {
+    const result = { authenticated: true, extra: "allowed" };
+    expect(validateGuiAuthenticateResult(result)).toBe(true);
+    const statuses: string[] = [];
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus: (status) => {
+        statuses.push(status.label);
+      },
+    });
+
+    socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    sendJsonRpcResult(socket, authenticateRequest.id, result);
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate", "initialize"]);
+    expect(statuses).toEqual(["connecting", "authenticated"]);
+    expect(socket.closed).toEqual([]);
   });
 
   it("does not advance the handshake for an unmatched initialize response", () => {

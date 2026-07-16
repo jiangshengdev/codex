@@ -19,12 +19,14 @@ base64 = { workspace = true }
 futures = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true, features = ["rustls-tls"] }
+schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["fs", "macros", "net", "rt-multi-thread", "sync", "time"] }
 tokio-util = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
+ts-rs = { workspace = true }
 urlencoding = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
@@ -39,6 +41,7 @@ windows-sys = { version = "0.52", features = [
 ] }
 
 [dev-dependencies]
+codex-utils-cargo-bin = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 tokio-tungstenite = { workspace = true }

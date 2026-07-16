@@ -10,11 +10,16 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { checkGeneratedArtifacts, writeGeneratedArtifacts } from "./cli";
+import {
+  checkGeneratedArtifacts,
+  syncGeneratedArtifactGroups,
+  writeGeneratedArtifacts,
+} from "./cli";
 
 const tempRoots: string[] = [];
+type GenerateArtifacts = () => Promise<ReadonlyMap<string, string>>;
 
 async function makeOutputDirectory(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "codex-gui-protocol-validators-"));
@@ -152,5 +157,106 @@ describe("writeGeneratedArtifacts", () => {
     await expect(readDirectory(backupDirectory)).resolves.toEqual({
       "validatorRegistry.ts": "old registry\n",
     });
+  });
+});
+
+describe("syncGeneratedArtifactGroups", () => {
+  test("writes and checks app-server and GUI Host output directories together", async () => {
+    const appServerDirectory = await makeOutputDirectory();
+    const guiHostDirectory = await makeOutputDirectory();
+    const groups = [
+      {
+        outputDirectory: appServerDirectory,
+        generate: () => Promise.resolve(new Map([["index.ts", "app-server\n"]])),
+      },
+      {
+        outputDirectory: guiHostDirectory,
+        generate: () => Promise.resolve(new Map([["index.ts", "gui-host\n"]])),
+      },
+    ];
+
+    await syncGeneratedArtifactGroups("write", groups);
+
+    await expect(readDirectory(appServerDirectory)).resolves.toEqual({
+      "index.ts": "app-server\n",
+    });
+    await expect(readDirectory(guiHostDirectory)).resolves.toEqual({
+      "index.ts": "gui-host\n",
+    });
+    await expect(syncGeneratedArtifactGroups("check", groups)).resolves.toBeUndefined();
+
+    await writeFile(path.join(guiHostDirectory, "index.ts"), "stale\n");
+    const appServerBefore = await readDirectory(appServerDirectory);
+    const guiHostBefore = await readDirectory(guiHostDirectory);
+    await expect(syncGeneratedArtifactGroups("check", groups)).rejects.toThrow("stale: index.ts");
+    await expect(readDirectory(appServerDirectory)).resolves.toEqual(appServerBefore);
+    await expect(readDirectory(guiHostDirectory)).resolves.toEqual(guiHostBefore);
+  });
+
+  test("generates every source group before writing either output directory", async () => {
+    const appServerDirectory = await makeOutputDirectory();
+    const guiHostDirectory = await makeOutputDirectory();
+    await writeFile(path.join(appServerDirectory, "index.ts"), "old app-server\n");
+    await writeFile(path.join(guiHostDirectory, "index.ts"), "old gui-host\n");
+    const appServerBefore = await readDirectory(appServerDirectory);
+    const guiHostBefore = await readDirectory(guiHostDirectory);
+    const firstGenerate = vi.fn<GenerateArtifacts>(() =>
+      Promise.resolve(new Map([["index.ts", "new app-server\n"]])),
+    );
+    const generationError = new Error("GUI Host schema generation failed");
+    const secondGenerate = vi.fn<GenerateArtifacts>(() => Promise.reject(generationError));
+
+    await expect(
+      syncGeneratedArtifactGroups("write", [
+        { outputDirectory: appServerDirectory, generate: firstGenerate },
+        { outputDirectory: guiHostDirectory, generate: secondGenerate },
+      ]),
+    ).rejects.toBe(generationError);
+
+    expect(firstGenerate).toHaveBeenCalledOnce();
+    expect(secondGenerate).toHaveBeenCalledOnce();
+    await expect(readDirectory(appServerDirectory)).resolves.toEqual(appServerBefore);
+    await expect(readDirectory(guiHostDirectory)).resolves.toEqual(guiHostBefore);
+  });
+
+  test("rolls back both directories when the second group switch fails", async () => {
+    const appServerDirectory = await makeOutputDirectory();
+    const guiHostDirectory = await makeOutputDirectory();
+    await writeFile(path.join(appServerDirectory, "index.ts"), "old app-server\n");
+    await writeFile(path.join(guiHostDirectory, "index.ts"), "old gui-host\n");
+    const appServerBefore = await readDirectory(appServerDirectory);
+    const guiHostBefore = await readDirectory(guiHostDirectory);
+    const switchError = new Error("second group switch failed");
+    const renameWithSecondSwitchFailure: typeof renamePath = async (from, to) => {
+      if (
+        String(to) === guiHostDirectory &&
+        path.basename(String(from)).startsWith(".generated.staging-")
+      ) {
+        throw switchError;
+      }
+      await renamePath(from, to);
+    };
+
+    await expect(
+      syncGeneratedArtifactGroups(
+        "write",
+        [
+          {
+            outputDirectory: appServerDirectory,
+            generate: () => Promise.resolve(new Map([["index.ts", "new app-server\n"]])),
+          },
+          {
+            outputDirectory: guiHostDirectory,
+            generate: () => Promise.resolve(new Map([["index.ts", "new gui-host\n"]])),
+          },
+        ],
+        { rename: renameWithSecondSwitchFailure },
+      ),
+    ).rejects.toBe(switchError);
+
+    await expect(readDirectory(appServerDirectory)).resolves.toEqual(appServerBefore);
+    await expect(readDirectory(guiHostDirectory)).resolves.toEqual(guiHostBefore);
+    await expect(readdir(path.dirname(appServerDirectory))).resolves.toEqual(["generated"]);
+    await expect(readdir(path.dirname(guiHostDirectory))).resolves.toEqual(["generated"]);
   });
 });

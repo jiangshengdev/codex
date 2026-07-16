@@ -23,6 +23,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@codex-gui-host-contract": fileURLToPath(
+        new URL("../codex-rs/gui-host/schema/typescript/browserContract.ts", import.meta.url),
+      ),
       "@codex-protocol": fileURLToPath(
         new URL("../codex-rs/app-server-protocol/schema/typescript", import.meta.url),
       ),

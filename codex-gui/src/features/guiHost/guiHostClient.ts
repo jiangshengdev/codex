@@ -5,10 +5,17 @@ import type {
 } from "@codex-protocol/v2";
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import {
+  AUTHENTICATE_METHOD,
+  WEBSOCKET_PATH,
+  type GuiAuthenticateParams,
+  type GuiAuthenticateResult,
+} from "@codex-gui-host-contract";
+import {
   consumeBrowserLaunchParams,
   type BrowserLaunchParams,
 } from "@/features/browserLaunch/browserLaunchParams";
 import { requestDescriptors, validateServerNotification } from "@/generated/appServerProtocol";
+import { validateGuiAuthenticateResult } from "@/generated/guiHostContract";
 import type { RequestParams, RequestResponse } from "./appServerProtocol";
 import { formatRpcId, parseRpcMessage, type RpcMessage } from "./guiHostProtocol";
 
@@ -66,7 +73,9 @@ export function startGuiHostConnection({
   const { threadId, token } = launchParams;
   onLaunchParams?.(launchParams);
 
-  const socket = createWebSocket(`${webSocketProtocol(location)}://${location.host}/ws`);
+  const socket = createWebSocket(
+    `${webSocketProtocol(location)}://${location.host}${WEBSOCKET_PATH}`,
+  );
   let terminalError = false;
   let closed = false;
   let nextRequestId = 1;
@@ -209,45 +218,50 @@ export function startGuiHostConnection({
 
     const id = nextRequestId;
     nextRequestId += 1;
+    const params: GuiAuthenticateParams = { token };
     pendingRequests.set(id, {
       terminalOnError: true,
       settleResult: (hasResult, result) => {
-        if (
-          hasResult &&
-          typeof result === "object" &&
-          result !== null &&
-          "authenticated" in result &&
-          result.authenticated === true
-        ) {
-          emit({ label: "authenticated" });
-          startHandshakeRequest<"initialize">(
-            requestDescriptors.initialize,
-            {
-              clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
-              capabilities: null,
-            },
-            () => {
-              emit({ label: "initialized" });
-              startHandshakeRequest<"thread/projection/attach">(
-                requestDescriptors["thread/projection/attach"],
-                { threadId },
-                (response) => {
-                  onProjectionAttached?.(response);
-                  emit({ label: "attached" });
-                  commandsReady = true;
-                  onCommandsReady?.(commands);
-                },
-              );
-            },
-          );
+        const malformedResultError = new Error(
+          `${AUTHENTICATE_METHOD} returned malformed result payload`,
+        );
+        if (!hasResult || !validateGuiAuthenticateResult(result)) {
+          return malformedResultError.message;
         }
+
+        const authenticateResult: GuiAuthenticateResult = result;
+        if (!authenticateResult.authenticated) {
+          return malformedResultError.message;
+        }
+
+        emit({ label: "authenticated" });
+        startHandshakeRequest<"initialize">(
+          requestDescriptors.initialize,
+          {
+            clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
+            capabilities: null,
+          },
+          () => {
+            emit({ label: "initialized" });
+            startHandshakeRequest<"thread/projection/attach">(
+              requestDescriptors["thread/projection/attach"],
+              { threadId },
+              (response) => {
+                onProjectionAttached?.(response);
+                emit({ label: "attached" });
+                commandsReady = true;
+                onCommandsReady?.(commands);
+              },
+            );
+          },
+        );
         return undefined;
       },
       reject: () => undefined,
     });
 
     try {
-      sendRequest(socket, id, "gui/authenticate", { token });
+      sendRequest(socket, id, AUTHENTICATE_METHOD, params);
     } catch {
       pendingRequests.delete(id);
     }

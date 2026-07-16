@@ -23,6 +23,7 @@ use crate::GuiHostMode;
 use crate::GuiLaunchUrls;
 use crate::LaunchToken;
 use crate::assets;
+use crate::browser_contract::WEBSOCKET_PATH;
 use crate::launch_url_for_thread;
 use crate::launch_urls_for_thread;
 use crate::url::AdvertisedHost;
@@ -123,7 +124,7 @@ where
         GuiHostMode::Dev(config) => {
             let config = config.clone();
             Ok(Router::new()
-                .route("/ws", get(crate::ws::ws_handler::<B>))
+                .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
                 .fallback(get(move |uri: Uri| {
                     let config = config.clone();
                     async move { assets::proxy_vite(config, uri).await }
@@ -145,7 +146,7 @@ where
                         async move { assets::serve_prod_index(config).await }
                     }),
                 )
-                .route("/ws", get(crate::ws::ws_handler::<B>))
+                .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
                 .fallback_service(assets::prod_assets_service(config))
                 .layer(middleware::map_response(assets::add_security_headers))
                 .layer(middleware::from_fn_with_state(
@@ -275,6 +276,10 @@ mod tests {
     use crate::GuiHostConfig;
     use crate::GuiHostMode;
     use crate::ProdAssetConfig;
+    use crate::browser_contract::AUTHENTICATE_METHOD;
+    use crate::browser_contract::GuiAuthenticateParams;
+    use crate::browser_contract::GuiAuthenticateResult;
+    use crate::browser_contract::WEBSOCKET_PATH;
     use crate::host::GuiHost;
     use crate::test_support::NoopBackend;
     use crate::test_support::RecordingBackend;
@@ -421,9 +426,7 @@ mod tests {
             serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 1,
-                "result": {
-                    "authenticated": true,
-                },
+                "result": GuiAuthenticateResult { authenticated: true },
             })
         );
 
@@ -526,7 +529,10 @@ mod tests {
     #[tokio::test]
     async fn websocket_returns_403_when_origin_is_missing() {
         let handle = start_advertised_host(NoopBackend).await;
-        let url = format!("ws://127.0.0.1:{}/ws", handle.local_addr().port());
+        let url = format!(
+            "ws://127.0.0.1:{}{WEBSOCKET_PATH}",
+            handle.local_addr().port()
+        );
         let request = url.into_client_request().expect("request should build");
 
         assert_forbidden_connection(connect_async(request).await);
@@ -537,7 +543,10 @@ mod tests {
     #[tokio::test]
     async fn websocket_returns_403_when_host_does_not_match() {
         let handle = start_advertised_host(NoopBackend).await;
-        let url = format!("ws://127.0.0.1:{}/ws", handle.local_addr().port());
+        let url = format!(
+            "ws://127.0.0.1:{}{WEBSOCKET_PATH}",
+            handle.local_addr().port()
+        );
         let mut request = url.into_client_request().expect("request should build");
         request.headers_mut().insert(
             "Host",
@@ -560,7 +569,10 @@ mod tests {
     #[tokio::test]
     async fn websocket_returns_403_when_origin_does_not_match() {
         let handle = start_advertised_host(NoopBackend).await;
-        let url = format!("ws://127.0.0.1:{}/ws", handle.local_addr().port());
+        let url = format!(
+            "ws://127.0.0.1:{}{WEBSOCKET_PATH}",
+            handle.local_addr().port()
+        );
         let mut request = url.into_client_request().expect("request should build");
         request
             .headers_mut()
@@ -948,7 +960,7 @@ mod tests {
     async fn ws_accepts_matching_advertised_host_and_origin() {
         let handle = start_advertised_host(NoopBackend).await;
         let port = handle.local_addr().port();
-        let url = format!("ws://127.0.0.1:{port}/ws");
+        let url = format!("ws://127.0.0.1:{port}{WEBSOCKET_PATH}");
         let mut request = url.into_client_request().expect("request should build");
         request
             .headers_mut()
@@ -970,7 +982,7 @@ mod tests {
     async fn ws_rejects_unadvertised_origin() {
         let handle = start_advertised_host(NoopBackend).await;
         let port = handle.local_addr().port();
-        let url = format!("ws://127.0.0.1:{port}/ws");
+        let url = format!("ws://127.0.0.1:{port}{WEBSOCKET_PATH}");
         let mut request = url.into_client_request().expect("request should build");
         request
             .headers_mut()
@@ -989,7 +1001,7 @@ mod tests {
     async fn ws_rejects_host_origin_mismatch_between_advertised_entries() {
         let handle = start_advertised_host(NoopBackend).await;
         let port = handle.local_addr().port();
-        let url = format!("ws://127.0.0.1:{port}/ws");
+        let url = format!("ws://127.0.0.1:{port}{WEBSOCKET_PATH}");
         let mut request = url.into_client_request().expect("request should build");
         request
             .headers_mut()
@@ -1077,7 +1089,10 @@ mod tests {
         >,
         tokio_tungstenite::tungstenite::handshake::client::Response,
     ) {
-        let url = format!("ws://127.0.0.1:{}/ws", handle.local_addr().port());
+        let url = format!(
+            "ws://127.0.0.1:{}{WEBSOCKET_PATH}",
+            handle.local_addr().port()
+        );
         let mut request = url.into_client_request().expect("request should build");
         request.headers_mut().insert(
             "Origin",
@@ -1114,9 +1129,9 @@ mod tests {
         serde_json::json!({
             "jsonrpc": "2.0",
             "id": id,
-            "method": "gui/authenticate",
-            "params": {
-                "token": handle.launch_token().as_str(),
+            "method": AUTHENTICATE_METHOD,
+            "params": GuiAuthenticateParams {
+                token: handle.launch_token().as_str().to_string(),
             },
         })
         .to_string()

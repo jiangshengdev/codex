@@ -6,6 +6,7 @@ import { build } from "esbuild";
 import { format } from "oxfmt";
 
 import {
+  generateGuiHostContractTypeScriptArtifacts,
   generateTypeScriptArtifacts,
   type RequestDefinitionMetadata,
   type TypeScriptFormatter,
@@ -31,8 +32,13 @@ type ProtocolInputs = {
   requestDefinitions: JsonObject[];
 };
 
+type GuiHostContractInputs = {
+  schemaBundle: JsonObject;
+};
+
 const GENERATED_HEADER = "// GENERATED CODE! DO NOT MODIFY BY HAND!\n";
-const BUNDLE_ID = "https://openai.com/codex/app-server-protocol.schema.json";
+const APP_SERVER_SCHEMA_BUNDLE_ID = "https://openai.com/codex/app-server-protocol.schema.json";
+const GUI_HOST_SCHEMA_BUNDLE_ID = "https://openai.com/codex/gui-host-browser-contract.schema.json";
 const VALIDATOR_ID_PREFIX = "https://openai.com/codex/gui-validator/";
 
 function isObject(value: unknown): value is JsonObject {
@@ -79,6 +85,38 @@ export async function loadProtocolInputs({
   return {
     schemaBundle: parseJsonObject(schemaSource, "Schema bundle"),
     requestDefinitions: parseRequestDefinitions(definitionsSource),
+  };
+}
+
+function schemaWithExpectedTitle(sourceText: string, expectedTitle: string): JsonObject {
+  const schema = parseJsonObject(sourceText, `${expectedTitle} schema`);
+  if (schema.title !== expectedTitle) {
+    throw new Error(`${expectedTitle} schema must have title ${expectedTitle}`);
+  }
+  return schema;
+}
+
+export async function loadGuiHostContractInputs({
+  paramsSchemaPath,
+  resultSchemaPath,
+}: {
+  paramsSchemaPath: string;
+  resultSchemaPath: string;
+}): Promise<GuiHostContractInputs> {
+  const [paramsSource, resultSource] = await Promise.all([
+    readFile(paramsSchemaPath, "utf8"),
+    readFile(resultSchemaPath, "utf8"),
+  ]);
+  const paramsSchema = schemaWithExpectedTitle(paramsSource, "GuiAuthenticateParams");
+  const resultSchema = schemaWithExpectedTitle(resultSource, "GuiAuthenticateResult");
+  return {
+    schemaBundle: {
+      $schema: paramsSchema.$schema ?? resultSchema.$schema,
+      definitions: {
+        GuiAuthenticateParams: paramsSchema,
+        GuiAuthenticateResult: resultSchema,
+      },
+    },
   };
 }
 
@@ -210,6 +248,7 @@ function selectedDefinitions(
 function buildAjvValidators(
   selectedBundle: JsonObject,
   validatorExports: ReadonlyMap<string, string>,
+  schemaBundleId: string,
 ): { ajv: Ajv; refs: Record<string, string> } {
   const ajv = new Ajv({
     strict: true,
@@ -218,7 +257,7 @@ function buildAjvValidators(
     validateFormats: false,
     code: { esm: true, source: true },
   });
-  ajv.addSchema({ ...selectedBundle, $id: BUNDLE_ID }, BUNDLE_ID);
+  ajv.addSchema({ ...selectedBundle, $id: schemaBundleId }, schemaBundleId);
   const refs: Record<string, string> = {};
   const usedExportNames = new Set<string>();
   for (const [schemaId, exportName] of validatorExports) {
@@ -227,7 +266,7 @@ function buildAjvValidators(
     usedExportNames.add(exportName);
     const validatorId = `${VALIDATOR_ID_PREFIX}${encodeURIComponent(schemaId)}`;
     ajv.addSchema(
-      { $id: validatorId, $ref: `${BUNDLE_ID}${schemaPointer(schemaId)}` },
+      { $id: validatorId, $ref: `${schemaBundleId}${schemaPointer(schemaId)}` },
       validatorId,
     );
     const validator: ValidateFunction | undefined = ajv.getSchema(validatorId);
@@ -255,6 +294,43 @@ async function defaultBundleJavaScript(sourceText: string): Promise<string> {
   return result.outputFiles[0].text;
 }
 
+async function generateStandaloneArtifacts({
+  schemaBundle,
+  schemaBundleId,
+  rootSchemaIds,
+  dependencies,
+}: {
+  schemaBundle: JsonObject;
+  schemaBundleId: string;
+  rootSchemaIds: readonly string[];
+  dependencies: GeneratorDependencies;
+}): Promise<{
+  artifacts: Record<string, string>;
+  validatorExports: ReadonlyMap<string, string>;
+}> {
+  for (const schemaId of rootSchemaIds) validateSchemaExists(schemaBundle, schemaId, schemaId);
+  const selectedBundle = collectSelectedBundle(schemaBundle, rootSchemaIds);
+  rejectDuplicateSchemaIds([selectedBundle]);
+
+  const validatorExports = new Map<string, string>();
+  for (const schemaId of [...new Set(rootSchemaIds)].sort()) {
+    validatorExports.set(schemaId, validatorExportName(schemaId));
+  }
+  const { ajv, refs } = buildAjvValidators(selectedBundle, validatorExports, schemaBundleId);
+  const generateStandalone =
+    dependencies.standaloneCode ?? ((validatorRefs) => standaloneCode(ajv, validatorRefs));
+  const opaqueSource = generateStandalone(refs);
+  const rawSource = `${GENERATED_HEADER}${opaqueSource}`;
+  const bundledSource = await (dependencies.bundleJavaScript ?? defaultBundleJavaScript)(rawSource);
+  return {
+    artifacts: {
+      "standaloneValidators.raw.js": rawSource,
+      "standaloneValidators.js": bundledSource,
+    },
+    validatorExports,
+  };
+}
+
 export async function generateProtocolArtifacts({
   schemaBundle,
   requestDefinitions,
@@ -269,28 +345,42 @@ export async function generateProtocolArtifacts({
     "ServerNotification",
     ...selected.map(({ responseSchema }) => responseSchema),
   ];
-  const selectedBundle = collectSelectedBundle(schemaBundle, rootSchemaIds);
-  rejectDuplicateSchemaIds([selectedBundle]);
-
-  const validatorExports = new Map<string, string>();
-  for (const schemaId of [...new Set(rootSchemaIds)].sort()) {
-    validatorExports.set(schemaId, validatorExportName(schemaId));
-  }
-  const { ajv, refs } = buildAjvValidators(selectedBundle, validatorExports);
-  const generateStandalone =
-    dependencies.standaloneCode ?? ((validatorRefs) => standaloneCode(ajv, validatorRefs));
-  const opaqueSource = generateStandalone(refs);
-  const rawSource = `${GENERATED_HEADER}${opaqueSource}`;
-  const bundledSource = await (dependencies.bundleJavaScript ?? defaultBundleJavaScript)(rawSource);
+  const runtime = await generateStandaloneArtifacts({
+    schemaBundle,
+    schemaBundleId: APP_SERVER_SCHEMA_BUNDLE_ID,
+    rootSchemaIds,
+    dependencies,
+  });
   const typeScriptArtifacts = await generateTypeScriptArtifacts({
     requestDefinitions: selected,
-    validatorExports,
+    validatorExports: runtime.validatorExports,
     formatTypeScript: dependencies.formatTypeScript ?? format,
   });
 
   return {
-    "standaloneValidators.raw.js": rawSource,
-    "standaloneValidators.js": bundledSource,
+    ...runtime.artifacts,
+    ...typeScriptArtifacts,
+  };
+}
+
+export async function generateGuiHostContractArtifacts({
+  schemaBundle,
+  dependencies = {},
+}: GuiHostContractInputs & {
+  dependencies?: GeneratorDependencies;
+}): Promise<Record<string, string>> {
+  const runtime = await generateStandaloneArtifacts({
+    schemaBundle,
+    schemaBundleId: GUI_HOST_SCHEMA_BUNDLE_ID,
+    rootSchemaIds: ["GuiAuthenticateParams", "GuiAuthenticateResult"],
+    dependencies,
+  });
+  const typeScriptArtifacts = await generateGuiHostContractTypeScriptArtifacts({
+    validatorExports: runtime.validatorExports,
+    formatTypeScript: dependencies.formatTypeScript ?? format,
+  });
+  return {
+    ...runtime.artifacts,
     ...typeScriptArtifacts,
   };
 }

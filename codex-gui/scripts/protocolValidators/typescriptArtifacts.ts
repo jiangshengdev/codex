@@ -359,3 +359,78 @@ export async function generateTypeScriptArtifacts({
   }
   return artifacts;
 }
+
+function guiHostStandaloneDeclarations(validatorExports: ReadonlyMap<string, string>): string {
+  return print([
+    generatedHeader(),
+    namedImport(
+      "@codex-gui-host-contract",
+      ["GuiAuthenticateParams", "GuiAuthenticateResult"],
+      true,
+    ),
+    namedImport("../../features/guiHost/appServerProtocol", ["ProtocolValidator"], true),
+    ...[...validatorExports.entries()].map(([schemaId, exportName]) =>
+      factory.createVariableStatement(
+        [
+          factory.createModifier(ts.SyntaxKind.ExportKeyword),
+          factory.createModifier(ts.SyntaxKind.DeclareKeyword),
+        ],
+        factory.createVariableDeclarationList(
+          [
+            factory.createVariableDeclaration(
+              exportName,
+              undefined,
+              factory.createTypeReferenceNode("ProtocolValidator", [
+                factory.createTypeReferenceNode(schemaId),
+              ]),
+              undefined,
+            ),
+          ],
+          ts.NodeFlags.Const,
+        ),
+      ),
+    ),
+  ]);
+}
+
+function guiHostPublicIndex(exportNames: readonly string[]): string {
+  return print([
+    generatedHeader(),
+    factory.createExportDeclaration(
+      undefined,
+      false,
+      factory.createNamedExports(
+        exportNames.map((exportName) =>
+          factory.createExportSpecifier(false, undefined, factory.createIdentifier(exportName)),
+        ),
+      ),
+      factory.createStringLiteral("./standaloneValidators.js"),
+    ),
+    factory.createExportDeclaration(
+      undefined,
+      false,
+      undefined,
+      factory.createStringLiteral("./validatorRegistry"),
+    ),
+  ]);
+}
+
+export async function generateGuiHostContractTypeScriptArtifacts({
+  validatorExports,
+  formatTypeScript,
+}: {
+  validatorExports: ReadonlyMap<string, string>;
+  formatTypeScript: TypeScriptFormatter;
+}): Promise<Record<string, string>> {
+  const exportNames = [...validatorExports.values()].sort();
+  const sources: Record<string, string> = {
+    "standaloneValidators.d.ts": guiHostStandaloneDeclarations(validatorExports),
+    "validatorRegistry.ts": validatorRegistry(validatorExports, exportNames),
+    "index.ts": guiHostPublicIndex(exportNames),
+  };
+  const artifacts: Record<string, string> = {};
+  for (const fileName of Object.keys(sources).sort()) {
+    artifacts[fileName] = await formatArtifact(fileName, sources[fileName], formatTypeScript);
+  }
+  return artifacts;
+}
