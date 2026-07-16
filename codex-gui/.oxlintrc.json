@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "ignorePatterns": ["src/generated/appServerProtocol/standaloneValidators*.js"],
+  "ignorePatterns": [
+    "src/generated/appServerProtocol/standaloneValidators*.js",
+    "src/generated/guiHostContract/standaloneValidators*.js"
+  ],
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "vitest"],
   "env": {
     "browser": true
