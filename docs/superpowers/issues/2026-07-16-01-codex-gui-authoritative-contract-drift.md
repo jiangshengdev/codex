@@ -1,15 +1,17 @@
 # Codex GUI 权威契约漂移
 
 日期: 2026-07-16
-状态: 🔴 未修复
+状态: ✅ 已修复
 范围: `codex-gui` 与 Rust GUI Host / app-server protocol 的跨模块契约边界
 优先级: P2
 
 ## 摘要
 
-`codex-gui` 的大部分 production 领域模型仍直接使用 Rust 生成的 TypeScript 类型或机械类型派生，但 GUI Host 边界存在两组明确的契约漂移：已有 generated protocol 被擦除后通过手写 validator、宽泛泛型和 assertion 恢复；尚未进入生成链的 launch URL、WebSocket route 与 authenticate 前置协议则由 Rust 和前端分别手写。Rust 侧发生不兼容变化时，这些边界不能稳定传播为前端 generation、type-check 或 build 错误，可能退化为运行时连接失败、协议拒绝或静默误分类。
+该问题已于 2026-07-16 修复。app-server request/response metadata、运行时 validator 与 descriptor 现在由 Rust 权威契约机械生成；Rust GUI Host 私有 browser contract 也有独立 owner、schema、TypeScript artifact 与 Ajv standalone validator。GUI transport、launch/QR/authenticate 消费者、downstream exhaustiveness 和合法 projection fixture 已迁移到这些机械链接的来源。
 
 ## 问题
+
+以下内容保留为 2026-07-16 审计时的问题描述，不代表当前实现仍采用这些边界。
 
 ### Generated app-server protocol 被擦除并手写重建
 
@@ -43,6 +45,8 @@ Rust 修改这些字段、路径或消息结构时，前端不会在编译阶段
 5 个测试文件仍在本地展开或组合合法 projection attach/event/turn payload，而不是通过 `projectionFixtures.ts` 与 `projectionTestBuilders.ts` 的共享 builder surface 构造。这不会直接改变 production 类型边界，但会增加 fixture 与 generated contract 分散漂移的风险，并违反当前 `Test Fixture Invariants`。
 
 ## 证据
+
+以下路径与行号是修复前的审计历史证据，用于保留问题来源和 taxonomy；当前代码位置与架构已随修复变化。
 
 ### Production generated protocol 边界
 
@@ -93,22 +97,45 @@ Rust 修改这些字段、路径或消息结构时，前端不会在编译阶段
 
 ## 判断
 
-问题当前仍成立，但不是“整个前端都在手写 Rust 类型”。高风险边界集中在 GUI Host 的 transport/protocol、browser launch/QR access 与 Rust GUI Host 私有握手契约；大多数 projection、thread runtime、timeline 和 transcript production 模型仍直接依赖 generated 类型或机械派生。
+问题已修复，原判断中的范围边界仍然有效：这不是“整个前端都在手写 Rust 类型”，而是 GUI Host transport/protocol、browser launch/QR access、Rust GUI Host 私有握手契约以及少量 downstream exhaustiveness 和 fixture 的集中漂移。
 
-提交 `1052a362` 不能作为后续修正依据。该提交提出以 frontend-owned attach/event DTO 和手写 structural validator 替换 generated production contract，会进一步切断 Rust → generated TypeScript → frontend type-check 的失败传播。`Promise<void>` 等局部决策可以独立重新评估，但不能保留该提交的 DTO/validator 方向。
+最终实现保持 Rust 为唯一契约 owner，没有采用提交 `1052a362` 中 frontend-owned DTO 与手写 structural validator 的方向。app-server protocol 与 GUI Host 私有 browser contract 仍是两个独立权威边界，私有 authenticate、launch URL 和 WebSocket route 没有被加入 app-server v2 API。
+
+## 修复记录
+
+完成日期: 2026-07-16
+
+- `59fe41f24`: 锁定 GUI Host 权威契约迁移前的行为。
+- `47096ad42`: 从 app-server protocol 导出 request/response definitions。
+- `65bdc2da3`: 生成 Ajv standalone validators、typed registry 与 descriptors。
+- `4af8b73d7`: GUI transport 消费 generated app-server contracts。
+- `19d4afad0`: 生成并原子迁移 Rust GUI Host 私有 browser contract。
+- `59a63e896`: 收敛 downstream exhaustiveness 与合法 projection fixtures。
+- 支持依赖提交：`cbcb5a891`（Ajv v8）、`480643e08`（esbuild）。
+- CI ignore 修正：`022fb8a48`，仅排除不透明 generated standalone validator JavaScript 的格式化与 lint。
+
+修复后的权威链路为 Rust types/macros → ts-rs 与 schemars artifacts → 同一 frontend generator 的 Ajv standalone validators、declarations、typed registries/descriptors → GUI consumers。GUI Host 私有契约由 `codex-rs/gui-host` 独立拥有，不污染 app-server protocol。
+
+## 验证记录
+
+- Rust 6 个 focused tests 全部通过；authenticate parser 的实际测试 filter 为 `parses_valid_authenticate_request`。
+- app-server protocol schema、GUI Host browser contract schema、frontend generated validators 三棵 generated tree 重生成后无 diff。
+- frontend `ci` 通过：29 个 test files、240 个 tests。
+- generator focused verification 通过：35 个 tests。
+- production build 通过：1265 modules；app-server 与 GUI Host 两组 standalone validator 均进入实际 bundle。
+- Browser Mode 通过：Chromium、Firefox、WebKit 3 个实例，共 87 个 tests。
+- 最终 `just fix` 覆盖两个变更 crate，随后 `just fmt`，均未产生额外 diff。
+- `bazel mod deps --lockfile_mode=error` 通过，`MODULE.bazel.lock` 无漂移。
 
 ## 影响
 
-- Rust 删除、重命名或改变已消费字段时，部分前端边界可能继续编译，在运行时才拒绝消息或错误解释 payload。
-- Rust 新增或修改 GUI Host launch/auth/route 契约时，扫码、页面启动或 WebSocket 握手可能直接失败，而 CI/type-check 无法提前发现。
-- 自由 response 泛型和 assertion 允许调用方声明没有 runtime 证据的成功类型；空对象 fallback 还可能制造虚假成功值。
-- 手写 validator、literal union 与分散 fixture 会随 generated contract 演进产生多处维护点，使测试可能验证前端自有副本而不是权威契约。
+- Rust 删除、重命名或改变 GUI 已消费的 app-server 字段、method、response 或 notification variant 时，会通过 generation、validator drift、type-check、测试或 build 传播失败。
+- GUI Host launch key、WebSocket route、authenticate payload/result 的变化会从 Rust 私有 owner 机械传播到 TypeScript、JSON Schema、runtime validator 与 frontend consumers。
+- response 不再通过自由泛型、assertion 或空对象 fallback 制造无 runtime 证据的成功值；malformed handshake/command 继续遵循原有 terminal/non-terminal policy。
+- 合法 projection fixture 与 downstream event/status 分类已收敛到 generated-linked builders 和 exhaustiveness gates，减少分散副本。
 
 ## 后续处理
 
-后续需要单独进入设计阶段，且至少保持两个独立问题边界：
+本 issue 无剩余修复项。后续变更继续遵守 `codex-gui/AGENTS.md` 的单一权威契约与 fixture invariants，并保持 app-server protocol 与 GUI Host 私有 browser contract 两条生成链独立。
 
-- app-server generated protocol 边界：以现有 `ClientRequest`、`ServerNotification` 和 generated payload 为唯一权威来源，保留 method/params/variant 的机械关联；不得用 frontend-owned DTO、宽泛泛型、assertion 或手写 validator 重建契约。
-- Rust GUI Host 私有契约：先在 Rust 权威侧确定 launch URL、WebSocket endpoint 与 authenticate 协议的机械导出路径，再让前端消费该 artifact；不能只在前端抽常量或再写一套类型。
-
-Downstream exhaustiveness 与测试 fixture 可作为较小的独立收敛项处理，但不得借此扩大为业务行为重构。任何 runtime validation 若代表 Rust/generated contract，必须从同一权威来源机械生成；当前没有 generated validator 时，不得在前端复制 schema。
+本次明确不包含 UI 或 Redux 业务重构、不新增 app-server v2 API、不引入其他 validator library。现有 fnm deprecation warning、Vitest type-check experimental warning 与 Vite large-chunk warning 不属于本 issue；如需处理，应分别建立独立问题和证据。
