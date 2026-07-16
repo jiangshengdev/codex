@@ -4,9 +4,9 @@
 
 **Goal:** Replace GUI Host consumer-owned protocol reconstruction with Rust-generated TypeScript contracts and Ajv v8 standalone validators, and mechanically export the Rust GUI Host private launch/auth/route contract to `codex-gui`.
 
-**Architecture:** Rust remains the only contract authority. `ts-rs` exports static TypeScript types, `schemars` exports JSON Schema, the app-server request macro exports method/params/response metadata, and a frontend Ajv generator produces checked-in standalone validators plus typed descriptors. A separate Rust GUI Host browser-contract owner generates launch constants and authenticate artifacts without adding private host behavior to app-server v2.
+**Architecture:** Rust remains the only contract authority. `ts-rs` exports static TypeScript types, `schemars` exports JSON Schema, and the app-server request macro exports method/params/response metadata. The frontend generator keeps Ajv standalone JavaScript opaque, bundles only its module format with esbuild, and emits project-owned declarations, registries, and descriptors through the TypeScript Compiler AST. A separate Rust GUI Host browser-contract owner generates launch constants and authenticate artifacts without adding private host behavior to app-server v2.
 
-**Tech Stack:** Rust, `ts-rs`, `schemars`, Ajv v8 standalone code generation, TypeScript 6, Vitest, Vitest Browser Mode, pnpm with fnm, Cargo/Just, Bazel lock generation.
+**Tech Stack:** Rust, `ts-rs`, `schemars`, Ajv v8 standalone code generation, TypeScript 6 Compiler API, oxfmt API, esbuild, Vitest, Vitest Browser Mode, pnpm with fnm, Cargo/Just, Bazel lock generation.
 
 ---
 
@@ -17,10 +17,14 @@
 - Do not run Git remote commands.
 - Use TDD for production behavior: add the failing test, run it and confirm the expected failure, implement the minimum change, then rerun the focused test.
 - Generated artifacts are updated only through their generator commands. Never patch generated files manually.
+- Ajv standalone source is opaque. Apart from the generated header, do not parse, rewrite, or concatenate it into project-owned TypeScript.
+- Generate project-owned TypeScript and declaration files with the TypeScript Compiler API and format them with the oxfmt API. Do not add an AST wrapper or template library.
+- Compile only the validator roots consumed by the GUI and their transitive schema reference closure. Unselected methods are not silently filtered from the Rust contract; they are simply outside this consumer's validator root set.
 - Use fnm-backed pnpm for every dependency or frontend command.
 - Before each frontend commit, run scoped `oxfmt`, `oxlint --fix`, and ESLint fix/check on authored source and test files. Generated files must be formatted by the generator itself, not by a separate manual formatting pass.
 - Before each Rust production commit, run the focused tests first, then the scoped `just fix -p <crate>` and `just fmt`; inspect their diff and do not rerun tests after those fix/format commands.
-- The confirmed implementation scope includes adding Ajv v8 as a direct `codex-gui` dependency and adding existing workspace `schemars`/`ts-rs` dependencies to `codex-gui-host` if required.
+- Ajv v8 is already a direct `codex-gui` production dependency. The confirmed implementation scope includes adding esbuild as a direct `codex-gui` development dependency and adding existing workspace `schemars`/`ts-rs` dependencies to `codex-gui-host` if required.
+- Ajv v8 is already present in local commit `cbcb5a891`; do not add it again. Add esbuild as a direct `devDependency` because the real Ajv output contains `ajv/dist/runtime/*` CommonJS helpers and cannot rely on Vite or tsx transitive dependencies.
 - Rust dependency changes require `just bazel-lock-update` and inclusion of `Cargo.lock` and `MODULE.bazel.lock` in the same commit.
 - Run focused tests before `just fix` and `just fmt`. Do not rerun tests after the final Rust fix/format step.
 - Do not run crate-wide or workspace-wide Rust test suites without separate explicit authorization. Use the filters listed below.
@@ -50,7 +54,7 @@
 - Modify: `codex-rs/gui-host/src/host.rs` test module only
 - Modify: `codex-rs/gui-host/src/ws.rs` test module only
 
-- [ ] **Step 1: Add or strengthen characterization tests for behavior that must remain stable**
+- [x] **Step 1: Add or strengthen characterization tests for behavior that must remain stable**
 
 Cover these exact observations without changing production code:
 
@@ -69,7 +73,7 @@ cleanup: invalidates commands and rejects pending requests
 
 Keep wire literals in these black-box tests. Their purpose is to catch accidental contract changes after production code starts consuming generated constants.
 
-- [ ] **Step 2: Run focused frontend characterization tests**
+- [x] **Step 2: Run focused frontend characterization tests**
 
 Run from `codex-gui`:
 
@@ -84,7 +88,7 @@ Run from `codex-gui`:
 
 Expected: PASS. These are characterization tests, so a failure means the asserted behavior does not match the current implementation and must be corrected before continuing.
 
-- [ ] **Step 3: Run focused Rust characterization tests**
+- [x] **Step 3: Run focused Rust characterization tests**
 
 Run from `codex-rs` using existing or newly named test filters:
 
@@ -96,7 +100,7 @@ just test -p codex-gui-host websocket_route
 
 Expected: PASS. If the router test has a different existing name, use the narrowest exact filter that exercises dev and prod `/ws` registration and record that name in the commit message body.
 
-- [ ] **Step 4: Commit the tests only**
+- [x] **Step 4: Commit the tests only**
 
 Stage only the test-file changes listed in this task, inspect the staged diff, then create:
 
@@ -118,7 +122,7 @@ Do not include production, generated, dependency, lockfile, or documentation cha
 - Generate: `codex-rs/app-server-protocol/schema/json/client-request-definitions.json`
 - Generate as required: `codex-rs/app-server-protocol/schema/typescript/index.ts`
 
-- [ ] **Step 1: Write failing export tests**
+- [x] **Step 1: Write failing export tests**
 
 Add focused assertions for at least these definitions:
 
@@ -142,7 +146,7 @@ turn/interrupt
 
 The tests must also cover a renamed wire method so the exporter cannot fall back to the Rust enum variant name.
 
-- [ ] **Step 2: Run the new Rust test and verify RED**
+- [x] **Step 2: Run the new Rust test and verify RED**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-rs
@@ -151,7 +155,7 @@ just test -p codex-app-server-protocol client_request_definitions_export_method_
 
 Expected: FAIL because the definition artifact and export entry point do not exist.
 
-- [ ] **Step 3: Extend the request macro with generated metadata**
+- [x] **Step 3: Extend the request macro with generated metadata**
 
 Add one metadata emission path inside `client_request_definitions!`; do not parse generated TypeScript or maintain a second method table. The generated TypeScript contract must have this effective shape:
 
@@ -181,7 +185,7 @@ The JSON manifest must contain only stable generation metadata, for example:
 
 Generate both artifacts from the same macro expansion. Experimental method filtering must follow the existing schema-generation option rather than creating a separate filtering rule.
 
-- [ ] **Step 4: Regenerate app-server schema artifacts**
+- [x] **Step 4: Regenerate app-server schema artifacts**
 
 Run from the repository root:
 
@@ -191,7 +195,7 @@ just write-app-server-schema
 
 Expected: the new definition artifacts and index export appear; unrelated schema files do not change. If unrelated files change, stop and determine whether the generator is stale before proceeding.
 
-- [ ] **Step 5: Run focused generation tests**
+- [x] **Step 5: Run focused generation tests**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-rs
@@ -202,7 +206,7 @@ just test -p codex-app-server-protocol json_schema_fixtures_match_generated
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the Rust generation boundary**
+- [x] **Step 6: Commit the Rust generation boundary**
 
 Stage only app-server protocol source, tests, and generated schema artifacts. Inspect the staged diff and create:
 
@@ -210,72 +214,216 @@ Stage only app-server protocol source, tests, and generated schema artifacts. In
 feat(app-server-protocol): export request response definitions
 ```
 
-## Task 3: Add Ajv v8 standalone validator generation
+## Task 3: Generate opaque Ajv validators and AST-backed descriptors
 
 **Files:**
 
+- Restore before implementation: `codex-gui/package.json`
+- Remove before implementation: `codex-gui/scripts/protocolValidators/cli.ts`
+- Remove before implementation: `codex-gui/scripts/protocolValidators/cli.test.ts`
 - Modify via pnpm: `codex-gui/package.json`
 - Modify via pnpm: `codex-gui/pnpm-lock.yaml`
+- Modify: `codex-gui/.oxfmtrc.json`
+- Modify: `codex-gui/.oxlintrc.json`
 - Create: `codex-gui/scripts/protocolValidators/cli.ts`
+- Create: `codex-gui/scripts/protocolValidators/core.ts`
+- Create: `codex-gui/scripts/protocolValidators/typescriptArtifacts.ts`
 - Create: `codex-gui/scripts/protocolValidators/cli.test.ts`
-- Generate: `codex-gui/src/generated/appServerProtocol/validators.ts`
+- Create: `codex-gui/scripts/protocolValidators/core.test.ts`
+- Create: `codex-gui/src/features/guiHost/appServerProtocol.ts`
+- Create: `codex-gui/src/features/guiHost/__tests__/generatedAppServerProtocol.test.ts`
+- Generate: `codex-gui/src/generated/appServerProtocol/standaloneValidators.raw.js`
+- Generate: `codex-gui/src/generated/appServerProtocol/standaloneValidators.js`
+- Generate: `codex-gui/src/generated/appServerProtocol/standaloneValidators.d.ts`
+- Generate: `codex-gui/src/generated/appServerProtocol/validatorRegistry.ts`
 - Generate: `codex-gui/src/generated/appServerProtocol/requestDescriptors.ts`
 - Generate: `codex-gui/src/generated/appServerProtocol/notificationDescriptors.ts`
 - Generate: `codex-gui/src/generated/appServerProtocol/index.ts`
 
-- [ ] **Step 1: Verify the user-managed package manager**
+- [ ] **Step 1: Remove the aborted Task 3 implementation without touching the updated design**
+
+First inspect the exact paths:
+
+```bash
+cd /Users/jiangsheng/cnb/codex
+git status --short --untracked-files=all -- \
+  codex-gui/package.json \
+  codex-gui/scripts/protocolValidators \
+  docs/superpowers/specs/2026-07-16-codex-gui-authoritative-contract-generation-design.md
+```
+
+Expected: `codex-gui/package.json` is modified only by the two aborted generator scripts, the two script files are untracked, and the confirmed design document remains modified.
+
+Restore only the package scripts, preserving the already committed Ajv dependency:
+
+```bash
+git restore --source=HEAD -- codex-gui/package.json
+git clean -nd -- \
+  codex-gui/scripts/protocolValidators/cli.ts \
+  codex-gui/scripts/protocolValidators/cli.test.ts
+```
+
+The dry run must list only those two untracked files. Then remove exactly them:
+
+```bash
+git clean -f -- \
+  codex-gui/scripts/protocolValidators/cli.ts \
+  codex-gui/scripts/protocolValidators/cli.test.ts
+```
+
+Do not run directory-wide or repository-wide `git clean`.
+
+- [ ] **Step 2: Verify the user-managed package manager and existing dependencies**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
+/opt/homebrew/bin/fnm exec --using-file which pnpm
 /opt/homebrew/bin/fnm exec --using-file pnpm --version
 ```
 
-Expected: pnpm resolves through the user's fnm environment. Stop if it resolves under `/Users/jiangsheng/.cache/codex-runtimes/`.
+Expected: pnpm resolves through the user's fnm environment, not `/Users/jiangsheng/.cache/codex-runtimes/`. Confirm that `ajv` remains a direct production dependency and that `typescript` and `oxfmt` remain direct development dependencies. Do not add Ajv again.
 
-- [ ] **Step 2: Write failing generator tests**
+- [ ] **Step 3: Add the stable authored protocol types and consumer root selection**
 
-The tests must invoke the generator through exported functions rather than shelling out. Cover:
+Create `src/features/guiHost/appServerProtocol.ts` as normal source, not generated source:
 
 ```ts
-expect(validateAttach(validAttach)).toBe(true);
-expect(validateAttach({ ...validAttach, snapshot: null })).toBe(false);
-expect(validateEvent({ ...validEvent, event: { type: "unknown" } })).toBe(false);
-expect(() => buildValidators({ missingResponseSchema: true })).toThrow();
-expect(generateOnce()).toEqual(generateOnce());
+import type { ClientRequestDefinition } from "@codex-protocol/ClientRequestDefinition";
+
+export type ProtocolValidator<T> = (value: unknown) => value is T;
+
+export type RequestDefinitionFor<
+  M extends ClientRequestDefinition["method"],
+> = Extract<ClientRequestDefinition, { method: M }>;
+
+export type RequestParams<M extends ClientRequestDefinition["method"]> =
+  RequestDefinitionFor<M>["params"];
+
+export type RequestResponse<M extends ClientRequestDefinition["method"]> =
+  RequestDefinitionFor<M>["response"];
+
+export const APP_SERVER_REQUEST_METHODS = [
+  "initialize",
+  "thread/projection/attach",
+  "turn/start",
+  "turn/interrupt",
+] as const satisfies readonly ClientRequestDefinition["method"][];
 ```
 
-Also test duplicate methods, unresolved `$ref`, missing schema IDs, nullable fields, optional fields, and tagged unions.
+This list is the GUI consumer root selection. It must not contain params, responses, schema IDs, or a second response map.
 
-- [ ] **Step 3: Run the generator test and verify RED**
+- [ ] **Step 4: Write failing generator and generated-runtime tests**
 
-```bash
-/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit scripts/protocolValidators/cli.test.ts
-```
-
-Expected: FAIL because the generator module and generated validators do not exist.
-
-- [ ] **Step 4: Add Ajv v8 through pnpm**
-
-```bash
-/opt/homebrew/bin/fnm exec --using-file pnpm add 'ajv@^8.17.1'
-```
-
-Expected: `ajv` appears as a direct `dependencies` entry and `codex-gui/pnpm-lock.yaml` is updated by pnpm. Do not install `ajv-formats` unless a generator test proves an existing Rust schema format cannot compile without it.
-
-- [ ] **Step 5: Implement the generator**
-
-The generator must:
+`core.test.ts` must call pure generator functions directly and cover:
 
 ```text
-read app-server JSON schemas
-read client-request-definitions.json
-register stable schema IDs in Ajv strict mode
-compile JSON-RPC envelope, response, and ServerNotification validators
-emit ESM standalone code
-emit typed request and notification descriptors
-sort methods and output files deterministically
-support write mode and check-only mode
+real complete Rust schema bundle and request metadata load
+selected request method missing from metadata
+selected params or response schema missing
+duplicate methods and schema IDs
+root selection plus transitive #/definitions and #/$defs closure
+unresolved ref inside the selected closure fails
+invalid schema outside the selected closure does not block generation
+nullable, optional, tagged union, and additionalProperties semantics
+TypeScript AST output has no parse diagnostics
+oxfmt errors fail generation and returned code is written
+raw Ajv output is unchanged apart from the generated header
+raw JS exports, d.ts declarations, registry, and descriptors agree
+two full generations are byte-for-byte identical
+check mode detects missing, stale, and extra generated files without writing
 ```
+
+`generatedAppServerProtocol.test.ts` must import the generated public index and assert:
+
+```ts
+expect(
+  requestDescriptors["thread/projection/attach"].validateResponse(attachBaseline),
+).toBe(true);
+expect(
+  requestDescriptors["thread/projection/attach"].validateResponse({
+    ...attachBaseline,
+    snapshot: null,
+  }),
+).toBe(false);
+expect(
+  validateServerNotification({
+    method: "thread/projection/event",
+    params: eventTurnStarted,
+  }),
+).toBe(true);
+expect(
+  validateServerNotification({
+    method: "thread/projection/event",
+    params: {
+      ...eventTurnStarted,
+      event: { ...eventTurnStarted.event, type: "unknown" },
+    },
+  }),
+).toBe(false);
+```
+
+It must exercise the generated module, not an in-memory Ajv instance owned by the generator test.
+
+- [ ] **Step 5: Run the focused tests and verify RED**
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit \
+  scripts/protocolValidators/cli.test.ts \
+  scripts/protocolValidators/core.test.ts \
+  src/features/guiHost/__tests__/generatedAppServerProtocol.test.ts
+```
+
+Expected: FAIL because the new generator modules and generated public index do not exist.
+
+- [ ] **Step 6: Add esbuild as a direct development dependency**
+
+The real Ajv standalone output for the selected roots contains `require("ajv/dist/runtime/ucs2length")`. Add esbuild through pnpm instead of importing a Vite or tsx transitive dependency:
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm add -D 'esbuild@^0.28.1'
+```
+
+Do not add `ajv-formats`, `ts-morph`, Babel AST, Recast, or a template library.
+
+- [ ] **Step 7: Implement schema closure and opaque standalone generation**
+
+`core.ts` must:
+
+```text
+read codex_app_server_protocol.schemas.json
+read client-request-definitions.json
+resolve APP_SERVER_REQUEST_METHODS against ClientRequestDefinition metadata
+select JSON-RPC envelope, ServerNotification, and selected response validator roots
+walk only the transitive #/definitions and #/$defs closure
+preserve bundle reference semantics rather than splitting definitions and rewriting refs by string slicing
+register only the selected closure in Ajv strict mode
+call standaloneCode with deterministic valid identifier export names
+write standaloneValidators.raw.js as the generated header plus otherwise unchanged Ajv source
+bundle the raw module with esbuild using bundle=true, format=esm, platform=browser
+return a deterministic artifact map without writing files
+```
+
+Bundling may change module packaging only. Never use string replacement to edit Ajv validator logic or runtime helpers.
+
+- [ ] **Step 8: Generate project-owned TypeScript through the Compiler API**
+
+`typescriptArtifacts.ts` must use `ts.factory` and `ts.createPrinter()` to emit:
+
+```text
+standaloneValidators.d.ts
+validatorRegistry.ts
+requestDescriptors.ts
+notificationDescriptors.ts
+index.ts
+```
+
+Dynamic method names and schema IDs use AST string literals. Mapped types, indexed access, `Extract`, imports, exports, and `satisfies` use their corresponding TypeScript AST nodes. Do not render a complete TypeScript or declaration file with template literals.
+
+Pass every project-owned `.ts` and `.d.ts` artifact through the oxfmt `format(fileName, sourceText)` API. Fail if formatting reports errors and store only the returned code.
+
+- [ ] **Step 9: Implement atomic write and read-only check modes**
+
+`cli.ts` must only parse `--write` or `--check`, load inputs, and delegate to `core.ts`.
 
 Add exact package scripts:
 
@@ -286,37 +434,32 @@ Add exact package scripts:
 }
 ```
 
-Generated request descriptors must mechanically preserve the TypeScript association:
+Write mode must atomically replace the expected artifact set and remove stale files from the generated directory. Check mode must perform no writes and fail for missing, stale, or extra artifacts.
 
-```ts
-export type RequestDefinitionFor<M extends ClientRequestDefinition["method"]> = Extract<
-  ClientRequestDefinition,
-  { method: M }
->;
+Add `src/generated/appServerProtocol/standaloneValidators*.js` to `.oxfmtrc.json` and `.oxlintrc.json` ignore patterns. Generated TypeScript and declarations remain covered by normal format, lint, type-check, and build verification.
 
-export type RequestParams<M extends ClientRequestDefinition["method"]> =
-  RequestDefinitionFor<M>["params"];
-
-export type RequestResponse<M extends ClientRequestDefinition["method"]> =
-  RequestDefinitionFor<M>["response"];
-```
-
-No frontend-owned response map or literal method union is permitted.
-
-- [ ] **Step 6: Generate and verify artifacts**
+- [ ] **Step 10: Generate and verify the complete boundary**
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run protocol:generate-validators
-/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit scripts/protocolValidators/cli.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit \
+  scripts/protocolValidators/cli.test.ts \
+  scripts/protocolValidators/core.test.ts \
+  src/features/guiHost/__tests__/generatedAppServerProtocol.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm run protocol:check-validators
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+/opt/homebrew/bin/fnm exec --using-file pnpm run build
 ```
 
-Expected: PASS and the check command reports no drift.
+Expected: generated JavaScript is actually imported and executed by Vitest, the declarations and registry match its named exports, TypeScript passes, Vite produces a browser bundle, and check mode reports no drift.
 
-- [ ] **Step 7: Commit the generator boundary**
+- [ ] **Step 11: Run scoped frontend formatting and lint**
 
-Stage only dependency files, generator source/tests, scripts, and generated validator/descriptor files. Create:
+Run oxfmt, oxlint fix/check, and ESLint fix/check only for the authored generator, tests, configuration, and stable protocol-type source. Do not manually format or lint the opaque generated JavaScript. Inspect the resulting diff and rerun `protocol:check-validators`; do not regenerate merely to hide authored-source drift.
+
+- [ ] **Step 12: Commit the generator boundary**
+
+Stage only dependency files, generator source/tests, formatter/linter configuration, stable protocol types, and generated artifacts. Inspect the staged diff and create:
 
 ```text
 build(gui): generate standalone protocol validators
@@ -348,7 +491,7 @@ malformed projection notification remains terminal
 unmatched, duplicate, and late responses do not advance handshake
 ```
 
-Add compile-time coverage in `guiHostGeneratedProtocol.test.ts` using `expectTypeOf` so `turn/start` accepts only `TurnStartParams` and resolves only `TurnStartResponse`.
+Add compile-time coverage in `guiHostGeneratedProtocol.test.ts` using `expectTypeOf` so `turn/start` accepts only `TurnStartParams` and resolves only `TurnStartResponse`. Import descriptors and notification validators only through `src/generated/appServerProtocol/index.ts`; this test covers the public generated boundary, not Ajv internal export names.
 
 - [ ] **Step 2: Run the focused tests and verify RED**
 
@@ -377,9 +520,13 @@ function request<M extends ClientRequestDefinition["method"]>(
 
 Each pending entry stores the descriptor and uses its result validator. Remove `result as TResponse` and reject missing or invalid result according to the request category.
 
+The descriptor validator type must come from the generated declaration and typed registry. Do not restore the association at the call site with `as ValidateFunction<T>` or a frontend-owned response map.
+
 - [ ] **Step 4: Replace handwritten notification validation**
 
 Keep only transport-level JSON parsing and generic error-envelope handling in `guiHostProtocol.ts`. Delete the attach/event/delta/closed field-list validators. Validate notifications with the generated validator, then route the generated discriminated union exhaustively.
+
+Notification routing must consume the Rust-generated `ServerNotification` discriminated union. Do not derive or maintain a second method table from schema AST in transport code.
 
 Do not change `/ws`, launch keys, or `gui/authenticate` in this task.
 
@@ -393,9 +540,10 @@ Do not change `/ws`, launch keys, or `gui/authenticate` in this task.
   src/features/guiHost/__tests__/guiHostHandshake.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm run protocol:check-validators
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+/opt/homebrew/bin/fnm exec --using-file pnpm run build
 ```
 
-Expected: PASS.
+Expected: PASS. The production build must traverse the real generated JavaScript import path so Ajv runtime helper packaging is verified at the consumer boundary.
 
 - [ ] **Step 6: Commit the transport migration**
 
@@ -427,11 +575,15 @@ refactor(gui): consume generated app-server contracts
 - Generate: `codex-rs/gui-host/schema/json/GuiAuthenticateResult.json`
 - Modify: `codex-gui/tsconfig.app.json`
 - Modify: `codex-gui/vite.config.ts`
-- Modify if required: `codex-gui/vitest.config.ts`
-- Modify if required: `codex-gui/vitest.browser.config.ts`
 - Modify: `codex-gui/scripts/protocolValidators/cli.ts`
-- Modify: `codex-gui/scripts/protocolValidators/cli.test.ts`
-- Generate: `codex-gui/src/generated/guiHostContract/**`
+- Modify: `codex-gui/scripts/protocolValidators/core.ts`
+- Modify: `codex-gui/scripts/protocolValidators/typescriptArtifacts.ts`
+- Modify: `codex-gui/scripts/protocolValidators/core.test.ts`
+- Generate: `codex-gui/src/generated/guiHostContract/standaloneValidators.raw.js`
+- Generate: `codex-gui/src/generated/guiHostContract/standaloneValidators.js`
+- Generate: `codex-gui/src/generated/guiHostContract/standaloneValidators.d.ts`
+- Generate: `codex-gui/src/generated/guiHostContract/validatorRegistry.ts`
+- Generate: `codex-gui/src/generated/guiHostContract/index.ts`
 - Modify: `codex-gui/src/features/browserLaunch/browserLaunchParams.ts`
 - Modify: `codex-gui/src/features/qrAccess/qrAccessUrl.ts`
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.ts`
@@ -511,7 +663,11 @@ Expected: PASS.
 
 Use the same `@codex-gui-host-contract` alias in TypeScript, Vite, unit-test, and Browser Mode resolution. Extend the existing Ajv generator; do not add a second validator pipeline.
 
+Add GUI Host schemas as a second source group using the same root-selection, reference-closure, opaque standalone, esbuild, declaration, AST, formatting, atomic-write, and check-mode implementation established in Task 3. Do not add render functions or a second source-code generation mechanism.
+
 Add a failing frontend test showing that an authenticate result missing `authenticated` or containing the wrong type is rejected through the existing handshake protocol-error path. Run it and confirm RED before changing production consumers.
+
+The test must import and execute the generated GUI Host validator through its public generated index. Extra-field behavior must match the Rust serde and generated schema contract.
 
 - [ ] **Step 7: Migrate all production consumers atomically**
 
@@ -531,15 +687,17 @@ Use generated keys, path, method, types, and authenticate validator. Keep the br
 cd /Users/jiangsheng/cnb/codex/codex-gui
 /opt/homebrew/bin/fnm exec --using-file pnpm run protocol:generate-validators
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:unit \
+  scripts/protocolValidators/core.test.ts \
   src/features/browserLaunch/__tests__/browserLaunchParams.test.ts \
   src/features/qrAccess/__tests__/qrAccessUrl.test.ts \
   src/features/guiHost/__tests__/guiHostHandshake.test.ts \
   src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm run protocol:check-validators
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+/opt/homebrew/bin/fnm exec --using-file pnpm run build
 ```
 
-Expected: PASS.
+Expected: PASS. The generated authenticate validator is imported at runtime and the same generator pipeline remains responsible for both contract source groups.
 
 - [ ] **Step 9: Check literal ownership**
 
@@ -645,6 +803,9 @@ refactor(gui): enforce projection exhaustiveness and consolidate fixtures
 
 ```bash
 cd /Users/jiangsheng/cnb/codex
+cd codex-gui
+/opt/homebrew/bin/fnm exec --using-file pnpm run protocol:check-validators
+cd ..
 just write-app-server-schema
 just write-gui-host-browser-contract
 cd codex-gui
@@ -657,7 +818,7 @@ git diff --exit-code -- \
   codex-gui/src/generated
 ```
 
-Expected: no generated diff.
+Expected: the initial check is read-only, regeneration produces no generated diff, and the artifact set contains no missing, stale, or extra opaque JavaScript, declarations, AST TypeScript, or mechanically bundled files.
 
 - [ ] **Step 2: Run focused Rust tests**
 
@@ -678,6 +839,11 @@ Expected: PASS. Do not replace these with crate-wide `just test -p ...` commands
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
 /opt/homebrew/bin/fnm exec --using-file pnpm run ci
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit \
+  scripts/protocolValidators/cli.test.ts \
+  scripts/protocolValidators/core.test.ts \
+  src/features/guiHost/__tests__/generatedAppServerProtocol.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run build
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest \
   --config=vitest.browser.config.ts \
   --run src/__tests__/App.browser.test.tsx
@@ -698,7 +864,12 @@ Confirm:
 
 ```text
 Ajv v8 is a direct codex-gui dependency
+esbuild is a direct codex-gui devDependency and is used only to bundle Ajv module format
 no Zod/TypeBox/Valibot/ArkType dependency was added
+Ajv standalone output is isolated from project-owned TypeScript
+all project-owned generated TypeScript and declarations use TypeScript AST plus oxfmt
+only selected validator roots and their schema reference closure are compiled
+standalone JavaScript named exports match declarations and typed registries
 no app-server v2 method was added
 no UI or unrelated Redux behavior changed
 no unplanned docs/research files were created
@@ -743,7 +914,11 @@ docs(gui): close authoritative contract drift
 ## Plan completion criteria
 
 - Rust request definitions mechanically export method/params/response associations.
-- Ajv v8 standalone validators are generated from Rust JSON Schema and pass drift checks.
+- Ajv v8 standalone validators are generated from Rust JSON Schema as isolated opaque JavaScript and pass drift checks.
+- Ajv module-format bundling is mechanical, browser-compatible, and does not rewrite validator semantics.
+- Project-owned declarations, registries, and descriptors are generated through the TypeScript Compiler AST and oxfmt rather than complete-file string templates.
+- Only GUI validator roots and their transitive schema reference closure are compiled.
+- Generated JavaScript is imported by Vitest, its exports match declarations and registries, and Vite production build passes.
 - GUI request correlation validates response results through generated descriptors.
 - Handwritten projection contract validators, free response generics, result assertions, and the empty-object fallback are removed.
 - Rust GUI Host launch/auth/route values have one owner and generated frontend artifacts.

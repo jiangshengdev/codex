@@ -33,7 +33,9 @@ Rust GUI Host 的 launch URL、WebSocket route 与 `gui/authenticate` 是 app-se
 
 前端引入 Ajv v8 作为直接依赖。Ajv 只编译 Rust 生成的 JSON Schema，不承载静态类型权威。
 
-为避免浏览器启动时动态调用 `compile()`、增加 CSP 风险或把完整 schema compiler 带入运行路径，validator 在生成阶段通过 Ajv standalone code generation 产出稳定的 TypeScript/JavaScript 模块。浏览器运行时直接调用已生成 validator。
+为避免浏览器启动时动态调用 `compile()`、增加 CSP 风险或把完整 schema compiler 带入运行路径，validator 在生成阶段通过 Ajv standalone code generation 产出稳定的 JavaScript 模块。浏览器运行时直接调用已生成 validator。
+
+Ajv `standaloneCode()` 返回的源码字符串视为不透明生成物，除统一 generated header 外必须独立原样写入，不得解析、改写或与项目自有 TypeScript 模板拼接。项目自有的类型声明、validator registry、request/notification descriptor 与 index 使用现有 TypeScript Compiler API 构造 AST，并通过 TypeScript printer 与 oxfmt 输出；不新增 `ts-morph`、Babel AST、Recast 或模板生成依赖。不包含动态契约数据的泛型基础类型优先作为正常源码维护，不为 generated 比例而生成。
 
 Ajv 生成物可能引用 `ajv/dist/runtime/*` helper，因此 Ajv 必须作为 `codex-gui` 的显式 production dependency，不能依赖 ESLint 等工具链的传递版本，也不能默认只放入 `devDependencies`。只有实际 schema 使用需要额外 format 实现时才引入 `ajv-formats`；本设计不预先增加该依赖。
 
@@ -48,7 +50,10 @@ Rust protocol types
                     Ajv standalone codegen
                            |
                            v
-                 generated runtime validators
+                 opaque validator JavaScript
+                           |
+                           v
+               declarations + typed registry
 
 generated method definitions
   + TypeScript types
@@ -82,6 +87,8 @@ generated request/notification descriptors
 
 `codex-gui` 增加独立 protocol-validator generator。它读取 vendored Rust JSON Schema 和 request-definition artifact，稳定生成：
 
+- 独立的 Ajv standalone validator JavaScript；
+- validator named exports 类型声明与 typed registry；
 - JSON-RPC envelope validator；
 - app-server response result validators；
 - `ServerNotification` validator 或机械拆分后的 notification validators；
@@ -94,10 +101,15 @@ generated request/notification descriptors
 - 输入 schema 缺失时失败；
 - method 重复或 response mapping 不完整时失败；
 - `$ref`、`$defs`、nullable、optional、tagged union 与 `additionalProperties` 按 Rust schema 语义编译；
+- 只编译 GUI 实际导出的 validator 及其 schema 引用闭包，不因无关 schema 新增而产生漂移或失败；
+- Ajv 源码除统一 generated header 外原样独立输出，项目自有 TypeScript 只通过 AST 生成，不手写或拼接完整源码文件；
 - schema 和输出排序稳定；
 - 连续运行两次 byte-for-byte 一致；
 - 提供 write 模式与只比较、不写文件的 check 模式；
+- generated JavaScript、声明和 TypeScript 文件均可解析，named exports 与声明一致，并通过 type-check、Vitest import 和 production build；
 - 输出带 generated header，不接受手工修改。
+
+Ajv 的 ESM export 选项不保证 runtime helper 也是原生 ESM。若真实生成物包含浏览器不能直接消费的 CommonJS helper，必须由验证先证明，再在生成阶段增加机械 bundling；优先使用显式直接依赖的 `esbuild`，不得通过字符串替换改写 Ajv 输出。该 bundling 层只改变模块封装，不改变 validator 或契约语义。
 
 生成器本身属于 frontend build tooling，不在浏览器消息热路径执行。
 
@@ -218,7 +230,7 @@ fixture 收敛不与 transport 重构绑定为同一提交，也不得扩大为�
 
 - `codex-rs/app-server-protocol/schema/**`：app-server TypeScript、JSON Schema 与 request-definition metadata；
 - `codex-rs/gui-host/schema/**`：GUI Host 私有 browser contract TypeScript 与 JSON Schema；
-- `codex-gui/src/generated/**`：Ajv standalone validators 与 typed descriptors。
+- `codex-gui/src/generated/**`：独立 Ajv validator JavaScript、对应声明、AST 生成的 typed registry 与 descriptors。
 
 具体文件名在计划阶段锁定，但所有生成物必须：
 
@@ -237,6 +249,7 @@ Vite、TypeScript 与 Vitest 对 Rust vendored artifact 的 alias 必须保持�
 - attach validation 会完整遍历 snapshot，但只发生在 attach/reattach；live event 和 delta payload 有严格的小体积上界。
 - 不在 render、selector 或 transcript chunk hot path 执行 validation。
 - Ajv compilation 只在生成阶段执行，浏览器运行时不使用 `new Function`。
+- Ajv 原始生成模块若需要 bundling，只在生成阶段机械转换模块封装，不能重写 validator 逻辑。
 - generated standalone validator 的 bundle 成本需要在 implementation verification 中检查；若全量 `ServerNotification` validator 过大，只允许机械拆分，不允许恢复手写子集。
 - launch token、origin/host validation 与 WebSocket authentication security policy保持不变。
 
@@ -277,6 +290,10 @@ Rust 验证使用定向 test filter。未经额外授权不运行 crate-wide 或
 - 合法 attach/event/delta/closed、command response 和 authenticate result 通过；
 - 缺字段、错误类型、unknown discriminant、缺 schema 与重复 method 失败；
 - `$ref`/`$defs` 与 optional/nullable 语义正确；
+- 真实完整 Rust bundle 能生成所需 validator 及其引用闭包；
+- generated JavaScript 与 TypeScript 均可解析，validator exports 与声明一致；
+- Vitest 能实际 import 并执行 validator，Vite production build 能消费最终模块；
+- typed registry 与 request/notification generated union 保持穷尽关联；
 - 两次生成 byte-for-byte 一致；
 - check 模式能检测手改或过期 artifact；
 - production build 不在浏览器运行时编译 schema。
