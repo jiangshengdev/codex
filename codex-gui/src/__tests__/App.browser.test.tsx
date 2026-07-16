@@ -29,9 +29,11 @@ import {
 import {
   agentMessageDelta,
   agentMessage,
+  attachWithHeadCommitId,
   attachWithThreadId,
   attachWithTurns,
   baseTurn,
+  eventWithEnvelope,
   inProgressTurn,
   itemCompleted,
   itemStarted,
@@ -53,7 +55,6 @@ import {
   selectThreadRuntimeSubscription,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
-import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -307,10 +308,10 @@ test("App batches accepted projection deltas until the next animation frame", as
       "commit-raf-batch-turn",
       inProgressTurn("turn-raf-batch"),
     );
-    const itemStartedEvent = {
-      ...itemStarted(eventItemStarted, "commit-raf-batch-started", "turn-raf-batch", initialItem),
-      parentCommitId: turnStartedEvent.commitId,
-    };
+    const itemStartedEvent = eventWithEnvelope(
+      itemStarted(eventItemStarted, "commit-raf-batch-started", "turn-raf-batch", initialItem),
+      { parentCommitId: turnStartedEvent.commitId },
+    );
     emitProjectionEvent(options, turnStartedEvent);
     emitProjectionEvent(options, itemStartedEvent);
 
@@ -368,24 +369,24 @@ test("App flushes pending projection deltas before structural projection events"
       "commit-raf-flush-event-turn",
       inProgressTurn("turn-raf-flush-event"),
     );
-    const itemStartedEvent = {
-      ...itemStarted(
+    const itemStartedEvent = eventWithEnvelope(
+      itemStarted(
         eventItemStarted,
         "commit-raf-flush-event-started",
         "turn-raf-flush-event",
         initialItem,
       ),
-      parentCommitId: turnStartedEvent.commitId,
-    };
-    const itemCompletedEvent = {
-      ...itemCompleted(
+      { parentCommitId: turnStartedEvent.commitId },
+    );
+    const itemCompletedEvent = eventWithEnvelope(
+      itemCompleted(
         eventItemCompleted,
         "commit-raf-flush-event-completed",
         "turn-raf-flush-event",
         agentMessage("agent-raf-flush-event", "Completed answer"),
       ),
-      parentCommitId: itemStartedEvent.commitId,
-    };
+      { parentCommitId: itemStartedEvent.commitId },
+    );
     emitProjectionEvent(options, turnStartedEvent);
     emitProjectionEvent(options, itemStartedEvent);
 
@@ -427,13 +428,10 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
   const snapshotAheadAttach = attachWithTurns(attachResponse, [
     eventTurnStarted.event.notification.turn,
   ]);
-  const snapshotAheadWithOldHead: ThreadProjectionAttachResponse = {
-    ...snapshotAheadAttach,
-    snapshot: {
-      ...snapshotAheadAttach.snapshot,
-      headCommitId: eventTurnStarted.parentCommitId,
-    },
-  };
+  const snapshotAheadWithOldHead = attachWithHeadCommitId(
+    snapshotAheadAttach,
+    eventTurnStarted.parentCommitId,
+  );
 
   const options = getHostOptions(startGuiHostConnectionMock);
   attachProjection(options, snapshotAheadWithOldHead);
@@ -460,10 +458,10 @@ test("App replaces the replay baseline after an accepted replacement attach", as
   const replacementTurn = eventSubscriptionReplacement.event.notification.turn;
   const oldAttach = attachWithTurns(attachResponse, [oldOnlyTurn]);
   const replacementAttach = attachWithTurns(attachReplacement, [replacementTurn]);
-  const oldOnlyEvent = {
-    ...turnStarted(eventSubscriptionReplacement, "commit-old-baseline-only", oldOnlyTurn),
-    parentCommitId: replacementAttach.snapshot.headCommitId,
-  };
+  const oldOnlyEvent = eventWithEnvelope(
+    turnStarted(eventSubscriptionReplacement, "commit-old-baseline-only", oldOnlyTurn),
+    { parentCommitId: replacementAttach.snapshot.headCommitId },
+  );
   const options = getHostOptions(startGuiHostConnectionMock);
 
   attachProjection(options, oldAttach);
@@ -499,10 +497,10 @@ test("App classifies from the new snapshot after new launch params and attach", 
   const replacementTurn = eventSubscriptionReplacement.event.notification.turn;
   const oldAttach = attachWithTurns(attachResponse, [oldOnlyTurn]);
   const replacementAttach = attachWithTurns(attachReplacement, [replacementTurn]);
-  const oldOnlyEvent = {
-    ...turnStarted(eventSubscriptionReplacement, "commit-old-launch-baseline", oldOnlyTurn),
-    parentCommitId: replacementAttach.snapshot.headCommitId,
-  };
+  const oldOnlyEvent = eventWithEnvelope(
+    turnStarted(eventSubscriptionReplacement, "commit-old-launch-baseline", oldOnlyTurn),
+    { parentCommitId: replacementAttach.snapshot.headCommitId },
+  );
   const options = getHostOptions(startGuiHostConnectionMock);
 
   attachProjection(options, oldAttach);
@@ -643,17 +641,22 @@ test("App keeps the document pinned to the bottom after a live committed message
   scrollToDocumentBottom();
   await waitForBrowserFrame();
 
-  emitProjectionEvent(options, {
-    ...itemCompleted(
-      eventItemCompleted,
-      "commit-scroll-live-new",
-      "turn-scroll-live",
-      agentMessage("agent-scroll-live-new", "Live sticky bottom message"),
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "commit-scroll-live-new",
+        "turn-scroll-live",
+        agentMessage("agent-scroll-live-new", "Live sticky bottom message"),
+      ),
+      {
+        // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
+        // sticky-bottom behavior rather than the commit-chain mismatch path.
+        parentCommitId: null,
+      },
     ),
-    // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
-    // sticky-bottom behavior rather than the commit-chain mismatch path.
-    parentCommitId: null,
-  });
+  );
 
   await expect.element(screen.getByText("Live sticky bottom message")).toBeVisible();
   await vi.waitFor(expectDocumentAtBottom);
@@ -682,17 +685,22 @@ test("App does not force the document to the bottom after a live message when th
   const scrollTopBeforeMessage = scroller.scrollTop;
   expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
 
-  emitProjectionEvent(options, {
-    ...itemCompleted(
-      eventItemCompleted,
-      "commit-scroll-away-new",
-      "turn-scroll-away",
-      agentMessage("agent-scroll-away-new", "Message while reading history"),
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      itemCompleted(
+        eventItemCompleted,
+        "commit-scroll-away-new",
+        "turn-scroll-away",
+        agentMessage("agent-scroll-away-new", "Message while reading history"),
+      ),
+      {
+        // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
+        // sticky-bottom behavior rather than the commit-chain mismatch path.
+        parentCommitId: null,
+      },
     ),
-    // attachResponse.snapshot.headCommitId is null, so override the fixture parent to test
-    // sticky-bottom behavior rather than the commit-chain mismatch path.
-    parentCommitId: null,
-  });
+  );
 
   await expect.element(screen.getByText("Message while reading history")).toBeVisible();
   await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeMessage + 4);
@@ -720,20 +728,17 @@ test("App keeps the document pinned to the bottom after a live assistant delta",
     "commit-scroll-live-delta-turn",
     inProgressTurn("turn-scroll-live-delta"),
   );
-  const itemStartedEvent = {
-    ...itemStarted(
+  const itemStartedEvent = eventWithEnvelope(
+    itemStarted(
       eventItemStarted,
       "commit-scroll-live-delta-started",
       "turn-scroll-live-delta",
       agentMessage("agent-scroll-live-delta", ""),
     ),
-    parentCommitId: turnStartedEvent.commitId,
-  };
+    { parentCommitId: turnStartedEvent.commitId },
+  );
 
-  emitProjectionEvent(options, {
-    ...turnStartedEvent,
-    parentCommitId: null,
-  });
+  emitProjectionEvent(options, eventWithEnvelope(turnStartedEvent, { parentCommitId: null }));
   emitProjectionEvent(options, itemStartedEvent);
   scrollToDocumentBottom();
   await waitForBrowserFrame();
@@ -783,20 +788,17 @@ test("App does not force the document to the bottom after a live assistant delta
     "commit-scroll-live-delta-away-turn",
     inProgressTurn("turn-scroll-live-delta-away"),
   );
-  const itemStartedEvent = {
-    ...itemStarted(
+  const itemStartedEvent = eventWithEnvelope(
+    itemStarted(
       eventItemStarted,
       "commit-scroll-live-delta-away-started",
       "turn-scroll-live-delta-away",
       agentMessage("agent-scroll-live-delta-away", ""),
     ),
-    parentCommitId: turnStartedEvent.commitId,
-  };
+    { parentCommitId: turnStartedEvent.commitId },
+  );
 
-  emitProjectionEvent(options, {
-    ...turnStartedEvent,
-    parentCommitId: null,
-  });
+  emitProjectionEvent(options, eventWithEnvelope(turnStartedEvent, { parentCommitId: null }));
   emitProjectionEvent(options, itemStartedEvent);
   scrollToDocumentBottom();
   await waitForBrowserFrame();
@@ -831,13 +833,10 @@ test("App keeps the accepted replay baseline after a mismatched attach", async (
 
   const mismatchedThreadId = "00000000-0000-0000-0000-000000000999";
   const validAttach = attachWithTurns(attachResponse, [eventTurnStarted.event.notification.turn]);
-  const validAttachWithOldHead: ThreadProjectionAttachResponse = {
-    ...validAttach,
-    snapshot: {
-      ...validAttach.snapshot,
-      headCommitId: eventTurnStarted.parentCommitId,
-    },
-  };
+  const validAttachWithOldHead = attachWithHeadCommitId(
+    validAttach,
+    eventTurnStarted.parentCommitId,
+  );
   const mismatchedAttach = attachWithThreadId(attachResponse, mismatchedThreadId);
 
   const options = getHostOptions(startGuiHostConnectionMock);
@@ -941,15 +940,10 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
       "commit-raf-cleanup-turn",
       inProgressTurn("turn-raf-cleanup"),
     );
-    const itemStartedEvent = {
-      ...itemStarted(
-        eventItemStarted,
-        "commit-raf-cleanup-started",
-        "turn-raf-cleanup",
-        initialItem,
-      ),
-      parentCommitId: turnStartedEvent.commitId,
-    };
+    const itemStartedEvent = eventWithEnvelope(
+      itemStarted(eventItemStarted, "commit-raf-cleanup-started", "turn-raf-cleanup", initialItem),
+      { parentCommitId: turnStartedEvent.commitId },
+    );
     emitProjectionEvent(options, turnStartedEvent);
     emitProjectionEvent(options, itemStartedEvent);
     emitProjectionDelta(

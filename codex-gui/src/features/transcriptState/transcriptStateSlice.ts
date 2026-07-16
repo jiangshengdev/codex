@@ -131,6 +131,7 @@ export const transcriptStateSlice = createAppSlice({
             return;
           }
         }
+        notification.event satisfies never;
       })
       .addCase(threadRuntimeDeltasAccepted, (state, action) => {
         applyAcceptedProjectionDeltaBatch(state, action.payload.notifications);

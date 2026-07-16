@@ -7,7 +7,10 @@ import {
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithTurns,
+  baseTurn,
   runtimeFromAttach,
+  turnWithItems,
+  turnWithStatus,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
@@ -92,17 +95,19 @@ describe("snapshot replay", () => {
 
   it("expands multiple snapshot turns in snapshot order", () => {
     const firstTurn = fixtureTurn(attachBaseline.snapshot.thread.turns[0], "first");
-    const secondTurn: Turn = {
-      ...firstTurn,
-      id: "second-turn",
-      items: [
+    const secondTurn = turnWithItems(
+      {
+        ...firstTurn,
+        id: "second-turn",
+        startedAt: 1700000010,
+        completedAt: 1700000016,
+        durationMs: 6000,
+      },
+      [
         { type: "plan", id: "second-plan", text: "Second replayed item" },
         { type: "plan", id: "third-plan", text: "Third replayed item" },
       ],
-      startedAt: 1700000010,
-      completedAt: 1700000016,
-      durationMs: 6000,
-    };
+    );
     const firstItem = fixtureItem(firstTurn.items[0], "first turn");
     const secondFirstItem = fixtureItem(secondTurn.items[0], "second turn first");
     const secondSecondItem = fixtureItem(secondTurn.items[1], "second turn second");
@@ -165,13 +170,10 @@ describe("snapshot replay", () => {
       throw new Error("fixture must contain an itemStarted projection event");
     }
 
-    const inProgressTurn: Turn = {
-      ...eventTurnStarted.event.notification.turn,
-      items: [
-        { type: "plan", id: "first-plan", text: "First replayed item" },
-        eventItemStarted.event.notification.item,
-      ],
-    };
+    const inProgressTurn = turnWithItems(eventTurnStarted.event.notification.turn, [
+      { type: "plan", id: "first-plan", text: "First replayed item" },
+      eventItemStarted.event.notification.item,
+    ]);
     const firstItem = fixtureItem(inProgressTurn.items[0], "in-progress first");
     const secondItem = fixtureItem(inProgressTurn.items[1], "in-progress second");
     const runtime = runtimeFromAttach(attachWithTurns(attachBaseline, [inProgressTurn]));
@@ -199,6 +201,35 @@ describe("snapshot replay", () => {
       },
     ] satisfies SnapshotReplayMaterial[]);
   });
+
+  it.each([
+    ["inProgress", false],
+    ["completed", true],
+    ["interrupted", true],
+    ["failed", true],
+  ] satisfies readonly (readonly [Turn["status"], boolean])[])(
+    "classifies %s turns as terminal: %s",
+    (status, expectedTerminal) => {
+      const turn = turnWithStatus(baseTurn("status-turn"), status);
+      const runtime = runtimeFromAttach(attachWithTurns(attachBaseline, [turn]));
+      const completedMaterials = buildSnapshotReplayMaterials(runtime).filter(
+        (material) => material.type === "turnCompleted",
+      );
+
+      expect(completedMaterials).toStrictEqual(
+        expectedTerminal
+          ? [
+              {
+                type: "turnCompleted",
+                source: "snapshotReplay",
+                threadId: attachBaseline.snapshot.thread.id,
+                turn: turnWithoutItems(turn),
+              },
+            ]
+          : [],
+      );
+    },
+  );
 
   it("selects replay material from thread runtime state without consuming event buffer", () => {
     const store = makeStore();

@@ -1,6 +1,7 @@
 import type {
   ThreadItem,
   ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   Turn,
@@ -70,6 +71,21 @@ export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   durationMs: null,
 });
 
+export const turnWithItems = (turn: Turn, items: ThreadItem[]): Turn => ({
+  ...turn,
+  items,
+});
+
+export const turnWithId = (turn: Turn, id: string): Turn => ({
+  ...turn,
+  id,
+});
+
+export const turnWithStatus = (turn: Turn, status: Turn["status"]): Turn => ({
+  ...turn,
+  status,
+});
+
 export const attachWithTurns = (
   attachBaseline: ThreadProjectionAttachResponse,
   turns: Turn[],
@@ -107,6 +123,47 @@ export const attachWithThreadId = (
       id: threadId,
     },
   },
+});
+
+type EventEnvelopeOverrides = {
+  threadId?: ThreadProjectionEventNotification["threadId"];
+  subscriptionId?: ThreadProjectionEventNotification["subscriptionId"];
+  commitId?: ThreadProjectionEventNotification["commitId"];
+  parentCommitId?: ThreadProjectionEventNotification["parentCommitId"];
+};
+
+export const eventWithEnvelope = (
+  event: ThreadProjectionEventNotification,
+  overrides: EventEnvelopeOverrides,
+): ThreadProjectionEventNotification => ({
+  ...event,
+  ...overrides,
+});
+
+type DeltaEnvelopeOverrides = {
+  threadId?: ThreadProjectionDeltaNotification["threadId"];
+  subscriptionId?: ThreadProjectionDeltaNotification["subscriptionId"];
+};
+
+export const deltaWithEnvelope = (
+  delta: ThreadProjectionDeltaNotification,
+  overrides: DeltaEnvelopeOverrides,
+): ThreadProjectionDeltaNotification => ({
+  ...delta,
+  ...overrides,
+});
+
+type ClosedEnvelopeOverrides = {
+  threadId?: ThreadProjectionClosedNotification["threadId"];
+  subscriptionId?: ThreadProjectionClosedNotification["subscriptionId"];
+};
+
+export const closedWithEnvelope = (
+  closed: ThreadProjectionClosedNotification,
+  overrides: ClosedEnvelopeOverrides,
+): ThreadProjectionClosedNotification => ({
+  ...closed,
+  ...overrides,
 });
 
 export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
