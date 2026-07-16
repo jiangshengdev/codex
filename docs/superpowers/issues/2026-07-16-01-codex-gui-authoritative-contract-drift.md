@@ -113,6 +113,7 @@ Rust 修改这些字段、路径或消息结构时，前端不会在编译阶段
 - `59a63e896`: 收敛 downstream exhaustiveness 与合法 projection fixtures。
 - 支持依赖提交：`cbcb5a891`（Ajv v8）、`480643e08`（esbuild）。
 - CI ignore 修正：`022fb8a48`，仅排除不透明 generated standalone validator JavaScript 的格式化与 lint。
+- 终审修正：`9463c358d`（generated JSON-RPC envelope validation）、`c0b9f2048`（CI generated drift gate）、`ced547dff`（fixture writer restore failures）。
 
 修复后的权威链路为 Rust types/macros → ts-rs 与 schemars artifacts → 同一 frontend generator 的 Ajv standalone validators、declarations、typed registries/descriptors → GUI consumers。GUI Host 私有契约由 `codex-rs/gui-host` 独立拥有，不污染 app-server protocol。
 
@@ -120,12 +121,15 @@ Rust 修改这些字段、路径或消息结构时，前端不会在编译阶段
 
 - Rust 6 个 focused tests 全部通过；authenticate parser 的实际测试 filter 为 `parses_valid_authenticate_request`。
 - app-server protocol schema、GUI Host browser contract schema、frontend generated validators 三棵 generated tree 重生成后无 diff。
-- frontend `ci` 通过：29 个 test files、240 个 tests。
+- frontend `ci` 通过：29 个 test files、243 个 tests。
 - generator focused verification 通过：35 个 tests。
+- generated JSON-RPC envelope validator 覆盖 3 个 invalid envelope cases。
+- Rust fixture writer restore failure 覆盖 2 个 tests。
 - production build 通过：1265 modules；app-server 与 GUI Host 两组 standalone validator 均进入实际 bundle。
 - Browser Mode 通过：Chromium、Firefox、WebKit 3 个实例，共 87 个 tests。
 - 最终 `just fix` 覆盖两个变更 crate，随后 `just fmt`，均未产生额外 diff。
 - `bazel mod deps --lockfile_mode=error` 通过，`MODULE.bazel.lock` 无漂移。
+- 最终代码复审未发现 Critical 或 Important 问题。
 
 ## 影响
 

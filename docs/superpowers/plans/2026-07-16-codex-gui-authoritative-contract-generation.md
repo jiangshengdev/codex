@@ -40,6 +40,12 @@
 6. `refactor(gui): enforce projection exhaustiveness and consolidate fixtures`
 7. `docs(gui): close authoritative contract drift`
 
+Final review follow-up commits:
+
+- `9463c358d` — validate generated JSON-RPC envelopes and export their TypeScript types.
+- `c0b9f2048` — run generated protocol validator drift checks in GUI CI.
+- `ced547dff` — cover GUI Host browser-contract atomic restore failures.
+
 ## Task 1: Lock existing public behavior before ownership changes
 
 **Files:**
@@ -240,7 +246,7 @@ feat(app-server-protocol): export request response definitions
 - Generate: `codex-gui/src/generated/appServerProtocol/notificationDescriptors.ts`
 - Generate: `codex-gui/src/generated/appServerProtocol/index.ts`
 
-- [ ] **Step 1: Remove the aborted Task 3 implementation without touching the updated design**
+- [x] **Step 1: Remove the aborted Task 3 implementation without touching the updated design**
 
 First inspect the exact paths:
 
@@ -273,7 +279,7 @@ git clean -f -- \
 
 Do not run directory-wide or repository-wide `git clean`.
 
-- [ ] **Step 2: Verify the user-managed package manager and existing dependencies**
+- [x] **Step 2: Verify the user-managed package manager and existing dependencies**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
@@ -283,7 +289,7 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 
 Expected: pnpm resolves through the user's fnm environment, not `/Users/jiangsheng/.cache/codex-runtimes/`. Confirm that `ajv` remains a direct production dependency and that `typescript` and `oxfmt` remain direct development dependencies. Do not add Ajv again.
 
-- [ ] **Step 3: Add the stable authored protocol types and consumer root selection**
+- [x] **Step 3: Add the stable authored protocol types and consumer root selection**
 
 Create `src/features/guiHost/appServerProtocol.ts` as normal source, not generated source:
 
@@ -292,9 +298,10 @@ import type { ClientRequestDefinition } from "@codex-protocol/ClientRequestDefin
 
 export type ProtocolValidator<T> = (value: unknown) => value is T;
 
-export type RequestDefinitionFor<
-  M extends ClientRequestDefinition["method"],
-> = Extract<ClientRequestDefinition, { method: M }>;
+export type RequestDefinitionFor<M extends ClientRequestDefinition["method"]> = Extract<
+  ClientRequestDefinition,
+  { method: M }
+>;
 
 export type RequestParams<M extends ClientRequestDefinition["method"]> =
   RequestDefinitionFor<M>["params"];
@@ -312,7 +319,7 @@ export const APP_SERVER_REQUEST_METHODS = [
 
 This list is the GUI consumer root selection. It must not contain params, responses, schema IDs, or a second response map.
 
-- [ ] **Step 4: Write failing generator and generated-runtime tests**
+- [x] **Step 4: Write failing generator and generated-runtime tests**
 
 `core.test.ts` must call pure generator functions directly and cover:
 
@@ -336,9 +343,7 @@ check mode detects missing, stale, and extra generated files without writing
 `generatedAppServerProtocol.test.ts` must import the generated public index and assert:
 
 ```ts
-expect(
-  requestDescriptors["thread/projection/attach"].validateResponse(attachBaseline),
-).toBe(true);
+expect(requestDescriptors["thread/projection/attach"].validateResponse(attachBaseline)).toBe(true);
 expect(
   requestDescriptors["thread/projection/attach"].validateResponse({
     ...attachBaseline,
@@ -364,7 +369,7 @@ expect(
 
 It must exercise the generated module, not an in-memory Ajv instance owned by the generator test.
 
-- [ ] **Step 5: Run the focused tests and verify RED**
+- [x] **Step 5: Run the focused tests and verify RED**
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:unit \
@@ -375,7 +380,7 @@ It must exercise the generated module, not an in-memory Ajv instance owned by th
 
 Expected: FAIL because the new generator modules and generated public index do not exist.
 
-- [ ] **Step 6: Add esbuild as a direct development dependency**
+- [x] **Step 6: Add esbuild as a direct development dependency**
 
 The real Ajv standalone output for the selected roots contains `require("ajv/dist/runtime/ucs2length")`. Add esbuild through pnpm instead of importing a Vite or tsx transitive dependency:
 
@@ -385,7 +390,7 @@ The real Ajv standalone output for the selected roots contains `require("ajv/dis
 
 Do not add `ajv-formats`, `ts-morph`, Babel AST, Recast, or a template library.
 
-- [ ] **Step 7: Implement schema closure and opaque standalone generation**
+- [x] **Step 7: Implement schema closure and opaque standalone generation**
 
 `core.ts` must:
 
@@ -405,7 +410,7 @@ return a deterministic artifact map without writing files
 
 Bundling may change module packaging only. Never use string replacement to edit Ajv validator logic or runtime helpers.
 
-- [ ] **Step 8: Generate project-owned TypeScript through the Compiler API**
+- [x] **Step 8: Generate project-owned TypeScript through the Compiler API**
 
 `typescriptArtifacts.ts` must use `ts.factory` and `ts.createPrinter()` to emit:
 
@@ -421,7 +426,7 @@ Dynamic method names and schema IDs use AST string literals. Mapped types, index
 
 Pass every project-owned `.ts` and `.d.ts` artifact through the oxfmt `format(fileName, sourceText)` API. Fail if formatting reports errors and store only the returned code.
 
-- [ ] **Step 9: Implement atomic write and read-only check modes**
+- [x] **Step 9: Implement atomic write and read-only check modes**
 
 `cli.ts` must only parse `--write` or `--check`, load inputs, and delegate to `core.ts`.
 
@@ -438,7 +443,7 @@ Write mode must atomically replace the expected artifact set and remove stale fi
 
 Add `src/generated/appServerProtocol/standaloneValidators*.js` to `.oxfmtrc.json` and `.oxlintrc.json` ignore patterns. Generated TypeScript and declarations remain covered by normal format, lint, type-check, and build verification.
 
-- [ ] **Step 10: Generate and verify the complete boundary**
+- [x] **Step 10: Generate and verify the complete boundary**
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run protocol:generate-validators
@@ -453,11 +458,11 @@ Add `src/generated/appServerProtocol/standaloneValidators*.js` to `.oxfmtrc.json
 
 Expected: generated JavaScript is actually imported and executed by Vitest, the declarations and registry match its named exports, TypeScript passes, Vite produces a browser bundle, and check mode reports no drift.
 
-- [ ] **Step 11: Run scoped frontend formatting and lint**
+- [x] **Step 11: Run scoped frontend formatting and lint**
 
 Run oxfmt, oxlint fix/check, and ESLint fix/check only for the authored generator, tests, configuration, and stable protocol-type source. Do not manually format or lint the opaque generated JavaScript. Inspect the resulting diff and rerun `protocol:check-validators`; do not regenerate merely to hide authored-source drift.
 
-- [ ] **Step 12: Commit the generator boundary**
+- [x] **Step 12: Commit the generator boundary**
 
 Stage only dependency files, generator source/tests, formatter/linter configuration, stable protocol types, and generated artifacts. Inspect the staged diff and create:
 
@@ -477,7 +482,7 @@ build(gui): generate standalone protocol validators
 - Modify: `codex-gui/src/features/guiHost/__tests__/guiHostClientTestSupport.ts`
 - Create: `codex-gui/src/features/guiHost/__tests__/guiHostGeneratedProtocol.test.ts`
 
-- [ ] **Step 1: Add failing transport tests**
+- [x] **Step 1: Add failing transport tests**
 
 Add tests that require the new behavior:
 
@@ -493,7 +498,7 @@ unmatched, duplicate, and late responses do not advance handshake
 
 Add compile-time coverage in `guiHostGeneratedProtocol.test.ts` using `expectTypeOf` so `turn/start` accepts only `TurnStartParams` and resolves only `TurnStartResponse`. Import descriptors and notification validators only through `src/generated/appServerProtocol/index.ts`; this test covers the public generated boundary, not Ajv internal export names.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
@@ -506,7 +511,7 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 
 Expected: FAIL on missing-result fallback, malformed response validation, or missing descriptor APIs.
 
-- [ ] **Step 3: Replace the erased request API**
+- [x] **Step 3: Replace the erased request API**
 
 Replace the free response generic with a descriptor-driven API equivalent to:
 
@@ -522,7 +527,7 @@ Each pending entry stores the descriptor and uses its result validator. Remove `
 
 The descriptor validator type must come from the generated declaration and typed registry. Do not restore the association at the call site with `as ValidateFunction<T>` or a frontend-owned response map.
 
-- [ ] **Step 4: Replace handwritten notification validation**
+- [x] **Step 4: Replace handwritten notification validation**
 
 Keep only transport-level JSON parsing and generic error-envelope handling in `guiHostProtocol.ts`. Delete the attach/event/delta/closed field-list validators. Validate notifications with the generated validator, then route the generated discriminated union exhaustively.
 
@@ -530,7 +535,7 @@ Notification routing must consume the Rust-generated `ServerNotification` discri
 
 Do not change `/ws`, launch keys, or `gui/authenticate` in this task.
 
-- [ ] **Step 5: Run focused transport verification**
+- [x] **Step 5: Run focused transport verification**
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:unit \
@@ -545,7 +550,7 @@ Do not change `/ws`, launch keys, or `gui/authenticate` in this task.
 
 Expected: PASS. The production build must traverse the real generated JavaScript import path so Ajv runtime helper packaging is verified at the consumer boundary.
 
-- [ ] **Step 6: Commit the transport migration**
+- [x] **Step 6: Commit the transport migration**
 
 Stage only GUI Host transport/protocol source and related tests. Create:
 
@@ -589,7 +594,7 @@ refactor(gui): consume generated app-server contracts
 - Modify: `codex-gui/src/features/guiHost/guiHostClient.ts`
 - Modify related tests from Task 1.
 
-- [ ] **Step 1: Write the Rust artifact drift test and verify RED**
+- [x] **Step 1: Write the Rust artifact drift test and verify RED**
 
 The test must fresh-generate the private contract tree and compare it byte-for-byte with the vendored tree.
 
@@ -600,7 +605,7 @@ just test -p codex-gui-host browser_contract_fixtures_match_generated
 
 Expected: FAIL because the contract owner and vendored artifacts do not exist.
 
-- [ ] **Step 2: Create the Rust browser contract owner**
+- [x] **Step 2: Create the Rust browser contract owner**
 
 Define one owner containing constants and typed payloads equivalent to:
 
@@ -627,7 +632,7 @@ Use the same constants and structs in URL construction, both routers, request pa
 
 Do not add `deny_unknown_fields`: the existing authenticate structs accept extra fields, and this plan must preserve that serde behavior. The generated JSON Schema and Ajv validator must match the actual Rust deserializer rather than imposing a stricter frontend-only policy.
 
-- [ ] **Step 3: Add the writer and project command**
+- [x] **Step 3: Add the writer and project command**
 
 Add one root recipe:
 
@@ -637,7 +642,7 @@ write-gui-host-browser-contract
 
 It must regenerate the complete GUI Host contract tree, delete stale generated files, and use a stable generated header. Register schema/type dependencies through workspace dependencies and update Bazel data when compile-time reads require it.
 
-- [ ] **Step 4: Update Rust dependency locks mechanically**
+- [x] **Step 4: Update Rust dependency locks mechanically**
 
 After editing `Cargo.toml`, run from the repository root:
 
@@ -647,7 +652,7 @@ just bazel-lock-update
 
 Expected: `codex-rs/Cargo.lock` and `MODULE.bazel.lock` reflect only the declared workspace dependency changes.
 
-- [ ] **Step 5: Generate the GUI Host contract and verify Rust tests**
+- [x] **Step 5: Generate the GUI Host contract and verify Rust tests**
 
 ```bash
 just write-gui-host-browser-contract
@@ -659,7 +664,7 @@ just test -p codex-gui-host parse_authenticate_request
 
 Expected: PASS.
 
-- [ ] **Step 6: Add frontend aliases and generated validator input**
+- [x] **Step 6: Add frontend aliases and generated validator input**
 
 Use the same `@codex-gui-host-contract` alias in TypeScript, Vite, unit-test, and Browser Mode resolution. Extend the existing Ajv generator; do not add a second validator pipeline.
 
@@ -669,7 +674,7 @@ Add a failing frontend test showing that an authenticate result missing `authent
 
 The test must import and execute the generated GUI Host validator through its public generated index. Extra-field behavior must match the Rust serde and generated schema contract.
 
-- [ ] **Step 7: Migrate all production consumers atomically**
+- [x] **Step 7: Migrate all production consumers atomically**
 
 Replace production literals in:
 
@@ -681,7 +686,7 @@ guiHostClient.ts
 
 Use generated keys, path, method, types, and authenticate validator. Keep the browser storage key frontend-owned. Preserve fragment clearing, storage fallback, callback order, error text, and socket close behavior.
 
-- [ ] **Step 8: Run focused frontend verification**
+- [x] **Step 8: Run focused frontend verification**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
@@ -699,7 +704,7 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 
 Expected: PASS. The generated authenticate validator is imported at runtime and the same generator pipeline remains responsible for both contract source groups.
 
-- [ ] **Step 9: Check literal ownership**
+- [x] **Step 9: Check literal ownership**
 
 Use single-quoted patterns and inspect every remaining production hit:
 
@@ -710,7 +715,7 @@ rg -n -e 'threadId' -e 'gui/authenticate' -e '"/ws"' -e 'searchParams.*token' \
 
 Expected: contract literals remain only in the Rust owner, generated artifacts, or intentional black-box/malformed tests.
 
-- [ ] **Step 10: Commit the atomic private-contract migration**
+- [x] **Step 10: Commit the atomic private-contract migration**
 
 Stage Rust owner/generator/artifacts, dependency locks, aliases, Ajv regeneration, frontend consumers, and focused tests together. Create:
 
@@ -735,17 +740,17 @@ Do not commit an intermediate state where Rust and frontend both retain stable p
 - Modify: `codex-gui/src/features/threadRuntime/__tests__/threadRuntimeSlice.test.ts`
 - Modify: `codex-gui/src/features/projectionCoordination/__tests__/projectionApplicationCoordinator.test.ts`
 
-- [ ] **Step 1: Consolidate legal fixtures without changing expectations**
+- [x] **Step 1: Consolidate legal fixtures without changing expectations**
 
 Extend the existing shared builder with narrow, generated-type-linked operations only. Prefer composition of existing attach builders. If an override helper is necessary, restrict it to named envelope fields and do not expose `Partial<ThreadProjection...>` or `Record<string, unknown>`.
 
 Migrate only legal protocol inputs in the five listed test files. Leave malformed inputs, JSON-RPC envelopes, outbound assertions, and expected-state objects local.
 
-- [ ] **Step 2: Lock current closed-reason behavior before production change**
+- [x] **Step 2: Lock current closed-reason behavior before production change**
 
 Update the adapter test so its expected manual reconnect reason comes from the legal generated notification fixture rather than a duplicated literal. This characterization remains green because the current generated union has only `backpressure`; the production change is a compile-time exhaustiveness improvement, not a runtime behavior change. After the test is in place, change production to consume `notification.reason` directly.
 
-- [ ] **Step 3: Add exhaustive status coverage**
+- [x] **Step 3: Add exhaustive status coverage**
 
 Add table-driven coverage for all current `Turn["status"]` values:
 
@@ -758,11 +763,11 @@ failed -> true
 
 Implement `isTerminalTurn` as an exhaustive switch with a `never` default.
 
-- [ ] **Step 4: Add generated event exhaustiveness gates**
+- [x] **Step 4: Add generated event exhaustiveness gates**
 
 Add `never` gates to the generated event switches in projection ingress, thread runtime, and transcript state. Prefer an existing local helper; otherwise keep the expression in the owning module rather than adding a one-use shared utility.
 
-- [ ] **Step 5: Run focused unit tests**
+- [x] **Step 5: Run focused unit tests**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
@@ -775,7 +780,7 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 
 Expected: PASS.
 
-- [ ] **Step 6: Run the Browser Mode fixture regression**
+- [x] **Step 6: Run the Browser Mode fixture regression**
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest \
@@ -785,7 +790,7 @@ Expected: PASS.
 
 Expected: PASS in Chromium without downloading a new browser binary.
 
-- [ ] **Step 7: Commit the downstream slice**
+- [x] **Step 7: Commit the downstream slice**
 
 Stage only the files listed in this task and create:
 
@@ -799,7 +804,7 @@ refactor(gui): enforce projection exhaustiveness and consolidate fixtures
 
 - Modify after verification: `docs/superpowers/issues/2026-07-16-01-codex-gui-authoritative-contract-drift.md`
 
-- [ ] **Step 1: Verify generated artifact drift**
+- [x] **Step 1: Verify generated artifact drift**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex
@@ -820,7 +825,7 @@ git diff --exit-code -- \
 
 Expected: the initial check is read-only, regeneration produces no generated diff, and the artifact set contains no missing, stale, or extra opaque JavaScript, declarations, AST TypeScript, or mechanically bundled files.
 
-- [ ] **Step 2: Run focused Rust tests**
+- [x] **Step 2: Run focused Rust tests**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-rs
@@ -834,7 +839,7 @@ just test -p codex-gui-host parse_authenticate_request
 
 Expected: PASS. Do not replace these with crate-wide `just test -p ...` commands.
 
-- [ ] **Step 3: Run frontend verification**
+- [x] **Step 3: Run frontend verification**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex/codex-gui
@@ -851,7 +856,7 @@ cd /Users/jiangsheng/cnb/codex/codex-gui
 
 Expected: all checks PASS. No UI snapshot update should be produced because the task does not change user-visible rendering.
 
-- [ ] **Step 4: Inspect dependency and change scope**
+- [x] **Step 4: Inspect dependency and change scope**
 
 ```bash
 cd /Users/jiangsheng/cnb/codex
@@ -875,7 +880,7 @@ no UI or unrelated Redux behavior changed
 no unplanned docs/research files were created
 ```
 
-- [ ] **Step 5: Run final Rust fix and format**
+- [x] **Step 5: Run final Rust fix and format**
 
 Run only after all tests pass:
 
@@ -888,7 +893,7 @@ just fmt
 
 Inspect the resulting diff. Do not rerun tests after this step. If fix/format changes semantics or touches unrelated files, stop and investigate before updating the issue.
 
-- [ ] **Step 6: Update the existing issue**
+- [x] **Step 6: Update the existing issue**
 
 Change the issue status to fixed only if all required verification passed. Preserve the original evidence and taxonomy, and add an implementation status section containing:
 
@@ -903,7 +908,7 @@ remaining explicitly excluded follow-ups, if any
 
 Do not rewrite the historical finding as though the repaired architecture existed at audit time.
 
-- [ ] **Step 7: Commit the issue update only**
+- [x] **Step 7: Commit the issue update only**
 
 Stage only the issue file, inspect the staged diff, and create:
 
