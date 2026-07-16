@@ -20,9 +20,7 @@ class DeferredRequestClient implements GuiHostRequestClient {
       this.requests.push({
         method,
         params,
-        resolve: (response) => {
-          resolve(response as GuiHostRpcResponse<T>);
-        },
+        resolve: (response) => resolve(response as GuiHostRpcResponse<T>),
         reject,
       });
     });
@@ -44,22 +42,6 @@ const unavailableMessage = "GUI host WebSocket is not available";
 
 const readPrivateCommands = (gateway: GuiHostCommandGateway): GuiHostCommands =>
   (gateway as unknown as { commands: GuiHostCommands }).commands;
-
-function requestAt(client: DeferredRequestClient, index: number): DeferredRequest {
-  const request = client.requests[index];
-  if (!request) {
-    throw new Error(`Expected request at index ${String(index)}`);
-  }
-  return request;
-}
-
-function activate(gateway: GuiHostCommandGateway): GuiHostCommands {
-  const commands = gateway.activate();
-  if (!commands) {
-    throw new Error("Expected gateway commands to be active");
-  }
-  return commands;
-}
 
 describe("GuiHostCommandGateway", () => {
   it("rejects both commands before activation without issuing requests", async () => {
@@ -108,40 +90,40 @@ describe("GuiHostCommandGateway", () => {
   it("resolves generated responses and defaults a missing result to an empty object", async () => {
     const client = new DeferredRequestClient();
     const gateway = new GuiHostCommandGateway(client, () => undefined);
-    const commands = activate(gateway);
+    const commands = gateway.activate()!;
     const startResponse: TurnStartResponse = {
       turn: inProgressTurn("turn-started-by-command"),
     };
 
     const startPromise = commands.startTurn(startParams);
-    requestAt(client, 0).resolve({ result: startResponse });
+    client.requests[0]!.resolve({ result: startResponse });
     await expect(startPromise).resolves.toEqual(startResponse);
 
     const interruptPromise = commands.interruptTurn(interruptParams);
-    requestAt(client, 1).resolve({ result: undefined });
+    client.requests[1]!.resolve({ result: undefined });
     await expect(interruptPromise).resolves.toEqual({});
   });
 
   it("isolates an RPC rejection and remains ready for the next command", async () => {
     const client = new DeferredRequestClient();
     const gateway = new GuiHostCommandGateway(client, () => undefined);
-    const commands = activate(gateway);
+    const commands = gateway.activate()!;
     const error = new Error("active turn already running");
 
     const failed = commands.startTurn(startParams);
-    requestAt(client, 0).reject(error);
+    client.requests[0]!.reject(error);
     await expect(failed).rejects.toBe(error);
 
     const next = commands.interruptTurn(interruptParams);
     expect(client.requests[1]).toEqual(
       expect.objectContaining({ method: "turn/interrupt", params: interruptParams }),
     );
-    requestAt(client, 1).resolve({ result: {} });
+    client.requests[1]!.resolve({ result: {} });
     await expect(next).resolves.toEqual({});
   });
 
   it("notifies once when a ready gateway is invalidated", () => {
-    const onUnavailable = vi.fn<() => void>();
+    const onUnavailable = vi.fn();
     const client = new DeferredRequestClient();
     const gateway = new GuiHostCommandGateway(client, onUnavailable);
 
@@ -153,7 +135,7 @@ describe("GuiHostCommandGateway", () => {
   });
 
   it("does not notify when an inactive gateway is invalidated", () => {
-    const onUnavailable = vi.fn<() => void>();
+    const onUnavailable = vi.fn();
     const client = new DeferredRequestClient();
     const gateway = new GuiHostCommandGateway(client, onUnavailable);
 
@@ -165,7 +147,7 @@ describe("GuiHostCommandGateway", () => {
   it("permanently rejects new and old-handle commands after invalidation", async () => {
     const client = new DeferredRequestClient();
     const gateway = new GuiHostCommandGateway(client, () => undefined);
-    const commands = activate(gateway);
+    const commands = gateway.activate()!;
 
     gateway.invalidate();
 

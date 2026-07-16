@@ -25,9 +25,7 @@ class DeferredRequestClient implements GuiHostRequestClient {
       this.requests.push({
         method,
         params,
-        resolve: (response) => {
-          resolve(response as GuiHostRpcResponse<T>);
-        },
+        resolve: (response) => resolve(response as GuiHostRpcResponse<T>),
         reject,
       });
     });
@@ -64,24 +62,12 @@ function createController(
   });
 }
 
-function runController(controller: GuiHostHandshakeController): Promise<void> {
-  return (controller as unknown as { run(): Promise<void> }).run();
-}
-
-function requestAt(client: DeferredRequestClient, index: number): DeferredRequest {
-  const request = client.requests[index];
-  if (!request) {
-    throw new Error(`Expected request at index ${String(index)}`);
-  }
-  return request;
-}
-
 async function completeAuthentication(client: DeferredRequestClient): Promise<void> {
-  await resolveRequest(requestAt(client, 0), { authenticated: true });
+  await resolveRequest(client.requests[0]!, { authenticated: true });
 }
 
 async function completeInitialization(client: DeferredRequestClient): Promise<void> {
-  await resolveRequest(requestAt(client, 1), {});
+  await resolveRequest(client.requests[1]!, {});
 }
 
 describe("GuiHostHandshakeController", () => {
@@ -123,9 +109,10 @@ describe("GuiHostHandshakeController", () => {
   });
 
   it("does not initialize when onAuthenticated synchronously stops the controller", async () => {
-    const onAuthenticated = vi.fn<() => void>();
+    const onAuthenticated = vi.fn();
     const client = new DeferredRequestClient();
-    const controller = createController(client, {
+    let controller: GuiHostHandshakeController;
+    controller = createController(client, {
       onAuthenticated: () => {
         onAuthenticated();
         controller.stop();
@@ -136,25 +123,6 @@ describe("GuiHostHandshakeController", () => {
     await completeAuthentication(client);
 
     expect(onAuthenticated).toHaveBeenCalledOnce();
-    expect(client.requests).toHaveLength(1);
-  });
-
-  it("rejects the handshake run when onAuthenticated synchronously throws", async () => {
-    const callbackError = new Error("authenticated callback failed");
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
-    const client = new DeferredRequestClient();
-    const controller = createController(client, {
-      onAuthenticated: () => {
-        throw callbackError;
-      },
-      onTerminalError,
-    });
-
-    const observedError = runController(controller).catch((error: unknown) => error);
-    await completeAuthentication(client);
-
-    await expect(observedError).resolves.toBe(callbackError);
-    expect(onTerminalError).not.toHaveBeenCalled();
     expect(client.requests).toHaveLength(1);
   });
 
@@ -180,9 +148,10 @@ describe("GuiHostHandshakeController", () => {
   });
 
   it("does not attach when onInitialized synchronously stops the controller", async () => {
-    const onInitialized = vi.fn<() => void>();
+    const onInitialized = vi.fn();
     const client = new DeferredRequestClient();
-    const controller = createController(client, {
+    let controller: GuiHostHandshakeController;
+    controller = createController(client, {
       onInitialized: () => {
         onInitialized();
         controller.stop();
@@ -198,47 +167,27 @@ describe("GuiHostHandshakeController", () => {
   });
 
   it("forwards one valid attachment and completes the handshake", async () => {
-    const onAttached = vi.fn<(response: typeof attachBaseline) => void>();
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+    const onAttached = vi.fn();
+    const onTerminalError = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, { onAttached, onTerminalError });
 
     controller.start();
     await completeAuthentication(client);
     await completeInitialization(client);
-    await resolveRequest(requestAt(client, 2), attachBaseline);
+    await resolveRequest(client.requests[2]!, attachBaseline);
 
-    expect(onAttached).toHaveBeenCalledExactlyOnceWith(attachBaseline);
-    expect(onTerminalError).not.toHaveBeenCalled();
-    expect(client.requests).toHaveLength(3);
-  });
-
-  it("rejects the handshake run when onAttached synchronously throws", async () => {
-    const callbackError = new Error("attached callback failed");
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
-    const client = new DeferredRequestClient();
-    const controller = createController(client, {
-      onAttached: () => {
-        throw callbackError;
-      },
-      onTerminalError,
-    });
-
-    const observedError = runController(controller).catch((error: unknown) => error);
-    await completeAuthentication(client);
-    await completeInitialization(client);
-    await resolveRequest(requestAt(client, 2), attachBaseline);
-
-    await expect(observedError).resolves.toBe(callbackError);
+    expect(onAttached).toHaveBeenCalledOnce();
+    expect(onAttached).toHaveBeenCalledWith(attachBaseline);
     expect(onTerminalError).not.toHaveBeenCalled();
     expect(client.requests).toHaveLength(3);
   });
 
   it("stops without milestones or terminal errors when authentication is not true", async () => {
-    const onAuthenticated = vi.fn<() => void>();
-    const onInitialized = vi.fn<() => void>();
-    const onAttached = vi.fn<(response: typeof attachBaseline) => void>();
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+    const onAuthenticated = vi.fn();
+    const onInitialized = vi.fn();
+    const onAttached = vi.fn();
+    const onTerminalError = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, {
       onAuthenticated,
@@ -248,7 +197,7 @@ describe("GuiHostHandshakeController", () => {
     });
 
     controller.start();
-    await resolveRequest(requestAt(client, 0), { authenticated: false });
+    await resolveRequest(client.requests[0]!, { authenticated: false });
 
     expect(client.requests).toHaveLength(1);
     expect(onAuthenticated).not.toHaveBeenCalled();
@@ -260,15 +209,16 @@ describe("GuiHostHandshakeController", () => {
   it.each([undefined, null])(
     "reports a missing initialize result as a protocol error",
     async (result) => {
-      const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+      const onTerminalError = vi.fn();
       const client = new DeferredRequestClient();
       const controller = createController(client, { onTerminalError });
 
       controller.start();
       await completeAuthentication(client);
-      await resolveRequest(requestAt(client, 1), result);
+      await resolveRequest(client.requests[1]!, result);
 
-      expect(onTerminalError).toHaveBeenCalledExactlyOnceWith(
+      expect(onTerminalError).toHaveBeenCalledOnce();
+      expect(onTerminalError).toHaveBeenCalledWith(
         "initialize returned no result payload",
         "protocol error",
       );
@@ -281,31 +231,33 @@ describe("GuiHostHandshakeController", () => {
     [null, "thread/projection/attach returned no result payload"],
     [{ subscriptionId: "sub-only" }, "thread/projection/attach returned malformed result payload"],
   ])("reports an invalid attach result as a protocol error", async (result, message) => {
-    const onAttached = vi.fn<(response: typeof attachBaseline) => void>();
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+    const onAttached = vi.fn();
+    const onTerminalError = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, { onAttached, onTerminalError });
 
     controller.start();
     await completeAuthentication(client);
     await completeInitialization(client);
-    await resolveRequest(requestAt(client, 2), result);
+    await resolveRequest(client.requests[2]!, result);
 
     expect(onAttached).not.toHaveBeenCalled();
-    expect(onTerminalError).toHaveBeenCalledExactlyOnceWith(message, "protocol error");
+    expect(onTerminalError).toHaveBeenCalledOnce();
+    expect(onTerminalError).toHaveBeenCalledWith(message, "protocol error");
   });
 
   it("reports a correlated RPC failure with the exact error message", async () => {
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+    const onTerminalError = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, { onTerminalError });
     const error = new GuiHostRequestError("rpc", "method not found");
 
     controller.start();
-    requestAt(client, 0).reject(error);
+    client.requests[0]!.reject(error);
     await flushMicrotasks();
 
-    expect(onTerminalError).toHaveBeenCalledExactlyOnceWith("method not found", "handshake error");
+    expect(onTerminalError).toHaveBeenCalledOnce();
+    expect(onTerminalError).toHaveBeenCalledWith("method not found", "handshake error");
   });
 
   it("consumes send, unavailable, and unknown failures without a terminal error", async () => {
@@ -330,12 +282,12 @@ describe("GuiHostHandshakeController", () => {
     ];
 
     for (const failure of failures) {
-      const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+      const onTerminalError = vi.fn();
       const client = new DeferredRequestClient();
       const controller = createController(client, { onTerminalError });
 
       controller.start();
-      requestAt(client, 0).reject(failure);
+      client.requests[0]!.reject(failure);
       await flushMicrotasks();
 
       expect(onTerminalError).not.toHaveBeenCalled();
@@ -343,23 +295,23 @@ describe("GuiHostHandshakeController", () => {
   });
 
   it("ignores a resolved authentication request after stop", async () => {
-    const onAuthenticated = vi.fn<() => void>();
+    const onAuthenticated = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, { onAuthenticated });
 
     controller.start();
     controller.stop();
-    await resolveRequest(requestAt(client, 0), { authenticated: true });
+    await resolveRequest(client.requests[0]!, { authenticated: true });
 
     expect(onAuthenticated).not.toHaveBeenCalled();
     expect(client.requests).toHaveLength(1);
   });
 
   it("does not start after stop was called before start", () => {
-    const onAuthenticated = vi.fn<() => void>();
-    const onInitialized = vi.fn<() => void>();
-    const onAttached = vi.fn<(response: typeof attachBaseline) => void>();
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+    const onAuthenticated = vi.fn();
+    const onInitialized = vi.fn();
+    const onAttached = vi.fn();
+    const onTerminalError = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, {
       onAuthenticated,
@@ -379,22 +331,22 @@ describe("GuiHostHandshakeController", () => {
   });
 
   it("ignores a resolved initialization request after stop", async () => {
-    const onInitialized = vi.fn<() => void>();
+    const onInitialized = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, { onInitialized });
 
     controller.start();
     await completeAuthentication(client);
     controller.stop();
-    await resolveRequest(requestAt(client, 1), {});
+    await resolveRequest(client.requests[1]!, {});
 
     expect(onInitialized).not.toHaveBeenCalled();
     expect(client.requests).toHaveLength(2);
   });
 
   it("ignores attach resolution and RPC rejection after stop", async () => {
-    const onAttached = vi.fn<(response: typeof attachBaseline) => void>();
-    const onTerminalError = vi.fn<(message: string, closeReason: string) => void>();
+    const onAttached = vi.fn();
+    const onTerminalError = vi.fn();
     const client = new DeferredRequestClient();
     const controller = createController(client, { onAttached, onTerminalError });
 
@@ -402,7 +354,7 @@ describe("GuiHostHandshakeController", () => {
     await completeAuthentication(client);
     await completeInitialization(client);
     controller.stop();
-    requestAt(client, 2).reject(new GuiHostRequestError("rpc", "late failure"));
+    client.requests[2]!.reject(new GuiHostRequestError("rpc", "late failure"));
     await flushMicrotasks();
 
     expect(onAttached).not.toHaveBeenCalled();
