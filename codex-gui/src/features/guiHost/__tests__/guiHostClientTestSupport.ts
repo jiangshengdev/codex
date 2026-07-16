@@ -1,4 +1,5 @@
 import { expect, vi } from "vitest";
+import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 import {
   startGuiHostConnection,
@@ -130,7 +131,13 @@ export function sendAuthenticateResult(socket: RecordingWebSocket): void {
 
 export function sendInitializeResult(socket: RecordingWebSocket): void {
   const request = readLatestRpcRequest(socket, "initialize");
-  sendJsonRpcResult(socket, request.id, {});
+  const response: InitializeResponse = {
+    userAgent: "codex-test",
+    codexHome: "/codex-home",
+    platformFamily: "test",
+    platformOs: "test",
+  };
+  sendJsonRpcResult(socket, request.id, response);
 }
 
 export function sendAttachResult(

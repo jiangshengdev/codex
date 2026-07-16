@@ -142,8 +142,8 @@ describe("guiHostClient handshake", () => {
       id: initializeRequest.id,
       method: "initialize",
       params: {
-        clientInfo: { name: "codex-gui", version: "0.0.0" },
-        capabilities: {},
+        clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
+        capabilities: null,
       },
     });
     sendInitializeResult(socket);
@@ -190,6 +190,86 @@ describe("guiHostClient handshake", () => {
     expect(projectionEvents).toEqual([projectionEvent]);
     expect(projectionDeltas).toEqual([projectionDelta]);
     expect(projectionClosedNotifications).toEqual([projectionClosed]);
+  });
+
+  it("keeps a missing initialize result terminal without sending attach", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    const initializeRequest = readLatestRpcRequest(socket, "initialize");
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: initializeRequest.id }),
+    });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate", "initialize"]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "initialize returned no result payload",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
+  });
+
+  it("does not advance the handshake for an unmatched initialize response", () => {
+    const statuses: string[] = [];
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus: (status) => {
+        statuses.push(status.label);
+      },
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: 2, result: {} }),
+    });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(statuses).toEqual(["connecting"]);
+  });
+
+  it("does not repeat initialize for a duplicate authenticate response", () => {
+    const statuses: string[] = [];
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus: (status) => {
+        statuses.push(status.label);
+      },
+    });
+
+    socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    sendJsonRpcResult(socket, authenticateRequest.id, { authenticated: true });
+    sendJsonRpcResult(socket, authenticateRequest.id, { authenticated: true });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate", "initialize"]);
+    expect(statuses).toEqual(["connecting", "authenticated"]);
+  });
+
+  it("does not repeat attach for a late initialize response", () => {
+    const statuses: string[] = [];
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus: (status) => {
+        statuses.push(status.label);
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    sendInitializeResult(socket);
+
+    expect(socket.sent.map(readRpcMethod)).toEqual([
+      "gui/authenticate",
+      "initialize",
+      "thread/projection/attach",
+    ]);
+    expect(statuses).toEqual(["connecting", "authenticated", "initialized"]);
   });
 
   it("orders projection attachment before attached status and command readiness", () => {

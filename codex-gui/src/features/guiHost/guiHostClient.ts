@@ -1,26 +1,16 @@
 import type {
-  ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
 } from "@codex-protocol/v2";
+import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import {
   consumeBrowserLaunchParams,
   type BrowserLaunchParams,
 } from "@/features/browserLaunch/browserLaunchParams";
-import {
-  formatRpcId,
-  isThreadProjectionAttachResponse,
-  isThreadProjectionClosedNotification,
-  isThreadProjectionDeltaNotification,
-  isThreadProjectionEventNotification,
-  parseRpcMessage,
-  type RpcMessage,
-} from "./guiHostProtocol";
+import { requestDescriptors, validateServerNotification } from "@/generated/appServerProtocol";
+import type { RequestParams, RequestResponse } from "./appServerProtocol";
+import { formatRpcId, parseRpcMessage, type RpcMessage } from "./guiHostProtocol";
 
 export type GuiHostStatus =
   | { label: "connecting" }
@@ -31,8 +21,10 @@ export type GuiHostStatus =
   | { label: "error"; message: string };
 
 export type GuiHostCommands = {
-  startTurn: (params: TurnStartParams) => Promise<TurnStartResponse>;
-  interruptTurn: (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
+  startTurn: (params: RequestParams<"turn/start">) => Promise<RequestResponse<"turn/start">>;
+  interruptTurn: (
+    params: RequestParams<"turn/interrupt">,
+  ) => Promise<RequestResponse<"turn/interrupt">>;
 };
 
 export type StartGuiHostConnectionOptions = {
@@ -42,7 +34,7 @@ export type StartGuiHostConnectionOptions = {
   createWebSocket?: (url: string) => WebSocket;
   onStatus?: (status: GuiHostStatus) => void;
   onLaunchParams?: (params: BrowserLaunchParams) => void;
-  onProjectionAttached?: (response: ThreadProjectionAttachResponse) => void;
+  onProjectionAttached?: (response: RequestResponse<"thread/projection/attach">) => void;
   onProjectionDelta?: (notification: ThreadProjectionDeltaNotification) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
   onProjectionClosed?: (notification: ThreadProjectionClosedNotification) => void;
@@ -126,11 +118,11 @@ export function startGuiHostConnection({
     }
   };
 
-  const request = <TResponse>(
-    method: string,
-    params: unknown,
-    { terminalOnError }: { terminalOnError: boolean },
-  ): Promise<TResponse> => {
+  const request = <M extends GuiRequestMethod>(
+    descriptor: RequestDescriptor<M>,
+    params: RequestParams<M>,
+    { terminalOnError, onValidatedResult }: RequestOptions<M>,
+  ): Promise<RequestResponse<M>> => {
     if (
       closed ||
       socket.readyState === WebSocket.CLOSING ||
@@ -142,42 +134,127 @@ export function startGuiHostConnection({
     const id = nextRequestId;
     nextRequestId += 1;
 
-    return new Promise<TResponse>((resolve, reject) => {
+    const resultPromise = new Promise<() => RequestResponse<M>>((resolve, reject) => {
       pendingRequests.set(id, {
         terminalOnError,
-        resolve: (result) => {
-          resolve(result as TResponse);
+        settleResult: (hasResult, result) => {
+          if (!hasResult) {
+            const error = new Error(`${descriptor.method} returned no result payload`);
+            reject(error);
+            return error.message;
+          }
+          if (!validateDescriptorResponse(descriptor, result)) {
+            const error = new Error(`${descriptor.method} returned malformed result payload`);
+            reject(error);
+            return error.message;
+          }
+
+          resolve(() => result);
+          onValidatedResult?.(result);
+          return undefined;
         },
         reject,
       });
       try {
-        sendRequest(socket, id, method, params);
+        sendRequest(socket, id, descriptor.method, params);
       } catch (error) {
         pendingRequests.delete(id);
         reject(error instanceof Error ? error : new Error("GUI host WebSocket is not available"));
       }
     });
+    return readValidatedResult(resultPromise);
   };
 
-  const commandRequest = <TResponse>(method: string, params: unknown): Promise<TResponse> => {
+  const withReadyCommands = <T>(startRequest: () => Promise<T>): Promise<T> => {
     if (!commandsReady) {
       return Promise.reject(new Error("GUI host WebSocket is not available"));
     }
 
-    return request<TResponse>(method, params, { terminalOnError: false });
+    return startRequest();
   };
 
   const commands: GuiHostCommands = {
-    startTurn: (params) => commandRequest<TurnStartResponse>("turn/start", params),
-    interruptTurn: (params) => commandRequest<TurnInterruptResponse>("turn/interrupt", params),
+    startTurn: (params) =>
+      withReadyCommands(() =>
+        request<"turn/start">(requestDescriptors["turn/start"], params, {
+          terminalOnError: false,
+        }),
+      ),
+    interruptTurn: (params) =>
+      withReadyCommands(() =>
+        request<"turn/interrupt">(requestDescriptors["turn/interrupt"], params, {
+          terminalOnError: false,
+        }),
+      ),
   };
 
-  const startHandshakeRequest = (method: string, params: unknown): void => {
-    void request(method, params, { terminalOnError: true }).catch(() => undefined);
+  const startHandshakeRequest = <M extends GuiRequestMethod>(
+    descriptor: RequestDescriptor<M>,
+    params: RequestParams<M>,
+    onValidatedResult: (result: RequestResponse<M>) => void,
+  ): void => {
+    void request(descriptor, params, { terminalOnError: true, onValidatedResult }).catch(
+      () => undefined,
+    );
+  };
+
+  const startAuthenticationRequest = (): void => {
+    if (
+      closed ||
+      socket.readyState === WebSocket.CLOSING ||
+      socket.readyState === WebSocket.CLOSED
+    ) {
+      return;
+    }
+
+    const id = nextRequestId;
+    nextRequestId += 1;
+    pendingRequests.set(id, {
+      terminalOnError: true,
+      settleResult: (hasResult, result) => {
+        if (
+          hasResult &&
+          typeof result === "object" &&
+          result !== null &&
+          "authenticated" in result &&
+          result.authenticated === true
+        ) {
+          emit({ label: "authenticated" });
+          startHandshakeRequest<"initialize">(
+            requestDescriptors.initialize,
+            {
+              clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
+              capabilities: null,
+            },
+            () => {
+              emit({ label: "initialized" });
+              startHandshakeRequest<"thread/projection/attach">(
+                requestDescriptors["thread/projection/attach"],
+                { threadId },
+                (response) => {
+                  onProjectionAttached?.(response);
+                  emit({ label: "attached" });
+                  commandsReady = true;
+                  onCommandsReady?.(commands);
+                },
+              );
+            },
+          );
+        }
+        return undefined;
+      },
+      reject: () => undefined,
+    });
+
+    try {
+      sendRequest(socket, id, "gui/authenticate", { token });
+    } catch {
+      pendingRequests.delete(id);
+    }
   };
 
   socket.onopen = () => {
-    startHandshakeRequest("gui/authenticate", { token });
+    startAuthenticationRequest();
   };
 
   socket.onerror = () => {
@@ -210,13 +287,12 @@ export function startGuiHostConnection({
       return;
     }
 
-    if (typeof message.id === "number" && pendingRequests.has(message.id)) {
+    if (typeof message.id === "number") {
       const pending = pendingRequests.get(message.id);
-      pendingRequests.delete(message.id);
-
       if (!pending) {
         return;
       }
+      pendingRequests.delete(message.id);
 
       if (message.error) {
         const error = new Error(
@@ -232,10 +308,11 @@ export function startGuiHostConnection({
         return;
       }
 
-      pending.resolve(message.result ?? {});
-      if (!pending.terminalOnError) {
-        return;
+      const resultError = pending.settleResult(message.hasResult, message.result);
+      if (resultError && pending.terminalOnError) {
+        failProtocolAndClose(resultError, "protocol error");
       }
+      return;
     }
 
     if (message.error) {
@@ -248,87 +325,36 @@ export function startGuiHostConnection({
       return;
     }
 
-    if (message.id === 1 && message.result?.authenticated === true) {
-      emit({ label: "authenticated" });
-      startHandshakeRequest("initialize", {
-        clientInfo: { name: "codex-gui", version: "0.0.0" },
-        capabilities: {},
-      });
+    const notificationCandidate = {
+      method: message.method,
+      params: message.params,
+    };
+    if (!validateServerNotification(notificationCandidate)) {
+      if (message.method?.startsWith("thread/projection/")) {
+        failProtocolAndClose(
+          `${message.method} returned malformed params payload`,
+          "protocol error",
+        );
+      }
+      return;
+    }
+    if (!isProjectionServerNotification(notificationCandidate)) {
       return;
     }
 
-    if (message.id === 2) {
-      if (!message.result) {
-        failProtocolAndClose("initialize returned no result payload", "protocol error");
+    switch (notificationCandidate.method) {
+      case "thread/projection/event":
+        onProjectionEvent?.(notificationCandidate.params);
         return;
-      }
-
-      emit({ label: "initialized" });
-      startHandshakeRequest("thread/projection/attach", { threadId });
-      return;
-    }
-
-    if (message.id === 3) {
-      if (!message.result) {
-        failProtocolAndClose(
-          "thread/projection/attach returned no result payload",
-          "protocol error",
-        );
+      case "thread/projection/delta":
+        onProjectionDelta?.(notificationCandidate.params);
         return;
-      }
-
-      if (!isThreadProjectionAttachResponse(message.result)) {
-        failProtocolAndClose(
-          "thread/projection/attach returned malformed result payload",
-          "protocol error",
-        );
+      case "thread/projection/closed":
+        onProjectionClosed?.(notificationCandidate.params);
         return;
-      }
-
-      onProjectionAttached?.(message.result);
-      emit({ label: "attached" });
-      commandsReady = true;
-      onCommandsReady?.(commands);
-      return;
-    }
-
-    if (message.method === "thread/projection/event") {
-      if (!isThreadProjectionEventNotification(message.params)) {
-        failProtocolAndClose(
-          "thread/projection/event returned malformed params payload",
-          "protocol error",
-        );
+      default:
+        notificationCandidate satisfies never;
         return;
-      }
-
-      const notification = message.params;
-      onProjectionEvent?.(notification);
-    }
-
-    if (message.method === "thread/projection/delta") {
-      if (!isThreadProjectionDeltaNotification(message.params)) {
-        failProtocolAndClose(
-          "thread/projection/delta returned malformed params payload",
-          "protocol error",
-        );
-        return;
-      }
-
-      const notification = message.params;
-      onProjectionDelta?.(notification);
-    }
-
-    if (message.method === "thread/projection/closed") {
-      if (!isThreadProjectionClosedNotification(message.params)) {
-        failProtocolAndClose(
-          "thread/projection/closed returned malformed params payload",
-          "protocol error",
-        );
-        return;
-      }
-
-      const notification = message.params;
-      onProjectionClosed?.(notification);
     }
   };
 
@@ -354,9 +380,43 @@ export function startGuiHostConnection({
 
 type PendingRequest = {
   terminalOnError: boolean;
-  resolve: (result: Record<string, unknown>) => void;
+  settleResult: (hasResult: boolean, result: unknown) => string | undefined;
   reject: (error: Error) => void;
 };
+
+type GuiRequestMethod = keyof typeof requestDescriptors;
+
+type RequestDescriptor<M extends GuiRequestMethod> = (typeof requestDescriptors)[M];
+
+type RequestOptions<M extends GuiRequestMethod> = {
+  terminalOnError: boolean;
+  onValidatedResult?: (result: RequestResponse<M>) => void;
+};
+
+type ProjectionServerNotification = Extract<
+  ServerNotification,
+  { method: `thread/projection/${string}` }
+>;
+
+function validateDescriptorResponse<M extends GuiRequestMethod>(
+  descriptor: RequestDescriptor<M>,
+  result: unknown,
+): result is RequestResponse<M> {
+  return descriptor.validateResponse(result);
+}
+
+async function readValidatedResult<M extends GuiRequestMethod>(
+  resultPromise: Promise<() => RequestResponse<M>>,
+): Promise<RequestResponse<M>> {
+  const getResult = await resultPromise;
+  return getResult();
+}
+
+function isProjectionServerNotification(
+  notification: ServerNotification,
+): notification is ProjectionServerNotification {
+  return notification.method.startsWith("thread/projection/");
+}
 
 function webSocketProtocol(location: URL): "ws" | "wss" {
   return location.protocol === "https:" ? "wss" : "ws";

@@ -92,6 +92,50 @@ describe("guiHostClient commands", () => {
     expect(statuses.at(-1)).toBe("attached");
   });
 
+  it("rejects a missing turn/start result without closing the socket", async () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    const promise = commands.startTurn(turnStartParams(threadId));
+    const request = readLatestRpcRequest(socket, "turn/start");
+
+    socket.onmessage?.({
+      data: JSON.stringify({ jsonrpc: "2.0", id: request.id }),
+    });
+
+    await expect(promise).rejects.toThrow("turn/start returned no result payload");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("attached");
+  });
+
+  it("rejects a malformed turn/start result and keeps commands available", async () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    const startPromise = commands.startTurn(turnStartParams(threadId));
+    const startRequest = readLatestRpcRequest(socket, "turn/start");
+
+    sendJsonRpcResult(socket, startRequest.id, { turn: null });
+
+    await expect(startPromise).rejects.toThrow("turn/start returned malformed result payload");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("attached");
+
+    const interruptPromise = commands.interruptTurn({ threadId, turnId: "turn-active" });
+    const interruptRequest = readLatestRpcRequest(socket, "turn/interrupt");
+    sendJsonRpcResult(socket, interruptRequest.id, {});
+
+    await expect(interruptPromise).resolves.toEqual({});
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("attached");
+  });
+
   it("rejects pending command requests during cleanup", async () => {
     const calls: string[] = [];
     const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
