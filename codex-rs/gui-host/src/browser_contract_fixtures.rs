@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::fmt;
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
@@ -6,7 +8,6 @@ use std::sync::atomic::Ordering;
 
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use schemars::JsonSchema;
 use schemars::schema_for;
 use serde_json::Map;
@@ -55,9 +56,21 @@ fn write_browser_contract_fixture_tree(
     schema_root: &Path,
     files: BTreeMap<PathBuf, Vec<u8>>,
 ) -> Result<()> {
+    write_browser_contract_fixture_tree_with_rename(
+        schema_root,
+        files,
+        &mut |source, destination| std::fs::rename(source, destination),
+    )
+}
+
+fn write_browser_contract_fixture_tree_with_rename(
+    schema_root: &Path,
+    files: BTreeMap<PathBuf, Vec<u8>>,
+    rename: &mut impl FnMut(&Path, &Path) -> io::Result<()>,
+) -> Result<()> {
     let staging = unique_sibling_path(schema_root, "staging")?;
     let backup = unique_sibling_path(schema_root, "backup")?;
-    replace_fixture_tree(schema_root, &staging, &backup, files).with_context(|| {
+    replace_fixture_tree(schema_root, &staging, &backup, files, rename).with_context(|| {
         format!(
             "atomically replace browser contract fixtures at {} using backup {}",
             schema_root.display(),
@@ -71,6 +84,7 @@ fn replace_fixture_tree(
     staging: &Path,
     backup: &Path,
     files: BTreeMap<PathBuf, Vec<u8>>,
+    rename: &mut impl FnMut(&Path, &Path) -> io::Result<()>,
 ) -> Result<()> {
     if let Err(error) = write_fixture_tree(staging, files) {
         let _ = std::fs::remove_dir_all(staging);
@@ -80,7 +94,7 @@ fn replace_fixture_tree(
     let had_destination = schema_root
         .try_exists()
         .with_context(|| format!("check fixture root {}", schema_root.display()))?;
-    if had_destination && let Err(error) = std::fs::rename(schema_root, backup) {
+    if had_destination && let Err(error) = rename(schema_root, backup) {
         let _ = std::fs::remove_dir_all(staging);
         return Err(error).with_context(|| {
             format!(
@@ -91,20 +105,25 @@ fn replace_fixture_tree(
         });
     }
 
-    if let Err(error) = std::fs::rename(staging, schema_root) {
+    if let Err(error) = rename(staging, schema_root) {
         let restore_error = if had_destination {
-            std::fs::rename(backup, schema_root).err()
+            rename(backup, schema_root).err()
         } else {
             None
         };
         let _ = std::fs::remove_dir_all(staging);
         return match restore_error {
-            Some(restore_error) => Err(anyhow!(
-                "install staged fixtures from {} at {}: {error}; restore backup {}: {restore_error}",
-                staging.display(),
-                schema_root.display(),
-                backup.display()
-            )),
+            Some(restore_error) => Err(InstallAndRestoreError {
+                staging: staging.to_path_buf(),
+                destination: schema_root.to_path_buf(),
+                install_error: error,
+                restore_error: RestoreBackupError {
+                    backup: backup.to_path_buf(),
+                    destination: schema_root.to_path_buf(),
+                    source: restore_error,
+                },
+            }
+            .into()),
             None => Err(error).with_context(|| {
                 format!(
                     "install staged fixtures from {} at {}",
@@ -120,6 +139,56 @@ fn replace_fixture_tree(
             .with_context(|| format!("remove fixture backup {}", backup.display()))?;
     }
     Ok(())
+}
+
+#[derive(Debug)]
+struct InstallAndRestoreError {
+    staging: PathBuf,
+    destination: PathBuf,
+    install_error: io::Error,
+    restore_error: RestoreBackupError,
+}
+
+impl fmt::Display for InstallAndRestoreError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "install staged fixtures from {} at {}: {}",
+            self.staging.display(),
+            self.destination.display(),
+            self.install_error
+        )
+    }
+}
+
+impl std::error::Error for InstallAndRestoreError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.restore_error)
+    }
+}
+
+#[derive(Debug)]
+struct RestoreBackupError {
+    backup: PathBuf,
+    destination: PathBuf,
+    source: io::Error,
+}
+
+impl fmt::Display for RestoreBackupError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "restore backup {} at {}",
+            self.backup.display(),
+            self.destination.display()
+        )
+    }
+}
+
+impl std::error::Error for RestoreBackupError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
 }
 
 fn write_fixture_tree(directory: &Path, files: BTreeMap<PathBuf, Vec<u8>>) -> Result<()> {
