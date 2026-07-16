@@ -1,0 +1,462 @@
+[
+  {
+    "method": "initialize",
+    "paramsSchema": "InitializeParams",
+    "responseSchema": "InitializeResponse"
+  },
+  {
+    "method": "thread/start",
+    "paramsSchema": "v2/ThreadStartParams",
+    "responseSchema": "v2/ThreadStartResponse"
+  },
+  {
+    "method": "thread/resume",
+    "paramsSchema": "v2/ThreadResumeParams",
+    "responseSchema": "v2/ThreadResumeResponse"
+  },
+  {
+    "method": "thread/fork",
+    "paramsSchema": "v2/ThreadForkParams",
+    "responseSchema": "v2/ThreadForkResponse"
+  },
+  {
+    "method": "thread/archive",
+    "paramsSchema": "v2/ThreadArchiveParams",
+    "responseSchema": "v2/ThreadArchiveResponse"
+  },
+  {
+    "method": "thread/delete",
+    "paramsSchema": "v2/ThreadDeleteParams",
+    "responseSchema": "v2/ThreadDeleteResponse"
+  },
+  {
+    "method": "thread/unsubscribe",
+    "paramsSchema": "v2/ThreadUnsubscribeParams",
+    "responseSchema": "v2/ThreadUnsubscribeResponse"
+  },
+  {
+    "method": "thread/projection/attach",
+    "paramsSchema": "v2/ThreadProjectionAttachParams",
+    "responseSchema": "v2/ThreadProjectionAttachResponse"
+  },
+  {
+    "method": "thread/projection/detach",
+    "paramsSchema": "v2/ThreadProjectionDetachParams",
+    "responseSchema": "v2/ThreadProjectionDetachResponse"
+  },
+  {
+    "method": "thread/name/set",
+    "paramsSchema": "v2/ThreadSetNameParams",
+    "responseSchema": "v2/ThreadSetNameResponse"
+  },
+  {
+    "method": "thread/goal/set",
+    "paramsSchema": "v2/ThreadGoalSetParams",
+    "responseSchema": "v2/ThreadGoalSetResponse"
+  },
+  {
+    "method": "thread/goal/get",
+    "paramsSchema": "v2/ThreadGoalGetParams",
+    "responseSchema": "v2/ThreadGoalGetResponse"
+  },
+  {
+    "method": "thread/goal/clear",
+    "paramsSchema": "v2/ThreadGoalClearParams",
+    "responseSchema": "v2/ThreadGoalClearResponse"
+  },
+  {
+    "method": "thread/metadata/update",
+    "paramsSchema": "v2/ThreadMetadataUpdateParams",
+    "responseSchema": "v2/ThreadMetadataUpdateResponse"
+  },
+  {
+    "method": "thread/unarchive",
+    "paramsSchema": "v2/ThreadUnarchiveParams",
+    "responseSchema": "v2/ThreadUnarchiveResponse"
+  },
+  {
+    "method": "thread/compact/start",
+    "paramsSchema": "v2/ThreadCompactStartParams",
+    "responseSchema": "v2/ThreadCompactStartResponse"
+  },
+  {
+    "method": "thread/shellCommand",
+    "paramsSchema": "v2/ThreadShellCommandParams",
+    "responseSchema": "v2/ThreadShellCommandResponse"
+  },
+  {
+    "method": "thread/approveGuardianDeniedAction",
+    "paramsSchema": "v2/ThreadApproveGuardianDeniedActionParams",
+    "responseSchema": "v2/ThreadApproveGuardianDeniedActionResponse"
+  },
+  {
+    "method": "thread/rollback",
+    "paramsSchema": "v2/ThreadRollbackParams",
+    "responseSchema": "v2/ThreadRollbackResponse"
+  },
+  {
+    "method": "thread/list",
+    "paramsSchema": "v2/ThreadListParams",
+    "responseSchema": "v2/ThreadListResponse"
+  },
+  {
+    "method": "thread/loaded/list",
+    "paramsSchema": "v2/ThreadLoadedListParams",
+    "responseSchema": "v2/ThreadLoadedListResponse"
+  },
+  {
+    "method": "thread/read",
+    "paramsSchema": "v2/ThreadReadParams",
+    "responseSchema": "v2/ThreadReadResponse"
+  },
+  {
+    "method": "thread/inject_items",
+    "paramsSchema": "v2/ThreadInjectItemsParams",
+    "responseSchema": "v2/ThreadInjectItemsResponse"
+  },
+  {
+    "method": "skills/list",
+    "paramsSchema": "v2/SkillsListParams",
+    "responseSchema": "v2/SkillsListResponse"
+  },
+  {
+    "method": "skills/extraRoots/set",
+    "paramsSchema": "v2/SkillsExtraRootsSetParams",
+    "responseSchema": "v2/SkillsExtraRootsSetResponse"
+  },
+  {
+    "method": "hooks/list",
+    "paramsSchema": "v2/HooksListParams",
+    "responseSchema": "v2/HooksListResponse"
+  },
+  {
+    "method": "marketplace/add",
+    "paramsSchema": "v2/MarketplaceAddParams",
+    "responseSchema": "v2/MarketplaceAddResponse"
+  },
+  {
+    "method": "marketplace/remove",
+    "paramsSchema": "v2/MarketplaceRemoveParams",
+    "responseSchema": "v2/MarketplaceRemoveResponse"
+  },
+  {
+    "method": "marketplace/upgrade",
+    "paramsSchema": "v2/MarketplaceUpgradeParams",
+    "responseSchema": "v2/MarketplaceUpgradeResponse"
+  },
+  {
+    "method": "plugin/list",
+    "paramsSchema": "v2/PluginListParams",
+    "responseSchema": "v2/PluginListResponse"
+  },
+  {
+    "method": "plugin/installed",
+    "paramsSchema": "v2/PluginInstalledParams",
+    "responseSchema": "v2/PluginInstalledResponse"
+  },
+  {
+    "method": "plugin/read",
+    "paramsSchema": "v2/PluginReadParams",
+    "responseSchema": "v2/PluginReadResponse"
+  },
+  {
+    "method": "plugin/skill/read",
+    "paramsSchema": "v2/PluginSkillReadParams",
+    "responseSchema": "v2/PluginSkillReadResponse"
+  },
+  {
+    "method": "plugin/share/save",
+    "paramsSchema": "v2/PluginShareSaveParams",
+    "responseSchema": "v2/PluginShareSaveResponse"
+  },
+  {
+    "method": "plugin/share/updateTargets",
+    "paramsSchema": "v2/PluginShareUpdateTargetsParams",
+    "responseSchema": "v2/PluginShareUpdateTargetsResponse"
+  },
+  {
+    "method": "plugin/share/list",
+    "paramsSchema": "v2/PluginShareListParams",
+    "responseSchema": "v2/PluginShareListResponse"
+  },
+  {
+    "method": "plugin/share/checkout",
+    "paramsSchema": "v2/PluginShareCheckoutParams",
+    "responseSchema": "v2/PluginShareCheckoutResponse"
+  },
+  {
+    "method": "plugin/share/delete",
+    "paramsSchema": "v2/PluginShareDeleteParams",
+    "responseSchema": "v2/PluginShareDeleteResponse"
+  },
+  {
+    "method": "app/list",
+    "paramsSchema": "v2/AppsListParams",
+    "responseSchema": "v2/AppsListResponse"
+  },
+  {
+    "method": "fs/readFile",
+    "paramsSchema": "v2/FsReadFileParams",
+    "responseSchema": "v2/FsReadFileResponse"
+  },
+  {
+    "method": "fs/writeFile",
+    "paramsSchema": "v2/FsWriteFileParams",
+    "responseSchema": "v2/FsWriteFileResponse"
+  },
+  {
+    "method": "fs/createDirectory",
+    "paramsSchema": "v2/FsCreateDirectoryParams",
+    "responseSchema": "v2/FsCreateDirectoryResponse"
+  },
+  {
+    "method": "fs/getMetadata",
+    "paramsSchema": "v2/FsGetMetadataParams",
+    "responseSchema": "v2/FsGetMetadataResponse"
+  },
+  {
+    "method": "fs/readDirectory",
+    "paramsSchema": "v2/FsReadDirectoryParams",
+    "responseSchema": "v2/FsReadDirectoryResponse"
+  },
+  {
+    "method": "fs/remove",
+    "paramsSchema": "v2/FsRemoveParams",
+    "responseSchema": "v2/FsRemoveResponse"
+  },
+  {
+    "method": "fs/copy",
+    "paramsSchema": "v2/FsCopyParams",
+    "responseSchema": "v2/FsCopyResponse"
+  },
+  {
+    "method": "fs/watch",
+    "paramsSchema": "v2/FsWatchParams",
+    "responseSchema": "v2/FsWatchResponse"
+  },
+  {
+    "method": "fs/unwatch",
+    "paramsSchema": "v2/FsUnwatchParams",
+    "responseSchema": "v2/FsUnwatchResponse"
+  },
+  {
+    "method": "skills/config/write",
+    "paramsSchema": "v2/SkillsConfigWriteParams",
+    "responseSchema": "v2/SkillsConfigWriteResponse"
+  },
+  {
+    "method": "plugin/install",
+    "paramsSchema": "v2/PluginInstallParams",
+    "responseSchema": "v2/PluginInstallResponse"
+  },
+  {
+    "method": "plugin/uninstall",
+    "paramsSchema": "v2/PluginUninstallParams",
+    "responseSchema": "v2/PluginUninstallResponse"
+  },
+  {
+    "method": "turn/start",
+    "paramsSchema": "v2/TurnStartParams",
+    "responseSchema": "v2/TurnStartResponse"
+  },
+  {
+    "method": "turn/steer",
+    "paramsSchema": "v2/TurnSteerParams",
+    "responseSchema": "v2/TurnSteerResponse"
+  },
+  {
+    "method": "turn/interrupt",
+    "paramsSchema": "v2/TurnInterruptParams",
+    "responseSchema": "v2/TurnInterruptResponse"
+  },
+  {
+    "method": "review/start",
+    "paramsSchema": "v2/ReviewStartParams",
+    "responseSchema": "v2/ReviewStartResponse"
+  },
+  {
+    "method": "model/list",
+    "paramsSchema": "v2/ModelListParams",
+    "responseSchema": "v2/ModelListResponse"
+  },
+  {
+    "method": "modelProvider/capabilities/read",
+    "paramsSchema": "v2/ModelProviderCapabilitiesReadParams",
+    "responseSchema": "v2/ModelProviderCapabilitiesReadResponse"
+  },
+  {
+    "method": "experimentalFeature/list",
+    "paramsSchema": "v2/ExperimentalFeatureListParams",
+    "responseSchema": "v2/ExperimentalFeatureListResponse"
+  },
+  {
+    "method": "permissionProfile/list",
+    "paramsSchema": "v2/PermissionProfileListParams",
+    "responseSchema": "v2/PermissionProfileListResponse"
+  },
+  {
+    "method": "experimentalFeature/enablement/set",
+    "paramsSchema": "v2/ExperimentalFeatureEnablementSetParams",
+    "responseSchema": "v2/ExperimentalFeatureEnablementSetResponse"
+  },
+  {
+    "method": "mcpServer/oauth/login",
+    "paramsSchema": "v2/McpServerOauthLoginParams",
+    "responseSchema": "v2/McpServerOauthLoginResponse"
+  },
+  {
+    "method": "config/mcpServer/reload",
+    "paramsSchema": null,
+    "responseSchema": "v2/McpServerRefreshResponse"
+  },
+  {
+    "method": "mcpServerStatus/list",
+    "paramsSchema": "v2/ListMcpServerStatusParams",
+    "responseSchema": "v2/ListMcpServerStatusResponse"
+  },
+  {
+    "method": "mcpServer/resource/read",
+    "paramsSchema": "v2/McpResourceReadParams",
+    "responseSchema": "v2/McpResourceReadResponse"
+  },
+  {
+    "method": "mcpServer/tool/call",
+    "paramsSchema": "v2/McpServerToolCallParams",
+    "responseSchema": "v2/McpServerToolCallResponse"
+  },
+  {
+    "method": "windowsSandbox/setupStart",
+    "paramsSchema": "v2/WindowsSandboxSetupStartParams",
+    "responseSchema": "v2/WindowsSandboxSetupStartResponse"
+  },
+  {
+    "method": "windowsSandbox/readiness",
+    "paramsSchema": null,
+    "responseSchema": "v2/WindowsSandboxReadinessResponse"
+  },
+  {
+    "method": "account/login/start",
+    "paramsSchema": "v2/LoginAccountParams",
+    "responseSchema": "v2/LoginAccountResponse"
+  },
+  {
+    "method": "account/login/cancel",
+    "paramsSchema": "v2/CancelLoginAccountParams",
+    "responseSchema": "v2/CancelLoginAccountResponse"
+  },
+  {
+    "method": "account/logout",
+    "paramsSchema": null,
+    "responseSchema": "v2/LogoutAccountResponse"
+  },
+  {
+    "method": "account/rateLimits/read",
+    "paramsSchema": null,
+    "responseSchema": "v2/GetAccountRateLimitsResponse"
+  },
+  {
+    "method": "account/rateLimitResetCredit/consume",
+    "paramsSchema": "v2/ConsumeAccountRateLimitResetCreditParams",
+    "responseSchema": "v2/ConsumeAccountRateLimitResetCreditResponse"
+  },
+  {
+    "method": "account/usage/read",
+    "paramsSchema": null,
+    "responseSchema": "v2/GetAccountTokenUsageResponse"
+  },
+  {
+    "method": "account/workspaceMessages/read",
+    "paramsSchema": null,
+    "responseSchema": "v2/GetWorkspaceMessagesResponse"
+  },
+  {
+    "method": "account/sendAddCreditsNudgeEmail",
+    "paramsSchema": "v2/SendAddCreditsNudgeEmailParams",
+    "responseSchema": "v2/SendAddCreditsNudgeEmailResponse"
+  },
+  {
+    "method": "feedback/upload",
+    "paramsSchema": "v2/FeedbackUploadParams",
+    "responseSchema": "v2/FeedbackUploadResponse"
+  },
+  {
+    "method": "command/exec",
+    "paramsSchema": "v2/CommandExecParams",
+    "responseSchema": "v2/CommandExecResponse"
+  },
+  {
+    "method": "command/exec/write",
+    "paramsSchema": "v2/CommandExecWriteParams",
+    "responseSchema": "v2/CommandExecWriteResponse"
+  },
+  {
+    "method": "command/exec/terminate",
+    "paramsSchema": "v2/CommandExecTerminateParams",
+    "responseSchema": "v2/CommandExecTerminateResponse"
+  },
+  {
+    "method": "command/exec/resize",
+    "paramsSchema": "v2/CommandExecResizeParams",
+    "responseSchema": "v2/CommandExecResizeResponse"
+  },
+  {
+    "method": "config/read",
+    "paramsSchema": "v2/ConfigReadParams",
+    "responseSchema": "v2/ConfigReadResponse"
+  },
+  {
+    "method": "externalAgentConfig/detect",
+    "paramsSchema": "v2/ExternalAgentConfigDetectParams",
+    "responseSchema": "v2/ExternalAgentConfigDetectResponse"
+  },
+  {
+    "method": "externalAgentConfig/import",
+    "paramsSchema": "v2/ExternalAgentConfigImportParams",
+    "responseSchema": "v2/ExternalAgentConfigImportResponse"
+  },
+  {
+    "method": "externalAgentConfig/import/readHistories",
+    "paramsSchema": null,
+    "responseSchema": "v2/ExternalAgentConfigImportHistoriesReadResponse"
+  },
+  {
+    "method": "config/value/write",
+    "paramsSchema": "v2/ConfigValueWriteParams",
+    "responseSchema": "v2/ConfigWriteResponse"
+  },
+  {
+    "method": "config/batchWrite",
+    "paramsSchema": "v2/ConfigBatchWriteParams",
+    "responseSchema": "v2/ConfigWriteResponse"
+  },
+  {
+    "method": "configRequirements/read",
+    "paramsSchema": null,
+    "responseSchema": "v2/ConfigRequirementsReadResponse"
+  },
+  {
+    "method": "account/read",
+    "paramsSchema": "v2/GetAccountParams",
+    "responseSchema": "v2/GetAccountResponse"
+  },
+  {
+    "method": "getConversationSummary",
+    "paramsSchema": "GetConversationSummaryParams",
+    "responseSchema": "GetConversationSummaryResponse"
+  },
+  {
+    "method": "gitDiffToRemote",
+    "paramsSchema": "GitDiffToRemoteParams",
+    "responseSchema": "GitDiffToRemoteResponse"
+  },
+  {
+    "method": "getAuthStatus",
+    "paramsSchema": "GetAuthStatusParams",
+    "responseSchema": "GetAuthStatusResponse"
+  },
+  {
+    "method": "fuzzyFileSearch",
+    "paramsSchema": "FuzzyFileSearchParams",
+    "responseSchema": "FuzzyFileSearchResponse"
+  }
+]

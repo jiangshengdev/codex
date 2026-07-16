@@ -15,6 +15,7 @@ import {
   attachWithHeadCommitId,
   attachWithThreadId,
   attachWithTurns,
+  eventWithEnvelope,
   inProgressTurn,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -212,10 +213,12 @@ describe("ProjectionApplicationCoordinator", () => {
     const replacementTurn = eventSubscriptionReplacement.event.notification.turn;
     const oldAttach = attachWithTurns(attachBaseline, [oldOnlyTurn]);
     const replacementAttach = attachWithTurns(attachReplacement, [replacementTurn]);
-    const oldOnlyEvent = {
-      ...turnStarted(eventSubscriptionReplacement, "commit-old-baseline-only", oldOnlyTurn),
-      parentCommitId: replacementAttach.snapshot.headCommitId,
-    };
+    const oldOnlyEvent = eventWithEnvelope(
+      turnStarted(eventSubscriptionReplacement, "commit-old-baseline-only", oldOnlyTurn),
+      {
+        parentCommitId: replacementAttach.snapshot.headCommitId,
+      },
+    );
 
     attachCoordinator(harness, oldAttach);
     harness.coordinator.handleProjectionAttached(replacementAttach);

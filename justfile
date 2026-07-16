@@ -162,6 +162,10 @@ write-config-schema:
 write-app-server-schema *args:
     cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- {args}
 
+# Regenerate vendored GUI Host browser contract artifacts.
+write-gui-host-browser-contract *args:
+    cargo run -p codex-gui-host --bin write_browser_contract_fixtures -- {args}
+
 # Regenerate GUI projection JSON fixtures.
 write-gui-projection-fixtures *args:
     cargo run -p codex-app-server --bin write_gui_projection_fixtures -- {args}

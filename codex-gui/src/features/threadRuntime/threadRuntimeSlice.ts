@@ -97,6 +97,7 @@ export const replayForProjectionEvent = (
         ? "snapshotDuplicate"
         : "live";
   }
+  notification.event satisfies never;
 };
 
 export const threadRuntimeSlice = createAppSlice({
@@ -160,6 +161,7 @@ export const threadRuntimeSlice = createAppSlice({
           case "itemCompleted":
             return;
         }
+        notification.event satisfies never;
       },
     ),
     threadRuntimeManualReconnectRequired: create.reducer(

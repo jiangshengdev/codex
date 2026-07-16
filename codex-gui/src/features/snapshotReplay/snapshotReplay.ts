@@ -30,8 +30,21 @@ export type SnapshotReplayMaterial =
 
 const SNAPSHOT_REPLAY_SOURCE: SnapshotReplaySource = "snapshotReplay";
 
-const isTerminalTurn = (turn: Turn): boolean =>
-  turn.status === "completed" || turn.status === "interrupted" || turn.status === "failed";
+const isTerminalTurn = (turn: Turn): boolean => {
+  const { status } = turn;
+  switch (status) {
+    case "inProgress":
+      return false;
+    case "completed":
+    case "interrupted":
+    case "failed":
+      return true;
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
+  }
+};
 
 const turnWithoutItems = ({
   id,

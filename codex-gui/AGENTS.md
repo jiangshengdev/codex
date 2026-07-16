@@ -1,5 +1,18 @@
 # codex-gui
 
+## Authoritative Contract Invariants
+
+- Treat every cross-module or generated contract consumed by `codex-gui` as having a single authoritative source. Use its authoritative artifacts directly or derive from them mechanically.
+- Preserve failure propagation from the authoritative source. Incompatible upstream changes that affect referenced fields, types, or variants must fail during generation, type checking, or build.
+- Do not replace compile-time contract failures with runtime rejection, silent compatibility, or consumer-owned fallback behavior.
+- Do not manually mirror an authoritative contract in consumer-owned DTOs, interfaces, type aliases, literal unions, field lists, schemas, validators, parsers, fixtures, or compatibility adapters.
+- Do not erase an authoritative type to `unknown`, a broad record, a broad generic, or an assertion boundary and then reconstruct the contract with consumer-owned declarations or checks.
+- Runtime validation that represents an authoritative contract must be mechanically generated from the same authoritative source. If no generated runtime validator exists, do not recreate the contract by hand.
+- Mechanically linked derivations such as `Pick`, `Omit`, `Extract`, indexed access, and other type-system transformations are allowed when they preserve dependency on the authoritative type.
+- Frontend-owned domain models are allowed only when they express distinct frontend semantics rather than a renamed, narrowed, or duplicated contract. Their conversion boundary must accept the authoritative type and preserve compile-time exhaustiveness for variants.
+- Compatible upstream additions that are not consumed locally do not need artificial failures. Do not suppress genuine incompatibilities that affect existing consumers.
+- Designs, plans, and reviews must identify the authoritative source and derivation path for affected contracts. If a proposal duplicates a contract or interrupts compile-time failure propagation, stop and redesign before implementation.
+
 ## HeroUI Design System Invariants
 
 - UI design, implementation plans, and code changes in `codex-gui` should default to HeroUI v3 as the component system. Prefer `@heroui/react` components for interactive controls, overlays, feedback, layout primitives, and typography before creating custom HTML/CSS controls.

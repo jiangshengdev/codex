@@ -1,5 +1,7 @@
 mod assets;
 mod backend;
+mod browser_contract;
+mod browser_contract_fixtures;
 mod config;
 mod filter;
 mod host;
@@ -26,6 +28,11 @@ pub use url::GuiLaunchUrlKind;
 pub use url::GuiLaunchUrls;
 pub use url::launch_url_for_thread;
 pub use url::launch_urls_for_thread;
+
+#[doc(hidden)]
+pub use browser_contract_fixtures::generate_browser_contract_fixture_tree_for_tests;
+#[doc(hidden)]
+pub use browser_contract_fixtures::write_browser_contract_fixtures;
 
 #[cfg(test)]
 pub(crate) mod test_support {

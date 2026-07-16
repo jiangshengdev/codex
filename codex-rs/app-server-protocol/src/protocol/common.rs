@@ -111,6 +111,91 @@ macro_rules! experimental_type_entry {
     };
 }
 
+macro_rules! client_request_method_name {
+    ($variant:ident => $wire:literal) => {
+        $wire.to_string()
+    };
+    ($variant:ident) => {
+        default_client_request_method_name(stringify!($variant))
+    };
+}
+
+macro_rules! params_ts_type_override {
+    (#[ts(type = $ts_type:literal)] $($rest:tt)*) => {
+        Some($ts_type)
+    };
+    (#[$other:meta] $($rest:tt)*) => {
+        params_ts_type_override!($($rest)*)
+    };
+    () => {
+        None
+    };
+}
+
+macro_rules! client_request_params_definition {
+    ($params:ty, [$($params_meta:tt)*]) => {
+        ClientRequestTypeDefinition::new::<$params>(
+            stringify!($params),
+            params_ts_type_override!($($params_meta)*)
+        )
+    };
+    ($params:ty, [$($params_meta:tt)*], nullable($contract_params:ty)) => {
+        ClientRequestTypeDefinition::nullable::<$contract_params>(stringify!($contract_params))
+    };
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ClientRequestTypeDefinition {
+    pub(crate) name: String,
+    pub(crate) import_name: Option<String>,
+    pub(crate) import_path: Option<PathBuf>,
+    pub(crate) schema_path: Option<String>,
+}
+
+impl ClientRequestTypeDefinition {
+    fn new<T: TS>(rust_type_name: &str, ts_type_override: Option<&str>) -> Self {
+        let name = ts_type_override.map_or_else(T::ident, str::to_string);
+        let import_path = ts_type_override.is_none().then(T::output_path).flatten();
+        let import_name = import_path.as_ref().map(|_| name.clone());
+        let (namespace, logical_name) = rust_type_name
+            .split_once("::")
+            .map_or((None, rust_type_name), |(namespace, logical_name)| {
+                (Some(namespace), logical_name)
+            });
+        let schema_path = ts_type_override.is_none().then(|| match namespace {
+            Some("v1") | None => logical_name.to_string(),
+            Some(namespace) => format!("{namespace}/{logical_name}"),
+        });
+        Self {
+            name,
+            import_name,
+            import_path,
+            schema_path,
+        }
+    }
+
+    fn nullable<T: TS>(rust_type_name: &str) -> Self {
+        let mut definition = Self::new::<T>(rust_type_name, /*ts_type_override*/ None);
+        definition.name.push_str(" | null");
+        definition
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ClientRequestDefinition {
+    pub(crate) method: String,
+    pub(crate) params: ClientRequestTypeDefinition,
+    pub(crate) response: ClientRequestTypeDefinition,
+}
+
+fn default_client_request_method_name(variant: &str) -> String {
+    let mut method = variant.to_string();
+    if let Some(first) = method.get_mut(..1) {
+        first.make_ascii_lowercase();
+    }
+    method
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClientRequestSerializationScope {
     Global(&'static str),
@@ -201,7 +286,8 @@ macro_rules! client_request_definitions {
             $(#[experimental($reason:expr)])?
             $(#[doc = $variant_doc:literal])*
             $variant:ident $(=> $wire:literal)? {
-                params: $(#[$params_meta:meta])* $params:ty,
+                params: $(#[$($params_meta:tt)*])* $params:ty,
+                $(contract_params: nullable($contract_params:ty),)?
                 $(inspect_params: $inspect_params:tt,)?
                 serialization: $serialization:ident $( ( $($serialization_args:tt)* ) )?,
                 $(manual_payload_conversion: $manual_payload_conversion:ident,)?
@@ -219,7 +305,7 @@ macro_rules! client_request_definitions {
                 $variant {
                     #[serde(rename = "id")]
                     request_id: RequestId,
-                    $(#[$params_meta])*
+                    $(#[$($params_meta)*])*
                     params: $params,
                 },
             )*
@@ -418,6 +504,37 @@ macro_rules! client_request_definitions {
                 experimental_type_entry!($(#[experimental($reason)])? $response),
             )*
         ];
+
+        pub(crate) fn client_request_definitions(
+            experimental_api: bool,
+        ) -> Vec<ClientRequestDefinition> {
+            [
+                $(
+                    (
+                        !experimental_method_entry!(
+                            $(#[experimental($reason)])? $(=> $wire)?
+                        ).is_empty(),
+                        ClientRequestDefinition {
+                            method: client_request_method_name!($variant $(=> $wire)?),
+                            params: client_request_params_definition!(
+                                $params,
+                                [$(#[$($params_meta)*])*]
+                                $(, nullable($contract_params))?
+                            ),
+                            response: ClientRequestTypeDefinition::new::<$response>(
+                                stringify!($response),
+                                None,
+                            ),
+                        },
+                    ),
+                )*
+            ]
+            .into_iter()
+            .filter_map(|(experimental, definition)| {
+                (experimental_api || !experimental).then_some(definition)
+            })
+            .collect()
+        }
 
         pub fn export_client_responses(
             out_dir: &::std::path::Path,
@@ -899,12 +1016,14 @@ client_request_definitions! {
     #[experimental("remoteControl/enable")]
     RemoteControlEnable => "remoteControl/enable" {
         params: #[serde(skip_serializing_if = "Option::is_none")] v2::NullableRemoteControlEnableParams,
+        contract_params: nullable(v2::RemoteControlEnableParams),
         serialization: global("remote-control"),
         response: v2::RemoteControlEnableResponse,
     },
     #[experimental("remoteControl/disable")]
     RemoteControlDisable => "remoteControl/disable" {
         params: #[serde(skip_serializing_if = "Option::is_none")] v2::NullableRemoteControlDisableParams,
+        contract_params: nullable(v2::RemoteControlDisableParams),
         serialization: global("remote-control"),
         response: v2::RemoteControlDisableResponse,
     },

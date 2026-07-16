@@ -4,4 +4,8 @@ codex_rust_crate(
     name = "gui-host",
     compile_data = glob(["src/embedded_pages/**"]),
     crate_name = "codex_gui_host",
+    test_data_extra = glob(
+        ["schema/**"],
+        allow_empty = True,
+    ),
 )

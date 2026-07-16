@@ -1,3 +1,5 @@
+import { THREAD_QUERY_KEY, TOKEN_FRAGMENT_KEY } from "@codex-gui-host-contract";
+
 export type BrowserLaunchParams = {
   threadId: string;
   token: string;
@@ -16,8 +18,10 @@ export function consumeBrowserLaunchParams({
 }): BrowserLaunchParams {
   replaceState(null, "", `${location.pathname}${location.search}`);
   const resolvedTokenStorage = tokenStorage ?? readSessionStorage();
-  const threadId = location.searchParams.get("threadId");
-  const fragmentToken = new URLSearchParams(location.hash.replace(/^#/, "")).get("token");
+  const threadId = location.searchParams.get(THREAD_QUERY_KEY);
+  const fragmentToken = new URLSearchParams(location.hash.replace(/^#/, "")).get(
+    TOKEN_FRAGMENT_KEY,
+  );
 
   if (!threadId) {
     throw new Error("Missing threadId query parameter");
