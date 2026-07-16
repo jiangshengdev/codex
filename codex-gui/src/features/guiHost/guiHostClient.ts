@@ -222,14 +222,6 @@ export function startGuiHostConnection({
       }
     },
     onTerminalError: failProtocolAndClose,
-    onUnexpectedError: (error) => {
-      queueMicrotask(() => {
-        if (error instanceof Error) {
-          throw error;
-        }
-        throw new Error("Unexpected GUI host handshake error", { cause: error });
-      });
-    },
   });
 
   return () => {

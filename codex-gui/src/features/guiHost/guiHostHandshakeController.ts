@@ -13,7 +13,6 @@ type HandshakeCallbacks = {
   onInitialized: () => void;
   onAttached: (response: ThreadProjectionAttachResponse) => void;
   onTerminalError: (message: string, closeReason: string) => void;
-  onUnexpectedError: (error: unknown) => void;
 };
 
 type AuthenticateResult = {
@@ -36,9 +35,7 @@ export class GuiHostHandshakeController {
       return;
     }
     this.started = true;
-    void this.run().catch((error: unknown) => {
-      this.callbacks.onUnexpectedError(error);
-    });
+    void this.run();
   }
 
   stop(): void {

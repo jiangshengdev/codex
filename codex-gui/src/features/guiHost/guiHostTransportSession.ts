@@ -2,6 +2,16 @@ import { formatRpcId, type RpcMessage } from "./guiHostProtocol";
 
 export type GuiHostRequestFailureSource = "rpc" | "send" | "unavailable";
 
+export class GuiHostRequestError extends Error {
+  readonly source: GuiHostRequestFailureSource;
+
+  constructor(source: GuiHostRequestFailureSource, message: string) {
+    super(message);
+    this.name = "GuiHostRequestError";
+    this.source = source;
+  }
+}
+
 export type GuiHostRpcResponse<T> = {
   result: T | undefined;
 };
@@ -19,32 +29,34 @@ type TransportCallbacks = {
 
 type PendingRequest = {
   resolve(response: GuiHostRpcResponse<unknown>): void;
-  reject(error: Error): void;
+  reject(error: GuiHostRequestError): void;
 };
 
 const unavailableMessage = "GUI host WebSocket is not available";
 const requestFailureSources = new WeakMap<Error, GuiHostRequestFailureSource>();
 
-function setGuiHostRequestFailureSource(error: Error, source: GuiHostRequestFailureSource): Error {
-  requestFailureSources.set(error, source);
-  return error;
-}
-
 export function getGuiHostRequestFailureSource(
   error: unknown,
 ): GuiHostRequestFailureSource | undefined {
   if (error instanceof Error) {
-    return requestFailureSources.get(error);
+    const transportSource = requestFailureSources.get(error);
+    if (transportSource) {
+      return transportSource;
+    }
+    if (error instanceof GuiHostRequestError) {
+      return error.source;
+    }
   }
   return undefined;
 }
 
 function sendFailure(error: unknown): Error {
   if (!(error instanceof Error)) {
-    return setGuiHostRequestFailureSource(new Error(unavailableMessage), "send");
+    return new GuiHostRequestError("send", unavailableMessage);
   }
 
-  return setGuiHostRequestFailureSource(error, "send");
+  requestFailureSources.set(error, "send");
+  return error;
 }
 
 export class GuiHostTransportSession implements GuiHostRequestClient {
@@ -88,9 +100,7 @@ export class GuiHostTransportSession implements GuiHostRequestClient {
 
   request<T>(method: string, params: unknown): Promise<GuiHostRpcResponse<T>> {
     if (this.isUnavailable()) {
-      return Promise.reject(
-        setGuiHostRequestFailureSource(new Error(unavailableMessage), "unavailable"),
-      );
+      return Promise.reject(new GuiHostRequestError("unavailable", unavailableMessage));
     }
 
     const id = this.nextRequestId;
@@ -108,9 +118,7 @@ export class GuiHostTransportSession implements GuiHostRequestClient {
     }
 
     if (this.isUnavailable()) {
-      return Promise.reject(
-        setGuiHostRequestFailureSource(new Error(unavailableMessage), "unavailable"),
-      );
+      return Promise.reject(new GuiHostRequestError("unavailable", unavailableMessage));
     }
 
     return new Promise<GuiHostRpcResponse<T>>((resolve, reject) => {
@@ -152,13 +160,11 @@ export class GuiHostTransportSession implements GuiHostRequestClient {
 
     if (message.error) {
       pending.reject(
-        setGuiHostRequestFailureSource(
-          new Error(
-            `JSON-RPC error (id=${formatRpcId(message.id)}, code=${String(message.error.code)}): ${
-              message.error.message ?? ""
-            }`.trim(),
-          ),
+        new GuiHostRequestError(
           "rpc",
+          `JSON-RPC error (id=${formatRpcId(message.id)}, code=${String(message.error.code)}): ${
+            message.error.message ?? ""
+          }`.trim(),
         ),
       );
     } else {
@@ -173,7 +179,7 @@ export class GuiHostTransportSession implements GuiHostRequestClient {
     }
     this.invalidated = true;
 
-    const error = setGuiHostRequestFailureSource(new Error(unavailableMessage), "unavailable");
+    const error = new GuiHostRequestError("unavailable", unavailableMessage);
     for (const pending of this.pendingRequests.values()) {
       pending.reject(error);
     }
