@@ -1,8 +1,13 @@
 use anyhow::Context;
 use anyhow::Result;
+use codex_app_server_protocol::GenerateTsOptions;
 use codex_app_server_protocol::generate_json_with_experimental;
+use codex_app_server_protocol::generate_ts_with_options;
 use codex_app_server_protocol::generate_typescript_schema_fixture_subtree_for_tests;
 use codex_app_server_protocol::read_schema_fixture_subtree;
+use pretty_assertions::assert_eq;
+use serde_json::Value;
+use serde_json::json;
 use similar::TextDiff;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -25,6 +30,156 @@ fn json_schema_fixtures_match_generated() -> Result<()> {
     assert_schema_fixtures_match_generated("json", |output_dir| {
         generate_json_with_experimental(output_dir, /*experimental_api*/ false)
     })
+}
+
+#[test]
+fn client_request_definitions_export_method_params_and_response() -> Result<()> {
+    let generated_tree = generate_typescript_schema_fixture_subtree_for_tests()
+        .context("generate in-memory typescript schema fixtures")?;
+    let typescript = generated_tree
+        .get(Path::new("ClientRequestDefinition.ts"))
+        .context("generated ClientRequestDefinition.ts")?;
+    let typescript = String::from_utf8(typescript.clone())
+        .context("ClientRequestDefinition.ts should be UTF-8")?;
+    let compact_typescript = typescript
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+
+    for expected in [
+        r#"{method:"initialize";params:InitializeParams;response:InitializeResponse;}"#,
+        r#"{method:"thread/projection/attach";params:ThreadProjectionAttachParams;response:ThreadProjectionAttachResponse;}"#,
+        r#"{method:"turn/start";params:TurnStartParams;response:TurnStartResponse;}"#,
+        r#"{method:"turn/interrupt";params:TurnInterruptParams;response:TurnInterruptResponse;}"#,
+        r#"{method:"config/mcpServer/reload";params:undefined;response:McpServerRefreshResponse;}"#,
+    ] {
+        assert!(
+            compact_typescript.contains(expected),
+            "ClientRequestDefinition.ts is missing `{expected}`\n\n{typescript}"
+        );
+    }
+    assert!(
+        !compact_typescript.contains(r#"method:"threadProjectionAttach""#),
+        "renamed methods must use their wire method, not the Rust variant name"
+    );
+
+    let temp_dir = tempfile::tempdir().context("create temp dir")?;
+    let typescript_dir = temp_dir.path().join("typescript");
+    generate_ts_with_options(
+        &typescript_dir,
+        /*prettier*/ None,
+        GenerateTsOptions {
+            run_prettier: false,
+            experimental_api: true,
+            ..GenerateTsOptions::default()
+        },
+    )
+    .context("generate experimental TypeScript schema fixtures")?;
+    let experimental_typescript_path = typescript_dir.join("ClientRequestDefinition.ts");
+    let experimental_typescript = std::fs::read_to_string(&experimental_typescript_path)
+        .with_context(|| format!("read {}", experimental_typescript_path.display()))?;
+    let compact_experimental_typescript = experimental_typescript
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+
+    for expected in [
+        r#"importtype{RemoteControlEnableParams}from"./v2/RemoteControlEnableParams";"#,
+        r#"importtype{RemoteControlDisableParams}from"./v2/RemoteControlDisableParams";"#,
+        r#"{method:"remoteControl/enable";params:RemoteControlEnableParams|null;response:RemoteControlEnableResponse;}"#,
+        r#"{method:"remoteControl/disable";params:RemoteControlDisableParams|null;response:RemoteControlDisableResponse;}"#,
+    ] {
+        assert!(
+            compact_experimental_typescript.contains(expected),
+            "experimental ClientRequestDefinition.ts is missing `{expected}`\n\n{experimental_typescript}"
+        );
+    }
+
+    let json_dir = temp_dir.path().join("json");
+    generate_json_with_experimental(&json_dir, /*experimental_api*/ true)
+        .context("generate JSON schema fixtures")?;
+    let manifest_path = json_dir.join("client-request-definitions.json");
+    let manifest: Vec<Value> = serde_json::from_slice(
+        &std::fs::read(&manifest_path)
+            .with_context(|| format!("read {}", manifest_path.display()))?,
+    )
+    .with_context(|| format!("parse {}", manifest_path.display()))?;
+
+    for expected in [
+        json!({
+            "method": "initialize",
+            "paramsSchema": "InitializeParams",
+            "responseSchema": "InitializeResponse",
+        }),
+        json!({
+            "method": "thread/projection/attach",
+            "paramsSchema": "v2/ThreadProjectionAttachParams",
+            "responseSchema": "v2/ThreadProjectionAttachResponse",
+        }),
+        json!({
+            "method": "turn/start",
+            "paramsSchema": "v2/TurnStartParams",
+            "responseSchema": "v2/TurnStartResponse",
+        }),
+        json!({
+            "method": "turn/interrupt",
+            "paramsSchema": "v2/TurnInterruptParams",
+            "responseSchema": "v2/TurnInterruptResponse",
+        }),
+        json!({
+            "method": "config/mcpServer/reload",
+            "paramsSchema": null,
+            "responseSchema": "v2/McpServerRefreshResponse",
+        }),
+        json!({
+            "method": "remoteControl/enable",
+            "paramsSchema": "v2/RemoteControlEnableParams",
+            "responseSchema": "v2/RemoteControlEnableResponse",
+        }),
+        json!({
+            "method": "remoteControl/disable",
+            "paramsSchema": "v2/RemoteControlDisableParams",
+            "responseSchema": "v2/RemoteControlDisableResponse",
+        }),
+    ] {
+        let method = expected["method"]
+            .as_str()
+            .context("expected method string")?;
+        let actual = manifest
+            .iter()
+            .find(|definition| definition["method"].as_str() == Some(method))
+            .with_context(|| format!("missing request definition for {method}"))?;
+        assert_eq!(&expected, actual);
+    }
+    assert!(
+        manifest
+            .iter()
+            .all(|definition| definition["method"].as_str() != Some("threadProjectionAttach")),
+        "renamed methods must use their wire method, not the Rust variant name"
+    );
+
+    let bundle_path = json_dir.join("codex_app_server_protocol.schemas.json");
+    let bundle: Value = serde_json::from_slice(
+        &std::fs::read(&bundle_path).with_context(|| format!("read {}", bundle_path.display()))?,
+    )
+    .with_context(|| format!("parse {}", bundle_path.display()))?;
+    let v2_definitions = bundle["definitions"]["v2"]
+        .as_object()
+        .context("schema bundle v2 definitions object")?;
+    for schema_id in [
+        "v2/RemoteControlEnableParams",
+        "v2/RemoteControlDisableParams",
+    ] {
+        let definition_name = schema_id
+            .strip_prefix("v2/")
+            .context("v2 schema ID prefix")?;
+        assert!(
+            v2_definitions.contains_key(definition_name),
+            "schema bundle is missing `{schema_id}`"
+        );
+    }
+
+    Ok(())
 }
 
 fn assert_schema_fixtures_match_generated(
