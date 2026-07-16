@@ -160,6 +160,45 @@ describe("guiHostClient protocol errors", () => {
     expect(socket.closed).toEqual([{ code: 1000, reason: "invalid message" }]);
   });
 
+  it.each([
+    ["array", []],
+    ["primitive", 42],
+    ["object missing JSON-RPC fields", { jsonrpc: "2.0" }],
+  ])("reports a parseable %s as a malformed JSON-RPC message", (_, message) => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const callbacks: string[] = [];
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+      onCommandsReady: () => {
+        callbacks.push("commands-ready");
+      },
+      onProjectionAttached: () => {
+        callbacks.push("projection-attached");
+      },
+      onProjectionClosed: () => {
+        callbacks.push("projection-closed");
+      },
+      onProjectionDelta: () => {
+        callbacks.push("projection-delta");
+      },
+      onProjectionEvent: () => {
+        callbacks.push("projection-event");
+      },
+    });
+
+    socket.onopen?.();
+    socket.onmessage?.({ data: JSON.stringify(message) });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(callbacks).toEqual([]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "Malformed JSON-RPC message",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "invalid message" }]);
+  });
+
   it("reports policy-close as error", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
 

@@ -20,7 +20,81 @@ fn typescript_schema_fixtures_match_generated() -> Result<()> {
     let generated_tree = generate_typescript_schema_fixture_subtree_for_tests()
         .context("generate in-memory typescript schema fixtures")?;
 
+    assert_jsonrpc_message_typescript_fixture(&generated_tree)?;
+
     assert_schema_trees_match("typescript", &fixture_tree, &generated_tree)?;
+
+    Ok(())
+}
+
+fn assert_jsonrpc_message_typescript_fixture(
+    generated_tree: &BTreeMap<PathBuf, Vec<u8>>,
+) -> Result<()> {
+    let message = generated_tree
+        .get(Path::new("JSONRPCMessage.ts"))
+        .context("fresh generation must include JSONRPCMessage.ts")?;
+    let message =
+        String::from_utf8(message.clone()).context("JSONRPCMessage.ts should be UTF-8")?;
+    let compact_message = message
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    for expected in [
+        r#"importtype{JSONRPCError}from"./JSONRPCError";"#,
+        r#"importtype{JSONRPCNotification}from"./JSONRPCNotification";"#,
+        r#"importtype{JSONRPCRequest}from"./JSONRPCRequest";"#,
+        r#"importtype{JSONRPCResponse}from"./JSONRPCResponse";"#,
+        "exporttypeJSONRPCMessage=JSONRPCRequest|JSONRPCNotification|JSONRPCResponse|JSONRPCError;",
+    ] {
+        assert!(
+            compact_message.contains(expected),
+            "JSONRPCMessage.ts is missing `{expected}`\n\n{message}"
+        );
+    }
+
+    let index = generated_tree
+        .get(Path::new("index.ts"))
+        .context("fresh generation must include index.ts")?;
+    let index = String::from_utf8(index.clone()).context("index.ts should be UTF-8")?;
+    for type_name in [
+        "JSONRPCError",
+        "JSONRPCErrorError",
+        "JSONRPCMessage",
+        "JSONRPCNotification",
+        "JSONRPCRequest",
+        "JSONRPCResponse",
+        "RequestId",
+        "W3cTraceContext",
+    ] {
+        let path = PathBuf::from(format!("{type_name}.ts"));
+        assert!(
+            generated_tree.contains_key(&path),
+            "fresh generation is missing JSONRPCMessage dependency {}",
+            path.display()
+        );
+        let expected_export = format!("export type {{ {type_name} }} from \"./{type_name}\";");
+        assert!(
+            index.contains(&expected_export),
+            "generated index.ts is missing `{expected_export}`\n\n{index}"
+        );
+    }
+
+    let error = generated_tree
+        .get(Path::new("JSONRPCErrorError.ts"))
+        .context("fresh generation must include JSONRPCErrorError.ts")?;
+    let error = String::from_utf8(error.clone()).context("JSONRPCErrorError.ts should be UTF-8")?;
+    let compact_error = error
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    assert!(
+        compact_error.contains("code:number"),
+        "JSONRPCErrorError.code must be exported as number\n\n{error}"
+    );
+    assert!(
+        !compact_error.contains("bigint"),
+        "JSONRPCErrorError.ts must not expose bigint\n\n{error}"
+    );
 
     Ok(())
 }

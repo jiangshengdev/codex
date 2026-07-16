@@ -4,6 +4,7 @@ import type {
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
+import type { JSONRPCMessage } from "@codex-protocol/JSONRPCMessage";
 import {
   AUTHENTICATE_METHOD,
   WEBSOCKET_PATH,
@@ -14,10 +15,14 @@ import {
   consumeBrowserLaunchParams,
   type BrowserLaunchParams,
 } from "@/features/browserLaunch/browserLaunchParams";
-import { requestDescriptors, validateServerNotification } from "@/generated/appServerProtocol";
+import {
+  requestDescriptors,
+  validateServerNotification,
+  validatorRegistry,
+} from "@/generated/appServerProtocol";
 import { validateGuiAuthenticateResult } from "@/generated/guiHostContract";
 import type { RequestParams, RequestResponse } from "./appServerProtocol";
-import { formatRpcId, parseRpcMessage, type RpcMessage } from "./guiHostProtocol";
+import { parseRpcMessage } from "./guiHostProtocol";
 
 export type GuiHostStatus =
   | { label: "connecting" }
@@ -292,59 +297,96 @@ export function startGuiHostConnection({
     });
   };
 
+  const settlePendingResult = (id: JsonRpcResponse["id"], result: unknown): void => {
+    if (typeof id !== "number") {
+      return;
+    }
+
+    const pending = pendingRequests.get(id);
+    if (!pending) {
+      return;
+    }
+    pendingRequests.delete(id);
+
+    const resultError = pending.settleResult(true, result);
+    if (resultError && pending.terminalOnError) {
+      failProtocolAndClose(resultError, "protocol error");
+    }
+  };
+
+  const settlePendingError = (
+    id: JsonRpcErrorResponse["id"],
+    rpcError: JsonRpcErrorResponse["error"],
+  ): void => {
+    const error = new Error(
+      `JSON-RPC error (id=${String(id)}, code=${String(rpcError.code)}): ${rpcError.message}`.trim(),
+    );
+    if (typeof id !== "number") {
+      failProtocolAndClose(error.message, "handshake error");
+      return;
+    }
+
+    const pending = pendingRequests.get(id);
+    if (!pending) {
+      return;
+    }
+    pendingRequests.delete(id);
+    pending.reject(error);
+
+    if (pending.terminalOnError) {
+      failProtocolAndClose(error.message, "handshake error");
+    }
+  };
+
   socket.onmessage = (event) => {
-    let message: RpcMessage;
+    let parsedMessage: unknown;
     try {
-      message = parseRpcMessage(event.data);
+      parsedMessage = parseRpcMessage(event.data);
     } catch {
       failProtocolAndClose("Malformed JSON-RPC message", "invalid message");
       return;
     }
 
-    if (typeof message.id === "number") {
-      const pending = pendingRequests.get(message.id);
-      if (!pending) {
-        return;
-      }
-      pendingRequests.delete(message.id);
-
-      if (message.error) {
-        const error = new Error(
-          `JSON-RPC error (id=${String(message.id)}, code=${String(message.error.code)}): ${
-            message.error.message ?? ""
-          }`.trim(),
-        );
-        pending.reject(error);
-
-        if (pending.terminalOnError) {
-          failProtocolAndClose(error.message, "handshake error");
+    if (!validatorRegistry.JSONRPCMessage(parsedMessage)) {
+      if (
+        typeof parsedMessage === "object" &&
+        parsedMessage !== null &&
+        !Array.isArray(parsedMessage) &&
+        "id" in parsedMessage &&
+        typeof parsedMessage.id === "number" &&
+        !("result" in parsedMessage) &&
+        !("error" in parsedMessage)
+      ) {
+        const pending = pendingRequests.get(parsedMessage.id);
+        if (pending) {
+          pendingRequests.delete(parsedMessage.id);
+          const resultError = pending.settleResult(false, undefined);
+          if (resultError && pending.terminalOnError) {
+            failProtocolAndClose(resultError, "protocol error");
+          }
+          return;
         }
-        return;
       }
 
-      const resultError = pending.settleResult(message.hasResult, message.result);
-      if (resultError && pending.terminalOnError) {
-        failProtocolAndClose(resultError, "protocol error");
-      }
+      failProtocolAndClose("Malformed JSON-RPC message", "invalid message");
       return;
     }
 
-    if (message.error) {
-      failProtocolAndClose(
-        `JSON-RPC error (id=${formatRpcId(message.id)}, code=${String(message.error.code)}): ${
-          message.error.message ?? ""
-        }`.trim(),
-        "handshake error",
-      );
+    const message: JSONRPCMessage = parsedMessage;
+    if ("result" in message) {
+      settlePendingResult(message.id, message.result);
+      return;
+    }
+    if ("error" in message) {
+      settlePendingError(message.id, message.error);
+      return;
+    }
+    if ("id" in message) {
       return;
     }
 
-    const notificationCandidate = {
-      method: message.method,
-      params: message.params,
-    };
-    if (!validateServerNotification(notificationCandidate)) {
-      if (message.method?.startsWith("thread/projection/")) {
+    if (!validateServerNotification(message)) {
+      if (message.method.startsWith("thread/projection/")) {
         failProtocolAndClose(
           `${message.method} returned malformed params payload`,
           "protocol error",
@@ -352,22 +394,22 @@ export function startGuiHostConnection({
       }
       return;
     }
-    if (!isProjectionServerNotification(notificationCandidate)) {
+    if (!isProjectionServerNotification(message)) {
       return;
     }
 
-    switch (notificationCandidate.method) {
+    switch (message.method) {
       case "thread/projection/event":
-        onProjectionEvent?.(notificationCandidate.params);
+        onProjectionEvent?.(message.params);
         return;
       case "thread/projection/delta":
-        onProjectionDelta?.(notificationCandidate.params);
+        onProjectionDelta?.(message.params);
         return;
       case "thread/projection/closed":
-        onProjectionClosed?.(notificationCandidate.params);
+        onProjectionClosed?.(message.params);
         return;
       default:
-        notificationCandidate satisfies never;
+        message satisfies never;
         return;
     }
   };
@@ -411,6 +453,9 @@ type ProjectionServerNotification = Extract<
   ServerNotification,
   { method: `thread/projection/${string}` }
 >;
+
+type JsonRpcResponse = Extract<JSONRPCMessage, { result: unknown }>;
+type JsonRpcErrorResponse = Extract<JSONRPCMessage, { error: unknown }>;
 
 function validateDescriptorResponse<M extends GuiRequestMethod>(
   descriptor: RequestDescriptor<M>,

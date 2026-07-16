@@ -80,6 +80,7 @@ pub struct JSONRPCError {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema, TS)]
 pub struct JSONRPCErrorError {
+    #[ts(type = "number")]
     pub code: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

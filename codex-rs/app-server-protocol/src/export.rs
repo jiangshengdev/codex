@@ -1,5 +1,6 @@
 use crate::ClientNotification;
 use crate::ClientRequest;
+use crate::JSONRPCMessage;
 use crate::ServerNotification;
 use crate::ServerRequest;
 use crate::experimental_api::experimental_fields;
@@ -123,6 +124,7 @@ pub fn generate_ts_with_options(
     ensure_dir(out_dir)?;
     ensure_dir(&v2_out_dir)?;
 
+    JSONRPCMessage::export_all_to(out_dir)?;
     ClientRequest::export_all_to(out_dir)?;
     export_client_responses(out_dir)?;
     ClientNotification::export_all_to(out_dir)?;
