@@ -175,7 +175,7 @@ impl ClientRequestTypeDefinition {
     }
 
     fn nullable<T: TS>(rust_type_name: &str) -> Self {
-        let mut definition = Self::new::<T>(rust_type_name, None);
+        let mut definition = Self::new::<T>(rust_type_name, /*ts_type_override*/ None);
         definition.name.push_str(" | null");
         definition
     }
