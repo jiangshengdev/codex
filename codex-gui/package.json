@@ -26,7 +26,9 @@
     "messages:extract": "lingui extract",
     "messages:extract:clean": "lingui extract --clean",
     "analyze:large-files": "tsx scripts/large-files/cli.ts",
-    "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts"
+    "clean:test-artifacts": "tsx scripts/clean-test-artifacts/cli.ts",
+    "protocol:generate-validators": "tsx scripts/protocolValidators/cli.ts --write",
+    "protocol:check-validators": "tsx scripts/protocolValidators/cli.ts --check"
   },
   "dependencies": {
     "@heroui/react": "^3.2.1",
