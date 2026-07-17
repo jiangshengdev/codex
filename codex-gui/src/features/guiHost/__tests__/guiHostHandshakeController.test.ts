@@ -254,11 +254,11 @@ describe("GuiHostHandshakeController", () => {
     }
     const request = requestAt(socket, socket.sent.length - 1);
 
-    if (resultKind === "missing") {
-      expect(session.settleMissingResult(request.id)).toBe(true);
-    } else {
-      expect(session.settleResult(request.id, {})).toBe(true);
-    }
+    const settled =
+      resultKind === "missing"
+        ? session.settleMissingResult(request.id)
+        : session.settleResult(request.id, {});
+    expect(settled).toBe(true);
     expect(failures).toEqual([{ message, closeReason: "protocol error" }]);
   });
 

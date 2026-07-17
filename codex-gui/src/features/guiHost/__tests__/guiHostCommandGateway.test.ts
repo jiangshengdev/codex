@@ -28,10 +28,10 @@ class FailOnceWebSocket extends RecordingWebSocket {
 
 function setup(socket: RecordingWebSocket = new RecordingWebSocket()) {
   const transport = new GuiHostTransportSession(socket as unknown as WebSocket, {
-    onOpen: vi.fn(),
-    onMessage: vi.fn(),
-    onError: vi.fn(),
-    onClose: vi.fn(),
+    onOpen: vi.fn<() => void>(),
+    onMessage: vi.fn<(data: unknown) => void>(),
+    onError: vi.fn<() => void>(),
+    onClose: vi.fn<(event: { code: number; reason: string }) => void>(),
   });
   return { gateway: new GuiHostCommandGateway(transport), socket, transport };
 }
