@@ -1493,10 +1493,30 @@ macro_rules! server_request_definitions {
 
 /// Generates `ServerNotification` enum and helpers, including a JSON Schema
 /// exporter for each notification.
+macro_rules! experimental_server_notification_method_entry {
+    (
+        [$(=> $wire:literal)?]
+        #[experimental($reason:expr)]
+        $($rest:tt)*
+    ) => {
+        experimental_method_entry!(#[experimental($reason)] $(=> $wire)?)
+    };
+    (
+        [$($wire:tt)*]
+        #[$($variant_meta:tt)*]
+        $($rest:tt)*
+    ) => {
+        experimental_server_notification_method_entry!([$($wire)*] $($rest)*)
+    };
+    ([$($wire:tt)*]) => {
+        experimental_method_entry!($($wire)*)
+    };
+}
+
 macro_rules! server_notification_definitions {
     (
         $(
-            $(#[$variant_meta:meta])*
+            $(#[$($variant_meta:tt)*])*
             $variant:ident $(=> $wire:literal)? ( $payload:ty )
         ),* $(,)?
     ) => {
@@ -1516,7 +1536,7 @@ macro_rules! server_notification_definitions {
         #[strum(serialize_all = "camelCase")]
         pub enum ServerNotification {
             $(
-                $(#[$variant_meta])*
+                $(#[$($variant_meta)*])*
                 $(#[serde(rename = $wire)] #[ts(rename = $wire)] #[strum(serialize = $wire)])?
                 $variant($payload),
             )*
@@ -1546,6 +1566,15 @@ macro_rules! server_notification_definitions {
             $(schemas.push(crate::export::write_json_schema::<$payload>(out_dir, stringify!($payload))?);)*
             Ok(schemas)
         }
+
+        pub(crate) const EXPERIMENTAL_SERVER_NOTIFICATION_METHODS: &[&str] = &[
+            $(
+                experimental_server_notification_method_entry!(
+                    [$(=> $wire)?]
+                    $(#[$($variant_meta)*])*
+                ),
+            )*
+        ];
     };
 }
 /// Notifications sent from the client to the server.
