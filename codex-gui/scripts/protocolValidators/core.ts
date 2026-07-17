@@ -42,6 +42,7 @@ type StandaloneGroupOptions = {
   schemaBundleId: string;
   rootSchemaIds: readonly string[];
   allErrors: boolean;
+  messages: boolean;
   dependencies: GeneratorDependencies;
 };
 
@@ -313,11 +314,13 @@ function buildAjvValidators(
   validatorExports: ReadonlyMap<string, string>,
   schemaBundleId: string,
   allErrors: boolean,
+  messages: boolean,
 ): { ajv: Ajv; refs: Record<string, string> } {
   const ajv = new Ajv({
     strict: true,
     allowUnionTypes: true,
     allErrors,
+    messages,
     validateFormats: false,
     code: { esm: true, source: true },
   });
@@ -364,6 +367,7 @@ async function generateStandaloneArtifacts({
   schemaBundleId,
   rootSchemaIds,
   allErrors,
+  messages,
   dependencies,
 }: StandaloneGroupOptions): Promise<{
   artifacts: Record<string, string>;
@@ -382,6 +386,7 @@ async function generateStandaloneArtifacts({
     validatorExports,
     schemaBundleId,
     allErrors,
+    messages,
   );
   const generateStandalone =
     dependencies.standaloneCode ?? ((validatorRefs) => standaloneCode(ajv, validatorRefs));
@@ -425,6 +430,7 @@ export async function generateProtocolArtifacts({
     schemaBundleId: APP_SERVER_SCHEMA_BUNDLE_ID,
     rootSchemaIds: ["JSONRPCMessage"],
     allErrors: false,
+    messages: false,
     dependencies,
   });
   const payloadRuntime = await generateStandaloneArtifacts({
@@ -436,6 +442,7 @@ export async function generateProtocolArtifacts({
       ...selectedNotificationDefinitions.map(({ paramsSchema }) => paramsSchema),
     ],
     allErrors: false,
+    messages: false,
     dependencies,
   });
   const typeScriptArtifacts = await generateTypeScriptArtifacts({
@@ -466,6 +473,7 @@ export async function generateGuiHostContractArtifacts({
     schemaBundleId: GUI_HOST_SCHEMA_BUNDLE_ID,
     rootSchemaIds: ["GuiAuthenticateParams", "GuiAuthenticateResult"],
     allErrors: true,
+    messages: true,
     dependencies,
   });
   const typeScriptArtifacts = await generateGuiHostContractTypeScriptArtifacts({

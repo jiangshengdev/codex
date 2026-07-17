@@ -329,7 +329,11 @@ async function importJavaScript(sourceText: string): Promise<Record<string, unkn
   ) as Promise<Record<string, unknown>>;
 }
 
-function isRuntimeValidator(value: unknown): value is (input: unknown) => boolean {
+type RuntimeValidator = ((input: unknown) => boolean) & {
+  errors?: readonly { message?: string }[] | null;
+};
+
+function isRuntimeValidator(value: unknown): value is RuntimeValidator {
   return typeof value === "function";
 }
 
@@ -516,6 +520,66 @@ describe("protocol validator artifacts", () => {
     expect(validateEnvelope({ id: 1, error: { code: -1, message: "failed", data: {} } })).toBe(
       true,
     );
+  });
+
+  test("omits error messages from app-server groups while preserving GUI Host messages", async () => {
+    const artifacts = await generate();
+    const envelope = await importJavaScript(artifacts["jsonRpcEnvelopeValidators.js"]);
+    const payload = await importJavaScript(artifacts["appServerPayloadValidators.js"]);
+    const validateEnvelope = envelope.validateJSONRPCMessage;
+    const validatePayload = payload.validateV2SelectedNotification;
+    expect(isRuntimeValidator(validateEnvelope)).toBe(true);
+    expect(isRuntimeValidator(validatePayload)).toBe(true);
+    if (!isRuntimeValidator(validateEnvelope) || !isRuntimeValidator(validatePayload)) {
+      throw new Error("Missing app-server validators");
+    }
+
+    expect(validateEnvelope([])).toBe(false);
+    expect(validatePayload({})).toBe(false);
+    for (const validator of [validateEnvelope, validatePayload]) {
+      const errors = validator.errors;
+      expect(errors).toBeTruthy();
+      if (!errors) throw new Error("Expected app-server validation errors");
+      expect(errors.every((error) => error.message === undefined)).toBe(true);
+    }
+    const generatedMessageTexts = [
+      "must have required property",
+      "must be object",
+      "must match a schema in anyOf",
+    ];
+    for (const fileName of [
+      "jsonRpcEnvelopeValidators.raw.js",
+      "appServerPayloadValidators.raw.js",
+    ]) {
+      const sourceText = artifacts[fileName];
+      expect(generatedMessageTexts.filter((message) => sourceText.includes(message))).toEqual([]);
+    }
+
+    const guiHostArtifacts = await generateGuiHostContractArtifacts({
+      schemaBundle: {
+        definitions: {
+          GuiAuthenticateParams: {
+            type: "object",
+            properties: { token: { type: "string" } },
+            required: ["token"],
+          },
+          GuiAuthenticateResult: {
+            type: "object",
+            properties: { authenticated: { type: "boolean" } },
+            required: ["authenticated"],
+          },
+        },
+      },
+    });
+    const guiHost = await importJavaScript(guiHostArtifacts["standaloneValidators.js"]);
+    const validateGuiHost = guiHost.validateGuiAuthenticateParams;
+    expect(isRuntimeValidator(validateGuiHost)).toBe(true);
+    if (!isRuntimeValidator(validateGuiHost)) throw new Error("Missing GUI Host validator");
+    expect(validateGuiHost({})).toBe(false);
+    const guiHostErrors = validateGuiHost.errors;
+    expect(guiHostErrors).toBeTruthy();
+    if (!guiHostErrors) throw new Error("Expected GUI Host validation errors");
+    expect(guiHostErrors.some((error) => typeof error.message === "string")).toBe(true);
   });
 
   test("keeps only the selected payload closure out of the shallow envelope group", async () => {

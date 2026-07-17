@@ -10,7 +10,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (data.id === void 0 && (missing0 = "id") || data.method === void 0 && (missing0 = "method")) {
-        validate13.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
+        validate13.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 } }];
         return false;
       } else {
         if (data.id !== void 0) {
@@ -20,7 +20,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
           let valid2 = false;
           const _errs4 = errors;
           if (typeof data0 !== "string") {
-            const err0 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/0/type", keyword: "type", params: { type: "string" }, message: "must be string" };
+            const err0 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/0/type", keyword: "type", params: { type: "string" } };
             if (vErrors === null) {
               vErrors = [err0];
             } else {
@@ -33,7 +33,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
           if (!valid2) {
             const _errs6 = errors;
             if (!(typeof data0 == "number" && (!(data0 % 1) && !isNaN(data0)) && isFinite(data0))) {
-              const err1 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/1/type", keyword: "type", params: { type: "integer" }, message: "must be integer" };
+              const err1 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/1/type", keyword: "type", params: { type: "integer" } };
               if (vErrors === null) {
                 vErrors = [err1];
               } else {
@@ -45,7 +45,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
             valid2 = valid2 || _valid0;
           }
           if (!valid2) {
-            const err2 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf", keyword: "anyOf", params: {}, message: "must match a schema in anyOf" };
+            const err2 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf", keyword: "anyOf", params: {} };
             if (vErrors === null) {
               vErrors = [err2];
             } else {
@@ -72,7 +72,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
           if (data.method !== void 0) {
             const _errs8 = errors;
             if (typeof data.method !== "string") {
-              validate13.errors = [{ instancePath: instancePath + "/method", schemaPath: "#/properties/method/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
+              validate13.errors = [{ instancePath: instancePath + "/method", schemaPath: "#/properties/method/type", keyword: "type", params: { type: "string" } }];
               return false;
             }
             var valid0 = _errs8 === errors;
@@ -93,7 +93,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
                     let data3 = data2.traceparent;
                     const _errs15 = errors;
                     if (typeof data3 !== "string" && data3 !== null) {
-                      const err3 = { instancePath: instancePath + "/trace/traceparent", schemaPath: "#/definitions/W3cTraceContext/properties/traceparent/type", keyword: "type", params: { type: schema16.properties.traceparent.type }, message: "must be string,null" };
+                      const err3 = { instancePath: instancePath + "/trace/traceparent", schemaPath: "#/definitions/W3cTraceContext/properties/traceparent/type", keyword: "type", params: { type: schema16.properties.traceparent.type } };
                       if (vErrors === null) {
                         vErrors = [err3];
                       } else {
@@ -110,7 +110,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
                       let data4 = data2.tracestate;
                       const _errs17 = errors;
                       if (typeof data4 !== "string" && data4 !== null) {
-                        const err4 = { instancePath: instancePath + "/trace/tracestate", schemaPath: "#/definitions/W3cTraceContext/properties/tracestate/type", keyword: "type", params: { type: schema16.properties.tracestate.type }, message: "must be string,null" };
+                        const err4 = { instancePath: instancePath + "/trace/tracestate", schemaPath: "#/definitions/W3cTraceContext/properties/tracestate/type", keyword: "type", params: { type: schema16.properties.tracestate.type } };
                         if (vErrors === null) {
                           vErrors = [err4];
                         } else {
@@ -124,7 +124,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
                     }
                   }
                 } else {
-                  const err5 = { instancePath: instancePath + "/trace", schemaPath: "#/definitions/W3cTraceContext/type", keyword: "type", params: { type: "object" }, message: "must be object" };
+                  const err5 = { instancePath: instancePath + "/trace", schemaPath: "#/definitions/W3cTraceContext/type", keyword: "type", params: { type: "object" } };
                   if (vErrors === null) {
                     vErrors = [err5];
                   } else {
@@ -138,7 +138,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
               if (!valid3) {
                 const _errs19 = errors;
                 if (data2 !== null) {
-                  const err6 = { instancePath: instancePath + "/trace", schemaPath: "#/properties/trace/anyOf/1/type", keyword: "type", params: { type: "null" }, message: "must be null" };
+                  const err6 = { instancePath: instancePath + "/trace", schemaPath: "#/properties/trace/anyOf/1/type", keyword: "type", params: { type: "null" } };
                   if (vErrors === null) {
                     vErrors = [err6];
                   } else {
@@ -150,7 +150,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
                 valid3 = valid3 || _valid1;
               }
               if (!valid3) {
-                const err7 = { instancePath: instancePath + "/trace", schemaPath: "#/properties/trace/anyOf", keyword: "anyOf", params: {}, message: "must match a schema in anyOf" };
+                const err7 = { instancePath: instancePath + "/trace", schemaPath: "#/properties/trace/anyOf", keyword: "anyOf", params: {} };
                 if (vErrors === null) {
                   vErrors = [err7];
                 } else {
@@ -177,7 +177,7 @@ function validate13(data, { instancePath = "", parentData, parentDataProperty, r
         }
       }
     } else {
-      validate13.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
+      validate13.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
       return false;
     }
   }
@@ -191,7 +191,7 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (data.id === void 0 && (missing0 = "id") || data.result === void 0 && (missing0 = "result")) {
-        validate15.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
+        validate15.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 } }];
         return false;
       } else {
         if (data.id !== void 0) {
@@ -200,7 +200,7 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
           let valid2 = false;
           const _errs4 = errors;
           if (typeof data0 !== "string") {
-            const err0 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/0/type", keyword: "type", params: { type: "string" }, message: "must be string" };
+            const err0 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/0/type", keyword: "type", params: { type: "string" } };
             if (vErrors === null) {
               vErrors = [err0];
             } else {
@@ -213,7 +213,7 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
           if (!valid2) {
             const _errs6 = errors;
             if (!(typeof data0 == "number" && (!(data0 % 1) && !isNaN(data0)) && isFinite(data0))) {
-              const err1 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/1/type", keyword: "type", params: { type: "integer" }, message: "must be integer" };
+              const err1 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/1/type", keyword: "type", params: { type: "integer" } };
               if (vErrors === null) {
                 vErrors = [err1];
               } else {
@@ -225,7 +225,7 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
             valid2 = valid2 || _valid0;
           }
           if (!valid2) {
-            const err2 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf", keyword: "anyOf", params: {}, message: "must match a schema in anyOf" };
+            const err2 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf", keyword: "anyOf", params: {} };
             if (vErrors === null) {
               vErrors = [err2];
             } else {
@@ -247,7 +247,7 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
         }
       }
     } else {
-      validate15.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
+      validate15.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
       return false;
     }
   }
@@ -261,7 +261,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (data.error === void 0 && (missing0 = "error") || data.id === void 0 && (missing0 = "id")) {
-        validate17.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" }];
+        validate17.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 } }];
         return false;
       } else {
         if (data.error !== void 0) {
@@ -272,14 +272,14 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
             if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
               let missing1;
               if (data0.code === void 0 && (missing1 = "code") || data0.message === void 0 && (missing1 = "message")) {
-                validate17.errors = [{ instancePath: instancePath + "/error", schemaPath: "#/definitions/JSONRPCErrorError/required", keyword: "required", params: { missingProperty: missing1 }, message: "must have required property '" + missing1 + "'" }];
+                validate17.errors = [{ instancePath: instancePath + "/error", schemaPath: "#/definitions/JSONRPCErrorError/required", keyword: "required", params: { missingProperty: missing1 } }];
                 return false;
               } else {
                 if (data0.code !== void 0) {
                   let data1 = data0.code;
                   const _errs4 = errors;
                   if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1)) && isFinite(data1))) {
-                    validate17.errors = [{ instancePath: instancePath + "/error/code", schemaPath: "#/definitions/JSONRPCErrorError/properties/code/type", keyword: "type", params: { type: "integer" }, message: "must be integer" }];
+                    validate17.errors = [{ instancePath: instancePath + "/error/code", schemaPath: "#/definitions/JSONRPCErrorError/properties/code/type", keyword: "type", params: { type: "integer" } }];
                     return false;
                   }
                   var valid2 = _errs4 === errors;
@@ -290,7 +290,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                   if (data0.message !== void 0) {
                     const _errs6 = errors;
                     if (typeof data0.message !== "string") {
-                      validate17.errors = [{ instancePath: instancePath + "/error/message", schemaPath: "#/definitions/JSONRPCErrorError/properties/message/type", keyword: "type", params: { type: "string" }, message: "must be string" }];
+                      validate17.errors = [{ instancePath: instancePath + "/error/message", schemaPath: "#/definitions/JSONRPCErrorError/properties/message/type", keyword: "type", params: { type: "string" } }];
                       return false;
                     }
                     var valid2 = _errs6 === errors;
@@ -300,7 +300,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                 }
               }
             } else {
-              validate17.errors = [{ instancePath: instancePath + "/error", schemaPath: "#/definitions/JSONRPCErrorError/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
+              validate17.errors = [{ instancePath: instancePath + "/error", schemaPath: "#/definitions/JSONRPCErrorError/type", keyword: "type", params: { type: "object" } }];
               return false;
             }
           }
@@ -316,7 +316,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
             let valid4 = false;
             const _errs11 = errors;
             if (typeof data3 !== "string") {
-              const err0 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/0/type", keyword: "type", params: { type: "string" }, message: "must be string" };
+              const err0 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/0/type", keyword: "type", params: { type: "string" } };
               if (vErrors === null) {
                 vErrors = [err0];
               } else {
@@ -329,7 +329,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
             if (!valid4) {
               const _errs13 = errors;
               if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3)) && isFinite(data3))) {
-                const err1 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/1/type", keyword: "type", params: { type: "integer" }, message: "must be integer" };
+                const err1 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf/1/type", keyword: "type", params: { type: "integer" } };
                 if (vErrors === null) {
                   vErrors = [err1];
                 } else {
@@ -341,7 +341,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
               valid4 = valid4 || _valid0;
             }
             if (!valid4) {
-              const err2 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf", keyword: "anyOf", params: {}, message: "must match a schema in anyOf" };
+              const err2 = { instancePath: instancePath + "/id", schemaPath: "#/definitions/v2/RequestId/anyOf", keyword: "anyOf", params: {} };
               if (vErrors === null) {
                 vErrors = [err2];
               } else {
@@ -367,7 +367,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
         }
       }
     } else {
-      validate17.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" }, message: "must be object" }];
+      validate17.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
       return false;
     }
   }
@@ -393,7 +393,7 @@ function validate12(data, { instancePath = "", parentData, parentDataProperty, r
       if (data && typeof data == "object" && !Array.isArray(data)) {
         let missing0;
         if (data.method === void 0 && (missing0 = "method")) {
-          const err0 = { instancePath, schemaPath: "#/definitions/JSONRPCNotification/required", keyword: "required", params: { missingProperty: missing0 }, message: "must have required property '" + missing0 + "'" };
+          const err0 = { instancePath, schemaPath: "#/definitions/JSONRPCNotification/required", keyword: "required", params: { missingProperty: missing0 } };
           if (vErrors === null) {
             vErrors = [err0];
           } else {
@@ -403,7 +403,7 @@ function validate12(data, { instancePath = "", parentData, parentDataProperty, r
         } else {
           if (data.method !== void 0) {
             if (typeof data.method !== "string") {
-              const err1 = { instancePath: instancePath + "/method", schemaPath: "#/definitions/JSONRPCNotification/properties/method/type", keyword: "type", params: { type: "string" }, message: "must be string" };
+              const err1 = { instancePath: instancePath + "/method", schemaPath: "#/definitions/JSONRPCNotification/properties/method/type", keyword: "type", params: { type: "string" } };
               if (vErrors === null) {
                 vErrors = [err1];
               } else {
@@ -414,7 +414,7 @@ function validate12(data, { instancePath = "", parentData, parentDataProperty, r
           }
         }
       } else {
-        const err2 = { instancePath, schemaPath: "#/definitions/JSONRPCNotification/type", keyword: "type", params: { type: "object" }, message: "must be object" };
+        const err2 = { instancePath, schemaPath: "#/definitions/JSONRPCNotification/type", keyword: "type", params: { type: "object" } };
         if (vErrors === null) {
           vErrors = [err2];
         } else {
@@ -445,7 +445,7 @@ function validate12(data, { instancePath = "", parentData, parentDataProperty, r
     }
   }
   if (!valid0) {
-    const err3 = { instancePath, schemaPath: "#/anyOf", keyword: "anyOf", params: {}, message: "must match a schema in anyOf" };
+    const err3 = { instancePath, schemaPath: "#/anyOf", keyword: "anyOf", params: {} };
     if (vErrors === null) {
       vErrors = [err3];
     } else {
