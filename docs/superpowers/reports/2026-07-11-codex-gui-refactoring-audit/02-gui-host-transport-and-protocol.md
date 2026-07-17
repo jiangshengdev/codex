@@ -100,26 +100,28 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 - **Evidence owner：** `02-gui-host-transport-and-protocol.md`；本报告拥有 WebSocket transport、请求关联、握手状态、commands readiness 和连接关闭边界的完整证据。
 - **状态：** 确认重构点。
 - **重构优先级：** P2。
-- **当前实施状态：** B02 的 owner split 实现与完成记录已通过 `90ad32af1`、`d8f39eef9`、`3968882aa`、`c7286ed1e`、`f93142b68` 回退，Finding 继续保持“确认重构点”。当前 `guiHostClient.ts` 仍在同一连接函数中共置 transport、通用 request correlation、handshake、commands readiness 与 teardown；但审计时“固定 request ID `1/2/3` 推进握手”的子证据已失效，后续 `4af8b73d7`、`19d4afad0` 的 authoritative contract 改造已改为通过 pending ID correlation 与 `onValidatedResult` 回调推进阶段。后续设计与计划必须按当前 generated authoritative contract 边界重新校准，不复用已回退实现的代码假设。
+- **当前实施状态：** 已实施（B02）。早期 owner split 实现与完成记录曾通过 `90ad32af1`、`d8f39eef9`、`3968882aa`、`c7286ed1e`、`f93142b68` 回退，Finding 继续保持稳定审计状态“确认重构点”；该回退事实作为历史保留。审计时“固定 request ID `1/2/3` 推进握手”的子证据随后由 `4af8b73d7`、`19d4afad0` 的 authoritative contract 改造消除，2026-07-17 已按当前 generated authoritative contract 边界重新校准设计与计划，不复用已回退实现的代码假设。2026-07-18 完成新的 owner split：transport session 拥有 socket、通用 request correlation、pending rejection 与 teardown；handshake controller 同步拥有 authenticate → initialize → attach 推进与 terminal policy；command gateway 拥有 stable handle、attach gate 与连接终止后的永久失效；兼容 facade 保留由 feature-private `guiHostProtocol.ts` 的 `parseRpcMessage` 承担的 inbound parse、generated envelope validation/notification classification、status/callback 顺序和既有公开入口。authoritative path 为 generated request descriptors、private authenticate validator、generated JSON-RPC envelope validator 与 notification classifier，不存在 consumer-owned guard 或 raw generic。
+- **实施提交：** `f369dffc3` characterization；`a298f4afe` transport；`eb0940460` adopt transport（按 size gate 拆分）；`c4592b4b4` handshake；`953933f0a` command；`805f7e521` fix。
+- **实施验证：** 聚焦六个文件 `91/91` 通过；完整 GUI CI `32/32` files、`316/316` tests 通过；type-check、lint、protocol check 通过；五组 source boundary 搜索无命中。每个提交均 `<800` 行；非机械 owner 分别为 `304/162/55` 行，均 `<500`；aggregate `2091` 行 = tests `1182` + mechanical client `388` + nonmechanical owners `521`。未运行 build、browser、e2e 或 Rust；未操作远程。
 - **审计时结论摘要：** `startGuiHostConnection` 使用同一组闭包状态同时管理 WebSocket 生命周期、通用 JSON-RPC request correlation、握手推进、status 单调性、commands availability 和 teardown。最脆弱的耦合是握手阶段由全局 request ID `1/2/3` 隐式编码，而 pending request 只记录是否为终端错误，没有记录请求方法或握手阶段。
 - **审计时 owner 与职责：** `guiHostClient.ts` 的单一连接函数创建 socket，维护 `terminalError`、`closed`、`nextRequestId`、`pendingRequests` 和 `commandsReady`，构造 handshake/command 请求，处理全部 socket 事件和响应，并负责 cleanup。外部 `GuiHostConnectionBridge` 只接收 connection/notification handoff；其 Redux 和 runtime 状态见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)。
 - **问题类型：** 职责混合、状态契约、依赖方向。
-- **影响文件、定义侧、构造方、调用方和消费方：**
+- **审计时影响文件、定义侧、构造方、调用方和消费方：**
   - 定义侧：`codex-gui/src/features/guiHost/guiHostClient.ts:93-117` 定义连接入口并创建共享 session 状态；`guiHostClient.ts:390-394` 的 `PendingRequest` 只保留 `terminalOnError`、resolve 和 reject。
   - 构造方：`guiHostClient.ts:112-117` 创建 socket 与共享状态；`guiHostClient.ts:164-212` 构造通用 request、command request 和 handshake request；`guiHostClient.ts:205-208` 构造 commands API。
   - 调用方：唯一生产入口为 `codex-gui/src/features/appShell/GuiHostConnectionBridge.tsx:128`，commands ready/unavailable handoff 位于同文件 `177-180`；本 finding 不追入 bridge 的状态实现。
   - 消费方：App/shell/composer 消费 `GuiHostStatus` 和 ready commands；其 UI 行为不是本 finding 的 owner。服务器响应经 `socket.onmessage` 进入 request correlation 和 handshake 推进。
-- **共同语义或变化原因：** transport 关心 socket 可用性、发送、响应 correlation 和资源释放；handshake 关心 authenticate → initialize → attach 的阶段顺序和终端错误；commands 关心 attach 后可用、普通 RPC error 非终端、连接终止后失效。三者共享同一连接，但变化原因不同，当前通过 request ID、`terminalOnError` 和共享布尔状态隐式耦合。
-- **推荐边界、建议 owner 和允许的依赖方向：** transport session owner 应拥有 socket、通用 request correlation、pending rejection 和 close；handshake owner 单向依赖 transport request 能力并显式拥有阶段推进与握手终端错误；command gateway 依赖 ready session，并由 session 通知失效。外部 status、commands callbacks 和 connection/notification handoff 保持不变；公共类型最终 owner 见本报告“四类职责与公共类型 owner”章节。
-- **预期收益：** 去除握手阶段对全局 request ID 的隐式依赖；修改握手步骤时不必同时理解 command 和 notification 分支；pending rejection、command invalidation 和终止状态不变量由明确 owner 表达。
-- **建议变更范围、最小可审查批次和明确排除范围：** 后续设计只应确定 transport session、handshake owner 和 command gateway 的职责及单向依赖，并以“不改变公开 callbacks、status 序列、RPC 方法、请求结果和关闭行为”为最小批次。具体文件、类、函数和迁移步骤留给后续设计；明确排除 Redux/thread runtime、projection ingress、UI 交互和协议 wire shape 重设计。
-- **行为、契约、状态、性能和测试风险：**
+- **审计时共同语义或变化原因：** transport 关心 socket 可用性、发送、响应 correlation 和资源释放；handshake 关心 authenticate → initialize → attach 的阶段顺序和终端错误；commands 关心 attach 后可用、普通 RPC error 非终端、连接终止后失效。三者共享同一连接，但变化原因不同，当时通过 request ID、`terminalOnError` 和共享布尔状态隐式耦合。
+- **审计时推荐边界、建议 owner 和允许的依赖方向：** transport session owner 应拥有 socket、通用 request correlation、pending rejection 和 close；handshake owner 单向依赖 transport request 能力并显式拥有阶段推进与握手终端错误；command gateway 依赖 ready session，并由 session 通知失效。外部 status、commands callbacks 和 connection/notification handoff 保持不变；公共类型最终 owner 见本报告“四类职责与公共类型 owner”章节。
+- **审计时预期收益：** 去除握手阶段对全局 request ID 的隐式依赖；修改握手步骤时不必同时理解 command 和 notification 分支；pending rejection、command invalidation 和终止状态不变量由明确 owner 表达。
+- **审计时建议变更范围、最小可审查批次和明确排除范围：** 当时后续设计只应确定 transport session、handshake owner 和 command gateway 的职责及单向依赖，并以“不改变公开 callbacks、status 序列、RPC 方法、请求结果和关闭行为”为最小批次。具体文件、类、函数和迁移步骤留给当时后续设计；明确排除 Redux/thread runtime、projection ingress、UI 交互和协议 wire shape 重设计。
+- **审计时行为、契约、状态、性能和测试风险：**
   - 行为风险：必须保留 `connecting` → `authenticated` → `initialized` → `attached` 的成功状态顺序。
   - 契约风险：握手 RPC error 必须终止并关闭；command RPC error 只拒绝对应 command，不关闭连接。
   - 状态风险：cleanup、socket error、socket close 和终端 protocol error 都必须拒绝 pending commands；`onCommandsUnavailable` 只能在 commands ready 后触发，terminal error 后的 clean close 不能覆盖错误状态。
-  - 性能风险：当前证据未显示性能问题；后续边界不得增加额外 React 状态、消息复制或重复 parsing。
-  - 测试风险：cleanup 必须保持幂等并抑制后续 socket callbacks；当前测试未覆盖 duplicate/out-of-order handshake response，不能把该缺口推断为已确认 bug。
-- **后续实施时建议的验证范围：** 保持完整握手顺序与 status 序列、ready commands 成功请求、command 非终端错误、各关闭路径下 pending rejection 与 commands invalidation、terminal error 单调性、cleanup 抑制和 malformed message 关闭行为。本轮不运行测试。
+  - 性能风险：审计时证据未显示性能问题；当时建议边界不得增加额外 React 状态、消息复制或重复 parsing。
+  - 测试风险：cleanup 必须保持幂等并抑制后续 socket callbacks；审计时测试未覆盖 duplicate/out-of-order handshake response，不能把该缺口推断为已确认 bug。
+- **审计时建议的验证范围：** 保持完整握手顺序与 status 序列、ready commands 成功请求、command 非终端错误、各关闭路径下 pending rejection 与 commands invalidation、terminal error 单调性、cleanup 抑制和 malformed message 关闭行为。审计轮次未运行测试。
 - **审计时代码关键证据路径与行号：**
   - `codex-gui/src/features/guiHost/guiHostClient.ts:112-162`：socket、终端状态、pending rejection、commands invalidation 和 protocol close 共用生命周期状态。
   - `codex-gui/src/features/guiHost/guiHostClient.ts:164-212`：通用 request、command request 和 handshake request 只以 `terminalOnError` 区分。
@@ -130,9 +132,9 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
   - `codex-gui/src/features/guiHost/__tests__/guiHostCommands.test.ts:20-76`：覆盖 ready commands 与非终端 command error；同文件 `78-145` 覆盖 cleanup、socket error/close 和终端 protocol error 下的 pending rejection 与 commands invalidation。
   - `codex-gui/src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts:13-80`：覆盖 cleanup 抑制和 terminal status 单调性；同文件 `82-112` 覆盖 malformed message 与 policy close。
   - `codex-gui/src/features/guiHost/__tests__/guiHostClientTestSupport.ts:88-214`：提供 raw socket、RPC result/error、未完成握手 connection 和 commands-ready 四层测试支持。
-- **关联的既有报告、issue 或专项设计：** 连接和 notification 进入 Redux 后的生命周期见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)；测试基础设施边界见 [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002)。无关联 issue 或已有专项设计。
+- **关联的既有报告、issue 或专项设计：** 连接和 notification 进入 Redux 后的生命周期见 [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001)；测试基础设施边界见 [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002)。无关联 issue；当前已确认设计见 [GUI connection lifecycle owners design](../../specs/2026-07-17-codex-gui-connection-lifecycle-owners-design.md)，已确认计划见 [GUI connection lifecycle owners plan](../../plans/2026-07-17-codex-gui-connection-lifecycle-owners.md)。
 - **已排除项：** 不拥有 bridge 内的 Redux dispatch、projection ingress、snapshot index 或 reconnect；notification parsing/validators 和公共类型 owner 分别由 `RA-02-003` 与本报告 owner 总结覆盖；未将 duplicate/out-of-order response 测试缺口升级为 bug。
-- **报告建议：** 保留本 Finding；按当前 generated authoritative contract 边界重新校准已确认设计与计划后再实施，显式确定 transport session、handshake 和 command readiness 的 owner 及依赖方向。
+- **报告建议：** 保留本 Finding 的历史审计证据与稳定状态、优先级；B02 已按当前 generated authoritative contract 边界实施完成，不再进入独立设计。
 
 #### 测试 helper 覆盖结论
 
@@ -192,7 +194,7 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 - **Transport：** transport session 拥有 socket、通用 request correlation、pending rejection 和 close，不拥有 handshake 阶段或 Redux lifecycle。见 `RA-02-002`。
 - **Handshake：** handshake owner 显式拥有 authenticate → initialize → attach 的阶段推进与终端错误；不再依赖 request ID `1/2/3` 表达阶段。见 `RA-02-002`。
 - **Protocol：** `guiHostProtocol.ts` 只保留 feature-private 的单次 JSON parse 入口；generated JSON-RPC envelope validators、request descriptors、notification classifier 与 GUI Host private contract validators 拥有 runtime validation，transport 只消费 generated validation/classification 结果。见 `RA-02-003`。
-- **公共类型：** `JSONRPCMessage`、generated projection/turn types 与 request method/params/response 关系归 Rust authoritative contract 生成物；`GuiHostStatus`、`GuiHostCommands`、`StartGuiHostConnectionOptions` 和 cleanup 是 GUI host client facade，当前归属合理；`LaunchParams` 归属调整已由 `RA-02-001` 覆盖。
+- **公共类型：** `JSONRPCMessage`、generated projection/turn types 与 request method/params/response 关系归 Rust authoritative contract 生成物；`GuiHostCommands` 现由 feature-private command gateway 定义并由 client re-export，`GuiHostStatus`、`StartGuiHostConnectionOptions` 和 cleanup 仍由 GUI host client facade 提供，facade 保持公开兼容入口；`LaunchParams` 归属调整已由 `RA-02-001` 覆盖。
 - **与 `03` 的唯一交界：** connection/notification handoff。连接状态进入 Redux 后的 lifecycle、projection ingress、snapshot index、reconnect 和 thread runtime 均不属于本报告。
 
 ## 测试与支持文件覆盖状态
@@ -203,6 +205,9 @@ launch params/token/URL owner、transport/request/handshake、protocol parsing�
 | `guiHostHandshake.test.ts` | happy handshake、status、projection forwarding、四类 malformed payload | `RA-02-002` 与 `RA-02-003` |
 | `guiHostCommands.test.ts` | command methods/params/result、非终端 error、pending rejection、commands unavailable | `RA-02-002` 与 `RA-02-003`；B03 已覆盖 generated response validation 与 malformed success response |
 | `guiHostProtocolErrors.test.ts` | handshake error、terminal status、malformed JSON、policy close | `RA-02-002` 与 `RA-02-003`；B03 已覆盖 generated JSON-RPC envelope validation 与 invalid envelope cases |
+| `guiHostTransportSession.test.ts` | socket lifecycle、request correlation、pending rejection、teardown 与 terminal policy handoff | `RA-02-002`；B02 transport session owner 覆盖 |
+| `guiHostHandshakeController.test.ts` | authenticate → initialize → attach 同步推进、status 顺序与 terminal policy | `RA-02-002`；B02 handshake controller owner 覆盖 |
+| `guiHostCommandGateway.test.ts` | stable handle、attach gate、command request/error 与永久失效 | `RA-02-002`；B02 command gateway owner 覆盖 |
 | `guiHostClientTestSupport.ts` | socket fake、RPC helpers、raw connection、commands-ready setup | 已审核；分层 helper 语义不同，非 finding；跨 feature 基础设施见 [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002) |
 
 ## 已排除项
