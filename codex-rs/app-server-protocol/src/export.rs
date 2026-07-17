@@ -18,6 +18,7 @@ use crate::protocol::common::EXPERIMENTAL_CLIENT_METHODS;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHOD_PARAM_TYPES;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHOD_RESPONSE_TYPES;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHODS;
+use crate::protocol::common::EXPERIMENTAL_SERVER_NOTIFICATION_METHODS;
 use crate::protocol::common::client_request_definitions;
 use anyhow::Context;
 use anyhow::Result;
@@ -257,6 +258,17 @@ pub fn generate_json_with_experimental(out_dir: &Path, experimental_api: bool) -
         out_dir.join("codex_app_server_protocol.v2.schemas.json"),
         &flat_v2_bundle,
     )?;
+    let mut server_notification_definitions =
+        server_notification_definition_manifest(&flat_v2_bundle)?;
+    if !experimental_api {
+        server_notification_definitions.retain(|definition| {
+            !EXPERIMENTAL_SERVER_NOTIFICATION_METHODS.contains(&definition.method.as_str())
+        });
+    }
+    write_pretty_json(
+        out_dir.join("server-notification-definitions.json"),
+        &server_notification_definitions,
+    )?;
     if !experimental_api {
         filter_experimental_json_files(out_dir)?;
     }
@@ -328,6 +340,75 @@ struct ClientRequestDefinitionManifestEntry {
     method: String,
     params_schema: Option<String>,
     response_schema: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ServerNotificationDefinitionManifestEntry {
+    method: String,
+    params_schema: String,
+}
+
+fn server_notification_definition_manifest(
+    flat_v2_bundle: &Value,
+) -> Result<Vec<ServerNotificationDefinitionManifestEntry>> {
+    let server_notification = flat_v2_bundle
+        .pointer("/definitions/ServerNotification")
+        .context("flat v2 schema is missing the ServerNotification root definition")?;
+    let variants = server_notification
+        .get("oneOf")
+        .and_then(Value::as_array)
+        .context("flat v2 ServerNotification oneOf must be an array")?;
+
+    let mut methods = BTreeSet::new();
+    let mut manifest = Vec::with_capacity(variants.len());
+    for (index, variant) in variants.iter().enumerate() {
+        let method_values = variant
+            .pointer("/properties/method/enum")
+            .and_then(Value::as_array)
+            .with_context(|| {
+                format!(
+                    "flat v2 ServerNotification variant {index} method enum must be a single string"
+                )
+            })?;
+        let [method] = method_values.as_slice() else {
+            return Err(anyhow!(
+                "flat v2 ServerNotification variant {index} method enum must be a single string"
+            ));
+        };
+        let method = method.as_str().with_context(|| {
+            format!(
+                "flat v2 ServerNotification variant {index} method enum must be a single string"
+            )
+        })?;
+        let params_reference = variant
+            .pointer("/properties/params/$ref")
+            .and_then(Value::as_str)
+            .with_context(|| {
+                format!(
+                    "flat v2 ServerNotification variant {index} ({method}) is missing params $ref"
+                )
+            })?;
+        let params_schema = params_reference
+            .strip_prefix("#/definitions/")
+            .with_context(|| {
+                format!(
+                    "flat v2 ServerNotification variant {index} ({method}) params $ref must start with #/definitions/"
+                )
+            })?;
+
+        if !methods.insert(method) {
+            return Err(anyhow!(
+                "flat v2 ServerNotification contains duplicate method {method}"
+            ));
+        }
+        manifest.push(ServerNotificationDefinitionManifestEntry {
+            method: method.to_string(),
+            params_schema: format!("v2/{params_schema}"),
+        });
+    }
+    manifest.sort_by(|left, right| left.method.cmp(&right.method));
+    Ok(manifest)
 }
 
 fn filter_experimental_ts(out_dir: &Path) -> Result<()> {
