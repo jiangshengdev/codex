@@ -4,7 +4,7 @@ import type {
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 import type { JSONRPCMessage } from "@codex-protocol/JSONRPCMessage";
-import { AUTHENTICATE_METHOD, WEBSOCKET_PATH } from "@codex-gui-host-contract";
+import { WEBSOCKET_PATH } from "@codex-gui-host-contract";
 import {
   consumeBrowserLaunchParams,
   type BrowserLaunchParams,
@@ -12,8 +12,9 @@ import {
 import { classifyServerNotification, requestDescriptors } from "@/generated/appServerProtocol";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
 import type { RequestParams, RequestResponse } from "./appServerProtocol";
+import { GuiHostHandshakeController } from "./guiHostHandshakeController";
 import { parseRpcMessage } from "./guiHostProtocol";
-import { GuiHostTransportSession, type TransportRequestFailure } from "./guiHostTransportSession";
+import { GuiHostTransportSession } from "./guiHostTransportSession";
 
 const unavailableMessage = "GUI host WebSocket is not available";
 
@@ -102,12 +103,13 @@ export function startGuiHostConnection({
 
   const transport = new GuiHostTransportSession(socket, {
     onOpen: () => {
-      startAuthenticationRequest();
+      handshake.start();
     },
     onMessage: (event) => {
       handleMessage(event);
     },
     onError: () => {
+      handshake.stop();
       transport.invalidate(unavailableMessage);
       markCommandsUnavailable();
       emit({
@@ -116,6 +118,7 @@ export function startGuiHostConnection({
       });
     },
     onClose: (event) => {
+      handshake.stop();
       transport.invalidate(unavailableMessage);
       markCommandsUnavailable();
       if (event.code === 1000) {
@@ -131,6 +134,7 @@ export function startGuiHostConnection({
   });
 
   const emitProtocolError = (message: string): void => {
+    handshake.stop();
     emit({
       label: "error",
       message,
@@ -142,23 +146,6 @@ export function startGuiHostConnection({
   const failProtocolAndClose = (message: string, closeReason: string): void => {
     emitProtocolError(message);
     transport.close(1000, closeReason);
-  };
-
-  const closeForHandshakeFailure = (failure: TransportRequestFailure): void => {
-    switch (failure.source) {
-      case "rpc":
-        failProtocolAndClose(failure.error.message, "handshake error");
-        return;
-      case "missingResult":
-      case "malformedResult":
-        failProtocolAndClose(failure.error.message, "protocol error");
-        return;
-      case "send":
-      case "unavailable":
-        return;
-      default:
-        failure.source satisfies never;
-    }
   };
 
   const withReadyCommands = <T>(startRequest: () => Promise<T>): Promise<T> => {
@@ -176,67 +163,28 @@ export function startGuiHostConnection({
       withReadyCommands(() => transport.request(requestDescriptors["turn/interrupt"], params)),
   };
 
-  const startAttachRequest = (): void => {
-    void transport
-      .request(requestDescriptors["thread/projection/attach"], { threadId }, (settlement) => {
-        if (settlement.type === "failure") {
-          closeForHandshakeFailure(settlement.failure);
-          return;
-        }
-
-        onProjectionAttached?.(settlement.response);
+  const handshake = new GuiHostHandshakeController({
+    requests: transport,
+    token,
+    threadId,
+    callbacks: {
+      onAuthenticated: () => {
+        emit({ label: "authenticated" });
+      },
+      onInitialized: () => {
+        emit({ label: "initialized" });
+      },
+      onAttached: (response) => {
+        onProjectionAttached?.(response);
         emit({ label: "attached" });
         commandsReady = true;
         onCommandsReady?.(commands);
-      })
-      .catch(() => undefined);
-  };
-
-  const startInitializeRequest = (): void => {
-    void transport
-      .request(
-        requestDescriptors.initialize,
-        {
-          clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
-          capabilities: null,
-        },
-        (settlement) => {
-          if (settlement.type === "failure") {
-            closeForHandshakeFailure(settlement.failure);
-            return;
-          }
-
-          emit({ label: "initialized" });
-          startAttachRequest();
-        },
-      )
-      .catch(() => undefined);
-  };
-
-  const startAuthenticationRequest = (): void => {
-    if (closed) {
-      return;
-    }
-
-    void transport
-      .authenticate({ token }, (settlement) => {
-        if (settlement.type === "failure") {
-          closeForHandshakeFailure(settlement.failure);
-          return;
-        }
-        if (!settlement.response.authenticated) {
-          failProtocolAndClose(
-            `${AUTHENTICATE_METHOD} returned malformed result payload`,
-            "protocol error",
-          );
-          return;
-        }
-
-        emit({ label: "authenticated" });
-        startInitializeRequest();
-      })
-      .catch(() => undefined);
-  };
+      },
+      onTerminalFailure: ({ message, closeReason }) => {
+        failProtocolAndClose(message, closeReason);
+      },
+    },
+  });
 
   const handleMessage = (event: MessageEvent): void => {
     let parsedMessage: unknown;
@@ -332,6 +280,7 @@ export function startGuiHostConnection({
     }
 
     closed = true;
+    handshake.stop();
     transport.invalidate(unavailableMessage);
     markCommandsUnavailable();
     transport.dispose(1000, "cleanup");
