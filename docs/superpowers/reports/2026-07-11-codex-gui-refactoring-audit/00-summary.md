@@ -43,7 +43,7 @@
 | [RA-01-003](./01-app-entry-shell-and-platform.md#ra-01-003) | 不建议新增统一 provider wrapper | [01](./01-app-entry-shell-and-platform.md) | 不建议重构 | 非 finding |
 | [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) | Launch params 生命周期被嵌入 transport owner | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B01） | P2 |
 | [RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) | Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
-| [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) | Runtime protocol guards 声明强于实际验证范围 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
+| [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) | Runtime protocol guards 声明强于实际验证范围 | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B03） | P2 |
 | [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) | Bridge 集中承担 projection application coordination | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B05） | P2 |
 | [RA-03-002](./03-projection-ingress-and-thread-runtime.md#ra-03-002) | Snapshot replay index 在 Bridge 与 Redux runtime 重复持有 | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B04） | P2 |
 | [RA-03-003](./03-projection-ingress-and-thread-runtime.md#ra-03-003) | 单条 runtime delta action 已成为生产遗留与类型耦合 | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B06） | P3 |
@@ -107,9 +107,14 @@
 
 状态：持续更新。本节只记录已完成批次的实施进度，不改变 Finding 的稳定审计状态、优先级、Evidence owner 或既有统计。
 
+### B02 回退状态
+
+- B02 的 owner split 实现与完成记录已通过 `90ad32af1`、`d8f39eef9`、`3968882aa`、`c7286ed1e`、`f93142b68` 回退。当前 transport、request、handshake、commands readiness 与 teardown 职责混合仍存在，但 request ID `1/2/3` 子证据已被 `4af8b73d7`、`19d4afad0` 后续 authoritative contract 改造消除；B02 保持未完成，待按 generated contract 边界重新校准设计与计划。
+
 | 批次 | 实施状态 | 完成日期 | 本地提交 | 验证结果 |
 | --- | --- | --- | --- | --- |
 | B01 | 已完成 | 2026-07-15 | `b8875b53a` `test(gui): lock browser launch lifecycle`；`ca4e3cd18` `refactor(gui): extract browser launch params owner`；`76c055797` `test(gui): satisfy browser launch lint` | 聚焦 Node tests `18/18` 通过；Chromium `App.browser.test.tsx` `29/29` 通过；限定文件 format、oxlint、ESLint、type-check 与 owner/排除边界搜索通过；最终专项审查无 findings；未操作远程。 |
+| B03 | 已完成 | 2026-07-16 | `59fe41f24` `test(gui): lock authoritative GUI host contract behavior`；`47096ad42` `feat(app-server-protocol): export request response definitions`；`65bdc2da3` `build(gui): generate standalone protocol validators`；`4af8b73d7` `refactor(gui): consume generated app-server contracts`；`19d4afad0` `refactor(gui-host): generate private browser contract`；`59a63e896` `refactor(gui): enforce projection exhaustiveness and consolidate fixtures`；`9463c358d` `fix(gui): validate generated JSON-RPC envelopes`；`c0b9f2048` `ci(gui): check generated protocol validators` | Rust `6` 个 focused tests 通过；app-server schema、GUI Host browser contract schema、frontend validators 三棵 generated tree 重生成后无 diff；frontend CI `29` 个文件、`243` 个测试通过；generator `35` 个测试通过；production build `1265` modules 通过；Browser Mode `3` 个实例、`87` 个测试通过；`just fix` / `just fmt`、Bazel lock 检查通过；终审无 Critical 或 Important findings；未操作远程。 |
 | B04 | 已完成 | 2026-07-15 | `74def529c` `test(gui): cover replay baseline lifecycle`；`39c036c25` `refactor(gui): remove duplicate replay index state` | fnm-managed `pnpm 10.33.0` 下 `pnpm run ci` 通过（24 个 unit 文件、157 个测试）；定向 `App.browser.test.tsx` Browser Mode 通过（3 个执行实例、87 个测试）；结构检查确认 Bridge 为唯一 production runtime replay index owner。 |
 | B05 | 已完成 | 2026-07-15 | `3ae09b518` `refactor(gui): add projection application coordinator`；`b89880e1f` `refactor(gui): delegate projection coordination` | coordinator 单文件测试 `19/19` 通过；App browser 回归在 Chromium、Firefox、WebKit 各 `29/29` 通过；完整 GUI CI 共 `25` 个文件、`176` 个测试通过，format、oxlint、eslint、type-check 均通过；最终审查无 findings；未操作远程。 |
 | B06 | 已完成 | 2026-07-15 | `2afe739ff` `refactor(gui): remove single accepted delta action` | Node `7` 个文件、`62` 个测试通过；Browser `1` 个文件、`16` 个测试通过；`oxfmt --check`、lint、type-check 与旧符号残留搜索通过；Spec、testing、breaking-change、change-size、model-context、code-quality 审查均无 findings；未操作远程。 |
