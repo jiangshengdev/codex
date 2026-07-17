@@ -9,12 +9,15 @@ import {
   consumeBrowserLaunchParams,
   type BrowserLaunchParams,
 } from "@/features/browserLaunch/browserLaunchParams";
-import { classifyServerNotification, requestDescriptors } from "@/generated/appServerProtocol";
+import { classifyServerNotification } from "@/generated/appServerProtocol";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
-import type { RequestParams, RequestResponse } from "./appServerProtocol";
+import type { RequestResponse } from "./appServerProtocol";
+import { GuiHostCommandGateway, type GuiHostCommands } from "./guiHostCommandGateway";
 import { GuiHostHandshakeController } from "./guiHostHandshakeController";
 import { parseRpcMessage } from "./guiHostProtocol";
 import { GuiHostTransportSession } from "./guiHostTransportSession";
+
+export type { GuiHostCommands } from "./guiHostCommandGateway";
 
 const unavailableMessage = "GUI host WebSocket is not available";
 
@@ -25,13 +28,6 @@ export type GuiHostStatus =
   | { label: "attached" }
   | { label: "closed" }
   | { label: "error"; message: string };
-
-export type GuiHostCommands = {
-  startTurn: (params: RequestParams<"turn/start">) => Promise<RequestResponse<"turn/start">>;
-  interruptTurn: (
-    params: RequestParams<"turn/interrupt">,
-  ) => Promise<RequestResponse<"turn/interrupt">>;
-};
 
 export type StartGuiHostConnectionOptions = {
   location: URL;
@@ -77,7 +73,6 @@ export function startGuiHostConnection({
   );
   let terminalError = false;
   let closed = false;
-  let commandsReady = false;
 
   const emit = (status: GuiHostStatus): void => {
     if (closed) {
@@ -92,15 +87,6 @@ export function startGuiHostConnection({
     onStatus?.(status);
   };
 
-  const markCommandsUnavailable = (): void => {
-    if (!commandsReady) {
-      return;
-    }
-
-    commandsReady = false;
-    onCommandsUnavailable?.();
-  };
-
   const transport = new GuiHostTransportSession(socket, {
     onOpen: () => {
       handshake.start();
@@ -111,7 +97,7 @@ export function startGuiHostConnection({
     onError: () => {
       handshake.stop();
       transport.invalidate(unavailableMessage);
-      markCommandsUnavailable();
+      invalidateCommands();
       emit({
         label: "error",
         message: "GUI host WebSocket failed",
@@ -120,7 +106,7 @@ export function startGuiHostConnection({
     onClose: (event) => {
       handshake.stop();
       transport.invalidate(unavailableMessage);
-      markCommandsUnavailable();
+      invalidateCommands();
       if (event.code === 1000) {
         emit({ label: "closed" });
         return;
@@ -133,34 +119,27 @@ export function startGuiHostConnection({
     },
   });
 
+  const commandGateway = new GuiHostCommandGateway(transport);
+
+  const invalidateCommands = (): void => {
+    if (commandGateway.invalidate()) {
+      onCommandsUnavailable?.();
+    }
+  };
+
   const emitProtocolError = (message: string): void => {
-    handshake.stop();
     emit({
       label: "error",
       message,
     });
+    handshake.stop();
     transport.invalidate(unavailableMessage);
-    markCommandsUnavailable();
+    invalidateCommands();
   };
 
   const failProtocolAndClose = (message: string, closeReason: string): void => {
     emitProtocolError(message);
     transport.close(1000, closeReason);
-  };
-
-  const withReadyCommands = <T>(startRequest: () => Promise<T>): Promise<T> => {
-    if (!commandsReady) {
-      return Promise.reject(new Error(unavailableMessage));
-    }
-
-    return startRequest();
-  };
-
-  const commands: GuiHostCommands = {
-    startTurn: (params) =>
-      withReadyCommands(() => transport.request(requestDescriptors["turn/start"], params)),
-    interruptTurn: (params) =>
-      withReadyCommands(() => transport.request(requestDescriptors["turn/interrupt"], params)),
   };
 
   const handshake = new GuiHostHandshakeController({
@@ -177,8 +156,9 @@ export function startGuiHostConnection({
       onAttached: (response) => {
         onProjectionAttached?.(response);
         emit({ label: "attached" });
-        commandsReady = true;
-        onCommandsReady?.(commands);
+        if (commandGateway.activate()) {
+          onCommandsReady?.(commandGateway.commands);
+        }
       },
       onTerminalFailure: ({ message, closeReason }) => {
         failProtocolAndClose(message, closeReason);
@@ -282,7 +262,7 @@ export function startGuiHostConnection({
     closed = true;
     handshake.stop();
     transport.invalidate(unavailableMessage);
-    markCommandsUnavailable();
+    invalidateCommands();
     transport.dispose(1000, "cleanup");
   };
 }
