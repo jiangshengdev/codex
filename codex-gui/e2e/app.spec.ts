@@ -11,10 +11,17 @@ import {
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
+import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 
 const threadId = attachBaseline.snapshot.thread.id;
 const subscriptionId = "projection-e2e-subscription";
+const initializeResponse = {
+  userAgent: "codex-gui-e2e",
+  codexHome: "/tmp/codex-home",
+  platformFamily: "unix",
+  platformOs: "macos",
+} satisfies InitializeResponse;
 
 type RpcRequest = {
   id: number;
@@ -123,7 +130,7 @@ async function routeGuiHostWebSocket(
       }
 
       if (request.method === "initialize") {
-        ws.send(JSON.stringify({ jsonrpc: "2.0", id: request.id, result: {} }));
+        ws.send(JSON.stringify({ jsonrpc: "2.0", id: request.id, result: initializeResponse }));
         return;
       }
 
