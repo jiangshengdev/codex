@@ -8,6 +8,7 @@ import { format } from "oxfmt";
 import {
   generateGuiHostContractTypeScriptArtifacts,
   generateTypeScriptArtifacts,
+  type NotificationDefinitionMetadata,
   type RequestDefinitionMetadata,
   type TypeScriptFormatter,
 } from "./typescriptArtifacts";
@@ -23,13 +24,25 @@ type GeneratorDependencies = {
 type GenerateProtocolArtifactsOptions = {
   schemaBundle: JsonObject;
   requestDefinitions: readonly JsonObject[];
-  selectedMethods: readonly string[];
+  notificationDefinitions: readonly JsonObject[];
+  selectedRequestMethods: readonly string[];
+  selectedNotificationMethods: readonly string[];
   dependencies?: GeneratorDependencies;
 };
 
 type ProtocolInputs = {
   schemaBundle: JsonObject;
   requestDefinitions: JsonObject[];
+  notificationDefinitions: JsonObject[];
+};
+
+type StandaloneGroupOptions = {
+  basename: "jsonRpcEnvelopeValidators" | "appServerPayloadValidators" | "standaloneValidators";
+  schemaBundle: JsonObject;
+  schemaBundleId: string;
+  rootSchemaIds: readonly string[];
+  allErrors: boolean;
+  dependencies: GeneratorDependencies;
 };
 
 type GuiHostContractInputs = {
@@ -57,16 +70,27 @@ function parseRequestDefinition(value: JsonObject): RequestDefinitionMetadata {
   return { method, paramsSchema, responseSchema };
 }
 
+function parseNotificationDefinition(value: JsonObject): NotificationDefinitionMetadata {
+  const { method, paramsSchema } = value;
+  if (typeof method !== "string") {
+    throw new Error("Notification definition method must be a string");
+  }
+  if (typeof paramsSchema !== "string") {
+    throw new Error(`Notification definition paramsSchema must be a string: ${method}`);
+  }
+  return { method, paramsSchema };
+}
+
 function parseJsonObject(sourceText: string, label: string): JsonObject {
   const parsed: unknown = JSON.parse(sourceText);
   if (!isObject(parsed)) throw new Error(`${label} must contain a JSON object`);
   return parsed;
 }
 
-function parseRequestDefinitions(sourceText: string): JsonObject[] {
+function parseDefinitions(sourceText: string, label: string): JsonObject[] {
   const parsed: unknown = JSON.parse(sourceText);
   if (!Array.isArray(parsed) || !parsed.every(isObject)) {
-    throw new Error("Request definitions must contain a JSON object array");
+    throw new Error(`${label} must contain a JSON object array`);
   }
   return parsed;
 }
@@ -74,17 +98,26 @@ function parseRequestDefinitions(sourceText: string): JsonObject[] {
 export async function loadProtocolInputs({
   schemaBundlePath,
   requestDefinitionsPath,
+  notificationDefinitionsPath,
 }: {
   schemaBundlePath: string;
   requestDefinitionsPath: string;
+  notificationDefinitionsPath: string;
 }): Promise<ProtocolInputs> {
-  const [schemaSource, definitionsSource] = await Promise.all([
-    readFile(schemaBundlePath, "utf8"),
-    readFile(requestDefinitionsPath, "utf8"),
-  ]);
+  const [schemaSource, requestDefinitionsSource, notificationDefinitionsSource] = await Promise.all(
+    [
+      readFile(schemaBundlePath, "utf8"),
+      readFile(requestDefinitionsPath, "utf8"),
+      readFile(notificationDefinitionsPath, "utf8"),
+    ],
+  );
   return {
     schemaBundle: parseJsonObject(schemaSource, "Schema bundle"),
-    requestDefinitions: parseRequestDefinitions(definitionsSource),
+    requestDefinitions: parseDefinitions(requestDefinitionsSource, "Request definitions"),
+    notificationDefinitions: parseDefinitions(
+      notificationDefinitionsSource,
+      "Notification definitions",
+    ),
   };
 }
 
@@ -221,9 +254,9 @@ function validatorExportName(schemaId: string): string {
   return `validate${suffix || "Schema"}`;
 }
 
-function selectedDefinitions(
+function selectedRequestDefinitions(
   requestDefinitions: readonly JsonObject[],
-  selectedMethods: readonly string[],
+  selectedRequestMethods: readonly string[],
   schemaBundle: JsonObject,
 ): RequestDefinitionMetadata[] {
   const byMethod = new Map<string, JsonObject>();
@@ -235,7 +268,7 @@ function selectedDefinitions(
     byMethod.set(definition.method, definition);
   }
 
-  return selectedMethods.map((method) => {
+  return selectedRequestMethods.map((method) => {
     const rawDefinition = byMethod.get(method);
     if (!rawDefinition) throw new Error(`Selected method ${method} is missing from metadata`);
     const definition = parseRequestDefinition(rawDefinition);
@@ -245,15 +278,46 @@ function selectedDefinitions(
   });
 }
 
+function selectNotificationDefinitions(
+  notificationDefinitions: readonly JsonObject[],
+  selectedNotificationMethods: readonly string[],
+  schemaBundle: JsonObject,
+): {
+  notificationDefinitions: NotificationDefinitionMetadata[];
+  selectedNotificationDefinitions: NotificationDefinitionMetadata[];
+} {
+  const parsedDefinitions: NotificationDefinitionMetadata[] = [];
+  const byMethod = new Map<string, NotificationDefinitionMetadata>();
+  for (const rawDefinition of notificationDefinitions) {
+    const definition = parseNotificationDefinition(rawDefinition);
+    if (byMethod.has(definition.method)) {
+      throw new Error(`Duplicate notification method: ${definition.method}`);
+    }
+    byMethod.set(definition.method, definition);
+    parsedDefinitions.push(definition);
+  }
+
+  const selectedNotificationDefinitions = selectedNotificationMethods.map((method) => {
+    const definition = byMethod.get(method);
+    if (!definition) {
+      throw new Error(`Selected notification ${method} is missing from metadata`);
+    }
+    validateSchemaExists(schemaBundle, definition.paramsSchema, `${method} notification params`);
+    return definition;
+  });
+  return { notificationDefinitions: parsedDefinitions, selectedNotificationDefinitions };
+}
+
 function buildAjvValidators(
   selectedBundle: JsonObject,
   validatorExports: ReadonlyMap<string, string>,
   schemaBundleId: string,
+  allErrors: boolean,
 ): { ajv: Ajv; refs: Record<string, string> } {
   const ajv = new Ajv({
     strict: true,
     allowUnionTypes: true,
-    allErrors: true,
+    allErrors,
     validateFormats: false,
     code: { esm: true, source: true },
   });
@@ -295,16 +359,13 @@ async function defaultBundleJavaScript(sourceText: string): Promise<string> {
 }
 
 async function generateStandaloneArtifacts({
+  basename,
   schemaBundle,
   schemaBundleId,
   rootSchemaIds,
+  allErrors,
   dependencies,
-}: {
-  schemaBundle: JsonObject;
-  schemaBundleId: string;
-  rootSchemaIds: readonly string[];
-  dependencies: GeneratorDependencies;
-}): Promise<{
+}: StandaloneGroupOptions): Promise<{
   artifacts: Record<string, string>;
   validatorExports: ReadonlyMap<string, string>;
 }> {
@@ -316,7 +377,12 @@ async function generateStandaloneArtifacts({
   for (const schemaId of [...new Set(rootSchemaIds)].sort()) {
     validatorExports.set(schemaId, validatorExportName(schemaId));
   }
-  const { ajv, refs } = buildAjvValidators(selectedBundle, validatorExports, schemaBundleId);
+  const { ajv, refs } = buildAjvValidators(
+    selectedBundle,
+    validatorExports,
+    schemaBundleId,
+    allErrors,
+  );
   const generateStandalone =
     dependencies.standaloneCode ?? ((validatorRefs) => standaloneCode(ajv, validatorRefs));
   const opaqueSource = generateStandalone(refs);
@@ -324,8 +390,8 @@ async function generateStandaloneArtifacts({
   const bundledSource = await (dependencies.bundleJavaScript ?? defaultBundleJavaScript)(rawSource);
   return {
     artifacts: {
-      "standaloneValidators.raw.js": rawSource,
-      "standaloneValidators.js": bundledSource,
+      [`${basename}.raw.js`]: rawSource,
+      [`${basename}.js`]: bundledSource,
     },
     validatorExports,
   };
@@ -334,31 +400,56 @@ async function generateStandaloneArtifacts({
 export async function generateProtocolArtifacts({
   schemaBundle,
   requestDefinitions,
-  selectedMethods,
+  notificationDefinitions,
+  selectedRequestMethods,
+  selectedNotificationMethods,
   dependencies = {},
 }: GenerateProtocolArtifactsOptions): Promise<Record<string, string>> {
-  const selected = selectedDefinitions(requestDefinitions, selectedMethods, schemaBundle);
+  const selectedRequests = selectedRequestDefinitions(
+    requestDefinitions,
+    selectedRequestMethods,
+    schemaBundle,
+  );
+  const {
+    notificationDefinitions: parsedNotificationDefinitions,
+    selectedNotificationDefinitions,
+  } = selectNotificationDefinitions(
+    notificationDefinitions,
+    selectedNotificationMethods,
+    schemaBundle,
+  );
   validateSchemaExists(schemaBundle, "JSONRPCMessage", "JSON-RPC envelope");
-  validateSchemaExists(schemaBundle, "ServerNotification", "server notification");
-  const rootSchemaIds = [
-    "JSONRPCMessage",
-    "ServerNotification",
-    ...selected.map(({ responseSchema }) => responseSchema),
-  ];
-  const runtime = await generateStandaloneArtifacts({
+  const envelopeRuntime = await generateStandaloneArtifacts({
+    basename: "jsonRpcEnvelopeValidators",
     schemaBundle,
     schemaBundleId: APP_SERVER_SCHEMA_BUNDLE_ID,
-    rootSchemaIds,
+    rootSchemaIds: ["JSONRPCMessage"],
+    allErrors: false,
+    dependencies,
+  });
+  const payloadRuntime = await generateStandaloneArtifacts({
+    basename: "appServerPayloadValidators",
+    schemaBundle,
+    schemaBundleId: APP_SERVER_SCHEMA_BUNDLE_ID,
+    rootSchemaIds: [
+      ...selectedRequests.map(({ responseSchema }) => responseSchema),
+      ...selectedNotificationDefinitions.map(({ paramsSchema }) => paramsSchema),
+    ],
+    allErrors: false,
     dependencies,
   });
   const typeScriptArtifacts = await generateTypeScriptArtifacts({
-    requestDefinitions: selected,
-    validatorExports: runtime.validatorExports,
+    requestDefinitions: selectedRequests,
+    notificationDefinitions: parsedNotificationDefinitions,
+    selectedNotificationDefinitions,
+    envelopeValidatorExports: envelopeRuntime.validatorExports,
+    payloadValidatorExports: payloadRuntime.validatorExports,
     formatTypeScript: dependencies.formatTypeScript ?? format,
   });
 
   return {
-    ...runtime.artifacts,
+    ...envelopeRuntime.artifacts,
+    ...payloadRuntime.artifacts,
     ...typeScriptArtifacts,
   };
 }
@@ -370,9 +461,11 @@ export async function generateGuiHostContractArtifacts({
   dependencies?: GeneratorDependencies;
 }): Promise<Record<string, string>> {
   const runtime = await generateStandaloneArtifacts({
+    basename: "standaloneValidators",
     schemaBundle,
     schemaBundleId: GUI_HOST_SCHEMA_BUNDLE_ID,
     rootSchemaIds: ["GuiAuthenticateParams", "GuiAuthenticateResult"],
+    allErrors: true,
     dependencies,
   });
   const typeScriptArtifacts = await generateGuiHostContractTypeScriptArtifacts({

@@ -2,7 +2,10 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import type { loadProtocolInputs as loadProtocolInputsFunction } from "./core";
+
 type ArtifactMap = ReadonlyMap<string, string>;
+type LoadProtocolInputs = typeof loadProtocolInputsFunction;
 
 type GeneratedArtifactGroup = {
   outputDirectory: string;
@@ -292,20 +295,46 @@ function parseMode(args: readonly string[]): Mode {
   return args[0].slice(2) as Mode;
 }
 
-function requestMethodsFromModule(module: unknown): readonly string[] {
-  if (
-    typeof module !== "object" ||
-    module === null ||
-    !("APP_SERVER_REQUEST_METHODS" in module) ||
-    !isStringArray(module.APP_SERVER_REQUEST_METHODS)
-  ) {
-    throw new Error("appServerProtocol must export APP_SERVER_REQUEST_METHODS");
+function stringArrayFromModule(module: unknown, exportName: string): readonly string[] {
+  if (typeof module !== "object" || module === null || !(exportName in module)) {
+    throw new Error(`appServerProtocol must export ${exportName}`);
   }
-  return module.APP_SERVER_REQUEST_METHODS;
+  const value: unknown = Reflect.get(module, exportName);
+  if (!isStringArray(value)) {
+    throw new Error(`appServerProtocol export ${exportName} must be a string array`);
+  }
+  return value;
 }
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
+}
+
+export async function loadAppServerGenerationInputs({
+  schemaDirectory,
+  appServerProtocolModule,
+  loadProtocolInputs,
+}: {
+  schemaDirectory: string;
+  appServerProtocolModule: unknown;
+  loadProtocolInputs: LoadProtocolInputs;
+}) {
+  const inputs = await loadProtocolInputs({
+    requestDefinitionsPath: path.join(schemaDirectory, "client-request-definitions.json"),
+    notificationDefinitionsPath: path.join(schemaDirectory, "server-notification-definitions.json"),
+    schemaBundlePath: path.join(schemaDirectory, "codex_app_server_protocol.schemas.json"),
+  });
+  return {
+    ...inputs,
+    selectedRequestMethods: stringArrayFromModule(
+      appServerProtocolModule,
+      "APP_SERVER_REQUEST_METHODS",
+    ),
+    selectedNotificationMethods: stringArrayFromModule(
+      appServerProtocolModule,
+      "APP_SERVER_NOTIFICATION_METHODS",
+    ),
+  };
 }
 
 async function main(): Promise<void> {
@@ -322,9 +351,10 @@ async function main(): Promise<void> {
     loadProtocolInputs,
   } = await import("./core");
   const appServerProtocolModule: unknown = await import(appServerProtocolModulePath);
-  const appServerInputs = await loadProtocolInputs({
-    requestDefinitionsPath: path.join(schemaDirectory, "client-request-definitions.json"),
-    schemaBundlePath: path.join(schemaDirectory, "codex_app_server_protocol.schemas.json"),
+  const appServerInputs = await loadAppServerGenerationInputs({
+    schemaDirectory,
+    appServerProtocolModule,
+    loadProtocolInputs,
   });
   const guiHostInputs = await loadGuiHostContractInputs({
     paramsSchemaPath: path.join(guiHostSchemaDirectory, "GuiAuthenticateParams.json"),
@@ -334,14 +364,7 @@ async function main(): Promise<void> {
     {
       outputDirectory: path.join(projectRoot, "src/generated/appServerProtocol"),
       generate: async () =>
-        new Map(
-          Object.entries(
-            await generateProtocolArtifacts({
-              ...appServerInputs,
-              selectedMethods: requestMethodsFromModule(appServerProtocolModule),
-            }),
-          ),
-        ),
+        new Map(Object.entries(await generateProtocolArtifacts(appServerInputs))),
     },
     {
       outputDirectory: path.join(projectRoot, "src/generated/guiHostContract"),
