@@ -4,21 +4,18 @@ import type {
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 import type { JSONRPCMessage } from "@codex-protocol/JSONRPCMessage";
-import {
-  AUTHENTICATE_METHOD,
-  WEBSOCKET_PATH,
-  type GuiAuthenticateParams,
-  type GuiAuthenticateResult,
-} from "@codex-gui-host-contract";
+import { AUTHENTICATE_METHOD, WEBSOCKET_PATH } from "@codex-gui-host-contract";
 import {
   consumeBrowserLaunchParams,
   type BrowserLaunchParams,
 } from "@/features/browserLaunch/browserLaunchParams";
 import { classifyServerNotification, requestDescriptors } from "@/generated/appServerProtocol";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
-import { validateGuiAuthenticateResult } from "@/generated/guiHostContract";
 import type { RequestParams, RequestResponse } from "./appServerProtocol";
 import { parseRpcMessage } from "./guiHostProtocol";
+import { GuiHostTransportSession, type TransportRequestFailure } from "./guiHostTransportSession";
+
+const unavailableMessage = "GUI host WebSocket is not available";
 
 export type GuiHostStatus =
   | { label: "connecting" }
@@ -79,8 +76,6 @@ export function startGuiHostConnection({
   );
   let terminalError = false;
   let closed = false;
-  let nextRequestId = 1;
-  const pendingRequests = new Map<number, PendingRequest>();
   let commandsReady = false;
 
   const emit = (status: GuiHostStatus): void => {
@@ -96,88 +91,79 @@ export function startGuiHostConnection({
     onStatus?.(status);
   };
 
-  emit({ label: "connecting" });
-
-  const rejectPendingRequests = (reason: string): void => {
-    const error = new Error(reason);
-    for (const request of pendingRequests.values()) {
-      request.reject(error);
+  const markCommandsUnavailable = (): void => {
+    if (!commandsReady) {
+      return;
     }
-    pendingRequests.clear();
 
-    if (commandsReady) {
-      commandsReady = false;
-      onCommandsUnavailable?.();
-    }
+    commandsReady = false;
+    onCommandsUnavailable?.();
   };
+
+  const transport = new GuiHostTransportSession(socket, {
+    onOpen: () => {
+      startAuthenticationRequest();
+    },
+    onMessage: (event) => {
+      handleMessage(event);
+    },
+    onError: () => {
+      transport.invalidate(unavailableMessage);
+      markCommandsUnavailable();
+      emit({
+        label: "error",
+        message: "GUI host WebSocket failed",
+      });
+    },
+    onClose: (event) => {
+      transport.invalidate(unavailableMessage);
+      markCommandsUnavailable();
+      if (event.code === 1000) {
+        emit({ label: "closed" });
+        return;
+      }
+
+      emit({
+        label: "error",
+        message: `GUI host WebSocket closed (code=${String(event.code)}${event.reason ? `, reason=${event.reason}` : ""})`,
+      });
+    },
+  });
 
   const emitProtocolError = (message: string): void => {
     emit({
       label: "error",
       message,
     });
-    rejectPendingRequests("GUI host WebSocket is not available");
+    transport.invalidate(unavailableMessage);
+    markCommandsUnavailable();
   };
 
   const failProtocolAndClose = (message: string, closeReason: string): void => {
     emitProtocolError(message);
-    try {
-      socket.close(1000, closeReason);
-    } catch {
-      // Ignore close races; the status above is already terminal.
-    }
+    transport.close(1000, closeReason);
   };
 
-  const request = <M extends GuiRequestMethod>(
-    descriptor: RequestDescriptor<M>,
-    params: RequestParams<M>,
-    { terminalOnError, onValidatedResult }: RequestOptions<M>,
-  ): Promise<RequestResponse<M>> => {
-    if (
-      closed ||
-      socket.readyState === WebSocket.CLOSING ||
-      socket.readyState === WebSocket.CLOSED
-    ) {
-      return Promise.reject(new Error("GUI host WebSocket is not available"));
+  const closeForHandshakeFailure = (failure: TransportRequestFailure): void => {
+    switch (failure.source) {
+      case "rpc":
+        failProtocolAndClose(failure.error.message, "handshake error");
+        return;
+      case "missingResult":
+      case "malformedResult":
+        failProtocolAndClose(failure.error.message, "protocol error");
+        return;
+      case "send":
+      case "unavailable":
+        return;
+      default:
+        failure.source satisfies never;
     }
-
-    const id = nextRequestId;
-    nextRequestId += 1;
-
-    const resultPromise = new Promise<() => RequestResponse<M>>((resolve, reject) => {
-      pendingRequests.set(id, {
-        terminalOnError,
-        settleResult: (hasResult, result) => {
-          if (!hasResult) {
-            const error = new Error(`${descriptor.method} returned no result payload`);
-            reject(error);
-            return error.message;
-          }
-          if (!validateDescriptorResponse(descriptor, result)) {
-            const error = new Error(`${descriptor.method} returned malformed result payload`);
-            reject(error);
-            return error.message;
-          }
-
-          resolve(() => result);
-          onValidatedResult?.(result);
-          return undefined;
-        },
-        reject,
-      });
-      try {
-        sendRequest(socket, id, descriptor.method, params);
-      } catch (error) {
-        pendingRequests.delete(id);
-        reject(error instanceof Error ? error : new Error("GUI host WebSocket is not available"));
-      }
-    });
-    return readValidatedResult(resultPromise);
   };
 
   const withReadyCommands = <T>(startRequest: () => Promise<T>): Promise<T> => {
     if (!commandsReady) {
-      return Promise.reject(new Error("GUI host WebSocket is not available"));
+      return Promise.reject(new Error(unavailableMessage));
     }
 
     return startRequest();
@@ -185,156 +171,74 @@ export function startGuiHostConnection({
 
   const commands: GuiHostCommands = {
     startTurn: (params) =>
-      withReadyCommands(() =>
-        request<"turn/start">(requestDescriptors["turn/start"], params, {
-          terminalOnError: false,
-        }),
-      ),
+      withReadyCommands(() => transport.request(requestDescriptors["turn/start"], params)),
     interruptTurn: (params) =>
-      withReadyCommands(() =>
-        request<"turn/interrupt">(requestDescriptors["turn/interrupt"], params, {
-          terminalOnError: false,
-        }),
-      ),
+      withReadyCommands(() => transport.request(requestDescriptors["turn/interrupt"], params)),
   };
 
-  const startHandshakeRequest = <M extends GuiRequestMethod>(
-    descriptor: RequestDescriptor<M>,
-    params: RequestParams<M>,
-    onValidatedResult: (result: RequestResponse<M>) => void,
-  ): void => {
-    void request(descriptor, params, { terminalOnError: true, onValidatedResult }).catch(
-      () => undefined,
-    );
+  const startAttachRequest = (): void => {
+    void transport
+      .request(requestDescriptors["thread/projection/attach"], { threadId }, (settlement) => {
+        if (settlement.type === "failure") {
+          closeForHandshakeFailure(settlement.failure);
+          return;
+        }
+
+        onProjectionAttached?.(settlement.response);
+        emit({ label: "attached" });
+        commandsReady = true;
+        onCommandsReady?.(commands);
+      })
+      .catch(() => undefined);
+  };
+
+  const startInitializeRequest = (): void => {
+    void transport
+      .request(
+        requestDescriptors.initialize,
+        {
+          clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
+          capabilities: null,
+        },
+        (settlement) => {
+          if (settlement.type === "failure") {
+            closeForHandshakeFailure(settlement.failure);
+            return;
+          }
+
+          emit({ label: "initialized" });
+          startAttachRequest();
+        },
+      )
+      .catch(() => undefined);
   };
 
   const startAuthenticationRequest = (): void => {
-    if (
-      closed ||
-      socket.readyState === WebSocket.CLOSING ||
-      socket.readyState === WebSocket.CLOSED
-    ) {
+    if (closed) {
       return;
     }
 
-    const id = nextRequestId;
-    nextRequestId += 1;
-    const params: GuiAuthenticateParams = { token };
-    pendingRequests.set(id, {
-      terminalOnError: true,
-      settleResult: (hasResult, result) => {
-        const malformedResultError = new Error(
-          `${AUTHENTICATE_METHOD} returned malformed result payload`,
-        );
-        if (!hasResult || !validateGuiAuthenticateResult(result)) {
-          return malformedResultError.message;
+    void transport
+      .authenticate({ token }, (settlement) => {
+        if (settlement.type === "failure") {
+          closeForHandshakeFailure(settlement.failure);
+          return;
         }
-
-        const authenticateResult: GuiAuthenticateResult = result;
-        if (!authenticateResult.authenticated) {
-          return malformedResultError.message;
+        if (!settlement.response.authenticated) {
+          failProtocolAndClose(
+            `${AUTHENTICATE_METHOD} returned malformed result payload`,
+            "protocol error",
+          );
+          return;
         }
 
         emit({ label: "authenticated" });
-        startHandshakeRequest<"initialize">(
-          requestDescriptors.initialize,
-          {
-            clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
-            capabilities: null,
-          },
-          () => {
-            emit({ label: "initialized" });
-            startHandshakeRequest<"thread/projection/attach">(
-              requestDescriptors["thread/projection/attach"],
-              { threadId },
-              (response) => {
-                onProjectionAttached?.(response);
-                emit({ label: "attached" });
-                commandsReady = true;
-                onCommandsReady?.(commands);
-              },
-            );
-          },
-        );
-        return undefined;
-      },
-      reject: () => undefined,
-    });
-
-    try {
-      sendRequest(socket, id, AUTHENTICATE_METHOD, params);
-    } catch {
-      pendingRequests.delete(id);
-    }
+        startInitializeRequest();
+      })
+      .catch(() => undefined);
   };
 
-  socket.onopen = () => {
-    startAuthenticationRequest();
-  };
-
-  socket.onerror = () => {
-    rejectPendingRequests("GUI host WebSocket is not available");
-    emit({
-      label: "error",
-      message: "GUI host WebSocket failed",
-    });
-  };
-
-  socket.onclose = (event) => {
-    rejectPendingRequests("GUI host WebSocket is not available");
-    if (event.code === 1000) {
-      emit({ label: "closed" });
-      return;
-    }
-
-    emit({
-      label: "error",
-      message: `GUI host WebSocket closed (code=${String(event.code)}${event.reason ? `, reason=${event.reason}` : ""})`,
-    });
-  };
-
-  const settlePendingResult = (id: JsonRpcResponse["id"], result: unknown): void => {
-    if (typeof id !== "number") {
-      return;
-    }
-
-    const pending = pendingRequests.get(id);
-    if (!pending) {
-      return;
-    }
-    pendingRequests.delete(id);
-
-    const resultError = pending.settleResult(true, result);
-    if (resultError && pending.terminalOnError) {
-      failProtocolAndClose(resultError, "protocol error");
-    }
-  };
-
-  const settlePendingError = (
-    id: JsonRpcErrorResponse["id"],
-    rpcError: JsonRpcErrorResponse["error"],
-  ): void => {
-    const error = new Error(
-      `JSON-RPC error (id=${String(id)}, code=${String(rpcError.code)}): ${rpcError.message}`.trim(),
-    );
-    if (typeof id !== "number") {
-      failProtocolAndClose(error.message, "handshake error");
-      return;
-    }
-
-    const pending = pendingRequests.get(id);
-    if (!pending) {
-      return;
-    }
-    pendingRequests.delete(id);
-    pending.reject(error);
-
-    if (pending.terminalOnError) {
-      failProtocolAndClose(error.message, "handshake error");
-    }
-  };
-
-  socket.onmessage = (event) => {
+  const handleMessage = (event: MessageEvent): void => {
     let parsedMessage: unknown;
     try {
       parsedMessage = parseRpcMessage(event.data);
@@ -351,17 +255,10 @@ export function startGuiHostConnection({
         "id" in parsedMessage &&
         typeof parsedMessage.id === "number" &&
         !("result" in parsedMessage) &&
-        !("error" in parsedMessage)
+        !("error" in parsedMessage) &&
+        transport.settleMissingResult(parsedMessage.id)
       ) {
-        const pending = pendingRequests.get(parsedMessage.id);
-        if (pending) {
-          pendingRequests.delete(parsedMessage.id);
-          const resultError = pending.settleResult(false, undefined);
-          if (resultError && pending.terminalOnError) {
-            failProtocolAndClose(resultError, "protocol error");
-          }
-          return;
-        }
+        return;
       }
 
       failProtocolAndClose("Malformed JSON-RPC message", "invalid message");
@@ -370,11 +267,21 @@ export function startGuiHostConnection({
 
     const message: JSONRPCMessage = parsedMessage;
     if ("result" in message) {
-      settlePendingResult(message.id, message.result);
+      if (typeof message.id === "number") {
+        transport.settleResult(message.id, message.result);
+      }
       return;
     }
     if ("error" in message) {
-      settlePendingError(message.id, message.error);
+      if (typeof message.id === "number") {
+        transport.settleRpcError(message.id, message.error);
+        return;
+      }
+
+      failProtocolAndClose(
+        `JSON-RPC error (id=${message.id}, code=${String(message.error.code)}): ${message.error.message}`.trim(),
+        "handshake error",
+      );
       return;
     }
     if ("id" in message) {
@@ -417,62 +324,20 @@ export function startGuiHostConnection({
     }
   };
 
+  emit({ label: "connecting" });
+
   return () => {
     if (closed) {
       return;
     }
 
     closed = true;
-    rejectPendingRequests("GUI host WebSocket is not available");
-    socket.onopen = null;
-    socket.onerror = null;
-    socket.onclose = null;
-    socket.onmessage = null;
-
-    try {
-      socket.close(1000, "cleanup");
-    } catch {
-      // The browser may reject close if the socket is already gone.
-    }
+    transport.invalidate(unavailableMessage);
+    markCommandsUnavailable();
+    transport.dispose(1000, "cleanup");
   };
-}
-
-type PendingRequest = {
-  terminalOnError: boolean;
-  settleResult: (hasResult: boolean, result: unknown) => string | undefined;
-  reject: (error: Error) => void;
-};
-
-type GuiRequestMethod = keyof typeof requestDescriptors;
-
-type RequestDescriptor<M extends GuiRequestMethod> = (typeof requestDescriptors)[M];
-
-type RequestOptions<M extends GuiRequestMethod> = {
-  terminalOnError: boolean;
-  onValidatedResult?: (result: RequestResponse<M>) => void;
-};
-
-type JsonRpcResponse = Extract<JSONRPCMessage, { result: unknown }>;
-type JsonRpcErrorResponse = Extract<JSONRPCMessage, { error: unknown }>;
-
-function validateDescriptorResponse<M extends GuiRequestMethod>(
-  descriptor: RequestDescriptor<M>,
-  result: unknown,
-): result is RequestResponse<M> {
-  return descriptor.validateResponse(result);
-}
-
-async function readValidatedResult<M extends GuiRequestMethod>(
-  resultPromise: Promise<() => RequestResponse<M>>,
-): Promise<RequestResponse<M>> {
-  const getResult = await resultPromise;
-  return getResult();
 }
 
 function webSocketProtocol(location: URL): "ws" | "wss" {
   return location.protocol === "https:" ? "wss" : "ws";
-}
-
-function sendRequest(socket: WebSocket, id: number, method: string, params: unknown): void {
-  socket.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
 }
