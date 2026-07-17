@@ -199,6 +199,77 @@ describe("guiHostClient protocol errors", () => {
     expect(socket.closed).toEqual([{ code: 1000, reason: "invalid message" }]);
   });
 
+  it.each(["thread/projection/event", "thread/projection/delta", "thread/projection/closed"])(
+    "reports %s params with missing required fields as a protocol error",
+    (method) => {
+      const { summaries: statuses, onStatus } = recordStatusSummaries();
+      const projectionCallbacks: string[] = [];
+      const { socket } = startGuiHostConnectionWithSocket({
+        attachResponse: attachBaseline,
+        onStatus,
+        onProjectionAttached: () => {
+          projectionCallbacks.push("attached");
+        },
+        onProjectionClosed: () => {
+          projectionCallbacks.push("closed");
+        },
+        onProjectionDelta: () => {
+          projectionCallbacks.push("delta");
+        },
+        onProjectionEvent: () => {
+          projectionCallbacks.push("event");
+        },
+      });
+
+      socket.onmessage?.({
+        data: JSON.stringify({ jsonrpc: "2.0", method, params: {} }),
+      });
+
+      expect(projectionCallbacks).toEqual([]);
+      expect(statuses.at(-1)).toEqual({
+        label: "error",
+        message: `${method} returned malformed params payload`,
+      });
+      expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
+    },
+  );
+
+  it("reports an unknown notification method as malformed and closes cleanly", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const projectionCallbacks: string[] = [];
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+      onProjectionAttached: () => {
+        projectionCallbacks.push("attached");
+      },
+      onProjectionClosed: () => {
+        projectionCallbacks.push("closed");
+      },
+      onProjectionDelta: () => {
+        projectionCallbacks.push("delta");
+      },
+      onProjectionEvent: () => {
+        projectionCallbacks.push("event");
+      },
+    });
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "fixture/unknown-notification",
+        params: {},
+      }),
+    });
+
+    expect(projectionCallbacks).toEqual([]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "Malformed JSON-RPC message",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "invalid message" }]);
+  });
+
   it("reports policy-close as error", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
 

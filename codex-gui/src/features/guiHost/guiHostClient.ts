@@ -3,7 +3,6 @@ import type {
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
-import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type { JSONRPCMessage } from "@codex-protocol/JSONRPCMessage";
 import {
   AUTHENTICATE_METHOD,
@@ -15,11 +14,8 @@ import {
   consumeBrowserLaunchParams,
   type BrowserLaunchParams,
 } from "@/features/browserLaunch/browserLaunchParams";
-import {
-  requestDescriptors,
-  validateServerNotification,
-  validatorRegistry,
-} from "@/generated/appServerProtocol";
+import { classifyServerNotification, requestDescriptors } from "@/generated/appServerProtocol";
+import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
 import { validateGuiAuthenticateResult } from "@/generated/guiHostContract";
 import type { RequestParams, RequestResponse } from "./appServerProtocol";
 import { parseRpcMessage } from "./guiHostProtocol";
@@ -347,7 +343,7 @@ export function startGuiHostConnection({
       return;
     }
 
-    if (!validatorRegistry.JSONRPCMessage(parsedMessage)) {
+    if (!validateJSONRPCMessage(parsedMessage)) {
       if (
         typeof parsedMessage === "object" &&
         parsedMessage !== null &&
@@ -385,31 +381,38 @@ export function startGuiHostConnection({
       return;
     }
 
-    if (!validateServerNotification(message)) {
-      if (message.method.startsWith("thread/projection/")) {
+    const classification = classifyServerNotification(message);
+    switch (classification.type) {
+      case "selected": {
+        const notification = classification.notification;
+        switch (notification.method) {
+          case "thread/projection/event":
+            onProjectionEvent?.(notification.params);
+            return;
+          case "thread/projection/delta":
+            onProjectionDelta?.(notification.params);
+            return;
+          case "thread/projection/closed":
+            onProjectionClosed?.(notification.params);
+            return;
+          default:
+            notification satisfies never;
+            return;
+        }
+      }
+      case "selectedInvalid":
         failProtocolAndClose(
-          `${message.method} returned malformed params payload`,
+          `${classification.method} returned malformed params payload`,
           "protocol error",
         );
-      }
-      return;
-    }
-    if (!isProjectionServerNotification(message)) {
-      return;
-    }
-
-    switch (message.method) {
-      case "thread/projection/event":
-        onProjectionEvent?.(message.params);
         return;
-      case "thread/projection/delta":
-        onProjectionDelta?.(message.params);
+      case "knownUnconsumed":
         return;
-      case "thread/projection/closed":
-        onProjectionClosed?.(message.params);
+      case "unknown":
+        failProtocolAndClose("Malformed JSON-RPC message", "invalid message");
         return;
       default:
-        message satisfies never;
+        classification satisfies never;
         return;
     }
   };
@@ -449,11 +452,6 @@ type RequestOptions<M extends GuiRequestMethod> = {
   onValidatedResult?: (result: RequestResponse<M>) => void;
 };
 
-type ProjectionServerNotification = Extract<
-  ServerNotification,
-  { method: `thread/projection/${string}` }
->;
-
 type JsonRpcResponse = Extract<JSONRPCMessage, { result: unknown }>;
 type JsonRpcErrorResponse = Extract<JSONRPCMessage, { error: unknown }>;
 
@@ -469,12 +467,6 @@ async function readValidatedResult<M extends GuiRequestMethod>(
 ): Promise<RequestResponse<M>> {
   const getResult = await resultPromise;
   return getResult();
-}
-
-function isProjectionServerNotification(
-  notification: ServerNotification,
-): notification is ProjectionServerNotification {
-  return notification.method.startsWith("thread/projection/");
 }
 
 function webSocketProtocol(location: URL): "ws" | "wss" {

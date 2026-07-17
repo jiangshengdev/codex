@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type {
@@ -6,7 +6,12 @@ import type {
   TurnStartParams,
   TurnStartResponse,
 } from "@codex-protocol/v2";
-import { requestDescriptors, validateServerNotification } from "@/generated/appServerProtocol";
+import {
+  closedBackpressure,
+  eventAgentMessageDelta,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
+import { classifyServerNotification, requestDescriptors } from "@/generated/appServerProtocol";
 import type { RequestParams, RequestResponse } from "../appServerProtocol";
 
 describe("generated GUI Host protocol boundary", () => {
@@ -25,11 +30,39 @@ describe("generated GUI Host protocol boundary", () => {
     }
   });
 
-  test("narrows notifications through the generated public validator", () => {
-    const notification: unknown = {};
+  test("narrows selected notifications to their method-specific generated type", () => {
+    const notifications = [
+      { method: "thread/projection/event", params: eventTurnStarted },
+      { method: "thread/projection/delta", params: eventAgentMessageDelta },
+      { method: "thread/projection/closed", params: closedBackpressure },
+    ] as const;
 
-    if (validateServerNotification(notification)) {
-      expectTypeOf(notification).toEqualTypeOf<ServerNotification>();
+    for (const notification of notifications) {
+      const classification = classifyServerNotification(notification);
+      expect(classification.type).toBe("selected");
+      if (classification.type !== "selected") {
+        continue;
+      }
+
+      switch (classification.notification.method) {
+        case "thread/projection/event":
+          expectTypeOf(classification.notification).toEqualTypeOf<
+            Extract<ServerNotification, { method: "thread/projection/event" }>
+          >();
+          break;
+        case "thread/projection/delta":
+          expectTypeOf(classification.notification).toEqualTypeOf<
+            Extract<ServerNotification, { method: "thread/projection/delta" }>
+          >();
+          break;
+        case "thread/projection/closed":
+          expectTypeOf(classification.notification).toEqualTypeOf<
+            Extract<ServerNotification, { method: "thread/projection/closed" }>
+          >();
+          break;
+        default:
+          classification.notification satisfies never;
+      }
     }
   });
 });
