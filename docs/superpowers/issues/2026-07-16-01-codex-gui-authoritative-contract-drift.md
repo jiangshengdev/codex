@@ -131,6 +131,17 @@ Rust 修改这些字段、路径或消息结构时，前端不会在编译阶段
 - `bazel mod deps --lockfile_mode=error` 通过，`MODULE.bazel.lock` 无漂移。
 - 最终代码复审未发现 Critical 或 Important 问题。
 
+### 2026-07-17 validator bundle 体积复核
+
+- 根因确认：完整 `ServerNotification` validator 被纳入 production graph。baseline 的 main bundle 为 1,320,592 raw bytes、约 278.16 kB gzip，`dist` 总大小为 11,604,274 bytes；最终 main bundle 为 905,183 raw bytes、247,498 gzip bytes，`dist` 总大小为 11,188,829 bytes。
+- main bundle 恢复 415,409 bytes，`dist` 总大小恢复 415,445 bytes，超过计划要求的至少 400 kB。
+- selected ESM validator groups 的 payload 为 475,246 bytes，envelope 为 19,010 bytes，合计 494,256 bytes。
+- `windowsSandbox` method literal 在 main bundle 中仅保留 1 次，用于 known-notification classifier；对应 payload type、mode 和 validator markers 均完全缺失。这里保留的是 method literal，不代表 payload code 或 validator code 仍进入 production graph。
+- GUI 当前选中的 3 个 notification methods 仍保留对应 validator；Shiki representative exact bytes 与 baseline 完全一致。
+- 从 `codex-gui/` 执行并通过：`/opt/homebrew/bin/fnm exec --using-file pnpm run protocol:check-validators`；`/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run scripts/protocolValidators/core.test.ts scripts/protocolValidators/cli.test.ts src/features/guiHost/__tests__/generatedAppServerProtocol.test.ts src/features/guiHost/__tests__/guiHostGeneratedProtocol.test.ts src/features/guiHost/__tests__/guiHostHandshake.test.ts src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts src/features/guiHost/__tests__/guiHostCommands.test.ts`（104 tests）；`/opt/homebrew/bin/fnm exec --using-file pnpm run type-check`；`/opt/homebrew/bin/fnm exec --using-file pnpm run build`。
+- 从 `codex-rs/` 执行 `just fmt` 并通过。
+- 本轮本地提交：`baa7fcb6b`、`22c3c6a22`、`9eb81cf6c`、`062d90bba`。
+
 ## 影响
 
 - Rust 删除、重命名或改变 GUI 已消费的 app-server 字段、method、response 或 notification variant 时，会通过 generation、validator drift、type-check、测试或 build 传播失败。
