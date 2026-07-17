@@ -6,6 +6,11 @@ export type RequestDefinitionMetadata = {
   responseSchema: string;
 };
 
+export type NotificationDefinitionMetadata = {
+  method: string;
+  paramsSchema: string;
+};
+
 export type TypeScriptFormatResult = {
   code: string;
   errors: readonly { message: string | null }[];
@@ -18,7 +23,10 @@ export type TypeScriptFormatter = (
 
 type TypeScriptArtifactOptions = {
   requestDefinitions: readonly RequestDefinitionMetadata[];
-  validatorExports: ReadonlyMap<string, string>;
+  notificationDefinitions: readonly NotificationDefinitionMetadata[];
+  selectedNotificationDefinitions: readonly NotificationDefinitionMetadata[];
+  envelopeValidatorExports: ReadonlyMap<string, string>;
+  payloadValidatorExports: ReadonlyMap<string, string>;
   formatTypeScript: TypeScriptFormatter;
 };
 
@@ -74,34 +82,63 @@ function namedImport(
 function validatorType(
   schemaId: string,
   requestDefinitions: readonly RequestDefinitionMetadata[],
+  notificationDefinitions: readonly NotificationDefinitionMetadata[],
 ): ts.TypeNode {
   if (schemaId === "JSONRPCMessage") return factory.createTypeReferenceNode("JSONRPCMessage");
-  if (schemaId === "ServerNotification")
-    return factory.createTypeReferenceNode("ServerNotification");
 
-  const methods = requestDefinitions
+  const responseTypes = requestDefinitions
     .filter(({ responseSchema }) => responseSchema === schemaId)
     .map(({ method }) =>
       factory.createTypeReferenceNode("RequestResponse", [
         factory.createLiteralTypeNode(factory.createStringLiteral(method)),
       ]),
     );
-  if (methods.length === 0)
-    throw new Error(`Missing response type for validator schema: ${schemaId}`);
-  return methods.length === 1 ? methods[0] : factory.createUnionTypeNode(methods);
+  const notificationTypes = notificationDefinitions
+    .filter(({ paramsSchema }) => paramsSchema === schemaId)
+    .map(({ method }) =>
+      factory.createIndexedAccessTypeNode(
+        factory.createTypeReferenceNode("Extract", [
+          factory.createTypeReferenceNode("ServerNotification"),
+          factory.createTypeLiteralNode([
+            factory.createPropertySignature(
+              undefined,
+              "method",
+              undefined,
+              factory.createLiteralTypeNode(factory.createStringLiteral(method)),
+            ),
+          ]),
+        ]),
+        factory.createLiteralTypeNode(factory.createStringLiteral("params")),
+      ),
+    );
+  const types = [...responseTypes, ...notificationTypes];
+  if (types.length === 0) throw new Error(`Missing TypeScript type for validator: ${schemaId}`);
+  return types.length === 1 ? types[0] : factory.createUnionTypeNode(types);
 }
 
 function standaloneDeclarations(
   validatorExports: ReadonlyMap<string, string>,
   requestDefinitions: readonly RequestDefinitionMetadata[],
+  notificationDefinitions: readonly NotificationDefinitionMetadata[],
 ): string {
+  const needsJsonRpcMessage = validatorExports.has("JSONRPCMessage");
+  const needsRequestResponse = requestDefinitions.some(({ responseSchema }) =>
+    validatorExports.has(responseSchema),
+  );
+  const needsServerNotification = notificationDefinitions.some(({ paramsSchema }) =>
+    validatorExports.has(paramsSchema),
+  );
   return print([
     generatedHeader(),
-    namedImport("@codex-protocol/JSONRPCMessage", ["JSONRPCMessage"], true),
-    namedImport("@codex-protocol/ServerNotification", ["ServerNotification"], true),
+    ...(needsJsonRpcMessage
+      ? [namedImport("@codex-protocol/JSONRPCMessage", ["JSONRPCMessage"], true)]
+      : []),
+    ...(needsServerNotification
+      ? [namedImport("@codex-protocol/ServerNotification", ["ServerNotification"], true)]
+      : []),
     namedImport(
       "../../features/guiHost/appServerProtocol",
-      ["ProtocolValidator", "RequestResponse"],
+      ["ProtocolValidator", ...(needsRequestResponse ? ["RequestResponse"] : [])],
       true,
     ),
     ...[...validatorExports.entries()].map(([schemaId, name]) =>
@@ -116,7 +153,7 @@ function standaloneDeclarations(
               factory.createIdentifier(name),
               undefined,
               factory.createTypeReferenceNode("ProtocolValidator", [
-                validatorType(schemaId, requestDefinitions),
+                validatorType(schemaId, requestDefinitions, notificationDefinitions),
               ]),
               undefined,
             ),
@@ -245,7 +282,7 @@ function requestDescriptors(
       ["ProtocolValidator", "RequestResponse"],
       true,
     ),
-    namedImport("./standaloneValidators.js", responseExports),
+    namedImport("./appServerPayloadValidators.js", responseExports),
     factory.createVariableStatement(
       [factory.createModifier(ts.SyntaxKind.ExportKeyword)],
       factory.createVariableDeclarationList(
@@ -266,41 +303,261 @@ function requestDescriptors(
   ]);
 }
 
-function notificationDescriptors(serverNotificationExport: string): string {
-  return print([
-    generatedHeader(),
-    namedImport("./standaloneValidators.js", [serverNotificationExport]),
-    factory.createExportDeclaration(
-      undefined,
-      false,
-      factory.createNamedExports([
-        factory.createExportSpecifier(
-          false,
+function selectedServerNotificationType(methods: readonly string[]): ts.TypeNode {
+  return factory.createTypeReferenceNode("Extract", [
+    factory.createTypeReferenceNode("ServerNotification"),
+    factory.createTypeLiteralNode([
+      factory.createPropertySignature(undefined, "method", undefined, stringLiteralUnion(methods)),
+    ]),
+  ]);
+}
+
+function classificationType(): ts.TypeNode {
+  return factory.createUnionTypeNode([
+    factory.createTypeLiteralNode([
+      factory.createPropertySignature(
+        undefined,
+        "type",
+        undefined,
+        factory.createLiteralTypeNode(factory.createStringLiteral("selected")),
+      ),
+      factory.createPropertySignature(
+        undefined,
+        "notification",
+        undefined,
+        factory.createTypeReferenceNode("SelectedServerNotification"),
+      ),
+    ]),
+    factory.createTypeLiteralNode([
+      factory.createPropertySignature(
+        undefined,
+        "type",
+        undefined,
+        factory.createLiteralTypeNode(factory.createStringLiteral("selectedInvalid")),
+      ),
+      factory.createPropertySignature(
+        undefined,
+        "method",
+        undefined,
+        factory.createIndexedAccessTypeNode(
+          factory.createTypeReferenceNode("SelectedServerNotification"),
+          factory.createLiteralTypeNode(factory.createStringLiteral("method")),
+        ),
+      ),
+    ]),
+    ...["knownUnconsumed", "unknown"].map((type) =>
+      factory.createTypeLiteralNode([
+        factory.createPropertySignature(
           undefined,
-          factory.createIdentifier(serverNotificationExport),
+          "type",
+          undefined,
+          factory.createLiteralTypeNode(factory.createStringLiteral(type)),
         ),
       ]),
     ),
-    factory.createVariableStatement(
-      [factory.createModifier(ts.SyntaxKind.ExportKeyword)],
-      factory.createVariableDeclarationList(
+  ]);
+}
+
+function selectedNotificationCase(
+  definition: NotificationDefinitionMetadata,
+  validatorExport: string,
+): ts.CaseClause {
+  const method = factory.createPropertyAccessExpression(
+    factory.createIdentifier("notification"),
+    "method",
+  );
+  return factory.createCaseClause(factory.createStringLiteral(definition.method), [
+    factory.createIfStatement(
+      factory.createPrefixUnaryExpression(
+        ts.SyntaxKind.ExclamationToken,
+        factory.createCallExpression(factory.createIdentifier(validatorExport), undefined, [
+          factory.createPropertyAccessExpression(
+            factory.createIdentifier("notification"),
+            "params",
+          ),
+        ]),
+      ),
+      factory.createBlock(
         [
-          factory.createVariableDeclaration(
-            "notificationDescriptors",
-            undefined,
-            undefined,
+          factory.createReturnStatement(
+            factory.createObjectLiteralExpression([
+              factory.createPropertyAssignment(
+                "type",
+                factory.createStringLiteral("selectedInvalid"),
+              ),
+              factory.createPropertyAssignment("method", method),
+            ]),
+          ),
+        ],
+        true,
+      ),
+    ),
+    factory.createReturnStatement(
+      factory.createObjectLiteralExpression(
+        [
+          factory.createPropertyAssignment("type", factory.createStringLiteral("selected")),
+          factory.createPropertyAssignment(
+            "notification",
             factory.createObjectLiteralExpression(
               [
+                factory.createPropertyAssignment("method", method),
                 factory.createPropertyAssignment(
-                  "ServerNotification",
-                  factory.createIdentifier(serverNotificationExport),
+                  "params",
+                  factory.createPropertyAccessExpression(
+                    factory.createIdentifier("notification"),
+                    "params",
+                  ),
                 ),
               ],
               true,
             ),
           ),
         ],
-        ts.NodeFlags.Const,
+        true,
+      ),
+    ),
+  ]);
+}
+
+function knownNotificationMethodFunction(
+  notificationDefinitions: readonly NotificationDefinitionMetadata[],
+): ts.FunctionDeclaration {
+  const knownCases = notificationDefinitions.map(({ method }) =>
+    factory.createCaseClause(factory.createStringLiteral(method), [
+      factory.createReturnStatement(factory.createTrue()),
+    ]),
+  );
+  return factory.createFunctionDeclaration(
+    undefined,
+    undefined,
+    "isKnownServerNotificationMethod",
+    undefined,
+    [
+      factory.createParameterDeclaration(
+        undefined,
+        undefined,
+        "method",
+        undefined,
+        factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+      ),
+    ],
+    factory.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword),
+    factory.createBlock(
+      [
+        factory.createSwitchStatement(
+          factory.createIdentifier("method"),
+          factory.createCaseBlock([
+            ...knownCases,
+            factory.createDefaultClause([factory.createReturnStatement(factory.createFalse())]),
+          ]),
+        ),
+      ],
+      true,
+    ),
+  );
+}
+
+function notificationDescriptors(
+  notificationDefinitions: readonly NotificationDefinitionMetadata[],
+  selectedDefinitions: readonly NotificationDefinitionMetadata[],
+  validatorExports: ReadonlyMap<string, string>,
+): string {
+  const selectedValidators = [
+    ...new Set(
+      selectedDefinitions.map(({ paramsSchema }) => {
+        const validatorExport = validatorExports.get(paramsSchema);
+        if (!validatorExport) {
+          throw new Error(`Missing notification validator export: ${paramsSchema}`);
+        }
+        return validatorExport;
+      }),
+    ),
+  ];
+  const selectedMethods = selectedDefinitions.map(({ method }) => method);
+  const selectedCases = selectedDefinitions.map((definition) => {
+    const validatorExport = validatorExports.get(definition.paramsSchema);
+    if (!validatorExport) {
+      throw new Error(`Missing notification validator export: ${definition.paramsSchema}`);
+    }
+    return selectedNotificationCase(definition, validatorExport);
+  });
+
+  return print([
+    generatedHeader(),
+    namedImport("@codex-protocol/JSONRPCNotification", ["JSONRPCNotification"], true),
+    namedImport("@codex-protocol/ServerNotification", ["ServerNotification"], true),
+    namedImport("./appServerPayloadValidators.js", selectedValidators),
+    factory.createTypeAliasDeclaration(
+      [factory.createModifier(ts.SyntaxKind.ExportKeyword)],
+      "SelectedServerNotification",
+      undefined,
+      selectedServerNotificationType(selectedMethods),
+    ),
+    factory.createTypeAliasDeclaration(
+      [factory.createModifier(ts.SyntaxKind.ExportKeyword)],
+      "ServerNotificationClassification",
+      undefined,
+      classificationType(),
+    ),
+    knownNotificationMethodFunction(notificationDefinitions),
+    factory.createFunctionDeclaration(
+      [factory.createModifier(ts.SyntaxKind.ExportKeyword)],
+      undefined,
+      "classifyServerNotification",
+      undefined,
+      [
+        factory.createParameterDeclaration(
+          undefined,
+          undefined,
+          "notification",
+          undefined,
+          factory.createTypeReferenceNode("JSONRPCNotification"),
+        ),
+      ],
+      factory.createTypeReferenceNode("ServerNotificationClassification"),
+      factory.createBlock(
+        [
+          factory.createSwitchStatement(
+            factory.createPropertyAccessExpression(
+              factory.createIdentifier("notification"),
+              "method",
+            ),
+            factory.createCaseBlock([
+              ...selectedCases,
+              factory.createDefaultClause([
+                factory.createReturnStatement(
+                  factory.createConditionalExpression(
+                    factory.createCallExpression(
+                      factory.createIdentifier("isKnownServerNotificationMethod"),
+                      undefined,
+                      [
+                        factory.createPropertyAccessExpression(
+                          factory.createIdentifier("notification"),
+                          "method",
+                        ),
+                      ],
+                    ),
+                    factory.createToken(ts.SyntaxKind.QuestionToken),
+                    factory.createObjectLiteralExpression([
+                      factory.createPropertyAssignment(
+                        "type",
+                        factory.createStringLiteral("knownUnconsumed"),
+                      ),
+                    ]),
+                    factory.createToken(ts.SyntaxKind.ColonToken),
+                    factory.createObjectLiteralExpression([
+                      factory.createPropertyAssignment(
+                        "type",
+                        factory.createStringLiteral("unknown"),
+                      ),
+                    ]),
+                  ),
+                ),
+              ]),
+            ]),
+          ),
+        ],
+        true,
       ),
     ),
   ]);
@@ -309,14 +566,13 @@ function notificationDescriptors(serverNotificationExport: string): string {
 function publicIndex(): string {
   return print([
     generatedHeader(),
-    ...["./validatorRegistry", "./requestDescriptors", "./notificationDescriptors"].map(
-      (moduleName) =>
-        factory.createExportDeclaration(
-          undefined,
-          false,
-          undefined,
-          factory.createStringLiteral(moduleName),
-        ),
+    ...["./requestDescriptors", "./notificationDescriptors"].map((moduleName) =>
+      factory.createExportDeclaration(
+        undefined,
+        false,
+        undefined,
+        factory.createStringLiteral(moduleName),
+      ),
     ),
   ]);
 }
@@ -338,18 +594,25 @@ async function formatArtifact(
 
 export async function generateTypeScriptArtifacts({
   requestDefinitions,
-  validatorExports,
+  notificationDefinitions,
+  selectedNotificationDefinitions,
+  envelopeValidatorExports,
+  payloadValidatorExports,
   formatTypeScript,
 }: TypeScriptArtifactOptions): Promise<Record<string, string>> {
-  const exportNames = [...validatorExports.values()].sort();
-  const serverNotificationExport = validatorExports.get("ServerNotification");
-  if (!serverNotificationExport) throw new Error("Missing ServerNotification validator export");
-
   const sources: Record<string, string> = {
-    "standaloneValidators.d.ts": standaloneDeclarations(validatorExports, requestDefinitions),
-    "validatorRegistry.ts": validatorRegistry(validatorExports, exportNames),
-    "requestDescriptors.ts": requestDescriptors(requestDefinitions, validatorExports),
-    "notificationDescriptors.ts": notificationDescriptors(serverNotificationExport),
+    "jsonRpcEnvelopeValidators.d.ts": standaloneDeclarations(envelopeValidatorExports, [], []),
+    "appServerPayloadValidators.d.ts": standaloneDeclarations(
+      payloadValidatorExports,
+      requestDefinitions,
+      selectedNotificationDefinitions,
+    ),
+    "requestDescriptors.ts": requestDescriptors(requestDefinitions, payloadValidatorExports),
+    "notificationDescriptors.ts": notificationDescriptors(
+      notificationDefinitions,
+      selectedNotificationDefinitions,
+      payloadValidatorExports,
+    ),
     "index.ts": publicIndex(),
   };
   const artifacts: Record<string, string> = {};

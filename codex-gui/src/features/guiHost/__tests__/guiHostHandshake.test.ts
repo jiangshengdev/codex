@@ -400,6 +400,48 @@ describe("guiHostClient handshake", () => {
     expect(statuses.at(-1)).toEqual({ label: "attached", message: undefined });
   });
 
+  it("ignores a known unconsumed notification without validating its params", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const projectionCallbacks: string[] = [];
+    const attachResponse = attachBaseline;
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse,
+      onStatus,
+      onProjectionAttached: () => {
+        projectionCallbacks.push("attached");
+      },
+      onProjectionEvent: () => {
+        projectionCallbacks.push("event");
+      },
+      onProjectionDelta: () => {
+        projectionCallbacks.push("delta");
+      },
+      onProjectionClosed: () => {
+        projectionCallbacks.push("closed");
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    sendAttachResult(socket, attachResponse);
+    projectionCallbacks.length = 0;
+    const statusesBeforeNotification = [...statuses];
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/started",
+        params: {},
+      }),
+    });
+
+    expect(projectionCallbacks).toEqual([]);
+    expect(statuses).toEqual(statusesBeforeNotification);
+    expect(statuses.at(-1)).toEqual({ label: "attached", message: undefined });
+    expect(socket.closed).toEqual([]);
+  });
+
   it("reports malformed projection attach payloads without forwarding them", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const attached: ThreadProjectionAttachResponse[] = [];

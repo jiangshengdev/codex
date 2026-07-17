@@ -5,7 +5,7 @@ import {
   validateV2ThreadProjectionAttachResponse,
   validateV2TurnStartResponse,
   validateV2TurnInterruptResponse,
-} from "./standaloneValidators.js";
+} from "./appServerPayloadValidators.js";
 export const requestDescriptors = {
   initialize: {
     method: "initialize",

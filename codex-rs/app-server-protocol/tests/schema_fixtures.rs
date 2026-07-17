@@ -10,6 +10,7 @@ use serde_json::Value;
 use serde_json::json;
 use similar::TextDiff;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -252,6 +253,116 @@ fn client_request_definitions_export_method_params_and_response() -> Result<()> 
             "schema bundle is missing `{schema_id}`"
         );
     }
+
+    Ok(())
+}
+
+#[test]
+fn server_notification_definitions_export_method_and_params_schema() -> Result<()> {
+    let temp_dir = tempfile::tempdir().context("create temp dir")?;
+    let json_dir = temp_dir.path().join("json");
+    generate_json_with_experimental(&json_dir, /*experimental_api*/ false)
+        .context("generate JSON schema fixtures")?;
+    let manifest_path = json_dir.join("server-notification-definitions.json");
+    let manifest: Vec<Value> = serde_json::from_slice(
+        &std::fs::read(&manifest_path)
+            .with_context(|| format!("read {}", manifest_path.display()))?,
+    )
+    .with_context(|| format!("parse {}", manifest_path.display()))?;
+
+    for expected in [
+        json!({
+            "method": "thread/projection/event",
+            "paramsSchema": "v2/ThreadProjectionEventNotification",
+        }),
+        json!({
+            "method": "thread/projection/delta",
+            "paramsSchema": "v2/ThreadProjectionDeltaNotification",
+        }),
+        json!({
+            "method": "thread/projection/closed",
+            "paramsSchema": "v2/ThreadProjectionClosedNotification",
+        }),
+    ] {
+        let method = expected["method"]
+            .as_str()
+            .context("expected method string")?;
+        let actual = manifest
+            .iter()
+            .find(|definition| definition["method"].as_str() == Some(method))
+            .with_context(|| format!("missing notification definition for {method}"))?;
+        assert_eq!(&expected, actual);
+    }
+
+    let methods = manifest
+        .iter()
+        .map(|definition| {
+            definition["method"]
+                .as_str()
+                .context("notification definition method string")
+        })
+        .collect::<Result<Vec<_>>>()?;
+    assert_eq!(methods.len(), methods.iter().collect::<BTreeSet<_>>().len());
+    assert!(!methods.contains(&"process/outputDelta"));
+
+    let experimental_json_dir = temp_dir.path().join("experimental-json");
+    generate_json_with_experimental(&experimental_json_dir, /*experimental_api*/ true)
+        .context("generate experimental JSON schema fixtures")?;
+    let experimental_manifest_path =
+        experimental_json_dir.join("server-notification-definitions.json");
+    let experimental_manifest: Vec<Value> = serde_json::from_slice(
+        &std::fs::read(&experimental_manifest_path)
+            .with_context(|| format!("read {}", experimental_manifest_path.display()))?,
+    )
+    .with_context(|| format!("parse {}", experimental_manifest_path.display()))?;
+    let experimental_methods = experimental_manifest
+        .iter()
+        .map(|definition| {
+            definition["method"]
+                .as_str()
+                .context("experimental notification definition method string")
+        })
+        .collect::<Result<Vec<_>>>()?;
+    assert!(experimental_methods.contains(&"process/outputDelta"));
+
+    Ok(())
+}
+
+#[test]
+fn jsonrpc_message_schema_keeps_payloads_opaque() -> Result<()> {
+    let temp_dir = tempfile::tempdir().context("create temp dir")?;
+    let json_dir = temp_dir.path().join("json");
+    generate_json_with_experimental(&json_dir, /*experimental_api*/ false)
+        .context("generate JSON schema fixtures")?;
+    let jsonrpc_path = json_dir.join("JSONRPCMessage.json");
+    let jsonrpc_source = std::fs::read_to_string(&jsonrpc_path)
+        .with_context(|| format!("read {}", jsonrpc_path.display()))?;
+    let jsonrpc: Value = serde_json::from_str(&jsonrpc_source)
+        .with_context(|| format!("parse {}", jsonrpc_path.display()))?;
+
+    assert_eq!(
+        json!([
+            {"$ref": "#/definitions/JSONRPCRequest"},
+            {"$ref": "#/definitions/JSONRPCNotification"},
+            {"$ref": "#/definitions/JSONRPCResponse"},
+            {"$ref": "#/definitions/JSONRPCError"},
+        ]),
+        jsonrpc["anyOf"]
+    );
+    assert_eq!(
+        json!(true),
+        jsonrpc["definitions"]["JSONRPCNotification"]["properties"]["params"]
+    );
+    assert_eq!(
+        json!(true),
+        jsonrpc["definitions"]["JSONRPCRequest"]["properties"]["params"]
+    );
+    assert_eq!(
+        json!(true),
+        jsonrpc["definitions"]["JSONRPCResponse"]["properties"]["result"]
+    );
+    assert!(!jsonrpc_source.contains("ServerNotification"));
+    assert!(!jsonrpc_source.contains("ThreadProjectionEventNotification"));
 
     Ok(())
 }

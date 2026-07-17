@@ -12,14 +12,17 @@ import path from "node:path";
 
 import { afterEach, describe, expect, test, vi } from "vitest";
 
+import type { loadProtocolInputs as loadProtocolInputsFunction } from "./core";
 import {
   checkGeneratedArtifacts,
+  loadAppServerGenerationInputs,
   syncGeneratedArtifactGroups,
   writeGeneratedArtifacts,
 } from "./cli";
 
 const tempRoots: string[] = [];
 type GenerateArtifacts = () => Promise<ReadonlyMap<string, string>>;
+type LoadProtocolInputs = typeof loadProtocolInputsFunction;
 
 async function makeOutputDirectory(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "codex-gui-protocol-validators-"));
@@ -43,6 +46,42 @@ async function readDirectory(outputDirectory: string): Promise<Record<string, st
 
 afterEach(async () => {
   await Promise.all(tempRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+});
+
+describe("loadAppServerGenerationInputs", () => {
+  test("assembles Rust notification metadata and both app-server selections", async () => {
+    const schemaDirectory = path.join("fixture", "app-server-protocol", "schema", "json");
+    const protocolInputs = {
+      schemaBundle: { definitions: {} },
+      requestDefinitions: [{ method: "fixture/request" }],
+      notificationDefinitions: [{ method: "fixture/notification" }],
+    };
+    const loadProtocolInputs = vi.fn<LoadProtocolInputs>(() => Promise.resolve(protocolInputs));
+
+    await expect(
+      loadAppServerGenerationInputs({
+        schemaDirectory,
+        appServerProtocolModule: {
+          APP_SERVER_REQUEST_METHODS: ["fixture/request"],
+          APP_SERVER_NOTIFICATION_METHODS: ["fixture/notification"],
+        },
+        loadProtocolInputs,
+      }),
+    ).resolves.toEqual({
+      ...protocolInputs,
+      selectedRequestMethods: ["fixture/request"],
+      selectedNotificationMethods: ["fixture/notification"],
+    });
+    expect(loadProtocolInputs).toHaveBeenCalledOnce();
+    expect(loadProtocolInputs).toHaveBeenCalledWith({
+      schemaBundlePath: path.join(schemaDirectory, "codex_app_server_protocol.schemas.json"),
+      requestDefinitionsPath: path.join(schemaDirectory, "client-request-definitions.json"),
+      notificationDefinitionsPath: path.join(
+        schemaDirectory,
+        "server-notification-definitions.json",
+      ),
+    });
+  });
 });
 
 describe("checkGeneratedArtifacts", () => {
@@ -78,25 +117,54 @@ describe("checkGeneratedArtifacts", () => {
       await expect(readDirectory(outputDirectory)).resolves.toEqual(before);
     },
   );
+
+  test.each(["jsonRpcEnvelopeValidators.js", "appServerPayloadValidators.js"])(
+    "reports drift in the %s group",
+    async (staleFileName) => {
+      const outputDirectory = await makeOutputDirectory();
+      const artifacts = new Map([
+        ["jsonRpcEnvelopeValidators.js", "export const envelope = true;\n"],
+        ["appServerPayloadValidators.js", "export const payload = true;\n"],
+      ]);
+      await Promise.all(
+        [...artifacts].map(([fileName, contents]) =>
+          writeFile(
+            path.join(outputDirectory, fileName),
+            fileName === staleFileName ? "stale\n" : contents,
+          ),
+        ),
+      );
+
+      await expect(checkGeneratedArtifacts(outputDirectory, artifacts)).rejects.toThrow(
+        `stale: ${staleFileName}`,
+      );
+    },
+  );
 });
 
 describe("writeGeneratedArtifacts", () => {
-  test("atomically replaces the artifact set and removes stale files", async () => {
+  test("atomically replaces the artifact set and removes legacy app-server artifacts", async () => {
     const outputDirectory = await makeOutputDirectory();
-    await writeFile(path.join(outputDirectory, "stale.ts"), "remove me\n");
-    await writeFile(path.join(outputDirectory, "validatorRegistry.ts"), "old registry\n");
+    await Promise.all(
+      [
+        "standaloneValidators.raw.js",
+        "standaloneValidators.js",
+        "standaloneValidators.d.ts",
+        "validatorRegistry.ts",
+      ].map((fileName) => writeFile(path.join(outputDirectory, fileName), "legacy\n")),
+    );
 
     await writeGeneratedArtifacts(
       outputDirectory,
       new Map([
-        ["standaloneValidators.js", "export const validate = true;\n"],
-        ["validatorRegistry.ts", "export const registry = {};\n"],
+        ["jsonRpcEnvelopeValidators.js", "export const envelope = true;\n"],
+        ["appServerPayloadValidators.js", "export const payload = true;\n"],
       ]),
     );
 
     await expect(readDirectory(outputDirectory)).resolves.toEqual({
-      "standaloneValidators.js": "export const validate = true;\n",
-      "validatorRegistry.ts": "export const registry = {};\n",
+      "appServerPayloadValidators.js": "export const payload = true;\n",
+      "jsonRpcEnvelopeValidators.js": "export const envelope = true;\n",
     });
   });
 
