@@ -138,6 +138,23 @@ async function beginPendingSend(draft: string) {
   return { commandHandle, composer, pending, screen };
 }
 
+async function beginPendingStop(draft: string) {
+  const pending = deferred<Awaited<ReturnType<GuiHostCommands["interruptTurn"]>>>();
+  const commandHandle = createGuiHostCommands();
+  vi.mocked(commandHandle.interruptTurn).mockReturnValueOnce(pending.promise);
+  const screen = await renderAttached(commandHandle);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+  const composer = screen.getByPlaceholder("Message Codex");
+  const stopButton = screen.getByRole("button", { name: "Stop" });
+
+  await composer.fill(draft);
+  await stopButton.click();
+
+  return { commandHandle, composer, pending, screen, stopButton };
+}
+
 test("disables controls before attach", async () => {
   expect.hasAssertions();
 
@@ -596,18 +613,40 @@ test("pending send keeps newer draft after the submitted draft succeeds", async 
   await expect.element(composer).toHaveValue("New draft");
 });
 
+test("pending stop disables duplicate interruption until success", async () => {
+  const { commandHandle, composer, pending, stopButton } =
+    await beginPendingStop("Draft while stopping");
+
+  await expect.element(stopButton).toBeDisabled();
+  const stopButtonElement = stopButton.element();
+  if (!(stopButtonElement instanceof HTMLButtonElement)) {
+    throw new Error("Stop control must render as a button");
+  }
+  stopButtonElement.click();
+  expect(commandHandle.interruptTurn).toHaveBeenCalledTimes(1);
+  if (eventTurnStarted.event.type !== "turnStarted") {
+    throw new Error("fixture must be turnStarted");
+  }
+  expect(commandHandle.interruptTurn).toHaveBeenCalledWith({
+    threadId,
+    turnId: eventTurnStarted.event.notification.turn.id,
+  });
+
+  pending.resolve({});
+  await expect.element(stopButton).toBeEnabled();
+  await expect.element(composer).toHaveValue("Draft while stopping");
+});
+
 test("stop failure keeps draft and shows a toast", async () => {
-  const commandHandle = createGuiHostCommands();
-  vi.mocked(commandHandle.interruptTurn).mockRejectedValueOnce(new Error("interrupt failed"));
-  const screen = await renderAttached(commandHandle);
-  const event = eventTurnStarted;
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
-  const composer = screen.getByPlaceholder("Message Codex");
+  const { commandHandle, composer, pending, screen, stopButton } =
+    await beginPendingStop("Draft while stopping");
 
-  await composer.fill("Draft while stopping");
-  await screen.getByRole("button", { name: "Stop" }).click();
+  await expect.element(stopButton).toBeDisabled();
+  pending.reject(new Error("interrupt failed"));
 
+  await expect.element(stopButton).toBeEnabled();
   await expect.element(composer).toHaveValue("Draft while stopping");
   await expect.element(screen.getByText("Stop failed")).toBeVisible();
   await expect.element(screen.getByText("interrupt failed")).toBeVisible();
+  expect(commandHandle.interruptTurn).toHaveBeenCalledTimes(1);
 });
