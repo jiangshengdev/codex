@@ -42,7 +42,7 @@
 | [RA-01-002](./01-app-entry-shell-and-platform.md#ra-01-002) | App slice creator 已覆盖当前 slice 构造语义 | [01](./01-app-entry-shell-and-platform.md) | 已由现有抽象覆盖 | 非 finding |
 | [RA-01-003](./01-app-entry-shell-and-platform.md#ra-01-003) | 不建议新增统一 provider wrapper | [01](./01-app-entry-shell-and-platform.md) | 不建议重构 | 非 finding |
 | [RA-02-001](./02-gui-host-transport-and-protocol.md#ra-02-001) | Launch params 生命周期被嵌入 transport owner | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B01） | P2 |
-| [RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) | Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合 | [02](./02-gui-host-transport-and-protocol.md) | 确认重构点 | P2 |
+| [RA-02-002](./02-gui-host-transport-and-protocol.md#ra-02-002) | Handshake 阶段被 request ID 隐式编码并与 transport 生命周期混合 | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B02） | P2 |
 | [RA-02-003](./02-gui-host-transport-and-protocol.md#ra-02-003) | Runtime protocol guards 声明强于实际验证范围 | [02](./02-gui-host-transport-and-protocol.md) | 已实施（B03） | P2 |
 | [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) | Bridge 集中承担 projection application coordination | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B05） | P2 |
 | [RA-03-002](./03-projection-ingress-and-thread-runtime.md#ra-03-002) | Snapshot replay index 在 Bridge 与 Redux runtime 重复持有 | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B04） | P2 |
@@ -105,7 +105,7 @@
 
 ## 实施状态更新
 
-状态：持续更新。本节只记录已完成批次的实施进度，不改变 Finding 的审计时结论、优先级、Evidence owner 或既有统计；索引状态列可同步当前实施进度。
+状态：非本地化批次已完成，本地化批次暂缓。本节只记录实施进度和用户决定，不改变 Finding 的审计时结论、优先级、Evidence owner 或既有统计；索引状态列可同步当前实施进度。
 
 ### B02 完成状态
 
@@ -122,6 +122,11 @@
 | B06 | 已完成 | 2026-07-15 | `2afe739ff` `refactor(gui): remove single accepted delta action` | Node `7` 个文件、`62` 个测试通过；Browser `1` 个文件、`16` 个测试通过；`oxfmt --check`、lint、type-check 与旧符号残留搜索通过；Spec、testing、breaking-change、change-size、model-context、code-quality 审查均无 findings；未操作远程。 |
 | B07 | 已完成 | 2026-07-18 | `bdc73c634` `Remove obsolete live event and snapshot replay materialization` | 删除 `snapshotReplay` / `liveEventHandling` 四个 source/test 文件，移除 App 材料断言和 `runtimeFromAttach`；type-check 通过，unit `30` files / `300` tests、Browser Mode `24` files / `222` tests 通过，限定 oxfmt、oxlint、ESLint、diff check、零残留搜索通过；未运行 build、e2e、protocol generation 或 Rust，未操作远程。 |
 | B09 | 已完成 | 2026-07-18 | `45c7b1424` `Prevent duplicate turn interruption requests` | TDD RED/GREEN；model `4/4`、Chromium/Firefox/WebKit Browser Mode 共 `63/63` 通过；限定 oxfmt、oxlint、ESLint、type-check、`git diff --check` 通过；规格与质量复审无 findings。未运行 build、e2e、全量 GUI CI 或 protocol generation；未操作远程。 |
+
+### 本地化批次暂缓状态
+
+- 2026-07-18 用户决定暂缓全部本地化工作。B10 / `RA-07-002` 保留现有语言切换与示例代码，不执行删除、收缩或正式接入；G01 / `RA-07-003` 不继续补充 production localization 与 `NotFoundPage` 证据。
+- B10 与 G01 的审计时结论和相互排除边界保持不变；暂缓不表示已实施、已关闭或不再成立。除上述本地化事项外，本报告列出的必需实施批次均已完成，B08 已由 B07 条件吸收。
 
 ## 依赖顺序
 
