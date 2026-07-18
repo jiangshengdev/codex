@@ -41,6 +41,108 @@ describe("guiHostClient protocol errors", () => {
     expect(socket.closed).toEqual([{ code: 1000, reason: "cleanup" }]);
   });
 
+  it("ignores a valid success response with a non-numeric id", () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "external",
+        result: { accepted: true },
+      }),
+    });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(statuses).toEqual(["connecting"]);
+    expect(socket.closed).toEqual([]);
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: authenticateRequest.id,
+        result: { authenticated: true },
+      }),
+    });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate", "initialize"]);
+    expect(statuses).toEqual(["connecting", "authenticated"]);
+    expect(socket.closed).toEqual([]);
+  });
+
+  it("treats a valid error response with a non-numeric id as terminal", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "external",
+        error: { code: -32601, message: "method not found" },
+      }),
+    });
+
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "JSON-RPC error (id=external, code=-32601): method not found",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "handshake error" }]);
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        id: authenticateRequest.id,
+        result: { authenticated: true },
+      }),
+    });
+    socket.onclose?.({ code: 1000, reason: "handshake error" });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(statuses).toEqual([
+      { label: "connecting", message: undefined },
+      {
+        label: "error",
+        message: "JSON-RPC error (id=external, code=-32601): method not found",
+      },
+    ]);
+    expect(socket.closed).toEqual([{ code: 1000, reason: "handshake error" }]);
+  });
+
+  it("ignores an unmatched numeric JSON-RPC error response", () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { socket } = startGuiHostConnectionWithSocket({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+
+    socket.onopen?.();
+    const authenticateRequest = readLatestRpcRequest(socket, "gui/authenticate");
+    sendJsonRpcError(socket, authenticateRequest.id + 1, {
+      code: -32601,
+      message: "method not found",
+    });
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate"]);
+    expect(statuses).toEqual(["connecting"]);
+    expect(socket.closed).toEqual([]);
+
+    sendAuthenticateResult(socket);
+
+    expect(socket.sent.map(readRpcMethod)).toEqual(["gui/authenticate", "initialize"]);
+    expect(statuses).toEqual(["connecting", "authenticated"]);
+    expect(socket.closed).toEqual([]);
+  });
+
   it("surfaces JSON-RPC errors on initialize/attach instead of advancing", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
 
