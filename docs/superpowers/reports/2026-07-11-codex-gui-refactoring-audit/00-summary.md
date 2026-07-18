@@ -52,7 +52,7 @@
 | [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001) | 未接入 production 的 timeline-material 并行管道 | [04](./04-timeline-materials-and-domain-models.md) | 确认重构点 | P2 |
 | [RA-05-001](./05-transcript-state-and-materialization.md#ra-05-001) | Transcript State 内部拆分已有专项设计 | [05](./05-transcript-state-and-materialization.md) | 已有专项设计 | 非 finding |
 | [RA-06-001](./06-transcript-rendering-streaming-and-scroll.md#ra-06-001) | 渲染、Markdown 与 sticky-bottom 职责已由现有抽象覆盖 | [06](./06-transcript-rendering-streaming-and-scroll.md) | 已由现有抽象覆盖 | 非 finding |
-| [RA-07-001](./07-composer-access-and-localization.md#ra-07-001) | Composer stop 缺少 pending 门禁 | [07](./07-composer-access-and-localization.md) | 确认重构点 | P2 |
+| [RA-07-001](./07-composer-access-and-localization.md#ra-07-001) | Composer stop 缺少 pending 门禁 | [07](./07-composer-access-and-localization.md) | 已实施（B09） | P2 |
 | [RA-07-002](./07-composer-access-and-localization.md#ra-07-002) | 未接入 production 的 i18n 示例与切换表面 | [07](./07-composer-access-and-localization.md) | 确认重构点 | P2 |
 | [RA-07-003](./07-composer-access-and-localization.md#ra-07-003) | Production NotFound localization 覆盖不足 | [07](./07-composer-access-and-localization.md) | 候选待补证据 | P3 |
 | [RA-07-004](./07-composer-access-and-localization.md#ra-07-004) | Viewport 与 QR/access 已由现有抽象覆盖 | [07](./07-composer-access-and-localization.md) | 已由现有抽象覆盖 | 非 finding |
@@ -120,6 +120,7 @@
 | B04 | 已完成 | 2026-07-15 | `74def529c` `test(gui): cover replay baseline lifecycle`；`39c036c25` `refactor(gui): remove duplicate replay index state` | fnm-managed `pnpm 10.33.0` 下 `pnpm run ci` 通过（24 个 unit 文件、157 个测试）；定向 `App.browser.test.tsx` Browser Mode 通过（3 个执行实例、87 个测试）；结构检查确认 Bridge 为唯一 production runtime replay index owner。 |
 | B05 | 已完成 | 2026-07-15 | `3ae09b518` `refactor(gui): add projection application coordinator`；`b89880e1f` `refactor(gui): delegate projection coordination` | coordinator 单文件测试 `19/19` 通过；App browser 回归在 Chromium、Firefox、WebKit 各 `29/29` 通过；完整 GUI CI 共 `25` 个文件、`176` 个测试通过，format、oxlint、eslint、type-check 均通过；最终审查无 findings；未操作远程。 |
 | B06 | 已完成 | 2026-07-15 | `2afe739ff` `refactor(gui): remove single accepted delta action` | Node `7` 个文件、`62` 个测试通过；Browser `1` 个文件、`16` 个测试通过；`oxfmt --check`、lint、type-check 与旧符号残留搜索通过；Spec、testing、breaking-change、change-size、model-context、code-quality 审查均无 findings；未操作远程。 |
+| B09 | 已完成 | 2026-07-18 | `45c7b1424` `Prevent duplicate turn interruption requests` | TDD RED/GREEN；model `4/4`、Chromium/Firefox/WebKit Browser Mode 共 `63/63` 通过；限定 oxfmt、oxlint、ESLint、type-check、`git diff --check` 通过；规格与质量复审无 findings。未运行 build、e2e、全量 GUI CI 或 protocol generation；未操作远程。 |
 
 ## 依赖顺序
 

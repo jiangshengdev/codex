@@ -32,7 +32,7 @@
 | 微阶段 | 状态 | 压缩结论 | Finding ID / 覆盖状态 | 关键证据 |
 | --- | --- | --- | --- | --- |
 | 报告审计 | 完成 | Composer、viewport、QR/access、i18n 初始化、未接入示例/切换器、catalog 与 production NotFound 均已覆盖。 | RA-07-001 至 RA-07-004 | 本报告“文件覆盖状态”“Findings”“已排除项”“风险” |
-| R07-COMPOSER（依赖 `SCAFFOLD-COMMITTED`） | `complete` | model、UI 与 command transport owner 分工清晰，但 send/stop pending 生命周期不对称：send 由 `isSending` 阻止重复提交，stop 没有对应 pending 门禁，首个 interrupt 未完成时仍可重复触发。 | RA-07-001；确认重构点，P2 | `ComposerTurnControl.tsx:38-65,69-107,169-185`；`composerTurnControlModel.ts:26-63`；`ComposerTurnControl.browser.test.tsx:521-613`；`composerTurnControlModel.test.ts:71-105`；`guiHostClient.ts:34-37,205-208` |
+| R07-COMPOSER（依赖 `SCAFFOLD-COMMITTED`） | `complete` | 审计时 model、UI 与 command transport owner 分工清晰，但 send/stop pending 生命周期不对称：send 由 `isSending` 阻止重复提交，stop 没有对应 pending 门禁，首个 interrupt 未完成时仍可重复触发。现已由 B09 在 Composer 本地 `isStopping`、`canStop` 与 `finally` 边界完成实施。 | RA-07-001；已实施（B09），P2 | `ComposerTurnControl.tsx:38-65,69-107,169-185`；`composerTurnControlModel.ts:26-63`；`ComposerTurnControl.browser.test.tsx:521-613`；`composerTurnControlModel.test.ts:71-105`；`guiHostClient.ts:34-37,205-208` |
 | R07-ACCESS / VIEWPORT（依赖 `SCAFFOLD-COMMITTED`） | `complete`（子阶段） | viewport feature detection、focus/blur armed 状态、RAF 合并、覆盖计算和 cleanup 已集中在独立 hook；唯一 production 调用方只提供 Composer shell ref，依赖方向清晰。 | 已由现有抽象覆盖；非 finding | `useRevealComposerOnViewportResize.ts:5-93`；`ComposerTurnControl.tsx:40,67,143-147`；`ComposerTurnControl.browser.test.tsx:72-122,200-304`；production 引用仅命中该 hook 与唯一调用方 |
 | R07-ACCESS / QR-ACCESS（依赖 `SCAFFOLD-COMMITTED`） | `complete`（子阶段） | URL builder 独立拥有 origin/threadId/token 构造与编码，popover 拥有 nullable launch params 到 QR/UI 的适配；唯一 production 调用链为 Bridge → AppShell → Composer → QR。 | 已由现有抽象覆盖；非 finding | `qrAccessUrl.ts:1-12`；`QrAccessPopover.tsx:8-67`；`qrAccessUrl.test.ts:4-24`；`QrAccessPopover.browser.test.tsx:5-23`；`guiHostClient.ts:29-32` |
 | R07-ACCESS（VIEWPORT + QR-ACCESS） | `complete` | 两个子阶段均已有清晰 owner、独立变化原因和单向依赖；不支持新增公共 environment、URL 或 UI 抽象。 | RA-07-004；已由现有抽象覆盖，非 finding | VIEWPORT 与 QR-ACCESS 子阶段证据 |
@@ -45,9 +45,9 @@
 
 | 文件或目录 | 覆盖状态 | 结论或关联条目 | 关键证据 |
 | --- | --- | --- | --- |
-| `features/composerTurnControl/ComposerTurnControl.tsx`、`composerTurnControlModel.ts` | 已审核 | turn action owner 清晰；stop pending 门禁缺失，RA-07-001 | `ComposerTurnControl.tsx:38-107,169-185`；`composerTurnControlModel.ts:26-63` |
+| `features/composerTurnControl/ComposerTurnControl.tsx`、`composerTurnControlModel.ts` | 已审核；B09 已实施 | turn action owner 清晰；已增加本地 `isStopping` 门禁并让 `canStop` 排除 pending stop，RA-07-001 | `ComposerTurnControl.tsx:38-107,169-185`；`composerTurnControlModel.ts:26-63` |
 | `features/composerTurnControl/useRevealComposerOnViewportResize.ts` | 已审核 | 浏览器 viewport 副作用已由独立 hook 覆盖，RA-07-004 | `useRevealComposerOnViewportResize.ts:5-93` |
-| `features/composerTurnControl/__tests__/**` | 已审核 | 覆盖 availability、IME、viewport、send pending 与 action error；缺少 pending stop 覆盖 | `composerTurnControlModel.test.ts:15-105`；`ComposerTurnControl.browser.test.tsx:141-613` |
+| `features/composerTurnControl/__tests__/**` | 已审核；B09 已实施 | 覆盖 availability、IME、viewport、send pending、pending stop 重复操作与 action error | `composerTurnControlModel.test.ts:15-105`；`ComposerTurnControl.browser.test.tsx:141-613` |
 | `features/qrAccess/QrAccessPopover.tsx`、`qrAccessUrl.ts` | 已审核 | URL 与 UI owner 清晰，RA-07-004 | `QrAccessPopover.tsx:8-67`；`qrAccessUrl.ts:1-12` |
 | `features/qrAccess/__tests__/**` | 已审核 | 覆盖 URL 构造/编码与可用态 popover | `QrAccessPopover.browser.test.tsx:5-23`；`qrAccessUrl.test.ts:4-24` |
 | `i18n.ts`、`main.tsx` | 已审核 | production locale 初始化、catalog 激活与 provider owner 清晰 | `i18n.ts:3-65`；`main.tsx:5-28` |
@@ -65,10 +65,11 @@
 - Finding ID: RA-07-001
 - 主报告: 07-composer-access-and-localization
 - Evidence owner: 07-composer-access-and-localization
-- 状态: 确认重构点
+- 状态: 已实施（B09）
 - 重构优先级: P2
-- 结论摘要: Composer 对 send 使用 `isSending` 禁止重复提交并保护 draft transaction，但 stop 没有对应 pending 状态；首次 `turn/interrupt` 尚未完成时 Stop 仍保持可用，可以重复发起相同请求。该 finding 不声称服务端已出现非幂等故障。
-- 当前 owner 与当前职责: `ComposerTurnControl` 拥有 draft、IME、send/stop command 生命周期与 toast；`composerTurnControlModel` 拥有 connection/send/stop availability 纯判断；GUI host client 只拥有 command transport。
+- 结论摘要: 审计时 Composer 对 send 使用 `isSending` 禁止重复提交并保护 draft transaction，但 stop 没有对应 pending 状态；首次 `turn/interrupt` 尚未完成时 Stop 仍保持可用，可以重复发起相同请求。该 finding 不声称服务端已出现非幂等故障。
+- 审计时 owner 与职责: `ComposerTurnControl` 拥有 draft、IME、send/stop command 生命周期与 toast；`composerTurnControlModel` 拥有 connection/send/stop availability 纯判断；GUI host client 只拥有 command transport。
+- 实施结果: `ComposerTurnControl` 持有独立 `isStopping`；`canStop` 纳入 `!isStopping`；interrupt resolve/reject 均在 `finally` 清理 pending 状态。transport、runtime、draft、Send、interrupt payload 与既有失败 Toast 保持不变。
 - 问题类型: 同一 UI owner 内异步 action pending 生命周期不一致、重复提交门禁缺失；不是 transport、runtime 或通用错误系统问题。
 - 影响文件、定义侧、构造方、调用方和消费方: `composerTurnControlModel.ts:26-44` 定义 availability；`ComposerTurnControl.tsx:38-107` 构造本地状态并调用 commands；`:169-185` 消费 availability 渲染 Stop/Send；`AppShell.tsx:77-82` 是唯一 production 构造方；`guiHostClient.ts:34-37,205-208` 是 command type/transport owner。
 - 共同语义或变化原因: send 与 stop 都是 Composer 发起的异步 turn action，都需要在请求 pending 期间阻止同一用户操作重复进入；draft 清理只属于 send，不要求把两者强行抽成通用 command 框架。
@@ -76,11 +77,11 @@
 - 预期收益: 阻止重复 interrupt 请求，使 send/stop 操作反馈与可用性一致，并保持改动局限在现有 owner。
 - 建议变更范围、最小可审查批次和明确排除范围: 最小批次只修改 `ComposerTurnControl.tsx`、`composerTurnControlModel.ts` 及其专属测试，新增 pending interrupt 重复点击覆盖。明确排除 `guiHostClient`、WebSocket/request transport、thread runtime、transcript state、toast 架构、viewport、QR 和组件全面拆分。
 - 行为、契约、状态、性能和测试风险: pending 状态清理必须覆盖 resolve/reject；错误后应重新允许 Stop；不得改变 active turn 判定、draft 内容、send pending 行为或 interrupt payload。
-- 后续实施时建议的验证范围: 增加 deferred interrupt browser test，验证 pending 时 Stop disabled 且只调用一次、成功/失败后恢复；保持现有 send、active turn、manual reconnect 与 toast 测试。本轮未运行测试。
+- 已完成实施验证: 按 TDD 完成 RED/GREEN；model 测试 `4/4` 通过；Chromium、Firefox、WebKit Browser Mode 共 `63/63` 通过；限定 `oxfmt`、`oxlint`、ESLint、type-check 与 `git diff --check` 通过；规格与代码质量复审无 findings。本地提交为 `45c7b1424`。未运行 build、e2e、全量 GUI CI 或 protocol generation；未操作远程。
 - 当前代码关键证据路径与行号: `ComposerTurnControl.tsx:38-65,69-107,169-185`；`composerTurnControlModel.ts:26-44`；`ComposerTurnControl.browser.test.tsx:521-613`；`composerTurnControlModel.test.ts:71-98`。
 - 关联的既有报告、issue 或专项设计: [RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004) 提供 thread identity/runtime availability 交界；AppShell/platform 与 typed commands 仅作为本报告范围输入，不借用不匹配的 finding owner。本 finding 只拥有 Composer 消费侧 pending 语义。
 - 已排除项: 未因 Composer 同时拥有 draft、IME、commands 与 toast 就判定需要全面拆分；未把错误文本归一化或 command transport 纳入 finding；未声称重复 interrupt 已造成用户可见故障。
-- 报告建议: 保留为 RA-07-001、状态“确认重构点”、优先级 P2；后续只实施 stop pending 一致化。
+- 报告建议: 保留 RA-07-001 的历史审计证据，状态更新为“已实施（B09）”，P2 实施已完成；不扩张 B10、G01、transport、runtime 或 transcript。
 
 ### RA-07-002 未接入 production 的 i18n 示例与切换表面
 
