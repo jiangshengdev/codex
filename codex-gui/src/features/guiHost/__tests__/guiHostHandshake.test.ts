@@ -74,6 +74,58 @@ describe("guiHostClient handshake", () => {
     expect(calls).toEqual(["launch:thread-abc:secret", "create-websocket:ws://127.0.0.1:4567/ws"]);
   });
 
+  it("propagates a WebSocket factory error after launch params and before connecting", () => {
+    const socketError = new Error("WebSocket factory failed");
+    const calls: string[] = [];
+    let thrown: unknown;
+
+    try {
+      startGuiHostConnection({
+        location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+        replaceState: vi.fn<History["replaceState"]>(),
+        tokenStorage: new MemoryStorage(),
+        onLaunchParams: () => {
+          calls.push("launch");
+        },
+        createWebSocket: () => {
+          calls.push("create-websocket");
+          throw socketError;
+        },
+        onStatus: (status) => {
+          calls.push(`status:${status.label}`);
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBe(socketError);
+    expect(calls).toEqual(["launch", "create-websocket"]);
+  });
+
+  it("propagates an onLaunchParams error without creating the WebSocket", () => {
+    const launchError = new Error("Launch params handler failed");
+    const createWebSocket = vi.fn<(url: string) => WebSocket>();
+    let thrown: unknown;
+
+    try {
+      startGuiHostConnection({
+        location: new URL("http://127.0.0.1:4567/?threadId=thread-abc#token=secret"),
+        replaceState: vi.fn<History["replaceState"]>(),
+        tokenStorage: new MemoryStorage(),
+        onLaunchParams: () => {
+          throw launchError;
+        },
+        createWebSocket,
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBe(launchError);
+    expect(createWebSocket).not.toHaveBeenCalled();
+  });
+
   it("does not create a WebSocket when launch params consumption fails", () => {
     const createWebSocket = vi.fn<(url: string) => WebSocket>();
 

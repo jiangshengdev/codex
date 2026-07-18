@@ -34,6 +34,7 @@ export function ComposerTurnControl({
 }: ComposerTurnControlProps) {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const composerShellRef = useRef<HTMLElement | null>(null);
   const isComposingRef = useRef(false);
   const suppressNextEnterRef = useRef(false);
@@ -59,6 +60,7 @@ export function ComposerTurnControl({
   const stopEnabled = canStop({
     connectionUsable,
     activeTurnId,
+    isStopping,
   });
 
   useRevealComposerOnViewportResize(composerShellRef);
@@ -91,6 +93,7 @@ export function ComposerTurnControl({
       return;
     }
 
+    setIsStopping(true);
     try {
       await commands.interruptTurn({
         threadId,
@@ -100,6 +103,8 @@ export function ComposerTurnControl({
       toast.danger("Stop failed", {
         description: errorDescription(error),
       });
+    } finally {
+      setIsStopping(false);
     }
   };
 

@@ -78,6 +78,7 @@ coverage/
 # personal files
 personal/
 docs/superpowers/research/
+output/
 
 # os
 .DS_Store

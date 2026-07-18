@@ -40,8 +40,9 @@ export function canSend(input: {
 export function canStop(input: {
   connectionUsable: boolean;
   activeTurnId: string | null;
+  isStopping: boolean;
 }): boolean {
-  return input.connectionUsable && input.activeTurnId != null;
+  return input.connectionUsable && input.activeTurnId != null && !input.isStopping;
 }
 
 export function errorDescription(error: unknown): string | undefined {
