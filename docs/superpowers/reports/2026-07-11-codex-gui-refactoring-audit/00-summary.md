@@ -49,14 +49,14 @@
 | [RA-03-003](./03-projection-ingress-and-thread-runtime.md#ra-03-003) | 单条 runtime delta action 已成为生产遗留与类型耦合 | [03](./03-projection-ingress-and-thread-runtime.md) | 已实施（B06） | P3 |
 | [RA-03-004](./03-projection-ingress-and-thread-runtime.md#ra-03-004) | Thread identity 与 runtime 主生命周期边界已由现有抽象覆盖 | [03](./03-projection-ingress-and-thread-runtime.md) | 已由现有抽象覆盖 | 非 finding |
 | [RA-03-005](./03-projection-ingress-and-thread-runtime.md#ra-03-005) | Adapter filtering/reconnect 契约已由现有抽象覆盖 | [03](./03-projection-ingress-and-thread-runtime.md) | 已由现有抽象覆盖 | 非 finding |
-| [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001) | 未接入 production 的 timeline-material 并行管道 | [04](./04-timeline-materials-and-domain-models.md) | 确认重构点 | P2 |
+| [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001) | 未接入 production 的 timeline-material 并行管道 | [04](./04-timeline-materials-and-domain-models.md) | 已实施（B07） | P2 |
 | [RA-05-001](./05-transcript-state-and-materialization.md#ra-05-001) | Transcript State 内部拆分已有专项设计 | [05](./05-transcript-state-and-materialization.md) | 已有专项设计 | 非 finding |
 | [RA-06-001](./06-transcript-rendering-streaming-and-scroll.md#ra-06-001) | 渲染、Markdown 与 sticky-bottom 职责已由现有抽象覆盖 | [06](./06-transcript-rendering-streaming-and-scroll.md) | 已由现有抽象覆盖 | 非 finding |
 | [RA-07-001](./07-composer-access-and-localization.md#ra-07-001) | Composer stop 缺少 pending 门禁 | [07](./07-composer-access-and-localization.md) | 已实施（B09） | P2 |
 | [RA-07-002](./07-composer-access-and-localization.md#ra-07-002) | 未接入 production 的 i18n 示例与切换表面 | [07](./07-composer-access-and-localization.md) | 确认重构点 | P2 |
 | [RA-07-003](./07-composer-access-and-localization.md#ra-07-003) | Production NotFound localization 覆盖不足 | [07](./07-composer-access-and-localization.md) | 候选待补证据 | P3 |
 | [RA-07-004](./07-composer-access-and-localization.md#ra-07-004) | Viewport 与 QR/access 已由现有抽象覆盖 | [07](./07-composer-access-and-localization.md) | 已由现有抽象覆盖 | 非 finding |
-| [RA-08-001](./08-test-infrastructure-fixtures-and-support.md#ra-08-001) | `runtimeFromAttach` 位于 projection-wide builders 的 owner 错位 | [08](./08-test-infrastructure-fixtures-and-support.md) | 确认重构点 | P3 |
+| [RA-08-001](./08-test-infrastructure-fixtures-and-support.md#ra-08-001) | `runtimeFromAttach` 位于 projection-wide builders 的 owner 错位 | [08](./08-test-infrastructure-fixtures-and-support.md) | 已由 B07 条件吸收（B08 不再独立实施） | P3 |
 | [RA-08-002](./08-test-infrastructure-fixtures-and-support.md#ra-08-002) | 测试装配、fixtures、transport harness 与 feature-local helpers 已由现有抽象覆盖 | [08](./08-test-infrastructure-fixtures-and-support.md) | 已由现有抽象覆盖 | 非 finding |
 
 ## 状态汇总
@@ -97,15 +97,15 @@
 | B04 | [RA-03-002](./03-projection-ingress-and-thread-runtime.md#ra-03-002) | replay classification 的单一 owner 与 index 生命周期 | 必须允许先于 B05，保持独立批次 |
 | B05 | [RA-03-001](./03-projection-ingress-and-thread-runtime.md#ra-03-001) | application coordination owner | `B04 -> B05`；不得与 B04 合并 |
 | B06 | [RA-03-003](./03-projection-ingress-and-thread-runtime.md#ra-03-003) | 清理无 production dispatch 的单条 delta action | 与 B05 无硬依赖；联合处理时仍保持独立验收边界 |
-| B07 | [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001) | 删除或收缩未接入 production 的 snapshot/live timeline-material 管道 | 完成时决定 B08 是否存在 |
-| B08（条件） | [RA-08-001](./08-test-infrastructure-fixtures-and-support.md#ra-08-001) | snapshot replay-local test helper owner 迁移 | B07 删除 snapshot replay 专属测试时由 B07 条件吸收；保留测试时独立实施 |
+| B07 | [RA-04-001](./04-timeline-materials-and-domain-models.md#ra-04-001) | 删除或收缩未接入 production 的 snapshot/live timeline-material 管道 | 已完成；完整删除 snapshot replay 专属测试，并条件吸收 B08 |
+| B08（条件） | [RA-08-001](./08-test-infrastructure-fixtures-and-support.md#ra-08-001) | snapshot replay-local test helper owner 迁移 | 已由 B07 条件吸收，不再独立实施 |
 | B09 | [RA-07-001](./07-composer-access-and-localization.md#ra-07-001) | 在现有 Composer owner 内增加 stop pending 门禁 | 无既定前置依赖 |
 | B10 | [RA-07-002](./07-composer-access-and-localization.md#ra-07-002) | 删除或收缩未接入的 i18n 示例、切换表面及专属消息 | 与 G01 分离，不包含 NotFound localization |
 | G01（证据门禁） | [RA-07-003](./07-composer-access-and-localization.md#ra-07-003) | 先确认 production localization 范围与 NotFound 测试要求 | 补足证据并重新裁决前不得实施；不得并入 B10 |
 
 ## 实施状态更新
 
-状态：持续更新。本节只记录已完成批次的实施进度，不改变 Finding 的稳定审计状态、优先级、Evidence owner 或既有统计。
+状态：持续更新。本节只记录已完成批次的实施进度，不改变 Finding 的审计时结论、优先级、Evidence owner 或既有统计；索引状态列可同步当前实施进度。
 
 ### B02 完成状态
 
@@ -120,6 +120,7 @@
 | B04 | 已完成 | 2026-07-15 | `74def529c` `test(gui): cover replay baseline lifecycle`；`39c036c25` `refactor(gui): remove duplicate replay index state` | fnm-managed `pnpm 10.33.0` 下 `pnpm run ci` 通过（24 个 unit 文件、157 个测试）；定向 `App.browser.test.tsx` Browser Mode 通过（3 个执行实例、87 个测试）；结构检查确认 Bridge 为唯一 production runtime replay index owner。 |
 | B05 | 已完成 | 2026-07-15 | `3ae09b518` `refactor(gui): add projection application coordinator`；`b89880e1f` `refactor(gui): delegate projection coordination` | coordinator 单文件测试 `19/19` 通过；App browser 回归在 Chromium、Firefox、WebKit 各 `29/29` 通过；完整 GUI CI 共 `25` 个文件、`176` 个测试通过，format、oxlint、eslint、type-check 均通过；最终审查无 findings；未操作远程。 |
 | B06 | 已完成 | 2026-07-15 | `2afe739ff` `refactor(gui): remove single accepted delta action` | Node `7` 个文件、`62` 个测试通过；Browser `1` 个文件、`16` 个测试通过；`oxfmt --check`、lint、type-check 与旧符号残留搜索通过；Spec、testing、breaking-change、change-size、model-context、code-quality 审查均无 findings；未操作远程。 |
+| B07 | 已完成 | 2026-07-18 | `bdc73c634` `Remove obsolete live event and snapshot replay materialization` | 删除 `snapshotReplay` / `liveEventHandling` 四个 source/test 文件，移除 App 材料断言和 `runtimeFromAttach`；type-check 通过，unit `30` files / `300` tests、Browser Mode `24` files / `222` tests 通过，限定 oxfmt、oxlint、ESLint、diff check、零残留搜索通过；未运行 build、e2e、protocol generation 或 Rust，未操作远程。 |
 | B09 | 已完成 | 2026-07-18 | `45c7b1424` `Prevent duplicate turn interruption requests` | TDD RED/GREEN；model `4/4`、Chromium/Firefox/WebKit Browser Mode 共 `63/63` 通过；限定 oxfmt、oxlint、ESLint、type-check、`git diff --check` 通过；规格与质量复审无 findings。未运行 build、e2e、全量 GUI CI 或 protocol generation；未操作远程。 |
 
 ## 依赖顺序
@@ -127,7 +128,7 @@
 状态：完成。
 
 - `B04 -> B05` 是唯一明确的先后依赖；B04 与 B05 保持独立 Finding 和验收边界。
-- B07 必须在设计中明确是否实际删除 snapshot replay 专属测试：删除时条件吸收 B08，保留时生成独立 B08。
+- B07 已完成并删除 snapshot replay 专属测试；B08 已由 B07 条件吸收，不再独立实施。
 - B02 与 B03 可使用一份共同 transport/protocol 设计，但后续计划、实施和验收必须拆分。
 - B06 与 B05 无硬依赖；若联合实施，仍需分别核对各自稳定边界。
 - B10 与 G01 不合并；G01 在证据补足并重新裁决前没有实施批次。

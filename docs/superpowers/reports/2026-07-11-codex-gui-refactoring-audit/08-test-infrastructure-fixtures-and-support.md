@@ -46,17 +46,17 @@
 
 ## Findings
 
-状态：审计完成；包含一个确认重构点和一个“已由现有抽象覆盖”条目。
+状态：审计完成；审计时包含一个确认重构点和一个“已由现有抽象覆盖”条目；`RA-08-001` 现已由 B07 条件吸收。
 
 ### RA-08-001 `runtimeFromAttach` 位于 projection-wide builders 的 owner 错位
 
 - **Finding ID：** `RA-08-001`。
 - **主报告：** `08-test-infrastructure-fixtures-and-support.md`。
 - **Evidence owner：** `08-test-infrastructure-fixtures-and-support`。
-- **状态：** 确认重构点。
+- **状态：** 已由 B07 条件吸收（B08 不再独立实施）。
 - **重构优先级：** P3。
 - **结论摘要：** `runtimeFromAttach` 位于 projection-wide test builders，却构造 `ThreadRuntimeRecord`、调用 thread-runtime replay index helper，且只有 snapshot replay tests 消费。它应归属唯一 snapshot replay 测试域，其余 projection builders 保持不变。
-- **当前 owner 与当前职责：** `projectionTestBuilders.ts` 当前拥有 protocol input、item、turn、attach、event 与 delta builders；其中 `runtimeFromAttach` 是唯一构造 application runtime state 的 helper。`snapshotReplay.test.ts` 使用它为 snapshot material selector 构造 runtime input。
+- **审计时 owner 与职责：** `projectionTestBuilders.ts` 拥有 protocol input、item、turn、attach、event 与 delta builders；其中 `runtimeFromAttach` 是唯一构造 application runtime state 的 helper。`snapshotReplay.test.ts` 使用它为 snapshot material selector 构造 runtime input。
 - **问题类型：** Test-only helper owner 与依赖方向错位。Projection-wide facade 因单一 snapshot replay 消费方而依赖 `ThreadRuntimeRecord` 和 `snapshotReplayIndexFromTurns`，扩大了共享 builders 的语义范围。
 - **影响文件、定义侧、构造方、调用方和消费方：**
   - 定义侧：`projectionTestBuilders.ts:9-12,90-104` 导入 runtime 类型/helper并定义 `runtimeFromAttach`。
@@ -69,10 +69,12 @@
 - **建议变更范围、最小可审查批次和明确排除范围：** 最小批次只移动 `runtimeFromAttach`、调整 `snapshotReplay.test.ts` import并删除 projection builder 中不再需要的 runtime imports。明确排除其他 builders、production `ThreadRuntimeRecord`、snapshot replay 算法、fixtures JSON 和 production timeline materials。
 - **行为、状态、性能和测试风险：** 迁移必须保持 thread metadata、snapshot turns、replay index、最后一个 in-progress active turn、active subscription 与空 event buffer 完全一致。无 production 行为或性能变更；主要风险是移动时遗漏 fixture shape 字段或扩大为 production 重构。
 - **后续实施时建议的验证范围：** 精确搜索 `runtimeFromAttach` 确认 projection-wide export 消失且只有 snapshot replay-local 定义；运行 `snapshotReplay.test.ts` 的定向测试，并按 GUI 工具链要求执行受影响 TypeScript、lint 与格式化检查。本轮未运行测试或项目命令。
+- **实施结果：** B07 完整删除 snapshot replay 专属测试后，条件批次 B08 不再执行 helper owner 迁移；`runtimeFromAttach` 及其 `ThreadRuntimeRecord` import 已从 `projectionTestBuilders.ts` 删除，没有建立新的 snapshotReplay-local owner。本地提交为 `bdc73c634`（`Remove obsolete live event and snapshot replay materialization`）。
+- **已完成实施验证：** type-check 通过；unit `30` files / `300` tests、Browser Mode `24` files / `222` tests 通过；限定 oxfmt、oxlint、ESLint、diff check 与 `runtimeFromAttach` / timeline-material 零残留搜索通过。未运行 build、e2e、protocol generation 或 Rust，未操作远程。
 - **当前代码关键证据路径与行号：** `projectionTestBuilders.ts:9-12,90-104`；`snapshotReplay.test.ts:10,66,109,177`；全仓 `runtimeFromAttach` 精确引用搜索。
 - **关联的既有报告、issue 或专项设计：** Production 交界仅见下方“Production 交界引用”；无直接关联 issue 或专项设计。
 - **已排除项：** 不移动其他 protocol builders；不把 helper 下沉到 production runtime；不修改 snapshot/live material 行为；不建立新的通用 runtime test factory。
-- **报告建议：** 保留为 `RA-08-001`、状态“确认重构点”、优先级 P3；后续只执行 test-only owner 迁移。
+- **报告建议：** 保留为 `RA-08-001`、状态“已由 B07 条件吸收（B08 不再独立实施）”、优先级 P3；保留审计时 owner 错位证据，不再迁移已无消费者的 helper。
 
 ### RA-08-002 测试装配、fixtures、transport harness 与 feature-local helpers 已由现有抽象覆盖
 
