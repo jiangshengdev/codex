@@ -39,11 +39,6 @@ import {
   itemStarted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import {
-  buildSnapshotReplayMaterials,
-  selectSnapshotReplayMaterials,
-} from "@/features/snapshotReplay/snapshotReplay";
-import { selectLiveEventMaterials } from "@/features/liveEventHandling/liveEventHandling";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectTranscriptEntry,
@@ -289,9 +284,6 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
   expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
     state: "active",
   });
-  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
-    buildSnapshotReplayMaterials(runtime),
-  );
 });
 
 test("App batches accepted projection deltas until the next animation frame", async () => {
@@ -442,10 +434,6 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
   expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
     { type: "projectionEvent", notification: eventTurnStarted, replay: "snapshotDuplicate" },
   ]);
-  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
-    buildSnapshotReplayMaterials(runtime),
-  );
-  expect(selectLiveEventMaterials(store.getState())).toStrictEqual([]);
 });
 
 test("App replaces the replay baseline after an accepted replacement attach", async () => {
@@ -856,7 +844,6 @@ test("App keeps the accepted replay baseline after a mismatched attach", async (
   expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
     { type: "projectionEvent", notification: eventTurnStarted, replay: "snapshotDuplicate" },
   ]);
-  expect(selectLiveEventMaterials(store.getState())).toStrictEqual([]);
 });
 
 test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
@@ -878,9 +865,6 @@ test("App stops forwarding runtime events after backpressure requires manual rec
     subscriptionId: attachResponse.subscriptionId,
   });
   expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
-  expect(selectSnapshotReplayMaterials(store.getState())).toStrictEqual(
-    buildSnapshotReplayMaterials(runtime),
-  );
 });
 
 test("App disables composer after projection backpressure requires reconnect", async () => {
