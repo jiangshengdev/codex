@@ -1,4 +1,0 @@
-interface:
-  display_name: "Codex Doc Workflow"
-  short_description: "Project docs and planning workflow"
-  default_prompt: "Use $codex-doc-workflow to plan or create Codex research, spec, and implementation docs."
