@@ -89,23 +89,6 @@ export type TranscriptState = {
   appliedEventOrder: string[];
 };
 
-export const initialTranscriptState: TranscriptState = {
-  threadId: null,
-  subscriptionId: null,
-  committedScrollCommitKey: null,
-  liveScrollPulse: 0,
-  turnIds: [],
-  turnsById: {},
-  chunksById: {},
-  entriesById: {},
-  entryChunkById: {},
-  liveItemsByTurnId: {},
-  liveItemIndexByKey: {},
-  globalStatus: [],
-  appliedEventIdsById: {},
-  appliedEventOrder: [],
-};
-
 export const createEmptyTranscriptState = (): TranscriptState => ({
   threadId: null,
   subscriptionId: null,
@@ -123,19 +106,8 @@ export const createEmptyTranscriptState = (): TranscriptState => ({
   appliedEventOrder: [],
 });
 
+export const initialTranscriptState = createEmptyTranscriptState();
+
 export const resetTranscriptState = (state: TranscriptState, nextState: TranscriptState) => {
-  state.threadId = nextState.threadId;
-  state.subscriptionId = nextState.subscriptionId;
-  state.committedScrollCommitKey = nextState.committedScrollCommitKey;
-  state.liveScrollPulse = nextState.liveScrollPulse;
-  state.turnIds = nextState.turnIds;
-  state.turnsById = nextState.turnsById;
-  state.chunksById = nextState.chunksById;
-  state.entriesById = nextState.entriesById;
-  state.entryChunkById = nextState.entryChunkById;
-  state.liveItemsByTurnId = nextState.liveItemsByTurnId;
-  state.liveItemIndexByKey = nextState.liveItemIndexByKey;
-  state.globalStatus = nextState.globalStatus;
-  state.appliedEventIdsById = nextState.appliedEventIdsById;
-  state.appliedEventOrder = nextState.appliedEventOrder;
+  Object.assign(state, nextState);
 };
