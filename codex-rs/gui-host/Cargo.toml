@@ -18,7 +18,7 @@ axum = { workspace = true, default-features = false, features = ["http1", "tokio
 base64 = { workspace = true }
 futures = { workspace = true }
 rand = { workspace = true }
-reqwest = { workspace = true, features = ["rustls-tls"] }
+reqwest = { workspace = true, features = ["rustls-tls", "stream"] }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

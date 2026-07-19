@@ -76,21 +76,10 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, request: Request<Body>) -> 
         Ok(upstream) => {
             let status = upstream.status();
             let response_headers = end_to_end_headers(upstream.headers(), HostHeader::Preserve);
-            match upstream.bytes().await {
-                Ok(body) => {
-                    let mut response = Response::new(Body::from(body));
-                    *response.status_mut() = status;
-                    *response.headers_mut() = response_headers;
-                    with_security_headers(response)
-                }
-                Err(error) => with_security_headers(
-                    (
-                        StatusCode::BAD_GATEWAY,
-                        format!("failed to read Vite response body: {error}"),
-                    )
-                        .into_response(),
-                ),
-            }
+            let mut response = Response::new(Body::from_stream(upstream.bytes_stream()));
+            *response.status_mut() = status;
+            *response.headers_mut() = response_headers;
+            with_security_headers(response)
         }
         Err(error) => dev_proxy_error_response(&config.vite_origin, &error.to_string()),
     }

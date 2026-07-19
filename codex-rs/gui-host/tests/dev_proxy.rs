@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use axum::Router;
 use axum::body::Body;
@@ -19,6 +20,7 @@ use codex_gui_host::GuiHost;
 use codex_gui_host::GuiHostConfig;
 use codex_gui_host::GuiHostHandle;
 use codex_gui_host::GuiHostMode;
+use futures::StreamExt;
 use pretty_assertions::assert_eq;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
@@ -185,12 +187,14 @@ async fn proxy_filters_hop_by_hop_headers_in_both_directions() {
         "proxy-authorization",
         "te",
         "trailer",
-        "transfer-encoding",
         "upgrade",
         "x-response-hop",
     ] {
         assert_eq!(response.headers().get(name), None, "unexpected {name}");
     }
+    // Hyper generates chunked framing for this downstream hop because the proxied body is a
+    // stream with no known length; this does not indicate that the upstream header was copied.
+    assert_eq!(response.headers()["transfer-encoding"], "chunked");
     assert_eq!(response.headers()["x-response-end-to-end"], "preserve-me");
 
     let request = servers.request().await;
@@ -213,6 +217,167 @@ async fn proxy_filters_hop_by_hop_headers_in_both_directions() {
     assert_eq!(request.headers["host"], servers.upstream_authority);
 
     servers.shutdown().await;
+}
+
+#[tokio::test]
+async fn proxy_streams_first_chunk_before_upstream_completes() {
+    let mut servers = StreamingTestServers::start().await;
+    let gui_url = format!("{}/stream", servers.gui_origin);
+    let mut client_task = tokio::spawn(async move {
+        let response = reqwest::get(gui_url)
+            .await
+            .map_err(|error| format!("streaming request should succeed: {error}"))?;
+        if response.status() != StatusCode::OK {
+            return Err(format!(
+                "streaming response should be 200, got {}",
+                response.status()
+            ));
+        }
+        let mut body = response.bytes_stream();
+        let first = body
+            .next()
+            .await
+            .ok_or_else(|| "streaming response should contain a first chunk".to_string())?
+            .map_err(|error| format!("first response chunk should be readable: {error}"))?;
+        Ok((first, body))
+    });
+
+    let upstream_started =
+        tokio::time::timeout(Duration::from_secs(5), servers.wait_for_first_chunk_sent()).await;
+    if !matches!(upstream_started, Ok(Ok(()))) {
+        servers.release_upstream();
+        client_task.abort();
+        servers.shutdown().await;
+        panic!("fake upstream should send its first chunk");
+    }
+
+    let first_chunk = tokio::time::timeout(Duration::from_secs(2), &mut client_task).await;
+    servers.release_upstream();
+
+    let result = match first_chunk {
+        Ok(join_result) => match join_result {
+            Ok(Ok((first, mut body))) => {
+                let mut remainder = Vec::new();
+                let mut read_error = None;
+                while let Some(chunk) = body.next().await {
+                    match chunk {
+                        Ok(chunk) => remainder.extend_from_slice(&chunk),
+                        Err(error) => {
+                            read_error =
+                                Some(format!("remaining response should be readable: {error}"));
+                            break;
+                        }
+                    }
+                }
+                match read_error {
+                    Some(error) => Err(error),
+                    None => Ok((first, remainder)),
+                }
+            }
+            Ok(Err(error)) => Err(error),
+            Err(error) => Err(format!("streaming client task should complete: {error}")),
+        },
+        Err(_) => {
+            let _ = tokio::time::timeout(Duration::from_secs(1), &mut client_task).await;
+            client_task.abort();
+            Err("first proxied chunk was not received before upstream completion".to_string())
+        }
+    };
+
+    servers.shutdown().await;
+    let (first, remainder) = result.expect("proxy should stream the first upstream chunk");
+    assert_eq!(first, b"first".as_slice());
+    assert_eq!(remainder, b"-second".as_slice());
+}
+
+struct StreamingTestServers {
+    gui_handle: GuiHostHandle,
+    gui_origin: String,
+    upstream_task: JoinHandle<()>,
+    first_chunk_rx: Option<oneshot::Receiver<()>>,
+    release_tx: Option<oneshot::Sender<()>>,
+}
+
+impl StreamingTestServers {
+    async fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("streaming fake upstream should bind");
+        let upstream_addr = listener
+            .local_addr()
+            .expect("streaming fake upstream address should be available");
+        let (first_chunk_tx, first_chunk_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        let upstream_task = tokio::spawn(async move {
+            let (mut stream, _) = listener
+                .accept()
+                .await
+                .expect("streaming fake upstream should accept a request");
+            let _request = read_raw_request(&mut stream).await;
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\n\
+Content-Type: text/plain\r\n\
+Transfer-Encoding: chunked\r\n\
+\r\n\
+5\r\n\
+first\r\n",
+                )
+                .await
+                .expect("first response chunk should be written");
+            stream
+                .flush()
+                .await
+                .expect("first response chunk should be flushed");
+            let _ = first_chunk_tx.send(());
+            let _ = release_rx.await;
+            stream
+                .write_all(b"7\r\n-second\r\n0\r\n\r\n")
+                .await
+                .expect("remaining response should be written");
+        });
+
+        let gui_handle = GuiHost::start(
+            GuiHostConfig {
+                mode: GuiHostMode::Dev(DevAssetProxyConfig {
+                    vite_origin: format!("http://{upstream_addr}"),
+                }),
+            },
+            NoopBackend,
+        )
+        .await
+        .expect("GUI host should start");
+        let gui_origin = local_origin(&gui_handle);
+
+        Self {
+            gui_handle,
+            gui_origin,
+            upstream_task,
+            first_chunk_rx: Some(first_chunk_rx),
+            release_tx: Some(release_tx),
+        }
+    }
+
+    async fn wait_for_first_chunk_sent(&mut self) -> Result<(), String> {
+        self.first_chunk_rx
+            .take()
+            .ok_or_else(|| "first chunk notification should only be awaited once".to_string())?
+            .await
+            .map_err(|error| {
+                format!("streaming fake upstream should send the first chunk: {error}")
+            })
+    }
+
+    fn release_upstream(&mut self) {
+        if let Some(release_tx) = self.release_tx.take() {
+            let _ = release_tx.send(());
+        }
+    }
+
+    async fn shutdown(self) {
+        self.gui_handle.shutdown().await;
+        self.upstream_task.abort();
+    }
 }
 
 struct RawTestServers {
