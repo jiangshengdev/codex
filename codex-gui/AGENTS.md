@@ -16,11 +16,8 @@
 ## HeroUI Design System Invariants
 
 - UI design, implementation plans, and code changes in `codex-gui` should default to HeroUI v3 as the component system. Prefer `@heroui/react` components for interactive controls, overlays, feedback, layout primitives, and typography before creating custom HTML/CSS controls.
-- When a HeroUI component supports compound composition, prefer the documented compound API over one-off DOM structures, as long as it does not violate transcript rendering performance boundaries.
-- Use semantic variants to express intent: `primary` for the main action in a context, `secondary` for alternatives, `tertiary` for dismissive actions, and `danger` for destructive or critical actions. Do not choose variants primarily by visual appearance.
-- Use HeroUI semantic color tokens and component variants for color. Avoid component-level hardcoded foreground, text, icon, border, or background colors unless the design explicitly justifies the exception.
+- Choose component variants by semantic intent rather than visual appearance, and keep main, alternative, dismissive, destructive, and critical actions semantically distinct.
 - Use surface, background, separator, and field tokens to express hierarchy and state instead of ad hoc strong color shifts.
-- Prefer HeroUI `onPress` and accessibility-aware interaction APIs when the component provides them. If native elements are used instead, keep ARIA, keyboard, and focus behavior explicit.
 - Implementation plans for UI work must list the intended HeroUI components, variants, and semantic tokens. If a plan chooses custom markup or styles instead of HeroUI, it must explain the reason, such as missing component coverage, protocol-driven markup, Markdown semantic output, or transcript performance constraints.
 - These rules do not require replacing semantic document or layout elements such as `main`, `section`, `article`, Markdown AST output tags, scroll sentinels, or transcript chunk boundaries when those elements carry accessibility, content, or performance meaning.
 
