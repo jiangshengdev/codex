@@ -1,10 +1,14 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use axum::body::Body;
+use axum::http::HeaderMap;
+use axum::http::HeaderName;
 use axum::http::HeaderValue;
+use axum::http::Request;
 use axum::http::StatusCode;
-use axum::http::Uri;
 use axum::http::header::CONTENT_TYPE;
+use axum::http::header::HOST;
 use axum::response::IntoResponse;
 use axum::response::Response;
 use tower_http::services::ServeDir;
@@ -45,8 +49,10 @@ pub async fn serve_prod_index(config: ProdAssetConfig) -> Response {
     }
 }
 
-pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
-    let path_and_query = uri
+pub async fn proxy_vite(config: DevAssetProxyConfig, request: Request<Body>) -> Response {
+    let (parts, _body) = request.into_parts();
+    let path_and_query = parts
+        .uri
         .path_and_query()
         .map_or("/", axum::http::uri::PathAndQuery::as_str);
     let upstream_url = format!(
@@ -60,17 +66,21 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
         Err(error) => return dev_proxy_error_response(&config.vite_origin, &error.to_string()),
     };
 
-    match client.get(upstream_url).send().await {
+    let request_headers = end_to_end_headers(&parts.headers, HostHeader::Remove);
+    match client
+        .request(parts.method, upstream_url)
+        .headers(request_headers)
+        .send()
+        .await
+    {
         Ok(upstream) => {
             let status = upstream.status();
-            let content_type = upstream.headers().get(CONTENT_TYPE).cloned();
+            let response_headers = end_to_end_headers(upstream.headers(), HostHeader::Preserve);
             match upstream.bytes().await {
                 Ok(body) => {
                     let mut response = Response::new(Body::from(body));
                     *response.status_mut() = status;
-                    if let Some(content_type) = content_type {
-                        response.headers_mut().insert(CONTENT_TYPE, content_type);
-                    }
+                    *response.headers_mut() = response_headers;
                     with_security_headers(response)
                 }
                 Err(error) => with_security_headers(
@@ -84,6 +94,58 @@ pub async fn proxy_vite(config: DevAssetProxyConfig, uri: Uri) -> Response {
         }
         Err(error) => dev_proxy_error_response(&config.vite_origin, &error.to_string()),
     }
+}
+
+enum HostHeader {
+    Preserve,
+    Remove,
+}
+
+fn end_to_end_headers(headers: &HeaderMap, host_header: HostHeader) -> HeaderMap {
+    let hop_by_hop_headers = hop_by_hop_header_names(headers);
+    let mut filtered = HeaderMap::new();
+    for (name, value) in headers {
+        if hop_by_hop_headers.contains(name)
+            || matches!(host_header, HostHeader::Remove) && name == HOST
+        {
+            continue;
+        }
+        filtered.append(name.clone(), value.clone());
+    }
+    filtered
+}
+
+fn hop_by_hop_header_names(headers: &HeaderMap) -> HashSet<HeaderName> {
+    let mut names = [
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+    ]
+    .into_iter()
+    .map(HeaderName::from_static)
+    .collect::<HashSet<_>>();
+
+    for value in headers.get_all("connection") {
+        let Ok(value) = value.to_str() else {
+            continue;
+        };
+        for name in value
+            .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+        {
+            if let Ok(name) = HeaderName::from_bytes(name.as_bytes()) {
+                names.insert(name);
+            }
+        }
+    }
+
+    names
 }
 
 fn dev_proxy_error_response(vite_origin: &str, error: &str) -> Response {
@@ -147,8 +209,9 @@ pub async fn add_security_headers(response: Response) -> Response {
 #[cfg(test)]
 mod tests {
     use axum::body;
+    use axum::body::Body;
+    use axum::http::Request;
     use axum::http::StatusCode;
-    use axum::http::Uri;
     use pretty_assertions::assert_eq;
     use tokio::net::TcpListener;
 
@@ -203,13 +266,11 @@ mod tests {
         drop(listener);
 
         let config = DevAssetProxyConfig { vite_origin };
-        let response = super::proxy_vite(
-            config,
-            "/?threadId=test"
-                .parse::<Uri>()
-                .expect("URI should be valid"),
-        )
-        .await;
+        let request = Request::builder()
+            .uri("/?threadId=test")
+            .body(Body::empty())
+            .expect("request should build");
+        let response = super::proxy_vite(config, request).await;
 
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
         assert_eq!(
