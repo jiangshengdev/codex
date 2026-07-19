@@ -8,7 +8,6 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::Request;
 use axum::http::StatusCode;
-use axum::http::Uri;
 use axum::middleware;
 use axum::middleware::Next;
 use axum::response::Response;
@@ -125,9 +124,9 @@ where
             let config = config.clone();
             Ok(Router::new()
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
-                .fallback(get(move |uri: Uri| {
+                .fallback(get(move |request: Request<Body>| {
                     let config = config.clone();
-                    async move { assets::proxy_vite(config, uri).await }
+                    async move { assets::proxy_vite(config, request).await }
                 }))
                 .layer(middleware::from_fn_with_state(
                     host_state,
