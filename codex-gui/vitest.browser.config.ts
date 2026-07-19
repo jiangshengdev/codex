@@ -4,8 +4,10 @@ import { playwright } from "@vitest/browser-playwright";
 import packageJson from "./package.json" with { type: "json" };
 import viteConfig from "./vite.config";
 
+const browserViteConfig = { ...viteConfig, server: {} };
+
 export default mergeConfig(
-  viteConfig,
+  browserViteConfig,
   defineConfig({
     test: {
       root: import.meta.dirname,

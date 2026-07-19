@@ -3,6 +3,7 @@
 import { runAppleScript, runAppleScriptJson } from '../lib/applescript.mjs';
 import { log, runJson } from '../lib/exec.mjs';
 import { updateState } from '../lib/state.mjs';
+import { targetLayout } from '../lib/window-layout.mjs';
 
 function screenFrames() {
   try {
@@ -17,16 +18,6 @@ function screenFrames() {
   }
 }
 
-function visibleFrame(screen) {
-  const visible = screen.visible ?? {};
-  return {
-    x: visible.x ?? visible.origin?.x ?? -1920,
-    y: visible.y ?? visible.origin?.y ?? 0,
-    width: visible.width ?? visible.size?.width ?? 1920,
-    height: visible.height ?? visible.size?.height ?? 1080,
-  };
-}
-
 function codexWindowPosition() {
   try {
     return runJson('osascript', [
@@ -38,48 +29,6 @@ function codexWindowPosition() {
   } catch {
     return null;
   }
-}
-
-function screenContainingX(screens, x) {
-  return screens.find((screen) => {
-    const visible = visibleFrame(screen);
-    return x >= visible.x && x < visible.x + visible.width;
-  }) ?? null;
-}
-
-function targetScreen(screens, codexPosition) {
-  const sorted = [...screens].sort((a, b) => visibleFrame(a).x - visibleFrame(b).x);
-  if (sorted.length === 0) {
-    return {
-      screen: { visible: { x: -1920, y: 0, width: 1920, height: 1080 } },
-      reason: 'fallback-fixed-left-screen',
-    };
-  }
-  const codexScreen = codexPosition ? screenContainingX(sorted, codexPosition.x) : null;
-  const nonCodex = codexScreen ? sorted.find((screen) => screen.i !== codexScreen.i) : null;
-  if (nonCodex) {
-    return { screen: nonCodex, reason: `non-codex-screen-${nonCodex.i}` };
-  }
-  const fallback = sorted[0];
-  return {
-    screen: fallback,
-    reason: codexScreen ? 'single-screen-fallback' : 'codex-screen-undetected-fallback',
-  };
-}
-
-function targetLayout(screens, codexPosition) {
-  const { screen, reason } = targetScreen(screens, codexPosition);
-  const visible = visibleFrame(screen);
-  const x = Math.trunc(visible.x);
-  const y = Math.trunc(visible.y + 30);
-  const width = Math.trunc(visible.width);
-  const height = Math.trunc(visible.height - 30);
-  const half = Math.trunc(width / 2);
-  return {
-    reason,
-    browser: { x, y, width: half, height },
-    devtools: { x: x + half, y, width: width - half, height },
-  };
 }
 
 function closeEnough(actual, expected) {

@@ -103,3 +103,28 @@ export const markdownContainerClassName =
   "committed-transcript-entry-markdown committed-transcript-entry-source grid min-w-0 gap-2 wrap-break-word leading-6";
 
 export const markdownStreamdownClassName = "min-w-0 wrap-break-word";
+
+export const streamdownCommonProps: Pick<
+  StreamdownProps,
+  | "allowElement"
+  | "className"
+  | "components"
+  | "controls"
+  | "linkSafety"
+  | "lineNumbers"
+  | "plugins"
+  | "rehypePlugins"
+  | "remarkRehypeOptions"
+  | "skipHtml"
+> = {
+  allowElement: allowMarkdownElement,
+  className: markdownStreamdownClassName,
+  components: streamdownComponents,
+  controls: streamdownControls,
+  linkSafety: { enabled: false },
+  lineNumbers: false,
+  plugins: streamdownPlugins,
+  rehypePlugins: streamdownRehypePlugins,
+  remarkRehypeOptions: streamdownRemarkRehypeOptions,
+  skipHtml: true,
+};

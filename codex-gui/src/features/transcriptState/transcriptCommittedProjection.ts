@@ -13,20 +13,22 @@ import {
 const chunkIdForIndex = (turnId: string, index: number): string =>
   `${turnId}:chunk:${String(index)}`;
 
+const createTranscriptTurn = (id: string, status: TranscriptTurn["status"]): TranscriptTurn => ({
+  id,
+  status,
+  leadingPromptEntryId: null,
+  middleChunkIds: [],
+  middleEntryCount: 0,
+  finalAssistantEntryIds: [],
+});
+
 export const ensureTranscriptTurn = (state: TranscriptState, turnId: string): TranscriptTurn => {
   const existingTurn = state.turnsById[turnId];
   if (existingTurn != null) {
     return existingTurn;
   }
 
-  const turn: TranscriptTurn = {
-    id: turnId,
-    status: "inProgress",
-    leadingPromptEntryId: null,
-    middleChunkIds: [],
-    middleEntryCount: 0,
-    finalAssistantEntryIds: [],
-  };
+  const turn = createTranscriptTurn(turnId, "inProgress");
   state.turnsById[turnId] = turn;
   state.turnIds.push(turnId);
   return turn;
@@ -35,14 +37,7 @@ export const ensureTranscriptTurn = (state: TranscriptState, turnId: string): Tr
 export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void => {
   const existingTurn = state.turnsById[turn.id];
   if (existingTurn == null) {
-    state.turnsById[turn.id] = {
-      id: turn.id,
-      status: turn.status,
-      leadingPromptEntryId: null,
-      middleChunkIds: [],
-      middleEntryCount: 0,
-      finalAssistantEntryIds: [],
-    };
+    state.turnsById[turn.id] = createTranscriptTurn(turn.id, turn.status);
     state.turnIds.push(turn.id);
     return;
   }
