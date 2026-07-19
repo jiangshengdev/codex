@@ -61,6 +61,7 @@
     "@lingui/cli": "^6.4.0",
     "@lingui/vite-plugin": "^6.4.0",
     "@playwright/test": "^1.61.1",
+    "@polka/compression": "1.0.0-next.25",
     "@rolldown/plugin-babel": "^0.2.3",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.13.2",
