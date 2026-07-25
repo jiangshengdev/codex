@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use codex_app_server_protocol::ServerNotification;
+use codex_app_server_protocol::ServerNotificationEnvelope;
 use codex_app_server_protocol::ThreadProjectionClosedNotification;
 use codex_app_server_protocol::ThreadProjectionClosedReason;
 use codex_protocol::ThreadId;
@@ -12,6 +13,7 @@ use tracing::warn;
 
 use crate::outgoing_message::OutgoingEnvelope;
 use crate::outgoing_message::OutgoingMessage;
+use crate::outgoing_message::timestamped_server_notification;
 use crate::thread_projection::InvalidatedProjectionSubscriber;
 use crate::thread_projection::ProjectionDelivery;
 use crate::thread_projection::ProjectionDeliveryPayload;
@@ -259,7 +261,7 @@ async fn send_projection_delivery_if_current_or_cancelled(
             ServerNotification::ThreadProjectionDelta(notification)
         }
     };
-    let outgoing_message = OutgoingMessage::AppServerNotification(notification);
+    let outgoing_message = timestamped_server_notification(notification);
     let permit = tokio::select! {
         permit = sender.reserve() => match permit {
             Ok(permit) => permit,
@@ -293,7 +295,7 @@ fn spawn_projection_closed_notifications(
 
     tokio::spawn(async move {
         for subscriber in subscribers {
-            let message = OutgoingMessage::AppServerNotification(
+            let message = timestamped_server_notification(
                 ServerNotification::ThreadProjectionClosed(ThreadProjectionClosedNotification {
                     thread_id: thread_id.to_string(),
                     subscription_id: subscriber.subscription_id,
@@ -367,7 +369,7 @@ mod tests {
 
     fn capacity_holder() -> OutgoingEnvelope {
         OutgoingEnvelope::Broadcast {
-            message: OutgoingMessage::AppServerNotification(ServerNotification::ConfigWarning(
+            message: timestamped_server_notification(ServerNotification::ConfigWarning(
                 ConfigWarningNotification {
                     summary: "hold capacity".to_string(),
                     details: None,
@@ -427,7 +429,10 @@ mod tests {
 
         let OutgoingEnvelope::ToConnection {
             message:
-                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(event)),
+                OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                    notification: ServerNotification::ThreadProjectionEvent(event),
+                    ..
+                }),
             ..
         } = first
         else {
@@ -440,7 +445,10 @@ mod tests {
 
         let OutgoingEnvelope::ToConnection {
             message:
-                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionDelta(delta)),
+                OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                    notification: ServerNotification::ThreadProjectionDelta(delta),
+                    ..
+                }),
             ..
         } = second
         else {
@@ -500,7 +508,10 @@ mod tests {
         assert_eq!(ConnectionId(7), connection_id);
         assert!(matches!(
             message,
-            OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_))
+            OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                notification: ServerNotification::ThreadProjectionEvent(_),
+                ..
+            })
         ));
     }
 
@@ -537,9 +548,10 @@ mod tests {
 
         let OutgoingEnvelope::ToConnection {
             message:
-                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
-                    first_notification,
-                )),
+                OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                    notification: ServerNotification::ThreadProjectionEvent(first_notification),
+                    ..
+                }),
             ..
         } = first
         else {
@@ -547,9 +559,10 @@ mod tests {
         };
         let OutgoingEnvelope::ToConnection {
             message:
-                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
-                    second_notification,
-                )),
+                OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                    notification: ServerNotification::ThreadProjectionEvent(second_notification),
+                    ..
+                }),
             ..
         } = second
         else {
@@ -624,9 +637,10 @@ mod tests {
         let OutgoingEnvelope::ToConnection {
             connection_id: delivered_connection_id,
             message:
-                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionClosed(
-                    notification,
-                )),
+                OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                    notification: ServerNotification::ThreadProjectionClosed(notification),
+                    ..
+                }),
             write_complete_tx,
         } = envelope
         else {
@@ -692,9 +706,10 @@ mod tests {
         let OutgoingEnvelope::ToConnection {
             connection_id,
             message:
-                OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionClosed(
-                    closed,
-                )),
+                OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                    notification: ServerNotification::ThreadProjectionClosed(closed),
+                    ..
+                }),
             write_complete_tx,
         } = envelope
         else {
@@ -908,7 +923,10 @@ mod tests {
         assert!(write_complete_tx.is_none());
         assert!(matches!(
             message,
-            OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_))
+            OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                notification: ServerNotification::ThreadProjectionEvent(_),
+                ..
+            })
         ));
     }
 }

@@ -756,7 +756,7 @@ fn now_unix_timestamp_ms() -> u64 {
         .unwrap_or_default()
 }
 
-fn timestamped_server_notification(notification: ServerNotification) -> OutgoingMessage {
+pub(crate) fn timestamped_server_notification(notification: ServerNotification) -> OutgoingMessage {
     OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
         notification,
         emitted_at_ms: Some(now_unix_timestamp_ms().try_into().unwrap_or_default()),
@@ -1407,9 +1407,10 @@ mod tests {
             panic!("expected targeted projection notification envelope");
         };
         assert_eq!(projection_connection_id, connection_id);
-        let OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
-            notification,
-        )) = message
+        let OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+            notification: ServerNotification::ThreadProjectionEvent(notification),
+            ..
+        }) = message
         else {
             panic!("expected thread projection event notification");
         };
@@ -1459,8 +1460,10 @@ mod tests {
             panic!("expected targeted ordinary notification envelope");
         };
         assert_eq!(ordinary_connection_id, connection_id);
-        let OutgoingMessage::AppServerNotification(ServerNotification::TurnStarted(notification)) =
-            message
+        let OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+            notification: ServerNotification::TurnStarted(notification),
+            ..
+        }) = message
         else {
             panic!("expected ordinary turn started notification");
         };
@@ -1479,9 +1482,10 @@ mod tests {
             panic!("expected targeted projection notification envelope");
         };
         assert_eq!(projection_connection_id, connection_id);
-        let OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
-            notification,
-        )) = message
+        let OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+            notification: ServerNotification::ThreadProjectionEvent(notification),
+            ..
+        }) = message
         else {
             panic!("expected thread projection event notification");
         };
@@ -1533,8 +1537,10 @@ mod tests {
             panic!("expected targeted ordinary notification envelope");
         };
         assert_eq!(ordinary_connection_id, connection_id);
-        let OutgoingMessage::AppServerNotification(ServerNotification::TurnStarted(notification)) =
-            message
+        let OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+            notification: ServerNotification::TurnStarted(notification),
+            ..
+        }) = message
         else {
             panic!("expected ordinary turn started notification");
         };
@@ -1560,9 +1566,10 @@ mod tests {
             panic!("expected targeted projection notification envelope");
         };
         assert_eq!(projection_connection_id, connection_id);
-        let OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(
-            notification,
-        )) = message
+        let OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+            notification: ServerNotification::ThreadProjectionEvent(notification),
+            ..
+        }) = message
         else {
             panic!("expected thread projection event notification");
         };
