@@ -281,6 +281,7 @@ mod tests {
     use codex_app_server_protocol::ConfigWarningNotification;
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ServerNotification;
+    use codex_app_server_protocol::ServerNotificationEnvelope;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnStartedNotification;
     use codex_app_server_protocol::TurnStatus;
@@ -356,6 +357,8 @@ mod tests {
         let thread_manager = Arc::new(ThreadManager::new(
             &config,
             auth_manager.clone(),
+            codex_core::build_models_manager(&config, auth_manager.clone()),
+            codex_core::CodexAppsToolsCache::default(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
@@ -927,7 +930,10 @@ stream_max_retries = 0
         {
             if let OutgoingEnvelope::ToConnection {
                 message:
-                    OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_)),
+                    OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                        notification: ServerNotification::ThreadProjectionEvent(_),
+                        ..
+                    }),
                 ..
             } = envelope
             {

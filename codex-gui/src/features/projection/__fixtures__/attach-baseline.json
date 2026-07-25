@@ -21,6 +21,7 @@
       "cwd": "/tmp/codex-gui-projection-fixtures",
       "cliVersion": "projection-fixture",
       "source": "appServer",
+      "canAcceptDirectInput": true,
       "threadSource": null,
       "agentNickname": null,
       "agentRole": null,

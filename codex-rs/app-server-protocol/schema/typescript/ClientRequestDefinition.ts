@@ -1,7 +1,11 @@
 // GENERATED CODE! DO NOT MODIFY BY HAND!
 
+import type { AppsInstalledParams } from "./v2/AppsInstalledParams";
+import type { AppsInstalledResponse } from "./v2/AppsInstalledResponse";
 import type { AppsListParams } from "./v2/AppsListParams";
 import type { AppsListResponse } from "./v2/AppsListResponse";
+import type { AppsReadParams } from "./v2/AppsReadParams";
+import type { AppsReadResponse } from "./v2/AppsReadResponse";
 import type { CancelLoginAccountParams } from "./v2/CancelLoginAccountParams";
 import type { CancelLoginAccountResponse } from "./v2/CancelLoginAccountResponse";
 import type { CommandExecParams } from "./v2/CommandExecParams";
@@ -215,7 +219,9 @@ export type ClientRequestDefinition =
   | { method: "plugin/share/list"; params: PluginShareListParams; response: PluginShareListResponse; }
   | { method: "plugin/share/checkout"; params: PluginShareCheckoutParams; response: PluginShareCheckoutResponse; }
   | { method: "plugin/share/delete"; params: PluginShareDeleteParams; response: PluginShareDeleteResponse; }
+  | { method: "app/read"; params: AppsReadParams; response: AppsReadResponse; }
   | { method: "app/list"; params: AppsListParams; response: AppsListResponse; }
+  | { method: "app/installed"; params: AppsInstalledParams; response: AppsInstalledResponse; }
   | { method: "fs/readFile"; params: FsReadFileParams; response: FsReadFileResponse; }
   | { method: "fs/writeFile"; params: FsWriteFileParams; response: FsWriteFileResponse; }
   | { method: "fs/createDirectory"; params: FsCreateDirectoryParams; response: FsCreateDirectoryResponse; }

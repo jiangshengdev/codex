@@ -359,6 +359,8 @@ mod tests {
         let thread_manager = Arc::new(ThreadManager::new(
             &config,
             auth_manager.clone(),
+            codex_core::build_models_manager(&config, auth_manager.clone()),
+            codex_core::CodexAppsToolsCache::default(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
@@ -598,6 +600,8 @@ mod tests {
                 codex_protocol::protocol::TurnCompleteEvent {
                     turn_id: "turn-final".to_string(),
                     last_agent_message: Some("final answer".to_string()),
+                    error: None,
+                    started_at: Some(1),
                     completed_at: Some(2),
                     duration_ms: None,
                     time_to_first_token_ms: None,
@@ -664,6 +668,8 @@ mod tests {
         let thread_manager = Arc::new(ThreadManager::new(
             &config,
             auth_manager.clone(),
+            codex_core::build_models_manager(&config, auth_manager.clone()),
+            codex_core::CodexAppsToolsCache::default(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
@@ -755,6 +761,8 @@ mod tests {
                     image_details: vec![Some(ImageDetail::Original)],
                     local_images: vec![PathBuf::from("/tmp/projection-local.png")],
                     local_image_details: vec![Some(ImageDetail::Original)],
+                    audio: None,
+                    local_audio: Vec::new(),
                     text_elements: Vec::new(),
                 },
             )),
@@ -769,6 +777,8 @@ mod tests {
                     V2UserInput::Text { text, .. } => Some(text.as_str()),
                     V2UserInput::Image { .. }
                     | V2UserInput::LocalImage { .. }
+                    | V2UserInput::Audio { .. }
+                    | V2UserInput::LocalAudio { .. }
                     | V2UserInput::Skill { .. }
                     | V2UserInput::Mention { .. } => None,
                 },
