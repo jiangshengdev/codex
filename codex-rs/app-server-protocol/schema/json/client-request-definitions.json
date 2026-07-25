@@ -190,9 +190,19 @@
     "responseSchema": "v2/PluginShareDeleteResponse"
   },
   {
+    "method": "app/read",
+    "paramsSchema": "v2/AppsReadParams",
+    "responseSchema": "v2/AppsReadResponse"
+  },
+  {
     "method": "app/list",
     "paramsSchema": "v2/AppsListParams",
     "responseSchema": "v2/AppsListResponse"
+  },
+  {
+    "method": "app/installed",
+    "paramsSchema": "v2/AppsInstalledParams",
+    "responseSchema": "v2/AppsInstalledResponse"
   },
   {
     "method": "fs/readFile",

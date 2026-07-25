@@ -213,6 +213,7 @@ fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thr
             .context("fixture cwd must be absolute")?,
         cli_version: "projection-fixture".to_string(),
         source: SessionSource::AppServer,
+        can_accept_direct_input: Some(true),
         thread_source: None,
         agent_nickname: None,
         agent_role: None,

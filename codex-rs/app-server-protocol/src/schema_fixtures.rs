@@ -2,6 +2,7 @@ use crate::ClientNotification;
 use crate::ClientRequest;
 use crate::JSONRPCMessage;
 use crate::ServerNotification;
+use crate::ServerNotificationEnvelope;
 use crate::ServerRequest;
 use crate::export::GENERATED_TS_HEADER;
 use crate::export::client_request_definition_ts;
@@ -69,6 +70,7 @@ pub fn generate_typescript_schema_fixture_subtree_for_tests() -> Result<BTreeMap
         visit_server_response_types(visitor);
     })?;
     collect_typescript_fixture_file::<ServerNotification>(&mut files, &mut seen)?;
+    collect_typescript_fixture_file::<ServerNotificationEnvelope>(&mut files, &mut seen)?;
 
     filter_experimental_ts_tree(&mut files)?;
     files.insert(
