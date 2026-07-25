@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use codex_app_server_protocol::ServerNotification;
-use codex_app_server_protocol::ServerNotificationEnvelope;
 use codex_app_server_protocol::ThreadProjectionClosedNotification;
 use codex_app_server_protocol::ThreadProjectionClosedReason;
 use codex_protocol::ThreadId;
@@ -12,7 +11,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 use crate::outgoing_message::OutgoingEnvelope;
-use crate::outgoing_message::OutgoingMessage;
 use crate::outgoing_message::timestamped_server_notification;
 use crate::thread_projection::InvalidatedProjectionSubscriber;
 use crate::thread_projection::ProjectionDelivery;
@@ -323,6 +321,7 @@ mod tests {
 
     use codex_app_server_protocol::AgentMessageDeltaNotification;
     use codex_app_server_protocol::ConfigWarningNotification;
+    use codex_app_server_protocol::ServerNotificationEnvelope;
     use codex_app_server_protocol::ThreadProjectionDelta;
     use codex_app_server_protocol::ThreadProjectionEvent;
     use codex_app_server_protocol::Turn;
@@ -333,6 +332,7 @@ mod tests {
     use tokio::time::timeout;
 
     use crate::outgoing_message::ConnectionId;
+    use crate::outgoing_message::OutgoingMessage;
     use crate::thread_projection::ProjectionAttachAttempt;
 
     use super::*;
