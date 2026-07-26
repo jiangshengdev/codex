@@ -12,6 +12,7 @@ import {
   agentMessage,
   agentMessageDelta,
   attachWithTurns,
+  collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
   itemStarted,
@@ -111,6 +112,53 @@ describe("transcript state scroll signals", () => {
 
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-visible-dom",
+    );
+  });
+
+  it("uses committed scroll keys without live pulses for wait activity lifecycle changes", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-wait-scroll-started",
+          "turn-wait-scroll",
+          collabAgentToolCall("wait-scroll", "wait", "inProgress"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-wait-scroll-started",
+    );
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-wait-scroll")).toStrictEqual(
+      [],
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-wait-scroll-completed",
+          "turn-wait-scroll",
+          collabAgentToolCall("wait-scroll", "wait", "completed"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-wait-scroll-completed",
+    );
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-wait-scroll")).toStrictEqual(
+      [],
     );
   });
 

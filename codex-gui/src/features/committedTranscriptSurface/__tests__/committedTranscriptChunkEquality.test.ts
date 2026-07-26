@@ -7,6 +7,7 @@ import { areTranscriptChunkViewsEqual } from "../committedTranscriptChunkEqualit
 
 type TranscriptMessageEntry = Extract<TranscriptEntry, { type: "message" }>;
 type TranscriptStatusEntry = Extract<TranscriptEntry, { type: "status" }>;
+type TranscriptActivityEntry = Extract<TranscriptEntry, { type: "activity" }>;
 
 const entry = (id: string, revision: number): TranscriptMessageEntry => ({
   type: "message",
@@ -29,6 +30,18 @@ const statusEntry = (
   turnId: "turn-1",
   status,
   revision,
+});
+
+const activityEntry = (
+  overrides: Partial<Pick<TranscriptActivityEntry, "title" | "details" | "revision">> = {},
+): TranscriptActivityEntry => ({
+  type: "activity",
+  id: "activity-1",
+  turnId: "turn-1",
+  title: "Finished waiting",
+  details: ["No agents completed yet"],
+  revision: 0,
+  ...overrides,
 });
 
 const chunk = (
@@ -106,6 +119,33 @@ describe("areTranscriptChunkViewsEqual", () => {
         chunk({ entries: [statusEntry("status-1", 0, "interrupted")] }),
         chunk({ entries: [statusEntry("status-1", 0, "failed")] }),
       ),
+    ).toBe(false);
+  });
+
+  it("treats fresh activity objects as equal when all rendered fields match", () => {
+    const previous = chunk({ entries: [activityEntry()] });
+    const next = chunk({ entries: [activityEntry()] });
+
+    expect(areTranscriptChunkViewsEqual(previous, next)).toBe(true);
+  });
+
+  it("detects activity title, details, and revision changes", () => {
+    const previous = chunk({ entries: [activityEntry()] });
+
+    expect(
+      areTranscriptChunkViewsEqual(
+        previous,
+        chunk({ entries: [activityEntry({ title: "Waiting for agents" })] }),
+      ),
+    ).toBe(false);
+    expect(
+      areTranscriptChunkViewsEqual(
+        previous,
+        chunk({ entries: [activityEntry({ details: ["agent-a: Completed"] })] }),
+      ),
+    ).toBe(false);
+    expect(
+      areTranscriptChunkViewsEqual(previous, chunk({ entries: [activityEntry({ revision: 1 })] })),
     ).toBe(false);
   });
 

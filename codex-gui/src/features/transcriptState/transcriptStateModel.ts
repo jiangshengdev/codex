@@ -41,6 +41,14 @@ export type TranscriptEntry =
       revision: number;
     }
   | {
+      type: "activity";
+      id: string;
+      turnId: string;
+      title: string;
+      details: string[];
+      revision: number;
+    }
+  | {
       type: "status";
       id: string;
       turnId: string;
