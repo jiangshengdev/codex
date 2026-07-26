@@ -19,6 +19,16 @@ export const imageInput = (url: string): UserInput => ({
   url,
 });
 
+export const audioInput = (url: string): UserInput => ({
+  type: "audio",
+  url,
+});
+
+export const localAudioInput = (path: string): UserInput => ({
+  type: "localAudio",
+  path,
+});
+
 export const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
   type: "userMessage",
   id,
