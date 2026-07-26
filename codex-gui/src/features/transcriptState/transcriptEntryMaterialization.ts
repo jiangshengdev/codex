@@ -7,6 +7,8 @@ const textFromUserInput = (input: UserInput): string => {
       return input.text;
     case "image":
     case "localImage":
+    case "audio":
+    case "localAudio":
     case "skill":
     case "mention":
       return "";

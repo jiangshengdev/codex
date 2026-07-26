@@ -12,9 +12,11 @@ import {
 } from "../transcriptStateSlice";
 import {
   agentMessage,
+  audioInput,
   attachWithTurns,
   baseTurn,
   imageInput,
+  localAudioInput,
   planItem,
   sleepItem,
   textInput,
@@ -294,6 +296,8 @@ describe("transcript state snapshot reducer", () => {
         attachWithTurns(attachBaseline, [
           baseTurn("turn-filtered", [
             userMessage("image-only", [imageInput("https://example.invalid/image.png")]),
+            userMessage("audio-only", [audioInput("https://example.invalid/audio.mp3")]),
+            userMessage("local-audio-only", [localAudioInput("/tmp/audio.mp3")]),
             userMessage("empty-user", [textInput("")]),
             agentMessage("empty-agent", ""),
             planItem("hidden-plan"),
