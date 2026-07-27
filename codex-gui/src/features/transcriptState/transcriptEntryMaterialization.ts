@@ -1,4 +1,5 @@
 import type { ThreadItem, UserInput } from "@codex-protocol/v2";
+import { materializeTranscriptActivity } from "./transcriptActivityMaterialization";
 import type { TranscriptEntry } from "./transcriptStateModel";
 
 const textFromUserInput = (input: UserInput): string => {
@@ -55,6 +56,20 @@ export const materializeTranscriptItem = (
         phase: item.phase,
         revision: 0,
       };
+    case "collabAgentToolCall":
+    case "subAgentActivity": {
+      const activity = materializeTranscriptActivity(item);
+      return activity == null
+        ? null
+        : {
+            type: "activity",
+            id: item.id,
+            turnId,
+            copy: activity.copy,
+            details: activity.details,
+            revision: 0,
+          };
+    }
     case "hookPrompt":
     case "plan":
     case "reasoning":
@@ -62,8 +77,6 @@ export const materializeTranscriptItem = (
     case "fileChange":
     case "mcpToolCall":
     case "dynamicToolCall":
-    case "collabAgentToolCall":
-    case "subAgentActivity":
     case "webSearch":
     case "imageView":
     case "sleep":

@@ -1,7 +1,10 @@
-import { Button, Surface, TextArea, toast } from "@heroui/react";
+import { Button, Surface, TextArea, Tooltip, toast } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { Settings } from "lucide-react";
 import { useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import { useChatUiSession } from "@/features/chatUiSession/ChatUiSessionContext";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
@@ -24,6 +27,7 @@ export type ComposerTurnControlProps = {
   guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
   launchParams: BrowserLaunchParams | null;
+  onOpenSettings: () => void;
 };
 
 export function ComposerTurnControl({
@@ -31,8 +35,10 @@ export function ComposerTurnControl({
   guardCompositionEndEnter,
   guiHostStatus,
   launchParams,
+  onOpenSettings,
 }: ComposerTurnControlProps) {
-  const [draft, setDraft] = useState("");
+  const { t } = useLingui();
+  const { draft, setDraft } = useChatUiSession();
   const [isSending, setIsSending] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const composerShellRef = useRef<HTMLElement | null>(null);
@@ -80,9 +86,13 @@ export function ComposerTurnControl({
       });
       setDraft((currentDraft) => (currentDraft === submittedDraft ? "" : currentDraft));
     } catch (error) {
-      toast.danger("Message failed to send", {
-        description: errorDescription(error),
-      });
+      toast.danger(
+        t({
+          comment: "Title of a toast shown when sending a chat prompt fails",
+          message: "Message failed to send",
+        }),
+        { description: errorDescription(error) },
+      );
     } finally {
       setIsSending(false);
     }
@@ -100,9 +110,13 @@ export function ComposerTurnControl({
         turnId: activeTurnId,
       });
     } catch (error) {
-      toast.danger("Stop failed", {
-        description: errorDescription(error),
-      });
+      toast.danger(
+        t({
+          comment: "Title of a toast shown when interrupting a Codex turn fails",
+          message: "Stop failed",
+        }),
+        { description: errorDescription(error) },
+      );
     } finally {
       setIsStopping(false);
     }
@@ -144,7 +158,10 @@ export function ComposerTurnControl({
 
   return (
     <section
-      aria-label="Message composer"
+      aria-label={t({
+        comment: "Accessible name for the region containing the chat prompt controls",
+        message: "Message composer",
+      })}
       className="composer-shell sticky bottom-0 z-10 pb-3"
       ref={composerShellRef}
     >
@@ -161,12 +178,37 @@ export function ComposerTurnControl({
           onCompositionEnd={onCompositionEnd}
           onCompositionStart={onCompositionStart}
           onKeyDown={onKeyDown}
-          placeholder="Message Codex"
+          placeholder={t({
+            comment: "Placeholder in the chat prompt field; Codex is the product name",
+            message: "Message Codex",
+          })}
           value={draft}
           variant="primary"
         />
         <div className="flex items-center justify-between gap-2">
-          <QrAccessPopover launchParams={launchParams} />
+          <div className="flex items-center gap-1" data-composer-secondary-actions="">
+            <QrAccessPopover launchParams={launchParams} />
+            <Tooltip delay={0}>
+              <Button
+                aria-label={t({
+                  comment: "Accessible label and tooltip for the icon that opens settings",
+                  message: "Settings",
+                })}
+                data-settings-trigger=""
+                isIconOnly
+                onPress={onOpenSettings}
+                size="sm"
+                variant="tertiary"
+              >
+                <Settings aria-hidden="true" size={18} />
+              </Button>
+              <Tooltip.Content>
+                <Trans comment="Accessible label and tooltip for the icon that opens settings">
+                  Settings
+                </Trans>
+              </Tooltip.Content>
+            </Tooltip>
+          </div>
           <div className="flex items-center gap-2">
             <Button
               isDisabled={!stopEnabled}
@@ -175,7 +217,7 @@ export function ComposerTurnControl({
               }}
               variant="danger-soft"
             >
-              Stop
+              <Trans comment="Button that interrupts the active Codex turn">Stop</Trans>
             </Button>
             <Button
               isDisabled={!sendEnabled}
@@ -184,7 +226,7 @@ export function ComposerTurnControl({
               }}
               variant="outline"
             >
-              Send
+              <Trans comment="Button that submits the current chat prompt">Send</Trans>
             </Button>
           </div>
         </div>

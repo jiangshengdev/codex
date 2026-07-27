@@ -70,10 +70,29 @@ const isAssistantMessageEntry = (
 const isFinalAssistantEntry = (entry: TranscriptEntry): boolean =>
   isAssistantMessageEntry(entry) && entry.phase === "final_answer";
 
-const turnHasVisibleEntries = (turn: TranscriptTurn): boolean =>
-  turn.leadingPromptEntryId != null ||
-  turn.middleChunkIds.length > 0 ||
-  turn.finalAssistantEntryIds.length > 0;
+const turnHasVisibleNonActivityEntries = (
+  state: TranscriptState,
+  turn: TranscriptTurn,
+): boolean => {
+  if (turn.leadingPromptEntryId != null || turn.finalAssistantEntryIds.length > 0) {
+    return true;
+  }
+
+  for (const chunkId of turn.middleChunkIds) {
+    const chunk = state.chunksById[chunkId];
+    if (chunk == null) {
+      return true;
+    }
+
+    for (const entryId of chunk.entryIds) {
+      if (state.entriesById[entryId]?.type !== "activity") {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
 
 const appendEntryToMiddleChunk = (
   state: TranscriptState,
@@ -98,7 +117,12 @@ const classifyNewEntry = (
   const turn = ensureTranscriptTurn(state, entry.turnId);
   state.entriesById[entry.id] = entry;
 
-  if (!turnHasVisibleEntries(turn) && !isAssistantMessageEntry(entry)) {
+  if (entry.type === "activity") {
+    appendEntryToMiddleChunk(state, entry, options);
+    return;
+  }
+
+  if (!turnHasVisibleNonActivityEntries(state, turn) && !isAssistantMessageEntry(entry)) {
     turn.leadingPromptEntryId = entry.id;
     return;
   }
@@ -135,6 +159,44 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
   if (chunk != null) {
     chunk.revision += 1;
   }
+};
+
+const materializeStartedTranscriptItem = (
+  item: ThreadItem,
+  turnId: string,
+): TranscriptEntry | null => {
+  if (item.type !== "collabAgentToolCall" || item.status !== "inProgress") {
+    return null;
+  }
+
+  const entry = materializeTranscriptItem(item, turnId);
+  return entry?.type === "activity" ? entry : null;
+};
+
+export const hasAppliedStartedTranscriptItem = (
+  state: TranscriptState,
+  turnId: string,
+  item: ThreadItem,
+): boolean => {
+  const entry = materializeStartedTranscriptItem(item, turnId);
+  return entry != null && state.entriesById[entry.id]?.turnId === turnId;
+};
+
+export const applyStartedTranscriptItem = (
+  state: TranscriptState,
+  turnId: string,
+  item: ThreadItem,
+): boolean => {
+  const entry = materializeStartedTranscriptItem(item, turnId);
+  if (entry == null) {
+    return false;
+  }
+
+  ensureTranscriptTurn(state, turnId);
+  if (state.entriesById[entry.id] == null) {
+    upsertLiveCommittedEntry(state, entry);
+  }
+  return true;
 };
 
 export const applyCompletedTranscriptItem = (

@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
+import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useAppSelector } from "@/app/hooks";
 import {
   selectTranscriptChunk,
@@ -10,34 +11,53 @@ import {
   selectTranscriptTurnIds,
   type TranscriptEntry,
   type TranscriptRenderableLiveItem,
+  type TranscriptTurn,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
-
-const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
+import { TranscriptActivityCard } from "./TranscriptActivityCard";
 
 const isLiveAgentMessage = (item: TranscriptRenderableLiveItem): boolean =>
   item.initialItem.type === "agentMessage";
 
-const entryText = (entry: TranscriptEntry): string => {
-  switch (entry.type) {
-    case "message":
-      return entry.source;
-    case "status":
-      switch (entry.status) {
-        case "interrupted":
-          return "Interrupted.";
-        case "failed":
-          return "Failed.";
-      }
+const TranscriptStatusText = ({
+  status,
+}: {
+  status: Extract<TranscriptEntry, { type: "status" }>["status"];
+}) => {
+  switch (status) {
+    case "interrupted":
+      return <Trans comment="Terminal status shown as a transcript entry">Interrupted.</Trans>;
+    case "failed":
+      return <Trans comment="Terminal status shown as a transcript entry">Failed.</Trans>;
   }
 
-  const exhaustiveEntry: never = entry;
-  return exhaustiveEntry;
+  status satisfies never;
+  return null;
+};
+
+const TurnStatusText = ({ status }: { status: TranscriptTurn["status"] }) => {
+  switch (status) {
+    case "completed":
+      return <Trans comment="Status label for a completed chat turn">Completed</Trans>;
+    case "inProgress":
+      return <Trans comment="Status label for a chat turn still running">In progress</Trans>;
+    case "interrupted":
+      return <Trans comment="Status label for an interrupted chat turn">Interrupted</Trans>;
+    case "failed":
+      return <Trans comment="Status label for a failed chat turn">Failed</Trans>;
+  }
+
+  status satisfies never;
+  return null;
 };
 
 const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => {
+  if (entry.type === "activity") {
+    return <TranscriptActivityCard entry={entry} />;
+  }
+
   const shouldRenderMarkdown =
     entry.type === "message" && entry.role === "assistant" && entry.sourceKind === "markdown";
 
@@ -55,16 +75,17 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => {
             className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
             type="body-sm"
           >
-            {entryText(entry)}
+            {entry.type === "message" ? (
+              entry.source
+            ) : (
+              <TranscriptStatusText status={entry.status} />
+            )}
           </Typography>
         )}
       </Card.Content>
     </Card>
   );
 };
-
-const intermediateUpdatesLabel = (count: number): string =>
-  `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntry[],
@@ -124,7 +145,6 @@ const MiddleTranscriptModule = ({
   middleEntryCount: number;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const label = intermediateUpdatesLabel(middleEntryCount);
   const shouldShowEntries = !hasFinalAnswer || isExpanded;
 
   if (middleEntryCount === 0) {
@@ -144,7 +164,12 @@ const MiddleTranscriptModule = ({
           slot="trigger"
           variant="outline"
         >
-          {label}
+          <Plural
+            comment="Disclosure label; count is the number of intermediate transcript entries"
+            one="Intermediate updates · # item"
+            other="Intermediate updates · # items"
+            value={middleEntryCount}
+          />
           <Disclosure.Indicator />
         </Button>
       </Disclosure.Heading>
@@ -218,6 +243,7 @@ const LiveAssistantMessages = ({
 };
 
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
+  const { t } = useLingui();
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
   const liveItems = useAppSelector((state) => selectTranscriptLiveItemsForTurn(state, turnId));
 
@@ -235,15 +261,20 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   if (!hasEntries) {
     return null;
   }
+  const dynamicTurnId = turn.id;
 
   return (
     <article
-      aria-label={`Turn ${turn.id}`}
+      aria-label={t({
+        comment: "Accessible name for a chat turn; dynamicTurnId is an untranslated identifier",
+        message: `Turn ${dynamicTurnId}`,
+      })}
       className="committed-transcript-turn grid min-w-0 gap-3"
+      data-turn-status={turn.status}
     >
       <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
         <Chip className="committed-transcript-turn-status" color="default" size="sm">
-          {turn.status}
+          <TurnStatusText status={turn.status} />
         </Chip>
       </div>
       <div className="committed-transcript-chunk grid min-w-0 gap-3">
@@ -263,6 +294,7 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
 CommittedTranscriptTurn.displayName = "CommittedTranscriptTurn";
 
 export const CommittedTranscriptSurface = () => {
+  const { t } = useLingui();
   const turnIds = useAppSelector(selectTranscriptTurnIds);
   const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
   const hasSurfaceContent = useAppSelector((state) =>
@@ -280,7 +312,10 @@ export const CommittedTranscriptSurface = () => {
 
   return (
     <section
-      aria-label="Committed transcript"
+      aria-label={t({
+        comment: "Accessible name for the region containing committed chat history",
+        message: "Committed transcript",
+      })}
       className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4"
     >
       {globalStatus.length > 0 ? (
@@ -294,7 +329,11 @@ export const CommittedTranscriptSurface = () => {
             >
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Title>{subscriptionInterruptedStatusText}</Alert.Title>
+                <Alert.Title>
+                  <Trans comment="Alert shown when transcript projection requires a manual reconnect">
+                    Connection interrupted. Reconnect required.
+                  </Trans>
+                </Alert.Title>
               </Alert.Content>
             </Alert>
           ))}
@@ -304,7 +343,9 @@ export const CommittedTranscriptSurface = () => {
         <Card className="committed-transcript-empty">
           <Card.Content>
             <Typography color="muted" type="body-sm">
-              No committed messages yet.
+              <Trans comment="Empty state for the committed chat history">
+                No committed messages yet.
+              </Trans>
             </Typography>
           </Card.Content>
         </Card>

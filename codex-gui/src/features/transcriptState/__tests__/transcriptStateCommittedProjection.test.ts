@@ -11,6 +11,7 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
   itemStarted,
@@ -29,6 +30,7 @@ import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   selectTranscriptChunk,
   selectTranscriptEntry,
+  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
@@ -157,6 +159,192 @@ describe("transcript state committed projection reducer", () => {
       phase: "final_answer",
       revision: 0,
     });
+  });
+
+  it("keeps a wait activity in its started middle position when the same item completes", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-before-wait",
+          "turn-wait-position",
+          agentMessage("agent-before-wait", "Before wait", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-wait-started",
+          "turn-wait-position",
+          collabAgentToolCall("wait-stable", "wait", "inProgress"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const entryBeforeCompletion = selectTranscriptEntry(store.getState(), "wait-stable");
+    expect(entryBeforeCompletion).toStrictEqual({
+      type: "activity",
+      id: "wait-stable",
+      turnId: "turn-wait-position",
+      copy: {
+        kind: "agentsWaiting",
+        receiver: null,
+        receiverCount: 0,
+      },
+      details: [],
+      revision: 0,
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-wait-position:chunk:0")?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual(["agent-before-wait", "wait-stable"]);
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-wait-position")).toStrictEqual(
+      [],
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-after-wait",
+          "turn-wait-position",
+          agentMessage("agent-after-wait", "After wait", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+    const chunkBeforeCompletion = selectTranscriptChunk(
+      store.getState(),
+      "turn-wait-position:chunk:0",
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-wait-completed",
+          "turn-wait-position",
+          collabAgentToolCall("wait-stable", "wait", "completed"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-wait-position")).toStrictEqual({
+      id: "turn-wait-position",
+      status: "inProgress",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-wait-position:chunk:0"],
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [],
+    });
+    const entryAfterCompletion = selectTranscriptEntry(store.getState(), "wait-stable");
+    const chunkAfterCompletion = selectTranscriptChunk(
+      store.getState(),
+      "turn-wait-position:chunk:0",
+    );
+    expect(entryAfterCompletion).not.toBe(entryBeforeCompletion);
+    expect(entryAfterCompletion).toStrictEqual({
+      type: "activity",
+      id: "wait-stable",
+      turnId: "turn-wait-position",
+      copy: { kind: "agentsFinishedWaiting" },
+      details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+      revision: 1,
+    });
+    expect(chunkAfterCompletion).not.toBe(chunkBeforeCompletion);
+    expect(chunkAfterCompletion).toStrictEqual({
+      id: "turn-wait-position:chunk:0",
+      turnId: "turn-wait-position",
+      revision: (chunkBeforeCompletion?.revision ?? 0) + 1,
+      entries: [
+        {
+          type: "message",
+          id: "agent-before-wait",
+          turnId: "turn-wait-position",
+          role: "assistant",
+          source: "Before wait",
+          sourceKind: "markdown",
+          phase: "commentary",
+          revision: 0,
+        },
+        {
+          type: "activity",
+          id: "wait-stable",
+          turnId: "turn-wait-position",
+          copy: { kind: "agentsFinishedWaiting" },
+          details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+          revision: 1,
+        },
+        {
+          type: "message",
+          id: "agent-after-wait",
+          turnId: "turn-wait-position",
+          role: "assistant",
+          source: "After wait",
+          sourceKind: "markdown",
+          phase: "commentary",
+          revision: 0,
+        },
+      ],
+    });
+    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-wait-position")).toStrictEqual(
+      [],
+    );
+  });
+
+  it("adds a completed wait activity when no started event was observed", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-wait-completed-only",
+          "turn-wait-completed-only",
+          collabAgentToolCall("wait-completed-only", "wait", "completed"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-wait-completed-only")).toStrictEqual({
+      id: "turn-wait-completed-only",
+      status: "inProgress",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-wait-completed-only:chunk:0"],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-wait-completed-only:chunk:0"),
+    ).toStrictEqual({
+      id: "turn-wait-completed-only:chunk:0",
+      turnId: "turn-wait-completed-only",
+      revision: 1,
+      entries: [
+        {
+          type: "activity",
+          id: "wait-completed-only",
+          turnId: "turn-wait-completed-only",
+          copy: { kind: "agentsFinishedWaiting" },
+          details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+          revision: 0,
+        },
+      ],
+    });
+    expect(
+      selectTranscriptLiveItemsForTurn(store.getState(), "turn-wait-completed-only"),
+    ).toStrictEqual([]);
   });
 
   it("updates turn terminal status from live turnCompleted", () => {

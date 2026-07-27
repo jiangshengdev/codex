@@ -1,20 +1,50 @@
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  type RouterHistory,
+} from "@tanstack/react-router";
 import { NotFoundPage } from "./NotFoundPage";
 import App from "./App";
+import { AppRuntimeLayout } from "./features/appRuntime/AppRuntimeLayout";
+import { SettingsPage } from "./features/settings/SettingsPage";
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFoundPage,
 });
 
-const indexRoute = createRoute({
+const appRuntimeRoute = createRoute({
   getParentRoute: () => rootRoute,
+  id: "app-runtime",
+  component: AppRuntimeLayout,
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => appRuntimeRoute,
   path: "/",
   component: App,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute]);
+const settingsRoute = createRoute({
+  getParentRoute: () => appRuntimeRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
 
-export const router = createRouter({ routeTree });
+const routeTree = rootRoute.addChildren([appRuntimeRoute.addChildren([indexRoute, settingsRoute])]);
+
+export type CreateAppRouterOptions = {
+  history?: RouterHistory;
+};
+
+export function createAppRouter({ history }: CreateAppRouterOptions = {}) {
+  return createRouter({
+    routeTree,
+    ...(history == null ? {} : { history }),
+  });
+}
+
+export const router = createAppRouter();
 
 declare module "@tanstack/react-router" {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
