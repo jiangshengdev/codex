@@ -13,27 +13,469 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: src/PluralExample.tsx:17
-msgid "{count, plural, one {# month} other {# months}}"
-msgstr ""
+#. Disclosure label; count is the number of intermediate transcript entries
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:167
+msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
+msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
-#: src/MsgExample.tsx:11
-msgid "Blue"
-msgstr "Blue"
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:49
+msgid "{receiver}: {value}"
+msgstr "{receiver}: {value}"
 
-#: src/PluralExample.tsx:12
-msgid "Click on this button to test plurals"
-msgstr "Click on this button to test plurals"
+#. Activity title; count is the number of agent threads being awaited
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:98
+msgid "{receiverCount, plural, one {Waiting for # agent} other {Waiting for # agents}}"
+msgstr "{receiverCount, plural, one {Waiting for # agent} other {Waiting for # agents}}"
 
-#: src/LanguageSwitcher.tsx:33
-#: src/LanguageSwitcher.tsx:40
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:65
+msgid "Agent spawn failed"
+msgstr "Agent spawn failed"
+
+#. Button that returns from settings to the chat page
+#: src/features/settings/SettingsPage.tsx:44
+msgid "Back"
+msgstr "Back"
+
+#. Accessible loading status while the UI language changes
+#: src/features/settings/LanguageAutocomplete.tsx:207
+msgid "Changing language…"
+msgstr "Changing language…"
+
+#. Placeholder for the language preference autocomplete
+#: src/features/settings/LanguageAutocomplete.tsx:146
+msgid "Choose a language"
+msgstr "Choose a language"
+
+#: src/features/settings/SettingsPage.tsx:67
+msgid "Choose the interface language."
+msgstr "Choose the interface language."
+
+#. Accessible label for the button that clears the language search input
+#: src/features/settings/LanguageAutocomplete.tsx:75
+msgid "Clear search"
+msgstr "Clear search"
+
+#. Button that closes a Streamdown overlay
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:22
+msgid "Close"
+msgstr "Close"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:108
+msgid "Closed {receiver}"
+msgstr "Closed {receiver}"
+
+#. Accessible name for the region containing committed chat history
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:315
+msgid "Committed transcript"
+msgstr "Committed transcript"
+
+#. Status label for a completed chat turn
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:43
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:28
+msgid "Completed"
+msgstr "Completed"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:28
+msgid "Completed - {message}"
+msgstr "Completed - {message}"
+
+#. Alert shown when transcript projection requires a manual reconnect
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:333
+msgid "Connection interrupted. Reconnect required."
+msgstr "Connection interrupted. Reconnect required."
+
+#. Link on the not-found page that opens an email to support
+#: src/NotFoundPage.tsx:34
+msgid "Contact support"
+msgstr "Contact support"
+
+#. Confirmation shown after copying Markdown content
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:23
+msgid "Copied"
+msgstr "Copied"
+
+#. Button that copies a rendered code block
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:24
+msgid "Copy Code"
+msgstr "Copy Code"
+
+#. Button that copies a rendered link
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:25
+msgid "Copy link"
+msgstr "Copy link"
+
+#. Button that copies a rendered Markdown table
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:26
+msgid "Copy table"
+msgstr "Copy table"
+
+#. Menu item that copies a rendered table in CSV format
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:30
+msgid "Copy table as CSV"
+msgstr "Copy table as CSV"
+
+#. Menu item that copies a rendered table in Markdown format
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:34
+msgid "Copy table as Markdown"
+msgstr "Copy table as Markdown"
+
+#. Menu item that copies a rendered table in TSV format
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:38
+msgid "Copy table as TSV"
+msgstr "Copy table as TSV"
+
+#. Table export format label
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:101
+msgid "CSV"
+msgstr "CSV"
+
+#. Button that downloads a rendered Mermaid diagram
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:42
+msgid "Download diagram"
+msgstr "Download diagram"
+
+#. Menu item that downloads a Mermaid diagram as an MMD source file
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:46
+msgid "Download diagram as MMD"
+msgstr "Download diagram as MMD"
+
+#. Menu item that downloads a Mermaid diagram as a PNG image
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:50
+msgid "Download diagram as PNG"
+msgstr "Download diagram as PNG"
+
+#. Menu item that downloads a Mermaid diagram as an SVG image
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:54
+msgid "Download diagram as SVG"
+msgstr "Download diagram as SVG"
+
+#. Button that downloads a file linked from rendered Markdown
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:58
+msgid "Download file"
+msgstr "Download file"
+
+#. Button that downloads an image from rendered Markdown
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:62
+msgid "Download image"
+msgstr "Download image"
+
+#. Button that downloads a rendered Markdown table
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:66
+msgid "Download table"
+msgstr "Download table"
+
+#. Menu item that downloads a rendered table in CSV format
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:70
+msgid "Download table as CSV"
+msgstr "Download table as CSV"
+
+#. Menu item that downloads a rendered table in Markdown format
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:74
+msgid "Download table as Markdown"
+msgstr "Download table as Markdown"
+
+#. Autocomplete option showing the English language name in the current UI language
+#: src/features/settings/LanguageAutocomplete.tsx:42
+msgid "English"
+msgstr "English"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:35
+msgid "Error"
+msgstr "Error"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:36
+msgid "Error - {message}"
+msgstr "Error - {message}"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:33
+msgid "Error - Agent errored"
+msgstr "Error - Agent errored"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:112
+msgid "Error - Agent resume failed"
+msgstr "Error - Agent resume failed"
+
+#. Button that exits the fullscreen Markdown preview
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:78
+msgid "Exit fullscreen"
+msgstr "Exit fullscreen"
+
+#. Status label for a failed chat turn
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:49
+msgid "Failed"
+msgstr "Failed"
+
+#. Terminal status shown as a transcript entry
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:33
+msgid "Failed."
+msgstr "Failed."
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:106
+msgid "Finished waiting"
+msgstr "Finished waiting"
+
+#. Language preference option that follows the operating system or browser language
+#: src/features/settings/LanguageAutocomplete.tsx:38
+msgid "Follow system"
+msgstr "Follow system"
+
+#: src/NotFoundPage.tsx:31
+msgid "Go back home"
+msgstr "Go back home"
+
+#. Fallback shown when a Markdown image cannot be displayed
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:86
+msgid "Image not available"
+msgstr "Image not available"
+
+#. Status label for a chat turn still running
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:45
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:61
+msgid "Interacted with {agentPath}"
+msgstr "Interacted with {agentPath}"
+
+#. Status label for an interrupted chat turn
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:47
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:25
+msgid "Interrupted"
+msgstr "Interrupted"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:63
+msgid "Interrupted {agentPath}"
+msgstr "Interrupted {agentPath}"
+
+#. Terminal status shown as a transcript entry
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:31
+msgid "Interrupted."
+msgstr "Interrupted."
+
+#. Heading for the interface language settings section
+#. Label for the language preference field
+#: src/features/settings/LanguageAutocomplete.tsx:155
+#: src/features/settings/SettingsPage.tsx:62
 msgid "Language"
 msgstr "Language"
 
-#: src/MsgExample.tsx:15
-msgid "Orange"
-msgstr "Orange"
+#: src/features/locale/LocaleRuntimeProvider.tsx:125
+msgid "Language could not be changed"
+msgstr "Language could not be changed"
 
-#: src/MsgExample.tsx:7
-msgid "Red"
-msgstr "Red"
+#. Accessible title for the language options dialog
+#: src/features/settings/LanguageAutocomplete.tsx:165
+msgid "Language options"
+msgstr "Language options"
+
+#: src/features/locale/LocaleRuntimeProvider.tsx:68
+msgid "Language preference could not be loaded"
+msgstr "Language preference could not be loaded"
+
+#: src/features/locale/LocaleRuntimeProvider.tsx:69
+msgid "Language preference could not be saved"
+msgstr "Language preference could not be saved"
+
+#. Settings page description; Codex GUI is the product name
+#: src/features/settings/SettingsPage.tsx:51
+msgid "Manage Codex GUI preferences on this device."
+msgstr "Manage Codex GUI preferences on this device."
+
+#. Table export format label
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:102
+msgid "Markdown"
+msgstr "Markdown"
+
+#. Placeholder in the chat prompt field; Codex is the product name
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:181
+msgid "Message Codex"
+msgstr "Message Codex"
+
+#. Accessible name for the region containing the chat prompt controls
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:161
+msgid "Message composer"
+msgstr "Message composer"
+
+#. Title of a toast shown when sending a chat prompt fails
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:90
+msgid "Message failed to send"
+msgstr "Message failed to send"
+
+#. File format label for Mermaid source files
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:90
+msgid "MMD"
+msgstr "MMD"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:114
+msgid "No agents completed yet"
+msgstr "No agents completed yet"
+
+#. Empty state for the committed chat history
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:346
+msgid "No committed messages yet."
+msgstr "No committed messages yet."
+
+#. Empty state when no language options match the search
+#: src/features/settings/LanguageAutocomplete.tsx:185
+msgid "No languages found"
+msgstr "No languages found"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:42
+msgid "Not found"
+msgstr "Not found"
+
+#. Confirmation title shown before opening an external website
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:93
+msgid "Open external link?"
+msgstr "Open external link?"
+
+#. Button that confirms opening a rendered Markdown link
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:97
+msgid "Open link"
+msgstr "Open link"
+
+#: src/NotFoundPage.tsx:19
+msgid "Page not found"
+msgstr "Page not found"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:19
+msgid "Pending init"
+msgstr "Pending init"
+
+#. Image format label
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:91
+msgid "PNG"
+msgstr "PNG"
+
+#. Shown when the launch token required to build the phone QR URL is unavailable
+#: src/features/qrAccess/QrAccessPopover.tsx:54
+msgid "QR access is unavailable until the GUI launch token is ready."
+msgstr "QR access is unavailable until the GUI launch token is ready."
+
+#. Accessible name for the QR image encoding the current GUI URL
+#: src/features/qrAccess/QrAccessPopover.tsx:62
+msgid "QR code for current GUI URL"
+msgstr "QR code for current GUI URL"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:89
+msgid "Resumed {receiver}"
+msgstr "Resumed {receiver}"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:87
+msgid "Resuming {receiver}"
+msgstr "Resuming {receiver}"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:22
+msgid "Running"
+msgstr "Running"
+
+#. Heading above the QR code used for phone access
+#. Label for the control that shows a QR code for phone access
+#: src/features/qrAccess/QrAccessPopover.tsx:37
+#: src/features/qrAccess/QrAccessPopover.tsx:50
+msgid "Scan with phone"
+msgstr "Scan with phone"
+
+#. Accessible label and placeholder for the language search input
+#: src/features/settings/LanguageAutocomplete.tsx:71
+msgid "Search languages"
+msgstr "Search languages"
+
+#. Button that submits the current chat prompt
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:229
+msgid "Send"
+msgstr "Send"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:85
+msgid "Sent input to {receiver}"
+msgstr "Sent input to {receiver}"
+
+#. Accessible label and tooltip for the icon that opens settings
+#. Accessible label and tooltip for the icon that opens settings
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:193
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:206
+#: src/features/settings/SettingsPage.tsx:48
+msgid "Settings"
+msgstr "Settings"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:39
+msgid "Shutdown"
+msgstr "Shutdown"
+
+#. Autocomplete option showing the Simplified Chinese language name in the current UI language
+#: src/features/settings/LanguageAutocomplete.tsx:46
+msgid "Simplified Chinese"
+msgstr "Simplified Chinese"
+
+#: src/NotFoundPage.tsx:27
+msgid "Sorry, we couldn’t find the page you’re looking for."
+msgstr "Sorry, we couldn’t find the page you’re looking for."
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:68
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:74
+msgid "Spawned {receiver}"
+msgstr "Spawned {receiver}"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:82
+msgid "Spawned {receiver} ({model} {reasoningEffort})"
+msgstr "Spawned {receiver} ({model} {reasoningEffort})"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:80
+msgid "Spawned {receiver} ({model})"
+msgstr "Spawned {receiver} ({model})"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:77
+msgid "Spawned {receiver} ({reasoningEffort})"
+msgstr "Spawned {receiver} ({reasoningEffort})"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:59
+msgid "Started {agentPath}"
+msgstr "Started {agentPath}"
+
+#. Button that interrupts the active Codex turn
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:220
+msgid "Stop"
+msgstr "Stop"
+
+#. Title of a toast shown when interrupting a Codex turn fails
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:114
+msgid "Stop failed"
+msgstr "Stop failed"
+
+#. Image format label
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:92
+msgid "SVG"
+msgstr "SVG"
+
+#. Table export format label
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:103
+msgid "TSV"
+msgstr "TSV"
+
+#. Accessible name for a chat turn; dynamicTurnId is an untranslated identifier
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:268
+msgid "Turn {dynamicTurnId}"
+msgstr "Turn {dynamicTurnId}"
+
+#. Error alert title; Codex GUI is the product name
+#: src/features/appShell/AppShell.tsx:36
+msgid "Unable to start Codex GUI"
+msgstr "Unable to start Codex GUI"
+
+#. Button that opens rendered Markdown content in fullscreen
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:104
+msgid "View fullscreen"
+msgstr "View fullscreen"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:92
+msgid "Waiting for {receiver}"
+msgstr "Waiting for {receiver}"
+
+#: src/features/committedTranscriptSurface/TranscriptActivityCard.tsx:95
+msgid "Waiting for agents"
+msgstr "Waiting for agents"
+
+#. Warning shown before opening a link to an external website
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:82
+msgid "You're about to visit an external website."
+msgstr "You're about to visit an external website."

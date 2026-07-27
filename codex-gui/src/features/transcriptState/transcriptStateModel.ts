@@ -29,6 +29,46 @@ export type TranscriptLiveItemIndex = {
 
 export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
 
+type TranscriptCollabAgentToolCallItem = Extract<ThreadItem, { type: "collabAgentToolCall" }>;
+type TranscriptCollabAgentState = NonNullable<
+  TranscriptCollabAgentToolCallItem["agentsStates"][string]
+>;
+
+export type TranscriptActivityCopy =
+  | { kind: "agentStarted"; agentPath: string }
+  | { kind: "agentInteracted"; agentPath: string }
+  | { kind: "agentInterrupted"; agentPath: string }
+  | { kind: "agentSpawnFailed" }
+  | {
+      kind: "agentSpawned";
+      receiver: string;
+      model: TranscriptCollabAgentToolCallItem["model"];
+      reasoningEffort: TranscriptCollabAgentToolCallItem["reasoningEffort"];
+    }
+  | { kind: "inputSent"; receiver: string }
+  | { kind: "agentResuming"; receiver: string }
+  | { kind: "agentResumed"; receiver: string }
+  | { kind: "agentsWaiting"; receiver: string | null; receiverCount: number }
+  | { kind: "agentsFinishedWaiting" }
+  | { kind: "agentClosed"; receiver: string }
+  | {
+      kind: "agentStatus";
+      receiver: string | null;
+      status: TranscriptCollabAgentState["status"];
+      message: string | null;
+    }
+  | { kind: "agentResumeFailed" }
+  | { kind: "noAgentsCompletedYet" };
+
+export type TranscriptActivityDetailCopy = Extract<
+  TranscriptActivityCopy,
+  { kind: "agentStatus" | "agentResumeFailed" | "noAgentsCompletedYet" }
+>;
+
+export type TranscriptActivityDetail =
+  | { kind: "raw"; text: string }
+  | { kind: "copy"; copy: TranscriptActivityDetailCopy };
+
 export type TranscriptEntry =
   | {
       type: "message";
@@ -38,6 +78,14 @@ export type TranscriptEntry =
       source: string;
       sourceKind: "plainText" | "markdown";
       phase: TranscriptMessagePhase;
+      revision: number;
+    }
+  | {
+      type: "activity";
+      id: string;
+      turnId: string;
+      copy: TranscriptActivityCopy;
+      details: TranscriptActivityDetail[];
       revision: number;
     }
   | {

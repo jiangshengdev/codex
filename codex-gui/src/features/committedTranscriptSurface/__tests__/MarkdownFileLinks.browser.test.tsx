@@ -1,5 +1,5 @@
-import { render } from "vitest-browser-react";
 import { expect, test } from "vitest";
+import { renderWithProviders } from "@/utils/test-utils";
 import { LiveMarkdownText } from "../LiveMarkdownText";
 import { MarkdownText } from "../MarkdownText";
 
@@ -32,7 +32,7 @@ test("renders protocol-less links as markdown text while preserving scheme behav
     "[Unsafe](<javascript:alert(1)>)",
   ].join("\n\n");
 
-  const screen = await render(<MarkdownText source={markdown} />);
+  const screen = await renderWithProviders(<MarkdownText source={markdown} />);
 
   for (const [label, target] of schemeLinks) {
     await expect
@@ -70,7 +70,7 @@ test("shows parsed Windows targets without URI percent encoding", async () => {
     "[View **file.rs** and `line 10`](" + backslashTarget + ")",
   ].join("\n\n");
 
-  const screen = await render(<MarkdownText source={markdown} />);
+  const screen = await renderWithProviders(<MarkdownText source={markdown} />);
   const paragraphTexts = Array.from(screen.container.querySelectorAll("p")).map(
     (paragraph) => paragraph.textContent,
   );
@@ -102,10 +102,10 @@ test("uses the same direct-link behavior in live and committed markdown", async 
     "[Live web](https://example.invalid/live)",
   ].join("\n");
 
-  const live = await render(<LiveMarkdownText source={markdown} />, {
+  const live = await renderWithProviders(<LiveMarkdownText source={markdown} />, {
     container: document.body.appendChild(document.createElement("div")),
   });
-  const committed = await render(<MarkdownText source={markdown} />, {
+  const committed = await renderWithProviders(<MarkdownText source={markdown} />, {
     container: document.body.appendChild(document.createElement("div")),
   });
 
@@ -125,10 +125,10 @@ test("keeps unresolved live references and resolves committed references", async
     "\n",
   );
 
-  const live = await render(<LiveMarkdownText source={markdown} />, {
+  const live = await renderWithProviders(<LiveMarkdownText source={markdown} />, {
     container: document.body.appendChild(document.createElement("div")),
   });
-  const committed = await render(<MarkdownText source={markdown} />, {
+  const committed = await renderWithProviders(<MarkdownText source={markdown} />, {
     container: document.body.appendChild(document.createElement("div")),
   });
 

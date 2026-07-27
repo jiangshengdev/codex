@@ -1,5 +1,8 @@
-import { Alert, Surface, Toast } from "@heroui/react";
+import { Alert, Surface } from "@heroui/react";
+import { Trans } from "@lingui/react/macro";
+import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { createPrimarySurfaceNavigation } from "@/features/appRuntime/primarySurfaceNavigation";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
@@ -29,7 +32,11 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
     <Alert className="w-full" status="danger">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>Unable to start Codex GUI</Alert.Title>
+        <Alert.Title>
+          <Trans comment="Error alert title; Codex GUI is the product name">
+            Unable to start Codex GUI
+          </Trans>
+        </Alert.Title>
         <Alert.Description>{status.message}</Alert.Description>
       </Alert.Content>
     </Alert>
@@ -45,16 +52,24 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
 }
 
 export function AppShell({ status, commands, launchParams }: AppShellProps) {
-  const transcriptBottomRef = useCommittedTranscriptStickyBottom();
+  const navigate = useNavigate();
+  const primarySurfaceNavigation = createPrimarySurfaceNavigation(navigate);
+  const { captureScrollSnapshot, transcriptBottomRef } = useCommittedTranscriptStickyBottom();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
   const hasTopNotice = status.label === "error";
+
+  const onOpenSettings = (): void => {
+    captureScrollSnapshot();
+    void primarySurfaceNavigation.openSettings();
+  };
 
   return (
     <main
       className="flex min-h-svh w-full flex-col gap-4 bg-background text-foreground"
+      data-chat-main=""
       data-gui-host-status={status.label}
+      tabIndex={-1}
     >
-      <Toast.Provider placement="top" />
       {hasTopNotice ? (
         <AppShellTopNotices>
           <GuiHostErrorAlert status={status} />
@@ -76,6 +91,7 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={status}
         launchParams={launchParams}
+        onOpenSettings={onOpenSettings}
       />
     </main>
   );
