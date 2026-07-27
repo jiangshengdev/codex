@@ -52,12 +52,12 @@ export function LocaleRuntimeProvider({ children, initialState }: LocaleRuntimeP
       warning,
     };
   }, [i18n, initialState]);
-  const [preference, setPreferenceState] = useState(derivedInitialState.preference);
+  const [preferenceState, setPreferenceState] = useState(derivedInitialState.preference);
   const [activeLocale, setActiveLocale] = useState(derivedInitialState.activeLocale);
   const [isChanging, setIsChanging] = useState(false);
   const activeLocaleRef = useRef(activeLocale);
-  const preferenceRef = useRef(preference);
-  const requestedPreferenceRef = useRef(preference);
+  const preferenceRef = useRef(preferenceState);
+  const requestedPreferenceRef = useRef(preferenceState);
   const generationRef = useRef(0);
   const initialWarningRef = useRef(derivedInitialState.warning);
 
@@ -141,7 +141,7 @@ export function LocaleRuntimeProvider({ children, initialState }: LocaleRuntimeP
   );
 
   useEffect(() => {
-    if (preference !== "system") {
+    if (preferenceState !== "system") {
       return;
     }
     const handleLanguageChange = (): void => {
@@ -156,11 +156,11 @@ export function LocaleRuntimeProvider({ children, initialState }: LocaleRuntimeP
     return () => {
       window.removeEventListener("languagechange", handleLanguageChange);
     };
-  }, [preference, requestLocale]);
+  }, [preferenceState, requestLocale]);
 
   const runtime = useMemo<AppLocaleRuntime>(
-    () => ({ preference, activeLocale, isChanging, setPreference }),
-    [activeLocale, isChanging, preference, setPreference],
+    () => ({ preference: preferenceState, activeLocale, isChanging, setPreference }),
+    [activeLocale, isChanging, preferenceState, setPreference],
   );
 
   return <LocaleRuntimeContext value={runtime}>{children}</LocaleRuntimeContext>;
