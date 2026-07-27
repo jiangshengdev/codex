@@ -2,12 +2,12 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  Outlet,
   type RouterHistory,
 } from "@tanstack/react-router";
 import { NotFoundPage } from "./NotFoundPage";
 import App from "./App";
 import { AppRuntimeLayout } from "./features/appRuntime/AppRuntimeLayout";
+import { SettingsPage } from "./features/settings/SettingsPage";
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFoundPage,
@@ -28,7 +28,7 @@ const indexRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => appRuntimeRoute,
   path: "/settings",
-  component: Outlet,
+  component: SettingsPage,
 });
 
 const routeTree = rootRoute.addChildren([
