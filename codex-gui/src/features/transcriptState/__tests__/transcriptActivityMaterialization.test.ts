@@ -7,20 +7,17 @@ import { materializeTranscriptActivity } from "../transcriptActivityMaterializat
 
 describe("transcript activity materialization", () => {
   it.each([
-    ["started", "agentStarted"],
-    ["interacted", "agentInteracted"],
-    ["interrupted", "agentInterrupted"],
-  ] as const)("materializes %s sub-agent activity", (kind, copyKind) => {
+    ["started", "Started /root/reviewer"],
+    ["interacted", "Interacted with /root/reviewer"],
+    ["interrupted", "Interrupted /root/reviewer"],
+  ] as const)("materializes %s sub-agent activity", (kind, title) => {
     expect(
       materializeTranscriptActivity(
         subAgentActivity("activity-id", kind, "/root/reviewer", {
           agentThreadId: "private-agent-thread-id",
         }),
       ),
-    ).toStrictEqual({
-      copy: { kind: copyKind, agentPath: "/root/reviewer" },
-      details: [],
-    });
+    ).toStrictEqual({ title, details: [] });
   });
 
   it("does not expose item, sender, or sub-agent thread IDs", () => {
@@ -45,7 +42,7 @@ describe("transcript activity materialization", () => {
     expect(visibleText).toContain("visible-receiver-id");
   });
 
-  describe("collaboration tool visibility and semantics", () => {
+  describe("collaboration tool visibility and titles", () => {
     it("hides in-progress spawn, send, and close calls", () => {
       expect(
         materializeTranscriptActivity(collabAgentToolCall("spawn", "spawnAgent", "inProgress")),
@@ -77,18 +74,13 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: {
-          kind: "agentSpawned",
-          receiver: "receiver-a",
-          model: "gpt-5",
-          reasoningEffort: "high",
-        },
-        details: [{ kind: "raw", text: "Review the transcript state" }],
+        title: "Spawned receiver-a (gpt-5 high)",
+        details: ["Review the transcript state"],
       });
 
       expect(
         materializeTranscriptActivity(collabAgentToolCall("spawn-failed", "spawnAgent", "failed")),
-      ).toStrictEqual({ copy: { kind: "agentSpawnFailed" }, details: [] });
+      ).toStrictEqual({ title: "Agent spawn failed", details: [] });
     });
 
     it("materializes terminal send and close calls", () => {
@@ -100,8 +92,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "inputSent", receiver: "receiver-a" },
-        details: [{ kind: "raw", text: "Re-check the live path" }],
+        title: "Sent input to receiver-a",
+        details: ["Re-check the live path"],
       });
       expect(
         materializeTranscriptActivity(collabAgentToolCall("send-missing", "sendInput", "failed")),
@@ -112,7 +104,7 @@ describe("transcript activity materialization", () => {
             receiverThreadIds: ["receiver-a"],
           }),
         ),
-      ).toStrictEqual({ copy: { kind: "agentClosed", receiver: "receiver-a" }, details: [] });
+      ).toStrictEqual({ title: "Closed receiver-a", details: [] });
       expect(
         materializeTranscriptActivity(
           collabAgentToolCall("close-missing", "closeAgent", "completed"),
@@ -127,7 +119,7 @@ describe("transcript activity materialization", () => {
             receiverThreadIds: ["receiver-a"],
           }),
         ),
-      ).toStrictEqual({ copy: { kind: "agentResuming", receiver: "receiver-a" }, details: [] });
+      ).toStrictEqual({ title: "Resuming receiver-a", details: [] });
       expect(
         materializeTranscriptActivity(
           collabAgentToolCall("resume-completed", "resumeAgent", "completed", {
@@ -137,15 +129,7 @@ describe("transcript activity materialization", () => {
             },
           }),
         ),
-      ).toStrictEqual({
-        copy: { kind: "agentResumed", receiver: "receiver-a" },
-        details: [
-          {
-            kind: "copy",
-            copy: { kind: "agentStatus", receiver: null, status: "running", message: null },
-          },
-        ],
-      });
+      ).toStrictEqual({ title: "Resumed receiver-a", details: ["Running"] });
       expect(
         materializeTranscriptActivity(
           collabAgentToolCall("resume-failed", "resumeAgent", "failed", {
@@ -153,8 +137,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentResumed", receiver: "receiver-a" },
-        details: [{ kind: "copy", copy: { kind: "agentResumeFailed" } }],
+        title: "Resumed receiver-a",
+        details: ["Error - Agent resume failed"],
       });
       expect(
         materializeTranscriptActivity(
@@ -166,21 +150,18 @@ describe("transcript activity materialization", () => {
     it("materializes wait lifecycle states, including empty current V2 payloads", () => {
       expect(
         materializeTranscriptActivity(collabAgentToolCall("wait", "wait", "inProgress")),
-      ).toStrictEqual({
-        copy: { kind: "agentsWaiting", receiver: null, receiverCount: 0 },
-        details: [],
-      });
+      ).toStrictEqual({ title: "Waiting for agents", details: [] });
       expect(
         materializeTranscriptActivity(collabAgentToolCall("wait", "wait", "completed")),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
-        details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+        title: "Finished waiting",
+        details: ["No agents completed yet"],
       });
       expect(
         materializeTranscriptActivity(collabAgentToolCall("wait", "wait", "failed")),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
-        details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+        title: "Finished waiting",
+        details: ["No agents completed yet"],
       });
     });
 
@@ -191,10 +172,7 @@ describe("transcript activity materialization", () => {
             receiverThreadIds: ["receiver-a"],
           }),
         ),
-      ).toStrictEqual({
-        copy: { kind: "agentsWaiting", receiver: "receiver-a", receiverCount: 1 },
-        details: [],
-      });
+      ).toStrictEqual({ title: "Waiting for receiver-a", details: [] });
       expect(
         materializeTranscriptActivity(
           collabAgentToolCall("wait-many", "wait", "inProgress", {
@@ -202,27 +180,24 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentsWaiting", receiver: null, receiverCount: 2 },
-        details: [
-          { kind: "raw", text: "receiver-a" },
-          { kind: "raw", text: "receiver-b" },
-        ],
+        title: "Waiting for 2 agents",
+        details: ["receiver-a", "receiver-b"],
       });
     });
   });
 
   describe("agent state details", () => {
     it.each([
-      ["pendingInit", null, null],
-      ["running", null, null],
-      ["interrupted", null, null],
-      ["completed", null, null],
-      ["completed", "  Finished\nall   checks  ", "Finished all checks"],
-      ["errored", null, null],
-      ["errored", "  Build\nfailed   hard  ", "Build failed hard"],
-      ["shutdown", null, null],
-      ["notFound", null, null],
-    ] as const)("materializes %s states", (status, message, normalizedMessage) => {
+      ["pendingInit", null, "Pending init"],
+      ["running", null, "Running"],
+      ["interrupted", null, "Interrupted"],
+      ["completed", null, "Completed"],
+      ["completed", "  Finished\nall   checks  ", "Completed - Finished all checks"],
+      ["errored", null, "Error - Agent errored"],
+      ["errored", "  Build\nfailed   hard  ", "Error - Build failed hard"],
+      ["shutdown", null, "Shutdown"],
+      ["notFound", null, "Not found"],
+    ] as const)("materializes %s states", (status, message, summary) => {
       expect(
         materializeTranscriptActivity(
           collabAgentToolCall(`wait-${status}`, "wait", "completed", {
@@ -231,13 +206,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
-        details: [
-          {
-            kind: "copy",
-            copy: { kind: "agentStatus", receiver: "receiver-a", status, message: normalizedMessage },
-          },
-        ],
+        title: "Finished waiting",
+        details: [`receiver-a: ${summary}`],
       });
     });
 
@@ -255,44 +225,12 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
+        title: "Finished waiting",
         details: [
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-b",
-              status: "interrupted",
-              message: null,
-            },
-          },
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-a",
-              status: "completed",
-              message: "Done",
-            },
-          },
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-c",
-              status: "shutdown",
-              message: null,
-            },
-          },
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-d",
-              status: "running",
-              message: null,
-            },
-          },
+          "receiver-b: Interrupted",
+          "receiver-a: Completed - Done",
+          "receiver-c: Shutdown",
+          "receiver-d: Running",
         ],
       });
     });
@@ -310,8 +248,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "inputSent", receiver: "receiver-a" },
-        details: [{ kind: "raw", text: "Keep   internal\tspacing" }],
+        title: "Sent input to receiver-a",
+        details: ["Keep   internal\tspacing"],
       });
       expect(
         materializeTranscriptActivity(
@@ -320,7 +258,7 @@ describe("transcript activity materialization", () => {
             prompt: " \n\t ",
           }),
         ),
-      ).toStrictEqual({ copy: { kind: "inputSent", receiver: "receiver-a" }, details: [] });
+      ).toStrictEqual({ title: "Sent input to receiver-a", details: [] });
     });
 
     it("keeps prompt details at 160 graphemes and truncates without splitting a cluster", () => {
@@ -334,10 +272,7 @@ describe("transcript activity materialization", () => {
             prompt: atLimit,
           }),
         ),
-      ).toStrictEqual({
-        copy: { kind: "inputSent", receiver: "receiver-a" },
-        details: [{ kind: "raw", text: atLimit }],
-      });
+      ).toStrictEqual({ title: "Sent input to receiver-a", details: [atLimit] });
       expect(
         materializeTranscriptActivity(
           collabAgentToolCall("prompt-over", "sendInput", "completed", {
@@ -346,8 +281,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "inputSent", receiver: "receiver-a" },
-        details: [{ kind: "raw", text: `${combinedGrapheme.repeat(157)}...` }],
+        title: "Sent input to receiver-a",
+        details: [`${combinedGrapheme.repeat(157)}...`],
       });
     });
 
@@ -365,18 +300,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
-        details: [
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-a",
-              status: "completed",
-              message: atLimit,
-            },
-          },
-        ],
+        title: "Finished waiting",
+        details: [`receiver-a: Completed - ${atLimit}`],
       });
       expect(
         materializeTranscriptActivity(
@@ -388,18 +313,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
-        details: [
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-a",
-              status: "completed",
-              message: `${combinedGrapheme.repeat(237)}...`,
-            },
-          },
-        ],
+        title: "Finished waiting",
+        details: [`receiver-a: Completed - ${combinedGrapheme.repeat(237)}...`],
       });
     });
 
@@ -417,18 +332,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
-        details: [
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-a",
-              status: "errored",
-              message: atLimit,
-            },
-          },
-        ],
+        title: "Finished waiting",
+        details: [`receiver-a: Error - ${atLimit}`],
       });
       expect(
         materializeTranscriptActivity(
@@ -440,18 +345,8 @@ describe("transcript activity materialization", () => {
           }),
         ),
       ).toStrictEqual({
-        copy: { kind: "agentsFinishedWaiting" },
-        details: [
-          {
-            kind: "copy",
-            copy: {
-              kind: "agentStatus",
-              receiver: "receiver-a",
-              status: "errored",
-              message: `${combinedGrapheme.repeat(157)}...`,
-            },
-          },
-        ],
+        title: "Finished waiting",
+        details: [`receiver-a: Error - ${combinedGrapheme.repeat(157)}...`],
       });
     });
   });

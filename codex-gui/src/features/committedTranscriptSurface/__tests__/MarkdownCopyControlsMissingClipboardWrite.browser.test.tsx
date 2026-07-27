@@ -1,5 +1,5 @@
+import { render } from "vitest-browser-react";
 import { expect, test, vi } from "vitest";
-import { renderWithProviders } from "@/utils/test-utils";
 
 vi.hoisted(() => {
   vi.stubGlobal("isSecureContext", true);
@@ -9,38 +9,19 @@ vi.hoisted(() => {
   });
 });
 
-import { LiveMarkdownText } from "../LiveMarkdownText";
 import { MarkdownText } from "../MarkdownText";
-import {
-  streamdownControlLocales,
-  streamdownControlMarkdown,
-} from "./streamdownControlTestSupport";
 
-test.each(streamdownControlLocales)(
-  "hides localized $locale copy controls when clipboard text writes are unavailable",
-  async ({ labels, locale }) => {
-    const committed = await renderWithProviders(
-      <MarkdownText source={streamdownControlMarkdown} />,
-      { locale },
-    );
-    const live = await renderWithProviders(<LiveMarkdownText source={streamdownControlMarkdown} />, {
-      locale,
-    });
+test("hides code copy when clipboard text writes are unavailable", async () => {
+  const screen = await render(
+    <MarkdownText source={'```ts\nconst value: string = "download me";\n```'} />,
+  );
 
-    for (const screen of [committed, live]) {
-      await expect
-        .element(screen.locator.getByRole("button", { name: labels.downloadFile, exact: true }))
-        .toBeVisible();
-      await expect
-        .element(screen.locator.getByRole("button", { name: labels.downloadTable, exact: true }))
-        .toBeVisible();
+  await expect
+    .poll(
+      () =>
+        screen.container.querySelector('[data-streamdown="code-block-download-button"]') !== null,
+    )
+    .toBe(true);
 
-      await expect
-        .element(screen.locator.getByRole("button", { name: labels.copyCode, exact: true }))
-        .not.toBeInTheDocument();
-      await expect
-        .element(screen.locator.getByRole("button", { name: labels.copyTable, exact: true }))
-        .not.toBeInTheDocument();
-    }
-  },
-);
+  expect(screen.container.querySelector('[data-streamdown="code-block-copy-button"]')).toBeNull();
+});

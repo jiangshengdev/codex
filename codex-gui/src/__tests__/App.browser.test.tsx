@@ -1,4 +1,3 @@
-import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import {
   attachProjection,
@@ -16,6 +15,7 @@ import {
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
+import App from "@/App";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   attachReplacement,
@@ -49,7 +49,6 @@ import {
   selectThreadRuntimeRecord,
   selectThreadRuntimeSubscription,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
 
 const guiHostClientMock = vi.hoisted(() => ({
@@ -124,15 +123,8 @@ const expectDocumentScrollStaysAwayFromBottom = async (maxScrollTop: number): Pr
   }
 };
 
-const renderApp = () => {
-  const history = createMemoryHistory({ initialEntries: ["/"] });
-  const router = createAppRouter({ history });
-
-  return renderWithProviders(<RouterProvider router={router} />);
-};
-
 const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   attachProjection(options);
@@ -159,7 +151,7 @@ afterEach(() => {
 });
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
 
   await expect
@@ -173,7 +165,7 @@ test("App renders the committed transcript shell without visible host debug deta
 });
 
 test("App renders composer in the shell without visible host debug details", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const main = screen.getByRole("main").element();
   const transcriptBottomSentinel = screen.container.querySelector(
     ".committed-transcript-bottom-sentinel",
@@ -203,7 +195,7 @@ test("App renders composer in the shell without visible host debug details", asy
 });
 
 test("App keeps the transcript surface flush with the shell padding", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const transcript = screen.container.querySelector('[aria-label="Committed transcript"]');
   const surface = transcript?.parentElement;
 
@@ -216,7 +208,7 @@ test("App keeps the transcript surface flush with the shell padding", async () =
 });
 
 test("App keeps host lifecycle status stable while projection events update runtime", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const { store } = screen;
   const options = getHostOptions(startGuiHostConnectionMock);
 
@@ -237,7 +229,7 @@ test("App displays GUI host startup errors in the sticky top notices region", as
     throw new Error("Missing launch token fragment");
   });
 
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
   const errorTitle = screen.getByText("Unable to start Codex GUI").element();
   const errorMessage = screen.getByText("Missing launch token fragment").element();
@@ -263,24 +255,8 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
 });
 
-test("App localizes the GUI host startup error title without translating its diagnostic", async () => {
-  startGuiHostConnectionMock.mockImplementation(() => {
-    throw new Error("Missing launch token fragment");
-  });
-  const history = createMemoryHistory({ initialEntries: ["/"] });
-  const router = createAppRouter({ history });
-
-  const screen = await renderWithProviders(<RouterProvider router={router} />, {
-    locale: "zh-CN",
-  });
-
-  await expect.element(screen.getByText("无法启动 Codex GUI")).toBeVisible();
-  await expect.element(screen.getByText("Unable to start Codex GUI")).not.toBeInTheDocument();
-  await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
-});
-
 test("App dispatches accepted host projection payloads into thread runtime", async () => {
-  const { store } = await renderApp();
+  const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStarted;
   const threadId = attachResponse.snapshot.thread.id;
   if (projectionEvent.event.type !== "turnStarted") {
@@ -313,7 +289,7 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
 test("App batches accepted projection deltas until the next animation frame", async () => {
   vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
   try {
-    const screen = await renderApp();
+    const screen = await renderWithProviders(<App />);
     const { store } = screen;
     const options = getHostOptions(startGuiHostConnectionMock);
     const initialItem = agentMessage("agent-raf-batch", "");
@@ -375,7 +351,7 @@ test("App batches accepted projection deltas until the next animation frame", as
 test("App flushes pending projection deltas before structural projection events", async () => {
   vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
   try {
-    const { store } = await renderApp();
+    const { store } = await renderWithProviders(<App />);
     const options = getHostOptions(startGuiHostConnectionMock);
     const initialItem = agentMessage("agent-raf-flush-event", "");
 
@@ -436,7 +412,7 @@ test("App flushes pending projection deltas before structural projection events"
 });
 
 test("App classifies snapshot-ahead projection events as snapshot duplicate replay", async () => {
-  const { store } = await renderApp();
+  const { store } = await renderWithProviders(<App />);
   if (eventTurnStarted.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
@@ -461,7 +437,7 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
 });
 
 test("App replaces the replay baseline after an accepted replacement attach", async () => {
-  const { store } = await renderApp();
+  const { store } = await renderWithProviders(<App />);
   if (eventSubscriptionReplacement.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
@@ -500,7 +476,7 @@ test("App replaces the replay baseline after an accepted replacement attach", as
 });
 
 test("App classifies from the new snapshot after new launch params and attach", async () => {
-  const { store } = await renderApp();
+  const { store } = await renderWithProviders(<App />);
   if (eventSubscriptionReplacement.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
@@ -603,13 +579,13 @@ test("App disables QR access when launch params are unavailable", async () => {
     return () => undefined;
   });
 
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
 
   await expect.element(screen.getByRole("button", { name: "Scan with phone" })).toBeDisabled();
 });
 
 test("App renders committed transcript messages from an attached projection", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
 
   const options = getHostOptions(startGuiHostConnectionMock);
   attachProjection(options, attachWithCommittedMessages());
@@ -620,7 +596,7 @@ test("App renders committed transcript messages from an attached projection", as
 });
 
 test("App keeps the document pinned to the bottom after attaching a long transcript", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   scrollToDocumentBottom();
@@ -638,7 +614,7 @@ test("App keeps the document pinned to the bottom after attaching a long transcr
 });
 
 test("App keeps the document pinned to the bottom after a live committed message", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   attachProjection(
@@ -675,7 +651,7 @@ test("App keeps the document pinned to the bottom after a live committed message
 });
 
 test("App does not force the document to the bottom after a live message when the user scrolled up", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   attachProjection(
@@ -719,7 +695,7 @@ test("App does not force the document to the bottom after a live message when th
 });
 
 test("App keeps the document pinned to the bottom after a live assistant delta", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   attachProjection(
@@ -779,7 +755,7 @@ test("App keeps the document pinned to the bottom after a live assistant delta",
 });
 
 test("App does not force the document to the bottom after a live assistant delta when the user scrolled up", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   attachProjection(
@@ -838,7 +814,7 @@ test("App does not force the document to the bottom after a live assistant delta
 });
 
 test("App keeps the accepted replay baseline after a mismatched attach", async () => {
-  const { store } = await renderApp();
+  const { store } = await renderWithProviders(<App />);
   if (eventTurnStarted.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
@@ -871,7 +847,7 @@ test("App keeps the accepted replay baseline after a mismatched attach", async (
 });
 
 test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
-  const { store } = await renderApp();
+  const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStarted;
   const projectionClosed = closedBackpressure;
 
@@ -911,7 +887,7 @@ test("App disables composer when host commands become unavailable", async () => 
 });
 
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
-  const { store } = await renderApp();
+  const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventItemStarted;
 
   const options = getHostOptions(startGuiHostConnectionMock);
@@ -927,7 +903,7 @@ test("App records manual reconnect when a projection event breaks the baseline",
 });
 
 test("App closes the host connection when unmounted", async () => {
-  const screen = await renderApp();
+  const screen = await renderWithProviders(<App />);
 
   await screen.unmount();
 
@@ -937,7 +913,7 @@ test("App closes the host connection when unmounted", async () => {
 test("App cancels pending projection delta frame dispatch when unmounted", async () => {
   vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
   try {
-    const screen = await renderApp();
+    const screen = await renderWithProviders(<App />);
     const { store } = screen;
     const options = getHostOptions(startGuiHostConnectionMock);
     const initialItem = agentMessage("agent-raf-cleanup", "");

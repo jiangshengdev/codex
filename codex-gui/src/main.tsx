@@ -6,17 +6,14 @@ import { setupI18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { ThemeProvider } from "./app/ThemeProvider";
 import { store } from "./app/store";
-import {
-  bootstrapLocaleRuntime,
-  LocaleRuntimeProvider,
-} from "./features/locale/LocaleRuntimeProvider";
+import { loadCatalog, resolveInitialLocale } from "./i18n";
 import "./index.css";
 import { router } from "./router";
 
 const container = document.getElementById("root");
 const i18n = setupI18n();
 
-const localeBootstrap = await bootstrapLocaleRuntime(i18n);
+await loadCatalog(resolveInitialLocale(), i18n);
 
 if (container) {
   const root = createRoot(container);
@@ -25,11 +22,9 @@ if (container) {
     <StrictMode>
       <ThemeProvider>
         <I18nProvider i18n={i18n}>
-          <LocaleRuntimeProvider initialState={localeBootstrap}>
-            <Provider store={store}>
-              <RouterProvider router={router} />
-            </Provider>
-          </LocaleRuntimeProvider>
+          <Provider store={store}>
+            <RouterProvider router={router} />
+          </Provider>
         </I18nProvider>
       </ThemeProvider>
     </StrictMode>,

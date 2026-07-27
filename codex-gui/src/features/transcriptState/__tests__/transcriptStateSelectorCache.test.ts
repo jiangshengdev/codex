@@ -1,4 +1,3 @@
-import { setupI18n } from "@lingui/core";
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
@@ -13,17 +12,12 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import {
-  selectTranscriptChunk,
-  selectTranscriptEntry,
-  selectTranscriptLiveItemsForTurn,
-} from "../transcriptStateSlice";
+import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
 import {
   agentMessageDelta,
   agentMessage,
   attachWithTurns,
   baseTurn,
-  collabAgentToolCall,
   itemCompleted,
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -176,45 +170,6 @@ describe("transcript state selector cache", () => {
         },
       ],
     });
-  });
-
-  it("keeps snapshot semantic activity selectors stable when locale changes outside Redux", () => {
-    const store = makeStore();
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-activity-locale", [
-            collabAgentToolCall("wait-activity-locale", "wait", "completed"),
-          ]),
-        ]),
-      ),
-    );
-
-    const transcriptState = store.getState().transcriptState;
-    const entry = selectTranscriptEntry(store.getState(), "wait-activity-locale");
-    const chunk = selectTranscriptChunk(store.getState(), "turn-activity-locale:chunk:0");
-    expect(entry).toStrictEqual({
-      type: "activity",
-      id: "wait-activity-locale",
-      turnId: "turn-activity-locale",
-      copy: { kind: "agentsFinishedWaiting" },
-      details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
-      revision: 0,
-    });
-    expect(chunk?.revision).toBe(0);
-
-    const i18n = setupI18n();
-    i18n.loadAndActivate({ locale: "en", messages: {} });
-    i18n.loadAndActivate({ locale: "zh-CN", messages: {} });
-
-    expect(store.getState().transcriptState).toBe(transcriptState);
-    expect(selectTranscriptEntry(store.getState(), "wait-activity-locale")).toBe(entry);
-    expect(selectTranscriptChunk(store.getState(), "turn-activity-locale:chunk:0")).toBe(chunk);
-    expect(selectTranscriptEntry(store.getState(), "wait-activity-locale")?.revision).toBe(0);
-    expect(selectTranscriptChunk(store.getState(), "turn-activity-locale:chunk:0")?.revision).toBe(
-      0,
-    );
   });
 
   it("returns the store-owned live item array while that turn is unchanged", () => {
