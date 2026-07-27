@@ -91,7 +91,7 @@ describe("transcript state live item lifecycle reducer", () => {
     });
   });
 
-  it("treats a duplicate committed wait itemStarted with a different commit as a complete no-op", () => {
+  it("treats a snapshot duplicate wait itemStarted with a different commit as a complete no-op", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -107,6 +107,7 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     const beforeDuplicateState = store.getState().transcriptState;
+    const entryBeforeDuplicate = selectTranscriptEntry(store.getState(), "wait-started-dedup");
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -118,16 +119,23 @@ describe("transcript state live item lifecycle reducer", () => {
             receiverThreadIds: ["must-not-overwrite"],
           }),
         ),
-        replay: "live",
+        replay: "snapshotDuplicate",
       }),
     );
 
     expect(store.getState().transcriptState).toBe(beforeDuplicateState);
+    expect(selectTranscriptEntry(store.getState(), "wait-started-dedup")).toBe(
+      entryBeforeDuplicate,
+    );
     expect(selectTranscriptEntry(store.getState(), "wait-started-dedup")).toStrictEqual({
       type: "activity",
       id: "wait-started-dedup",
       turnId: "turn-wait-started-dedup",
-      title: "Waiting for agents",
+      copy: {
+        kind: "agentsWaiting",
+        receiver: null,
+        receiverCount: 0,
+      },
       details: [],
       revision: 0,
     });
@@ -168,7 +176,11 @@ describe("transcript state live item lifecycle reducer", () => {
       type: "activity",
       id: "wait-beside-agent",
       turnId: "turn-mixed-started",
-      title: "Waiting for agents",
+      copy: {
+        kind: "agentsWaiting",
+        receiver: null,
+        receiverCount: 0,
+      },
       details: [],
       revision: 0,
     });

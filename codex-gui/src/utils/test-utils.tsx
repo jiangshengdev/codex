@@ -6,8 +6,14 @@ import { render } from "vitest-browser-react";
 import "@/index.css";
 import type { AppStore, RootState } from "@/app/store";
 import { makeStore } from "@/app/store";
+import { LocaleRuntimeProvider } from "@/features/locale/LocaleRuntimeProvider";
+import type {
+  AppLocale,
+  LocalePreference,
+} from "@/features/locale/localeRuntime";
 import { loadCatalog } from "@/i18n";
-import { TestProvider } from "./TestProvider";
+import { I18nProvider } from "@lingui/react";
+import { Provider } from "react-redux";
 
 /**
  * This type extends the default options for
@@ -16,6 +22,8 @@ import { TestProvider } from "./TestProvider";
  * a custom store instance.
  */
 type ExtendedRenderOptions = Omit<RenderOptions, "wrapper"> & {
+  locale?: AppLocale;
+  localePreference?: LocalePreference;
   /**
    * Defines a specific portion or the entire initial state for the Redux store.
    * This is particularly useful for initializing the state in a
@@ -50,18 +58,26 @@ export const renderWithProviders = async (
 ) => {
   const {
     preloadedState = {},
+    locale = "en",
+    localePreference = locale,
     // Automatically create a store instance if no store was passed in
     store = makeStore(preloadedState),
     ...renderOptions
   } = extendedRenderOptions;
 
   const i18n = setupI18n();
-  await loadCatalog("en", i18n);
+  const messages = await loadCatalog(locale);
+  i18n.loadAndActivate({ locale, messages });
+  document.documentElement.lang = locale;
 
   const wrapper = ({ children }: PropsWithChildren) => (
-    <TestProvider i18n={i18n} store={store}>
-      {children}
-    </TestProvider>
+    <I18nProvider i18n={i18n}>
+      <LocaleRuntimeProvider
+        initialState={{ activeLocale: locale, preference: localePreference, warning: null }}
+      >
+        <Provider store={store}>{children}</Provider>
+      </LocaleRuntimeProvider>
+    </I18nProvider>
   );
 
   const renderResult = await render(ui, { wrapper, ...renderOptions });

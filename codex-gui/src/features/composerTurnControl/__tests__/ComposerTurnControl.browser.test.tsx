@@ -1,7 +1,9 @@
-import { Toast } from "@heroui/react";
+import { Toast, toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { ChatUiSessionProvider } from "@/features/chatUiSession/ChatUiSessionProvider";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { AppLocale } from "@/features/locale/localeRuntime";
 import {
   attachBaseline,
   eventTurnStarted,
@@ -43,17 +45,20 @@ function deferred<T>() {
 async function renderAttached(
   commandHandle: GuiHostCommands | null = createGuiHostCommands(),
   guardCompositionEndEnter = false,
+  locale: AppLocale = "en",
 ) {
   const result = await renderWithProviders(
-    <>
+    <ChatUiSessionProvider>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={commandHandle}
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={attachedStatus}
         launchParams={null}
+        onOpenSettings={() => undefined}
       />
-    </>,
+    </ChatUiSessionProvider>,
+    { locale },
   );
   result.store.dispatch(launchThreadIdRecorded(threadId));
   result.store.dispatch(attachedThreadIdObserved(threadId));
@@ -159,15 +164,16 @@ test("disables controls before attach", async () => {
   expect.hasAssertions();
 
   const screen = await renderWithProviders(
-    <>
+    <ChatUiSessionProvider>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={createGuiHostCommands()}
         guardCompositionEndEnter={false}
         guiHostStatus={{ label: "connecting" }}
         launchParams={null}
+        onOpenSettings={() => undefined}
       />
-    </>,
+    </ChatUiSessionProvider>,
   );
 
   await expectComposerDisabled(screen);
@@ -209,8 +215,23 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
+  const settingsButton = screen.getByRole("button", { name: "Settings" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
+  await expect.element(settingsButton).toBeEnabled();
+  await expect.element(settingsButton).toHaveClass("button--icon-only");
+  const secondaryActions = screen.container.querySelector(
+    "[data-composer-secondary-actions]",
+  );
+  if (!(secondaryActions instanceof HTMLElement)) {
+    throw new Error("composer secondary actions must render");
+  }
+  expect(secondaryActions.contains(qrButton.element())).toBe(true);
+  expect(secondaryActions.contains(settingsButton.element())).toBe(true);
+  expect(settingsButton.element().dataset.slot).toBe("tooltip-trigger");
+  settingsButton.element().focus();
+  await expect.element(settingsButton).toHaveFocus();
+  await expect.element(screen.getByRole("tooltip")).toHaveTextContent("Settings");
   expect(actions).toEqual(["Stop", "Send"]);
 });
 
@@ -571,6 +592,83 @@ test("manual reconnect disables composer operations", async () => {
 
   await expectComposerDisabled(screen);
 });
+
+test.each([
+  {
+    locale: "en" as const,
+    composerLabel: "Message composer",
+    placeholder: "Message Codex",
+    sendLabel: "Send",
+    stopLabel: "Stop",
+    sendFailure: "Message failed to send",
+    stopFailure: "Stop failed",
+  },
+  {
+    locale: "zh-CN" as const,
+    composerLabel: "消息编辑器",
+    placeholder: "向 Codex 发送消息",
+    sendLabel: "发送",
+    stopLabel: "停止",
+    sendFailure: "消息发送失败",
+    stopFailure: "停止失败",
+  },
+])(
+  "localizes composer controls and failure toasts in $locale",
+  async ({
+    composerLabel,
+    locale,
+    placeholder,
+    sendFailure,
+    sendLabel,
+    stopFailure,
+    stopLabel,
+  }) => {
+    toast.clear();
+    const commandHandle = createGuiHostCommands();
+    vi.mocked(commandHandle.startTurn).mockRejectedValueOnce(new Error("network failed"));
+    vi.mocked(commandHandle.interruptTurn).mockRejectedValueOnce(
+      new Error("interrupt failed"),
+    );
+    const screen = await renderAttached(commandHandle, false, locale);
+    const composer = screen.getByPlaceholder(placeholder);
+    const expectLocalizedToast = async (
+      title: string,
+      description: string,
+    ): Promise<void> => {
+      const titleElement = screen.getByText(title);
+      await expect.element(titleElement).toBeVisible();
+      const toastElement = titleElement.element().closest<HTMLElement>('[data-slot="toast"]');
+      if (toastElement == null) {
+        throw new Error(`toast for ${title} must render`);
+      }
+      expect(toastElement.textContent).toContain(description);
+    };
+
+    await expect
+      .element(screen.getByRole("region", { name: composerLabel }))
+      .toBeVisible();
+    await expect.element(composer).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: stopLabel })).toBeDisabled();
+    await expect.element(screen.getByRole("button", { name: sendLabel })).toBeDisabled();
+
+    await composer.fill("Keep this draft");
+    await screen.getByRole("button", { name: sendLabel }).click();
+
+    await expect.element(composer).toHaveValue("Keep this draft");
+    await expectLocalizedToast(sendFailure, "network failed");
+
+    screen.store.dispatch(
+      threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+    );
+    const stopButton = screen.getByRole("button", { name: stopLabel });
+    await expect.element(stopButton).toBeEnabled();
+    await stopButton.click();
+
+    await expectLocalizedToast(stopFailure, "interrupt failed");
+    await expect.element(composer).toHaveValue("Keep this draft");
+    toast.clear();
+  },
+);
 
 test("send failure keeps draft and shows a toast", async () => {
   const commandHandle = createGuiHostCommands();

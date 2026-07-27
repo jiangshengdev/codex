@@ -1,5 +1,5 @@
-import { render } from "vitest-browser-react";
 import { expect, test, vi } from "vitest";
+import { renderWithProviders } from "@/utils/test-utils";
 
 vi.hoisted(() => {
   vi.stubGlobal("isSecureContext", false);
@@ -13,42 +13,54 @@ vi.hoisted(() => {
 
 import { LiveMarkdownText } from "../LiveMarkdownText";
 import { MarkdownText } from "../MarkdownText";
+import {
+  streamdownControlLocales,
+  streamdownControlMarkdown,
+} from "./streamdownControlTestSupport";
 
-const markdown = [
-  "```ts",
-  'const value: string = "download me";',
-  "```",
-  "",
-  "| Name | Value |",
-  "| --- | --- |",
-  "| Copy | Unavailable |",
-].join("\n");
+test.each(streamdownControlLocales)(
+  "keeps copy controls unavailable with localized $locale downloads in an insecure context",
+  async ({ labels, locale }) => {
+    const committed = await renderWithProviders(
+      <MarkdownText source={streamdownControlMarkdown} />,
+      { locale },
+    );
 
-test("keeps copy controls unavailable when the module initializes in an insecure context", async () => {
-  const committed = await render(<MarkdownText source={markdown} />);
+    await expect
+      .element(
+        committed.locator.getByRole("button", { name: labels.downloadFile, exact: true }),
+      )
+      .toBeVisible();
+    await expect
+      .element(
+        committed.locator.getByRole("button", { name: labels.downloadTable, exact: true }),
+      )
+      .toBeVisible();
 
-  await expect
-    .poll(
-      () =>
-        committed.container.querySelector('[data-streamdown="code-block-download-button"]') !==
-          null && committed.container.querySelector('button[title="Download table"]') !== null,
-    )
-    .toBe(true);
+    await expect
+      .element(committed.locator.getByRole("button", { name: labels.copyCode, exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(committed.locator.getByRole("button", { name: labels.copyTable, exact: true }))
+      .not.toBeInTheDocument();
 
-  expect(
-    committed.container.querySelector('[data-streamdown="code-block-copy-button"]'),
-  ).toBeNull();
-  expect(committed.container.querySelector('button[title="Copy table"]')).toBeNull();
+    vi.stubGlobal("isSecureContext", true);
+    const live = await renderWithProviders(<LiveMarkdownText source={streamdownControlMarkdown} />, {
+      locale,
+    });
 
-  vi.stubGlobal("isSecureContext", true);
-  const live = await render(<LiveMarkdownText source={markdown} />);
+    await expect
+      .element(live.locator.getByRole("button", { name: labels.downloadFile, exact: true }))
+      .toBeVisible();
+    await expect
+      .element(live.locator.getByRole("button", { name: labels.downloadTable, exact: true }))
+      .toBeVisible();
 
-  await expect
-    .poll(
-      () => live.container.querySelector('[data-streamdown="code-block-download-button"]') !== null,
-    )
-    .toBe(true);
-
-  expect(live.container.querySelector('[data-streamdown="code-block-copy-button"]')).toBeNull();
-  expect(live.container.querySelector('button[title="Copy table"]')).toBeNull();
-});
+    await expect
+      .element(live.locator.getByRole("button", { name: labels.copyCode, exact: true }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(live.locator.getByRole("button", { name: labels.copyTable, exact: true }))
+      .not.toBeInTheDocument();
+  },
+);

@@ -188,11 +188,16 @@ describe("transcript state committed projection reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "wait-stable")).toStrictEqual({
+    const entryBeforeCompletion = selectTranscriptEntry(store.getState(), "wait-stable");
+    expect(entryBeforeCompletion).toStrictEqual({
       type: "activity",
       id: "wait-stable",
       turnId: "turn-wait-position",
-      title: "Waiting for agents",
+      copy: {
+        kind: "agentsWaiting",
+        receiver: null,
+        receiverCount: 0,
+      },
       details: [],
       revision: 0,
     });
@@ -241,15 +246,22 @@ describe("transcript state committed projection reducer", () => {
       middleEntryCount: 3,
       finalAssistantEntryIds: [],
     });
-    expect(selectTranscriptEntry(store.getState(), "wait-stable")).toStrictEqual({
+    const entryAfterCompletion = selectTranscriptEntry(store.getState(), "wait-stable");
+    const chunkAfterCompletion = selectTranscriptChunk(
+      store.getState(),
+      "turn-wait-position:chunk:0",
+    );
+    expect(entryAfterCompletion).not.toBe(entryBeforeCompletion);
+    expect(entryAfterCompletion).toStrictEqual({
       type: "activity",
       id: "wait-stable",
       turnId: "turn-wait-position",
-      title: "Finished waiting",
-      details: ["No agents completed yet"],
+      copy: { kind: "agentsFinishedWaiting" },
+      details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
       revision: 1,
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-wait-position:chunk:0")).toStrictEqual({
+    expect(chunkAfterCompletion).not.toBe(chunkBeforeCompletion);
+    expect(chunkAfterCompletion).toStrictEqual({
       id: "turn-wait-position:chunk:0",
       turnId: "turn-wait-position",
       revision: (chunkBeforeCompletion?.revision ?? 0) + 1,
@@ -268,8 +280,8 @@ describe("transcript state committed projection reducer", () => {
           type: "activity",
           id: "wait-stable",
           turnId: "turn-wait-position",
-          title: "Finished waiting",
-          details: ["No agents completed yet"],
+          copy: { kind: "agentsFinishedWaiting" },
+          details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
           revision: 1,
         },
         {
@@ -324,8 +336,8 @@ describe("transcript state committed projection reducer", () => {
           type: "activity",
           id: "wait-completed-only",
           turnId: "turn-wait-completed-only",
-          title: "Finished waiting",
-          details: ["No agents completed yet"],
+          copy: { kind: "agentsFinishedWaiting" },
+          details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
           revision: 0,
         },
       ],
@@ -615,9 +627,7 @@ describe("transcript state committed projection reducer", () => {
         replay: "live",
       }),
     );
-    let firstChunkAfterLimit: ReturnType<typeof selectTranscriptChunk> | null = null;
-
-    for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
+    for (let index = 0; index < TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
       store.dispatch(
         threadRuntimeEventBuffered({
           notification: itemCompleted(
@@ -629,14 +639,22 @@ describe("transcript state committed projection reducer", () => {
           replay: "live",
         }),
       );
-
-      if (index === TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1) {
-        firstChunkAfterLimit = selectTranscriptChunk(
-          store.getState(),
-          "turn-middle-chunked:chunk:0",
-        );
-      }
     }
+    const firstChunkAfterLimit = selectTranscriptChunk(
+      store.getState(),
+      "turn-middle-chunked:chunk:0",
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-middle-activity",
+          "turn-middle-chunked",
+          collabAgentToolCall("wait-middle-activity", "wait", "completed"),
+        ),
+        replay: "live",
+      }),
+    );
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
@@ -662,7 +680,16 @@ describe("transcript state committed projection reducer", () => {
     ).toHaveLength(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT);
     expect(
       selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:1")?.entries,
-    ).toHaveLength(1);
+    ).toStrictEqual([
+      {
+        type: "activity",
+        id: "wait-middle-activity",
+        turnId: "turn-middle-chunked",
+        copy: { kind: "agentsFinishedWaiting" },
+        details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+        revision: 0,
+      },
+    ]);
     expect(selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")).toBe(
       firstChunkAfterLimit,
     );

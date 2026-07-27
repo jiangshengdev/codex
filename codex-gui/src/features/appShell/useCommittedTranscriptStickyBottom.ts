@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { useAppSelector } from "@/app/hooks";
+import { useChatUiSession } from "@/features/chatUiSession/ChatUiSessionProvider";
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptLiveScrollPulse,
@@ -15,11 +16,47 @@ const scrollDocumentToBottom = (): void => {
   scroller?.scrollTo({ top: scroller.scrollHeight });
 };
 
-export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement | null> {
+const scrollDocumentTo = (scrollTop: number): void => {
+  documentScroller()?.scrollTo({ top: scrollTop });
+};
+
+type CommittedTranscriptStickyBottom = Readonly<{
+  captureScrollSnapshot: () => void;
+  transcriptBottomRef: RefObject<HTMLDivElement | null>;
+}>;
+
+export function useCommittedTranscriptStickyBottom(): CommittedTranscriptStickyBottom {
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const pinnedToBottomRef = useRef(true);
+  const {
+    captureScrollSnapshot: captureSessionScrollSnapshot,
+    completeScrollRestore,
+    consumeScrollRestore,
+  } = useChatUiSession();
   const scrollCommitKey = useAppSelector(selectCommittedTranscriptScrollCommitKey);
   const liveScrollPulse = useAppSelector(selectTranscriptLiveScrollPulse);
+
+  const captureScrollSnapshot = useCallback((): void => {
+    captureSessionScrollSnapshot({
+      isStickyBottom: pinnedToBottomRef.current,
+      scrollTop: documentScroller()?.scrollTop ?? 0,
+    });
+  }, [captureSessionScrollSnapshot]);
+
+  useLayoutEffect(() => {
+    const restore = consumeScrollRestore();
+    if (restore == null) {
+      return;
+    }
+
+    pinnedToBottomRef.current = restore.type === "stickyBottom";
+    if (restore.type === "stickyBottom") {
+      scrollDocumentToBottom();
+    } else {
+      scrollDocumentTo(restore.scrollTop);
+    }
+    completeScrollRestore();
+  }, [completeScrollRestore, consumeScrollRestore]);
 
   useEffect(() => {
     const sentinel = bottomSentinelRef.current;
@@ -46,5 +83,5 @@ export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement |
     }
   }, [liveScrollPulse, scrollCommitKey]);
 
-  return bottomSentinelRef;
+  return { captureScrollSnapshot, transcriptBottomRef: bottomSentinelRef };
 }

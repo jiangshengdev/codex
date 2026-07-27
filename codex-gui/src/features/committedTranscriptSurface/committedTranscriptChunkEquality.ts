@@ -1,6 +1,71 @@
 import type { TranscriptChunkView } from "@/features/transcriptState/transcriptStateSlice";
 
 type TranscriptChunkEntry = TranscriptChunkView["entries"][number];
+type TranscriptActivityEntry = Extract<TranscriptChunkEntry, { type: "activity" }>;
+type TranscriptActivityCopy = TranscriptActivityEntry["copy"];
+type TranscriptActivityDetail = TranscriptActivityEntry["details"][number];
+
+const areTranscriptActivityCopiesEqual = (
+  previous: TranscriptActivityCopy,
+  next: TranscriptActivityCopy,
+): boolean => {
+  switch (previous.kind) {
+    case "agentStarted":
+    case "agentInteracted":
+    case "agentInterrupted":
+      return next.kind === previous.kind && previous.agentPath === next.agentPath;
+    case "agentSpawnFailed":
+    case "agentsFinishedWaiting":
+    case "agentResumeFailed":
+    case "noAgentsCompletedYet":
+      return next.kind === previous.kind;
+    case "agentSpawned":
+      return (
+        next.kind === "agentSpawned" &&
+        previous.receiver === next.receiver &&
+        previous.model === next.model &&
+        previous.reasoningEffort === next.reasoningEffort
+      );
+    case "inputSent":
+    case "agentResuming":
+    case "agentResumed":
+    case "agentClosed":
+      return next.kind === previous.kind && previous.receiver === next.receiver;
+    case "agentsWaiting":
+      return (
+        next.kind === "agentsWaiting" &&
+        previous.receiver === next.receiver &&
+        previous.receiverCount === next.receiverCount
+      );
+    case "agentStatus":
+      return (
+        next.kind === "agentStatus" &&
+        previous.receiver === next.receiver &&
+        previous.status === next.status &&
+        previous.message === next.message
+      );
+  }
+
+  previous satisfies never;
+  return false;
+};
+
+const areTranscriptActivityDetailsEqual = (
+  previous: TranscriptActivityDetail,
+  next: TranscriptActivityDetail | undefined,
+): boolean => {
+  switch (previous.kind) {
+    case "raw":
+      return next?.kind === "raw" && previous.text === next.text;
+    case "copy":
+      return (
+        next?.kind === "copy" && areTranscriptActivityCopiesEqual(previous.copy, next.copy)
+      );
+  }
+
+  previous satisfies never;
+  return false;
+};
 
 const areTranscriptChunkEntriesEqual = (
   previous: TranscriptChunkEntry,
@@ -31,9 +96,11 @@ const areTranscriptChunkEntriesEqual = (
     case "activity":
       return (
         next.type === "activity" &&
-        previous.title === next.title &&
+        areTranscriptActivityCopiesEqual(previous.copy, next.copy) &&
         previous.details.length === next.details.length &&
-        previous.details.every((detail, index) => detail === next.details[index])
+        previous.details.every((detail, index) =>
+          areTranscriptActivityDetailsEqual(detail, next.details[index]),
+        )
       );
   }
 
