@@ -44,7 +44,6 @@ function deferred<T>() {
 async function renderAttached(
   commandHandle: GuiHostCommands | null = createGuiHostCommands(),
   guardCompositionEndEnter = false,
-  onOpenSettings: () => void = vi.fn<() => void>(),
 ) {
   const result = await renderWithProviders(
     <ChatUiSessionProvider>
@@ -54,7 +53,6 @@ async function renderAttached(
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={attachedStatus}
         launchParams={null}
-        onOpenSettings={onOpenSettings}
       />
     </ChatUiSessionProvider>,
   );
@@ -169,7 +167,6 @@ test("disables controls before attach", async () => {
         guardCompositionEndEnter={false}
         guiHostStatus={{ label: "connecting" }}
         launchParams={null}
-        onOpenSettings={vi.fn<() => void>()}
       />
     </ChatUiSessionProvider>,
   );
@@ -178,8 +175,7 @@ test("disables controls before attach", async () => {
 });
 
 test("renders a white composer panel with a primary textarea and actions", async () => {
-  const onOpenSettings = vi.fn<() => void>();
-  const screen = await renderAttached(createGuiHostCommands(), false, onOpenSettings);
+  const screen = await renderAttached();
   const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
   if (!(composerShell instanceof HTMLElement)) {
     throw new Error("composer shell must render");
@@ -214,25 +210,8 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
-  const settingsButton = screen.getByRole("button", { name: "Settings" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
-  await expect.element(settingsButton).toBeEnabled();
-  await expect.element(settingsButton).toHaveClass("button--icon-only");
-  const secondaryActions = screen.container.querySelector(
-    "[data-composer-secondary-actions]",
-  );
-  if (!(secondaryActions instanceof HTMLElement)) {
-    throw new Error("composer secondary actions must render");
-  }
-  expect(secondaryActions.contains(qrButton.element())).toBe(true);
-  expect(secondaryActions.contains(settingsButton.element())).toBe(true);
-  expect(screen.container.querySelectorAll('button[aria-label="Settings"]')).toHaveLength(1);
-  settingsButton.element().focus();
-  await expect.element(settingsButton).toHaveFocus();
-  await expect.element(screen.getByRole("tooltip")).toHaveTextContent("Settings");
-  await settingsButton.click();
-  expect(onOpenSettings).toHaveBeenCalledTimes(1);
   expect(actions).toEqual(["Stop", "Send"]);
 });
 
