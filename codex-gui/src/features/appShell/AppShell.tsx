@@ -45,7 +45,7 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
 }
 
 export function AppShell({ status, commands, launchParams }: AppShellProps) {
-  const transcriptBottomRef = useCommittedTranscriptStickyBottom();
+  const { transcriptBottomRef } = useCommittedTranscriptStickyBottom();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
   const hasTopNotice = status.label === "error";
 

@@ -3,6 +3,7 @@ import { Outlet } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { GuiHostConnectionBridge } from "@/features/appShell/GuiHostConnectionBridge";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import { ChatUiSessionProvider } from "@/features/chatUiSession/ChatUiSessionProvider";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { AppRuntimeContext } from "./AppRuntimeContext";
 
@@ -25,7 +26,9 @@ export function AppRuntimeLayout() {
         setLaunchParams={setLaunchParams}
       />
       <Toast.Provider placement="top" />
-      <Outlet />
+      <ChatUiSessionProvider>
+        <Outlet />
+      </ChatUiSessionProvider>
     </AppRuntimeContext>
   );
 }
