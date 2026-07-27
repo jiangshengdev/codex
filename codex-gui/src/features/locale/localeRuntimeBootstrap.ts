@@ -16,11 +16,7 @@ export type LocaleRuntimeBootstrap = {
 
 export async function bootstrapLocaleRuntime(i18n: I18n): Promise<LocaleRuntimeBootstrap> {
   const { preference, warning } = readLocalePreference(localStorage);
-  const activeLocale = resolveActiveLocale(
-    preference,
-    navigator.languages,
-    navigator.language,
-  );
+  const activeLocale = resolveActiveLocale(preference, navigator.languages, navigator.language);
   const messages = await loadCatalog(activeLocale);
   i18n.loadAndActivate({ locale: activeLocale, messages });
   document.documentElement.lang = activeLocale;

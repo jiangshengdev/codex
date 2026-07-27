@@ -31,9 +31,7 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const routeTree = rootRoute.addChildren([
-  appRuntimeRoute.addChildren([indexRoute, settingsRoute]),
-]);
+const routeTree = rootRoute.addChildren([appRuntimeRoute.addChildren([indexRoute, settingsRoute])]);
 
 export type CreateAppRouterOptions = {
   history?: RouterHistory;

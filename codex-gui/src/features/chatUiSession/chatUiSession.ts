@@ -49,9 +49,7 @@ export function captureChatScrollSnapshot(
   };
 }
 
-export function consumeChatScrollRestore(
-  state: ChatUiSessionState,
-): ChatScrollRestoreConsumption {
+export function consumeChatScrollRestore(state: ChatUiSessionState): ChatScrollRestoreConsumption {
   if (state.pendingRestore !== "pending") {
     return {
       nextState: state,

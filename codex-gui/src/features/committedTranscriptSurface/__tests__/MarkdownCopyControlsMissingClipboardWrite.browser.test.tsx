@@ -23,10 +23,13 @@ test.each(streamdownControlLocales)(
       <MarkdownText source={streamdownControlMarkdown} />,
       { locale, messages },
     );
-    const live = await renderWithProviders(<LiveMarkdownText source={streamdownControlMarkdown} />, {
-      locale,
-      messages,
-    });
+    const live = await renderWithProviders(
+      <LiveMarkdownText source={streamdownControlMarkdown} />,
+      {
+        locale,
+        messages,
+      },
+    );
 
     for (const screen of [committed, live]) {
       await expect

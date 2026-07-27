@@ -23,7 +23,10 @@ const streamdownTranslationDescriptors = {
   copied: msg({ comment: "Confirmation shown after copying Markdown content", message: "Copied" }),
   copyCode: msg({ comment: "Button that copies a rendered code block", message: "Copy Code" }),
   copyLink: msg({ comment: "Button that copies a rendered link", message: "Copy link" }),
-  copyTable: msg({ comment: "Button that copies a rendered Markdown table", message: "Copy table" }),
+  copyTable: msg({
+    comment: "Button that copies a rendered Markdown table",
+    message: "Copy table",
+  }),
   copyTableAsCsv: msg({
     comment: "Menu item that copies a rendered table in CSV format",
     message: "Copy table as CSV",

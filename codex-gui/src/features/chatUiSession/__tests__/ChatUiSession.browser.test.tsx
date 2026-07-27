@@ -73,25 +73,15 @@ const emitCommittedMessage = (
   emitProjectionEvent(
     options,
     eventWithEnvelope(
-      itemCompleted(
-        eventItemCompleted,
-        commitId,
-        turnId,
-        agentMessage(itemId, text),
-      ),
+      itemCompleted(eventItemCompleted, commitId, turnId, agentMessage(itemId, text)),
       { parentCommitId },
     ),
   );
 };
 
 function ChatUiSessionProbe() {
-  const {
-    captureScrollSnapshot,
-    completeScrollRestore,
-    consumeScrollRestore,
-    draft,
-    setDraft,
-  } = useChatUiSession();
+  const { captureScrollSnapshot, completeScrollRestore, consumeScrollRestore, draft, setDraft } =
+    useChatUiSession();
   const [restoreDescription, setRestoreDescription] = useState("No restore");
 
   return (
@@ -156,8 +146,7 @@ function StickyBottomSurface({
   contentHeight: number;
   onUnmount: () => void;
 }) {
-  const { captureScrollSnapshot, transcriptBottomRef } =
-    useCommittedTranscriptStickyBottom();
+  const { captureScrollSnapshot, transcriptBottomRef } = useCommittedTranscriptStickyBottom();
 
   return (
     <>
@@ -286,9 +275,7 @@ test("keeps the chat session and projection current while the chat route DOM is 
   await expect
     .element(screen.getByPlaceholder("Message Codex"))
     .toHaveValue("Draft kept while changing settings");
-  await expect
-    .element(screen.getByText("Message received while settings were open"))
-    .toBeVisible();
+  await expect.element(screen.getByText("Message received while settings were open")).toBeVisible();
 });
 
 test("exposes a sticky-bottom restore exactly once through the session hook", async () => {

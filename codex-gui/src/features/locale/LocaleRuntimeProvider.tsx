@@ -1,19 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type PropsWithChildren,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
 import type { I18n } from "@lingui/core";
 import { useLingui } from "@lingui/react/macro";
 import { toast } from "@heroui/react";
 import { loadCatalog } from "@/i18n";
-import {
-  LocaleRuntimeContext,
-  type AppLocaleRuntime,
-} from "./LocaleRuntimeContext";
+import { LocaleRuntimeContext, type AppLocaleRuntime } from "./LocaleRuntimeContext";
 import {
   isAppLocale,
   readLocalePreference,
@@ -40,7 +30,11 @@ function errorDescription(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function activateLocale(i18n: I18n, locale: AppLocale, messages: Awaited<ReturnType<typeof loadCatalog>>) {
+function activateLocale(
+  i18n: I18n,
+  locale: AppLocale,
+  messages: Awaited<ReturnType<typeof loadCatalog>>,
+) {
   i18n.loadAndActivate({ locale, messages });
   document.documentElement.lang = locale;
 }
@@ -140,8 +134,7 @@ export function LocaleRuntimeProvider({ children, initialState }: LocaleRuntimeP
   const setPreference = useCallback(
     async (nextPreference: LocalePreference): Promise<void> => {
       requestedPreferenceRef.current = nextPreference;
-      const targetLocale =
-        nextPreference === "system" ? currentSystemLocale() : nextPreference;
+      const targetLocale = nextPreference === "system" ? currentSystemLocale() : nextPreference;
       await requestLocale(targetLocale, nextPreference);
     },
     [requestLocale],

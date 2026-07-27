@@ -43,8 +43,7 @@ export function useCommittedTranscriptStickyBottom(): CommittedTranscriptStickyB
       return;
     }
     captureSessionScrollSnapshot({
-      isStickyBottom:
-        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 4,
+      isStickyBottom: scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 4,
       scrollTop: scroller.scrollTop,
     });
   }, [captureSessionScrollSnapshot]);
