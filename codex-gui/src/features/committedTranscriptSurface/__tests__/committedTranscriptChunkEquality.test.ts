@@ -33,13 +33,19 @@ const statusEntry = (
 });
 
 const activityEntry = (
-  overrides: Partial<Pick<TranscriptActivityEntry, "title" | "details" | "revision">> = {},
+  overrides: Partial<Pick<TranscriptActivityEntry, "copy" | "details" | "revision">> = {},
 ): TranscriptActivityEntry => ({
   type: "activity",
   id: "activity-1",
   turnId: "turn-1",
-  title: "Finished waiting",
-  details: ["No agents completed yet"],
+  copy: { kind: "agentSpawned", receiver: "receiver-a", model: "gpt-5", reasoningEffort: "high" },
+  details: [
+    { kind: "raw", text: "Review the transcript state" },
+    {
+      kind: "copy",
+      copy: { kind: "agentStatus", receiver: "receiver-a", status: "running", message: null },
+    },
+  ],
   revision: 0,
   ...overrides,
 });
@@ -122,28 +128,59 @@ describe("areTranscriptChunkViewsEqual", () => {
     ).toBe(false);
   });
 
-  it("treats fresh activity objects as equal when all rendered fields match", () => {
+  it("treats fresh semantic activity objects as equal when all rendered fields match", () => {
     const previous = chunk({ entries: [activityEntry()] });
     const next = chunk({ entries: [activityEntry()] });
 
     expect(areTranscriptChunkViewsEqual(previous, next)).toBe(true);
   });
 
-  it("detects activity title, details, and revision changes", () => {
+  it("detects semantic activity copy, details, and revision changes", () => {
     const previous = chunk({ entries: [activityEntry()] });
-
-    expect(
-      areTranscriptChunkViewsEqual(
-        previous,
-        chunk({ entries: [activityEntry({ title: "Waiting for agents" })] }),
-      ),
-    ).toBe(false);
-    expect(
-      areTranscriptChunkViewsEqual(
-        previous,
-        chunk({ entries: [activityEntry({ details: ["agent-a: Completed"] })] }),
-      ),
-    ).toBe(false);
+    const changes: TranscriptActivityEntry[] = [
+      activityEntry({ copy: { kind: "agentSpawnFailed" } }),
+      activityEntry({
+        copy: {
+          kind: "agentSpawned",
+          receiver: "receiver-b",
+          model: "gpt-5",
+          reasoningEffort: "high",
+        },
+      }),
+      activityEntry({
+        copy: {
+          kind: "agentSpawned",
+          receiver: "receiver-a",
+          model: "gpt-5-mini",
+          reasoningEffort: "high",
+        },
+      }),
+      activityEntry({
+        copy: {
+          kind: "agentSpawned",
+          receiver: "receiver-a",
+          model: "gpt-5",
+          reasoningEffort: "medium",
+        },
+      }),
+      activityEntry({ details: [{ kind: "raw", text: "Updated prompt" }] }),
+      activityEntry({
+        details: [
+          {
+            kind: "copy",
+            copy: {
+              kind: "agentStatus",
+              receiver: "receiver-b",
+              status: "completed",
+              message: "Done",
+            },
+          },
+        ],
+      }),
+    ];
+    for (const changed of changes) {
+      expect(areTranscriptChunkViewsEqual(previous, chunk({ entries: [changed] }))).toBe(false);
+    }
     expect(
       areTranscriptChunkViewsEqual(previous, chunk({ entries: [activityEntry({ revision: 1 })] })),
     ).toBe(false);

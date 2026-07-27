@@ -188,11 +188,16 @@ describe("transcript state committed projection reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "wait-stable")).toStrictEqual({
+    const entryBeforeCompletion = selectTranscriptEntry(store.getState(), "wait-stable");
+    expect(entryBeforeCompletion).toStrictEqual({
       type: "activity",
       id: "wait-stable",
       turnId: "turn-wait-position",
-      title: "Waiting for agents",
+      copy: {
+        kind: "agentsWaiting",
+        receiver: null,
+        receiverCount: 0,
+      },
       details: [],
       revision: 0,
     });
@@ -241,15 +246,22 @@ describe("transcript state committed projection reducer", () => {
       middleEntryCount: 3,
       finalAssistantEntryIds: [],
     });
-    expect(selectTranscriptEntry(store.getState(), "wait-stable")).toStrictEqual({
+    const entryAfterCompletion = selectTranscriptEntry(store.getState(), "wait-stable");
+    const chunkAfterCompletion = selectTranscriptChunk(
+      store.getState(),
+      "turn-wait-position:chunk:0",
+    );
+    expect(entryAfterCompletion).not.toBe(entryBeforeCompletion);
+    expect(entryAfterCompletion).toStrictEqual({
       type: "activity",
       id: "wait-stable",
       turnId: "turn-wait-position",
-      title: "Finished waiting",
-      details: ["No agents completed yet"],
+      copy: { kind: "agentsFinishedWaiting" },
+      details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
       revision: 1,
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-wait-position:chunk:0")).toStrictEqual({
+    expect(chunkAfterCompletion).not.toBe(chunkBeforeCompletion);
+    expect(chunkAfterCompletion).toStrictEqual({
       id: "turn-wait-position:chunk:0",
       turnId: "turn-wait-position",
       revision: (chunkBeforeCompletion?.revision ?? 0) + 1,
@@ -268,8 +280,8 @@ describe("transcript state committed projection reducer", () => {
           type: "activity",
           id: "wait-stable",
           turnId: "turn-wait-position",
-          title: "Finished waiting",
-          details: ["No agents completed yet"],
+          copy: { kind: "agentsFinishedWaiting" },
+          details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
           revision: 1,
         },
         {
@@ -324,8 +336,8 @@ describe("transcript state committed projection reducer", () => {
           type: "activity",
           id: "wait-completed-only",
           turnId: "turn-wait-completed-only",
-          title: "Finished waiting",
-          details: ["No agents completed yet"],
+          copy: { kind: "agentsFinishedWaiting" },
+          details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
           revision: 0,
         },
       ],
