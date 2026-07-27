@@ -4,9 +4,11 @@ import {
   agentMessageDelta,
   attachWithTurns,
   baseTurn,
+  collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  subAgentActivity,
   textInput,
   turnStarted,
   userMessage,
@@ -65,6 +67,211 @@ test("renders committed user and assistant messages from an attached baseline", 
   ).toStrictEqual([
     { isSecondary: true, text: "Hello surface" },
     { isSecondary: false, text: "Committed response" },
+  ]);
+});
+
+test("renders ordered transparent sub-agent activity cards without exposing private ids", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-sub-agent-activity", [
+          userMessage("user-before-activity", [textInput("Review the activity")]),
+          subAgentActivity("activity-started-private", "started", "/root/reviewer", {
+            agentThreadId: "agent-thread-started-private",
+          }),
+          agentMessage("agent-between-activity", "Checking the transcript", "commentary"),
+          subAgentActivity("activity-interacted-private", "interacted", "/root/reviewer", {
+            agentThreadId: "agent-thread-interacted-private",
+          }),
+          subAgentActivity("activity-interrupted-private", "interrupted", "/root/reviewer", {
+            agentThreadId: "agent-thread-interrupted-private",
+          }),
+        ]),
+      ]),
+    ),
+  );
+
+  const activityTitles = [
+    "Started /root/reviewer",
+    "Interacted with /root/reviewer",
+    "Interrupted /root/reviewer",
+  ];
+  for (const title of activityTitles) {
+    const activity = screen.getByRole("article", { name: title });
+    await expect.element(activity).toBeVisible();
+    await expect.element(activity).toHaveClass("card--transparent");
+  }
+
+  await expect
+    .element(screen.getByRole("button", { name: "Intermediate updates · 4 items" }))
+    .toBeDisabled();
+  for (const privateId of [
+    "activity-started-private",
+    "activity-interacted-private",
+    "activity-interrupted-private",
+    "agent-thread-started-private",
+    "agent-thread-interacted-private",
+    "agent-thread-interrupted-private",
+  ]) {
+    await expect.element(screen.getByText(privateId)).not.toBeInTheDocument();
+  }
+
+  const entries = Array.from(document.querySelectorAll<HTMLElement>(".committed-transcript-entry"));
+  expect(entries.map((entry) => entry.textContent)).toStrictEqual([
+    "Review the activity",
+    "Started /root/reviewer",
+    "Checking the transcript",
+    "Interacted with /root/reviewer",
+    "Interrupted /root/reviewer",
+  ]);
+  expect(entries[0]?.classList.contains("card--secondary")).toBe(true);
+  expect(entries[2]?.classList.contains("card--default")).toBe(true);
+
+  const activityCards = Array.from(
+    document.querySelectorAll<HTMLElement>(".committed-transcript-entry-activity"),
+  );
+  expect(activityCards).toHaveLength(3);
+  for (const activityCard of activityCards) {
+    expect(activityCard.querySelector(".card__description")).toBeNull();
+    expect(
+      activityCard.querySelector(
+        'a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ).toBeNull();
+  }
+});
+
+test("updates one committed wait activity from started to completed in place", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: turnStarted(eventTurnStarted, "commit-turn-wait", inProgressTurn("turn-wait")),
+      replay: "live",
+    }),
+  );
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemStarted(
+        eventItemStarted,
+        "commit-wait-started",
+        "turn-wait",
+        collabAgentToolCall("wait-browser", "wait", "inProgress", {
+          senderThreadId: "sender-thread-private",
+        }),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByRole("article", { name: "Waiting for agents" })).toBeVisible();
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Intermediate updates · 1 item" }))
+    .toBeDisabled();
+  for (const privateId of ["wait-browser", "sender-thread-private"]) {
+    await expect.element(screen.getByText(privateId)).not.toBeInTheDocument();
+  }
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-after-wait",
+        "turn-wait",
+        agentMessage("agent-after-wait", "After waiting marker", "commentary"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("After waiting marker")).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Intermediate updates · 2 items" }))
+    .toBeDisabled();
+  expect(
+    Array.from(document.querySelectorAll<HTMLElement>(".committed-transcript-entry")).map(
+      (entry) => entry.textContent,
+    ),
+  ).toStrictEqual(["Waiting for agents", "After waiting marker"]);
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-wait-completed",
+        "turn-wait",
+        collabAgentToolCall("wait-browser", "wait", "completed", {
+          senderThreadId: "sender-thread-private",
+        }),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("Waiting for agents")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("article", { name: "Finished waiting" })).toBeVisible();
+  await expect.element(screen.getByText("No agents completed yet")).toBeVisible();
+  expect(document.querySelectorAll(".committed-transcript-entry-activity")).toHaveLength(1);
+  await expect
+    .element(screen.getByRole("button", { name: "Intermediate updates · 2 items" }))
+    .toBeDisabled();
+  const completedEntries = Array.from(
+    document.querySelectorAll<HTMLElement>(".committed-transcript-entry"),
+  );
+  expect(completedEntries).toHaveLength(2);
+  expect(completedEntries[0]?.querySelector(".card__title")?.textContent).toBe("Finished waiting");
+  expect(completedEntries[0]?.querySelector(".card__description")?.textContent).toBe(
+    "No agents completed yet",
+  );
+  expect(completedEntries[1]?.textContent).toBe("After waiting marker");
+});
+
+test("keeps ordered activity entries unmounted until the final-answer disclosure expands", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-collapsed-activity", [
+          userMessage("user-collapsed-activity", [textInput("Initial prompt")]),
+          subAgentActivity("activity-collapsed-started", "started", "/root/reviewer"),
+          agentMessage("agent-collapsed-commentary", "Working note", "commentary"),
+          subAgentActivity("activity-collapsed-interacted", "interacted", "/root/reviewer"),
+          agentMessage("agent-collapsed-final", "Visible final answer", "final_answer"),
+        ]),
+      ]),
+    ),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  await expect.element(screen.getByText("Started /root/reviewer")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("Working note")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("Interacted with /root/reviewer")).not.toBeInTheDocument();
+  expect(document.querySelectorAll(".committed-transcript-entry-activity")).toHaveLength(0);
+
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 3 items" });
+  await expect.element(trigger).toBeEnabled();
+  await trigger.click();
+
+  await expect
+    .element(screen.getByRole("article", { name: "Started /root/reviewer" }))
+    .toBeVisible();
+  await expect.element(screen.getByText("Working note")).toBeVisible();
+  await expect
+    .element(screen.getByRole("article", { name: "Interacted with /root/reviewer" }))
+    .toBeVisible();
+
+  const entries = Array.from(document.querySelectorAll<HTMLElement>(".committed-transcript-entry"));
+  expect(entries.map((entry) => entry.textContent)).toStrictEqual([
+    "Initial prompt",
+    "Started /root/reviewer",
+    "Working note",
+    "Interacted with /root/reviewer",
+    "Visible final answer",
   ]);
 });
 

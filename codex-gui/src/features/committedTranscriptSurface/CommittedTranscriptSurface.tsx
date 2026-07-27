@@ -14,13 +14,14 @@ import {
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
+import { TranscriptActivityCard } from "./TranscriptActivityCard";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
 
 const isLiveAgentMessage = (item: TranscriptRenderableLiveItem): boolean =>
   item.initialItem.type === "agentMessage";
 
-const entryText = (entry: TranscriptEntry): string => {
+const entryText = (entry: Exclude<TranscriptEntry, { type: "activity" }>): string => {
   switch (entry.type) {
     case "message":
       return entry.source;
@@ -38,6 +39,10 @@ const entryText = (entry: TranscriptEntry): string => {
 };
 
 const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => {
+  if (entry.type === "activity") {
+    return <TranscriptActivityCard entry={entry} />;
+  }
+
   const shouldRenderMarkdown =
     entry.type === "message" && entry.role === "assistant" && entry.sourceKind === "markdown";
 
