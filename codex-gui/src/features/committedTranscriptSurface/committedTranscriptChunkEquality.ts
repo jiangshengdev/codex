@@ -15,30 +15,20 @@ const areTranscriptChunkEntriesEqual = (
     return false;
   }
 
-  switch (previous.type) {
-    case "message":
-      if (next.type !== "message") {
-        return false;
-      }
-      return (
-        previous.role === next.role &&
-        previous.source === next.source &&
-        previous.sourceKind === next.sourceKind &&
-        previous.phase === next.phase
-      );
-    case "status":
-      return next.type === "status" && previous.status === next.status;
-    case "activity":
-      return (
-        next.type === "activity" &&
-        previous.title === next.title &&
-        previous.details.length === next.details.length &&
-        previous.details.every((detail, index) => detail === next.details[index])
-      );
+  if (previous.type === "message" && next.type === "message") {
+    return (
+      previous.role === next.role &&
+      previous.source === next.source &&
+      previous.sourceKind === next.sourceKind &&
+      previous.phase === next.phase
+    );
   }
 
-  previous satisfies never;
-  return false;
+  if (previous.type === "status" && next.type === "status") {
+    return previous.status === next.status;
+  }
+
+  return true;
 };
 
 export const areTranscriptChunkViewsEqual = (

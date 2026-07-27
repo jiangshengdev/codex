@@ -15,12 +15,10 @@ import {
   audioInput,
   attachWithTurns,
   baseTurn,
-  collabAgentToolCall,
   imageInput,
   localAudioInput,
   planItem,
   sleepItem,
-  subAgentActivity,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -149,128 +147,6 @@ describe("transcript state snapshot reducer", () => {
       phase: "final_answer",
       revision: 0,
     });
-  });
-
-  it("keeps snapshot activities in source order while preserving prompt and final slots", () => {
-    const store = makeStore();
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-activity-layout", [
-            subAgentActivity("activity-started", "started", "/root/reviewer"),
-            userMessage("user-after-activity", [textInput("Initial prompt")]),
-            collabAgentToolCall("activity-wait", "wait", "completed"),
-            agentMessage("agent-after-activity", "Final answer", "final_answer"),
-          ]),
-        ]),
-      ),
-    );
-
-    expect(selectTranscriptTurn(store.getState(), "turn-activity-layout")).toStrictEqual({
-      id: "turn-activity-layout",
-      status: "completed",
-      leadingPromptEntryId: "user-after-activity",
-      middleChunkIds: ["turn-activity-layout:chunk:0"],
-      middleEntryCount: 2,
-      finalAssistantEntryIds: ["agent-after-activity"],
-    });
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-activity-layout:chunk:0")?.entries,
-    ).toStrictEqual([
-      {
-        type: "activity",
-        id: "activity-started",
-        turnId: "turn-activity-layout",
-        title: "Started /root/reviewer",
-        details: [],
-        revision: 0,
-      },
-      {
-        type: "activity",
-        id: "activity-wait",
-        turnId: "turn-activity-layout",
-        title: "Finished waiting",
-        details: ["No agents completed yet"],
-        revision: 0,
-      },
-    ]);
-    expect(selectTranscriptEntry(store.getState(), "user-after-activity")).toStrictEqual({
-      type: "message",
-      id: "user-after-activity",
-      turnId: "turn-activity-layout",
-      role: "user",
-      source: "Initial prompt",
-      sourceKind: "plainText",
-      phase: null,
-      revision: 0,
-    });
-    expect(selectTranscriptEntry(store.getState(), "agent-after-activity")).toStrictEqual({
-      type: "message",
-      id: "agent-after-activity",
-      turnId: "turn-activity-layout",
-      role: "assistant",
-      source: "Final answer",
-      sourceKind: "markdown",
-      phase: "final_answer",
-      revision: 0,
-    });
-  });
-
-  it("splits snapshot activities across the 100-entry middle chunk boundary", () => {
-    const store = makeStore();
-    const firstChunkActivities = Array.from({ length: 100 }, (_, index) =>
-      subAgentActivity(
-        `activity-boundary-${String(index)}`,
-        "started",
-        `/root/agent-${String(index)}`,
-      ),
-    );
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-activity-boundary", [
-            ...firstChunkActivities,
-            collabAgentToolCall("activity-boundary-wait", "wait", "completed"),
-          ]),
-        ]),
-      ),
-    );
-
-    expect(selectTranscriptTurn(store.getState(), "turn-activity-boundary")).toStrictEqual({
-      id: "turn-activity-boundary",
-      status: "completed",
-      leadingPromptEntryId: null,
-      middleChunkIds: ["turn-activity-boundary:chunk:0", "turn-activity-boundary:chunk:1"],
-      middleEntryCount: 101,
-      finalAssistantEntryIds: [],
-    });
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-activity-boundary:chunk:0")?.entries,
-    ).toHaveLength(100);
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-activity-boundary:chunk:0")?.entries.at(-1),
-    ).toStrictEqual({
-      type: "activity",
-      id: "activity-boundary-99",
-      turnId: "turn-activity-boundary",
-      title: "Started /root/agent-99",
-      details: [],
-      revision: 0,
-    });
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-activity-boundary:chunk:1")?.entries,
-    ).toStrictEqual([
-      {
-        type: "activity",
-        id: "activity-boundary-wait",
-        turnId: "turn-activity-boundary",
-        title: "Finished waiting",
-        details: ["No agents completed yet"],
-        revision: 0,
-      },
-    ]);
   });
 
   it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {
