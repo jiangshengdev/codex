@@ -1,7 +1,7 @@
 # Codex GUI 统一 transcript lifecycle 实施计划
 
 日期：2026-07-28
-状态：待确认
+状态：已确认（2026-07-28）
 
 设计依据：
 `docs/superpowers/specs/2026-07-28-codex-gui-unified-transcript-lifecycle-design.md`
