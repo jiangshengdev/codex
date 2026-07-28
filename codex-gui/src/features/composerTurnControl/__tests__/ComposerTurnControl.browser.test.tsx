@@ -1,7 +1,6 @@
 import { Toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
-import { ChatUiSessionProvider } from "@/features/chatUiSession/ChatUiSessionProvider";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import {
   attachBaseline,
@@ -46,7 +45,7 @@ async function renderAttached(
   guardCompositionEndEnter = false,
 ) {
   const result = await renderWithProviders(
-    <ChatUiSessionProvider>
+    <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={commandHandle}
@@ -54,7 +53,7 @@ async function renderAttached(
         guiHostStatus={attachedStatus}
         launchParams={null}
       />
-    </ChatUiSessionProvider>,
+    </>,
   );
   result.store.dispatch(launchThreadIdRecorded(threadId));
   result.store.dispatch(attachedThreadIdObserved(threadId));
@@ -160,7 +159,7 @@ test("disables controls before attach", async () => {
   expect.hasAssertions();
 
   const screen = await renderWithProviders(
-    <ChatUiSessionProvider>
+    <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={createGuiHostCommands()}
@@ -168,7 +167,7 @@ test("disables controls before attach", async () => {
         guiHostStatus={{ label: "connecting" }}
         launchParams={null}
       />
-    </ChatUiSessionProvider>,
+    </>,
   );
 
   await expectComposerDisabled(screen);

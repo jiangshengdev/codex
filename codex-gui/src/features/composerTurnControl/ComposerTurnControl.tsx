@@ -2,7 +2,6 @@ import { Button, Surface, TextArea, toast } from "@heroui/react";
 import { useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
-import { useChatUiSession } from "@/features/chatUiSession/ChatUiSessionContext";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
@@ -33,7 +32,7 @@ export function ComposerTurnControl({
   guiHostStatus,
   launchParams,
 }: ComposerTurnControlProps) {
-  const { draft, setDraft } = useChatUiSession();
+  const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const composerShellRef = useRef<HTMLElement | null>(null);
