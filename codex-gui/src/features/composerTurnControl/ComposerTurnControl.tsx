@@ -1,5 +1,4 @@
-import { Button, Surface, TextArea, Tooltip, toast } from "@heroui/react";
-import { Settings } from "lucide-react";
+import { Button, Surface, TextArea, toast } from "@heroui/react";
 import { useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
@@ -26,7 +25,6 @@ export type ComposerTurnControlProps = {
   guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
   launchParams: BrowserLaunchParams | null;
-  onOpenSettings: () => void;
 };
 
 export function ComposerTurnControl({
@@ -34,7 +32,6 @@ export function ComposerTurnControl({
   guardCompositionEndEnter,
   guiHostStatus,
   launchParams,
-  onOpenSettings,
 }: ComposerTurnControlProps) {
   const { draft, setDraft } = useChatUiSession();
   const [isSending, setIsSending] = useState(false);
@@ -170,22 +167,7 @@ export function ComposerTurnControl({
           variant="primary"
         />
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1" data-composer-secondary-actions="">
-            <QrAccessPopover launchParams={launchParams} />
-            <Tooltip delay={0}>
-              <Button
-                aria-label="Settings"
-                data-settings-trigger=""
-                isIconOnly
-                onPress={onOpenSettings}
-                size="sm"
-                variant="tertiary"
-              >
-                <Settings aria-hidden="true" size={18} />
-              </Button>
-              <Tooltip.Content>Settings</Tooltip.Content>
-            </Tooltip>
-          </div>
+          <QrAccessPopover launchParams={launchParams} />
           <div className="flex items-center gap-2">
             <Button
               isDisabled={!stopEnabled}
