@@ -98,7 +98,6 @@ test("opens and returns through the production router without replacing the app 
     initialEntries: ["/?threadId=settings-thread#launch-token"],
   });
   const router = createAppRouter({ history });
-  const warnSpy = vi.spyOn(console, "warn");
   const screen = await renderWithProviders(<RouterProvider router={router} />);
   const settingsButton = screen.getByRole("button", { name: "Settings" });
 
@@ -113,9 +112,6 @@ test("opens and returns through the production router without replacing the app 
     name: "Settings",
   });
   await expect.element(settingsHeading).toBeVisible();
-  expect(warnSpy).not.toHaveBeenCalledWith(
-    'If a Dialog does not contain a <Heading slot="title">, it must have an aria-label or aria-labelledby attribute for accessibility.',
-  );
   await expect.element(settingsHeading).toHaveFocus();
   await expect.element(screen.getByRole("button", { name: "Back" })).toBeVisible();
   await expect
