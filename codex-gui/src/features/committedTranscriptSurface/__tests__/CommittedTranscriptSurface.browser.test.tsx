@@ -1,5 +1,3 @@
-import { setupI18n, type Messages } from "@lingui/core";
-import { I18nProvider } from "@lingui/react";
 import { expect, test } from "vitest";
 import { task6SimplifiedChineseMessages } from "@/__tests__/task6LocaleTestSupport";
 import {
@@ -33,11 +31,7 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import {
-  selectCommittedTranscriptScrollCommitKey,
-  selectTranscriptChunk,
-  selectTranscriptEntry,
-} from "@/features/transcriptState/transcriptStateSlice";
+import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 
@@ -80,10 +74,6 @@ const localizedTranscriptExpectations = [
 
 const dynamicThreadId = "dynamic-transcript-thread";
 const dynamicTranscriptText = "Dynamic transcript content 不翻译";
-const activityMessages: Messages = {
-  Q3Ocvq: "已启动 {agentPath}",
-  "Uoq-j_": "已启动 {receiver}（{model} {reasoningEffort}）",
-};
 
 const createLocalizedTranscriptState = (): TranscriptState => {
   const state = createEmptyTranscriptState();
@@ -400,72 +390,6 @@ test("renders ordered transparent sub-agent activity cards without exposing priv
       ),
     ).toBeNull();
   }
-});
-
-test("retranslates semantic activity without changing state and preserves spawn suffix rules", async () => {
-  const activityI18n = setupI18n();
-  activityI18n.loadAndActivate({ locale: "en", messages: {} });
-  const { store, ...screen } = await renderWithProviders(
-    <I18nProvider i18n={activityI18n}>
-      <button
-        type="button"
-        onClick={() =>
-          { activityI18n.loadAndActivate({ locale: "zh-CN", messages: activityMessages }); }
-        }
-      >
-        Switch activity locale
-      </button>
-      <CommittedTranscriptSurface />
-    </I18nProvider>,
-  );
-  const spawn = (
-    id: string,
-    receiver: string,
-    model: string | null,
-    reasoningEffort: string | null,
-  ) =>
-    collabAgentToolCall(id, "spawnAgent", "completed", {
-      receiverThreadIds: [receiver],
-      model,
-      reasoningEffort,
-      prompt: id === "spawn-full" ? "ACTIVITY prompt 原文" : null,
-    });
-  store.dispatch(
-    threadRuntimeAttached(
-      attachWithTurns(attachBaseline, [
-        baseTurn("turn-activity-locale", [
-          subAgentActivity("started-locale", "started", "/root/reviewer-原文"),
-          spawn("spawn-full", "receiver-full", " gpt-5 原文 ", " high 原文 "),
-          spawn("spawn-null-model", "receiver-null-model", null, "high"),
-          spawn("spawn-null-effort", "receiver-null-effort", "gpt-5", null),
-          spawn("spawn-model-only", "receiver-model-only", " gpt-5 ", "  "),
-          spawn("spawn-effort-only", "receiver-effort-only", " ", " high "),
-          spawn("spawn-empty", "receiver-empty", " ", "  "),
-        ]),
-      ]),
-    ),
-  );
-  const entryBefore = selectTranscriptEntry(store.getState(), "spawn-full");
-  const chunkBefore = selectTranscriptChunk(store.getState(), "turn-activity-locale:chunk:0");
-
-  for (const title of [
-    "Spawned receiver-full (gpt-5 原文 high 原文)",
-    "Spawned receiver-null-model",
-    "Spawned receiver-null-effort",
-    "Spawned receiver-model-only (gpt-5)",
-    "Spawned receiver-effort-only (high)",
-    "Spawned receiver-empty",
-  ])
-    await expect.element(screen.getByRole("article", { name: title })).toBeVisible();
-  await screen.getByRole("button", { name: "Switch activity locale" }).click();
-  await expect
-    .element(screen.getByRole("article", { name: "已启动 /root/reviewer-原文" }))
-    .toBeVisible();
-  await expect
-    .element(screen.getByRole("article", { name: "已启动 receiver-full（gpt-5 原文 high 原文）" }))
-    .toHaveTextContent("ACTIVITY prompt 原文");
-  expect(selectTranscriptEntry(store.getState(), "spawn-full")).toBe(entryBefore);
-  expect(selectTranscriptChunk(store.getState(), "turn-activity-locale:chunk:0")).toBe(chunkBefore);
 });
 
 test("updates one committed wait activity from started to completed in place", async () => {

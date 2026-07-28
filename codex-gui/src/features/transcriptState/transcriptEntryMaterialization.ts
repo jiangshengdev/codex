@@ -65,7 +65,7 @@ export const materializeTranscriptItem = (
             type: "activity",
             id: item.id,
             turnId,
-            copy: activity.copy,
+            title: activity.title,
             details: activity.details,
             revision: 0,
           };
