@@ -49,38 +49,19 @@ export function useCommittedTranscriptStickyBottom(): CommittedTranscriptStickyB
     });
   }, [captureSessionScrollSnapshot]);
 
-  useEffect(() => {
-    let restoreFrame: number | null = null;
-    const timer = window.setTimeout(() => {
-      let remainingFrames = 2;
-      const restoreAfterSettling = (): void => {
-        remainingFrames -= 1;
-        if (remainingFrames > 0) {
-          restoreFrame = requestAnimationFrame(restoreAfterSettling);
-          return;
-        }
-        const restore = consumeScrollRestore();
-        if (restore == null) {
-          return;
-        }
+  useLayoutEffect(() => {
+    const restore = consumeScrollRestore();
+    if (restore == null) {
+      return;
+    }
 
-        pinnedToBottomRef.current = restore.type === "stickyBottom";
-        if (restore.type === "stickyBottom") {
-          scrollDocumentToBottom();
-        } else {
-          scrollDocumentTo(restore.scrollTop);
-        }
-        completeScrollRestore();
-      };
-      restoreFrame = requestAnimationFrame(restoreAfterSettling);
-    }, 0);
-
-    return () => {
-      clearTimeout(timer);
-      if (restoreFrame != null) {
-        cancelAnimationFrame(restoreFrame);
-      }
-    };
+    pinnedToBottomRef.current = restore.type === "stickyBottom";
+    if (restore.type === "stickyBottom") {
+      scrollDocumentToBottom();
+    } else {
+      scrollDocumentTo(restore.scrollTop);
+    }
+    completeScrollRestore();
   }, [completeScrollRestore, consumeScrollRestore]);
 
   useEffect(() => {

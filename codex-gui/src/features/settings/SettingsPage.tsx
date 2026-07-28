@@ -10,7 +10,7 @@ const focusChatReturnTarget = (): void => {
   const target =
     document.querySelector<HTMLElement>("[data-settings-trigger]") ??
     document.querySelector<HTMLElement>("[data-chat-main]");
-  target?.focus({ preventScroll: true });
+  target?.focus();
 };
 
 export function SettingsPage() {
