@@ -409,9 +409,9 @@ test("retranslates semantic activity without changing state and preserves spawn 
     <I18nProvider i18n={activityI18n}>
       <button
         type="button"
-        onClick={() => {
-          activityI18n.loadAndActivate({ locale: "zh-CN", messages: activityMessages });
-        }}
+        onClick={() =>
+          { activityI18n.loadAndActivate({ locale: "zh-CN", messages: activityMessages }); }
+        }
       >
         Switch activity locale
       </button>

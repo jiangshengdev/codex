@@ -104,5 +104,7 @@ export function resolveActiveLocale(
   languages: readonly string[],
   fallbackLanguage: string,
 ): AppLocale {
-  return preference === "system" ? resolveSystemLocale(languages, fallbackLanguage) : preference;
+  return preference === "system"
+    ? resolveSystemLocale(languages, fallbackLanguage)
+    : preference;
 }

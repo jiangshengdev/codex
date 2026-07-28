@@ -27,10 +27,14 @@ test.each(streamdownControlLocales)(
     );
 
     await expect
-      .element(committed.locator.getByRole("button", { name: labels.downloadFile, exact: true }))
+      .element(
+        committed.locator.getByRole("button", { name: labels.downloadFile, exact: true }),
+      )
       .toBeVisible();
     await expect
-      .element(committed.locator.getByRole("button", { name: labels.downloadTable, exact: true }))
+      .element(
+        committed.locator.getByRole("button", { name: labels.downloadTable, exact: true }),
+      )
       .toBeVisible();
 
     await expect
@@ -41,13 +45,10 @@ test.each(streamdownControlLocales)(
       .not.toBeInTheDocument();
 
     vi.stubGlobal("isSecureContext", true);
-    const live = await renderWithProviders(
-      <LiveMarkdownText source={streamdownControlMarkdown} />,
-      {
-        locale,
-        messages,
-      },
-    );
+    const live = await renderWithProviders(<LiveMarkdownText source={streamdownControlMarkdown} />, {
+      locale,
+      messages,
+    });
 
     await expect
       .element(live.locator.getByRole("button", { name: labels.downloadFile, exact: true }))

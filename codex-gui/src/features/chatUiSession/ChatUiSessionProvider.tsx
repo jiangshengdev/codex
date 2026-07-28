@@ -7,7 +7,10 @@ import {
   type PropsWithChildren,
   type SetStateAction,
 } from "react";
-import { ChatUiSessionContext, type ChatUiSessionContextValue } from "./ChatUiSessionContext";
+import {
+  ChatUiSessionContext,
+  type ChatUiSessionContextValue,
+} from "./ChatUiSessionContext";
 import {
   captureChatScrollSnapshot,
   completeChatScrollRestore,
@@ -74,7 +77,13 @@ export function ChatUiSessionProvider({ children }: PropsWithChildren) {
       consumeScrollRestore,
       completeScrollRestore,
     }),
-    [captureScrollSnapshot, completeScrollRestore, consumeScrollRestore, setDraft, state.draft],
+    [
+      captureScrollSnapshot,
+      completeScrollRestore,
+      consumeScrollRestore,
+      setDraft,
+      state.draft,
+    ],
   );
 
   return <ChatUiSessionContext value={value}>{children}</ChatUiSessionContext>;

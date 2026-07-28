@@ -37,12 +37,12 @@ msgid "Back"
 msgstr "返回"
 
 #. Accessible loading status while the UI language changes
-#: src/features/settings/LanguageAutocomplete.tsx:207
+#: src/features/settings/LanguageAutocomplete.tsx:227
 msgid "Changing language…"
 msgstr "正在切换语言…"
 
 #. Placeholder for the language preference autocomplete
-#: src/features/settings/LanguageAutocomplete.tsx:146
+#: src/features/settings/LanguageAutocomplete.tsx:153
 msgid "Choose a language"
 msgstr "选择语言"
 
@@ -51,7 +51,7 @@ msgid "Choose the interface language."
 msgstr "选择界面语言。"
 
 #. Accessible label for the button that clears the language search input
-#: src/features/settings/LanguageAutocomplete.tsx:75
+#: src/features/settings/LanguageAutocomplete.tsx:82
 msgid "Clear search"
 msgstr "清除搜索"
 
@@ -110,72 +110,72 @@ msgid "Copy table"
 msgstr "复制表格"
 
 #. Menu item that copies a rendered table in CSV format
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:30
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:27
 msgid "Copy table as CSV"
 msgstr "复制为 CSV"
 
 #. Menu item that copies a rendered table in Markdown format
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:34
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:31
 msgid "Copy table as Markdown"
 msgstr "复制为 Markdown"
 
 #. Menu item that copies a rendered table in TSV format
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:38
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:35
 msgid "Copy table as TSV"
 msgstr "复制为 TSV"
 
 #. Table export format label
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:101
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:98
 msgid "CSV"
 msgstr "CSV"
 
 #. Button that downloads a rendered Mermaid diagram
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:42
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:39
 msgid "Download diagram"
 msgstr "下载图表"
 
 #. Menu item that downloads a Mermaid diagram as an MMD source file
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:46
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:43
 msgid "Download diagram as MMD"
 msgstr "下载为 MMD"
 
 #. Menu item that downloads a Mermaid diagram as a PNG image
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:50
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:47
 msgid "Download diagram as PNG"
 msgstr "下载为 PNG"
 
 #. Menu item that downloads a Mermaid diagram as an SVG image
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:54
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:51
 msgid "Download diagram as SVG"
 msgstr "下载为 SVG"
 
 #. Button that downloads a file linked from rendered Markdown
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:58
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:55
 msgid "Download file"
 msgstr "下载文件"
 
 #. Button that downloads an image from rendered Markdown
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:62
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:59
 msgid "Download image"
 msgstr "下载图片"
 
 #. Button that downloads a rendered Markdown table
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:66
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:63
 msgid "Download table"
 msgstr "下载表格"
 
 #. Menu item that downloads a rendered table in CSV format
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:70
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:67
 msgid "Download table as CSV"
 msgstr "下载为 CSV"
 
 #. Menu item that downloads a rendered table in Markdown format
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:74
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:71
 msgid "Download table as Markdown"
 msgstr "下载为 Markdown"
 
 #. Autocomplete option showing the English language name in the current UI language
-#: src/features/settings/LanguageAutocomplete.tsx:42
+#: src/features/settings/LanguageAutocomplete.tsx:46
 msgid "English"
 msgstr "英语"
 
@@ -196,7 +196,7 @@ msgid "Error - Agent resume failed"
 msgstr "错误：代理恢复失败"
 
 #. Button that exits the fullscreen Markdown preview
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:78
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:75
 msgid "Exit fullscreen"
 msgstr "退出全屏"
 
@@ -215,7 +215,7 @@ msgid "Finished waiting"
 msgstr "等待结束"
 
 #. Language preference option that follows the operating system or browser language
-#: src/features/settings/LanguageAutocomplete.tsx:38
+#: src/features/settings/LanguageAutocomplete.tsx:41
 msgid "Follow system"
 msgstr "跟随系统"
 
@@ -224,7 +224,7 @@ msgid "Go back home"
 msgstr "返回首页"
 
 #. Fallback shown when a Markdown image cannot be displayed
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:86
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:83
 msgid "Image not available"
 msgstr "图片不可用"
 
@@ -254,25 +254,25 @@ msgstr "已中断。"
 
 #. Heading for the interface language settings section
 #. Label for the language preference field
-#: src/features/settings/LanguageAutocomplete.tsx:155
+#: src/features/settings/LanguageAutocomplete.tsx:162
 #: src/features/settings/SettingsPage.tsx:62
 msgid "Language"
 msgstr "语言"
 
-#: src/features/locale/LocaleRuntimeProvider.tsx:125
+#: src/features/locale/LocaleRuntimeProvider.tsx:131
 msgid "Language could not be changed"
 msgstr "无法切换语言"
 
 #. Accessible title for the language options dialog
-#: src/features/settings/LanguageAutocomplete.tsx:165
+#: src/features/settings/LanguageAutocomplete.tsx:181
 msgid "Language options"
 msgstr "语言选项"
 
-#: src/features/locale/LocaleRuntimeProvider.tsx:68
+#: src/features/locale/LocaleRuntimeProvider.tsx:74
 msgid "Language preference could not be loaded"
 msgstr "无法加载语言偏好"
 
-#: src/features/locale/LocaleRuntimeProvider.tsx:69
+#: src/features/locale/LocaleRuntimeProvider.tsx:75
 msgid "Language preference could not be saved"
 msgstr "无法保存语言偏好"
 
@@ -282,7 +282,7 @@ msgid "Manage Codex GUI preferences on this device."
 msgstr "管理此设备上的 Codex GUI 偏好设置。"
 
 #. Table export format label
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:102
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:99
 msgid "Markdown"
 msgstr "Markdown"
 
@@ -302,7 +302,7 @@ msgid "Message failed to send"
 msgstr "消息发送失败"
 
 #. File format label for Mermaid source files
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:90
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:87
 msgid "MMD"
 msgstr "MMD"
 
@@ -316,7 +316,7 @@ msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
 #. Empty state when no language options match the search
-#: src/features/settings/LanguageAutocomplete.tsx:185
+#: src/features/settings/LanguageAutocomplete.tsx:205
 msgid "No languages found"
 msgstr "未找到语言"
 
@@ -325,12 +325,12 @@ msgid "Not found"
 msgstr "错误：未找到代理任务"
 
 #. Confirmation title shown before opening an external website
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:93
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:90
 msgid "Open external link?"
 msgstr "打开外部链接？"
 
 #. Button that confirms opening a rendered Markdown link
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:97
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:94
 msgid "Open link"
 msgstr "打开链接"
 
@@ -343,7 +343,7 @@ msgid "Pending init"
 msgstr "等待初始化"
 
 #. Image format label
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:91
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:88
 msgid "PNG"
 msgstr "PNG"
 
@@ -377,7 +377,7 @@ msgid "Scan with phone"
 msgstr "手机扫码"
 
 #. Accessible label and placeholder for the language search input
-#: src/features/settings/LanguageAutocomplete.tsx:71
+#: src/features/settings/LanguageAutocomplete.tsx:78
 msgid "Search languages"
 msgstr "搜索语言"
 
@@ -403,7 +403,7 @@ msgid "Shutdown"
 msgstr "已关闭"
 
 #. Autocomplete option showing the Simplified Chinese language name in the current UI language
-#: src/features/settings/LanguageAutocomplete.tsx:46
+#: src/features/settings/LanguageAutocomplete.tsx:51
 msgid "Simplified Chinese"
 msgstr "简体中文"
 
@@ -443,12 +443,12 @@ msgid "Stop failed"
 msgstr "停止失败"
 
 #. Image format label
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:92
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:89
 msgid "SVG"
 msgstr "SVG"
 
 #. Table export format label
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:103
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:100
 msgid "TSV"
 msgstr "TSV"
 
@@ -463,7 +463,7 @@ msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
 #. Button that opens rendered Markdown content in fullscreen
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:104
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:101
 msgid "View fullscreen"
 msgstr "全屏查看"
 
@@ -476,6 +476,6 @@ msgid "Waiting for agents"
 msgstr "正在等待代理"
 
 #. Warning shown before opening a link to an external website
-#: src/features/committedTranscriptSurface/markdownRendering.tsx:82
+#: src/features/committedTranscriptSurface/markdownRendering.tsx:79
 msgid "You're about to visit an external website."
 msgstr "你即将访问外部网站。"

@@ -11,7 +11,10 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useLocaleRuntime } from "@/features/locale/LocaleRuntimeContext";
-import { isLocalePreference, type LocalePreference } from "@/features/locale/localeRuntime";
+import {
+  isLocalePreference,
+  type LocalePreference,
+} from "@/features/locale/localeRuntime";
 
 type LanguageOption = {
   preference: LocalePreference;
@@ -36,11 +39,13 @@ export function LanguageAutocomplete() {
   const isSubmittingRef = useRef(false);
   const options = useMemo<LanguageOption[]>(() => {
     const followSystem = t({
-      comment: "Language preference option that follows the operating system or browser language",
+      comment:
+        "Language preference option that follows the operating system or browser language",
       message: "Follow system",
     });
     const english = t({
-      comment: "Autocomplete option showing the English language name in the current UI language",
+      comment:
+        "Autocomplete option showing the English language name in the current UI language",
       message: "English",
     });
     const simplifiedChinese = t({
@@ -67,7 +72,9 @@ export function LanguageAutocomplete() {
       },
     ];
   }, [t]);
-  const selectedOption = options.find((option) => option.preference === runtime.preference);
+  const selectedOption = options.find(
+    (option) => option.preference === runtime.preference,
+  );
   const searchLanguages = t({
     comment: "Accessible label and placeholder for the language search input",
     message: "Search languages",
@@ -152,21 +159,34 @@ export function LanguageAutocomplete() {
         variant="secondary"
       >
         <Label>
-          <Trans comment="Label for the language preference field">Language</Trans>
+          <Trans comment="Label for the language preference field">
+            Language
+          </Trans>
         </Label>
         <Autocomplete.Trigger>
           <Autocomplete.Value>
-            {({ defaultChildren }) => selectedOption?.displayName ?? defaultChildren}
+            {({ defaultChildren }) =>
+              selectedOption?.displayName ?? defaultChildren
+            }
           </Autocomplete.Value>
           <Autocomplete.Indicator />
         </Autocomplete.Trigger>
         <Autocomplete.Popover>
-          <Popover.Heading ref={setHeadingRef} className="sr-only" slot="title" tabIndex={0}>
+          <Popover.Heading
+            ref={setHeadingRef}
+            className="sr-only"
+            slot="title"
+            tabIndex={0}
+          >
             <Trans comment="Accessible title for the language options dialog">
               Language options
             </Trans>
           </Popover.Heading>
-          <Autocomplete.Filter filter={contains} inputValue={query} onInputChange={setQuery}>
+          <Autocomplete.Filter
+            filter={contains}
+            inputValue={query}
+            onInputChange={setQuery}
+          >
             <SearchField
               aria-label={searchLanguages}
               autoFocus={false}

@@ -89,7 +89,12 @@ test("chat and settings share one app runtime while projection updates continue"
     inProgressTurn(turnId),
   );
   const itemStartedEvent = eventWithEnvelope(
-    itemStarted(eventItemStarted, "commit-during-settings-item", turnId, agentMessage(itemId, "")),
+    itemStarted(
+      eventItemStarted,
+      "commit-during-settings-item",
+      turnId,
+      agentMessage(itemId, ""),
+    ),
     { parentCommitId: turnStartedEvent.commitId },
   );
 
@@ -118,7 +123,9 @@ test("chat and settings share one app runtime while projection updates continue"
 
   await router.navigate({ to: "/" });
 
-  await expect.element(screen.getByText("Message received while settings were open")).toBeVisible();
+  await expect
+    .element(screen.getByText("Message received while settings were open"))
+    .toBeVisible();
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 

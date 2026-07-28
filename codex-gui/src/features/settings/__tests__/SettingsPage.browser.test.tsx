@@ -117,7 +117,9 @@ test("opens and returns through the production router without replacing the app 
   await expect
     .element(screen.getByText("Manage Codex GUI preferences on this device."))
     .toBeVisible();
-  await expect.element(screen.getByRole("region", { name: "Language" })).toBeVisible();
+  await expect
+    .element(screen.getByRole("region", { name: "Language" }))
+    .toBeVisible();
   expect(router.state.location.pathname).toBe("/settings");
   expect(router.state.location.searchStr).toBe("?threadId=settings-thread");
   expect(router.state.location.hash).toBe("");
@@ -163,7 +165,9 @@ test("shows the three locale preferences without a clearable selection or autofo
   await expect
     .element(screen.getByRole("option", { name: "Follow system", exact: true }))
     .toBeVisible();
-  await expect.element(screen.getByRole("option", { name: "English", exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByRole("option", { name: "English", exact: true }))
+    .toBeVisible();
   await expect
     .element(
       screen.getByRole("option", {
@@ -191,7 +195,9 @@ test("searches by current and native locale names and exposes an empty state", a
     ["English", "English"],
   ] as const) {
     await search.fill(query);
-    await expect.element(screen.getByRole("option", { name: option, exact: true })).toBeVisible();
+    await expect
+      .element(screen.getByRole("option", { name: option, exact: true }))
+      .toBeVisible();
   }
 
   await search.fill("Klingon");
@@ -219,7 +225,9 @@ test("searches by current and native locale names and exposes an empty state", a
   await expect
     .element(screen.getByRole("option", { name: "Follow system", exact: true }))
     .toBeVisible();
-  await expect.element(screen.getByRole("option", { name: "English", exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByRole("option", { name: "English", exact: true }))
+    .toBeVisible();
   await expect
     .element(
       screen.getByRole("option", {
@@ -262,7 +270,9 @@ test("selects with the keyboard and commits the locale after its catalog loads",
   await expect.element(languageControl).toBeEnabled();
   const selectedLanguage = languageValue();
   await expect.element(selectedLanguage).toBeVisible();
-  await expect.element(selectedLanguage).toHaveTextContent(/^Simplified Chinese · 简体中文$/);
+  await expect
+    .element(selectedLanguage)
+    .toHaveTextContent(/^Simplified Chinese · 简体中文$/);
   await expect.element(search).not.toBeInTheDocument();
   expect(document.documentElement.lang).toBe("zh-CN");
   expect(window.localStorage.getItem("codex-gui.locale")).toBe("zh-CN");
@@ -287,7 +297,9 @@ test("keeps the current preference and search open when the catalog fails", asyn
   const dialog = screen.getByRole("dialog", { name: "Language options" });
   const search = screen.getByRole("searchbox", { name: "Search languages" });
   await search.fill("简体中文");
-  await screen.getByRole("option", { name: "Simplified Chinese · 简体中文", exact: true }).click();
+  await screen
+    .getByRole("option", { name: "Simplified Chinese · 简体中文", exact: true })
+    .click();
 
   await expect.element(languageControl).toBeEnabled();
   await expect.element(currentLanguage).toHaveTextContent(/^Follow system$/);
@@ -312,7 +324,9 @@ test("follows languagechange only while the system preference is selected", asyn
   systemLanguage = "zh-SG";
   window.dispatchEvent(new Event("languagechange"));
 
-  await expect.element(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "Settings" }))
+    .toBeVisible();
   await expect.poll(() => document.documentElement.lang).toBe("zh-CN");
   expect(window.localStorage.getItem("codex-gui.locale")).toBeNull();
 
@@ -320,7 +334,9 @@ test("follows languagechange only while the system preference is selected", asyn
   await expect.element(currentLanguage).toHaveTextContent(/^Follow system$/);
   await currentLanguage.click();
   await screen.getByRole("searchbox", { name: "Search languages" }).fill("English");
-  await screen.getByRole("option", { name: "English", exact: true }).click();
+  await screen
+    .getByRole("option", { name: "English", exact: true })
+    .click();
 
   await expect.poll(() => document.documentElement.lang).toBe("en");
   expect(window.localStorage.getItem("codex-gui.locale")).toBe("en");

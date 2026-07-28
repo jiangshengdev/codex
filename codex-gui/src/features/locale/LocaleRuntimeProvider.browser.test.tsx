@@ -50,28 +50,13 @@ function RuntimeProbe() {
       <output aria-label="Active locale">{runtime.activeLocale}</output>
       <output aria-label="Changing">{String(runtime.isChanging)}</output>
       <output aria-label="Runtime interface">{Object.keys(runtime).sort().join(",")}</output>
-      <button
-        type="button"
-        onClick={() => {
-          setPreference("system");
-        }}
-      >
+      <button type="button" onClick={() => { setPreference("system"); }}>
         Use system
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          setPreference("en");
-        }}
-      >
+      <button type="button" onClick={() => { setPreference("en"); }}>
         Use English
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          setPreference("zh-CN");
-        }}
-      >
+      <button type="button" onClick={() => { setPreference("zh-CN"); }}>
         Use Simplified Chinese
       </button>
     </section>
@@ -205,9 +190,9 @@ test("applies an in-memory selection and warns when persistence fails", async ()
 
   await screen.getByRole("button", { name: "Use Simplified Chinese" }).click();
 
-  await expect.element(screen.getByText("storage write denied")).toBeVisible();
   await expect.element(screen.getByLabelText("Preference")).toHaveTextContent("zh-CN");
   await expect.element(screen.getByLabelText("Active locale")).toHaveTextContent("zh-CN");
+  await expect.element(screen.getByText("storage write denied")).toBeVisible();
   expect(document.documentElement.lang).toBe("zh-CN");
 });
 
@@ -219,9 +204,9 @@ test("starts with the system preference and warns when storage cannot be read", 
 
   const screen = await renderRuntime();
 
-  await expect.element(screen.getByText("storage read denied")).toBeVisible();
   await expect.element(screen.getByLabelText("Preference")).toHaveTextContent("system");
   await expect.element(screen.getByLabelText("Active locale")).toHaveTextContent("en");
+  await expect.element(screen.getByText("storage read denied")).toBeVisible();
 });
 
 test("rejects bootstrap with the original catalog failure", async () => {

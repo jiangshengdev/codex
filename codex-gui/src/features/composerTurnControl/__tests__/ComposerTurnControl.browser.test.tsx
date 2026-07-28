@@ -296,13 +296,8 @@ test("scrolls once after visual viewport resize when composer remains covered", 
       toJSON: () => ({}),
     });
 
-    const textarea = composerShell.querySelector("textarea");
-    if (!(textarea instanceof HTMLTextAreaElement)) {
-      throw new Error("composer textarea must render");
-    }
+    await screen.getByPlaceholder("Message Codex").click();
     visualViewport.viewport.height = 361;
-    textarea.focus();
-    expect(document.activeElement).toBe(textarea);
     expect(visualViewport.dispatchResize()).toBe(true);
     await nextAnimationFrame();
 

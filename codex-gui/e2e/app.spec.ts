@@ -221,7 +221,11 @@ const openLanguageOptions = async (page: Page) => {
   await expect(page.getByRole("dialog", { name: /Language options|语言选项/ })).toBeVisible();
 };
 
-const emitAgentMessage = (send: (message: unknown) => void, itemId: string, text: string): void => {
+const emitAgentMessage = (
+  send: (message: unknown) => void,
+  itemId: string,
+  text: string,
+): void => {
   const item = agentMessage(itemId, text);
   for (const notification of [
     itemStarted(eventItemStarted, "commit-item-started", "turn-in-progress", item),
@@ -242,7 +246,9 @@ const requireConnectedHost = (
 
 const chooseSimplifiedChinese = async (page: Page): Promise<void> => {
   await openLanguageOptions(page);
-  await page.getByRole("option", { name: "Simplified Chinese · 简体中文", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Simplified Chinese · 简体中文", exact: true })
+    .click();
   await expect(page.getByRole("heading", { level: 1, name: "设置" })).toBeVisible();
 };
 
@@ -398,7 +404,9 @@ test("settings navigation preserves launch search, clears hash, replaces history
   await page.getByPlaceholder("Message Codex").fill("Draft survives settings");
   await page.getByRole("button", { name: "Settings" }).click();
 
-  await expect(page).toHaveURL(new RegExp(`/settings\\?threadId=${threadId}&future=value$`));
+  await expect(page).toHaveURL(
+    new RegExp(`/settings\\?threadId=${threadId}&future=value$`),
+  );
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeFocused();
   await expect(page.getByPlaceholder("Message Codex")).toHaveCount(0);
   expect(await page.evaluate(() => history.length)).toBe(initialHistoryLength);
@@ -436,9 +444,7 @@ test("restores a sticky chat to the latest bottom after settings", async ({ page
   });
   await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "attached");
-  await page.evaluate(() => {
-    window.scrollTo({ top: document.documentElement.scrollHeight });
-  });
+  await page.evaluate(() => { window.scrollTo({ top: document.documentElement.scrollHeight }); });
   await expect
     .poll(() =>
       page.evaluate(
@@ -656,6 +662,7 @@ test("settings screenshot in English", { tag: "@visual" }, async ({ page }) => {
     animations: "disabled",
     fullPage: true,
   });
+
 });
 
 test("chat screenshot in English", { tag: "@visual" }, async ({ page }) => {
@@ -679,6 +686,7 @@ test("settings screenshot in Simplified Chinese", { tag: "@visual" }, async ({ p
     animations: "disabled",
     fullPage: true,
   });
+
 });
 
 test("chat screenshot in Simplified Chinese", { tag: "@visual" }, async ({ page }) => {
