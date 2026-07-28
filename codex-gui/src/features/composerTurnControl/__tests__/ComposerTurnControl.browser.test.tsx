@@ -1,8 +1,6 @@
-import { Toast, toast } from "@heroui/react";
+import { Toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
-import { task6SimplifiedChineseMessages } from "@/__tests__/task6LocaleTestSupport";
-import { ChatUiSessionProvider } from "@/features/chatUiSession/ChatUiSessionProvider";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import {
   attachBaseline,
@@ -45,24 +43,17 @@ function deferred<T>() {
 async function renderAttached(
   commandHandle: GuiHostCommands | null = createGuiHostCommands(),
   guardCompositionEndEnter = false,
-  onOpenSettings: () => void = vi.fn<() => void>(),
-  locale: "en" | "zh-CN" = "en",
 ) {
   const result = await renderWithProviders(
-    <ChatUiSessionProvider>
+    <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={commandHandle}
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={attachedStatus}
         launchParams={null}
-        onOpenSettings={onOpenSettings}
       />
-    </ChatUiSessionProvider>,
-    {
-      locale,
-      messages: locale === "zh-CN" ? task6SimplifiedChineseMessages : undefined,
-    },
+    </>,
   );
   result.store.dispatch(launchThreadIdRecorded(threadId));
   result.store.dispatch(attachedThreadIdObserved(threadId));
@@ -131,7 +122,6 @@ function installVisualViewport({
 }
 
 afterEach(() => {
-  toast.clear();
   vi.restoreAllMocks();
 });
 
@@ -169,24 +159,22 @@ test("disables controls before attach", async () => {
   expect.hasAssertions();
 
   const screen = await renderWithProviders(
-    <ChatUiSessionProvider>
+    <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={createGuiHostCommands()}
         guardCompositionEndEnter={false}
         guiHostStatus={{ label: "connecting" }}
         launchParams={null}
-        onOpenSettings={vi.fn<() => void>()}
       />
-    </ChatUiSessionProvider>,
+    </>,
   );
 
   await expectComposerDisabled(screen);
 });
 
 test("renders a white composer panel with a primary textarea and actions", async () => {
-  const onOpenSettings = vi.fn<() => void>();
-  const screen = await renderAttached(createGuiHostCommands(), false, onOpenSettings);
+  const screen = await renderAttached();
   const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
   if (!(composerShell instanceof HTMLElement)) {
     throw new Error("composer shell must render");
@@ -221,23 +209,8 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerShell.classList.contains("py-3")).toBe(false);
   expect(textarea.classList.contains("textarea--primary")).toBe(true);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
-  const settingsButton = screen.getByRole("button", { name: "Settings" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
-  await expect.element(settingsButton).toBeEnabled();
-  await expect.element(settingsButton).toHaveClass("button--icon-only");
-  const secondaryActions = screen.container.querySelector("[data-composer-secondary-actions]");
-  if (!(secondaryActions instanceof HTMLElement)) {
-    throw new Error("composer secondary actions must render");
-  }
-  expect(secondaryActions.contains(qrButton.element())).toBe(true);
-  expect(secondaryActions.contains(settingsButton.element())).toBe(true);
-  expect(screen.container.querySelectorAll('button[aria-label="Settings"]')).toHaveLength(1);
-  settingsButton.element().focus();
-  await expect.element(settingsButton).toHaveFocus();
-  await expect.element(screen.getByRole("tooltip")).toHaveTextContent("Settings");
-  await settingsButton.click();
-  expect(onOpenSettings).toHaveBeenCalledTimes(1);
   expect(actions).toEqual(["Stop", "Send"]);
 });
 
@@ -296,13 +269,8 @@ test("scrolls once after visual viewport resize when composer remains covered", 
       toJSON: () => ({}),
     });
 
-    const textarea = composerShell.querySelector("textarea");
-    if (!(textarea instanceof HTMLTextAreaElement)) {
-      throw new Error("composer textarea must render");
-    }
+    await screen.getByPlaceholder("Message Codex").click();
     visualViewport.viewport.height = 361;
-    textarea.focus();
-    expect(document.activeElement).toBe(textarea);
     expect(visualViewport.dispatchResize()).toBe(true);
     await nextAnimationFrame();
 
@@ -603,70 +571,6 @@ test("manual reconnect disables composer operations", async () => {
 
   await expectComposerDisabled(screen);
 });
-
-test.each([
-  {
-    locale: "en" as const,
-    composerLabel: "Message composer",
-    placeholder: "Message Codex",
-    settingsLabel: "Settings",
-    sendLabel: "Send",
-    stopLabel: "Stop",
-    sendFailure: "Message failed to send",
-    stopFailure: "Stop failed",
-  },
-  {
-    locale: "zh-CN" as const,
-    composerLabel: "消息编辑器",
-    placeholder: "向 Codex 发送消息",
-    settingsLabel: "设置",
-    sendLabel: "发送",
-    stopLabel: "停止",
-    sendFailure: "消息发送失败",
-    stopFailure: "停止失败",
-  },
-])(
-  "localizes composer controls and failure toasts in $locale",
-  async ({
-    composerLabel,
-    locale,
-    placeholder,
-    sendFailure,
-    sendLabel,
-    settingsLabel,
-    stopFailure,
-    stopLabel,
-  }) => {
-    const commandHandle = createGuiHostCommands();
-    vi.mocked(commandHandle.startTurn).mockRejectedValueOnce(new Error("network failed"));
-    vi.mocked(commandHandle.interruptTurn).mockRejectedValueOnce(new Error("interrupt failed"));
-    const screen = await renderAttached(commandHandle, false, vi.fn<() => void>(), locale);
-    const composer = screen.getByPlaceholder(placeholder);
-
-    await expect.element(screen.getByRole("region", { name: composerLabel })).toBeVisible();
-    await expect.element(screen.getByRole("button", { name: settingsLabel })).toBeVisible();
-    await expect.element(screen.getByRole("button", { name: stopLabel })).toBeDisabled();
-    await expect.element(screen.getByRole("button", { name: sendLabel })).toBeDisabled();
-
-    await composer.fill("Keep this draft");
-    await screen.getByRole("button", { name: sendLabel }).click();
-
-    await expect.element(composer).toHaveValue("Keep this draft");
-    await expect.element(screen.getByText(sendFailure)).toBeVisible();
-    await expect.element(screen.getByText("network failed")).toBeVisible();
-
-    screen.store.dispatch(
-      threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-    );
-    const stopButton = screen.getByRole("button", { name: stopLabel });
-    await expect.element(stopButton).toBeEnabled();
-    await stopButton.click();
-
-    await expect.element(screen.getByText(stopFailure)).toBeVisible();
-    await expect.element(screen.getByText("interrupt failed")).toBeVisible();
-    await expect.element(composer).toHaveValue("Keep this draft");
-  },
-);
 
 test("send failure keeps draft and shows a toast", async () => {
   const commandHandle = createGuiHostCommands();

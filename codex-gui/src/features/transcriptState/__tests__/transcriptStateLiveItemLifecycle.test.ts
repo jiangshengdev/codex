@@ -127,11 +127,7 @@ describe("transcript state live item lifecycle reducer", () => {
       type: "activity",
       id: "wait-started-dedup",
       turnId: "turn-wait-started-dedup",
-      copy: {
-        kind: "agentsWaiting",
-        receiver: null,
-        receiverCount: 0,
-      },
+      title: "Waiting for agents",
       details: [],
       revision: 0,
     });
@@ -172,11 +168,7 @@ describe("transcript state live item lifecycle reducer", () => {
       type: "activity",
       id: "wait-beside-agent",
       turnId: "turn-mixed-started",
-      copy: {
-        kind: "agentsWaiting",
-        receiver: null,
-        receiverCount: 0,
-      },
+      title: "Waiting for agents",
       details: [],
       revision: 0,
     });

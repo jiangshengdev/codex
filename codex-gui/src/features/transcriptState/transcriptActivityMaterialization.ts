@@ -1,9 +1,4 @@
 import type { ThreadItem } from "@codex-protocol/v2";
-import type {
-  TranscriptActivityCopy,
-  TranscriptActivityDetail,
-  TranscriptActivityDetailCopy,
-} from "./transcriptStateModel";
 
 type TranscriptActivityItem = Extract<
   ThreadItem,
@@ -14,8 +9,8 @@ type SubAgentActivityItem = Extract<TranscriptActivityItem, { type: "subAgentAct
 type CollabAgentState = NonNullable<CollabAgentToolCallItem["agentsStates"][string]>;
 
 export type TranscriptActivityContent = {
-  copy: TranscriptActivityCopy;
-  details: TranscriptActivityDetail[];
+  title: string;
+  details: string[];
 };
 
 const COLLAB_PROMPT_PREVIEW_GRAPHEMES = 160;
@@ -43,11 +38,9 @@ const truncateGraphemes = (text: string, limit: number): string => {
   return text;
 };
 
-const promptDetail = (prompt: string | null): TranscriptActivityDetail | null => {
+const promptDetail = (prompt: string | null): string | null => {
   const trimmed = prompt?.trim() ?? "";
-  return trimmed.length === 0
-    ? null
-    : { kind: "raw", text: truncateGraphemes(trimmed, COLLAB_PROMPT_PREVIEW_GRAPHEMES) };
+  return trimmed.length === 0 ? null : truncateGraphemes(trimmed, COLLAB_PROMPT_PREVIEW_GRAPHEMES);
 };
 
 const normalizedMessage = (message: string): string => message.trim().replace(/\s+/gu, " ");
@@ -67,45 +60,47 @@ const terminalStatus = (status: CollabAgentToolCallItem["status"]): boolean => {
 const firstReceiver = (item: CollabAgentToolCallItem): string | null =>
   item.receiverThreadIds[0] ?? null;
 
-const promptDetails = (item: CollabAgentToolCallItem): TranscriptActivityDetail[] => {
+const promptDetails = (item: CollabAgentToolCallItem): string[] => {
   const detail = promptDetail(item.prompt);
   return detail == null ? [] : [detail];
 };
 
-const agentStatusCopy = (
-  receiver: string | null,
-  state: CollabAgentState,
-): TranscriptActivityDetailCopy => {
+const spawnRequestSuffix = (item: CollabAgentToolCallItem): string => {
+  if (item.model == null || item.reasoningEffort == null) {
+    return "";
+  }
+
+  const request = [item.model.trim(), item.reasoningEffort.trim()].filter(
+    (value) => value.length > 0,
+  );
+  return request.length === 0 ? "" : ` (${request.join(" ")})`;
+};
+
+const statusSummary = (state: CollabAgentState): string => {
   const { status } = state;
   switch (status) {
     case "pendingInit":
+      return "Pending init";
     case "running":
+      return "Running";
     case "interrupted":
-    case "shutdown":
-    case "notFound":
-      return { kind: "agentStatus", receiver, status, message: null };
+      return "Interrupted";
     case "completed": {
       const message = normalizedMessage(state.message ?? "");
-      return {
-        kind: "agentStatus",
-        receiver,
-        status,
-        message:
-          message.length === 0
-            ? null
-            : truncateGraphemes(message, COLLAB_AGENT_RESPONSE_PREVIEW_GRAPHEMES),
-      };
+      return message.length === 0
+        ? "Completed"
+        : `Completed - ${truncateGraphemes(message, COLLAB_AGENT_RESPONSE_PREVIEW_GRAPHEMES)}`;
     }
     case "errored": {
-      const message = state.message == null ? null : normalizedMessage(state.message);
-      return {
-        kind: "agentStatus",
-        receiver,
-        status,
-        message:
-          message == null ? null : truncateGraphemes(message, COLLAB_AGENT_ERROR_PREVIEW_GRAPHEMES),
-      };
+      const message = normalizedMessage(state.message ?? "Agent errored");
+      return message.length === 0
+        ? "Error"
+        : `Error - ${truncateGraphemes(message, COLLAB_AGENT_ERROR_PREVIEW_GRAPHEMES)}`;
     }
+    case "shutdown":
+      return "Shutdown";
+    case "notFound":
+      return "Not found";
   }
 
   return exhaustive(status);
@@ -132,7 +127,7 @@ const firstAgentState = (item: CollabAgentToolCallItem): CollabAgentState | null
   return firstExtra?.[1] ?? null;
 };
 
-const waitDetails = (item: CollabAgentToolCallItem): TranscriptActivityDetail[] => {
+const waitDetails = (item: CollabAgentToolCallItem): string[] => {
   const seen = new Set<string>();
   const receiverStates = item.receiverThreadIds.flatMap((receiver) => {
     const state = item.agentsStates[receiver];
@@ -149,22 +144,19 @@ const waitDetails = (item: CollabAgentToolCallItem): TranscriptActivityDetail[] 
   const states = [...receiverStates, ...extraStates];
 
   return states.length === 0
-    ? [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }]
-    : states.map(([threadId, state]) => ({
-        kind: "copy",
-        copy: agentStatusCopy(threadId, state),
-      }));
+    ? ["No agents completed yet"]
+    : states.map(([threadId, state]) => `${threadId}: ${statusSummary(state)}`);
 };
 
 const materializeSubAgentActivity = (item: SubAgentActivityItem): TranscriptActivityContent => {
   const { kind } = item;
   switch (kind) {
     case "started":
-      return { copy: { kind: "agentStarted", agentPath: item.agentPath }, details: [] };
+      return { title: `Started ${item.agentPath}`, details: [] };
     case "interacted":
-      return { copy: { kind: "agentInteracted", agentPath: item.agentPath }, details: [] };
+      return { title: `Interacted with ${item.agentPath}`, details: [] };
     case "interrupted":
-      return { copy: { kind: "agentInterrupted", agentPath: item.agentPath }, details: [] };
+      return { title: `Interrupted ${item.agentPath}`, details: [] };
   }
 
   return exhaustive(kind);
@@ -182,15 +174,10 @@ const materializeCollabAgentToolCall = (
 
       const receiver = firstReceiver(item);
       return {
-        copy:
+        title:
           receiver == null
-            ? { kind: "agentSpawnFailed" }
-            : {
-                kind: "agentSpawned",
-                receiver,
-                model: item.model,
-                reasoningEffort: item.reasoningEffort,
-              },
+            ? "Agent spawn failed"
+            : `Spawned ${receiver}${spawnRequestSuffix(item)}`,
         details: promptDetails(item),
       };
     }
@@ -202,7 +189,7 @@ const materializeCollabAgentToolCall = (
       const receiver = firstReceiver(item);
       return receiver == null
         ? null
-        : { copy: { kind: "inputSent", receiver }, details: promptDetails(item) };
+        : { title: `Sent input to ${receiver}`, details: promptDetails(item) };
     }
     case "resumeAgent": {
       const receiver = firstReceiver(item);
@@ -210,45 +197,34 @@ const materializeCollabAgentToolCall = (
         return null;
       }
       if (!terminalStatus(item.status)) {
-        return { copy: { kind: "agentResuming", receiver }, details: [] };
+        return { title: `Resuming ${receiver}`, details: [] };
       }
 
       const state = firstAgentState(item);
       return {
-        copy: { kind: "agentResumed", receiver },
-        details: [
-          {
-            kind: "copy",
-            copy: state == null ? { kind: "agentResumeFailed" } : agentStatusCopy(null, state),
-          },
-        ],
+        title: `Resumed ${receiver}`,
+        details: [state == null ? "Error - Agent resume failed" : statusSummary(state)],
       };
     }
     case "wait": {
       if (!terminalStatus(item.status)) {
         const receiver = firstReceiver(item);
         if (receiver == null) {
-          return {
-            copy: { kind: "agentsWaiting", receiver: null, receiverCount: 0 },
-            details: [],
-          };
+          return { title: "Waiting for agents", details: [] };
         }
 
         const receiverCount = item.receiverThreadIds.length;
         if (receiverCount === 1) {
-          return {
-            copy: { kind: "agentsWaiting", receiver, receiverCount },
-            details: [],
-          };
+          return { title: `Waiting for ${receiver}`, details: [] };
         }
 
         return {
-          copy: { kind: "agentsWaiting", receiver: null, receiverCount },
-          details: item.receiverThreadIds.map((text) => ({ kind: "raw", text })),
+          title: `Waiting for ${String(receiverCount)} agents`,
+          details: [...item.receiverThreadIds],
         };
       }
 
-      return { copy: { kind: "agentsFinishedWaiting" }, details: waitDetails(item) };
+      return { title: "Finished waiting", details: waitDetails(item) };
     }
     case "closeAgent": {
       if (!terminalStatus(item.status)) {
@@ -256,7 +232,7 @@ const materializeCollabAgentToolCall = (
       }
 
       const receiver = firstReceiver(item);
-      return receiver == null ? null : { copy: { kind: "agentClosed", receiver }, details: [] };
+      return receiver == null ? null : { title: `Closed ${receiver}`, details: [] };
     }
   }
 

@@ -1,5 +1,4 @@
 import { Button, Popover, Typography } from "@heroui/react";
-import { Trans, useLingui } from "@lingui/react/macro";
 import { QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo } from "react";
@@ -15,7 +14,6 @@ export function QrAccessPopover({
   launchParams,
   origin = window.location.origin,
 }: QrAccessPopoverProps) {
-  const { t } = useLingui();
   const qrUrl = useMemo(() => {
     if (launchParams == null) {
       return null;
@@ -34,10 +32,7 @@ export function QrAccessPopover({
     <Popover>
       <Button
         isIconOnly
-        aria-label={t({
-          comment: "Label for the control that shows a QR code for phone access",
-          message: "Scan with phone",
-        })}
+        aria-label="Scan with phone"
         isDisabled={isDisabled}
         size="sm"
         variant="tertiary"
@@ -46,23 +41,16 @@ export function QrAccessPopover({
       </Button>
       <Popover.Content className="w-72" placement="top" offset={12}>
         <Popover.Dialog>
-          <Popover.Heading>
-            <Trans comment="Heading above the QR code used for phone access">Scan with phone</Trans>
-          </Popover.Heading>
+          <Popover.Heading>Scan with phone</Popover.Heading>
           {qrUrl == null ? (
             <Typography.Paragraph color="muted" size="sm">
-              <Trans comment="Shown when the launch token required to build the phone QR URL is unavailable">
-                QR access is unavailable until the GUI launch token is ready.
-              </Trans>
+              QR access is unavailable until the GUI launch token is ready.
             </Typography.Paragraph>
           ) : (
             <div className="grid gap-3">
               <div className="rounded-lg p-3">
                 <QRCodeSVG
-                  aria-label={t({
-                    comment: "Accessible name for the QR image encoding the current GUI URL",
-                    message: "QR code for current GUI URL",
-                  })}
+                  aria-label="QR code for current GUI URL"
                   className="h-full w-full"
                   marginSize={4}
                   value={qrUrl}

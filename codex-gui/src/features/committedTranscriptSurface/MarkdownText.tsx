@@ -1,18 +1,10 @@
 import { Streamdown } from "streamdown";
-import {
-  markdownContainerClassName,
-  streamdownCommonProps,
-  useStreamdownTranslations,
-} from "./markdownRendering";
+import { markdownContainerClassName, streamdownCommonProps } from "./markdownRendering";
 
-export const MarkdownText = ({ source }: { source: string }) => {
-  const translations = useStreamdownTranslations();
-
-  return (
-    <div className={markdownContainerClassName}>
-      <Streamdown {...streamdownCommonProps} mode="static" translations={translations}>
-        {source}
-      </Streamdown>
-    </div>
-  );
-};
+export const MarkdownText = ({ source }: { source: string }) => (
+  <div className={markdownContainerClassName}>
+    <Streamdown {...streamdownCommonProps} mode="static">
+      {source}
+    </Streamdown>
+  </div>
+);

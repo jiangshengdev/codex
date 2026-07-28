@@ -53,14 +53,12 @@ export default defineConfig({
     },
     {
       name: "firefox",
-      grepInvert: /@visual/,
       use: {
         ...devices["Desktop Firefox"],
       },
     },
     {
       name: "webkit",
-      grepInvert: /@visual/,
       use: {
         ...devices["Desktop Safari"],
       },
