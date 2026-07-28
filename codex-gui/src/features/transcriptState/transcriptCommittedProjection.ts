@@ -161,44 +161,6 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
   }
 };
 
-const materializeStartedTranscriptItem = (
-  item: ThreadItem,
-  turnId: string,
-): TranscriptEntry | null => {
-  if (item.type !== "collabAgentToolCall" || item.status !== "inProgress") {
-    return null;
-  }
-
-  const entry = materializeTranscriptItem(item, turnId);
-  return entry?.type === "activity" ? entry : null;
-};
-
-export const hasAppliedStartedTranscriptItem = (
-  state: TranscriptState,
-  turnId: string,
-  item: ThreadItem,
-): boolean => {
-  const entry = materializeStartedTranscriptItem(item, turnId);
-  return entry != null && state.entriesById[entry.id]?.turnId === turnId;
-};
-
-export const applyStartedTranscriptItem = (
-  state: TranscriptState,
-  turnId: string,
-  item: ThreadItem,
-): boolean => {
-  const entry = materializeStartedTranscriptItem(item, turnId);
-  if (entry == null) {
-    return false;
-  }
-
-  ensureTranscriptTurn(state, turnId);
-  if (state.entriesById[entry.id] == null) {
-    upsertLiveCommittedEntry(state, entry);
-  }
-  return true;
-};
-
 export const applyCompletedTranscriptItem = (
   state: TranscriptState,
   turnId: string,
