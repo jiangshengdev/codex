@@ -4,6 +4,7 @@ import { createServer as createHttpServer, request } from "node:http";
 import type { IncomingHttpHeaders, Server as HttpServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath, URL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer as createViteServer } from "vite";
 import type { ViteDevServer } from "vite";
@@ -11,6 +12,7 @@ import viteConfig from "../../vite.config";
 
 const largeContent = "a".repeat(2048);
 const smallContent = "b".repeat(512);
+const projectRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 type HttpResponse = {
   body: Buffer;
@@ -27,21 +29,22 @@ const headerValues = (header: string | string[] | undefined): string[] => {
 
 describe("Vite development response compression", () => {
   let httpServer: HttpServer | undefined;
-  let root: string | undefined;
+  let publicDir: string | undefined;
   let viteServer: ViteDevServer | undefined;
   let port: number;
 
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), "codex-gui-vite-compression-"));
+    publicDir = await mkdtemp(join(tmpdir(), "codex-gui-vite-compression-"));
     await Promise.all([
-      writeFile(join(root, "large.txt"), largeContent),
-      writeFile(join(root, "small.txt"), smallContent),
+      writeFile(join(publicDir, "large.txt"), largeContent),
+      writeFile(join(publicDir, "small.txt"), smallContent),
     ]);
 
     viteServer = await createViteServer({
       ...viteConfig,
       configFile: false,
-      root,
+      publicDir,
+      root: projectRoot,
       server: {
         ...viteConfig.server,
         hmr: false,
@@ -75,8 +78,8 @@ describe("Vite development response compression", () => {
       });
     }
     await viteServer?.close();
-    if (root !== undefined) {
-      await rm(root, { force: true, recursive: true });
+    if (publicDir !== undefined) {
+      await rm(publicDir, { force: true, recursive: true });
     }
   });
 
