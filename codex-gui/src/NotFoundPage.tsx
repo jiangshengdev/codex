@@ -1,5 +1,4 @@
 import { Button, Link, Typography } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 
 export function NotFoundPage() {
@@ -16,7 +15,7 @@ export function NotFoundPage() {
           level={1}
           weight="semibold"
         >
-          <Trans>Page not found</Trans>
+          Page not found
         </Typography.Heading>
         <Typography.Paragraph
           className="mt-6 text-lg text-pretty sm:text-xl/8"
@@ -24,17 +23,14 @@ export function NotFoundPage() {
           size="base"
           weight="medium"
         >
-          <Trans>Sorry, we couldn’t find the page you’re looking for.</Trans>
+          Sorry, we couldn’t find the page you’re looking for.
         </Typography.Paragraph>
         <div className="mt-10 flex items-center justify-center gap-x-6">
           <Button size="lg" onPress={() => void navigate({ to: "/" })}>
-            <Trans>Go back home</Trans>
+            Go back home
           </Button>
           <Link href="mailto:jiangshengdev@outlook.com" className="text-sm font-semibold">
-            <Trans comment="Link on the not-found page that opens an email to support">
-              Contact support
-            </Trans>{" "}
-            <span aria-hidden="true">&rarr;</span>
+            Contact support <span aria-hidden="true">&rarr;</span>
           </Link>
         </div>
       </div>

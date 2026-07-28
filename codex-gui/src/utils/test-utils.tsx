@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactElement } from "react";
-import { setupI18n, type Messages } from "@lingui/core";
+import { setupI18n } from "@lingui/core";
 import { userEvent } from "vitest/browser";
 import type { RenderOptions } from "vitest-browser-react";
 import { render } from "vitest-browser-react";
@@ -7,7 +7,10 @@ import "@/index.css";
 import type { AppStore, RootState } from "@/app/store";
 import { makeStore } from "@/app/store";
 import { LocaleRuntimeProvider } from "@/features/locale/LocaleRuntimeProvider";
-import type { AppLocale, LocalePreference } from "@/features/locale/localeRuntime";
+import type {
+  AppLocale,
+  LocalePreference,
+} from "@/features/locale/localeRuntime";
 import { loadCatalog } from "@/i18n";
 import { I18nProvider } from "@lingui/react";
 import { Provider } from "react-redux";
@@ -21,7 +24,6 @@ import { Provider } from "react-redux";
 type ExtendedRenderOptions = Omit<RenderOptions, "wrapper"> & {
   locale?: AppLocale;
   localePreference?: LocalePreference;
-  messages?: Messages;
   /**
    * Defines a specific portion or the entire initial state for the Redux store.
    * This is particularly useful for initializing the state in a
@@ -58,14 +60,13 @@ export const renderWithProviders = async (
     preloadedState = {},
     locale = "en",
     localePreference = locale,
-    messages: suppliedMessages,
     // Automatically create a store instance if no store was passed in
     store = makeStore(preloadedState),
     ...renderOptions
   } = extendedRenderOptions;
 
   const i18n = setupI18n();
-  const messages = suppliedMessages ?? (await loadCatalog(locale));
+  const messages = await loadCatalog(locale);
   i18n.loadAndActivate({ locale, messages });
   document.documentElement.lang = locale;
 

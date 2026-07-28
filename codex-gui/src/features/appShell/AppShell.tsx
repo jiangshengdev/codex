@@ -1,5 +1,4 @@
 import { Alert, Surface } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { createPrimarySurfaceNavigation } from "@/features/appRuntime/primarySurfaceNavigation";
@@ -32,11 +31,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
     <Alert className="w-full" status="danger">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>
-          <Trans comment="Error alert title; Codex GUI is the product name">
-            Unable to start Codex GUI
-          </Trans>
-        </Alert.Title>
+        <Alert.Title>Unable to start Codex GUI</Alert.Title>
         <Alert.Description>{status.message}</Alert.Description>
       </Alert.Content>
     </Alert>
@@ -54,7 +49,8 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
 export function AppShell({ status, commands, launchParams }: AppShellProps) {
   const navigate = useNavigate();
   const primarySurfaceNavigation = createPrimarySurfaceNavigation(navigate);
-  const { captureScrollSnapshot, transcriptBottomRef } = useCommittedTranscriptStickyBottom();
+  const { captureScrollSnapshot, transcriptBottomRef } =
+    useCommittedTranscriptStickyBottom();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
   const hasTopNotice = status.label === "error";
 

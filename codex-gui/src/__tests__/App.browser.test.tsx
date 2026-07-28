@@ -51,7 +51,6 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
-import { task6SimplifiedChineseMessages } from "./task6LocaleTestSupport";
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -262,23 +261,6 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
-});
-
-test("App localizes the GUI host startup error title without translating its diagnostic", async () => {
-  startGuiHostConnectionMock.mockImplementation(() => {
-    throw new Error("Missing launch token fragment");
-  });
-  const history = createMemoryHistory({ initialEntries: ["/"] });
-  const router = createAppRouter({ history });
-
-  const screen = await renderWithProviders(<RouterProvider router={router} />, {
-    locale: "zh-CN",
-    messages: task6SimplifiedChineseMessages,
-  });
-
-  await expect.element(screen.getByText("无法启动 Codex GUI")).toBeVisible();
-  await expect.element(screen.getByText("Unable to start Codex GUI")).not.toBeInTheDocument();
-  await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
 });
 
 test("App dispatches accepted host projection payloads into thread runtime", async () => {
