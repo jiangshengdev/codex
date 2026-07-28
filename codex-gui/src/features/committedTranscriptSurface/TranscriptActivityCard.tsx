@@ -136,7 +136,7 @@ export const TranscriptActivityCard = ({ entry }: { entry: TranscriptActivityEnt
   return (
     <Card
       aria-labelledby={titleId}
-      className="committed-transcript-entry committed-transcript-entry-activity min-w-0"
+      className="committed-transcript-entry committed-transcript-entry-activity min-w-0 px-4 py-1"
       role="article"
       variant="transparent"
     >
