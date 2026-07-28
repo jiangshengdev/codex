@@ -12,12 +12,7 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import {
-  selectTranscriptChunk,
-  selectTranscriptEntry,
-  selectTranscriptLiveItemsForTurn,
-  selectTranscriptTurn,
-} from "../transcriptStateSlice";
+import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
 import {
   agentMessageDelta,
   agentMessage,
@@ -130,14 +125,14 @@ describe("transcript state selector cache", () => {
     });
   });
 
-  it("does not reuse transcript chunk views across snapshot generations with identical content", () => {
+  it("does not reuse transcript chunk views across snapshot reattach", () => {
     const store = makeStore();
 
     store.dispatch(
       threadRuntimeAttached(
         attachWithTurns(attachBaseline, [
           baseTurn("turn-reattach", [
-            agentMessage("agent-reattach", "Stable across reconnect", "commentary"),
+            agentMessage("agent-reattach", "Before reconnect", "commentary"),
           ]),
         ]),
       ),
@@ -149,7 +144,7 @@ describe("transcript state selector cache", () => {
       threadRuntimeAttached(
         attachWithTurns(attachReplacement, [
           baseTurn("turn-reattach", [
-            agentMessage("agent-reattach", "Stable across reconnect", "commentary"),
+            agentMessage("agent-reattach", "After reconnect", "commentary"),
           ]),
         ]),
       ),
@@ -168,49 +163,13 @@ describe("transcript state selector cache", () => {
           id: "agent-reattach",
           turnId: "turn-reattach",
           role: "assistant",
-          source: "Stable across reconnect",
+          source: "After reconnect",
           sourceKind: "markdown",
           phase: "commentary",
           revision: 0,
         },
       ],
     });
-  });
-
-  it("invalidates only the owning chunk when one presentation slot changes", () => {
-    const store = makeStore();
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-unchanged", [agentMessage("agent-unchanged", "Unchanged", "commentary")]),
-          baseTurn("turn-updated", [agentMessage("agent-updated", "Before", "commentary")]),
-        ]),
-      ),
-    );
-    const unchangedTurn = selectTranscriptTurn(store.getState(), "turn-unchanged");
-    const updatedTurn = selectTranscriptTurn(store.getState(), "turn-updated");
-    const unchangedChunk = selectTranscriptChunk(store.getState(), "turn-unchanged:chunk:0");
-    const updatedChunk = selectTranscriptChunk(store.getState(), "turn-updated:chunk:0");
-    const beforeEntry = selectTranscriptEntry(store.getState(), "agent-updated");
-
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemCompleted(
-          eventItemCompleted,
-          "commit-update-one-slot",
-          "turn-updated",
-          agentMessage("agent-updated", "After", "commentary"),
-        ),
-        replay: "live",
-      }),
-    );
-
-    expect(selectTranscriptTurn(store.getState(), "turn-unchanged")).toBe(unchangedTurn);
-    expect(selectTranscriptTurn(store.getState(), "turn-updated")).toBe(updatedTurn);
-    expect(selectTranscriptChunk(store.getState(), "turn-unchanged:chunk:0")).toBe(unchangedChunk);
-    expect(selectTranscriptChunk(store.getState(), "turn-updated:chunk:0")).not.toBe(updatedChunk);
-    expect(selectTranscriptEntry(store.getState(), "agent-updated")).not.toBe(beforeEntry);
   });
 
   it("returns the store-owned live item array while that turn is unchanged", () => {

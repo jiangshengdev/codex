@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import {
-  attachBaseline,
-  attachReplacement,
-} from "@/features/projection/__tests__/projectionFixtures";
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectCommittedTranscriptScrollCommitKey,
@@ -83,40 +80,6 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
   });
 
-  it("fully replaces the presentation generation on accepted snapshot reattach", () => {
-    const store = makeStore();
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-stable", [
-            agentMessage("agent-stable", "Stable commentary", "commentary"),
-          ]),
-          baseTurn("turn-stale", [agentMessage("agent-stale", "Stale answer")]),
-        ]),
-      ),
-    );
-    const beforeReattachChunk = selectTranscriptChunk(store.getState(), "turn-stable:chunk:0");
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachReplacement, [
-          baseTurn("turn-stable", [
-            agentMessage("agent-stable", "Stable commentary", "commentary"),
-          ]),
-        ]),
-      ),
-    );
-
-    const afterReattachChunk = selectTranscriptChunk(store.getState(), "turn-stable:chunk:0");
-    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-stable"]);
-    expect(selectTranscriptTurn(store.getState(), "turn-stale")).toBeNull();
-    expect(selectTranscriptEntry(store.getState(), "agent-stale")).toBeNull();
-    expect(afterReattachChunk).not.toBe(beforeReattachChunk);
-    expect(afterReattachChunk?.revision).toBe(0);
-    expect(afterReattachChunk?.entries).toStrictEqual(beforeReattachChunk?.entries);
-  });
-
   it("classifies leading prompt, middle entries, and final answers from snapshot entries", () => {
     const store = makeStore();
 
@@ -186,7 +149,7 @@ describe("transcript state snapshot reducer", () => {
     });
   });
 
-  it("keeps the first visible user message leading after earlier assistant commentary", () => {
+  it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {
     const store = makeStore();
 
     store.dispatch(
@@ -194,7 +157,6 @@ describe("transcript state snapshot reducer", () => {
         attachWithTurns(attachBaseline, [
           baseTurn("turn-assistant-first", [
             agentMessage("agent-first-commentary", "Working first", "commentary"),
-            userMessage("user-after-commentary", [textInput("Prompt after commentary")]),
             agentMessage("agent-first-final", "Done", "final_answer"),
           ]),
         ]),
@@ -204,7 +166,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-assistant-first")).toStrictEqual({
       id: "turn-assistant-first",
       status: "completed",
-      leadingPromptEntryId: "user-after-commentary",
+      leadingPromptEntryId: null,
       middleChunkIds: ["turn-assistant-first:chunk:0"],
       middleEntryCount: 1,
       finalAssistantEntryIds: ["agent-first-final"],
@@ -223,19 +185,9 @@ describe("transcript state snapshot reducer", () => {
         revision: 0,
       },
     ]);
-    expect(selectTranscriptEntry(store.getState(), "user-after-commentary")).toStrictEqual({
-      type: "message",
-      id: "user-after-commentary",
-      turnId: "turn-assistant-first",
-      role: "user",
-      source: "Prompt after commentary",
-      sourceKind: "plainText",
-      phase: null,
-      revision: 0,
-    });
   });
 
-  it("keeps the first visible user message leading after an earlier final assistant answer", () => {
+  it("leaves leading prompt empty when the first visible entry is a final assistant answer", () => {
     const store = makeStore();
 
     store.dispatch(
@@ -252,22 +204,25 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-final-first")).toStrictEqual({
       id: "turn-final-first",
       status: "completed",
-      leadingPromptEntryId: "user-after-final",
-      middleChunkIds: [],
-      middleEntryCount: 0,
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-final-first:chunk:0"],
+      middleEntryCount: 1,
       finalAssistantEntryIds: ["agent-final-first"],
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-final-first:chunk:0")).toBeNull();
-    expect(selectTranscriptEntry(store.getState(), "user-after-final")).toStrictEqual({
-      type: "message",
-      id: "user-after-final",
-      turnId: "turn-final-first",
-      role: "user",
-      source: "After final",
-      sourceKind: "plainText",
-      phase: null,
-      revision: 0,
-    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-final-first:chunk:0")?.entries,
+    ).toStrictEqual([
+      {
+        type: "message",
+        id: "user-after-final",
+        turnId: "turn-final-first",
+        role: "user",
+        source: "After final",
+        sourceKind: "plainText",
+        phase: null,
+        revision: 0,
+      },
+    ]);
   });
 
   it("stores multiple final assistant answers outside middle chunks", () => {

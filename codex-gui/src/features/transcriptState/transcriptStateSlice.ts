@@ -28,7 +28,6 @@ import {
 } from "./transcriptStateModel";
 import {
   transcriptChunkView,
-  transcriptEntryView,
   transcriptLiveItem,
   transcriptLiveItemsForTurn,
 } from "./transcriptStateSelectors";
@@ -64,9 +63,7 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
       transcriptChunkView(transcriptState, chunkId),
     selectTranscriptEntry: (transcriptState, entryId: string): TranscriptEntry | null =>
-      transcriptState.slotsById[entryId] == null
-        ? null
-        : transcriptEntryView(transcriptState.slotsById[entryId]),
+      transcriptState.entriesById[entryId] ?? null,
     selectTranscriptLiveItem: (
       transcriptState,
       turnId: string,

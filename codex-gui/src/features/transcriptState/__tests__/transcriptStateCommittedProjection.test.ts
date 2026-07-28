@@ -27,7 +27,6 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
-  selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptTurn,
@@ -124,48 +123,39 @@ describe("transcript state committed projection reducer", () => {
     });
   });
 
-  it("uses the same message presentation for snapshot and realtime completed items", () => {
-    const snapshotStore = makeStore();
-    const realtimeStore = makeStore();
-    const sharedUser = userMessage("user-shared", [textInput("Shared "), textInput("prompt")]);
-    const sharedCommentary = agentMessage("agent-shared-commentary", "Working", "commentary");
-    const sharedFinal = agentMessage("agent-shared-final", "Done", "final_answer");
+  it("applies normalized live itemCompleted projection payloads into committed transcript chunks", () => {
+    const store = makeStore();
 
-    snapshotStore.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-shared", [sharedUser, sharedCommentary, sharedFinal]),
-        ]),
-      ),
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-live-normalized",
+          "turn-live-normalized",
+          agentMessage("agent-live-normalized", "Live normalized answer"),
+        ),
+        replay: "live",
+      }),
     );
-    realtimeStore.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    for (const [commitId, item] of [
-      ["commit-shared-user", sharedUser],
-      ["commit-shared-commentary", sharedCommentary],
-      ["commit-shared-final", sharedFinal],
-    ] as const) {
-      realtimeStore.dispatch(
-        threadRuntimeEventBuffered({
-          notification: itemCompleted(eventItemCompleted, commitId, "turn-shared", item),
-          replay: "live",
-        }),
-      );
-    }
 
-    for (const itemId of ["user-shared", "agent-shared-commentary", "agent-shared-final"]) {
-      expect(selectTranscriptEntry(realtimeStore.getState(), itemId)).toStrictEqual(
-        selectTranscriptEntry(snapshotStore.getState(), itemId),
-      );
-    }
-    expect(
-      selectTranscriptChunk(realtimeStore.getState(), "turn-shared:chunk:0")?.entries,
-    ).toStrictEqual(
-      selectTranscriptChunk(snapshotStore.getState(), "turn-shared:chunk:0")?.entries,
-    );
-    expect(selectTranscriptTurn(realtimeStore.getState(), "turn-shared")).toMatchObject({
-      leadingPromptEntryId: "user-shared",
-      middleEntryCount: 1,
-      finalAssistantEntryIds: ["agent-shared-final"],
+    expect(selectTranscriptTurn(store.getState(), "turn-live-normalized")).toStrictEqual({
+      id: "turn-live-normalized",
+      status: "inProgress",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: ["agent-live-normalized"],
+    });
+    expect(selectTranscriptEntry(store.getState(), "agent-live-normalized")).toStrictEqual({
+      type: "message",
+      id: "agent-live-normalized",
+      turnId: "turn-live-normalized",
+      role: "assistant",
+      source: "Live normalized answer",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 0,
     });
   });
 
@@ -329,40 +319,7 @@ describe("transcript state committed projection reducer", () => {
     });
   });
 
-  it("treats an unchanged completed presentation as a presentation no-op", () => {
-    const store = makeStore();
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-no-op", [agentMessage("agent-no-op", "Unchanged", "commentary")]),
-        ]),
-      ),
-    );
-    const beforeTurn = selectTranscriptTurn(store.getState(), "turn-no-op");
-    const beforeChunk = selectTranscriptChunk(store.getState(), "turn-no-op:chunk:0");
-    const beforeEntry = selectTranscriptEntry(store.getState(), "agent-no-op");
-    const beforeScrollKey = selectCommittedTranscriptScrollCommitKey(store.getState());
-
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemCompleted(
-          eventItemCompleted,
-          "commit-no-op",
-          "turn-no-op",
-          agentMessage("agent-no-op", "Unchanged", "commentary"),
-        ),
-        replay: "live",
-      }),
-    );
-
-    expect(selectTranscriptTurn(store.getState(), "turn-no-op")).toBe(beforeTurn);
-    expect(selectTranscriptChunk(store.getState(), "turn-no-op:chunk:0")).toBe(beforeChunk);
-    expect(selectTranscriptEntry(store.getState(), "agent-no-op")).toBe(beforeEntry);
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(beforeScrollKey);
-  });
-
-  it("moves an existing commentary presentation into the final location", () => {
+  it("bumps entry and chunk revisions when an existing middle entry phase changes", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -391,14 +348,6 @@ describe("transcript state committed projection reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-phase-update")).toStrictEqual({
-      id: "turn-phase-update",
-      status: "inProgress",
-      leadingPromptEntryId: null,
-      middleChunkIds: ["turn-phase-update:chunk:0"],
-      middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-phase-update"],
-    });
     expect(selectTranscriptEntry(store.getState(), "agent-phase-update")).toStrictEqual({
       type: "message",
       id: "agent-phase-update",
@@ -413,7 +362,18 @@ describe("transcript state committed projection reducer", () => {
       id: "turn-phase-update:chunk:0",
       turnId: "turn-phase-update",
       revision: (beforeUpdateChunk?.revision ?? 0) + 1,
-      entries: [],
+      entries: [
+        {
+          type: "message",
+          id: "agent-phase-update",
+          turnId: "turn-phase-update",
+          role: "assistant",
+          source: "Done",
+          sourceKind: "markdown",
+          phase: "final_answer",
+          revision: 1,
+        },
+      ],
     });
   });
 

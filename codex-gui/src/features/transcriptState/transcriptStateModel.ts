@@ -16,7 +16,7 @@ export type TranscriptTurn = {
 export type TranscriptChunk = {
   id: string;
   turnId: string;
-  slotIds: string[];
+  entryIds: string[];
   revision: number;
 };
 
@@ -29,44 +29,24 @@ export type TranscriptLiveItemIndex = {
 
 export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
 
-export type TranscriptPresentation =
+export type TranscriptEntry =
   | {
       type: "message";
+      id: string;
+      turnId: string;
       role: "user" | "assistant";
       source: string;
       sourceKind: "plainText" | "markdown";
       phase: TranscriptMessagePhase;
+      revision: number;
     }
   | {
       type: "status";
+      id: string;
+      turnId: string;
       status: "interrupted" | "failed";
+      revision: number;
     };
-
-export type TranscriptEntry = TranscriptPresentation & {
-  id: string;
-  turnId: string;
-  revision: number;
-};
-
-export type TranscriptPresentationLocation = "leading" | "intermediate" | "final";
-
-export type TranscriptPresentationAuthority = "transient" | "authoritative";
-
-export type TranscriptPresentationPlacementIntent = "leadingCandidate" | "intermediate" | "final";
-
-export type TranscriptPresentationCandidate = {
-  content: TranscriptPresentation;
-  placementIntent: TranscriptPresentationPlacementIntent;
-};
-
-export type TranscriptPresentationSlot = {
-  id: string;
-  turnId: string;
-  location: TranscriptPresentationLocation;
-  authority: TranscriptPresentationAuthority;
-  content: TranscriptPresentation;
-  revision: number;
-};
 
 export type TranscriptGlobalStatus = {
   id: string;
@@ -95,14 +75,13 @@ export type TranscriptRenderableLiveItem = {
 export type TranscriptState = {
   threadId: string | null;
   subscriptionId: string | null;
-  presentationGeneration: number;
   committedScrollCommitKey: string | null;
   liveScrollPulse: number;
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunksById: Record<string, TranscriptChunk>;
-  slotsById: Record<string, TranscriptPresentationSlot>;
-  slotChunkById: Record<string, string>;
+  entriesById: Record<string, TranscriptEntry>;
+  entryChunkById: Record<string, string>;
   liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>;
   liveItemIndexByKey: Record<string, TranscriptLiveItemIndex>;
   globalStatus: TranscriptGlobalStatus[];
@@ -113,14 +92,13 @@ export type TranscriptState = {
 export const createEmptyTranscriptState = (): TranscriptState => ({
   threadId: null,
   subscriptionId: null,
-  presentationGeneration: 0,
   committedScrollCommitKey: null,
   liveScrollPulse: 0,
   turnIds: [],
   turnsById: {},
   chunksById: {},
-  slotsById: {},
-  slotChunkById: {},
+  entriesById: {},
+  entryChunkById: {},
   liveItemsByTurnId: {},
   liveItemIndexByKey: {},
   globalStatus: [],

@@ -1,16 +1,11 @@
 import type { ThreadItem, Turn } from "@codex-protocol/v2";
-import {
-  areTranscriptPresentationsEqual,
-  materializeAuthoritativeTranscriptItem,
-} from "./transcriptEntryMaterialization";
+import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   createEmptyTranscriptState,
   resetTranscriptState,
   type TranscriptChunk,
-  type TranscriptPresentationCandidate,
-  type TranscriptPresentationLocation,
-  type TranscriptPresentationSlot,
+  type TranscriptEntry,
   type TranscriptState,
   type TranscriptTurn,
 } from "./transcriptStateModel";
@@ -56,159 +51,90 @@ const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): Transcr
   const lastChunkId = chunkIds.at(-1);
   const lastChunk = lastChunkId == null ? null : state.chunksById[lastChunkId];
 
-  if (lastChunk != null && lastChunk.slotIds.length < TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT) {
+  if (lastChunk != null && lastChunk.entryIds.length < TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT) {
     return lastChunk;
   }
 
   const chunkId = chunkIdForIndex(turnId, chunkIds.length);
-  const chunk: TranscriptChunk = { id: chunkId, turnId, slotIds: [], revision: 0 };
+  const chunk: TranscriptChunk = { id: chunkId, turnId, entryIds: [], revision: 0 };
   state.chunksById[chunkId] = chunk;
   turn.middleChunkIds.push(chunkId);
   return chunk;
 };
 
-const locationForNewPresentation = (
-  turn: TranscriptTurn,
-  candidate: TranscriptPresentationCandidate,
-): TranscriptPresentationLocation => {
-  switch (candidate.placementIntent) {
-    case "leadingCandidate":
-      return turn.leadingPromptEntryId == null ? "leading" : "intermediate";
-    case "intermediate":
-      return "intermediate";
-    case "final":
-      return "final";
-  }
+const isAssistantMessageEntry = (
+  entry: TranscriptEntry,
+): entry is Extract<TranscriptEntry, { type: "message" }> & { role: "assistant" } =>
+  entry.type === "message" && entry.role === "assistant";
 
-  const exhaustiveIntent: never = candidate.placementIntent;
-  return exhaustiveIntent;
-};
+const isFinalAssistantEntry = (entry: TranscriptEntry): boolean =>
+  isAssistantMessageEntry(entry) && entry.phase === "final_answer";
 
-const locationForExistingPresentation = (
-  slot: TranscriptPresentationSlot,
-  candidate: TranscriptPresentationCandidate,
-): TranscriptPresentationLocation => {
-  if (candidate.placementIntent === "leadingCandidate") {
-    return slot.location === "leading" ? "leading" : "intermediate";
-  }
-  return candidate.placementIntent;
-};
+const turnHasVisibleEntries = (turn: TranscriptTurn): boolean =>
+  turn.leadingPromptEntryId != null ||
+  turn.middleChunkIds.length > 0 ||
+  turn.finalAssistantEntryIds.length > 0;
 
-const addSlotToLocation = (
+const appendEntryToMiddleChunk = (
   state: TranscriptState,
-  slot: TranscriptPresentationSlot,
-  bumpChunkRevision: boolean,
+  entry: TranscriptEntry,
+  options: { bumpChunkRevision: boolean },
 ) => {
-  const turn = ensureTranscriptTurn(state, slot.turnId);
-  switch (slot.location) {
-    case "leading":
-      turn.leadingPromptEntryId = slot.id;
-      return;
-    case "final":
-      turn.finalAssistantEntryIds.push(slot.id);
-      return;
-    case "intermediate": {
-      const chunk = getOrCreateMiddleChunk(state, slot.turnId);
-      chunk.slotIds.push(slot.id);
-      turn.middleEntryCount += 1;
-      if (bumpChunkRevision) {
-        chunk.revision += 1;
-      }
-      state.slotChunkById[slot.id] = chunk.id;
-      return;
-    }
+  const turn = ensureTranscriptTurn(state, entry.turnId);
+  const chunk = getOrCreateMiddleChunk(state, entry.turnId);
+  chunk.entryIds.push(entry.id);
+  turn.middleEntryCount += 1;
+  if (options.bumpChunkRevision) {
+    chunk.revision += 1;
   }
+  state.entryChunkById[entry.id] = chunk.id;
 };
 
-const removeSlotFromLocation = (state: TranscriptState, slot: TranscriptPresentationSlot) => {
-  const turn = ensureTranscriptTurn(state, slot.turnId);
-  switch (slot.location) {
-    case "leading":
-      if (turn.leadingPromptEntryId === slot.id) {
-        turn.leadingPromptEntryId = null;
-      }
-      return;
-    case "final": {
-      const index = turn.finalAssistantEntryIds.indexOf(slot.id);
-      if (index >= 0) {
-        turn.finalAssistantEntryIds.splice(index, 1);
-      }
-      return;
-    }
-    case "intermediate": {
-      const chunkId = state.slotChunkById[slot.id];
-      const chunk = chunkId == null ? null : state.chunksById[chunkId];
-      const index = chunk?.slotIds.indexOf(slot.id) ?? -1;
-      if (chunk != null && index >= 0) {
-        chunk.slotIds.splice(index, 1);
-        chunk.revision += 1;
-        turn.middleEntryCount -= 1;
-      }
-      Reflect.deleteProperty(state.slotChunkById, slot.id);
-      return;
-    }
-  }
-};
-
-const placeNewPresentationSlot = (
+const classifyNewEntry = (
   state: TranscriptState,
-  turnId: string,
-  itemId: string,
-  candidate: TranscriptPresentationCandidate,
-  bumpChunkRevision: boolean,
+  entry: TranscriptEntry,
+  options: { bumpChunkRevision: boolean },
 ) => {
-  const turn = ensureTranscriptTurn(state, turnId);
-  const slot: TranscriptPresentationSlot = {
-    id: itemId,
-    turnId,
-    location: locationForNewPresentation(turn, candidate),
-    authority: "authoritative",
-    content: candidate.content,
-    revision: 0,
+  const turn = ensureTranscriptTurn(state, entry.turnId);
+  state.entriesById[entry.id] = entry;
+
+  if (!turnHasVisibleEntries(turn) && !isAssistantMessageEntry(entry)) {
+    turn.leadingPromptEntryId = entry.id;
+    return;
+  }
+
+  if (isFinalAssistantEntry(entry)) {
+    turn.finalAssistantEntryIds.push(entry.id);
+    return;
+  }
+
+  appendEntryToMiddleChunk(state, entry, options);
+};
+
+const appendBaselineEntry = (state: TranscriptState, entry: TranscriptEntry) => {
+  classifyNewEntry(state, entry, { bumpChunkRevision: false });
+};
+
+const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
+  const existingEntry = state.entriesById[entry.id];
+  if (existingEntry == null) {
+    classifyNewEntry(state, entry, { bumpChunkRevision: true });
+    return;
+  }
+
+  state.entriesById[entry.id] = {
+    ...entry,
+    revision: existingEntry.revision + 1,
   };
-  state.slotsById[slot.id] = slot;
-  addSlotToLocation(state, slot, bumpChunkRevision);
-};
-
-const upsertAuthoritativePresentationSlot = (
-  state: TranscriptState,
-  turnId: string,
-  itemId: string,
-  candidate: TranscriptPresentationCandidate,
-  bumpChunkRevision: boolean,
-): boolean => {
-  const existingSlot = state.slotsById[itemId];
-  if (existingSlot == null) {
-    placeNewPresentationSlot(state, turnId, itemId, candidate, bumpChunkRevision);
-    return true;
+  const chunkId = state.entryChunkById[entry.id];
+  if (chunkId == null) {
+    return;
   }
 
-  const nextLocation = locationForExistingPresentation(existingSlot, candidate);
-  const locationChanged = existingSlot.location !== nextLocation;
-  const contentChanged = !areTranscriptPresentationsEqual(existingSlot.content, candidate.content);
-  const authorityChanged = existingSlot.authority !== "authoritative";
-  if (!locationChanged && !contentChanged && !authorityChanged) {
-    return false;
+  const chunk = state.chunksById[chunkId];
+  if (chunk != null) {
+    chunk.revision += 1;
   }
-
-  if (locationChanged) {
-    removeSlotFromLocation(state, existingSlot);
-  }
-  existingSlot.location = nextLocation;
-  existingSlot.authority = "authoritative";
-  existingSlot.content = candidate.content;
-  existingSlot.revision += 1;
-
-  if (locationChanged) {
-    addSlotToLocation(state, existingSlot, true);
-  } else if (existingSlot.location === "intermediate") {
-    const chunkId = state.slotChunkById[existingSlot.id];
-    const chunk = chunkId == null ? null : state.chunksById[chunkId];
-    if (chunk != null) {
-      chunk.revision += 1;
-    }
-  }
-  return true;
 };
 
 export const applyCompletedTranscriptItem = (
@@ -217,36 +143,13 @@ export const applyCompletedTranscriptItem = (
   item: ThreadItem,
 ): boolean => {
   ensureTranscriptTurn(state, turnId);
-  const candidate = materializeAuthoritativeTranscriptItem(item);
-  if (candidate == null) {
+  const entry = materializeTranscriptItem(item, turnId);
+  if (entry == null) {
     return false;
   }
-  return upsertAuthoritativePresentationSlot(state, turnId, item.id, candidate, true);
-};
 
-const buildTranscriptStateFromSnapshot = (
-  previousGeneration: number,
-  threadId: string,
-  subscriptionId: string,
-  headCommitId: string | null,
-  turns: readonly Turn[],
-): TranscriptState => {
-  const nextState = createEmptyTranscriptState();
-  nextState.threadId = threadId;
-  nextState.subscriptionId = subscriptionId;
-  nextState.presentationGeneration = previousGeneration + 1;
-  nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
-
-  for (const turn of turns) {
-    upsertTranscriptTurn(nextState, turn);
-    for (const item of turn.items) {
-      const candidate = materializeAuthoritativeTranscriptItem(item);
-      if (candidate != null) {
-        upsertAuthoritativePresentationSlot(nextState, turn.id, item.id, candidate, false);
-      }
-    }
-  }
-  return nextState;
+  upsertLiveCommittedEntry(state, entry);
+  return true;
 };
 
 export const rebuildTranscriptFromSnapshot = (
@@ -256,14 +159,20 @@ export const rebuildTranscriptFromSnapshot = (
   headCommitId: string | null,
   turns: Turn[],
 ): void => {
-  resetTranscriptState(
-    state,
-    buildTranscriptStateFromSnapshot(
-      state.presentationGeneration,
-      threadId,
-      subscriptionId,
-      headCommitId,
-      turns,
-    ),
-  );
+  const nextState = createEmptyTranscriptState();
+  nextState.threadId = threadId;
+  nextState.subscriptionId = subscriptionId;
+  nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
+
+  for (const turn of turns) {
+    upsertTranscriptTurn(nextState, turn);
+    for (const item of turn.items) {
+      const entry = materializeTranscriptItem(item, turn.id);
+      if (entry != null) {
+        appendBaselineEntry(nextState, entry);
+      }
+    }
+  }
+
+  resetTranscriptState(state, nextState);
 };
