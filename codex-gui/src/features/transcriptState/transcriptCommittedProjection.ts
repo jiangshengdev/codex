@@ -70,29 +70,10 @@ const isAssistantMessageEntry = (
 const isFinalAssistantEntry = (entry: TranscriptEntry): boolean =>
   isAssistantMessageEntry(entry) && entry.phase === "final_answer";
 
-const turnHasVisibleNonActivityEntries = (
-  state: TranscriptState,
-  turn: TranscriptTurn,
-): boolean => {
-  if (turn.leadingPromptEntryId != null || turn.finalAssistantEntryIds.length > 0) {
-    return true;
-  }
-
-  for (const chunkId of turn.middleChunkIds) {
-    const chunk = state.chunksById[chunkId];
-    if (chunk == null) {
-      return true;
-    }
-
-    for (const entryId of chunk.entryIds) {
-      if (state.entriesById[entryId]?.type !== "activity") {
-        return true;
-      }
-    }
-  }
-
-  return false;
-};
+const turnHasVisibleEntries = (turn: TranscriptTurn): boolean =>
+  turn.leadingPromptEntryId != null ||
+  turn.middleChunkIds.length > 0 ||
+  turn.finalAssistantEntryIds.length > 0;
 
 const appendEntryToMiddleChunk = (
   state: TranscriptState,
@@ -117,12 +98,7 @@ const classifyNewEntry = (
   const turn = ensureTranscriptTurn(state, entry.turnId);
   state.entriesById[entry.id] = entry;
 
-  if (entry.type === "activity") {
-    appendEntryToMiddleChunk(state, entry, options);
-    return;
-  }
-
-  if (!turnHasVisibleNonActivityEntries(state, turn) && !isAssistantMessageEntry(entry)) {
+  if (!turnHasVisibleEntries(turn) && !isAssistantMessageEntry(entry)) {
     turn.leadingPromptEntryId = entry.id;
     return;
   }
