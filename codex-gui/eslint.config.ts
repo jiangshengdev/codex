@@ -1,5 +1,4 @@
 import path from "node:path";
-import { includeIgnoreFile } from "@eslint/compat";
 import js from "@eslint/js";
 import globals from "globals";
 import vitestPlugin from "@vitest/eslint-plugin";
@@ -13,7 +12,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import pluginOxlint from "eslint-plugin-oxlint";
 import skipFormatting from "eslint-config-prettier/flat";
 import { configs } from "typescript-eslint";
-import { defineConfig, globalIgnores } from "eslint/config";
+import { defineConfig, globalIgnores, includeIgnoreFile } from "eslint/config";
 
 const gitignorePath = path.resolve(import.meta.dirname, ".gitignore");
 
