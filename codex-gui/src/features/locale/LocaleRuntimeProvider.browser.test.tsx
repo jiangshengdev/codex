@@ -5,9 +5,11 @@ import { Toast, toast } from "@heroui/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { render } from "vitest-browser-react";
 import type { AppLocale } from "./localeRuntime";
-import { useLocaleRuntime } from "./LocaleRuntimeContext";
-import { LocaleRuntimeProvider } from "./LocaleRuntimeProvider";
-import { bootstrapLocaleRuntime } from "./localeRuntimeBootstrap";
+import {
+  bootstrapLocaleRuntime,
+  LocaleRuntimeProvider,
+  useLocaleRuntime,
+} from "./LocaleRuntimeProvider";
 
 const catalogMock = vi.hoisted(() => ({
   loadCatalog: vi.fn<(locale: AppLocale) => Promise<Messages>>(),
@@ -50,13 +52,13 @@ function RuntimeProbe() {
       <output aria-label="Active locale">{runtime.activeLocale}</output>
       <output aria-label="Changing">{String(runtime.isChanging)}</output>
       <output aria-label="Runtime interface">{Object.keys(runtime).sort().join(",")}</output>
-      <button type="button" onClick={() => { setPreference("system"); }}>
+      <button type="button" onClick={() => setPreference("system")}>
         Use system
       </button>
-      <button type="button" onClick={() => { setPreference("en"); }}>
+      <button type="button" onClick={() => setPreference("en")}>
         Use English
       </button>
-      <button type="button" onClick={() => { setPreference("zh-CN"); }}>
+      <button type="button" onClick={() => setPreference("zh-CN")}>
         Use Simplified Chinese
       </button>
     </section>
@@ -88,7 +90,7 @@ beforeEach(() => {
   window.localStorage.clear();
   document.documentElement.lang = "en";
   catalogMock.loadCatalog.mockReset();
-  catalogMock.loadCatalog.mockImplementation((locale) => Promise.resolve(catalogs[locale]));
+  catalogMock.loadCatalog.mockImplementation(async (locale) => catalogs[locale]);
 });
 
 afterEach(() => {

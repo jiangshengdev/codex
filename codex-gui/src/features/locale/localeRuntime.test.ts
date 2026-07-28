@@ -17,7 +17,7 @@ describe("readLocalePreference", () => {
     { storedValue: "", expected: "system" },
   ] as const)("maps $storedValue to $expected", ({ expected, storedValue }) => {
     const storage = {
-      getItem: vi.fn<(key: string) => string | null>(() => storedValue),
+      getItem: vi.fn(() => storedValue),
     };
 
     expect(readLocalePreference(storage)).toEqual({
@@ -30,7 +30,7 @@ describe("readLocalePreference", () => {
   test("falls back to system and preserves a storage read failure", () => {
     const cause = new Error("storage read denied");
     const storage = {
-      getItem: vi.fn<(key: string) => string | null>(() => {
+      getItem: vi.fn(() => {
         throw cause;
       }),
     };
@@ -48,7 +48,7 @@ describe("readLocalePreference", () => {
 describe("writeLocalePreference", () => {
   test.each(["system", "en", "zh-CN"] as const)("persists %s without resolving it", (value) => {
     const storage = {
-      setItem: vi.fn<(key: string, value: string) => void>(),
+      setItem: vi.fn(),
     };
 
     expect(writeLocalePreference(storage, value)).toBeNull();
@@ -58,7 +58,7 @@ describe("writeLocalePreference", () => {
   test("preserves a storage write failure for the runtime to publish", () => {
     const cause = new Error("storage write denied");
     const storage = {
-      setItem: vi.fn<(key: string, value: string) => void>(() => {
+      setItem: vi.fn(() => {
         throw cause;
       }),
     };

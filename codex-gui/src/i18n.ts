@@ -33,6 +33,8 @@ export function resolveInitialLocale(): AppLocale {
  * This function isn't part of the LinguiJS library because there are
  * many ways how to load messages — from REST API, from file, from cache, etc.
  */
+export async function loadCatalog(locale: AppLocale): Promise<Messages>;
+export async function loadCatalog(locale: AppLocale, i18n: I18n): Promise<Messages>;
 export async function loadCatalog(locale: AppLocale, i18n?: I18n): Promise<Messages> {
   const catalog = (await import(`./locales/${locale}.po`)) as { messages: Messages };
   if (i18n != null) {

@@ -6,8 +6,10 @@ import { setupI18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { ThemeProvider } from "./app/ThemeProvider";
 import { store } from "./app/store";
-import { LocaleRuntimeProvider } from "./features/locale/LocaleRuntimeProvider";
-import { bootstrapLocaleRuntime } from "./features/locale/localeRuntimeBootstrap";
+import {
+  bootstrapLocaleRuntime,
+  LocaleRuntimeProvider,
+} from "./features/locale/LocaleRuntimeProvider";
 import "./index.css";
 import { router } from "./router";
 

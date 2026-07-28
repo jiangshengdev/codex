@@ -1,5 +1,7 @@
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -11,26 +13,34 @@ import { useLingui } from "@lingui/react/macro";
 import { toast } from "@heroui/react";
 import { loadCatalog } from "@/i18n";
 import {
-  LocaleRuntimeContext,
-  type AppLocaleRuntime,
-} from "./LocaleRuntimeContext";
-import {
   isAppLocale,
   readLocalePreference,
+  resolveActiveLocale,
   resolveSystemLocale,
   writeLocalePreference,
   type AppLocale,
   type LocalePreference,
   type LocaleStorageWarning,
 } from "./localeRuntime";
-import type { LocaleRuntimeBootstrap } from "./localeRuntimeBootstrap";
 
-export type { AppLocaleRuntime } from "./LocaleRuntimeContext";
-export type { LocaleRuntimeBootstrap } from "./localeRuntimeBootstrap";
+export type AppLocaleRuntime = {
+  preference: LocalePreference;
+  activeLocale: AppLocale;
+  isChanging: boolean;
+  setPreference(preference: LocalePreference): Promise<void>;
+};
+
+export type LocaleRuntimeBootstrap = {
+  preference: LocalePreference;
+  activeLocale: AppLocale;
+  warning: LocaleStorageWarning | null;
+};
 
 type LocaleRuntimeProviderProps = PropsWithChildren<{
   initialState?: LocaleRuntimeBootstrap;
 }>;
+
+const LocaleRuntimeContext = createContext<AppLocaleRuntime | null>(null);
 
 function currentSystemLocale(): AppLocale {
   return resolveSystemLocale(navigator.languages, navigator.language);
@@ -43,6 +53,18 @@ function errorDescription(error: unknown): string {
 function activateLocale(i18n: I18n, locale: AppLocale, messages: Awaited<ReturnType<typeof loadCatalog>>) {
   i18n.loadAndActivate({ locale, messages });
   document.documentElement.lang = locale;
+}
+
+export async function bootstrapLocaleRuntime(i18n: I18n): Promise<LocaleRuntimeBootstrap> {
+  const { preference, warning } = readLocalePreference(localStorage);
+  const activeLocale = resolveActiveLocale(
+    preference,
+    navigator.languages,
+    navigator.language,
+  );
+  const messages = await loadCatalog(activeLocale);
+  activateLocale(i18n, activeLocale, messages);
+  return { preference, activeLocale, warning };
 }
 
 export function LocaleRuntimeProvider({ children, initialState }: LocaleRuntimeProviderProps) {
@@ -170,5 +192,13 @@ export function LocaleRuntimeProvider({ children, initialState }: LocaleRuntimeP
     [activeLocale, isChanging, preference, setPreference],
   );
 
-  return <LocaleRuntimeContext value={runtime}>{children}</LocaleRuntimeContext>;
+  return <LocaleRuntimeContext.Provider value={runtime}>{children}</LocaleRuntimeContext.Provider>;
+}
+
+export function useLocaleRuntime(): AppLocaleRuntime {
+  const runtime = useContext(LocaleRuntimeContext);
+  if (runtime == null) {
+    throw new Error("useLocaleRuntime must be used within LocaleRuntimeProvider");
+  }
+  return runtime;
 }
