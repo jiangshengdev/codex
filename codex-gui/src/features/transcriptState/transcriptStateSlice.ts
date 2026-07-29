@@ -8,12 +8,13 @@ import {
 import {
   appendStartedItemToMiddle,
   applyCompletedTranscriptItem,
+  hasStartedItemInMiddle,
   recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
 } from "./transcriptCommittedProjection";
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
-import { applyAcceptedProjectionDeltaBatch, hasLiveItem } from "./transcriptLiveProjection";
+import { applyAcceptedProjectionDeltaBatch } from "./transcriptLiveProjection";
 import {
   initialTranscriptState,
   type TranscriptChunkView,
@@ -101,7 +102,7 @@ export const transcriptStateSlice = createAppSlice({
 
         if (notification.event.type === "itemStarted") {
           const { item, turnId } = notification.event.notification;
-          if (hasLiveItem(state, turnId, item.id)) {
+          if (hasStartedItemInMiddle(state, turnId, item.id)) {
             return;
           }
         }

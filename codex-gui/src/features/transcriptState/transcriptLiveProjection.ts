@@ -9,9 +9,6 @@ const bumpLiveScrollPulse = (state: TranscriptState) => {
   state.liveScrollPulse += 1;
 };
 
-export const hasLiveItem = (state: TranscriptState, turnId: string, itemId: string): boolean =>
-  state.liveItemIndexByKey[liveItemKey(turnId, itemId)] != null;
-
 export const findLiveItem = (
   state: TranscriptState,
   turnId: string,

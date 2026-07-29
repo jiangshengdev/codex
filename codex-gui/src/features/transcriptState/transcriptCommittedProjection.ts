@@ -10,13 +10,21 @@ import {
   type TranscriptTurn,
 } from "./transcriptStateModel";
 
+export const hasStartedItemInMiddle = (
+  state: TranscriptState,
+  turnId: string,
+  itemId: string,
+): boolean => {
+  const existingChunkId = state.entryChunkById[itemId];
+  return existingChunkId != null && state.chunksById[existingChunkId]?.turnId === turnId;
+};
+
 export const appendStartedItemToMiddle = (
   state: TranscriptState,
   turnId: string,
   item: ThreadItem,
 ) => {
-  const existingChunkId = state.entryChunkById[item.id];
-  if (existingChunkId != null && state.chunksById[existingChunkId]?.turnId === turnId) {
+  if (hasStartedItemInMiddle(state, turnId, item.id)) {
     return;
   }
 

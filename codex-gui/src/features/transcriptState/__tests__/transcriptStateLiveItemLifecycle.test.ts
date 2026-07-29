@@ -19,8 +19,6 @@ import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptEntry,
-  selectTranscriptLiveItem,
-  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
 } from "../transcriptStateSlice";
 
@@ -71,14 +69,23 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
+    expect(selectTranscriptTurn(store.getState(), "turn-slot-order")).toStrictEqual({
+      id: "turn-slot-order",
+      status: "inProgress",
+      originalFirstItemId: "agent-slot-first",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-slot-order:chunk:0"],
+      middleEntryCount: 2,
+      finalAssistantEntryIds: [],
+    });
     expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-slot-order").map(
-        (item) => item.itemId,
+      selectTranscriptChunk(store.getState(), "turn-slot-order:chunk:0")?.entries.map(
+        ({ id }) => id,
       ),
     ).toStrictEqual(["agent-slot-first", "agent-slot-second"]);
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-slot-order", "agent-slot-first"),
-    ).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), "agent-slot-first")).toStrictEqual({
+      type: "live",
+      id: "agent-slot-first",
       key: "turn-slot-order:agent-slot-first",
       turnId: "turn-slot-order",
       itemId: "agent-slot-first",
