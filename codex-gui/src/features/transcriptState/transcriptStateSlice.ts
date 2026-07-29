@@ -13,11 +13,7 @@ import {
   upsertTranscriptTurn,
 } from "./transcriptCommittedProjection";
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
-import {
-  applyAcceptedProjectionDeltaBatch,
-  hasLiveItem,
-  removeLiveItemIfPresent,
-} from "./transcriptLiveProjection";
+import { applyAcceptedProjectionDeltaBatch, hasLiveItem } from "./transcriptLiveProjection";
 import {
   initialTranscriptState,
   type TranscriptChunkView,
@@ -119,7 +115,6 @@ export const transcriptStateSlice = createAppSlice({
             return;
           case "itemCompleted": {
             const { item, turnId } = notification.event.notification;
-            removeLiveItemIfPresent(state, turnId, item.id);
             if (applyCompletedTranscriptItem(state, turnId, item)) {
               state.committedScrollCommitKey = `event:${notification.commitId}`;
             }

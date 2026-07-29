@@ -2,13 +2,11 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
-  eventItemCompleted,
   eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   agentMessage,
   attachWithTurns,
-  itemCompleted,
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
@@ -16,11 +14,8 @@ import {
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
-  selectCommittedTranscriptScrollCommitKey,
   selectTranscriptLiveItem,
   selectTranscriptLiveItemsForTurn,
-  selectTranscriptLiveScrollPulse,
-  transcriptStateSlice,
 } from "../transcriptStateSlice";
 
 describe("transcript state live item index", () => {
@@ -135,87 +130,5 @@ describe("transcript state live item index", () => {
         revision: 1,
       },
     ]);
-  });
-
-  it("does not remove another live item or bump the pulse when a live item index is stale", () => {
-    const store = makeStore();
-
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const firstItem = agentMessage("agent-stale-removal-first", "");
-    const secondItem = agentMessage("agent-stale-removal-second", "");
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-stale-removal-first-started",
-          "turn-stale-removal",
-          firstItem,
-        ),
-        replay: "live",
-      }),
-    );
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-stale-removal-second-started",
-          "turn-stale-removal",
-          secondItem,
-        ),
-        replay: "live",
-      }),
-    );
-
-    const state = store.getState();
-    const staleTranscriptState = {
-      ...state.transcriptState,
-      liveItemIndexByKey: {
-        ...state.transcriptState.liveItemIndexByKey,
-        "turn-stale-removal:agent-stale-removal-first": {
-          turnId: "turn-stale-removal",
-          index: 1,
-        },
-      },
-    };
-    const pulseBeforeStaleCompletion = selectTranscriptLiveScrollPulse({
-      ...state,
-      transcriptState: staleTranscriptState,
-    });
-
-    const nextTranscriptState = transcriptStateSlice.reducer(
-      staleTranscriptState,
-      threadRuntimeEventBuffered({
-        notification: itemCompleted(
-          eventItemCompleted,
-          "commit-stale-removal-first-completed",
-          "turn-stale-removal",
-          agentMessage("agent-stale-removal-first", "Completed first despite stale index"),
-        ),
-        replay: "live",
-      }),
-    );
-    const nextState = {
-      ...state,
-      transcriptState: nextTranscriptState,
-    };
-
-    expect(
-      selectTranscriptLiveItem(nextState, "turn-stale-removal", "agent-stale-removal-first"),
-    ).toBeNull();
-    expect(
-      selectTranscriptLiveItem(nextState, "turn-stale-removal", "agent-stale-removal-second"),
-    ).toStrictEqual({
-      key: "turn-stale-removal:agent-stale-removal-second",
-      turnId: "turn-stale-removal",
-      itemId: "agent-stale-removal-second",
-      status: "started",
-      initialItem: secondItem,
-      transientText: "",
-      revision: 0,
-    });
-    expect(selectTranscriptLiveScrollPulse(nextState)).toBe(pulseBeforeStaleCompletion);
-    expect(selectCommittedTranscriptScrollCommitKey(nextState)).toBe(
-      "event:commit-stale-removal-first-completed",
-    );
   });
 });
