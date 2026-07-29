@@ -128,6 +128,42 @@ const appendEntryToMiddleChunk = (
   state.entryChunkById[entry.id] = chunk.id;
 };
 
+const removeEntryFromMiddleChunk = (
+  state: TranscriptState,
+  turnId: string,
+  entryId: string,
+): boolean => {
+  const turn = state.turnsById[turnId];
+  const chunkId = state.entryChunkById[entryId];
+  const chunk = chunkId == null ? null : state.chunksById[chunkId];
+  if (turn == null || chunk == null || chunk.turnId !== turnId) {
+    return false;
+  }
+
+  const entryIndex = chunk.entryIds.indexOf(entryId);
+  if (entryIndex === -1) {
+    return false;
+  }
+
+  chunk.entryIds.splice(entryIndex, 1);
+  chunk.revision += 1;
+  turn.middleEntryCount -= 1;
+  Reflect.deleteProperty(state.entryChunkById, entryId);
+
+  if (turn.middleEntryCount === 0) {
+    turn.middleChunkIds = turn.middleChunkIds.filter((middleChunkId) => {
+      const middleChunk = state.chunksById[middleChunkId];
+      if (middleChunk != null && middleChunk.entryIds.length === 0) {
+        Reflect.deleteProperty(state.chunksById, middleChunkId);
+        return false;
+      }
+      return true;
+    });
+  }
+
+  return true;
+};
+
 const classifyNewEntry = (
   state: TranscriptState,
   entry: TranscriptEntry,
@@ -164,8 +200,21 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
     ...entry,
     revision: existingEntry.revision + 1,
   };
+  const turn = ensureTranscriptTurn(state, entry.turnId);
   const chunkId = state.entryChunkById[entry.id];
   if (chunkId == null) {
+    return;
+  }
+
+  if (isUserMessageEntry(entry) && entry.id === turn.originalFirstItemId) {
+    removeEntryFromMiddleChunk(state, entry.turnId, entry.id);
+    turn.leadingPromptEntryId = entry.id;
+    return;
+  }
+
+  if (isFinalAssistantEntry(entry)) {
+    removeEntryFromMiddleChunk(state, entry.turnId, entry.id);
+    turn.finalAssistantEntryIds.push(entry.id);
     return;
   }
 

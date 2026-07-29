@@ -170,6 +170,55 @@ describe("transcript state committed projection reducer", () => {
     ).toStrictEqual(["user-after-started"]);
   });
 
+  it("moves a completed first user item from middle to leading", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "start-leading-user",
+          "turn-started-leading-user",
+          userMessage("user-started-leading", [textInput("Prompt")]),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "complete-leading-user",
+          "turn-started-leading-user",
+          userMessage("user-started-leading", [textInput("Prompt")]),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-started-leading-user")).toStrictEqual({
+      id: "turn-started-leading-user",
+      status: "inProgress",
+      originalFirstItemId: "user-started-leading",
+      leadingPromptEntryId: "user-started-leading",
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(selectTranscriptEntry(store.getState(), "user-started-leading")).toStrictEqual({
+      type: "message",
+      id: "user-started-leading",
+      turnId: "turn-started-leading-user",
+      role: "user",
+      source: "Prompt",
+      sourceKind: "plainText",
+      phase: null,
+      revision: 1,
+    });
+    expect(selectTranscriptChunk(store.getState(), "turn-started-leading-user:chunk:0")).toBeNull();
+  });
+
   it("applies normalized live itemCompleted projection payloads into committed transcript chunks", () => {
     const store = makeStore();
 
@@ -370,7 +419,7 @@ describe("transcript state committed projection reducer", () => {
     });
   });
 
-  it("bumps entry and chunk revisions when an existing middle entry phase changes", () => {
+  it("moves an existing middle entry to final when its phase changes", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -385,8 +434,6 @@ describe("transcript state committed projection reducer", () => {
         replay: "live",
       }),
     );
-    const beforeUpdateChunk = selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0");
-
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
@@ -409,23 +456,16 @@ describe("transcript state committed projection reducer", () => {
       phase: "final_answer",
       revision: 1,
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toStrictEqual({
-      id: "turn-phase-update:chunk:0",
-      turnId: "turn-phase-update",
-      revision: (beforeUpdateChunk?.revision ?? 0) + 1,
-      entries: [
-        {
-          type: "message",
-          id: "agent-phase-update",
-          turnId: "turn-phase-update",
-          role: "assistant",
-          source: "Done",
-          sourceKind: "markdown",
-          phase: "final_answer",
-          revision: 1,
-        },
-      ],
+    expect(selectTranscriptTurn(store.getState(), "turn-phase-update")).toStrictEqual({
+      id: "turn-phase-update",
+      status: "inProgress",
+      originalFirstItemId: "agent-phase-update",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: ["agent-phase-update"],
     });
+    expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toBeNull();
   });
 
   it("updates an existing final assistant entry without creating a middle chunk", () => {
