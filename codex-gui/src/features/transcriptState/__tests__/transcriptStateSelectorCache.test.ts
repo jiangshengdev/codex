@@ -172,7 +172,7 @@ describe("transcript state selector cache", () => {
     });
   });
 
-  it("returns the store-owned live item array while that turn is unchanged", () => {
+  it("returns a stable middle chunk view while that turn is unchanged", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -188,11 +188,9 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const firstLiveItems = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache");
-    expect(firstLiveItems).toHaveLength(1);
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache")).toBe(
-      firstLiveItems,
-    );
+    const firstChunk = selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0");
+    expect(firstChunk).not.toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0")).toBe(firstChunk);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -206,12 +204,10 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache")).toBe(
-      firstLiveItems,
-    );
+    expect(selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0")).toBe(firstChunk);
   });
 
-  it("returns a new store-owned live item array when the live turn changes", () => {
+  it("returns a new middle chunk view when another started item enters the turn", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -226,10 +222,7 @@ describe("transcript state selector cache", () => {
         replay: "live",
       }),
     );
-    const beforeUpdate = selectTranscriptLiveItemsForTurn(
-      store.getState(),
-      "turn-live-cache-update",
-    );
+    const beforeUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-update:chunk:0");
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -243,12 +236,10 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptLiveItemsForTurn(
-      store.getState(),
-      "turn-live-cache-update",
-    );
+    const afterUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-update:chunk:0");
     expect(afterUpdate).not.toBe(beforeUpdate);
-    expect(afterUpdate.map((item) => item.itemId)).toStrictEqual([
+    expect(afterUpdate?.revision).toBe((beforeUpdate?.revision ?? 0) + 1);
+    expect(afterUpdate?.entries.map(({ id }) => id)).toStrictEqual([
       "agent-live-cache-first",
       "agent-live-cache-second",
     ]);

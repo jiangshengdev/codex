@@ -27,7 +27,7 @@ import {
 } from "../transcriptStateSlice";
 
 describe("transcript state live streaming reducer", () => {
-  it("creates a started live slot from itemStarted without committing transcript entries", () => {
+  it("writes a started item into middle as a live payload", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -46,21 +46,28 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-started-slot"),
-    ).toStrictEqual([
+    const expectedLivePayload = {
+      type: "live" as const,
+      id: "agent-live-started",
+      key: "turn-live-started-slot:agent-live-started",
+      turnId: "turn-live-started-slot",
+      itemId: "agent-live-started",
+      status: "started" as const,
+      initialItem,
+      transientText: "",
+      revision: 0,
+    };
+    expect(selectTranscriptEntry(store.getState(), "agent-live-started")).toStrictEqual(
+      expectedLivePayload,
+    );
+    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toStrictEqual(
       {
-        key: "turn-live-started-slot:agent-live-started",
+        id: "turn-live-started-slot:chunk:0",
         turnId: "turn-live-started-slot",
-        itemId: "agent-live-started",
-        status: "started",
-        initialItem,
-        transientText: "",
-        revision: 0,
+        revision: 1,
+        entries: [expectedLivePayload],
       },
-    ]);
-    expect(selectTranscriptEntry(store.getState(), "agent-live-started")).toBeNull();
-    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toBeNull();
+    );
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 
