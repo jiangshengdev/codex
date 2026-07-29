@@ -16,6 +16,7 @@ const chunkIdForIndex = (turnId: string, index: number): string =>
 const createTranscriptTurn = (id: string, status: TranscriptTurn["status"]): TranscriptTurn => ({
   id,
   status,
+  originalFirstItemId: null,
   leadingPromptEntryId: null,
   middleChunkIds: [],
   middleEntryCount: 0,
@@ -34,15 +35,23 @@ export const ensureTranscriptTurn = (state: TranscriptState, turnId: string): Tr
   return turn;
 };
 
-export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void => {
-  const existingTurn = state.turnsById[turn.id];
-  if (existingTurn == null) {
-    state.turnsById[turn.id] = createTranscriptTurn(turn.id, turn.status);
-    state.turnIds.push(turn.id);
-    return;
-  }
+export const recordOriginalFirstTranscriptItem = (
+  state: TranscriptState,
+  turnId: string,
+  item: ThreadItem,
+): TranscriptTurn => {
+  const turn = ensureTranscriptTurn(state, turnId);
+  turn.originalFirstItemId ??= item.id;
+  return turn;
+};
 
-  existingTurn.status = turn.status;
+export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void => {
+  const transcriptTurn = ensureTranscriptTurn(state, turn.id);
+  transcriptTurn.status = turn.status;
+  const originalFirstItem = turn.items[0];
+  if (originalFirstItem != null) {
+    recordOriginalFirstTranscriptItem(state, turn.id, originalFirstItem);
+  }
 };
 
 const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
@@ -67,32 +76,13 @@ const isAssistantMessageEntry = (
 ): entry is Extract<TranscriptEntry, { type: "message" }> & { role: "assistant" } =>
   entry.type === "message" && entry.role === "assistant";
 
+const isUserMessageEntry = (
+  entry: TranscriptEntry,
+): entry is Extract<TranscriptEntry, { type: "message" }> & { role: "user" } =>
+  entry.type === "message" && entry.role === "user";
+
 const isFinalAssistantEntry = (entry: TranscriptEntry): boolean =>
   isAssistantMessageEntry(entry) && entry.phase === "final_answer";
-
-const turnHasVisibleNonActivityEntries = (
-  state: TranscriptState,
-  turn: TranscriptTurn,
-): boolean => {
-  if (turn.leadingPromptEntryId != null || turn.finalAssistantEntryIds.length > 0) {
-    return true;
-  }
-
-  for (const chunkId of turn.middleChunkIds) {
-    const chunk = state.chunksById[chunkId];
-    if (chunk == null) {
-      return true;
-    }
-
-    for (const entryId of chunk.entryIds) {
-      if (state.entriesById[entryId]?.type !== "activity") {
-        return true;
-      }
-    }
-  }
-
-  return false;
-};
 
 const appendEntryToMiddleChunk = (
   state: TranscriptState,
@@ -117,12 +107,7 @@ const classifyNewEntry = (
   const turn = ensureTranscriptTurn(state, entry.turnId);
   state.entriesById[entry.id] = entry;
 
-  if (entry.type === "activity") {
-    appendEntryToMiddleChunk(state, entry, options);
-    return;
-  }
-
-  if (!turnHasVisibleNonActivityEntries(state, turn) && !isAssistantMessageEntry(entry)) {
+  if (isUserMessageEntry(entry) && entry.id === turn.originalFirstItemId) {
     turn.leadingPromptEntryId = entry.id;
     return;
   }
@@ -161,50 +146,12 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
   }
 };
 
-const materializeStartedTranscriptItem = (
-  item: ThreadItem,
-  turnId: string,
-): TranscriptEntry | null => {
-  if (item.type !== "collabAgentToolCall" || item.status !== "inProgress") {
-    return null;
-  }
-
-  const entry = materializeTranscriptItem(item, turnId);
-  return entry?.type === "activity" ? entry : null;
-};
-
-export const hasAppliedStartedTranscriptItem = (
-  state: TranscriptState,
-  turnId: string,
-  item: ThreadItem,
-): boolean => {
-  const entry = materializeStartedTranscriptItem(item, turnId);
-  return entry != null && state.entriesById[entry.id]?.turnId === turnId;
-};
-
-export const applyStartedTranscriptItem = (
-  state: TranscriptState,
-  turnId: string,
-  item: ThreadItem,
-): boolean => {
-  const entry = materializeStartedTranscriptItem(item, turnId);
-  if (entry == null) {
-    return false;
-  }
-
-  ensureTranscriptTurn(state, turnId);
-  if (state.entriesById[entry.id] == null) {
-    upsertLiveCommittedEntry(state, entry);
-  }
-  return true;
-};
-
 export const applyCompletedTranscriptItem = (
   state: TranscriptState,
   turnId: string,
   item: ThreadItem,
 ): boolean => {
-  ensureTranscriptTurn(state, turnId);
+  recordOriginalFirstTranscriptItem(state, turnId, item);
   const entry = materializeTranscriptItem(item, turnId);
   if (entry == null) {
     return false;

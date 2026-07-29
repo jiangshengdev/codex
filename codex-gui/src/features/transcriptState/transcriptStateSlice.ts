@@ -7,9 +7,7 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   applyCompletedTranscriptItem,
-  applyStartedTranscriptItem,
-  ensureTranscriptTurn,
-  hasAppliedStartedTranscriptItem,
+  recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
 } from "./transcriptCommittedProjection";
@@ -106,10 +104,7 @@ export const transcriptStateSlice = createAppSlice({
 
         if (notification.event.type === "itemStarted") {
           const { item, turnId } = notification.event.notification;
-          if (
-            hasLiveItem(state, turnId, item.id) ||
-            hasAppliedStartedTranscriptItem(state, turnId, item)
-          ) {
+          if (hasLiveItem(state, turnId, item.id)) {
             return;
           }
         }
@@ -131,12 +126,7 @@ export const transcriptStateSlice = createAppSlice({
           }
           case "itemStarted": {
             const { item, turnId } = notification.event.notification;
-            if (applyStartedTranscriptItem(state, turnId, item)) {
-              state.committedScrollCommitKey = `event:${notification.commitId}`;
-              return;
-            }
-
-            ensureTranscriptTurn(state, turnId);
+            recordOriginalFirstTranscriptItem(state, turnId, item);
             appendStartedLiveItem(state, turnId, item);
             return;
           }

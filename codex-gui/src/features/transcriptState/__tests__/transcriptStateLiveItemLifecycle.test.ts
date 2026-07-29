@@ -10,7 +10,6 @@ import {
   agentMessage,
   agentMessageDelta,
   attachWithTurns,
-  collabAgentToolCall,
   itemCompleted,
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -89,100 +88,6 @@ describe("transcript state live item lifecycle reducer", () => {
       transientText: "",
       revision: 0,
     });
-  });
-
-  it("treats a duplicate committed wait itemStarted with a different commit as a complete no-op", () => {
-    const store = makeStore();
-
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-wait-started-first",
-          "turn-wait-started-dedup",
-          collabAgentToolCall("wait-started-dedup", "wait", "inProgress"),
-        ),
-        replay: "live",
-      }),
-    );
-    const beforeDuplicateState = store.getState().transcriptState;
-
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-wait-started-duplicate",
-          "turn-wait-started-dedup",
-          collabAgentToolCall("wait-started-dedup", "wait", "inProgress", {
-            receiverThreadIds: ["must-not-overwrite"],
-          }),
-        ),
-        replay: "live",
-      }),
-    );
-
-    expect(store.getState().transcriptState).toBe(beforeDuplicateState);
-    expect(selectTranscriptEntry(store.getState(), "wait-started-dedup")).toStrictEqual({
-      type: "activity",
-      id: "wait-started-dedup",
-      turnId: "turn-wait-started-dedup",
-      title: "Waiting for agents",
-      details: [],
-      revision: 0,
-    });
-    expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-wait-started-dedup"),
-    ).toStrictEqual([]);
-  });
-
-  it("keeps ordinary agent messages in live slots beside a committed wait activity", () => {
-    const store = makeStore();
-    const liveAgent = agentMessage("agent-still-live", "");
-
-    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-wait-beside-agent",
-          "turn-mixed-started",
-          collabAgentToolCall("wait-beside-agent", "wait", "inProgress"),
-        ),
-        replay: "live",
-      }),
-    );
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-agent-still-live",
-          "turn-mixed-started",
-          liveAgent,
-        ),
-        replay: "live",
-      }),
-    );
-
-    expect(selectTranscriptEntry(store.getState(), "wait-beside-agent")).toStrictEqual({
-      type: "activity",
-      id: "wait-beside-agent",
-      turnId: "turn-mixed-started",
-      title: "Waiting for agents",
-      details: [],
-      revision: 0,
-    });
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-mixed-started")).toStrictEqual([
-      {
-        key: "turn-mixed-started:agent-still-live",
-        turnId: "turn-mixed-started",
-        itemId: "agent-still-live",
-        status: "started",
-        initialItem: liveAgent,
-        transientText: "",
-        revision: 0,
-      },
-    ]);
   });
 
   it("removes the live item after committing the completed agent message", () => {

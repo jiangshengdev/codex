@@ -7,6 +7,7 @@ export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
 export type TranscriptTurn = {
   id: string;
   status: TurnStatus;
+  originalFirstItemId: string | null;
   leadingPromptEntryId: string | null;
   middleChunkIds: string[];
   middleEntryCount: number;
@@ -38,14 +39,6 @@ export type TranscriptEntry =
       source: string;
       sourceKind: "plainText" | "markdown";
       phase: TranscriptMessagePhase;
-      revision: number;
-    }
-  | {
-      type: "activity";
-      id: string;
-      turnId: string;
-      title: string;
-      details: string[];
       revision: number;
     }
   | {
