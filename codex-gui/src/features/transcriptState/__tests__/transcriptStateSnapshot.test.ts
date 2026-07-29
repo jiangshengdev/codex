@@ -54,13 +54,10 @@ describe("transcript state snapshot reducer", () => {
       status: "completed",
       originalFirstItemId: "user-snapshot",
       leadingPromptEntryId: "user-snapshot",
-      middleChunkIds: ["turn-snapshot:chunk:0"],
+      middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-snapshot"],
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-snapshot:chunk:0")?.entries).toStrictEqual(
-      [],
-    );
     expect(selectTranscriptEntry(store.getState(), "user-snapshot")).toStrictEqual({
       type: "message",
       id: "user-snapshot",
@@ -252,13 +249,10 @@ describe("transcript state snapshot reducer", () => {
       status: "completed",
       originalFirstItemId: "user-multi-final",
       leadingPromptEntryId: "user-multi-final",
-      middleChunkIds: ["turn-multi-final:chunk:0"],
+      middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-final-one", "agent-final-two"],
     });
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-multi-final:chunk:0")?.entries,
-    ).toStrictEqual([]);
   });
 
   it("preserves assistant message phase in snapshot transcript entries", () => {
@@ -297,49 +291,6 @@ describe("transcript state snapshot reducer", () => {
       phase: "final_answer",
       revision: 0,
     });
-  });
-
-  it("chunks snapshot message identities in original item order across the 100 item boundary", () => {
-    const store = makeStore();
-    const commentaryItems = Array.from({ length: 98 }, (_, index) =>
-      agentMessage(`agent-ordered-${String(index)}`, `Commentary ${String(index)}`, "commentary"),
-    );
-    const firstHundredMessageIds = [
-      "user-ordered-leading",
-      ...commentaryItems.map((item) => item.id),
-      "agent-ordered-final",
-    ];
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-ordered-boundary", [
-            userMessage("user-ordered-leading", [textInput("Leading prompt")]),
-            planItem("plan-ordered-hidden"),
-            ...commentaryItems,
-            agentMessage("agent-ordered-final", "Final answer", "final_answer"),
-            userMessage("user-ordered-101", [textInput("Follow-up")]),
-          ]),
-        ]),
-      ),
-    );
-
-    const transcriptState = store.getState().transcriptState;
-    expect(transcriptState.turnsById["turn-ordered-boundary"]).toStrictEqual({
-      id: "turn-ordered-boundary",
-      status: "completed",
-      originalFirstItemId: "user-ordered-leading",
-      leadingPromptEntryId: "user-ordered-leading",
-      middleChunkIds: ["turn-ordered-boundary:chunk:0", "turn-ordered-boundary:chunk:1"],
-      middleEntryCount: 99,
-      finalAssistantEntryIds: ["agent-ordered-final"],
-    });
-    expect(transcriptState.chunksById["turn-ordered-boundary:chunk:0"]?.entryIds).toStrictEqual(
-      firstHundredMessageIds,
-    );
-    expect(transcriptState.chunksById["turn-ordered-boundary:chunk:1"]?.entryIds).toStrictEqual([
-      "user-ordered-101",
-    ]);
   });
 
   it("filters empty text, non-text user inputs, and non-chat snapshot items", () => {

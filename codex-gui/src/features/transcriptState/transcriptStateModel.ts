@@ -56,7 +56,12 @@ export type TranscriptGlobalStatus = {
   subscriptionId: string | null;
 };
 
-export type TranscriptChunkView = TranscriptChunk;
+export type TranscriptChunkView = {
+  id: string;
+  turnId: string;
+  revision: number;
+  entries: TranscriptEntry[];
+};
 
 export type TranscriptRenderableLiveItem = {
   key: string;
@@ -67,16 +72,6 @@ export type TranscriptRenderableLiveItem = {
   transientText: string;
   revision: number;
 };
-
-export type TranscriptMiddlePresentation =
-  | {
-      kind: "committed";
-      entry: Extract<TranscriptEntry, { type: "message" }>;
-    }
-  | {
-      kind: "live";
-      item: TranscriptRenderableLiveItem;
-    };
 
 export type TranscriptState = {
   threadId: string | null;

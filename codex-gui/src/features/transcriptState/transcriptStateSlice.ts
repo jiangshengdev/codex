@@ -18,13 +18,11 @@ import {
   hasLiveItem,
   removeLiveItemIfPresent,
 } from "./transcriptLiveProjection";
-import { appendTranscriptMessageIdentity } from "./transcriptMessageOrder";
 import {
   initialTranscriptState,
   type TranscriptChunkView,
   type TranscriptEntry,
   type TranscriptGlobalStatus,
-  type TranscriptMiddlePresentation,
   type TranscriptRenderableLiveItem,
   type TranscriptTurn,
 } from "./transcriptStateModel";
@@ -32,7 +30,6 @@ import {
   transcriptChunkView,
   transcriptLiveItem,
   transcriptLiveItemsForTurn,
-  transcriptMiddlePresentation,
 } from "./transcriptStateSelectors";
 
 export {
@@ -46,7 +43,6 @@ export type {
   TranscriptGlobalStatus,
   TranscriptLiveItemIndex,
   TranscriptLiveItemStatus,
-  TranscriptMiddlePresentation,
   TranscriptMessagePhase,
   TranscriptRenderableLiveItem,
   TranscriptState,
@@ -68,12 +64,6 @@ export const transcriptStateSlice = createAppSlice({
       transcriptChunkView(transcriptState, chunkId),
     selectTranscriptEntry: (transcriptState, entryId: string): TranscriptEntry | null =>
       transcriptState.entriesById[entryId] ?? null,
-    selectTranscriptMiddlePresentation: (
-      transcriptState,
-      turnId: string,
-      itemId: string,
-    ): TranscriptMiddlePresentation | null =>
-      transcriptMiddlePresentation(transcriptState, turnId, itemId),
     selectTranscriptLiveItem: (
       transcriptState,
       turnId: string,
@@ -117,9 +107,6 @@ export const transcriptStateSlice = createAppSlice({
           if (hasLiveItem(state, turnId, item.id)) {
             return;
           }
-          if (state.entriesById[item.id]?.turnId === turnId) {
-            return;
-          }
         }
 
         recordAppliedTranscriptEvent(state, notification.commitId);
@@ -131,16 +118,15 @@ export const transcriptStateSlice = createAppSlice({
             return;
           case "itemCompleted": {
             const { item, turnId } = notification.event.notification;
+            removeLiveItemIfPresent(state, turnId, item.id);
             if (applyCompletedTranscriptItem(state, turnId, item)) {
               state.committedScrollCommitKey = `event:${notification.commitId}`;
             }
-            removeLiveItemIfPresent(state, turnId, item.id);
             return;
           }
           case "itemStarted": {
             const { item, turnId } = notification.event.notification;
-            const turn = recordOriginalFirstTranscriptItem(state, turnId, item);
-            appendTranscriptMessageIdentity(state, turn, item, { bumpChunkRevision: true });
+            recordOriginalFirstTranscriptItem(state, turnId, item);
             appendStartedLiveItem(state, turnId, item);
             return;
           }
@@ -174,7 +160,6 @@ export const {
   selectTranscriptTurn,
   selectTranscriptChunk,
   selectTranscriptEntry,
-  selectTranscriptMiddlePresentation,
   selectTranscriptLiveItem,
   selectTranscriptLiveItemsForTurn,
   selectTranscriptGlobalStatus,
