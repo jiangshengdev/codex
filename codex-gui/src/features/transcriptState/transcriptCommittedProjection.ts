@@ -1,17 +1,16 @@
 import type { ThreadItem, Turn } from "@codex-protocol/v2";
 import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
 import {
-  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  appendTranscriptMessageIdentity,
+  reconcileCompletedMessagePlacement,
+} from "./transcriptMessageOrder";
+import {
   createEmptyTranscriptState,
   resetTranscriptState,
-  type TranscriptChunk,
   type TranscriptEntry,
   type TranscriptState,
   type TranscriptTurn,
 } from "./transcriptStateModel";
-
-const chunkIdForIndex = (turnId: string, index: number): string =>
-  `${turnId}:chunk:${String(index)}`;
 
 const createTranscriptTurn = (id: string, status: TranscriptTurn["status"]): TranscriptTurn => ({
   id,
@@ -54,23 +53,6 @@ export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void =
   }
 };
 
-const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
-  const turn = ensureTranscriptTurn(state, turnId);
-  const chunkIds = turn.middleChunkIds;
-  const lastChunkId = chunkIds.at(-1);
-  const lastChunk = lastChunkId == null ? null : state.chunksById[lastChunkId];
-
-  if (lastChunk != null && lastChunk.entryIds.length < TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT) {
-    return lastChunk;
-  }
-
-  const chunkId = chunkIdForIndex(turnId, chunkIds.length);
-  const chunk: TranscriptChunk = { id: chunkId, turnId, entryIds: [], revision: 0 };
-  state.chunksById[chunkId] = chunk;
-  turn.middleChunkIds.push(chunkId);
-  return chunk;
-};
-
 const isAssistantMessageEntry = (
   entry: TranscriptEntry,
 ): entry is Extract<TranscriptEntry, { type: "message" }> & { role: "assistant" } =>
@@ -84,26 +66,7 @@ const isUserMessageEntry = (
 const isFinalAssistantEntry = (entry: TranscriptEntry): boolean =>
   isAssistantMessageEntry(entry) && entry.phase === "final_answer";
 
-const appendEntryToMiddleChunk = (
-  state: TranscriptState,
-  entry: TranscriptEntry,
-  options: { bumpChunkRevision: boolean },
-) => {
-  const turn = ensureTranscriptTurn(state, entry.turnId);
-  const chunk = getOrCreateMiddleChunk(state, entry.turnId);
-  chunk.entryIds.push(entry.id);
-  turn.middleEntryCount += 1;
-  if (options.bumpChunkRevision) {
-    chunk.revision += 1;
-  }
-  state.entryChunkById[entry.id] = chunk.id;
-};
-
-const classifyNewEntry = (
-  state: TranscriptState,
-  entry: TranscriptEntry,
-  options: { bumpChunkRevision: boolean },
-) => {
+const classifyNewEntry = (state: TranscriptState, entry: TranscriptEntry) => {
   const turn = ensureTranscriptTurn(state, entry.turnId);
   state.entriesById[entry.id] = entry;
 
@@ -114,20 +77,17 @@ const classifyNewEntry = (
 
   if (isFinalAssistantEntry(entry)) {
     turn.finalAssistantEntryIds.push(entry.id);
-    return;
   }
-
-  appendEntryToMiddleChunk(state, entry, options);
 };
 
 const appendBaselineEntry = (state: TranscriptState, entry: TranscriptEntry) => {
-  classifyNewEntry(state, entry, { bumpChunkRevision: false });
+  classifyNewEntry(state, entry);
 };
 
 const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
   const existingEntry = state.entriesById[entry.id];
   if (existingEntry == null) {
-    classifyNewEntry(state, entry, { bumpChunkRevision: true });
+    classifyNewEntry(state, entry);
     return;
   }
 
@@ -135,15 +95,6 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
     ...entry,
     revision: existingEntry.revision + 1,
   };
-  const chunkId = state.entryChunkById[entry.id];
-  if (chunkId == null) {
-    return;
-  }
-
-  const chunk = state.chunksById[chunkId];
-  if (chunk != null) {
-    chunk.revision += 1;
-  }
 };
 
 export const applyCompletedTranscriptItem = (
@@ -151,7 +102,13 @@ export const applyCompletedTranscriptItem = (
   turnId: string,
   item: ThreadItem,
 ): boolean => {
-  recordOriginalFirstTranscriptItem(state, turnId, item);
+  const turn = recordOriginalFirstTranscriptItem(state, turnId, item);
+  const appendedIdentity = appendTranscriptMessageIdentity(state, turn, item, {
+    bumpChunkRevision: true,
+  });
+  if (!appendedIdentity) {
+    reconcileCompletedMessagePlacement(state, turn, item);
+  }
   const entry = materializeTranscriptItem(item, turnId);
   if (entry == null) {
     return false;
@@ -176,6 +133,10 @@ export const rebuildTranscriptFromSnapshot = (
   for (const turn of turns) {
     upsertTranscriptTurn(nextState, turn);
     for (const item of turn.items) {
+      const transcriptTurn = ensureTranscriptTurn(nextState, turn.id);
+      appendTranscriptMessageIdentity(nextState, transcriptTurn, item, {
+        bumpChunkRevision: false,
+      });
       const entry = materializeTranscriptItem(item, turn.id);
       if (entry != null) {
         appendBaselineEntry(nextState, entry);

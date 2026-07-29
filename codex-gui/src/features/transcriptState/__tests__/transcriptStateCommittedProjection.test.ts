@@ -29,6 +29,7 @@ import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   selectTranscriptChunk,
   selectTranscriptEntry,
+  selectTranscriptMiddlePresentation,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
@@ -51,9 +52,17 @@ describe("transcript state committed projection reducer", () => {
     );
 
     expect(
-      selectTranscriptChunk(store.getState(), "turn-live-phase:chunk:0")?.entries,
-    ).toStrictEqual([
-      {
+      selectTranscriptChunk(store.getState(), "turn-live-phase:chunk:0")?.entryIds,
+    ).toStrictEqual(["agent-live-commentary"]);
+    expect(
+      selectTranscriptMiddlePresentation(
+        store.getState(),
+        "turn-live-phase",
+        "agent-live-commentary",
+      ),
+    ).toStrictEqual({
+      kind: "committed",
+      entry: {
         type: "message",
         id: "agent-live-commentary",
         turnId: "turn-live-phase",
@@ -63,7 +72,7 @@ describe("transcript state committed projection reducer", () => {
         phase: "commentary",
         revision: 0,
       },
-    ]);
+    });
   });
 
   it("keeps a later completed user in middle when the first completed item is assistant", () => {
@@ -123,8 +132,8 @@ describe("transcript state committed projection reducer", () => {
       revision: 0,
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-live:chunk:0")?.entries.map(({ id }) => id),
-    ).toStrictEqual(["user-after-agent"]);
+      selectTranscriptChunk(store.getState(), "turn-live:chunk:0")?.entryIds,
+    ).toStrictEqual(["agent-live", "user-after-agent"]);
   });
 
   it("keeps a later completed user in middle when an assistant item started first", () => {
@@ -160,14 +169,12 @@ describe("transcript state committed projection reducer", () => {
       originalFirstItemId: "agent-started-first",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-started-first:chunk:0"],
-      middleEntryCount: 1,
+      middleEntryCount: 2,
       finalAssistantEntryIds: [],
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-started-first:chunk:0")?.entries.map(
-        ({ id }) => id,
-      ),
-    ).toStrictEqual(["user-after-started"]);
+      selectTranscriptChunk(store.getState(), "turn-started-first:chunk:0")?.entryIds,
+    ).toStrictEqual(["agent-started-first", "user-after-started"]);
   });
 
   it("applies normalized live itemCompleted projection payloads into committed transcript chunks", () => {
@@ -191,7 +198,7 @@ describe("transcript state committed projection reducer", () => {
       status: "inProgress",
       originalFirstItemId: "agent-live-normalized",
       leadingPromptEntryId: null,
-      middleChunkIds: [],
+      middleChunkIds: ["turn-live-normalized:chunk:0"],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-live-normalized"],
     });
@@ -205,6 +212,75 @@ describe("transcript state committed projection reducer", () => {
       phase: "final_answer",
       revision: 0,
     });
+    expect(
+      selectTranscriptMiddlePresentation(
+        store.getState(),
+        "turn-live-normalized",
+        "agent-live-normalized",
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps completed-without-started identity membership isolated by turn", () => {
+    const store = makeStore();
+    const sharedItemId = "agent-shared-between-turns";
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-shared-turn-first",
+          "turn-shared-first",
+          agentMessage(sharedItemId, "First turn", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-shared-turn-second",
+          "turn-shared-second",
+          agentMessage(sharedItemId, "Second turn", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const beforeDuplicateState = store.getState().transcriptState;
+    const firstChunkRevision = beforeDuplicateState.chunksById["turn-shared-first:chunk:0"]?.revision;
+    const secondChunkRevision =
+      beforeDuplicateState.chunksById["turn-shared-second:chunk:0"]?.revision;
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-shared-turn-first-duplicate",
+          "turn-shared-first",
+          agentMessage(sharedItemId, "First turn updated", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const completedState = store.getState().transcriptState;
+    expect(completedState.turnsById["turn-shared-first"].middleEntryCount).toBe(1);
+    expect(completedState.turnsById["turn-shared-second"].middleEntryCount).toBe(1);
+    expect(completedState.chunksById["turn-shared-first:chunk:0"]?.entryIds).toStrictEqual([
+      sharedItemId,
+    ]);
+    expect(completedState.chunksById["turn-shared-second:chunk:0"]?.entryIds).toStrictEqual([
+      sharedItemId,
+    ]);
+    expect(completedState.chunksById["turn-shared-first:chunk:0"]?.revision).toBe(
+      firstChunkRevision,
+    );
+    expect(completedState.chunksById["turn-shared-second:chunk:0"]?.revision).toBe(
+      secondChunkRevision,
+    );
   });
 
   it("updates turn terminal status from live turnCompleted", () => {
@@ -297,13 +373,16 @@ describe("transcript state committed projection reducer", () => {
       status: "inProgress",
       originalFirstItemId: "empty-user",
       leadingPromptEntryId: null,
-      middleChunkIds: [],
+      middleChunkIds: ["turn-live-filtered:chunk:0"],
       middleEntryCount: 0,
       finalAssistantEntryIds: [],
     });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-live-filtered:chunk:0")?.entryIds,
+    ).toStrictEqual(["empty-user", "empty-agent"]);
   });
 
-  it("updates an existing committed entry and bumps only its chunk revision", () => {
+  it("updates an existing committed entry without changing its order chunk", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -351,26 +430,25 @@ describe("transcript state committed projection reducer", () => {
       phase: "commentary",
       revision: 1,
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-update:chunk:0")).toStrictEqual({
-      id: "turn-update:chunk:0",
-      turnId: "turn-update",
-      revision: (beforeUpdateChunk?.revision ?? 0) + 1,
-      entries: [
-        {
-          type: "message",
-          id: "agent-update",
-          turnId: "turn-update",
-          role: "assistant",
-          source: "Second",
-          sourceKind: "markdown",
-          phase: "commentary",
-          revision: 1,
-        },
-      ],
+    expect(selectTranscriptChunk(store.getState(), "turn-update:chunk:0")).toBe(beforeUpdateChunk);
+    expect(
+      selectTranscriptMiddlePresentation(store.getState(), "turn-update", "agent-update"),
+    ).toStrictEqual({
+      kind: "committed",
+      entry: {
+        type: "message",
+        id: "agent-update",
+        turnId: "turn-update",
+        role: "assistant",
+        source: "Second",
+        sourceKind: "markdown",
+        phase: "commentary",
+        revision: 1,
+      },
     });
   });
 
-  it("bumps entry and chunk revisions when an existing middle entry phase changes", () => {
+  it("keeps order stable when an existing middle entry phase changes", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -409,26 +487,19 @@ describe("transcript state committed projection reducer", () => {
       phase: "final_answer",
       revision: 1,
     });
-    expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toStrictEqual({
-      id: "turn-phase-update:chunk:0",
-      turnId: "turn-phase-update",
-      revision: (beforeUpdateChunk?.revision ?? 0) + 1,
-      entries: [
-        {
-          type: "message",
-          id: "agent-phase-update",
-          turnId: "turn-phase-update",
-          role: "assistant",
-          source: "Done",
-          sourceKind: "markdown",
-          phase: "final_answer",
-          revision: 1,
-        },
-      ],
-    });
+    expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toBe(
+      beforeUpdateChunk,
+    );
+    expect(
+      selectTranscriptMiddlePresentation(
+        store.getState(),
+        "turn-phase-update",
+        "agent-phase-update",
+      ),
+    ).toBeNull();
   });
 
-  it("updates an existing final assistant entry without creating a middle chunk", () => {
+  it("updates an existing final assistant entry without creating a middle presentation", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -460,7 +531,7 @@ describe("transcript state committed projection reducer", () => {
       status: "inProgress",
       originalFirstItemId: "agent-final-update",
       leadingPromptEntryId: null,
-      middleChunkIds: [],
+      middleChunkIds: ["turn-final-update:chunk:0"],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-final-update"],
     });
@@ -474,9 +545,16 @@ describe("transcript state committed projection reducer", () => {
       phase: "final_answer",
       revision: 1,
     });
+    expect(
+      selectTranscriptMiddlePresentation(
+        store.getState(),
+        "turn-final-update",
+        "agent-final-update",
+      ),
+    ).toBeNull();
   });
 
-  it("chunks only middle entries after the committed chunk entry limit", () => {
+  it("chunks message identities after the order chunk entry limit", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -535,11 +613,11 @@ describe("transcript state committed projection reducer", () => {
       finalAssistantEntryIds: ["agent-final-live"],
     });
     expect(
-      selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")?.entries,
+      selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")?.entryIds,
     ).toHaveLength(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT);
     expect(
-      selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:1")?.entries,
-    ).toHaveLength(1);
+      selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:1")?.entryIds,
+    ).toHaveLength(3);
     expect(selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")).toBe(
       firstChunkAfterLimit,
     );
