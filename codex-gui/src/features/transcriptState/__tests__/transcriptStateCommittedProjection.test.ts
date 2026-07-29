@@ -106,9 +106,7 @@ describe("transcript state committed projection reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-live")).toStrictEqual({
       id: "turn-live",
       status: "inProgress",
-      originalFirstItemId: null,
       leadingPromptEntryId: null,
-      messageOrderChunkIds: [],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-live"],
@@ -144,9 +142,7 @@ describe("transcript state committed projection reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-live-normalized")).toStrictEqual({
       id: "turn-live-normalized",
       status: "inProgress",
-      originalFirstItemId: null,
       leadingPromptEntryId: null,
-      messageOrderChunkIds: [],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-live-normalized"],
@@ -190,9 +186,7 @@ describe("transcript state committed projection reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-done")).toStrictEqual({
       id: "turn-done",
       status: "completed",
-      originalFirstItemId: null,
       leadingPromptEntryId: null,
-      messageOrderChunkIds: [],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: [],
@@ -252,9 +246,7 @@ describe("transcript state committed projection reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-live-filtered")).toStrictEqual({
       id: "turn-live-filtered",
       status: "inProgress",
-      originalFirstItemId: null,
       leadingPromptEntryId: null,
-      messageOrderChunkIds: [],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: [],
@@ -293,9 +285,7 @@ describe("transcript state committed projection reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-update")).toStrictEqual({
       id: "turn-update",
       status: "inProgress",
-      originalFirstItemId: null,
       leadingPromptEntryId: null,
-      messageOrderChunkIds: [],
       middleChunkIds: ["turn-update:chunk:0"],
       middleEntryCount: 1,
       finalAssistantEntryIds: [],
@@ -417,9 +407,7 @@ describe("transcript state committed projection reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-final-update")).toStrictEqual({
       id: "turn-final-update",
       status: "inProgress",
-      originalFirstItemId: null,
       leadingPromptEntryId: null,
-      messageOrderChunkIds: [],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-final-update"],
@@ -488,9 +476,7 @@ describe("transcript state committed projection reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-middle-chunked")).toStrictEqual({
       id: "turn-middle-chunked",
       status: "inProgress",
-      originalFirstItemId: null,
       leadingPromptEntryId: "user-leading-live",
-      messageOrderChunkIds: [],
       middleChunkIds: ["turn-middle-chunked:chunk:0", "turn-middle-chunked:chunk:1"],
       middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
       finalAssistantEntryIds: ["agent-final-live"],

@@ -1,10 +1,6 @@
 import type { ThreadItem, Turn } from "@codex-protocol/v2";
 import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
 import {
-  appendTranscriptMessageOrderItem,
-  recordOriginalFirstTranscriptItem,
-} from "./transcriptMessageOrder";
-import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   createEmptyTranscriptState,
   resetTranscriptState,
@@ -20,9 +16,7 @@ const chunkIdForIndex = (turnId: string, index: number): string =>
 const createTranscriptTurn = (id: string, status: TranscriptTurn["status"]): TranscriptTurn => ({
   id,
   status,
-  originalFirstItemId: null,
   leadingPromptEntryId: null,
-  messageOrderChunkIds: [],
   middleChunkIds: [],
   middleEntryCount: 0,
   finalAssistantEntryIds: [],
@@ -73,11 +67,6 @@ const isAssistantMessageEntry = (
 ): entry is Extract<TranscriptEntry, { type: "message" }> & { role: "assistant" } =>
   entry.type === "message" && entry.role === "assistant";
 
-const isUserMessageEntry = (
-  entry: TranscriptEntry,
-): entry is Extract<TranscriptEntry, { type: "message" }> & { role: "user" } =>
-  entry.type === "message" && entry.role === "user";
-
 const isFinalAssistantEntry = (entry: TranscriptEntry): boolean =>
   isAssistantMessageEntry(entry) && entry.phase === "final_answer";
 
@@ -104,20 +93,12 @@ const appendEntryToMiddleChunk = (
 const classifyNewEntry = (
   state: TranscriptState,
   entry: TranscriptEntry,
-  options: {
-    bumpChunkRevision: boolean;
-    leadingSource: "firstVisible" | "originalFirstItem";
-  },
+  options: { bumpChunkRevision: boolean },
 ) => {
   const turn = ensureTranscriptTurn(state, entry.turnId);
   state.entriesById[entry.id] = entry;
 
-  const isLeadingEntry =
-    isUserMessageEntry(entry) &&
-    (options.leadingSource === "firstVisible"
-      ? !turnHasVisibleEntries(turn)
-      : entry.id === turn.originalFirstItemId);
-  if (isLeadingEntry) {
+  if (!turnHasVisibleEntries(turn) && !isAssistantMessageEntry(entry)) {
     turn.leadingPromptEntryId = entry.id;
     return;
   }
@@ -131,19 +112,13 @@ const classifyNewEntry = (
 };
 
 const appendBaselineEntry = (state: TranscriptState, entry: TranscriptEntry) => {
-  classifyNewEntry(state, entry, {
-    bumpChunkRevision: false,
-    leadingSource: "originalFirstItem",
-  });
+  classifyNewEntry(state, entry, { bumpChunkRevision: false });
 };
 
 const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
   const existingEntry = state.entriesById[entry.id];
   if (existingEntry == null) {
-    classifyNewEntry(state, entry, {
-      bumpChunkRevision: true,
-      leadingSource: "firstVisible",
-    });
+    classifyNewEntry(state, entry, { bumpChunkRevision: true });
     return;
   }
 
@@ -191,15 +166,7 @@ export const rebuildTranscriptFromSnapshot = (
 
   for (const turn of turns) {
     upsertTranscriptTurn(nextState, turn);
-    const transcriptTurn = nextState.turnsById[turn.id];
-    if (transcriptTurn == null) {
-      continue;
-    }
-    recordOriginalFirstTranscriptItem(transcriptTurn, turn.items[0]);
     for (const item of turn.items) {
-      appendTranscriptMessageOrderItem(nextState, transcriptTurn, item, {
-        bumpChunkRevision: false,
-      });
       const entry = materializeTranscriptItem(item, turn.id);
       if (entry != null) {
         appendBaselineEntry(nextState, entry);

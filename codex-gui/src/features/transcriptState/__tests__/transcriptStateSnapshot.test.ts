@@ -52,9 +52,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-snapshot")).toStrictEqual({
       id: "turn-snapshot",
       status: "completed",
-      originalFirstItemId: "user-snapshot",
       leadingPromptEntryId: "user-snapshot",
-      messageOrderChunkIds: ["turn-snapshot:message-order:chunk:0"],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-snapshot"],
@@ -102,9 +100,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-layout")).toStrictEqual({
       id: "turn-layout",
       status: "completed",
-      originalFirstItemId: "user-leading",
       leadingPromptEntryId: "user-leading",
-      messageOrderChunkIds: ["turn-layout:message-order:chunk:0"],
       middleChunkIds: ["turn-layout:chunk:0"],
       middleEntryCount: 3,
       finalAssistantEntryIds: ["agent-final"],
@@ -170,9 +166,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-assistant-first")).toStrictEqual({
       id: "turn-assistant-first",
       status: "completed",
-      originalFirstItemId: "agent-first-commentary",
       leadingPromptEntryId: null,
-      messageOrderChunkIds: ["turn-assistant-first:message-order:chunk:0"],
       middleChunkIds: ["turn-assistant-first:chunk:0"],
       middleEntryCount: 1,
       finalAssistantEntryIds: ["agent-first-final"],
@@ -210,9 +204,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-final-first")).toStrictEqual({
       id: "turn-final-first",
       status: "completed",
-      originalFirstItemId: "agent-final-first",
       leadingPromptEntryId: null,
-      messageOrderChunkIds: ["turn-final-first:message-order:chunk:0"],
       middleChunkIds: ["turn-final-first:chunk:0"],
       middleEntryCount: 1,
       finalAssistantEntryIds: ["agent-final-first"],
@@ -226,46 +218,6 @@ describe("transcript state snapshot reducer", () => {
         turnId: "turn-final-first",
         role: "user",
         source: "After final",
-        sourceKind: "plainText",
-        phase: null,
-        revision: 0,
-      },
-    ]);
-  });
-
-  it("does not promote a later user message when the original first user message is not renderable", () => {
-    const store = makeStore();
-
-    store.dispatch(
-      threadRuntimeAttached(
-        attachWithTurns(attachBaseline, [
-          baseTurn("turn-empty-user-first", [
-            userMessage("user-empty-first", [textInput("")]),
-            userMessage("user-visible-later", [textInput("Visible later")]),
-          ]),
-        ]),
-      ),
-    );
-
-    expect(selectTranscriptTurn(store.getState(), "turn-empty-user-first")).toStrictEqual({
-      id: "turn-empty-user-first",
-      status: "completed",
-      originalFirstItemId: "user-empty-first",
-      leadingPromptEntryId: null,
-      messageOrderChunkIds: ["turn-empty-user-first:message-order:chunk:0"],
-      middleChunkIds: ["turn-empty-user-first:chunk:0"],
-      middleEntryCount: 1,
-      finalAssistantEntryIds: [],
-    });
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-empty-user-first:chunk:0")?.entries,
-    ).toStrictEqual([
-      {
-        type: "message",
-        id: "user-visible-later",
-        turnId: "turn-empty-user-first",
-        role: "user",
-        source: "Visible later",
         sourceKind: "plainText",
         phase: null,
         revision: 0,
@@ -291,9 +243,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-multi-final")).toStrictEqual({
       id: "turn-multi-final",
       status: "completed",
-      originalFirstItemId: "user-multi-final",
       leadingPromptEntryId: "user-multi-final",
-      messageOrderChunkIds: ["turn-multi-final:message-order:chunk:0"],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: ["agent-final-one", "agent-final-two"],
@@ -361,9 +311,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-filtered")).toStrictEqual({
       id: "turn-filtered",
       status: "completed",
-      originalFirstItemId: "image-only",
       leadingPromptEntryId: null,
-      messageOrderChunkIds: ["turn-filtered:message-order:chunk:0"],
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: [],

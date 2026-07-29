@@ -23,7 +23,6 @@ import {
   type TranscriptChunkView,
   type TranscriptEntry,
   type TranscriptGlobalStatus,
-  type TranscriptMessageOrderChunkView,
   type TranscriptRenderableLiveItem,
   type TranscriptTurn,
 } from "./transcriptStateModel";
@@ -31,7 +30,6 @@ import {
   transcriptChunkView,
   transcriptLiveItem,
   transcriptLiveItemsForTurn,
-  transcriptMessageOrderChunkView,
 } from "./transcriptStateSelectors";
 
 export {
@@ -45,9 +43,6 @@ export type {
   TranscriptGlobalStatus,
   TranscriptLiveItemIndex,
   TranscriptLiveItemStatus,
-  TranscriptMessageOrderChunk,
-  TranscriptMessageOrderChunkView,
-  TranscriptMessageOrderMembership,
   TranscriptMessagePhase,
   TranscriptRenderableLiveItem,
   TranscriptState,
@@ -67,11 +62,6 @@ export const transcriptStateSlice = createAppSlice({
       transcriptState.turnsById[turnId] ?? null,
     selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
       transcriptChunkView(transcriptState, chunkId),
-    selectTranscriptMessageOrderChunk: (
-      transcriptState,
-      chunkId: string,
-    ): TranscriptMessageOrderChunkView | null =>
-      transcriptMessageOrderChunkView(transcriptState, chunkId),
     selectTranscriptEntry: (transcriptState, entryId: string): TranscriptEntry | null =>
       transcriptState.entriesById[entryId] ?? null,
     selectTranscriptLiveItem: (
@@ -169,7 +159,6 @@ export const {
   selectTranscriptTurnIds,
   selectTranscriptTurn,
   selectTranscriptChunk,
-  selectTranscriptMessageOrderChunk,
   selectTranscriptEntry,
   selectTranscriptLiveItem,
   selectTranscriptLiveItemsForTurn,

@@ -2,8 +2,6 @@ import { findLiveItem, liveItemsForTurn } from "./transcriptLiveProjection";
 import type {
   TranscriptChunk,
   TranscriptChunkView,
-  TranscriptMessageOrderChunk,
-  TranscriptMessageOrderChunkView,
   TranscriptRenderableLiveItem,
   TranscriptState,
 } from "./transcriptStateModel";
@@ -14,16 +12,6 @@ type TranscriptChunkViewCacheEntry = {
 };
 
 const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
-
-type TranscriptMessageOrderChunkViewCacheEntry = {
-  revision: number;
-  view: TranscriptMessageOrderChunkView;
-};
-
-const transcriptMessageOrderChunkViewCache = new WeakMap<
-  TranscriptMessageOrderChunk,
-  TranscriptMessageOrderChunkViewCacheEntry
->();
 
 export const transcriptChunkView = (
   transcriptState: TranscriptState,
@@ -50,30 +38,6 @@ export const transcriptChunkView = (
   };
 
   transcriptChunkViewCache.set(chunk, { revision: chunk.revision, view });
-  return view;
-};
-
-export const transcriptMessageOrderChunkView = (
-  transcriptState: TranscriptState,
-  chunkId: string,
-): TranscriptMessageOrderChunkView | null => {
-  const chunk = transcriptState.messageOrderChunksById[chunkId];
-  if (chunk == null) {
-    return null;
-  }
-
-  const cachedEntry = transcriptMessageOrderChunkViewCache.get(chunk);
-  if (cachedEntry?.revision === chunk.revision) {
-    return cachedEntry.view;
-  }
-
-  const view: TranscriptMessageOrderChunkView = {
-    id: chunk.id,
-    turnId: chunk.turnId,
-    revision: chunk.revision,
-    itemIds: chunk.itemIds,
-  };
-  transcriptMessageOrderChunkViewCache.set(chunk, { revision: chunk.revision, view });
   return view;
 };
 
