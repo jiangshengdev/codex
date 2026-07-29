@@ -60,10 +60,12 @@ export type TranscriptChunkView = {
   id: string;
   turnId: string;
   revision: number;
-  entries: TranscriptEntry[];
+  entries: TranscriptMiddlePayload[];
 };
 
 export type TranscriptRenderableLiveItem = {
+  type: "live";
+  id: string;
   key: string;
   turnId: string;
   itemId: string;
@@ -73,6 +75,8 @@ export type TranscriptRenderableLiveItem = {
   revision: number;
 };
 
+export type TranscriptMiddlePayload = TranscriptEntry | TranscriptRenderableLiveItem;
+
 export type TranscriptState = {
   threadId: string | null;
   subscriptionId: string | null;
@@ -81,7 +85,7 @@ export type TranscriptState = {
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunksById: Record<string, TranscriptChunk>;
-  entriesById: Record<string, TranscriptEntry>;
+  entriesById: Record<string, TranscriptMiddlePayload>;
   entryChunkById: Record<string, string>;
   liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>;
   liveItemIndexByKey: Record<string, TranscriptLiveItemIndex>;

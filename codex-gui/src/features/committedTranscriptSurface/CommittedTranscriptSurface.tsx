@@ -5,10 +5,10 @@ import {
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,
-  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
   type TranscriptEntry,
+  type TranscriptMiddlePayload,
   type TranscriptRenderableLiveItem,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
@@ -16,9 +16,6 @@ import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
-
-const isLiveAgentMessage = (item: TranscriptRenderableLiveItem): boolean =>
-  item.initialItem.type === "agentMessage";
 
 const entryText = (entry: TranscriptEntry): string => {
   switch (entry.type) {
@@ -86,7 +83,7 @@ const LeadingPromptEntry = ({ entryId }: { entryId: string | null }) => {
     entryId == null ? null : selectTranscriptEntry(state, entryId),
   );
 
-  if (entry == null) {
+  if (entry == null || entry.type === "live") {
     return null;
   }
 
@@ -106,7 +103,7 @@ const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
   return (
     <div className="committed-transcript-middle-chunk grid min-w-0 gap-3">
       {chunk.entries.map((entry) => (
-        <CommittedTranscriptEntry key={entry.id} entry={entry} />
+        <MiddleTranscriptEntry entry={entry} key={entry.id} />
       ))}
     </div>
   );
@@ -168,7 +165,7 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: string[] }) => {
     (state) =>
       entryIds.flatMap((entryId) => {
         const entry = selectTranscriptEntry(state, entryId);
-        return entry == null ? [] : [entry];
+        return entry == null || entry.type === "live" ? [] : [entry];
       }),
     areTranscriptEntryArraysEqual,
   );
@@ -197,40 +194,29 @@ const LiveAssistantMessageEntry = ({ item }: { item: TranscriptRenderableLiveIte
   </Card>
 );
 
-const LiveAssistantMessages = ({
-  liveItems,
-}: {
-  liveItems: readonly TranscriptRenderableLiveItem[];
-}) => {
-  const liveAssistantItems = liveItems.filter(isLiveAgentMessage);
+const MiddleTranscriptEntry = ({ entry }: { entry: TranscriptMiddlePayload }) => {
+  if (entry.type !== "live") {
+    return <CommittedTranscriptEntry entry={entry} />;
+  }
 
-  if (liveAssistantItems.length === 0) {
+  if (entry.initialItem.type !== "agentMessage") {
     return null;
   }
 
-  return (
-    <div className="committed-transcript-live-assistant-list grid min-w-0 gap-3">
-      {liveAssistantItems.map((item) => (
-        <LiveAssistantMessageEntry item={item} key={item.key} />
-      ))}
-    </div>
-  );
+  return <LiveAssistantMessageEntry item={entry} />;
 };
 
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
-  const liveItems = useAppSelector((state) => selectTranscriptLiveItemsForTurn(state, turnId));
 
   if (turn == null) {
     return null;
   }
 
-  const hasLiveAssistantMessages = liveItems.some(isLiveAgentMessage);
   const hasEntries =
     turn.leadingPromptEntryId != null ||
     turn.middleChunkIds.length > 0 ||
-    turn.finalAssistantEntryIds.length > 0 ||
-    hasLiveAssistantMessages;
+    turn.finalAssistantEntryIds.length > 0;
 
   if (!hasEntries) {
     return null;
@@ -253,7 +239,6 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
           hasFinalAnswer={turn.finalAssistantEntryIds.length > 0}
           middleEntryCount={turn.middleEntryCount}
         />
-        <LiveAssistantMessages liveItems={liveItems} />
         <FinalAssistantMessages entryIds={turn.finalAssistantEntryIds} />
       </div>
     </article>
@@ -272,8 +257,7 @@ export const CommittedTranscriptSurface = () => {
         turn != null &&
         (turn.leadingPromptEntryId != null ||
           turn.middleChunkIds.length > 0 ||
-          turn.finalAssistantEntryIds.length > 0 ||
-          selectTranscriptLiveItemsForTurn(state, turnId).some(isLiveAgentMessage))
+          turn.finalAssistantEntryIds.length > 0)
       );
     }),
   );

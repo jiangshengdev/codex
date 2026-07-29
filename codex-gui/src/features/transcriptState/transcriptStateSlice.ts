@@ -6,7 +6,7 @@ import {
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
-  appendStartedLiveItem,
+  appendStartedItemToMiddle,
   applyCompletedTranscriptItem,
   recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
@@ -21,8 +21,8 @@ import {
 import {
   initialTranscriptState,
   type TranscriptChunkView,
-  type TranscriptEntry,
   type TranscriptGlobalStatus,
+  type TranscriptMiddlePayload,
   type TranscriptRenderableLiveItem,
   type TranscriptTurn,
 } from "./transcriptStateModel";
@@ -44,6 +44,7 @@ export type {
   TranscriptLiveItemIndex,
   TranscriptLiveItemStatus,
   TranscriptMessagePhase,
+  TranscriptMiddlePayload,
   TranscriptRenderableLiveItem,
   TranscriptState,
   TranscriptTurn,
@@ -62,7 +63,7 @@ export const transcriptStateSlice = createAppSlice({
       transcriptState.turnsById[turnId] ?? null,
     selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
       transcriptChunkView(transcriptState, chunkId),
-    selectTranscriptEntry: (transcriptState, entryId: string): TranscriptEntry | null =>
+    selectTranscriptEntry: (transcriptState, entryId: string): TranscriptMiddlePayload | null =>
       transcriptState.entriesById[entryId] ?? null,
     selectTranscriptLiveItem: (
       transcriptState,
@@ -127,7 +128,7 @@ export const transcriptStateSlice = createAppSlice({
           case "itemStarted": {
             const { item, turnId } = notification.event.notification;
             recordOriginalFirstTranscriptItem(state, turnId, item);
-            appendStartedLiveItem(state, turnId, item);
+            appendStartedItemToMiddle(state, turnId, item);
             return;
           }
         }

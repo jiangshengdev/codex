@@ -1,51 +1,42 @@
 import type { ThreadItem, Turn } from "@codex-protocol/v2";
 import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
-import { bumpLiveScrollPulse, liveItemKey } from "./transcriptLiveProjection";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   createEmptyTranscriptState,
   resetTranscriptState,
   type TranscriptChunk,
   type TranscriptEntry,
-  type TranscriptRenderableLiveItem,
   type TranscriptState,
   type TranscriptTurn,
 } from "./transcriptStateModel";
 
-const ensureLiveItemsForTurn = (
+export const appendStartedItemToMiddle = (
   state: TranscriptState,
   turnId: string,
-): TranscriptRenderableLiveItem[] => {
-  const existingItems = state.liveItemsByTurnId[turnId];
-  if (existingItems != null) {
-    return existingItems;
-  }
-
-  const items: TranscriptRenderableLiveItem[] = [];
-  state.liveItemsByTurnId[turnId] = items;
-  return items;
-};
-
-export const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: ThreadItem) => {
-  const key = liveItemKey(turnId, item.id);
-  if (state.liveItemIndexByKey[key] != null) {
+  item: ThreadItem,
+) => {
+  const existingChunkId = state.entryChunkById[item.id];
+  if (existingChunkId != null && state.chunksById[existingChunkId]?.turnId === turnId) {
     return;
   }
 
-  const items = ensureLiveItemsForTurn(state, turnId);
-  state.liveItemIndexByKey[key] = { turnId, index: items.length };
-  items.push({
-    key,
+  const turn = ensureTranscriptTurn(state, turnId);
+  const chunk = getOrCreateMiddleChunk(state, turnId);
+  chunk.entryIds.push(item.id);
+  turn.middleEntryCount += 1;
+  chunk.revision += 1;
+  state.entryChunkById[item.id] = chunk.id;
+  state.entriesById[item.id] = {
+    type: "live",
+    id: item.id,
+    key: `${turnId}:${item.id}`,
     turnId,
     itemId: item.id,
-    initialItem: item,
     status: "started",
+    initialItem: item,
     transientText: "",
     revision: 0,
-  });
-  if (item.type === "agentMessage") {
-    bumpLiveScrollPulse(state);
-  }
+  };
 };
 
 const chunkIdForIndex = (turnId: string, index: number): string =>

@@ -3,9 +3,9 @@ import type { TranscriptRenderableLiveItem, TranscriptState } from "./transcript
 
 const EMPTY_LIVE_ITEMS: readonly TranscriptRenderableLiveItem[] = Object.freeze([]);
 
-export const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
+const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
 
-export const bumpLiveScrollPulse = (state: TranscriptState) => {
+const bumpLiveScrollPulse = (state: TranscriptState) => {
   state.liveScrollPulse += 1;
 };
 

@@ -28,6 +28,16 @@ const areTranscriptChunkEntriesEqual = (
     return previous.status === next.status;
   }
 
+  if (previous.type === "live" && next.type === "live") {
+    return (
+      previous.key === next.key &&
+      previous.itemId === next.itemId &&
+      previous.status === next.status &&
+      previous.initialItem === next.initialItem &&
+      previous.transientText === next.transientText
+    );
+  }
+
   return true;
 };
 
