@@ -12,7 +12,7 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
+import { selectTranscriptChunk, selectTranscriptEntry } from "../transcriptStateSlice";
 import {
   agentMessageDelta,
   agentMessage,
@@ -245,7 +245,7 @@ describe("transcript state selector cache", () => {
     ]);
   });
 
-  it("returns a new store-owned live item array when delta updates that live turn", () => {
+  it("returns a new middle chunk view when delta updates that live entry", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -263,10 +263,8 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const beforeUpdate = selectTranscriptLiveItemsForTurn(
-      store.getState(),
-      "turn-live-cache-delta",
-    );
+    const beforeUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-delta:chunk:0");
+    expect(beforeUpdate?.revision).toBe(1);
 
     store.dispatch(
       threadRuntimeDeltasAccepted({
@@ -281,20 +279,29 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache-delta");
+    const afterUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-delta:chunk:0");
+    const expectedStreamingPayload = {
+      type: "live" as const,
+      id: "agent-live-cache-delta",
+      key: "turn-live-cache-delta:agent-live-cache-delta",
+      turnId: "turn-live-cache-delta",
+      itemId: "agent-live-cache-delta",
+      status: "streaming" as const,
+      initialItem,
+      transientText: "Streamed text",
+      revision: 1,
+    };
 
     expect(afterUpdate).not.toBe(beforeUpdate);
-    expect(afterUpdate).toStrictEqual([
-      {
-        key: "turn-live-cache-delta:agent-live-cache-delta",
-        turnId: "turn-live-cache-delta",
-        itemId: "agent-live-cache-delta",
-        status: "streaming",
-        initialItem,
-        transientText: "Streamed text",
-        revision: 1,
-      },
-    ]);
+    expect(selectTranscriptEntry(store.getState(), "agent-live-cache-delta")).toStrictEqual(
+      expectedStreamingPayload,
+    );
+    expect(afterUpdate).toStrictEqual({
+      id: "turn-live-cache-delta:chunk:0",
+      turnId: "turn-live-cache-delta",
+      revision: 2,
+      entries: [expectedStreamingPayload],
+    });
   });
 
   it("returns a new middle chunk view when a live entry settles in place", () => {

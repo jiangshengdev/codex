@@ -214,7 +214,7 @@ describe("transcript state scroll signals", () => {
       }),
     );
 
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 3);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 2);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-live-scroll-pulse-completed",
     );

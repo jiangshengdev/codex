@@ -19,7 +19,6 @@ import {
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptEntry,
-  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
 } from "../transcriptStateSlice";
 
@@ -56,7 +55,7 @@ describe("transcript state replay and event dedup", () => {
     );
   });
 
-  it("ignores snapshot duplicate itemStarted and itemCompleted without touching live slots", () => {
+  it("ignores snapshot duplicate itemStarted and itemCompleted without changing transcript", () => {
     const store = makeStore();
     const snapshotItem = agentMessage("agent-snapshot-duplicate-live", "Already attached");
     const snapshotTurn = baseTurn("turn-snapshot-duplicate-live", [snapshotItem]);
@@ -89,9 +88,6 @@ describe("transcript state replay and event dedup", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-snapshot-duplicate-live"),
-    ).toStrictEqual([]);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
     expect(selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate-live")).toStrictEqual(
       beforeTurn,
