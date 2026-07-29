@@ -7,27 +7,29 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   applyCompletedTranscriptItem,
-  applyStartedTranscriptItem,
-  applyTranscriptDeltaBatch,
+  recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
-} from "./transcriptMessageProjection";
+} from "./transcriptCommittedProjection";
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
 import {
+  appendStartedLiveItem,
+  applyAcceptedProjectionDeltaBatch,
+  hasLiveItem,
+  removeLiveItemIfPresent,
+} from "./transcriptLiveProjection";
+import {
   initialTranscriptState,
+  type TranscriptChunkView,
   type TranscriptEntry,
   type TranscriptGlobalStatus,
-  type TranscriptMessageChunk,
-  type TranscriptMessageKey,
-  type TranscriptMessagePlacement,
-  type TranscriptMessagePresentation,
   type TranscriptRenderableLiveItem,
   type TranscriptTurn,
 } from "./transcriptStateModel";
 import {
-  transcriptMessageChunk,
-  transcriptMessagePresentation,
-  transcriptMiddleMessagePresentation,
+  transcriptChunkView,
+  transcriptLiveItem,
+  transcriptLiveItemsForTurn,
 } from "./transcriptStateSelectors";
 
 export {
@@ -35,15 +37,13 @@ export {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
 } from "./transcriptStateModel";
 export type {
+  TranscriptChunk,
+  TranscriptChunkView,
   TranscriptEntry,
   TranscriptGlobalStatus,
   TranscriptLiveItemIndex,
   TranscriptLiveItemStatus,
-  TranscriptMessageChunk,
-  TranscriptMessageKey,
   TranscriptMessagePhase,
-  TranscriptMessagePlacement,
-  TranscriptMessagePresentation,
   TranscriptRenderableLiveItem,
   TranscriptState,
   TranscriptTurn,
@@ -60,19 +60,20 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
     selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
       transcriptState.turnsById[turnId] ?? null,
-    selectTranscriptMessageChunk: (
+    selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
+      transcriptChunkView(transcriptState, chunkId),
+    selectTranscriptEntry: (transcriptState, entryId: string): TranscriptEntry | null =>
+      transcriptState.entriesById[entryId] ?? null,
+    selectTranscriptLiveItem: (
       transcriptState,
-      chunkId: string,
-    ): TranscriptMessageChunk | null => transcriptMessageChunk(transcriptState, chunkId),
-    selectTranscriptMessagePresentation: (
+      turnId: string,
+      itemId: string,
+    ): TranscriptRenderableLiveItem | null => transcriptLiveItem(transcriptState, turnId, itemId),
+    selectTranscriptLiveItemsForTurn: (
       transcriptState,
-      key: TranscriptMessageKey,
-    ): TranscriptMessagePresentation | null => transcriptMessagePresentation(transcriptState, key),
-    selectTranscriptMiddleMessagePresentation: (
-      transcriptState,
-      key: TranscriptMessageKey,
-    ): TranscriptMessagePresentation | null =>
-      transcriptMiddleMessagePresentation(transcriptState, key),
+      turnId: string,
+    ): readonly TranscriptRenderableLiveItem[] =>
+      transcriptLiveItemsForTurn(transcriptState, turnId),
     selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
       transcriptState.globalStatus,
   },
@@ -101,6 +102,13 @@ export const transcriptStateSlice = createAppSlice({
           return;
         }
 
+        if (notification.event.type === "itemStarted") {
+          const { item, turnId } = notification.event.notification;
+          if (hasLiveItem(state, turnId, item.id)) {
+            return;
+          }
+        }
+
         recordAppliedTranscriptEvent(state, notification.commitId);
 
         switch (notification.event.type) {
@@ -110,6 +118,7 @@ export const transcriptStateSlice = createAppSlice({
             return;
           case "itemCompleted": {
             const { item, turnId } = notification.event.notification;
+            removeLiveItemIfPresent(state, turnId, item.id);
             if (applyCompletedTranscriptItem(state, turnId, item)) {
               state.committedScrollCommitKey = `event:${notification.commitId}`;
             }
@@ -117,14 +126,15 @@ export const transcriptStateSlice = createAppSlice({
           }
           case "itemStarted": {
             const { item, turnId } = notification.event.notification;
-            applyStartedTranscriptItem(state, turnId, item);
+            recordOriginalFirstTranscriptItem(state, turnId, item);
+            appendStartedLiveItem(state, turnId, item);
             return;
           }
         }
         notification.event satisfies never;
       })
       .addCase(threadRuntimeDeltasAccepted, (state, action) => {
-        applyTranscriptDeltaBatch(state, action.payload.notifications);
+        applyAcceptedProjectionDeltaBatch(state, action.payload.notifications);
       })
       .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
         if (state.threadId !== action.payload.threadId) {
@@ -148,9 +158,10 @@ export const {
   selectTranscriptLiveScrollPulse,
   selectTranscriptTurnIds,
   selectTranscriptTurn,
-  selectTranscriptMessageChunk,
-  selectTranscriptMessagePresentation,
-  selectTranscriptMiddleMessagePresentation,
+  selectTranscriptChunk,
+  selectTranscriptEntry,
+  selectTranscriptLiveItem,
+  selectTranscriptLiveItemsForTurn,
   selectTranscriptGlobalStatus,
 } = transcriptStateSlice.selectors;
 

@@ -1,30 +1,53 @@
-import { findLiveItemByKey } from "./transcriptLiveProjection";
+import { findLiveItem, liveItemsForTurn } from "./transcriptLiveProjection";
 import type {
-  TranscriptMessageChunk,
-  TranscriptMessageKey,
-  TranscriptMessagePresentation,
+  TranscriptChunk,
+  TranscriptChunkView,
+  TranscriptRenderableLiveItem,
   TranscriptState,
 } from "./transcriptStateModel";
 
-export const transcriptMessageChunk = (
-  state: TranscriptState,
-  chunkId: string,
-): TranscriptMessageChunk | null => state.chunksById[chunkId] ?? null;
-
-export const transcriptMessagePresentation = (
-  state: TranscriptState,
-  key: TranscriptMessageKey,
-): TranscriptMessagePresentation | null => {
-  if (Object.prototype.hasOwnProperty.call(state.entriesByKey, key)) {
-    return state.entriesByKey[key];
-  }
-  return findLiveItemByKey(state, key);
+type TranscriptChunkViewCacheEntry = {
+  revision: number;
+  view: TranscriptChunkView;
 };
 
-export const transcriptMiddleMessagePresentation = (
-  state: TranscriptState,
-  key: TranscriptMessageKey,
-): TranscriptMessagePresentation | null =>
-  state.messagePlacementByKey[key] === "middle"
-    ? transcriptMessagePresentation(state, key)
-    : null;
+const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
+
+export const transcriptChunkView = (
+  transcriptState: TranscriptState,
+  chunkId: string,
+): TranscriptChunkView | null => {
+  const chunk = transcriptState.chunksById[chunkId];
+  if (chunk == null) {
+    return null;
+  }
+
+  const cachedEntry = transcriptChunkViewCache.get(chunk);
+  if (cachedEntry?.revision === chunk.revision) {
+    return cachedEntry.view;
+  }
+
+  const view: TranscriptChunkView = {
+    id: chunk.id,
+    turnId: chunk.turnId,
+    revision: chunk.revision,
+    entries: chunk.entryIds.flatMap((entryId) => {
+      const entry = transcriptState.entriesById[entryId];
+      return entry == null ? [] : [entry];
+    }),
+  };
+
+  transcriptChunkViewCache.set(chunk, { revision: chunk.revision, view });
+  return view;
+};
+
+export const transcriptLiveItem = (
+  transcriptState: TranscriptState,
+  turnId: string,
+  itemId: string,
+): TranscriptRenderableLiveItem | null => findLiveItem(transcriptState, turnId, itemId);
+
+export const transcriptLiveItemsForTurn = (
+  transcriptState: TranscriptState,
+  turnId: string,
+): readonly TranscriptRenderableLiveItem[] => liveItemsForTurn(transcriptState, turnId);

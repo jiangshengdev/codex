@@ -2,21 +2,23 @@ import { memo, useState } from "react";
 import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
 import { useAppSelector } from "@/app/hooks";
 import {
+  selectTranscriptChunk,
+  selectTranscriptEntry,
   selectTranscriptGlobalStatus,
-  selectTranscriptMessageChunk,
-  selectTranscriptMessagePresentation,
-  selectTranscriptMiddleMessagePresentation,
+  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
   type TranscriptEntry,
-  type TranscriptMessageKey,
-  type TranscriptMessagePresentation,
   type TranscriptRenderableLiveItem,
 } from "@/features/transcriptState/transcriptStateSlice";
+import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
+
+const isLiveAgentMessage = (item: TranscriptRenderableLiveItem): boolean =>
+  item.initialItem.type === "agentMessage";
 
 const entryText = (entry: TranscriptEntry): string => {
   switch (entry.type) {
@@ -64,54 +66,47 @@ const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => {
 const intermediateUpdatesLabel = (count: number): string =>
   `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
-const LiveAssistantMessageEntry = ({ item }: { item: TranscriptRenderableLiveItem }) => (
-  <Card
-    className="committed-transcript-live-entry committed-transcript-live-assistant-message min-w-0"
-    role="article"
-  >
-    <Card.Content className="grid min-w-0 gap-2">
-      <LiveMarkdownText source={item.transientText} />
-    </Card.Content>
-  </Card>
-);
+const areTranscriptEntryArraysEqual = (
+  previous: TranscriptEntry[],
+  next: TranscriptEntry[],
+): boolean => {
+  if (previous === next) {
+    return true;
+  }
 
-const TranscriptMessageEntry = ({ presentation }: { presentation: TranscriptMessagePresentation }) =>
-  "initialItem" in presentation ? (
-    <LiveAssistantMessageEntry item={presentation} />
-  ) : (
-    <CommittedTranscriptEntry entry={presentation} />
+  if (previous.length !== next.length) {
+    return false;
+  }
+
+  return previous.every((entry, index) => entry === next[index]);
+};
+
+const LeadingPromptEntry = ({ entryId }: { entryId: string | null }) => {
+  const entry = useAppSelector((state) =>
+    entryId == null ? null : selectTranscriptEntry(state, entryId),
   );
 
-const LeadingPromptEntry = ({ messageKey }: { messageKey: TranscriptMessageKey | null }) => {
-  const presentation = useAppSelector((state) =>
-    messageKey == null ? null : selectTranscriptMessagePresentation(state, messageKey),
-  );
-
-  if (presentation == null) {
+  if (entry == null) {
     return null;
   }
 
-  return <TranscriptMessageEntry presentation={presentation} />;
-};
-
-const MiddleTranscriptMessage = ({ messageKey }: { messageKey: TranscriptMessageKey }) => {
-  const presentation = useAppSelector((state) =>
-    selectTranscriptMiddleMessagePresentation(state, messageKey),
-  );
-  return presentation == null ? null : <TranscriptMessageEntry presentation={presentation} />;
+  return <CommittedTranscriptEntry entry={entry} />;
 };
 
 const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
-  const chunk = useAppSelector((state) => selectTranscriptMessageChunk(state, chunkId));
+  const chunk = useAppSelector(
+    (state) => selectTranscriptChunk(state, chunkId),
+    areTranscriptChunkViewsEqual,
+  );
 
-  if (chunk == null) {
+  if (chunk == null || chunk.entries.length === 0) {
     return null;
   }
 
   return (
     <div className="committed-transcript-middle-chunk grid min-w-0 gap-3">
-      {chunk.messageKeys.map((messageKey) => (
-        <MiddleTranscriptMessage key={messageKey} messageKey={messageKey} />
+      {chunk.entries.map((entry) => (
+        <CommittedTranscriptEntry key={entry.id} entry={entry} />
       ))}
     </div>
   );
@@ -119,17 +114,20 @@ const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
 
 MiddleTranscriptChunk.displayName = "MiddleTranscriptChunk";
 
-const MiddleTranscriptModule = ({ turnId }: { turnId: string }) => {
+const MiddleTranscriptModule = ({
+  chunkIds,
+  hasFinalAnswer,
+  middleEntryCount,
+}: {
+  chunkIds: string[];
+  hasFinalAnswer: boolean;
+  middleEntryCount: number;
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
-  if (turn == null) {
-    return null;
-  }
-  const hasFinalAnswer = turn.committedFinalMessageKeys.length > 0;
-  const label = intermediateUpdatesLabel(turn.middleEntryCount);
+  const label = intermediateUpdatesLabel(middleEntryCount);
   const shouldShowEntries = !hasFinalAnswer || isExpanded;
 
-  if (turn.middleEntryCount === 0) {
+  if (middleEntryCount === 0) {
     return null;
   }
 
@@ -154,7 +152,7 @@ const MiddleTranscriptModule = ({ turnId }: { turnId: string }) => {
         <Disclosure.Body className="pt-3">
           {shouldShowEntries ? (
             <div className="grid min-w-0 gap-3">
-              {turn.messageChunkIds.map((chunkId) => (
+              {chunkIds.map((chunkId) => (
                 <MiddleTranscriptChunk chunkId={chunkId} key={chunkId} />
               ))}
             </div>
@@ -165,36 +163,74 @@ const MiddleTranscriptModule = ({ turnId }: { turnId: string }) => {
   );
 };
 
-const FinalMessage = ({ messageKey }: { messageKey: TranscriptMessageKey }) => {
-  const presentation = useAppSelector((state) =>
-    selectTranscriptMessagePresentation(state, messageKey),
+const FinalAssistantMessages = ({ entryIds }: { entryIds: string[] }) => {
+  const entries = useAppSelector(
+    (state) =>
+      entryIds.flatMap((entryId) => {
+        const entry = selectTranscriptEntry(state, entryId);
+        return entry == null ? [] : [entry];
+      }),
+    areTranscriptEntryArraysEqual,
   );
-  return presentation == null ? null : <TranscriptMessageEntry presentation={presentation} />;
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {entries.map((entry) => (
+        <CommittedTranscriptEntry key={entry.id} entry={entry} />
+      ))}
+    </>
+  );
 };
 
-const FinalAssistantMessages = ({ turn }: { turn: NonNullable<ReturnType<typeof selectTranscriptTurn>> }) => (
-  <>
-    {turn.liveFinalMessageKeys.map((messageKey) => (
-      <FinalMessage key={messageKey} messageKey={messageKey} />
-    ))}
-    {turn.committedFinalMessageKeys.map((messageKey) => (
-      <FinalMessage key={messageKey} messageKey={messageKey} />
-    ))}
-  </>
+const LiveAssistantMessageEntry = ({ item }: { item: TranscriptRenderableLiveItem }) => (
+  <Card
+    className="committed-transcript-live-entry committed-transcript-live-assistant-message min-w-0"
+    role="article"
+  >
+    <Card.Content className="grid min-w-0 gap-2">
+      <LiveMarkdownText source={item.transientText} />
+    </Card.Content>
+  </Card>
 );
+
+const LiveAssistantMessages = ({
+  liveItems,
+}: {
+  liveItems: readonly TranscriptRenderableLiveItem[];
+}) => {
+  const liveAssistantItems = liveItems.filter(isLiveAgentMessage);
+
+  if (liveAssistantItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="committed-transcript-live-assistant-list grid min-w-0 gap-3">
+      {liveAssistantItems.map((item) => (
+        <LiveAssistantMessageEntry item={item} key={item.key} />
+      ))}
+    </div>
+  );
+};
 
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
+  const liveItems = useAppSelector((state) => selectTranscriptLiveItemsForTurn(state, turnId));
 
   if (turn == null) {
     return null;
   }
 
+  const hasLiveAssistantMessages = liveItems.some(isLiveAgentMessage);
   const hasEntries =
-    turn.leadingPromptEntryKey != null ||
-    turn.middleEntryCount > 0 ||
-    turn.liveFinalMessageKeys.length > 0 ||
-    turn.committedFinalMessageKeys.length > 0;
+    turn.leadingPromptEntryId != null ||
+    turn.middleChunkIds.length > 0 ||
+    turn.finalAssistantEntryIds.length > 0 ||
+    hasLiveAssistantMessages;
 
   if (!hasEntries) {
     return null;
@@ -211,9 +247,14 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
         </Chip>
       </div>
       <div className="committed-transcript-chunk grid min-w-0 gap-3">
-        <LeadingPromptEntry messageKey={turn.leadingPromptEntryKey} />
-        <MiddleTranscriptModule turnId={turn.id} />
-        <FinalAssistantMessages turn={turn} />
+        <LeadingPromptEntry entryId={turn.leadingPromptEntryId} />
+        <MiddleTranscriptModule
+          chunkIds={turn.middleChunkIds}
+          hasFinalAnswer={turn.finalAssistantEntryIds.length > 0}
+          middleEntryCount={turn.middleEntryCount}
+        />
+        <LiveAssistantMessages liveItems={liveItems} />
+        <FinalAssistantMessages entryIds={turn.finalAssistantEntryIds} />
       </div>
     </article>
   );
@@ -229,10 +270,10 @@ export const CommittedTranscriptSurface = () => {
       const turn = selectTranscriptTurn(state, turnId);
       return (
         turn != null &&
-        (turn.leadingPromptEntryKey != null ||
-          turn.middleEntryCount > 0 ||
-          turn.liveFinalMessageKeys.length > 0 ||
-          turn.committedFinalMessageKeys.length > 0)
+        (turn.leadingPromptEntryId != null ||
+          turn.middleChunkIds.length > 0 ||
+          turn.finalAssistantEntryIds.length > 0 ||
+          selectTranscriptLiveItemsForTurn(state, turnId).some(isLiveAgentMessage))
       );
     }),
   );
