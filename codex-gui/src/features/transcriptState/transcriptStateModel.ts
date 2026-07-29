@@ -7,10 +7,26 @@ export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
 export type TranscriptTurn = {
   id: string;
   status: TurnStatus;
+  originalFirstItemId: string | null;
   leadingPromptEntryId: string | null;
+  messageOrderChunkIds: string[];
   middleChunkIds: string[];
   middleEntryCount: number;
   finalAssistantEntryIds: string[];
+};
+
+export type TranscriptMessageOrderChunk = {
+  id: string;
+  turnId: string;
+  itemIds: string[];
+  revision: number;
+};
+
+export type TranscriptMessageOrderMembership = {
+  turnId: string;
+  itemId: string;
+  chunkId: string;
+  index: number;
 };
 
 export type TranscriptChunk = {
@@ -62,6 +78,13 @@ export type TranscriptChunkView = {
   entries: TranscriptEntry[];
 };
 
+export type TranscriptMessageOrderChunkView = {
+  id: string;
+  turnId: string;
+  revision: number;
+  itemIds: string[];
+};
+
 export type TranscriptRenderableLiveItem = {
   key: string;
   turnId: string;
@@ -79,6 +102,8 @@ export type TranscriptState = {
   liveScrollPulse: number;
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
+  messageOrderChunksById: Record<string, TranscriptMessageOrderChunk>;
+  messageOrderMembershipByKey: Record<string, TranscriptMessageOrderMembership>;
   chunksById: Record<string, TranscriptChunk>;
   entriesById: Record<string, TranscriptEntry>;
   entryChunkById: Record<string, string>;
@@ -96,6 +121,8 @@ export const createEmptyTranscriptState = (): TranscriptState => ({
   liveScrollPulse: 0,
   turnIds: [],
   turnsById: {},
+  messageOrderChunksById: {},
+  messageOrderMembershipByKey: {},
   chunksById: {},
   entriesById: {},
   entryChunkById: {},

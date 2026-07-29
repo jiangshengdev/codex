@@ -12,7 +12,12 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
+import {
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  selectTranscriptChunk,
+  selectTranscriptLiveItemsForTurn,
+  selectTranscriptMessageOrderChunk,
+} from "../transcriptStateSlice";
 import {
   agentMessageDelta,
   agentMessage,
@@ -23,6 +28,47 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state selector cache", () => {
+  it("returns a stable message-order chunk view while that bounded chunk is unchanged", () => {
+    const store = makeStore();
+    const orderedItems = Array.from(
+      { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1 },
+      (_, index) =>
+        agentMessage(`agent-order-cache-${String(index)}`, `Cached ${String(index)}`, "commentary"),
+    );
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn("turn-order-cache", orderedItems)]),
+      ),
+    );
+
+    const firstOrderChunk = selectTranscriptMessageOrderChunk(
+      store.getState(),
+      "turn-order-cache:message-order:chunk:0",
+    );
+
+    expect(firstOrderChunk).not.toBeNull();
+    expect(
+      selectTranscriptMessageOrderChunk(store.getState(), "turn-order-cache:message-order:chunk:0"),
+    ).toBe(firstOrderChunk);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-order-cache-unrelated",
+          "turn-order-cache-unrelated",
+          agentMessage("agent-order-cache-unrelated", "Unrelated", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptMessageOrderChunk(store.getState(), "turn-order-cache:message-order:chunk:0"),
+    ).toBe(firstOrderChunk);
+  });
+
   it("returns a stable transcript chunk view while the chunk is unchanged", () => {
     const store = makeStore();
 
