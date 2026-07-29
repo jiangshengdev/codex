@@ -52,6 +52,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-snapshot")).toStrictEqual({
       id: "turn-snapshot",
       status: "completed",
+      originalFirstItemId: "user-snapshot",
       leadingPromptEntryId: "user-snapshot",
       middleChunkIds: [],
       middleEntryCount: 0,
@@ -100,6 +101,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-layout")).toStrictEqual({
       id: "turn-layout",
       status: "completed",
+      originalFirstItemId: "user-leading",
       leadingPromptEntryId: "user-leading",
       middleChunkIds: ["turn-layout:chunk:0"],
       middleEntryCount: 3,
@@ -166,6 +168,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-assistant-first")).toStrictEqual({
       id: "turn-assistant-first",
       status: "completed",
+      originalFirstItemId: "agent-first-commentary",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-assistant-first:chunk:0"],
       middleEntryCount: 1,
@@ -204,6 +207,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-final-first")).toStrictEqual({
       id: "turn-final-first",
       status: "completed",
+      originalFirstItemId: "agent-final-first",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-final-first:chunk:0"],
       middleEntryCount: 1,
@@ -243,6 +247,7 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-multi-final")).toStrictEqual({
       id: "turn-multi-final",
       status: "completed",
+      originalFirstItemId: "user-multi-final",
       leadingPromptEntryId: "user-multi-final",
       middleChunkIds: [],
       middleEntryCount: 0,
@@ -302,6 +307,7 @@ describe("transcript state snapshot reducer", () => {
             agentMessage("empty-agent", ""),
             planItem("hidden-plan"),
             sleepItem("hidden-sleep"),
+            userMessage("visible-later", [textInput("Visible later")]),
           ]),
         ]),
       ),
@@ -311,9 +317,10 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-filtered")).toStrictEqual({
       id: "turn-filtered",
       status: "completed",
+      originalFirstItemId: "image-only",
       leadingPromptEntryId: null,
-      middleChunkIds: [],
-      middleEntryCount: 0,
+      middleChunkIds: ["turn-filtered:chunk:0"],
+      middleEntryCount: 1,
       finalAssistantEntryIds: [],
     });
   });

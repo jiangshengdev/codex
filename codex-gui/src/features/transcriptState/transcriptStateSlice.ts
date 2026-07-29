@@ -7,7 +7,7 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   applyCompletedTranscriptItem,
-  ensureTranscriptTurn,
+  recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
 } from "./transcriptCommittedProjection";
@@ -126,7 +126,7 @@ export const transcriptStateSlice = createAppSlice({
           }
           case "itemStarted": {
             const { item, turnId } = notification.event.notification;
-            ensureTranscriptTurn(state, turnId);
+            recordOriginalFirstTranscriptItem(state, turnId, item);
             appendStartedLiveItem(state, turnId, item);
             return;
           }

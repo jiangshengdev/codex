@@ -7,6 +7,7 @@ export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
 export type TranscriptTurn = {
   id: string;
   status: TurnStatus;
+  originalFirstItemId: string | null;
   leadingPromptEntryId: string | null;
   middleChunkIds: string[];
   middleEntryCount: number;
