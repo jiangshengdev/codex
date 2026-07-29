@@ -160,14 +160,14 @@ describe("transcript state committed projection reducer", () => {
       originalFirstItemId: "agent-started-first",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-started-first:chunk:0"],
-      middleEntryCount: 1,
+      middleEntryCount: 2,
       finalAssistantEntryIds: [],
     });
     expect(
       selectTranscriptChunk(store.getState(), "turn-started-first:chunk:0")?.entries.map(
         ({ id }) => id,
       ),
-    ).toStrictEqual(["user-after-started"]);
+    ).toStrictEqual(["agent-started-first", "user-after-started"]);
   });
 
   it("moves a completed first user item from middle to leading", () => {

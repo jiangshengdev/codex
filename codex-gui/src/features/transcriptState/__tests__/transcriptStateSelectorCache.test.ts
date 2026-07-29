@@ -306,11 +306,11 @@ describe("transcript state selector cache", () => {
     ]);
   });
 
-  it("removes the store-owned live item array when completed settlement empties the turn", () => {
+  it("returns a new middle chunk view when a live entry settles in place", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const initialItem = agentMessage("agent-live-cache-settled", "");
+    const initialItem = agentMessage("agent-live-cache-settled", "", "commentary");
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -324,10 +324,28 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const beforeSettlement = selectTranscriptLiveItemsForTurn(
+    const beforeSettlement = selectTranscriptChunk(
       store.getState(),
-      "turn-live-cache-settled",
+      "turn-live-cache-settled:chunk:0",
     );
+    expect(beforeSettlement).toStrictEqual({
+      id: "turn-live-cache-settled:chunk:0",
+      turnId: "turn-live-cache-settled",
+      revision: 1,
+      entries: [
+        {
+          type: "live",
+          id: "agent-live-cache-settled",
+          key: "turn-live-cache-settled:agent-live-cache-settled",
+          turnId: "turn-live-cache-settled",
+          itemId: "agent-live-cache-settled",
+          status: "started",
+          initialItem,
+          transientText: "",
+          revision: 0,
+        },
+      ],
+    });
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -335,18 +353,34 @@ describe("transcript state selector cache", () => {
           eventItemCompleted,
           "commit-live-cache-settled-completed",
           "turn-live-cache-settled",
-          agentMessage("agent-live-cache-settled", "Completed cache answer", "final_answer"),
+          agentMessage("agent-live-cache-settled", "Completed cache answer", "commentary"),
         ),
         replay: "live",
       }),
     );
 
-    const afterSettlement = selectTranscriptLiveItemsForTurn(
+    const afterSettlement = selectTranscriptChunk(
       store.getState(),
-      "turn-live-cache-settled",
+      "turn-live-cache-settled:chunk:0",
     );
 
-    expect(afterSettlement).toStrictEqual([]);
     expect(afterSettlement).not.toBe(beforeSettlement);
+    expect(afterSettlement).toStrictEqual({
+      id: "turn-live-cache-settled:chunk:0",
+      turnId: "turn-live-cache-settled",
+      revision: (beforeSettlement?.revision ?? 0) + 1,
+      entries: [
+        {
+          type: "message",
+          id: "agent-live-cache-settled",
+          turnId: "turn-live-cache-settled",
+          role: "assistant",
+          source: "Completed cache answer",
+          sourceKind: "markdown",
+          phase: "commentary",
+          revision: 1,
+        },
+      ],
+    });
   });
 });

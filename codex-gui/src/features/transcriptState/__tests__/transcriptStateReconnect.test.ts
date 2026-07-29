@@ -2,27 +2,22 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
-  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,
-  selectTranscriptLiveItem,
-  selectTranscriptLiveItemsForTurn,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
-  agentMessageDelta,
   attachWithTurns,
   baseTurn,
   itemCompleted,
@@ -134,18 +129,6 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
-        notifications: [
-          agentMessageDelta(
-            eventAgentMessageDelta,
-            "turn-reconnect-live",
-            "agent-reconnect-live",
-            "Partial",
-          ),
-        ],
-      }),
-    );
-    store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
@@ -165,12 +148,15 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-reconnect-live", "agent-reconnect-live"),
-    ).toBeNull();
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-reconnect-live")).toStrictEqual(
-      [],
-    );
+    expect(selectTranscriptTurn(store.getState(), "turn-reconnect-live")).toStrictEqual({
+      id: "turn-reconnect-live",
+      status: "inProgress",
+      originalFirstItemId: "agent-reconnect-live",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: ["agent-reconnect-live"],
+    });
     expect(selectTranscriptEntry(store.getState(), "agent-reconnect-live")).toStrictEqual({
       type: "message",
       id: "agent-reconnect-live",
@@ -179,7 +165,7 @@ describe("transcript state reconnect reducer", () => {
       source: "Completed before reconnect",
       sourceKind: "markdown",
       phase: "final_answer",
-      revision: 0,
+      revision: 1,
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
       {
@@ -200,12 +186,6 @@ describe("transcript state reconnect reducer", () => {
       ),
     );
 
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-reconnect-live")).toStrictEqual(
-      [],
-    );
-    expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-after-reconnect"),
-    ).toStrictEqual([]);
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
     expect(selectTranscriptEntry(store.getState(), "agent-after-reconnect")).toStrictEqual({
       type: "message",

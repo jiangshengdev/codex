@@ -2,20 +2,17 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
-  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   agentMessage,
-  agentMessageDelta,
   attachWithTurns,
   itemCompleted,
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -111,13 +108,6 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
     store.dispatch(
-      threadRuntimeDeltasAccepted({
-        notifications: [
-          agentMessageDelta(eventAgentMessageDelta, "turn-settled", "agent-settled", "Partial"),
-        ],
-      }),
-    );
-    store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
@@ -129,8 +119,6 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptLiveItem(store.getState(), "turn-settled", "agent-settled")).toBeNull();
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-settled")).toStrictEqual([]);
     expect(selectTranscriptEntry(store.getState(), "agent-settled")).toStrictEqual({
       type: "message",
       id: "agent-settled",
@@ -139,8 +127,18 @@ describe("transcript state live item lifecycle reducer", () => {
       source: "Completed answer",
       sourceKind: "markdown",
       phase: "final_answer",
-      revision: 0,
+      revision: 1,
     });
+    expect(selectTranscriptTurn(store.getState(), "turn-settled")).toStrictEqual({
+      id: "turn-settled",
+      status: "inProgress",
+      originalFirstItemId: "agent-settled",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: ["agent-settled"],
+    });
+    expect(selectTranscriptChunk(store.getState(), "turn-settled:chunk:0")).toBeNull();
   });
 
   it("keeps the later live item addressable after removing an earlier live item", () => {
@@ -149,7 +147,11 @@ describe("transcript state live item lifecycle reducer", () => {
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const firstItem = agentMessage("agent-remove-first", "");
     const secondItem = agentMessage("agent-remove-second", "Still live");
-    const completedFirstItem = agentMessage("agent-remove-first", "Completed first");
+    const completedFirstItem = agentMessage(
+      "agent-remove-first",
+      "Completed first",
+      "final_answer",
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -185,12 +187,19 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-remove-first", "agent-remove-first"),
-    ).toBeNull();
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-remove-first", "agent-remove-second"),
-    ).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), "agent-remove-first")).toStrictEqual({
+      type: "message",
+      id: "agent-remove-first",
+      turnId: "turn-remove-first",
+      role: "assistant",
+      source: "Completed first",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), "agent-remove-second")).toStrictEqual({
+      type: "live",
+      id: "agent-remove-second",
       key: "turn-remove-first:agent-remove-second",
       turnId: "turn-remove-first",
       itemId: "agent-remove-second",
@@ -199,17 +208,20 @@ describe("transcript state live item lifecycle reducer", () => {
       transientText: "",
       revision: 0,
     });
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-remove-first")).toStrictEqual([
-      {
-        key: "turn-remove-first:agent-remove-second",
-        turnId: "turn-remove-first",
-        itemId: "agent-remove-second",
-        status: "started",
-        initialItem: secondItem,
-        transientText: "",
-        revision: 0,
-      },
-    ]);
+    expect(selectTranscriptTurn(store.getState(), "turn-remove-first")).toStrictEqual({
+      id: "turn-remove-first",
+      status: "inProgress",
+      originalFirstItemId: "agent-remove-first",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-remove-first:chunk:0"],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: ["agent-remove-first"],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-remove-first:chunk:0")?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual(["agent-remove-second"]);
   });
 
   it("does not create a live slot when itemCompleted arrives without itemStarted", () => {
@@ -228,9 +240,15 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing-slot-completed"),
-    ).toStrictEqual([]);
+    expect(selectTranscriptTurn(store.getState(), "turn-missing-slot-completed")).toStrictEqual({
+      id: "turn-missing-slot-completed",
+      status: "inProgress",
+      originalFirstItemId: "agent-missing-slot-completed",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: ["agent-missing-slot-completed"],
+    });
     expect(selectTranscriptEntry(store.getState(), "agent-missing-slot-completed")).toStrictEqual({
       type: "message",
       id: "agent-missing-slot-completed",
