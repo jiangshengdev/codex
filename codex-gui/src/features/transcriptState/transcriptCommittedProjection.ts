@@ -136,7 +136,7 @@ const removeEntryFromMiddleChunk = (
   const turn = state.turnsById[turnId];
   const chunkId = state.entryChunkById[entryId];
   const chunk = chunkId == null ? null : state.chunksById[chunkId];
-  if (turn == null || chunk == null || chunk.turnId !== turnId) {
+  if (turn == null || chunk?.turnId !== turnId) {
     return false;
   }
 
@@ -153,7 +153,7 @@ const removeEntryFromMiddleChunk = (
   if (turn.middleEntryCount === 0) {
     turn.middleChunkIds = turn.middleChunkIds.filter((middleChunkId) => {
       const middleChunk = state.chunksById[middleChunkId];
-      if (middleChunk != null && middleChunk.entryIds.length === 0) {
+      if (middleChunk?.entryIds.length === 0) {
         Reflect.deleteProperty(state.chunksById, middleChunkId);
         return false;
       }
