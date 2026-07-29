@@ -1,9 +1,10 @@
 import type { ThreadItem, ThreadProjectionDeltaNotification } from "@codex-protocol/v2";
-import type { TranscriptRenderableLiveItem, TranscriptState } from "./transcriptStateModel";
-
-const EMPTY_LIVE_ITEMS: readonly TranscriptRenderableLiveItem[] = Object.freeze([]);
-
-const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
+import {
+  transcriptMessageKeyFor,
+  type TranscriptMessageKey,
+  type TranscriptRenderableLiveItem,
+  type TranscriptState,
+} from "./transcriptStateModel";
 
 const bumpLiveScrollPulse = (state: TranscriptState) => {
   state.liveScrollPulse += 1;
@@ -23,13 +24,10 @@ const ensureLiveItemsForTurn = (
   return items;
 };
 
-export const hasLiveItem = (state: TranscriptState, turnId: string, itemId: string): boolean =>
-  state.liveItemIndexByKey[liveItemKey(turnId, itemId)] != null;
-
 export const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: ThreadItem) => {
-  const key = liveItemKey(turnId, item.id);
+  const key = transcriptMessageKeyFor(turnId, item.id);
   if (state.liveItemIndexByKey[key] != null) {
-    return;
+    return false;
   }
 
   const items = ensureLiveItemsForTurn(state, turnId);
@@ -46,27 +44,21 @@ export const appendStartedLiveItem = (state: TranscriptState, turnId: string, it
   if (item.type === "agentMessage") {
     bumpLiveScrollPulse(state);
   }
+  return true;
 };
 
-export const findLiveItem = (
+export const findLiveItemByKey = (
   state: TranscriptState,
-  turnId: string,
-  itemId: string,
+  key: TranscriptMessageKey,
 ): TranscriptRenderableLiveItem | null => {
-  const key = liveItemKey(turnId, itemId);
   const itemIndex = state.liveItemIndexByKey[key];
-  if (itemIndex?.turnId !== turnId) {
+  if (itemIndex == null) {
     return null;
   }
 
-  const item = state.liveItemsByTurnId[turnId]?.[itemIndex.index] ?? null;
+  const item = state.liveItemsByTurnId[itemIndex.turnId]?.[itemIndex.index] ?? null;
   return item?.key === key ? item : null;
 };
-
-export const liveItemsForTurn = (
-  state: TranscriptState,
-  turnId: string,
-): readonly TranscriptRenderableLiveItem[] => state.liveItemsByTurnId[turnId] ?? EMPTY_LIVE_ITEMS;
 
 type AgentMessageDeltaBucket = {
   turnId: string;
@@ -88,9 +80,9 @@ const appendDeltaToLiveItem = (
 export const applyAcceptedProjectionDeltaBatch = (
   state: TranscriptState,
   notifications: ThreadProjectionDeltaNotification[],
-) => {
+): TranscriptMessageKey[] => {
   const buckets: AgentMessageDeltaBucket[] = [];
-  const bucketByKey: Record<string, AgentMessageDeltaBucket> = {};
+  const bucketByKey: Record<TranscriptMessageKey, AgentMessageDeltaBucket> = {};
 
   for (const notification of notifications) {
     if (state.threadId !== notification.threadId) {
@@ -100,7 +92,7 @@ export const applyAcceptedProjectionDeltaBatch = (
     switch (notification.delta.type) {
       case "agentMessage": {
         const { turnId, itemId, delta } = notification.delta.notification;
-        const key = liveItemKey(turnId, itemId);
+        const key = transcriptMessageKeyFor(turnId, itemId);
         let bucket = bucketByKey[key];
         if (bucket == null) {
           bucket = { turnId, itemId, deltas: [delta] };
@@ -114,34 +106,38 @@ export const applyAcceptedProjectionDeltaBatch = (
     }
   }
 
+  const changedKeys: TranscriptMessageKey[] = [];
   for (const { turnId, itemId, deltas } of buckets) {
-    const item = findLiveItem(state, turnId, itemId);
+    const key = transcriptMessageKeyFor(turnId, itemId);
+    const item = findLiveItemByKey(state, key);
     if (item == null) {
       continue;
     }
 
     const delta = deltas.length === 1 ? deltas[0] : deltas.join("");
     appendDeltaToLiveItem(state, item, delta);
+    changedKeys.push(key);
   }
+  return changedKeys;
 };
 
-export const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, itemId: string) => {
-  const key = liveItemKey(turnId, itemId);
+export const removeLiveItemIfPresent = (state: TranscriptState, key: TranscriptMessageKey) => {
   const itemIndex = state.liveItemIndexByKey[key];
-  if (itemIndex?.turnId !== turnId) {
-    return;
+  if (itemIndex == null) {
+    return false;
   }
 
+  const { turnId } = itemIndex;
   const items = state.liveItemsByTurnId[turnId];
   if (items == null || itemIndex.index >= items.length) {
     Reflect.deleteProperty(state.liveItemIndexByKey, key);
-    return;
+    return false;
   }
 
   const removedItem = items[itemIndex.index];
   if (removedItem?.key !== key) {
     Reflect.deleteProperty(state.liveItemIndexByKey, key);
-    return;
+    return false;
   }
 
   items.splice(itemIndex.index, 1);
@@ -160,4 +156,5 @@ export const removeLiveItemIfPresent = (state: TranscriptState, turnId: string, 
   if (items.length === 0) {
     Reflect.deleteProperty(state.liveItemsByTurnId, turnId);
   }
+  return true;
 };
