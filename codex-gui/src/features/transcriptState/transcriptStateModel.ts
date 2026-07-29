@@ -23,11 +23,6 @@ export type TranscriptChunk = {
 
 export type TranscriptLiveItemStatus = "started" | "streaming";
 
-export type TranscriptLiveItemIndex = {
-  turnId: string;
-  index: number;
-};
-
 export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
 
 export type TranscriptEntry =
@@ -87,8 +82,6 @@ export type TranscriptState = {
   chunksById: Record<string, TranscriptChunk>;
   entriesById: Record<string, TranscriptMiddlePayload>;
   entryChunkById: Record<string, string>;
-  liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>;
-  liveItemIndexByKey: Record<string, TranscriptLiveItemIndex>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;
   appliedEventOrder: string[];
@@ -104,8 +97,6 @@ export const createEmptyTranscriptState = (): TranscriptState => ({
   chunksById: {},
   entriesById: {},
   entryChunkById: {},
-  liveItemsByTurnId: {},
-  liveItemIndexByKey: {},
   globalStatus: [],
   appliedEventIdsById: {},
   appliedEventOrder: [],

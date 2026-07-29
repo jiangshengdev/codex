@@ -5,33 +5,11 @@ import type {
   TranscriptState,
 } from "./transcriptStateModel";
 
-const EMPTY_LIVE_ITEMS: readonly TranscriptRenderableLiveItem[] = Object.freeze([]);
-
 const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
 
 const bumpLiveScrollPulse = (state: TranscriptState) => {
   state.liveScrollPulse += 1;
 };
-
-export const findLiveItem = (
-  state: TranscriptState,
-  turnId: string,
-  itemId: string,
-): TranscriptRenderableLiveItem | null => {
-  const key = liveItemKey(turnId, itemId);
-  const itemIndex = state.liveItemIndexByKey[key];
-  if (itemIndex?.turnId !== turnId) {
-    return null;
-  }
-
-  const item = state.liveItemsByTurnId[turnId]?.[itemIndex.index] ?? null;
-  return item?.key === key ? item : null;
-};
-
-export const liveItemsForTurn = (
-  state: TranscriptState,
-  turnId: string,
-): readonly TranscriptRenderableLiveItem[] => state.liveItemsByTurnId[turnId] ?? EMPTY_LIVE_ITEMS;
 
 type MiddleLiveItemAndChunk = {
   item: TranscriptRenderableLiveItem;
