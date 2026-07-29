@@ -2,7 +2,7 @@
 
 日期：2026-07-29
 
-状态：待确认
+状态：已确认
 
 ## 唯一主目标
 
@@ -70,7 +70,7 @@ leading 问题已经由 `f1cbe8503` 修复并保留在当前基线中，本设�
 15. `FinalAssistantMessages` 独占全部 live / committed final message；live final 保持位于 Disclosure 外。
 16. final 内部顺序继续沿用现状，不引入统一 final order。
 
-## 重新设计提案约束（待确认）
+## 已确认的重新设计约束
 
 1. 现有 live payload 与 committed payload 继续承担各自生命周期内容；本设计不把它们重写为统一 lifecycle record。
 2. middle 只保留一套 message identity order；旧 committed-only middle order 不得继续作为第二 owner。
