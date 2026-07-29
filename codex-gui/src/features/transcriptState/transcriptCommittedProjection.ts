@@ -45,6 +45,9 @@ export const appendStartedItemToMiddle = (
     transientText: "",
     revision: 0,
   };
+  if (item.type === "agentMessage") {
+    state.liveScrollPulse += 1;
+  }
 };
 
 const chunkIdForIndex = (turnId: string, index: number): string =>

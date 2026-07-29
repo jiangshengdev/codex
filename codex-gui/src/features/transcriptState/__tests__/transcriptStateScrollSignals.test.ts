@@ -114,6 +114,44 @@ describe("transcript state scroll signals", () => {
     );
   });
 
+  it("advances the live scroll pulse once for a unique started assistant item", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-started-scroll-pulse",
+          "turn-started-scroll-pulse",
+          agentMessage("agent-started-scroll-pulse", ""),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-started-scroll-pulse-duplicate",
+          "turn-started-scroll-pulse",
+          agentMessage("agent-started-scroll-pulse", "Updated duplicate"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
   it("advances a live scroll pulse for live assistant display changes without changing the committed scroll key", () => {
     const store = makeStore();
 
