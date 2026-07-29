@@ -52,6 +52,10 @@ leading 还有一个独立问题。当前分类发生在 materialization 之后�
 10. 缺少 `itemStarted` 的 completed message 在 completed 首次被观察时建立位置。
 11. 不修改协议，不使用 GUI 请求状态、`clientUserMessageId` 或本地 origin 记录推断 leading。
 12. 不处理 activity、reasoning、command、search 或折叠归档。
+13. 不再保留独立的 turn-level `LiveAssistantMessages` renderer。
+14. `MiddleTranscriptModule` 独占全部 live / committed middle message。
+15. `FinalAssistantMessages` 独占全部 live / committed final message；live final 保持位于 Disclosure 外。
+16. final 内部顺序继续沿用现状，不引入统一 final order。
 
 ## 权威事实边界
 
@@ -185,13 +189,24 @@ React 列表 key 始终来自稳定的 `(turnId, itemId)` identity；settlement 
 
 ## React 与现有三段结构
 
-`CommittedTranscriptTurn` 继续按 leading → middle → final 排列。
+`CommittedTranscriptTurn` 继续按 leading → middle → final 排列，但不再渲染独立的
+`LiveAssistantMessages`：
+
+```text
+LeadingPromptEntry
+MiddleTranscriptModule
+FinalAssistantMessages
+```
 
 - `LeadingPromptEntry` 继续消费单个 entry ID，但该 ID 只由 Rust 原始首项规则产生。
-- `MiddleTranscriptModule` 保留现有 Disclosure 与折叠条件，只把内容来源改为统一的 ordered middle message view。
-- live commentary / null-phase assistant message 在其 order identity 处渲染，不再经过独立的 turn-level live list。
-- 当前 live list 只保留不属于 middle 的 live assistant presentation；本设计不重做 final 区域顺序。
-- `FinalAssistantMessages` 保持现有 completed final 行为。
+- `MiddleTranscriptModule` 独占全部 live / committed middle message，保留现有 Disclosure 与折叠条件，
+  并从统一的 ordered middle message view 解析内容。
+- live commentary / null-phase assistant message 在其 order identity 处渲染，不再经过独立的
+  turn-level live list renderer。
+- `FinalAssistantMessages` 独占全部 live / committed final message；live final 继续位于 Disclosure 外，
+  保持现有可见位置与展示语义。
+- final 区域内部仍沿用现有展示次序；本设计不为 live / committed final 引入统一 order，
+  也不把 final 纳入 middle message order 的展示职责。
 
 因此本设计不处理“turn 何时进入折叠器”或“结束后如何归档”的独立问题，
 也不改变 `Intermediate updates` 的当前触发条件。
@@ -215,7 +230,7 @@ React 列表 key 始终来自稳定的 `(turnId, itemId)` identity；settlement 
 - bounded dedup、subscription、replay 与 reconnect 入口；
 - committed entry materialization；
 - leading / middle / final 的外层布局；
-- Disclosure、scroll、sticky-bottom 和现有 final 展示语义。
+- Disclosure、scroll、sticky-bottom，以及 live final 位于 Disclosure 外的现有可见位置与展示语义。
 
 ## 非目标
 
@@ -225,7 +240,7 @@ React 列表 key 始终来自稳定的 `(turnId, itemId)` identity；settlement 
 - 不创建通用 presentation slot、统一 lifecycle coordinator 或未来类型 registry。
 - 不接入 activity、reasoning、command、search 或其他 `ThreadItem`。
 - 不设计 turn 结束后的折叠归档。
-- 不重构 final message 顺序、scroll policy 或 delta ownership。
+- 不重构 final message 内部顺序，不引入统一 final order，也不修改 scroll policy 或 delta ownership。
 - 不为未来 command output 预留 projection 或 renderer interface。
 
 ## 被拒绝的方向
@@ -260,6 +275,11 @@ completion 会 splice live item 并重写后续 index；该 index 只表示当�
 - `start A → start B → complete B(commentary)` 始终显示 A、B。
 - A、B 以相反顺序完成后，middle 仍按首次 Rust item 顺序显示。
 - live commentary 与 committed commentary 可以交错，但只存在一条 middle 顺序。
+- `MiddleTranscriptModule` 是 live / committed middle message 的唯一 renderer owner；
+  turn 不再渲染独立的 `LiveAssistantMessages`。
+- `FinalAssistantMessages` 是 live / committed final message 的唯一 renderer owner；
+  live final 继续显示在 Disclosure 外，位置与语义不变。
+- final 内部顺序沿用现状，不因 middle order 设计获得新的统一 order。
 - `phase === null` 的 assistant message 在 middle。
 - delta 找不到 started identity 时不创建 message 或位置。
 - completed-without-started 在首次观察位置出现一次。
