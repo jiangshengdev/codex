@@ -20,9 +20,11 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptLiveItem,
   selectTranscriptLiveItemsForTurn,
+  selectTranscriptTurn,
 } from "../transcriptStateSlice";
 
 describe("transcript state live item lifecycle reducer", () => {
@@ -241,7 +243,7 @@ describe("transcript state live item lifecycle reducer", () => {
     });
   });
 
-  it("removes the live item after an empty completed agent message without committing an entry", () => {
+  it("removes the middle contribution after an empty completed agent message", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -272,13 +274,86 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-empty-settled", "agent-empty-settled"),
-    ).toBeNull();
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-empty-settled")).toStrictEqual(
-      [],
-    );
     expect(selectTranscriptEntry(store.getState(), "agent-empty-settled")).toBeNull();
+    expect(selectTranscriptTurn(store.getState(), "turn-empty-settled")).toStrictEqual({
+      id: "turn-empty-settled",
+      status: "inProgress",
+      originalFirstItemId: "agent-empty-settled",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(selectTranscriptChunk(store.getState(), "turn-empty-settled:chunk:0")).toBeNull();
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("removes only the targeted empty completed item from a shared middle chunk", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const firstItem = agentMessage("agent-empty-first", "");
+    const secondItem = agentMessage("agent-empty-second", "");
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-first-started",
+          "turn-empty-shared",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-second-started",
+          "turn-empty-shared",
+          secondItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-empty-first-completed",
+          "turn-empty-shared",
+          firstItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), "agent-empty-first")).toBeNull();
+    expect(selectTranscriptEntry(store.getState(), "agent-empty-second")).toStrictEqual({
+      type: "live",
+      id: "agent-empty-second",
+      key: "turn-empty-shared:agent-empty-second",
+      turnId: "turn-empty-shared",
+      itemId: "agent-empty-second",
+      status: "started",
+      initialItem: secondItem,
+      transientText: "",
+      revision: 0,
+    });
+    expect(selectTranscriptTurn(store.getState(), "turn-empty-shared")).toStrictEqual({
+      id: "turn-empty-shared",
+      status: "inProgress",
+      originalFirstItemId: "agent-empty-first",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-empty-shared:chunk:0"],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-empty-shared:chunk:0")?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual(["agent-empty-second"]);
   });
 });

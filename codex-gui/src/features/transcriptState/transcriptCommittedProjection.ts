@@ -232,6 +232,14 @@ export const applyCompletedTranscriptItem = (
   recordOriginalFirstTranscriptItem(state, turnId, item);
   const entry = materializeTranscriptItem(item, turnId);
   if (entry == null) {
+    const existingEntry = state.entriesById[item.id];
+    if (
+      existingEntry?.type === "live" &&
+      existingEntry.turnId === turnId &&
+      removeEntryFromMiddleChunk(state, turnId, item.id)
+    ) {
+      Reflect.deleteProperty(state.entriesById, item.id);
+    }
     return false;
   }
 

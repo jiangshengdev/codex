@@ -25,8 +25,8 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectCommittedTranscriptScrollCommitKey,
-  selectTranscriptLiveItem,
-  selectTranscriptLiveItemsForTurn,
+  selectTranscriptChunk,
+  selectTranscriptEntry,
   selectTranscriptLiveScrollPulse,
 } from "../transcriptStateSlice";
 
@@ -186,6 +186,7 @@ describe("transcript state scroll signals", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
     const plan = planItem("plan-live-scroll-pulse");
 
@@ -202,13 +203,9 @@ describe("transcript state scroll signals", () => {
     );
 
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
-    expect(
-      selectTranscriptLiveItem(
-        store.getState(),
-        "turn-plan-live-scroll-pulse",
-        "plan-live-scroll-pulse",
-      ),
-    ).toStrictEqual({
+    expect(selectTranscriptEntry(store.getState(), "plan-live-scroll-pulse")).toStrictEqual({
+      type: "live",
+      id: "plan-live-scroll-pulse",
       key: "turn-plan-live-scroll-pulse:plan-live-scroll-pulse",
       turnId: "turn-plan-live-scroll-pulse",
       itemId: "plan-live-scroll-pulse",
@@ -217,6 +214,11 @@ describe("transcript state scroll signals", () => {
       transientText: "",
       revision: 0,
     });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0")?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual(["plan-live-scroll-pulse"]);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -231,8 +233,10 @@ describe("transcript state scroll signals", () => {
     );
 
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(selectTranscriptEntry(store.getState(), "plan-live-scroll-pulse")).toBeNull();
     expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-plan-live-scroll-pulse"),
-    ).toStrictEqual([]);
+      selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0"),
+    ).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 });
