@@ -2,7 +2,7 @@
 
 日期：2026-07-29
 
-状态：待确认
+状态：已确认
 
 对应设计：[Codex GUI 消息位置与 middle 稳定顺序设计](../../../../specs/2026/07/29/2026-07-29-codex-gui-message-placement-and-middle-order-design.md)
 
