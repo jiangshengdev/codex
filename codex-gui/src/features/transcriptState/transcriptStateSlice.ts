@@ -6,6 +6,7 @@ import {
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
+  appendStartedLiveItem,
   applyCompletedTranscriptItem,
   recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
@@ -13,7 +14,6 @@ import {
 } from "./transcriptCommittedProjection";
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
 import {
-  appendStartedLiveItem,
   applyAcceptedProjectionDeltaBatch,
   hasLiveItem,
   removeLiveItemIfPresent,

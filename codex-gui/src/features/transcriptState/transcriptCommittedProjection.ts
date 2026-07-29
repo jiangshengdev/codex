@@ -1,14 +1,52 @@
 import type { ThreadItem, Turn } from "@codex-protocol/v2";
 import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
+import { bumpLiveScrollPulse, liveItemKey } from "./transcriptLiveProjection";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   createEmptyTranscriptState,
   resetTranscriptState,
   type TranscriptChunk,
   type TranscriptEntry,
+  type TranscriptRenderableLiveItem,
   type TranscriptState,
   type TranscriptTurn,
 } from "./transcriptStateModel";
+
+const ensureLiveItemsForTurn = (
+  state: TranscriptState,
+  turnId: string,
+): TranscriptRenderableLiveItem[] => {
+  const existingItems = state.liveItemsByTurnId[turnId];
+  if (existingItems != null) {
+    return existingItems;
+  }
+
+  const items: TranscriptRenderableLiveItem[] = [];
+  state.liveItemsByTurnId[turnId] = items;
+  return items;
+};
+
+export const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: ThreadItem) => {
+  const key = liveItemKey(turnId, item.id);
+  if (state.liveItemIndexByKey[key] != null) {
+    return;
+  }
+
+  const items = ensureLiveItemsForTurn(state, turnId);
+  state.liveItemIndexByKey[key] = { turnId, index: items.length };
+  items.push({
+    key,
+    turnId,
+    itemId: item.id,
+    initialItem: item,
+    status: "started",
+    transientText: "",
+    revision: 0,
+  });
+  if (item.type === "agentMessage") {
+    bumpLiveScrollPulse(state);
+  }
+};
 
 const chunkIdForIndex = (turnId: string, index: number): string =>
   `${turnId}:chunk:${String(index)}`;

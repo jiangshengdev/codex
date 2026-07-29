@@ -1,52 +1,16 @@
-import type { ThreadItem, ThreadProjectionDeltaNotification } from "@codex-protocol/v2";
+import type { ThreadProjectionDeltaNotification } from "@codex-protocol/v2";
 import type { TranscriptRenderableLiveItem, TranscriptState } from "./transcriptStateModel";
 
 const EMPTY_LIVE_ITEMS: readonly TranscriptRenderableLiveItem[] = Object.freeze([]);
 
-const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
+export const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
 
-const bumpLiveScrollPulse = (state: TranscriptState) => {
+export const bumpLiveScrollPulse = (state: TranscriptState) => {
   state.liveScrollPulse += 1;
-};
-
-const ensureLiveItemsForTurn = (
-  state: TranscriptState,
-  turnId: string,
-): TranscriptRenderableLiveItem[] => {
-  const existingItems = state.liveItemsByTurnId[turnId];
-  if (existingItems != null) {
-    return existingItems;
-  }
-
-  const items: TranscriptRenderableLiveItem[] = [];
-  state.liveItemsByTurnId[turnId] = items;
-  return items;
 };
 
 export const hasLiveItem = (state: TranscriptState, turnId: string, itemId: string): boolean =>
   state.liveItemIndexByKey[liveItemKey(turnId, itemId)] != null;
-
-export const appendStartedLiveItem = (state: TranscriptState, turnId: string, item: ThreadItem) => {
-  const key = liveItemKey(turnId, item.id);
-  if (state.liveItemIndexByKey[key] != null) {
-    return;
-  }
-
-  const items = ensureLiveItemsForTurn(state, turnId);
-  state.liveItemIndexByKey[key] = { turnId, index: items.length };
-  items.push({
-    key,
-    turnId,
-    itemId: item.id,
-    initialItem: item,
-    status: "started",
-    transientText: "",
-    revision: 0,
-  });
-  if (item.type === "agentMessage") {
-    bumpLiveScrollPulse(state);
-  }
-};
 
 export const findLiveItem = (
   state: TranscriptState,
