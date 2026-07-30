@@ -31,6 +31,8 @@ import type { ExperimentalFeatureListResponse } from "./v2/ExperimentalFeatureLi
 import type { ExternalAgentConfigDetectParams } from "./v2/ExternalAgentConfigDetectParams";
 import type { ExternalAgentConfigDetectResponse } from "./v2/ExternalAgentConfigDetectResponse";
 import type { ExternalAgentConfigImportHistoriesReadResponse } from "./v2/ExternalAgentConfigImportHistoriesReadResponse";
+import type { ExternalAgentConfigImportHistoryRecordParams } from "./v2/ExternalAgentConfigImportHistoryRecordParams";
+import type { ExternalAgentConfigImportHistoryRecordResponse } from "./v2/ExternalAgentConfigImportHistoryRecordResponse";
 import type { ExternalAgentConfigImportParams } from "./v2/ExternalAgentConfigImportParams";
 import type { ExternalAgentConfigImportResponse } from "./v2/ExternalAgentConfigImportResponse";
 import type { FeedbackUploadParams } from "./v2/FeedbackUploadParams";
@@ -266,6 +268,7 @@ export type ClientRequestDefinition =
   | { method: "config/read"; params: ConfigReadParams; response: ConfigReadResponse; }
   | { method: "externalAgentConfig/detect"; params: ExternalAgentConfigDetectParams; response: ExternalAgentConfigDetectResponse; }
   | { method: "externalAgentConfig/import"; params: ExternalAgentConfigImportParams; response: ExternalAgentConfigImportResponse; }
+  | { method: "externalAgentConfig/import/recordHistory"; params: ExternalAgentConfigImportHistoryRecordParams; response: ExternalAgentConfigImportHistoryRecordResponse; }
   | { method: "externalAgentConfig/import/readHistories"; params: undefined; response: ExternalAgentConfigImportHistoriesReadResponse; }
   | { method: "config/value/write"; params: ConfigValueWriteParams; response: ConfigWriteResponse; }
   | { method: "config/batchWrite"; params: ConfigBatchWriteParams; response: ConfigWriteResponse; }
