@@ -21,13 +21,13 @@ import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptEntry,
-  selectTranscriptLiveItem,
-  selectTranscriptLiveItemsForTurn,
   selectTranscriptLiveScrollPulse,
+  selectTranscriptTurn,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
 describe("transcript state live streaming reducer", () => {
-  it("creates a started live slot from itemStarted without committing transcript entries", () => {
+  it("writes a started item into middle as a live payload", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -46,29 +46,40 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
+    const expectedLivePayload = {
+      type: "live" as const,
+      id: "agent-live-started",
+      key: transcriptEntryIdFor("turn-live-started-slot", "agent-live-started"),
+      turnId: "turn-live-started-slot",
+      itemId: "agent-live-started",
+      status: "started" as const,
+      initialItem,
+      transientText: "",
+      revision: 0,
+    };
     expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-started-slot"),
-    ).toStrictEqual([
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-live-started-slot", "agent-live-started"),
+      ),
+    ).toStrictEqual(expectedLivePayload);
+    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toStrictEqual(
       {
-        key: "turn-live-started-slot:agent-live-started",
+        id: "turn-live-started-slot:chunk:0",
         turnId: "turn-live-started-slot",
-        itemId: "agent-live-started",
-        status: "started",
-        initialItem,
-        transientText: "",
-        revision: 0,
+        revision: 1,
+        entries: [expectedLivePayload],
       },
-    ]);
-    expect(selectTranscriptEntry(store.getState(), "agent-live-started")).toBeNull();
-    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toBeNull();
+    );
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 
-  it("appends accepted agent message deltas into an existing live slot", () => {
+  it("appends accepted agent message deltas into an existing middle live payload", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
 
     const initialItem = agentMessage("agent-streaming", "");
     store.dispatch(
@@ -82,6 +93,8 @@ describe("transcript state live streaming reducer", () => {
         replay: "live",
       }),
     );
+    expect(selectTranscriptTurn(store.getState(), "turn-streaming")?.middleEntryCount).toBe(0);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
     store.dispatch(
       threadRuntimeDeltasAccepted({
         notifications: [
@@ -89,6 +102,8 @@ describe("transcript state live streaming reducer", () => {
         ],
       }),
     );
+    expect(selectTranscriptTurn(store.getState(), "turn-streaming")?.middleEntryCount).toBe(1);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
     store.dispatch(
       threadRuntimeDeltasAccepted({
         notifications: [
@@ -97,20 +112,67 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-streaming", "agent-streaming"),
-    ).toStrictEqual({
-      key: "turn-streaming:agent-streaming",
+    const expectedStreamingPayload = {
+      type: "live" as const,
+      id: "agent-streaming",
+      key: transcriptEntryIdFor("turn-streaming", "agent-streaming"),
       turnId: "turn-streaming",
       itemId: "agent-streaming",
       status: "streaming",
       initialItem,
       transientText: "Hello world",
       revision: 2,
+    };
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-streaming", "agent-streaming"),
+      ),
+    ).toStrictEqual(expectedStreamingPayload);
+    expect(selectTranscriptChunk(store.getState(), "turn-streaming:chunk:0")).toStrictEqual({
+      id: "turn-streaming:chunk:0",
+      turnId: "turn-streaming",
+      revision: 3,
+      entries: [expectedStreamingPayload],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-streaming")).toBeNull();
-    expect(selectTranscriptChunk(store.getState(), "turn-streaming:chunk:0")).toBeNull();
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+    expect(selectTranscriptTurn(store.getState(), "turn-streaming")?.middleEntryCount).toBe(1);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 2);
+  });
+
+  it("does not activate an empty started item from an empty accepted delta", () => {
+    const store = makeStore();
+    const initialItem = agentMessage("agent-empty-delta", "");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-delta-started",
+          "turn-empty-delta",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, "turn-empty-delta", "agent-empty-delta", ""),
+        ],
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-empty-delta")?.middleEntryCount).toBe(0);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-empty-delta", "agent-empty-delta"),
+      ),
+    ).toMatchObject({ status: "started", transientText: "", revision: 0 });
   });
 
   it("coalesces accepted agent message delta batches per live item in notification order", () => {
@@ -146,16 +208,28 @@ describe("transcript state live streaming reducer", () => {
 
     store.dispatch(threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }));
 
-    expect(
-      selectTranscriptLiveItem(store.getState(), "turn-streaming-batch", "agent-streaming-batch"),
-    ).toStrictEqual({
-      key: "turn-streaming-batch:agent-streaming-batch",
+    const expectedBatchPayload = {
+      type: "live" as const,
+      id: "agent-streaming-batch",
+      key: transcriptEntryIdFor("turn-streaming-batch", "agent-streaming-batch"),
       turnId: "turn-streaming-batch",
       itemId: "agent-streaming-batch",
       status: "streaming",
       initialItem,
       transientText: "Hello world",
       revision: 1,
+    };
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-streaming-batch", "agent-streaming-batch"),
+      ),
+    ).toStrictEqual(expectedBatchPayload);
+    expect(selectTranscriptChunk(store.getState(), "turn-streaming-batch:chunk:0")).toStrictEqual({
+      id: "turn-streaming-batch:chunk:0",
+      turnId: "turn-streaming-batch",
+      revision: 2,
+      entries: [expectedBatchPayload],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
   });
@@ -191,20 +265,30 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(
-        store.getState(),
-        "turn-streaming-single-batch",
-        "agent-streaming-single-batch",
-      ),
-    ).toStrictEqual({
-      key: "turn-streaming-single-batch:agent-streaming-single-batch",
+    const expectedSingleBatchPayload = {
+      type: "live" as const,
+      id: "agent-streaming-single-batch",
+      key: transcriptEntryIdFor("turn-streaming-single-batch", "agent-streaming-single-batch"),
       turnId: "turn-streaming-single-batch",
       itemId: "agent-streaming-single-batch",
       status: "streaming",
       initialItem,
       transientText: "Hello",
       revision: 1,
+    };
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-streaming-single-batch", "agent-streaming-single-batch"),
+      ),
+    ).toStrictEqual(expectedSingleBatchPayload);
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-streaming-single-batch:chunk:0"),
+    ).toStrictEqual({
+      id: "turn-streaming-single-batch:chunk:0",
+      turnId: "turn-streaming-single-batch",
+      revision: 2,
+      entries: [expectedSingleBatchPayload],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
   });
@@ -270,40 +354,52 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(
-        store.getState(),
-        "turn-streaming-batch-isolated",
-        "agent-streaming-batch-first",
-      ),
-    ).toStrictEqual({
-      key: "turn-streaming-batch-isolated:agent-streaming-batch-first",
+    const expectedFirstPayload = {
+      type: "live" as const,
+      id: "agent-streaming-batch-first",
+      key: transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-first"),
       turnId: "turn-streaming-batch-isolated",
       itemId: "agent-streaming-batch-first",
       status: "streaming",
       initialItem: firstItem,
       transientText: "First message",
       revision: 1,
-    });
-    expect(
-      selectTranscriptLiveItem(
-        store.getState(),
-        "turn-streaming-batch-isolated",
-        "agent-streaming-batch-second",
-      ),
-    ).toStrictEqual({
-      key: "turn-streaming-batch-isolated:agent-streaming-batch-second",
+    };
+    const expectedSecondPayload = {
+      type: "live" as const,
+      id: "agent-streaming-batch-second",
+      key: transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-second"),
       turnId: "turn-streaming-batch-isolated",
       itemId: "agent-streaming-batch-second",
       status: "streaming",
       initialItem: secondItem,
       transientText: "Second message",
       revision: 1,
+    };
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-first"),
+      ),
+    ).toStrictEqual(expectedFirstPayload);
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-second"),
+      ),
+    ).toStrictEqual(expectedSecondPayload);
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-streaming-batch-isolated:chunk:0"),
+    ).toStrictEqual({
+      id: "turn-streaming-batch-isolated:chunk:0",
+      turnId: "turn-streaming-batch-isolated",
+      revision: 4,
+      entries: [expectedFirstPayload, expectedSecondPayload],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 2);
   });
 
-  it("ignores accepted agent message deltas when the live slot is missing", () => {
+  it("ignores accepted agent message deltas when the middle live payload is missing", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -318,10 +414,9 @@ describe("transcript state live streaming reducer", () => {
     );
 
     expect(store.getState().transcriptState).toBe(beforeState);
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing")).toStrictEqual([]);
   });
 
-  it("ignores accepted agent message delta batches when the live slot is missing", () => {
+  it("ignores accepted agent message delta batches when the middle live payload is missing", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -347,9 +442,6 @@ describe("transcript state live streaming reducer", () => {
     );
 
     expect(store.getState().transcriptState).toBe(beforeState);
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-missing-batch")).toStrictEqual(
-      [],
-    );
   });
 
   it("ignores wrong-thread and unsupported delta notifications in accepted delta batches", () => {
@@ -393,20 +485,30 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(
-      selectTranscriptLiveItem(
-        store.getState(),
-        "turn-streaming-filtered-batch",
-        "agent-streaming-filtered-batch",
-      ),
-    ).toStrictEqual({
-      key: "turn-streaming-filtered-batch:agent-streaming-filtered-batch",
+    const expectedFilteredPayload = {
+      type: "live" as const,
+      id: "agent-streaming-filtered-batch",
+      key: transcriptEntryIdFor("turn-streaming-filtered-batch", "agent-streaming-filtered-batch"),
       turnId: "turn-streaming-filtered-batch",
       itemId: "agent-streaming-filtered-batch",
       status: "streaming",
       initialItem,
       transientText: "Visible text",
       revision: 1,
+    };
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-streaming-filtered-batch", "agent-streaming-filtered-batch"),
+      ),
+    ).toStrictEqual(expectedFilteredPayload);
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-streaming-filtered-batch:chunk:0"),
+    ).toStrictEqual({
+      id: "turn-streaming-filtered-batch:chunk:0",
+      turnId: "turn-streaming-filtered-batch",
+      revision: 2,
+      entries: [expectedFilteredPayload],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
   });

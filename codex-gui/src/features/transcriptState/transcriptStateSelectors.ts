@@ -1,10 +1,4 @@
-import { findLiveItem, liveItemsForTurn } from "./transcriptLiveProjection";
-import type {
-  TranscriptChunk,
-  TranscriptChunkView,
-  TranscriptRenderableLiveItem,
-  TranscriptState,
-} from "./transcriptStateModel";
+import type { TranscriptChunk, TranscriptChunkView, TranscriptState } from "./transcriptStateModel";
 
 type TranscriptChunkViewCacheEntry = {
   revision: number;
@@ -40,14 +34,3 @@ export const transcriptChunkView = (
   transcriptChunkViewCache.set(chunk, { revision: chunk.revision, view });
   return view;
 };
-
-export const transcriptLiveItem = (
-  transcriptState: TranscriptState,
-  turnId: string,
-  itemId: string,
-): TranscriptRenderableLiveItem | null => findLiveItem(transcriptState, turnId, itemId);
-
-export const transcriptLiveItemsForTurn = (
-  transcriptState: TranscriptState,
-  turnId: string,
-): readonly TranscriptRenderableLiveItem[] => liveItemsForTurn(transcriptState, turnId);

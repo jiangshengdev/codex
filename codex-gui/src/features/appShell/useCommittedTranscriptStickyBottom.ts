@@ -18,6 +18,8 @@ const scrollDocumentToBottom = (): void => {
 export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement | null> {
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const pinnedToBottomRef = useRef(true);
+  const scrollAfterResizeRef = useRef(false);
+  const scrollTopBeforeResizeRef = useRef<number | null>(null);
   const scrollCommitKey = useAppSelector(selectCommittedTranscriptScrollCommitKey);
   const liveScrollPulse = useAppSelector(selectTranscriptLiveScrollPulse);
 
@@ -40,10 +42,48 @@ export function useCommittedTranscriptStickyBottom(): RefObject<HTMLDivElement |
     };
   }, []);
 
-  useLayoutEffect(() => {
-    if (pinnedToBottomRef.current) {
-      scrollDocumentToBottom();
+  useEffect(() => {
+    const main = bottomSentinelRef.current?.parentElement;
+    if (main == null) {
+      return;
     }
+
+    const observer = new ResizeObserver(() => {
+      if (!scrollAfterResizeRef.current) {
+        return;
+      }
+
+      scrollAfterResizeRef.current = false;
+      const scrollTopBeforeResize = scrollTopBeforeResizeRef.current;
+      scrollTopBeforeResizeRef.current = null;
+      const scroller = documentScroller();
+      if (
+        scroller != null &&
+        scrollTopBeforeResize != null &&
+        scroller.scrollTop < scrollTopBeforeResize - 4
+      ) {
+        return;
+      }
+
+      scrollDocumentToBottom();
+    });
+    observer.observe(main);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const pinnedToBottom = pinnedToBottomRef.current;
+    scrollAfterResizeRef.current = pinnedToBottom;
+    if (!pinnedToBottom) {
+      scrollTopBeforeResizeRef.current = null;
+      return;
+    }
+
+    scrollDocumentToBottom();
+    scrollTopBeforeResizeRef.current = documentScroller()?.scrollTop ?? null;
   }, [liveScrollPulse, scrollCommitKey]);
 
   return bottomSentinelRef;

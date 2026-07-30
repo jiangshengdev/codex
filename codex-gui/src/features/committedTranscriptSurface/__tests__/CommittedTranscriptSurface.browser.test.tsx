@@ -68,6 +68,31 @@ test("renders committed user and assistant messages from an attached baseline", 
   ]);
 });
 
+test("keeps same raw item ids isolated between turns", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn("turn-shared-item-first", [
+          agentMessage("agent-shared-item", "First turn payload", "commentary"),
+        ]),
+        baseTurn("turn-shared-item-second", [
+          agentMessage("agent-shared-item", "Second turn payload", "commentary"),
+        ]),
+      ]),
+    ),
+  );
+
+  const firstTurn = screen.getByRole("article", { name: "Turn turn-shared-item-first" });
+  const secondTurn = screen.getByRole("article", { name: "Turn turn-shared-item-second" });
+
+  await expect.element(firstTurn.getByText("First turn payload")).toBeVisible();
+  await expect.element(firstTurn.getByText("Second turn payload")).not.toBeInTheDocument();
+  await expect.element(secondTurn.getByText("Second turn payload")).toBeVisible();
+  await expect.element(secondTurn.getByText("First turn payload")).not.toBeInTheDocument();
+});
+
 test("renders assistant transcript markdown", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 
@@ -270,9 +295,11 @@ test("renders live assistant text between intermediate updates and final answers
   );
 
   await expect.element(screen.getByText("Draft answer")).not.toBeInTheDocument();
-  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
-  await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();
-  expect(document.querySelector(".committed-transcript-live-assistant-message")).not.toBeNull();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+  await expect
+    .element(screen.getByRole("article", { name: "Turn turn-live" }))
+    .not.toBeInTheDocument();
+  expect(document.querySelector(".committed-transcript-live-assistant-message")).toBeNull();
 
   store.dispatch(
     threadRuntimeDeltasAccepted({
@@ -289,6 +316,9 @@ test("renders live assistant text between intermediate updates and final answers
 
   await expect.element(screen.getByText("Streaming")).toBeVisible();
   await expect.element(screen.getByText("answer")).toBeVisible();
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();
+  expect(document.querySelector(".committed-transcript-live-assistant-message")).not.toBeNull();
   expect(
     document.querySelector(
       '.committed-transcript-live-assistant-message [data-streamdown="strong"]',
@@ -311,6 +341,71 @@ test("renders live assistant text between intermediate updates and final answers
   await expect.element(screen.getByText("Streaming")).not.toBeInTheDocument();
   await expect.element(screen.getByText("Final answer")).toBeVisible();
   expect(document.querySelector(".committed-transcript-live-assistant-message")).toBeNull();
+});
+
+test("keeps middle message order stable while live messages settle out of order", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  const turn = screen.getByRole("article", { name: "Turn turn-middle-order" });
+  const messages = turn.getByRole("article");
+  const startLiveMessage = (itemId: string) => {
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          `commit-middle-order-start-${itemId}`,
+          "turn-middle-order",
+          agentMessage(itemId, "", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+  };
+  const appendLiveMessageDelta = (itemId: string, source: string) => {
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, "turn-middle-order", itemId, source),
+        ],
+      }),
+    );
+  };
+  const completeMessage = (itemId: string, source: string) => {
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          `commit-middle-order-complete-${itemId}`,
+          "turn-middle-order",
+          agentMessage(itemId, source, "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+  };
+  const expectMessageOrder = async (sources: string[]) => {
+    for (const [index, source] of sources.entries()) {
+      await expect.element(messages.nth(index)).toHaveTextContent(source);
+    }
+    await expect.element(messages.nth(sources.length)).not.toBeInTheDocument();
+  };
+
+  startLiveMessage("agent-middle-order-a");
+  startLiveMessage("agent-middle-order-b");
+  await expect.element(turn).not.toBeInTheDocument();
+
+  appendLiveMessageDelta("agent-middle-order-b", "Live B");
+  await expectMessageOrder(["Live B"]);
+
+  appendLiveMessageDelta("agent-middle-order-a", "Live A");
+  await expectMessageOrder(["Live A", "Live B"]);
+
+  completeMessage("agent-middle-order-b", "Committed B");
+  await expectMessageOrder(["Live A", "Committed B"]);
+
+  completeMessage("agent-middle-order-a", "Committed A");
+  await expectMessageOrder(["Committed A", "Committed B"]);
 });
 
 test("renders manual reconnect interruption status", async () => {
