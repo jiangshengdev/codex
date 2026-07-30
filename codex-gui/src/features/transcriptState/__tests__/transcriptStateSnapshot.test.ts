@@ -9,6 +9,7 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
@@ -53,12 +54,17 @@ describe("transcript state snapshot reducer", () => {
       id: "turn-snapshot",
       status: "completed",
       originalFirstItemId: "user-snapshot",
-      leadingPromptEntryId: "user-snapshot",
+      leadingPromptEntryId: transcriptEntryIdFor("turn-snapshot", "user-snapshot"),
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-snapshot"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-snapshot", "agent-snapshot")],
     });
-    expect(selectTranscriptEntry(store.getState(), "user-snapshot")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-snapshot", "user-snapshot"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "user-snapshot",
       turnId: "turn-snapshot",
@@ -68,7 +74,12 @@ describe("transcript state snapshot reducer", () => {
       phase: null,
       revision: 0,
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-snapshot")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-snapshot", "agent-snapshot"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-snapshot",
       turnId: "turn-snapshot",
@@ -102,10 +113,10 @@ describe("transcript state snapshot reducer", () => {
       id: "turn-layout",
       status: "completed",
       originalFirstItemId: "user-leading",
-      leadingPromptEntryId: "user-leading",
+      leadingPromptEntryId: transcriptEntryIdFor("turn-layout", "user-leading"),
       middleChunkIds: ["turn-layout:chunk:0"],
       middleEntryCount: 3,
-      finalAssistantEntryIds: ["agent-final"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-layout", "agent-final")],
     });
     expect(selectTranscriptChunk(store.getState(), "turn-layout:chunk:0")?.entries).toStrictEqual([
       {
@@ -139,7 +150,9 @@ describe("transcript state snapshot reducer", () => {
         revision: 0,
       },
     ]);
-    expect(selectTranscriptEntry(store.getState(), "agent-final")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-layout", "agent-final")),
+    ).toStrictEqual({
       type: "message",
       id: "agent-final",
       turnId: "turn-layout",
@@ -172,7 +185,7 @@ describe("transcript state snapshot reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-assistant-first:chunk:0"],
       middleEntryCount: 1,
-      finalAssistantEntryIds: ["agent-first-final"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-assistant-first", "agent-first-final")],
     });
     expect(
       selectTranscriptChunk(store.getState(), "turn-assistant-first:chunk:0")?.entries,
@@ -211,7 +224,7 @@ describe("transcript state snapshot reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-final-first:chunk:0"],
       middleEntryCount: 1,
-      finalAssistantEntryIds: ["agent-final-first"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-final-first", "agent-final-first")],
     });
     expect(
       selectTranscriptChunk(store.getState(), "turn-final-first:chunk:0")?.entries,
@@ -248,10 +261,13 @@ describe("transcript state snapshot reducer", () => {
       id: "turn-multi-final",
       status: "completed",
       originalFirstItemId: "user-multi-final",
-      leadingPromptEntryId: "user-multi-final",
+      leadingPromptEntryId: transcriptEntryIdFor("turn-multi-final", "user-multi-final"),
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-final-one", "agent-final-two"],
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-multi-final", "agent-final-one"),
+        transcriptEntryIdFor("turn-multi-final", "agent-final-two"),
+      ],
     });
   });
 
@@ -281,7 +297,9 @@ describe("transcript state snapshot reducer", () => {
         revision: 0,
       },
     ]);
-    expect(selectTranscriptEntry(store.getState(), "agent-final")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-phase", "agent-final")),
+    ).toStrictEqual({
       type: "message",
       id: "agent-final",
       turnId: "turn-phase",

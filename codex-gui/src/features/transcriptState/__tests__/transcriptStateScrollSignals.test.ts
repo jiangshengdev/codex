@@ -25,9 +25,10 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectCommittedTranscriptScrollCommitKey,
-  selectTranscriptLiveItem,
-  selectTranscriptLiveItemsForTurn,
+  selectTranscriptChunk,
+  selectTranscriptEntry,
   selectTranscriptLiveScrollPulse,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
 describe("transcript state scroll signals", () => {
@@ -114,6 +115,44 @@ describe("transcript state scroll signals", () => {
     );
   });
 
+  it("does not advance the live scroll pulse for an empty started assistant item", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-started-scroll-pulse",
+          "turn-started-scroll-pulse",
+          agentMessage("agent-started-scroll-pulse", ""),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-started-scroll-pulse-duplicate",
+          "turn-started-scroll-pulse",
+          agentMessage("agent-started-scroll-pulse", "Updated duplicate"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
   it("advances a live scroll pulse for live assistant display changes without changing the committed scroll key", () => {
     const store = makeStore();
 
@@ -144,7 +183,7 @@ describe("transcript state scroll signals", () => {
     );
 
     const startedPulse = selectTranscriptLiveScrollPulse(store.getState());
-    expect(startedPulse).toBe(initialPulse + 1);
+    expect(startedPulse).toBe(initialPulse);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
@@ -161,7 +200,7 @@ describe("transcript state scroll signals", () => {
     );
 
     const deltaPulse = selectTranscriptLiveScrollPulse(store.getState());
-    expect(deltaPulse).toBe(initialPulse + 2);
+    expect(deltaPulse).toBe(initialPulse + 1);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
@@ -176,16 +215,17 @@ describe("transcript state scroll signals", () => {
       }),
     );
 
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 3);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-live-scroll-pulse-completed",
     );
   });
 
-  it("does not advance the live scroll pulse for non-visible live items", () => {
+  it("does not create a live entry or advance the scroll pulse for non-assistant items", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
     const plan = planItem("plan-live-scroll-pulse");
 
@@ -203,20 +243,14 @@ describe("transcript state scroll signals", () => {
 
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
     expect(
-      selectTranscriptLiveItem(
+      selectTranscriptEntry(
         store.getState(),
-        "turn-plan-live-scroll-pulse",
-        "plan-live-scroll-pulse",
+        transcriptEntryIdFor("turn-plan-live-scroll-pulse", "plan-live-scroll-pulse"),
       ),
-    ).toStrictEqual({
-      key: "turn-plan-live-scroll-pulse:plan-live-scroll-pulse",
-      turnId: "turn-plan-live-scroll-pulse",
-      itemId: "plan-live-scroll-pulse",
-      status: "started",
-      initialItem: plan,
-      transientText: "",
-      revision: 0,
-    });
+    ).toBeNull();
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0"),
+    ).toBeNull();
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -232,7 +266,14 @@ describe("transcript state scroll signals", () => {
 
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
     expect(
-      selectTranscriptLiveItemsForTurn(store.getState(), "turn-plan-live-scroll-pulse"),
-    ).toStrictEqual([]);
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-plan-live-scroll-pulse", "plan-live-scroll-pulse"),
+      ),
+    ).toBeNull();
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0"),
+    ).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 });

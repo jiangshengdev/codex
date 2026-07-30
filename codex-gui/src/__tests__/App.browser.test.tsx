@@ -42,7 +42,7 @@ import {
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectTranscriptEntry,
-  selectTranscriptLiveItem,
+  transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
 import {
   selectThreadRuntimeEventBuffer,
@@ -317,9 +317,14 @@ test("App batches accepted projection deltas until the next animation frame", as
     );
 
     expect(
-      selectTranscriptLiveItem(store.getState(), "turn-raf-batch", "agent-raf-batch"),
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
+      ),
     ).toStrictEqual({
-      key: "turn-raf-batch:agent-raf-batch",
+      type: "live",
+      id: "agent-raf-batch",
+      key: transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
       turnId: "turn-raf-batch",
       itemId: "agent-raf-batch",
       status: "started",
@@ -333,9 +338,14 @@ test("App batches accepted projection deltas until the next animation frame", as
     await expect.element(screen.getByText("Hello world")).toBeVisible();
 
     expect(
-      selectTranscriptLiveItem(store.getState(), "turn-raf-batch", "agent-raf-batch"),
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
+      ),
     ).toStrictEqual({
-      key: "turn-raf-batch:agent-raf-batch",
+      type: "live",
+      id: "agent-raf-batch",
+      key: transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
       turnId: "turn-raf-batch",
       itemId: "agent-raf-batch",
       status: "streaming",
@@ -394,9 +404,11 @@ test("App flushes pending projection deltas before structural projection events"
     emitProjectionEvent(options, itemCompletedEvent);
 
     expect(
-      selectTranscriptLiveItem(store.getState(), "turn-raf-flush-event", "agent-raf-flush-event"),
-    ).toBeNull();
-    expect(selectTranscriptEntry(store.getState(), "agent-raf-flush-event")).toStrictEqual({
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-flush-event", "agent-raf-flush-event"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-raf-flush-event",
       turnId: "turn-raf-flush-event",
@@ -404,7 +416,7 @@ test("App flushes pending projection deltas before structural projection events"
       source: "Completed answer",
       sourceKind: "markdown",
       phase: "final_answer",
-      revision: 0,
+      revision: 2,
     });
   } finally {
     vi.useRealTimers();
@@ -701,7 +713,7 @@ test("App keeps the document pinned to the bottom after a live assistant delta",
   attachProjection(
     options,
     attachWithTurns(attachResponse, [
-      baseTurn("turn-scroll-live-delta", [
+      baseTurn("turn-scroll-live-delta-history", [
         agentMessage(
           "agent-scroll-live-delta-existing",
           longTranscriptText("Existing delta transcript"),
@@ -761,7 +773,7 @@ test("App does not force the document to the bottom after a live assistant delta
   attachProjection(
     options,
     attachWithTurns(attachResponse, [
-      baseTurn("turn-scroll-live-delta-away", [
+      baseTurn("turn-scroll-live-delta-away-history", [
         agentMessage(
           "agent-scroll-live-delta-away-existing",
           longTranscriptText("Readable delta transcript"),
@@ -940,9 +952,14 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
 
     expect(getCleanupConnectionCallCount()).toBe(1);
     expect(
-      selectTranscriptLiveItem(store.getState(), "turn-raf-cleanup", "agent-raf-cleanup"),
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup"),
+      ),
     ).toStrictEqual({
-      key: "turn-raf-cleanup:agent-raf-cleanup",
+      type: "live",
+      id: "agent-raf-cleanup",
+      key: transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup"),
       turnId: "turn-raf-cleanup",
       itemId: "agent-raf-cleanup",
       status: "started",

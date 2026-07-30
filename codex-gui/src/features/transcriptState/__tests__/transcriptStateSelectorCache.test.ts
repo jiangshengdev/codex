@@ -12,7 +12,11 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { selectTranscriptChunk, selectTranscriptLiveItemsForTurn } from "../transcriptStateSlice";
+import {
+  selectTranscriptChunk,
+  selectTranscriptEntry,
+  transcriptEntryIdFor,
+} from "../transcriptStateSlice";
 import {
   agentMessageDelta,
   agentMessage,
@@ -172,7 +176,7 @@ describe("transcript state selector cache", () => {
     });
   });
 
-  it("returns the store-owned live item array while that turn is unchanged", () => {
+  it("returns a stable middle chunk view while that turn is unchanged", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -188,11 +192,9 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const firstLiveItems = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache");
-    expect(firstLiveItems).toHaveLength(1);
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache")).toBe(
-      firstLiveItems,
-    );
+    const firstChunk = selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0");
+    expect(firstChunk).not.toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0")).toBe(firstChunk);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -206,12 +208,10 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    expect(selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache")).toBe(
-      firstLiveItems,
-    );
+    expect(selectTranscriptChunk(store.getState(), "turn-live-cache:chunk:0")).toBe(firstChunk);
   });
 
-  it("returns a new store-owned live item array when the live turn changes", () => {
+  it("returns a new middle chunk view when another started item enters the turn", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -226,10 +226,7 @@ describe("transcript state selector cache", () => {
         replay: "live",
       }),
     );
-    const beforeUpdate = selectTranscriptLiveItemsForTurn(
-      store.getState(),
-      "turn-live-cache-update",
-    );
+    const beforeUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-update:chunk:0");
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -243,18 +240,16 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptLiveItemsForTurn(
-      store.getState(),
-      "turn-live-cache-update",
-    );
+    const afterUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-update:chunk:0");
     expect(afterUpdate).not.toBe(beforeUpdate);
-    expect(afterUpdate.map((item) => item.itemId)).toStrictEqual([
+    expect(afterUpdate?.revision).toBe((beforeUpdate?.revision ?? 0) + 1);
+    expect(afterUpdate?.entries.map(({ id }) => id)).toStrictEqual([
       "agent-live-cache-first",
       "agent-live-cache-second",
     ]);
   });
 
-  it("returns a new store-owned live item array when delta updates that live turn", () => {
+  it("returns a new middle chunk view when delta updates that live entry", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -272,10 +267,8 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const beforeUpdate = selectTranscriptLiveItemsForTurn(
-      store.getState(),
-      "turn-live-cache-delta",
-    );
+    const beforeUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-delta:chunk:0");
+    expect(beforeUpdate?.revision).toBe(1);
 
     store.dispatch(
       threadRuntimeDeltasAccepted({
@@ -290,27 +283,39 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const afterUpdate = selectTranscriptLiveItemsForTurn(store.getState(), "turn-live-cache-delta");
+    const afterUpdate = selectTranscriptChunk(store.getState(), "turn-live-cache-delta:chunk:0");
+    const expectedStreamingPayload = {
+      type: "live" as const,
+      id: "agent-live-cache-delta",
+      key: transcriptEntryIdFor("turn-live-cache-delta", "agent-live-cache-delta"),
+      turnId: "turn-live-cache-delta",
+      itemId: "agent-live-cache-delta",
+      status: "streaming" as const,
+      initialItem,
+      transientText: "Streamed text",
+      revision: 1,
+    };
 
     expect(afterUpdate).not.toBe(beforeUpdate);
-    expect(afterUpdate).toStrictEqual([
-      {
-        key: "turn-live-cache-delta:agent-live-cache-delta",
-        turnId: "turn-live-cache-delta",
-        itemId: "agent-live-cache-delta",
-        status: "streaming",
-        initialItem,
-        transientText: "Streamed text",
-        revision: 1,
-      },
-    ]);
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-live-cache-delta", "agent-live-cache-delta"),
+      ),
+    ).toStrictEqual(expectedStreamingPayload);
+    expect(afterUpdate).toStrictEqual({
+      id: "turn-live-cache-delta:chunk:0",
+      turnId: "turn-live-cache-delta",
+      revision: 2,
+      entries: [expectedStreamingPayload],
+    });
   });
 
-  it("removes the store-owned live item array when completed settlement empties the turn", () => {
+  it("returns a new middle chunk view when a live entry settles in place", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const initialItem = agentMessage("agent-live-cache-settled", "");
+    const initialItem = agentMessage("agent-live-cache-settled", "", "commentary");
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -324,10 +329,28 @@ describe("transcript state selector cache", () => {
       }),
     );
 
-    const beforeSettlement = selectTranscriptLiveItemsForTurn(
+    const beforeSettlement = selectTranscriptChunk(
       store.getState(),
-      "turn-live-cache-settled",
+      "turn-live-cache-settled:chunk:0",
     );
+    expect(beforeSettlement).toStrictEqual({
+      id: "turn-live-cache-settled:chunk:0",
+      turnId: "turn-live-cache-settled",
+      revision: 1,
+      entries: [
+        {
+          type: "live",
+          id: "agent-live-cache-settled",
+          key: transcriptEntryIdFor("turn-live-cache-settled", "agent-live-cache-settled"),
+          turnId: "turn-live-cache-settled",
+          itemId: "agent-live-cache-settled",
+          status: "started",
+          initialItem,
+          transientText: "",
+          revision: 0,
+        },
+      ],
+    });
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -335,18 +358,34 @@ describe("transcript state selector cache", () => {
           eventItemCompleted,
           "commit-live-cache-settled-completed",
           "turn-live-cache-settled",
-          agentMessage("agent-live-cache-settled", "Completed cache answer", "final_answer"),
+          agentMessage("agent-live-cache-settled", "Completed cache answer", "commentary"),
         ),
         replay: "live",
       }),
     );
 
-    const afterSettlement = selectTranscriptLiveItemsForTurn(
+    const afterSettlement = selectTranscriptChunk(
       store.getState(),
-      "turn-live-cache-settled",
+      "turn-live-cache-settled:chunk:0",
     );
 
-    expect(afterSettlement).toStrictEqual([]);
     expect(afterSettlement).not.toBe(beforeSettlement);
+    expect(afterSettlement).toStrictEqual({
+      id: "turn-live-cache-settled:chunk:0",
+      turnId: "turn-live-cache-settled",
+      revision: (beforeSettlement?.revision ?? 0) + 1,
+      entries: [
+        {
+          type: "message",
+          id: "agent-live-cache-settled",
+          turnId: "turn-live-cache-settled",
+          role: "assistant",
+          source: "Completed cache answer",
+          sourceKind: "markdown",
+          phase: "commentary",
+          revision: 1,
+        },
+      ],
+    });
   });
 });

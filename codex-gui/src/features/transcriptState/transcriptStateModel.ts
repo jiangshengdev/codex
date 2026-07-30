@@ -4,29 +4,33 @@ import type { ThreadItem, TurnStatus } from "@codex-protocol/v2";
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
 export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
 
+declare const transcriptEntryIdBrand: unique symbol;
+
+export type TranscriptEntryId = string & {
+  readonly [transcriptEntryIdBrand]: true;
+};
+
+export const transcriptEntryIdFor = (turnId: string, itemId: string): TranscriptEntryId =>
+  JSON.stringify([turnId, itemId]) as TranscriptEntryId;
+
 export type TranscriptTurn = {
   id: string;
   status: TurnStatus;
   originalFirstItemId: string | null;
-  leadingPromptEntryId: string | null;
+  leadingPromptEntryId: TranscriptEntryId | null;
   middleChunkIds: string[];
   middleEntryCount: number;
-  finalAssistantEntryIds: string[];
+  finalAssistantEntryIds: TranscriptEntryId[];
 };
 
 export type TranscriptChunk = {
   id: string;
   turnId: string;
-  entryIds: string[];
+  entryIds: TranscriptEntryId[];
   revision: number;
 };
 
 export type TranscriptLiveItemStatus = "started" | "streaming";
-
-export type TranscriptLiveItemIndex = {
-  turnId: string;
-  index: number;
-};
 
 export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
 
@@ -60,11 +64,13 @@ export type TranscriptChunkView = {
   id: string;
   turnId: string;
   revision: number;
-  entries: TranscriptEntry[];
+  entries: TranscriptMiddlePayload[];
 };
 
 export type TranscriptRenderableLiveItem = {
-  key: string;
+  type: "live";
+  id: string;
+  key: TranscriptEntryId;
   turnId: string;
   itemId: string;
   status: TranscriptLiveItemStatus;
@@ -72,6 +78,8 @@ export type TranscriptRenderableLiveItem = {
   transientText: string;
   revision: number;
 };
+
+export type TranscriptMiddlePayload = TranscriptEntry | TranscriptRenderableLiveItem;
 
 export type TranscriptState = {
   threadId: string | null;
@@ -81,10 +89,8 @@ export type TranscriptState = {
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunksById: Record<string, TranscriptChunk>;
-  entriesById: Record<string, TranscriptEntry>;
-  entryChunkById: Record<string, string>;
-  liveItemsByTurnId: Record<string, TranscriptRenderableLiveItem[]>;
-  liveItemIndexByKey: Record<string, TranscriptLiveItemIndex>;
+  entriesById: Record<TranscriptEntryId, TranscriptMiddlePayload>;
+  entryChunkById: Record<TranscriptEntryId, string>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;
   appliedEventOrder: string[];
@@ -100,8 +106,6 @@ export const createEmptyTranscriptState = (): TranscriptState => ({
   chunksById: {},
   entriesById: {},
   entryChunkById: {},
-  liveItemsByTurnId: {},
-  liveItemIndexByKey: {},
   globalStatus: [],
   appliedEventIdsById: {},
   appliedEventOrder: [],
