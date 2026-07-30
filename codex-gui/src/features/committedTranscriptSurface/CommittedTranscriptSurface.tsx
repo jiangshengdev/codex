@@ -7,6 +7,7 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptEntryIdFor,
   type TranscriptEntryId,
   type TranscriptEntry,
   type TranscriptMiddlePayload,
@@ -104,7 +105,7 @@ const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
   return (
     <div className="committed-transcript-middle-chunk grid min-w-0 gap-3">
       {chunk.entries.map((entry) => (
-        <MiddleTranscriptEntry entry={entry} key={entry.id} />
+        <MiddleTranscriptEntry entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
       ))}
     </div>
   );
@@ -178,7 +179,10 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] })
   return (
     <>
       {entries.map((entry) => (
-        <CommittedTranscriptEntry key={entry.id} entry={entry} />
+        <CommittedTranscriptEntry
+          key={transcriptEntryIdFor(entry.turnId, entry.id)}
+          entry={entry}
+        />
       ))}
     </>
   );
