@@ -386,7 +386,11 @@ mod tests {
             /*state_db*/ None,
             Arc::new(GoalService::new()),
         );
-        let skills_watcher = SkillsWatcher::new(thread_manager.skills_service(), outgoing.clone());
+        let skills_watcher = SkillsWatcher::new(
+            thread_manager.skills_service(),
+            &config.codex_home,
+            outgoing.clone(),
+        );
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
@@ -414,7 +418,9 @@ mod tests {
             /*initial_config_warnings*/ Vec::new(),
         );
 
-        let new_thread = thread_manager.start_thread(config.as_ref().clone()).await?;
+        let new_thread = thread_manager
+            .start_thread(StartThreadOptions::new(config.as_ref().clone()))
+            .await?;
         let thread_id = new_thread.thread_id;
         let persisted_items = persisted_in_progress_history_items("persisted-turn", "persisted");
         store
@@ -695,7 +701,11 @@ mod tests {
             /*state_db*/ None,
             Arc::new(GoalService::new()),
         );
-        let skills_watcher = SkillsWatcher::new(thread_manager.skills_service(), outgoing.clone());
+        let skills_watcher = SkillsWatcher::new(
+            thread_manager.skills_service(),
+            &config.codex_home,
+            outgoing.clone(),
+        );
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
@@ -724,7 +734,7 @@ mod tests {
         );
 
         let thread_id = thread_manager
-            .start_thread(config.as_ref().clone())
+            .start_thread(StartThreadOptions::new(config.as_ref().clone()))
             .await?
             .thread_id;
         store

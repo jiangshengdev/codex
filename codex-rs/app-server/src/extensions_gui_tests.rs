@@ -96,6 +96,8 @@ async fn launch_gui_tool_names_for_service(
             environment_manager: Arc::clone(&environment_manager),
             executor_skill_provider,
             gui_launch_service,
+            git_attribution_base_url: config.chatgpt_base_url.clone(),
+            http_client_factory: config.http_client_factory(),
             thread_store: codex_core::thread_store_from_config(config, /*state_db*/ None),
         },
     );

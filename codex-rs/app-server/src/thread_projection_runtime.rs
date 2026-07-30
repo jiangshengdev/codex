@@ -401,11 +401,15 @@ mod tests {
             thread_goal_processor,
             /*state_db*/ None,
             /*log_db*/ None,
-            crate::skills_watcher::SkillsWatcher::new(thread_manager.skills_service(), outgoing),
+            crate::skills_watcher::SkillsWatcher::new(
+                thread_manager.skills_service(),
+                &config.codex_home,
+                outgoing,
+            ),
             /*initial_config_warnings*/ Vec::new(),
         );
         let thread_id = thread_manager
-            .start_thread(config.as_ref().clone())
+            .start_thread(codex_core::StartThreadOptions::new(config.as_ref().clone()))
             .await?
             .thread_id;
         Ok(ProjectionRuntimeHarness {
