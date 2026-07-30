@@ -164,7 +164,7 @@ describe("transcript state committed projection reducer", () => {
       originalFirstItemId: "agent-started-first",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-started-first:chunk:0"],
-      middleEntryCount: 2,
+      middleEntryCount: 1,
       finalAssistantEntryIds: [],
     });
     expect(

@@ -204,6 +204,10 @@ const MiddleTranscriptEntry = ({ entry }: { entry: TranscriptMiddlePayload }) =>
     return null;
   }
 
+  if (entry.transientText.length === 0) {
+    return null;
+  }
+
   return <LiveAssistantMessageEntry item={entry} />;
 };
 
@@ -216,7 +220,7 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
 
   const hasEntries =
     turn.leadingPromptEntryId != null ||
-    turn.middleChunkIds.length > 0 ||
+    turn.middleEntryCount > 0 ||
     turn.finalAssistantEntryIds.length > 0;
 
   if (!hasEntries) {
@@ -257,7 +261,7 @@ export const CommittedTranscriptSurface = () => {
       return (
         turn != null &&
         (turn.leadingPromptEntryId != null ||
-          turn.middleChunkIds.length > 0 ||
+          turn.middleEntryCount > 0 ||
           turn.finalAssistantEntryIds.length > 0)
       );
     }),

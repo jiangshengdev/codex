@@ -48,10 +48,21 @@ const appendDeltaToLiveItem = (
   chunk: TranscriptChunk,
   delta: string,
 ) => {
+  if (delta.length === 0) {
+    return;
+  }
+
+  const hadVisibleContribution = item.transientText.length > 0;
   item.transientText += delta;
   item.status = "streaming";
   item.revision += 1;
   chunk.revision += 1;
+  if (!hadVisibleContribution) {
+    const turn = state.turnsById[item.turnId];
+    if (turn != null) {
+      turn.middleEntryCount += 1;
+    }
+  }
   bumpLiveScrollPulse(state);
 };
 

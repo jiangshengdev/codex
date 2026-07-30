@@ -115,7 +115,7 @@ describe("transcript state scroll signals", () => {
     );
   });
 
-  it("advances the live scroll pulse once for a unique started assistant item", () => {
+  it("does not advance the live scroll pulse for an empty started assistant item", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -134,7 +134,7 @@ describe("transcript state scroll signals", () => {
       }),
     );
 
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
@@ -149,7 +149,7 @@ describe("transcript state scroll signals", () => {
       }),
     );
 
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 
@@ -183,7 +183,7 @@ describe("transcript state scroll signals", () => {
     );
 
     const startedPulse = selectTranscriptLiveScrollPulse(store.getState());
-    expect(startedPulse).toBe(initialPulse + 1);
+    expect(startedPulse).toBe(initialPulse);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
@@ -200,7 +200,7 @@ describe("transcript state scroll signals", () => {
     );
 
     const deltaPulse = selectTranscriptLiveScrollPulse(store.getState());
-    expect(deltaPulse).toBe(initialPulse + 2);
+    expect(deltaPulse).toBe(initialPulse + 1);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
 
     store.dispatch(
@@ -215,7 +215,7 @@ describe("transcript state scroll signals", () => {
       }),
     );
 
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 2);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
       "event:commit-live-scroll-pulse-completed",
     );

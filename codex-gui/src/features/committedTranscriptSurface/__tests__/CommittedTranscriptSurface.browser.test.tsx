@@ -295,9 +295,11 @@ test("renders live assistant text between intermediate updates and final answers
   );
 
   await expect.element(screen.getByText("Draft answer")).not.toBeInTheDocument();
-  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
-  await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();
-  expect(document.querySelector(".committed-transcript-live-assistant-message")).not.toBeNull();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+  await expect
+    .element(screen.getByRole("article", { name: "Turn turn-live" }))
+    .not.toBeInTheDocument();
+  expect(document.querySelector(".committed-transcript-live-assistant-message")).toBeNull();
 
   store.dispatch(
     threadRuntimeDeltasAccepted({
@@ -314,6 +316,9 @@ test("renders live assistant text between intermediate updates and final answers
 
   await expect.element(screen.getByText("Streaming")).toBeVisible();
   await expect.element(screen.getByText("answer")).toBeVisible();
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();
+  expect(document.querySelector(".committed-transcript-live-assistant-message")).not.toBeNull();
   expect(
     document.querySelector(
       '.committed-transcript-live-assistant-message [data-streamdown="strong"]',
@@ -344,7 +349,7 @@ test("keeps middle message order stable while live messages settle out of order"
   store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
   const turn = screen.getByRole("article", { name: "Turn turn-middle-order" });
   const messages = turn.getByRole("article");
-  const startLiveMessage = (itemId: string, source: string) => {
+  const startLiveMessage = (itemId: string) => {
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
@@ -356,6 +361,8 @@ test("keeps middle message order stable while live messages settle out of order"
         replay: "live",
       }),
     );
+  };
+  const appendLiveMessageDelta = (itemId: string, source: string) => {
     store.dispatch(
       threadRuntimeDeltasAccepted({
         notifications: [
@@ -384,10 +391,14 @@ test("keeps middle message order stable while live messages settle out of order"
     await expect.element(messages.nth(sources.length)).not.toBeInTheDocument();
   };
 
-  startLiveMessage("agent-middle-order-a", "Live A");
-  await expectMessageOrder(["Live A"]);
+  startLiveMessage("agent-middle-order-a");
+  startLiveMessage("agent-middle-order-b");
+  await expect.element(turn).not.toBeInTheDocument();
 
-  startLiveMessage("agent-middle-order-b", "Live B");
+  appendLiveMessageDelta("agent-middle-order-b", "Live B");
+  await expectMessageOrder(["Live B"]);
+
+  appendLiveMessageDelta("agent-middle-order-a", "Live A");
   await expectMessageOrder(["Live A", "Live B"]);
 
   completeMessage("agent-middle-order-b", "Committed B");

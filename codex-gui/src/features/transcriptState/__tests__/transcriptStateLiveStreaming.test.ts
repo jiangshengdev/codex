@@ -22,6 +22,7 @@ import {
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptLiveScrollPulse,
+  selectTranscriptTurn,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
@@ -78,6 +79,7 @@ describe("transcript state live streaming reducer", () => {
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
 
     const initialItem = agentMessage("agent-streaming", "");
     store.dispatch(
@@ -91,6 +93,8 @@ describe("transcript state live streaming reducer", () => {
         replay: "live",
       }),
     );
+    expect(selectTranscriptTurn(store.getState(), "turn-streaming")?.middleEntryCount).toBe(0);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
     store.dispatch(
       threadRuntimeDeltasAccepted({
         notifications: [
@@ -98,6 +102,8 @@ describe("transcript state live streaming reducer", () => {
         ],
       }),
     );
+    expect(selectTranscriptTurn(store.getState(), "turn-streaming")?.middleEntryCount).toBe(1);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 1);
     store.dispatch(
       threadRuntimeDeltasAccepted({
         notifications: [
@@ -130,6 +136,43 @@ describe("transcript state live streaming reducer", () => {
       entries: [expectedStreamingPayload],
     });
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+    expect(selectTranscriptTurn(store.getState(), "turn-streaming")?.middleEntryCount).toBe(1);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse + 2);
+  });
+
+  it("does not activate an empty started item from an empty accepted delta", () => {
+    const store = makeStore();
+    const initialItem = agentMessage("agent-empty-delta", "");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-delta-started",
+          "turn-empty-delta",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, "turn-empty-delta", "agent-empty-delta", ""),
+        ],
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-empty-delta")?.middleEntryCount).toBe(0);
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-empty-delta", "agent-empty-delta"),
+      ),
+    ).toMatchObject({ status: "started", transientText: "", revision: 0 });
   });
 
   it("coalesces accepted agent message delta batches per live item in notification order", () => {

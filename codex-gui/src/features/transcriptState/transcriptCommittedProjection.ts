@@ -33,11 +33,9 @@ export const appendStartedItemToMiddle = (
     return;
   }
 
-  const turn = ensureTranscriptTurn(state, turnId);
   const chunk = getOrCreateMiddleChunk(state, turnId);
   const entryId = transcriptEntryIdFor(turnId, item.id);
   chunk.entryIds.push(entryId);
-  turn.middleEntryCount += 1;
   chunk.revision += 1;
   state.entryChunkById[entryId] = chunk.id;
   state.entriesById[entryId] = {
@@ -51,7 +49,6 @@ export const appendStartedItemToMiddle = (
     transientText: "",
     revision: 0,
   };
-  state.liveScrollPulse += 1;
 };
 
 const chunkIdForIndex = (turnId: string, index: number): string =>
@@ -148,6 +145,7 @@ const removeEntryFromMiddleChunk = (
   state: TranscriptState,
   turnId: string,
   itemId: string,
+  hadVisibleContribution: boolean,
 ): boolean => {
   const turn = state.turnsById[turnId];
   const entryId = transcriptEntryIdFor(turnId, itemId);
@@ -164,18 +162,19 @@ const removeEntryFromMiddleChunk = (
 
   chunk.entryIds.splice(entryIndex, 1);
   chunk.revision += 1;
-  turn.middleEntryCount -= 1;
+  if (hadVisibleContribution) {
+    turn.middleEntryCount -= 1;
+  }
   Reflect.deleteProperty(state.entryChunkById, entryId);
 
-  if (turn.middleEntryCount === 0) {
-    turn.middleChunkIds = turn.middleChunkIds.filter((middleChunkId) => {
-      const middleChunk = state.chunksById[middleChunkId];
-      if (middleChunk?.entryIds.length === 0) {
-        Reflect.deleteProperty(state.chunksById, middleChunkId);
-        return false;
-      }
-      return true;
-    });
+  const hasRemainingMiddleEntries = turn.middleChunkIds.some(
+    (middleChunkId) => (state.chunksById[middleChunkId]?.entryIds.length ?? 0) > 0,
+  );
+  if (!hasRemainingMiddleEntries) {
+    for (const middleChunkId of turn.middleChunkIds) {
+      Reflect.deleteProperty(state.chunksById, middleChunkId);
+    }
+    turn.middleChunkIds = [];
   }
 
   return true;
@@ -215,6 +214,9 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
     return;
   }
 
+  const hadVisibleMiddleContribution =
+    existingEntry.type !== "live" || existingEntry.transientText.length > 0;
+
   state.entriesById[entryId] = {
     ...entry,
     revision: existingEntry.revision + 1,
@@ -226,15 +228,19 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
   }
 
   if (isUserMessageEntry(entry) && entry.id === turn.originalFirstItemId) {
-    removeEntryFromMiddleChunk(state, entry.turnId, entry.id);
+    removeEntryFromMiddleChunk(state, entry.turnId, entry.id, hadVisibleMiddleContribution);
     turn.leadingPromptEntryId = entryId;
     return;
   }
 
   if (isFinalAssistantEntry(entry)) {
-    removeEntryFromMiddleChunk(state, entry.turnId, entry.id);
+    removeEntryFromMiddleChunk(state, entry.turnId, entry.id, hadVisibleMiddleContribution);
     turn.finalAssistantEntryIds.push(entryId);
     return;
+  }
+
+  if (!hadVisibleMiddleContribution) {
+    turn.middleEntryCount += 1;
   }
 
   const chunk = state.chunksById[chunkId];
@@ -256,7 +262,7 @@ export const applyCompletedTranscriptItem = (
     if (
       existingEntry?.type === "live" &&
       existingEntry.turnId === turnId &&
-      removeEntryFromMiddleChunk(state, turnId, item.id)
+      removeEntryFromMiddleChunk(state, turnId, item.id, existingEntry.transientText.length > 0)
     ) {
       Reflect.deleteProperty(state.entriesById, entryId);
     }
