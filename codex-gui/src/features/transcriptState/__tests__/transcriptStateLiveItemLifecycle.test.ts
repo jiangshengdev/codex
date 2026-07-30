@@ -20,6 +20,7 @@ import {
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptTurn,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
 describe("transcript state live item lifecycle reducer", () => {
@@ -83,10 +84,15 @@ describe("transcript state live item lifecycle reducer", () => {
         ({ id }) => id,
       ),
     ).toStrictEqual(["agent-slot-first", "agent-slot-second"]);
-    expect(selectTranscriptEntry(store.getState(), "agent-slot-first")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-slot-order", "agent-slot-first"),
+      ),
+    ).toStrictEqual({
       type: "live",
       id: "agent-slot-first",
-      key: "turn-slot-order:agent-slot-first",
+      key: transcriptEntryIdFor("turn-slot-order", "agent-slot-first"),
       turnId: "turn-slot-order",
       itemId: "agent-slot-first",
       status: "started",
@@ -126,7 +132,12 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "agent-settled")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-settled", "agent-settled"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-settled",
       turnId: "turn-settled",
@@ -143,7 +154,7 @@ describe("transcript state live item lifecycle reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-settled"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-settled", "agent-settled")],
     });
     expect(selectTranscriptChunk(store.getState(), "turn-settled:chunk:0")).toBeNull();
   });
@@ -194,7 +205,12 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "agent-remove-first")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-remove-first", "agent-remove-first"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-remove-first",
       turnId: "turn-remove-first",
@@ -204,10 +220,15 @@ describe("transcript state live item lifecycle reducer", () => {
       phase: "final_answer",
       revision: 1,
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-remove-second")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-remove-first", "agent-remove-second"),
+      ),
+    ).toStrictEqual({
       type: "live",
       id: "agent-remove-second",
-      key: "turn-remove-first:agent-remove-second",
+      key: transcriptEntryIdFor("turn-remove-first", "agent-remove-second"),
       turnId: "turn-remove-first",
       itemId: "agent-remove-second",
       status: "started",
@@ -222,7 +243,7 @@ describe("transcript state live item lifecycle reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-remove-first:chunk:0"],
       middleEntryCount: 1,
-      finalAssistantEntryIds: ["agent-remove-first"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-remove-first", "agent-remove-first")],
     });
     expect(
       selectTranscriptChunk(store.getState(), "turn-remove-first:chunk:0")?.entries.map(
@@ -254,9 +275,16 @@ describe("transcript state live item lifecycle reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-missing-slot-completed"],
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-missing-slot-completed", "agent-missing-slot-completed"),
+      ],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-missing-slot-completed")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-missing-slot-completed", "agent-missing-slot-completed"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-missing-slot-completed",
       turnId: "turn-missing-slot-completed",
@@ -299,7 +327,12 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "agent-empty-settled")).toBeNull();
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-empty-settled", "agent-empty-settled"),
+      ),
+    ).toBeNull();
     expect(selectTranscriptTurn(store.getState(), "turn-empty-settled")).toStrictEqual({
       id: "turn-empty-settled",
       status: "inProgress",
@@ -354,11 +387,21 @@ describe("transcript state live item lifecycle reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "agent-empty-first")).toBeNull();
-    expect(selectTranscriptEntry(store.getState(), "agent-empty-second")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-empty-shared", "agent-empty-first"),
+      ),
+    ).toBeNull();
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-empty-shared", "agent-empty-second"),
+      ),
+    ).toStrictEqual({
       type: "live",
       id: "agent-empty-second",
-      key: "turn-empty-shared:agent-empty-second",
+      key: transcriptEntryIdFor("turn-empty-shared", "agent-empty-second"),
       turnId: "turn-empty-shared",
       itemId: "agent-empty-second",
       status: "started",

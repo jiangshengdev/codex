@@ -15,6 +15,7 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
@@ -41,9 +42,14 @@ describe("transcript state reconnect reducer", () => {
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-existing")).toMatchObject({
-      finalAssistantEntryIds: ["agent-existing"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-existing", "agent-existing")],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-existing")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-existing", "agent-existing"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-existing",
       turnId: "turn-existing",
@@ -106,7 +112,10 @@ describe("transcript state reconnect reducer", () => {
 
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-after-reconnect"]);
     expect(selectTranscriptTurn(store.getState(), "turn-after-reconnect")).toMatchObject({
-      finalAssistantEntryIds: ["agent-after", "agent-live-after"],
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-after-reconnect", "agent-after"),
+        transcriptEntryIdFor("turn-after-reconnect", "agent-live-after"),
+      ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
   });
@@ -155,9 +164,14 @@ describe("transcript state reconnect reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-reconnect-live"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-reconnect-live", "agent-reconnect-live")],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-reconnect-live")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-reconnect-live", "agent-reconnect-live"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-reconnect-live",
       turnId: "turn-reconnect-live",
@@ -187,7 +201,12 @@ describe("transcript state reconnect reducer", () => {
     );
 
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
-    expect(selectTranscriptEntry(store.getState(), "agent-after-reconnect")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-after-reconnect", "agent-after-reconnect"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-after-reconnect",
       turnId: "turn-after-reconnect",

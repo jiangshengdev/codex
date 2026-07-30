@@ -28,6 +28,7 @@ import {
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptLiveScrollPulse,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
 describe("transcript state scroll signals", () => {
@@ -241,10 +242,15 @@ describe("transcript state scroll signals", () => {
     );
 
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
-    expect(selectTranscriptEntry(store.getState(), "plan-live-scroll-pulse")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-plan-live-scroll-pulse", "plan-live-scroll-pulse"),
+      ),
+    ).toStrictEqual({
       type: "live",
       id: "plan-live-scroll-pulse",
-      key: "turn-plan-live-scroll-pulse:plan-live-scroll-pulse",
+      key: transcriptEntryIdFor("turn-plan-live-scroll-pulse", "plan-live-scroll-pulse"),
       turnId: "turn-plan-live-scroll-pulse",
       itemId: "plan-live-scroll-pulse",
       status: "started",
@@ -271,7 +277,12 @@ describe("transcript state scroll signals", () => {
     );
 
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
-    expect(selectTranscriptEntry(store.getState(), "plan-live-scroll-pulse")).toBeNull();
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-plan-live-scroll-pulse", "plan-live-scroll-pulse"),
+      ),
+    ).toBeNull();
     expect(
       selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0"),
     ).toBeNull();

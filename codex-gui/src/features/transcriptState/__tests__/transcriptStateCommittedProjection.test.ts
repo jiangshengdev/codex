@@ -31,6 +31,7 @@ import {
   selectTranscriptEntry,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
 describe("transcript state committed projection reducer", () => {
@@ -110,9 +111,11 @@ describe("transcript state committed projection reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-live:chunk:0"],
       middleEntryCount: 1,
-      finalAssistantEntryIds: ["agent-live"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-live", "agent-live")],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-live")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-live", "agent-live")),
+    ).toStrictEqual({
       type: "message",
       id: "agent-live",
       turnId: "turn-live",
@@ -201,12 +204,20 @@ describe("transcript state committed projection reducer", () => {
       id: "turn-started-leading-user",
       status: "inProgress",
       originalFirstItemId: "user-started-leading",
-      leadingPromptEntryId: "user-started-leading",
+      leadingPromptEntryId: transcriptEntryIdFor(
+        "turn-started-leading-user",
+        "user-started-leading",
+      ),
       middleChunkIds: [],
       middleEntryCount: 0,
       finalAssistantEntryIds: [],
     });
-    expect(selectTranscriptEntry(store.getState(), "user-started-leading")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-started-leading-user", "user-started-leading"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "user-started-leading",
       turnId: "turn-started-leading-user",
@@ -242,9 +253,16 @@ describe("transcript state committed projection reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-live-normalized"],
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-live-normalized", "agent-live-normalized"),
+      ],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-live-normalized")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-live-normalized", "agent-live-normalized"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-live-normalized",
       turnId: "turn-live-normalized",
@@ -390,7 +408,9 @@ describe("transcript state committed projection reducer", () => {
       middleEntryCount: 1,
       finalAssistantEntryIds: [],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-update")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-update", "agent-update")),
+    ).toStrictEqual({
       type: "message",
       id: "agent-update",
       turnId: "turn-update",
@@ -446,7 +466,12 @@ describe("transcript state committed projection reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "agent-phase-update")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-phase-update", "agent-phase-update"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-phase-update",
       turnId: "turn-phase-update",
@@ -463,7 +488,7 @@ describe("transcript state committed projection reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-phase-update"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-phase-update", "agent-phase-update")],
     });
     expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toBeNull();
   });
@@ -502,9 +527,14 @@ describe("transcript state committed projection reducer", () => {
       leadingPromptEntryId: null,
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-final-update"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-final-update", "agent-final-update")],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-final-update")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-final-update", "agent-final-update"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-final-update",
       turnId: "turn-final-update",
@@ -569,10 +599,10 @@ describe("transcript state committed projection reducer", () => {
       id: "turn-middle-chunked",
       status: "inProgress",
       originalFirstItemId: "user-leading-live",
-      leadingPromptEntryId: "user-leading-live",
+      leadingPromptEntryId: transcriptEntryIdFor("turn-middle-chunked", "user-leading-live"),
       middleChunkIds: ["turn-middle-chunked:chunk:0", "turn-middle-chunked:chunk:1"],
       middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
-      finalAssistantEntryIds: ["agent-final-live"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-middle-chunked", "agent-final-live")],
     });
     expect(
       selectTranscriptChunk(store.getState(), "turn-middle-chunked:chunk:0")?.entries,

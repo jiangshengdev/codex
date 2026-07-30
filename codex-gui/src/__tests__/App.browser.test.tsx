@@ -40,7 +40,10 @@ import {
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
-import { selectTranscriptEntry } from "@/features/transcriptState/transcriptStateSlice";
+import {
+  selectTranscriptEntry,
+  transcriptEntryIdFor,
+} from "@/features/transcriptState/transcriptStateSlice";
 import {
   selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
@@ -313,10 +316,15 @@ test("App batches accepted projection deltas until the next animation frame", as
       agentMessageDelta(eventAgentMessageDelta, "turn-raf-batch", "agent-raf-batch", " world"),
     );
 
-    expect(selectTranscriptEntry(store.getState(), "agent-raf-batch")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
+      ),
+    ).toStrictEqual({
       type: "live",
       id: "agent-raf-batch",
-      key: "turn-raf-batch:agent-raf-batch",
+      key: transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
       turnId: "turn-raf-batch",
       itemId: "agent-raf-batch",
       status: "started",
@@ -329,10 +337,15 @@ test("App batches accepted projection deltas until the next animation frame", as
 
     await expect.element(screen.getByText("Hello world")).toBeVisible();
 
-    expect(selectTranscriptEntry(store.getState(), "agent-raf-batch")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
+      ),
+    ).toStrictEqual({
       type: "live",
       id: "agent-raf-batch",
-      key: "turn-raf-batch:agent-raf-batch",
+      key: transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
       turnId: "turn-raf-batch",
       itemId: "agent-raf-batch",
       status: "streaming",
@@ -390,7 +403,12 @@ test("App flushes pending projection deltas before structural projection events"
     );
     emitProjectionEvent(options, itemCompletedEvent);
 
-    expect(selectTranscriptEntry(store.getState(), "agent-raf-flush-event")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-flush-event", "agent-raf-flush-event"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-raf-flush-event",
       turnId: "turn-raf-flush-event",
@@ -933,10 +951,15 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
     vi.advanceTimersToNextFrame();
 
     expect(getCleanupConnectionCallCount()).toBe(1);
-    expect(selectTranscriptEntry(store.getState(), "agent-raf-cleanup")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup"),
+      ),
+    ).toStrictEqual({
       type: "live",
       id: "agent-raf-cleanup",
-      key: "turn-raf-cleanup:agent-raf-cleanup",
+      key: transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup"),
       turnId: "turn-raf-cleanup",
       itemId: "agent-raf-cleanup",
       status: "started",

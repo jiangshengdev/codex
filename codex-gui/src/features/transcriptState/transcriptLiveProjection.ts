@@ -1,11 +1,11 @@
 import type { ThreadProjectionDeltaNotification } from "@codex-protocol/v2";
-import type {
-  TranscriptChunk,
-  TranscriptRenderableLiveItem,
-  TranscriptState,
+import {
+  transcriptEntryIdFor,
+  type TranscriptChunk,
+  type TranscriptEntryId,
+  type TranscriptRenderableLiveItem,
+  type TranscriptState,
 } from "./transcriptStateModel";
-
-const liveItemKey = (turnId: string, itemId: string): string => `${turnId}:${itemId}`;
 
 const bumpLiveScrollPulse = (state: TranscriptState) => {
   state.liveScrollPulse += 1;
@@ -21,12 +21,13 @@ const findMiddleLiveItemAndChunk = (
   turnId: string,
   itemId: string,
 ): MiddleLiveItemAndChunk | null => {
-  const item = state.entriesById[itemId];
+  const entryId = transcriptEntryIdFor(turnId, itemId);
+  const item = state.entriesById[entryId];
   if (item?.type !== "live" || item.turnId !== turnId || item.itemId !== itemId) {
     return null;
   }
 
-  const chunkId = state.entryChunkById[itemId];
+  const chunkId = state.entryChunkById[entryId];
   const chunk = chunkId == null ? null : state.chunksById[chunkId];
   if (chunk?.turnId !== turnId) {
     return null;
@@ -59,7 +60,7 @@ export const applyAcceptedProjectionDeltaBatch = (
   notifications: ThreadProjectionDeltaNotification[],
 ) => {
   const buckets: AgentMessageDeltaBucket[] = [];
-  const bucketByKey: Record<string, AgentMessageDeltaBucket> = {};
+  const bucketByKey: Record<TranscriptEntryId, AgentMessageDeltaBucket> = {};
 
   for (const notification of notifications) {
     if (state.threadId !== notification.threadId) {
@@ -69,7 +70,7 @@ export const applyAcceptedProjectionDeltaBatch = (
     switch (notification.delta.type) {
       case "agentMessage": {
         const { turnId, itemId, delta } = notification.delta.notification;
-        const key = liveItemKey(turnId, itemId);
+        const key = transcriptEntryIdFor(turnId, itemId);
         let bucket = bucketByKey[key];
         if (bucket == null) {
           bucket = { turnId, itemId, deltas: [delta] };

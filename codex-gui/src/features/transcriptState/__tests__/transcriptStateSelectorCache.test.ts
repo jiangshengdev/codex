@@ -12,7 +12,11 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { selectTranscriptChunk, selectTranscriptEntry } from "../transcriptStateSlice";
+import {
+  selectTranscriptChunk,
+  selectTranscriptEntry,
+  transcriptEntryIdFor,
+} from "../transcriptStateSlice";
 import {
   agentMessageDelta,
   agentMessage,
@@ -283,7 +287,7 @@ describe("transcript state selector cache", () => {
     const expectedStreamingPayload = {
       type: "live" as const,
       id: "agent-live-cache-delta",
-      key: "turn-live-cache-delta:agent-live-cache-delta",
+      key: transcriptEntryIdFor("turn-live-cache-delta", "agent-live-cache-delta"),
       turnId: "turn-live-cache-delta",
       itemId: "agent-live-cache-delta",
       status: "streaming" as const,
@@ -293,9 +297,12 @@ describe("transcript state selector cache", () => {
     };
 
     expect(afterUpdate).not.toBe(beforeUpdate);
-    expect(selectTranscriptEntry(store.getState(), "agent-live-cache-delta")).toStrictEqual(
-      expectedStreamingPayload,
-    );
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-live-cache-delta", "agent-live-cache-delta"),
+      ),
+    ).toStrictEqual(expectedStreamingPayload);
     expect(afterUpdate).toStrictEqual({
       id: "turn-live-cache-delta:chunk:0",
       turnId: "turn-live-cache-delta",
@@ -334,7 +341,7 @@ describe("transcript state selector cache", () => {
         {
           type: "live",
           id: "agent-live-cache-settled",
-          key: "turn-live-cache-settled:agent-live-cache-settled",
+          key: transcriptEntryIdFor("turn-live-cache-settled", "agent-live-cache-settled"),
           turnId: "turn-live-cache-settled",
           itemId: "agent-live-cache-settled",
           status: "started",

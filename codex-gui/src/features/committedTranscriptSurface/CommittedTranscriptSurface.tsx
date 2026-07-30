@@ -7,6 +7,7 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  type TranscriptEntryId,
   type TranscriptEntry,
   type TranscriptMiddlePayload,
   type TranscriptRenderableLiveItem,
@@ -78,7 +79,7 @@ const areTranscriptEntryArraysEqual = (
   return previous.every((entry, index) => entry === next[index]);
 };
 
-const LeadingPromptEntry = ({ entryId }: { entryId: string | null }) => {
+const LeadingPromptEntry = ({ entryId }: { entryId: TranscriptEntryId | null }) => {
   const entry = useAppSelector((state) =>
     entryId == null ? null : selectTranscriptEntry(state, entryId),
   );
@@ -160,7 +161,7 @@ const MiddleTranscriptModule = ({
   );
 };
 
-const FinalAssistantMessages = ({ entryIds }: { entryIds: string[] }) => {
+const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] }) => {
   const entries = useAppSelector(
     (state) =>
       entryIds.flatMap((entryId) => {

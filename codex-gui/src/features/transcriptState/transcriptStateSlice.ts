@@ -18,6 +18,7 @@ import { applyAcceptedProjectionDeltaBatch } from "./transcriptLiveProjection";
 import {
   initialTranscriptState,
   type TranscriptChunkView,
+  type TranscriptEntryId,
   type TranscriptGlobalStatus,
   type TranscriptMiddlePayload,
   type TranscriptTurn,
@@ -27,10 +28,12 @@ import { transcriptChunkView } from "./transcriptStateSelectors";
 export {
   MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  transcriptEntryIdFor,
 } from "./transcriptStateModel";
 export type {
   TranscriptChunk,
   TranscriptChunkView,
+  TranscriptEntryId,
   TranscriptEntry,
   TranscriptGlobalStatus,
   TranscriptLiveItemStatus,
@@ -54,8 +57,10 @@ export const transcriptStateSlice = createAppSlice({
       transcriptState.turnsById[turnId] ?? null,
     selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
       transcriptChunkView(transcriptState, chunkId),
-    selectTranscriptEntry: (transcriptState, entryId: string): TranscriptMiddlePayload | null =>
-      transcriptState.entriesById[entryId] ?? null,
+    selectTranscriptEntry: (
+      transcriptState,
+      entryId: TranscriptEntryId,
+    ): TranscriptMiddlePayload | null => transcriptState.entriesById[entryId] ?? null,
     selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
       transcriptState.globalStatus,
   },

@@ -4,20 +4,29 @@ import type { ThreadItem, TurnStatus } from "@codex-protocol/v2";
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
 export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
 
+declare const transcriptEntryIdBrand: unique symbol;
+
+export type TranscriptEntryId = string & {
+  readonly [transcriptEntryIdBrand]: true;
+};
+
+export const transcriptEntryIdFor = (turnId: string, itemId: string): TranscriptEntryId =>
+  JSON.stringify([turnId, itemId]) as TranscriptEntryId;
+
 export type TranscriptTurn = {
   id: string;
   status: TurnStatus;
   originalFirstItemId: string | null;
-  leadingPromptEntryId: string | null;
+  leadingPromptEntryId: TranscriptEntryId | null;
   middleChunkIds: string[];
   middleEntryCount: number;
-  finalAssistantEntryIds: string[];
+  finalAssistantEntryIds: TranscriptEntryId[];
 };
 
 export type TranscriptChunk = {
   id: string;
   turnId: string;
-  entryIds: string[];
+  entryIds: TranscriptEntryId[];
   revision: number;
 };
 
@@ -61,7 +70,7 @@ export type TranscriptChunkView = {
 export type TranscriptRenderableLiveItem = {
   type: "live";
   id: string;
-  key: string;
+  key: TranscriptEntryId;
   turnId: string;
   itemId: string;
   status: TranscriptLiveItemStatus;
@@ -80,8 +89,8 @@ export type TranscriptState = {
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunksById: Record<string, TranscriptChunk>;
-  entriesById: Record<string, TranscriptMiddlePayload>;
-  entryChunkById: Record<string, string>;
+  entriesById: Record<TranscriptEntryId, TranscriptMiddlePayload>;
+  entryChunkById: Record<TranscriptEntryId, string>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;
   appliedEventOrder: string[];
