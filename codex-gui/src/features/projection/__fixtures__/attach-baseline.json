@@ -9,6 +9,7 @@
       "parentThreadId": null,
       "preview": "Projection fixture thread",
       "ephemeral": false,
+      "isPinned": false,
       "historyMode": "legacy",
       "modelProvider": "openai",
       "createdAt": 1700000000,

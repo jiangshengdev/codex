@@ -202,6 +202,7 @@ fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thr
         parent_thread_id: None,
         preview: "Projection fixture thread".to_string(),
         ephemeral: false,
+        is_pinned: false,
         history_mode: Default::default(),
         model_provider: "openai".to_string(),
         created_at: 1_700_000_000,

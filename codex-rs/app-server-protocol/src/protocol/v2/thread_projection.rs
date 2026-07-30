@@ -161,7 +161,7 @@ mod tests {
                 },
             }
         );
-        assert_eq!(request.method(), "thread/projection/attach");
+        assert_eq!(request.method_name(), "thread/projection/attach");
         assert_eq!(
             request.serialization_scope(),
             Some(ClientRequestSerializationScope::Thread {
