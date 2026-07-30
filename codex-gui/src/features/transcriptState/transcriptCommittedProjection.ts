@@ -25,6 +25,10 @@ export const appendStartedItemToMiddle = (
   turnId: string,
   item: ThreadItem,
 ) => {
+  if (item.type !== "agentMessage") {
+    return;
+  }
+
   if (hasStartedItemInMiddle(state, turnId, item.id)) {
     return;
   }
@@ -47,9 +51,7 @@ export const appendStartedItemToMiddle = (
     transientText: "",
     revision: 0,
   };
-  if (item.type === "agentMessage") {
-    state.liveScrollPulse += 1;
-  }
+  state.liveScrollPulse += 1;
 };
 
 const chunkIdForIndex = (turnId: string, index: number): string =>

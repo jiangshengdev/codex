@@ -221,7 +221,7 @@ describe("transcript state scroll signals", () => {
     );
   });
 
-  it("does not advance the live scroll pulse for non-visible live items", () => {
+  it("does not create a live entry or advance the scroll pulse for non-assistant items", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -247,22 +247,10 @@ describe("transcript state scroll signals", () => {
         store.getState(),
         transcriptEntryIdFor("turn-plan-live-scroll-pulse", "plan-live-scroll-pulse"),
       ),
-    ).toStrictEqual({
-      type: "live",
-      id: "plan-live-scroll-pulse",
-      key: transcriptEntryIdFor("turn-plan-live-scroll-pulse", "plan-live-scroll-pulse"),
-      turnId: "turn-plan-live-scroll-pulse",
-      itemId: "plan-live-scroll-pulse",
-      status: "started",
-      initialItem: plan,
-      transientText: "",
-      revision: 0,
-    });
+    ).toBeNull();
     expect(
-      selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0")?.entries.map(
-        ({ id }) => id,
-      ),
-    ).toStrictEqual(["plan-live-scroll-pulse"]);
+      selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0"),
+    ).toBeNull();
 
     store.dispatch(
       threadRuntimeEventBuffered({

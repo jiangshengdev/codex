@@ -4,6 +4,7 @@ import {
   attachBaseline,
   eventItemCompleted,
   eventItemStarted,
+  eventReasoningItemStarted,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
@@ -173,7 +174,63 @@ describe("transcript state committed projection reducer", () => {
     ).toStrictEqual(["agent-started-first", "user-after-started"]);
   });
 
-  it("moves a completed first user item from middle to leading", () => {
+  it("records a started reasoning item as the original first item without creating a middle slot", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: eventReasoningItemStarted,
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-in-progress")).toStrictEqual({
+      id: "turn-in-progress",
+      status: "inProgress",
+      originalFirstItemId: "reasoning-item",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-in-progress", "reasoning-item"),
+      ),
+    ).toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-in-progress:chunk:0")).toBeNull();
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "complete-user-after-reasoning",
+          "turn-in-progress",
+          userMessage("user-after-reasoning", [textInput("Later prompt")]),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-in-progress")).toStrictEqual({
+      id: "turn-in-progress",
+      status: "inProgress",
+      originalFirstItemId: "reasoning-item",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-in-progress:chunk:0"],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-in-progress:chunk:0")?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual(["user-after-reasoning"]);
+  });
+
+  it("makes a completed first user item leading without a started middle slot", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -188,6 +245,24 @@ describe("transcript state committed projection reducer", () => {
         replay: "live",
       }),
     );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-started-leading-user")).toStrictEqual({
+      id: "turn-started-leading-user",
+      status: "inProgress",
+      originalFirstItemId: "user-started-leading",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-started-leading-user", "user-started-leading"),
+      ),
+    ).toBeNull();
+    expect(selectTranscriptChunk(store.getState(), "turn-started-leading-user:chunk:0")).toBeNull();
+
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
@@ -225,7 +300,7 @@ describe("transcript state committed projection reducer", () => {
       source: "Prompt",
       sourceKind: "plainText",
       phase: null,
-      revision: 1,
+      revision: 0,
     });
     expect(selectTranscriptChunk(store.getState(), "turn-started-leading-user:chunk:0")).toBeNull();
   });
