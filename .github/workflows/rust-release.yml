@@ -24,7 +24,7 @@ env:
 
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   tag-check:
@@ -45,7 +45,7 @@ jobs:
             || { echo "❌  Not a tag ref"; exit 1; }
 
           # Release tags must match the version in Cargo.toml.
-          [[ "${GITHUB_REF_NAME}" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)(\.[0-9]+)?|-cdx\.[0-9]+)?$ ]] \
+          [[ "${GITHUB_REF_NAME}" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+(-(alpha(\.[0-9]+){0,2}|beta(\.[0-9]+)?|cdx\.[0-9]+))?$ ]] \
             || { echo "❌  Tag '${GITHUB_REF_NAME}' doesn't match expected format"; exit 1; }
 
           tag_ver="${GITHUB_REF_NAME#rust-v}"
@@ -639,11 +639,78 @@ jobs:
             fi
           done
 
+      - name: Fetch, sign, and notarize pinned macOS helpers
+        if: ${{ matrix.bundle == 'primary' }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          APPLE_NOTARIZATION_KEY_P8: ${{ secrets.APPLE_NOTARIZATION_KEY_P8 }}
+          APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+          APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+
+          signed_root="${GITHUB_WORKSPACE}/signed-resources/${TARGET}"
+          zsh_manifest="${RUNNER_TEMP}/codex-zsh-${TARGET}"
+          mkdir -p "$signed_root"
+          curl -fsSL \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${CODEX_ZSH_RELEASE_TAG}/codex-zsh" \
+            -o "$zsh_manifest"
+
+          PYTHONPATH="${GITHUB_WORKSPACE}/scripts" python3 - "$TARGET" "$signed_root" "$zsh_manifest" <<'PY'
+          import shutil
+          import sys
+          from pathlib import Path
+
+          from codex_package.ripgrep import fetch_rg
+          from codex_package.targets import TARGET_SPECS
+          from codex_package.zsh import resolve_zsh_bin
+
+          spec = TARGET_SPECS[sys.argv[1]]
+          signed_root = Path(sys.argv[2])
+          zsh_bin = resolve_zsh_bin(spec, Path(sys.argv[3]))
+          if zsh_bin is None:
+              raise RuntimeError(f"Pinned zsh release is missing {spec.target}")
+          shutil.copy2(fetch_rg(spec), signed_root / "rg")
+          shutil.copy2(zsh_bin, signed_root / "zsh")
+          PY
+
+          if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+            for resource in rg zsh; do
+              binary="${signed_root}/${resource}"
+              report_dir="${GITHUB_WORKSPACE}/macos-binary-signing-verification/${TARGET}/${resource}"
+              mkdir -p "$report_dir"
+              chmod 0755 "$binary"
+              .github/scripts/macos-signing/sign_macos_code.sh \
+                --target "$binary" \
+                --identity unused \
+                --deep false \
+                --identifier "com.openai.codex.${resource}" \
+                --options runtime \
+                --timestamp true
+
+              rcodesign print-signature-info "$binary" \
+                >"${report_dir}/signature-info.yaml"
+
+              .github/scripts/macos-signing/notarize_macos_binary_with_rcodesign.sh \
+                --binary "$binary" \
+                --report-dir "$report_dir"
+            done
+          fi
+
       - name: Upload signed macOS binaries
         uses: ./.github/actions/upload-artifact-with-retry
         with:
           name: ${{ matrix.artifact_name }}-signed-binaries
           path: signed-macos/${{ matrix.target }}/*
+          if-no-files-found: error
+
+      - name: Upload signed macOS helpers
+        if: ${{ matrix.bundle == 'primary' }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ matrix.target }}-signed-resources
+          path: signed-resources/${{ matrix.target }}/*
           if-no-files-found: error
 
       - name: Upload binary signing verification
@@ -701,6 +768,12 @@ jobs:
           name: ${{ matrix.artifact_name }}-signed-binaries
           path: codex-rs/target/${{ matrix.target }}/release
 
+      - name: Download signed macOS helpers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ matrix.target }}-signed-resources
+          path: codex-rs/signed-resources/${{ matrix.target }}
+
       - name: Verify signed macOS binaries
         shell: bash
         run: |
@@ -710,6 +783,14 @@ jobs:
             chmod 0755 "$binary_path"
             if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
               codesign --verify --strict --verbose=2 "$binary_path"
+            fi
+          done
+
+          for resource in rg zsh; do
+            resource_path="signed-resources/${{ matrix.target }}/${resource}"
+            chmod 0755 "$resource_path"
+            if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+              codesign --verify --strict --verbose=2 "$resource_path"
             fi
           done
 
@@ -774,14 +855,6 @@ jobs:
             cp "target/${{ matrix.target }}/release/${binary}" "$dest/${binary}-${{ matrix.target }}"
           done
 
-      - name: Download packaged zsh manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL \
-            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${CODEX_ZSH_RELEASE_TAG}/codex-zsh" \
-            -o "${RUNNER_TEMP}/codex-zsh"
-
       - name: Build Codex package archive
         shell: bash
         env:
@@ -795,7 +868,8 @@ jobs:
             --bundle "$BUNDLE" \
             --entrypoint-dir "${GITHUB_WORKSPACE}/codex-rs/target/${TARGET}/release" \
             --archive-dir "${GITHUB_WORKSPACE}/codex-rs/dist/${TARGET}" \
-            --zsh-manifest "${RUNNER_TEMP}/codex-zsh"
+            --rg-bin "signed-resources/${TARGET}/rg" \
+            --zsh-bin "signed-resources/${TARGET}/zsh"
 
       - name: Build Python runtime wheel
         if: ${{ matrix.bundle == 'primary' }}
@@ -1111,6 +1185,25 @@ jobs:
           verify_signed_binary "${package_dir}/bin/${package_entrypoint}" "$package_entrypoint"
           verify_signed_binary "${package_dir}/bin/codex-code-mode-host" "codex-code-mode-host"
 
+          for resource in \
+            "${package_dir}/codex-path/rg" \
+            "${package_dir}/codex-resources/zsh/bin/zsh"
+          do
+            chmod 0755 "$resource"
+            lipo "$resource" -verify_arch "$expected_arch"
+            if [[ "${IS_UPSTREAM_REPO}" == "true" ]]; then
+              codesign --verify --strict --verbose=2 "$resource"
+              entitlements="$(mktemp)"
+              codesign -d --entitlements :- "$resource" >"$entitlements"
+              if [[ -s "$entitlements" ]]; then
+                echo "Bundled helper $resource must not have code-signing entitlements." >&2
+                plutil -p "$entitlements" >&2
+                exit 1
+              fi
+              rm -f "$entitlements"
+            fi
+          done
+
           if [[ "${{ matrix.verify_dmg }}" != "true" ]]; then
             exit 0
           fi
@@ -1187,6 +1280,8 @@ jobs:
     outputs:
       version: ${{ steps.release_name.outputs.name }}
       tag: ${{ github.ref_name }}
+      make_latest: ${{ steps.github_release_settings.outputs.make_latest }}
+      prerelease: ${{ steps.github_release_settings.outputs.prerelease }}
       should_publish_npm: ${{ steps.npm_publish_settings.outputs.should_publish }}
       npm_tag: ${{ steps.npm_publish_settings.outputs.npm_tag }}
 
@@ -1265,6 +1360,13 @@ jobs:
           # "rust-v0.1.0".
           version="${GITHUB_REF_NAME#rust-v}"
           echo "name=${version}" >> $GITHUB_OUTPUT
+          if [[ "${version}" == *-* ]]; then
+            echo "make_latest=false" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "make_latest=true" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Determine npm publish settings
         id: npm_publish_settings
@@ -1277,7 +1379,7 @@ jobs:
           if [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
             echo "npm_tag=" >> "$GITHUB_OUTPUT"
-          elif [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]; then
+          elif [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+(\.[0-9]+)?$ ]]; then
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
             echo "npm_tag=alpha" >> "$GITHUB_OUTPUT"
           elif [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+-cdx\.[0-9]+$ ]]; then
@@ -1350,6 +1452,19 @@ jobs:
           make_latest: ${{ steps.github_release_settings.outputs.make_latest }}
           prerelease: ${{ steps.github_release_settings.outputs.prerelease }}
 
+  publish-r2:
+    name: publish-r2
+    needs: [release, publish-dotslash]
+    if: ${{ github.repository == 'openai/codex' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/r2-release.yml
+    secrets: inherit
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+      make_latest: ${{ fromJSON(needs.release.outputs.make_latest) }}
+      prerelease: ${{ fromJSON(needs.release.outputs.prerelease) }}
+
   publish-dotslash:
     name: publish-dotslash
     needs: release
@@ -1382,7 +1497,7 @@ jobs:
   # July 31, 2025: https://github.blog/changelog/2025-07-31-npm-trusted-publishing-with-oidc-is-generally-available/
   # npm docs: https://docs.npmjs.com/trusted-publishers
   publish-npm:
-    # Publish to npm for stable releases and alpha pre-releases with numeric suffixes.
+    # Publish to npm for stable releases, numbered alphas, and alpha hotfixes.
     if: >-
       ${{
         !cancelled() &&

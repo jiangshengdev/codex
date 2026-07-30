@@ -24,6 +24,14 @@ fn typescript_schema_fixtures_match_generated() -> Result<()> {
     assert_jsonrpc_message_typescript_fixture(&generated_tree)?;
 
     assert_schema_trees_match("typescript", &fixture_tree, &generated_tree)?;
+    let config_requirements = generated_tree
+        .get(Path::new("v2/ConfigRequirements.ts"))
+        .context("generated ConfigRequirements.ts should exist")?;
+    anyhow::ensure!(
+        !String::from_utf8_lossy(config_requirements).contains("../PathUri")
+            || generated_tree.contains_key(Path::new("PathUri.ts")),
+        "stable ConfigRequirements.ts imports PathUri but PathUri.ts was not generated"
+    );
 
     Ok(())
 }

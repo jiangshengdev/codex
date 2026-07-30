@@ -425,6 +425,11 @@
     "responseSchema": "v2/ExternalAgentConfigImportResponse"
   },
   {
+    "method": "externalAgentConfig/import/recordHistory",
+    "paramsSchema": "v2/ExternalAgentConfigImportHistoryRecordParams",
+    "responseSchema": "v2/ExternalAgentConfigImportHistoryRecordResponse"
+  },
+  {
     "method": "externalAgentConfig/import/readHistories",
     "paramsSchema": null,
     "responseSchema": "v2/ExternalAgentConfigImportHistoriesReadResponse"
