@@ -6,9 +6,9 @@ import {
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
-  appendStartedItemToMiddle,
+  appendStartedTranscriptItem,
   applyCompletedTranscriptItem,
-  hasStartedItemInMiddle,
+  hasTranscriptEntry,
   recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
@@ -91,7 +91,7 @@ export const transcriptStateSlice = createAppSlice({
 
         if (notification.event.type === "itemStarted") {
           const { item, turnId } = notification.event.notification;
-          if (hasStartedItemInMiddle(state, turnId, item.id)) {
+          if (hasTranscriptEntry(state, turnId, item.id)) {
             return;
           }
         }
@@ -113,7 +113,7 @@ export const transcriptStateSlice = createAppSlice({
           case "itemStarted": {
             const { item, turnId } = notification.event.notification;
             recordOriginalFirstTranscriptItem(state, turnId, item);
-            appendStartedItemToMiddle(state, turnId, item);
+            appendStartedTranscriptItem(state, turnId, item);
             return;
           }
         }

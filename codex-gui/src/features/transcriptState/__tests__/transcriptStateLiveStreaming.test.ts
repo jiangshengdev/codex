@@ -27,13 +27,13 @@ import {
 } from "../transcriptStateSlice";
 
 describe("transcript state live streaming reducer", () => {
-  it("writes a started item into middle as a live payload", () => {
+  it("keeps a started final answer out of middle until its first delta makes it visible", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
 
-    const initialItem = agentMessage("agent-live-started", "Initial text should stay live only");
+    const initialItem = agentMessage("agent-live-started", "", "final_answer");
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
@@ -46,10 +46,11 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    const expectedLivePayload = {
+    const entryId = transcriptEntryIdFor("turn-live-started-slot", "agent-live-started");
+    const expectedStartedPayload = {
       type: "live" as const,
       id: "agent-live-started",
-      key: transcriptEntryIdFor("turn-live-started-slot", "agent-live-started"),
+      key: entryId,
       turnId: "turn-live-started-slot",
       itemId: "agent-live-started",
       status: "started" as const,
@@ -57,20 +58,48 @@ describe("transcript state live streaming reducer", () => {
       transientText: "",
       revision: 0,
     };
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-live-started-slot", "agent-live-started"),
-      ),
-    ).toStrictEqual(expectedLivePayload);
-    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toStrictEqual(
-      {
-        id: "turn-live-started-slot:chunk:0",
-        turnId: "turn-live-started-slot",
-        revision: 1,
-        entries: [expectedLivePayload],
-      },
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual(expectedStartedPayload);
+    expect(selectTranscriptTurn(store.getState(), "turn-live-started-slot")).toStrictEqual({
+      id: "turn-live-started-slot",
+      status: "inProgress",
+      originalFirstItemId: "agent-live-started",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(
+            eventAgentMessageDelta,
+            "turn-live-started-slot",
+            "agent-live-started",
+            "Initial text should stay live only",
+          ),
+        ],
+      }),
     );
+
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+      ...expectedStartedPayload,
+      status: "streaming",
+      transientText: "Initial text should stay live only",
+      revision: 1,
+    });
+    expect(selectTranscriptTurn(store.getState(), "turn-live-started-slot")).toStrictEqual({
+      id: "turn-live-started-slot",
+      status: "inProgress",
+      originalFirstItemId: "agent-live-started",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [entryId],
+    });
+    expect(selectTranscriptChunk(store.getState(), "turn-live-started-slot:chunk:0")).toBeNull();
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
   });
 
@@ -81,7 +110,7 @@ describe("transcript state live streaming reducer", () => {
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
 
-    const initialItem = agentMessage("agent-streaming", "");
+    const initialItem = agentMessage("agent-streaming", "", "commentary");
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemStarted(
@@ -142,7 +171,7 @@ describe("transcript state live streaming reducer", () => {
 
   it("does not activate an empty started item from an empty accepted delta", () => {
     const store = makeStore();
-    const initialItem = agentMessage("agent-empty-delta", "");
+    const initialItem = agentMessage("agent-empty-delta", "", "commentary");
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
@@ -177,7 +206,7 @@ describe("transcript state live streaming reducer", () => {
 
   it("coalesces accepted agent message delta batches per live item in notification order", () => {
     const store = makeStore();
-    const initialItem = agentMessage("agent-streaming-batch", "");
+    const initialItem = agentMessage("agent-streaming-batch", "", "commentary");
     const started = itemStarted(
       eventItemStarted,
       "commit-streaming-batch-started",
@@ -236,7 +265,7 @@ describe("transcript state live streaming reducer", () => {
 
   it("accepts a single agent message delta batch with one live update", () => {
     const store = makeStore();
-    const initialItem = agentMessage("agent-streaming-single-batch", "");
+    const initialItem = agentMessage("agent-streaming-single-batch", "", "commentary");
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -295,8 +324,8 @@ describe("transcript state live streaming reducer", () => {
 
   it("keeps batch delta coalescing isolated per live item", () => {
     const store = makeStore();
-    const firstItem = agentMessage("agent-streaming-batch-first", "");
-    const secondItem = agentMessage("agent-streaming-batch-second", "");
+    const firstItem = agentMessage("agent-streaming-batch-first", "", "commentary");
+    const secondItem = agentMessage("agent-streaming-batch-second", "", "commentary");
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
@@ -446,7 +475,7 @@ describe("transcript state live streaming reducer", () => {
 
   it("ignores wrong-thread and unsupported delta notifications in accepted delta batches", () => {
     const store = makeStore();
-    const initialItem = agentMessage("agent-streaming-filtered-batch", "");
+    const initialItem = agentMessage("agent-streaming-filtered-batch", "", "commentary");
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(

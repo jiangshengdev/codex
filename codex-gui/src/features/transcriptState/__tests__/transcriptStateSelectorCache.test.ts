@@ -186,7 +186,7 @@ describe("transcript state selector cache", () => {
           eventItemStarted,
           "commit-live-cache-started",
           "turn-live-cache",
-          agentMessage("agent-live-cache", "Live cache"),
+          agentMessage("agent-live-cache", "Live cache", "commentary"),
         ),
         replay: "live",
       }),
@@ -221,7 +221,7 @@ describe("transcript state selector cache", () => {
           eventItemStarted,
           "commit-live-cache-first",
           "turn-live-cache-update",
-          agentMessage("agent-live-cache-first", "First"),
+          agentMessage("agent-live-cache-first", "First", "commentary"),
         ),
         replay: "live",
       }),
@@ -234,7 +234,7 @@ describe("transcript state selector cache", () => {
           eventItemStarted,
           "commit-live-cache-second",
           "turn-live-cache-update",
-          agentMessage("agent-live-cache-second", "Second"),
+          agentMessage("agent-live-cache-second", "Second", "commentary"),
         ),
         replay: "live",
       }),
@@ -253,7 +253,7 @@ describe("transcript state selector cache", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const initialItem = agentMessage("agent-live-cache-delta", "");
+    const initialItem = agentMessage("agent-live-cache-delta", "", "commentary");
 
     store.dispatch(
       threadRuntimeEventBuffered({

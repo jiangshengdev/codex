@@ -66,8 +66,8 @@ const intermediateUpdatesLabel = (count: number): string =>
   `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
 const areTranscriptEntryArraysEqual = (
-  previous: TranscriptEntry[],
-  next: TranscriptEntry[],
+  previous: TranscriptMiddlePayload[],
+  next: TranscriptMiddlePayload[],
 ): boolean => {
   if (previous === next) {
     return true;
@@ -167,7 +167,7 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] })
     (state) =>
       entryIds.flatMap((entryId) => {
         const entry = selectTranscriptEntry(state, entryId);
-        return entry == null || entry.type === "live" ? [] : [entry];
+        return entry == null ? [] : [entry];
       }),
     areTranscriptEntryArraysEqual,
   );
@@ -179,25 +179,39 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] })
   return (
     <>
       {entries.map((entry) => (
-        <CommittedTranscriptEntry
-          key={transcriptEntryIdFor(entry.turnId, entry.id)}
+        <FinalAssistantMessageEntry
           entry={entry}
+          key={transcriptEntryIdFor(entry.turnId, entry.id)}
         />
       ))}
     </>
   );
 };
 
-const LiveAssistantMessageEntry = ({ item }: { item: TranscriptRenderableLiveItem }) => (
-  <Card
-    className="committed-transcript-live-entry committed-transcript-live-assistant-message min-w-0"
-    role="article"
-  >
-    <Card.Content className="grid min-w-0 gap-2">
-      <LiveMarkdownText source={item.transientText} />
-    </Card.Content>
-  </Card>
-);
+function LiveAssistantMessageEntry({ item }: { item: TranscriptRenderableLiveItem }) {
+  return (
+    <Card
+      className="committed-transcript-live-entry committed-transcript-live-assistant-message min-w-0"
+      role="article"
+    >
+      <Card.Content className="grid min-w-0 gap-2">
+        <LiveMarkdownText source={item.transientText} />
+      </Card.Content>
+    </Card>
+  );
+}
+
+function FinalAssistantMessageEntry({ entry }: { entry: TranscriptMiddlePayload }) {
+  if (entry.type !== "live") {
+    return <CommittedTranscriptEntry entry={entry} />;
+  }
+
+  if (entry.initialItem.type !== "agentMessage" || entry.transientText.length === 0) {
+    return null;
+  }
+
+  return <LiveAssistantMessageEntry item={entry} />;
+}
 
 const MiddleTranscriptEntry = ({ entry }: { entry: TranscriptMiddlePayload }) => {
   if (entry.type !== "live") {

@@ -11,16 +11,13 @@ import {
   type TranscriptTurn,
 } from "./transcriptStateModel";
 
-export const hasStartedItemInMiddle = (
+export const hasTranscriptEntry = (
   state: TranscriptState,
   turnId: string,
   itemId: string,
-): boolean => {
-  const existingChunkId = state.entryChunkById[transcriptEntryIdFor(turnId, itemId)];
-  return existingChunkId != null && state.chunksById[existingChunkId]?.turnId === turnId;
-};
+): boolean => state.entriesById[transcriptEntryIdFor(turnId, itemId)] != null;
 
-export const appendStartedItemToMiddle = (
+export const appendStartedTranscriptItem = (
   state: TranscriptState,
   turnId: string,
   item: ThreadItem,
@@ -29,15 +26,11 @@ export const appendStartedItemToMiddle = (
     return;
   }
 
-  if (hasStartedItemInMiddle(state, turnId, item.id)) {
+  if (hasTranscriptEntry(state, turnId, item.id)) {
     return;
   }
 
-  const chunk = getOrCreateMiddleChunk(state, turnId);
   const entryId = transcriptEntryIdFor(turnId, item.id);
-  chunk.entryIds.push(entryId);
-  chunk.revision += 1;
-  state.entryChunkById[entryId] = chunk.id;
   state.entriesById[entryId] = {
     type: "live",
     id: item.id,
@@ -49,6 +42,15 @@ export const appendStartedItemToMiddle = (
     transientText: "",
     revision: 0,
   };
+
+  if (item.phase === "final_answer") {
+    return;
+  }
+
+  const chunk = getOrCreateMiddleChunk(state, turnId);
+  chunk.entryIds.push(entryId);
+  chunk.revision += 1;
+  state.entryChunkById[entryId] = chunk.id;
 };
 
 const chunkIdForIndex = (turnId: string, index: number): string =>
@@ -180,6 +182,33 @@ const removeEntryFromMiddleChunk = (
   return true;
 };
 
+const appendEntryToFinal = (
+  state: TranscriptState,
+  turnId: string,
+  entryId: ReturnType<typeof transcriptEntryIdFor>,
+) => {
+  const turn = ensureTranscriptTurn(state, turnId);
+  if (!turn.finalAssistantEntryIds.includes(entryId)) {
+    turn.finalAssistantEntryIds.push(entryId);
+  }
+};
+
+const removeEntryFromFinal = (state: TranscriptState, turnId: string, itemId: string): boolean => {
+  const turn = state.turnsById[turnId];
+  if (turn == null) {
+    return false;
+  }
+
+  const entryId = transcriptEntryIdFor(turnId, itemId);
+  const entryIndex = turn.finalAssistantEntryIds.indexOf(entryId);
+  if (entryIndex === -1) {
+    return false;
+  }
+
+  turn.finalAssistantEntryIds.splice(entryIndex, 1);
+  return true;
+};
+
 const classifyNewEntry = (
   state: TranscriptState,
   entry: TranscriptEntry,
@@ -195,7 +224,7 @@ const classifyNewEntry = (
   }
 
   if (isFinalAssistantEntry(entry)) {
-    turn.finalAssistantEntryIds.push(entryId);
+    appendEntryToFinal(state, entry.turnId, entryId);
     return;
   }
 
@@ -224,6 +253,19 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
   const turn = ensureTranscriptTurn(state, entry.turnId);
   const chunkId = state.entryChunkById[entryId];
   if (chunkId == null) {
+    if (isFinalAssistantEntry(entry)) {
+      appendEntryToFinal(state, entry.turnId, entryId);
+      return;
+    }
+
+    if (
+      existingEntry.type === "live" &&
+      existingEntry.initialItem.type === "agentMessage" &&
+      existingEntry.initialItem.phase === "final_answer"
+    ) {
+      removeEntryFromFinal(state, entry.turnId, entry.id);
+      appendEntryToMiddleChunk(state, entry, { bumpChunkRevision: true });
+    }
     return;
   }
 
@@ -235,7 +277,7 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
 
   if (isFinalAssistantEntry(entry)) {
     removeEntryFromMiddleChunk(state, entry.turnId, entry.id, hadVisibleMiddleContribution);
-    turn.finalAssistantEntryIds.push(entryId);
+    appendEntryToFinal(state, entry.turnId, entryId);
     return;
   }
 
@@ -259,11 +301,9 @@ export const applyCompletedTranscriptItem = (
   if (entry == null) {
     const entryId = transcriptEntryIdFor(turnId, item.id);
     const existingEntry = state.entriesById[entryId];
-    if (
-      existingEntry?.type === "live" &&
-      existingEntry.turnId === turnId &&
-      removeEntryFromMiddleChunk(state, turnId, item.id, existingEntry.transientText.length > 0)
-    ) {
+    if (existingEntry?.type === "live" && existingEntry.turnId === turnId) {
+      removeEntryFromMiddleChunk(state, turnId, item.id, existingEntry.transientText.length > 0);
+      removeEntryFromFinal(state, turnId, item.id);
       Reflect.deleteProperty(state.entriesById, entryId);
     }
     return false;

@@ -2,17 +2,20 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   agentMessage,
+  agentMessageDelta,
   attachWithTurns,
   itemCompleted,
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -29,8 +32,8 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const firstItem = agentMessage("agent-slot-first", "First");
-    const secondItem = agentMessage("agent-slot-second", "Second");
+    const firstItem = agentMessage("agent-slot-first", "First", "commentary");
+    const secondItem = agentMessage("agent-slot-second", "Second", "commentary");
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -51,7 +54,7 @@ describe("transcript state live item lifecycle reducer", () => {
           eventItemStarted,
           "commit-slot-first-duplicate-id",
           "turn-slot-order",
-          agentMessage("agent-slot-first", "Updated initial"),
+          agentMessage("agent-slot-first", "Updated initial", "commentary"),
         ),
         replay: "live",
       }),
@@ -107,7 +110,7 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const initialItem = agentMessage("agent-settled", "");
+    const initialItem = agentMessage("agent-settled", "", "final_answer");
     const completedItem = agentMessage("agent-settled", "Completed answer", "final_answer");
 
     store.dispatch(
@@ -121,7 +124,30 @@ describe("transcript state live item lifecycle reducer", () => {
         replay: "live",
       }),
     );
+    expect(selectTranscriptTurn(store.getState(), "turn-settled")).toStrictEqual({
+      id: "turn-settled",
+      status: "inProgress",
+      originalFirstItemId: "agent-settled",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
     expect(selectTranscriptTurn(store.getState(), "turn-settled")?.middleEntryCount).toBe(0);
+    expect(selectTranscriptChunk(store.getState(), "turn-settled:chunk:0")).toBeNull();
+    const beforeDuplicateState = store.getState().transcriptState;
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-settled-started-duplicate",
+          "turn-settled",
+          agentMessage("agent-settled", "Updated duplicate", "final_answer"),
+        ),
+        replay: "live",
+      }),
+    );
+    expect(store.getState().transcriptState).toBe(beforeDuplicateState);
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
@@ -161,12 +187,127 @@ describe("transcript state live item lifecycle reducer", () => {
     expect(selectTranscriptChunk(store.getState(), "turn-settled:chunk:0")).toBeNull();
   });
 
+  it("removes a hidden final slot after an empty completed final message", () => {
+    const store = makeStore();
+    const turnId = "turn-empty-final-settled";
+    const itemId = "agent-empty-final-settled";
+    const entryId = transcriptEntryIdFor(turnId, itemId);
+    const emptyFinalItem = agentMessage(itemId, "", "final_answer");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-empty-final-settled-started",
+          turnId,
+          emptyFinalItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-empty-final-settled-completed",
+          turnId,
+          emptyFinalItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("reclassifies a visible started final answer as commentary on completion", () => {
+    const store = makeStore();
+    const turnId = "turn-final-to-commentary";
+    const itemId = "agent-final-to-commentary";
+    const entryId = transcriptEntryIdFor(turnId, itemId);
+    const initialItem = agentMessage(itemId, "", "final_answer");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-final-to-commentary-started",
+          turnId,
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          agentMessageDelta(eventAgentMessageDelta, turnId, itemId, "Visible final draft"),
+        ],
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [entryId],
+    });
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-final-to-commentary-completed",
+          turnId,
+          agentMessage(itemId, "Completed commentary", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+      type: "message",
+      id: itemId,
+      turnId,
+      role: "assistant",
+      source: "Completed commentary",
+      sourceKind: "markdown",
+      phase: "commentary",
+      revision: 2,
+    });
+    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      leadingPromptEntryId: null,
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries.map(({ id }) => id),
+    ).toStrictEqual([itemId]);
+  });
+
   it("keeps the later live item addressable after removing an earlier live item", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const firstItem = agentMessage("agent-remove-first", "");
-    const secondItem = agentMessage("agent-remove-second", "Still live");
+    const firstItem = agentMessage("agent-remove-first", "", null);
+    const secondItem = agentMessage("agent-remove-second", "Still live", "commentary");
     const completedFirstItem = agentMessage(
       "agent-remove-first",
       "Completed first",
@@ -195,6 +336,20 @@ describe("transcript state live item lifecycle reducer", () => {
         replay: "live",
       }),
     );
+    expect(selectTranscriptTurn(store.getState(), "turn-remove-first")).toStrictEqual({
+      id: "turn-remove-first",
+      status: "inProgress",
+      originalFirstItemId: "agent-remove-first",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-remove-first:chunk:0"],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-remove-first:chunk:0")?.entries.map(
+        ({ id }) => id,
+      ),
+    ).toStrictEqual(["agent-remove-first", "agent-remove-second"]);
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
@@ -302,8 +457,8 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const initialItem = agentMessage("agent-empty-settled", "");
-    const completedItem = agentMessage("agent-empty-settled", "");
+    const initialItem = agentMessage("agent-empty-settled", "", "commentary");
+    const completedItem = agentMessage("agent-empty-settled", "", "commentary");
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
 
     store.dispatch(
@@ -353,8 +508,8 @@ describe("transcript state live item lifecycle reducer", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    const firstItem = agentMessage("agent-empty-first", "");
-    const secondItem = agentMessage("agent-empty-second", "");
+    const firstItem = agentMessage("agent-empty-first", "", "commentary");
+    const secondItem = agentMessage("agent-empty-second", "", "commentary");
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -436,7 +591,7 @@ describe("transcript state live item lifecycle reducer", () => {
 
   it("counts a non-empty middle completion once when no delta activated its live slot", () => {
     const store = makeStore();
-    const initialItem = agentMessage("agent-direct-middle", "");
+    const initialItem = agentMessage("agent-direct-middle", "", "commentary");
     const completedItem = agentMessage("agent-direct-middle", "Completed commentary", "commentary");
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -487,7 +642,7 @@ describe("transcript state live item lifecycle reducer", () => {
             eventItemStarted,
             `commit-hidden-initial-started-${String(index)}`,
             turnId,
-            agentMessage(itemId, ""),
+            agentMessage(itemId, "", "commentary"),
           ),
           replay: "live",
         }),
@@ -503,7 +658,7 @@ describe("transcript state live item lifecycle reducer", () => {
             eventItemCompleted,
             `commit-hidden-initial-completed-${String(index)}`,
             turnId,
-            agentMessage(itemId, ""),
+            agentMessage(itemId, "", "commentary"),
           ),
           replay: "live",
         }),
@@ -522,7 +677,7 @@ describe("transcript state live item lifecycle reducer", () => {
             eventItemStarted,
             `commit-hidden-added-started-${String(index)}`,
             turnId,
-            agentMessage(itemId, ""),
+            agentMessage(itemId, "", "commentary"),
           ),
           replay: "live",
         }),

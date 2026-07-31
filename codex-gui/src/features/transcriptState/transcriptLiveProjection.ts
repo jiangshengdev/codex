@@ -11,16 +11,22 @@ const bumpLiveScrollPulse = (state: TranscriptState) => {
   state.liveScrollPulse += 1;
 };
 
-type MiddleLiveItemAndChunk = {
-  item: TranscriptRenderableLiveItem;
-  chunk: TranscriptChunk;
-};
+type LiveItemPlacement =
+  | {
+      type: "middle";
+      item: TranscriptRenderableLiveItem;
+      chunk: TranscriptChunk;
+    }
+  | {
+      type: "final";
+      item: TranscriptRenderableLiveItem;
+    };
 
-const findMiddleLiveItemAndChunk = (
+const findLiveItemPlacement = (
   state: TranscriptState,
   turnId: string,
   itemId: string,
-): MiddleLiveItemAndChunk | null => {
+): LiveItemPlacement | null => {
   const entryId = transcriptEntryIdFor(turnId, itemId);
   const item = state.entriesById[entryId];
   if (item?.type !== "live" || item.turnId !== turnId || item.itemId !== itemId) {
@@ -29,11 +35,19 @@ const findMiddleLiveItemAndChunk = (
 
   const chunkId = state.entryChunkById[entryId];
   const chunk = chunkId == null ? null : state.chunksById[chunkId];
-  if (chunk?.turnId !== turnId) {
-    return null;
+  if (chunk?.turnId === turnId) {
+    return { type: "middle", item, chunk };
   }
 
-  return { item, chunk };
+  if (
+    state.turnsById[turnId] != null &&
+    item.initialItem.type === "agentMessage" &&
+    item.initialItem.phase === "final_answer"
+  ) {
+    return { type: "final", item };
+  }
+
+  return null;
 };
 
 type AgentMessageDeltaBucket = {
@@ -44,23 +58,31 @@ type AgentMessageDeltaBucket = {
 
 const appendDeltaToLiveItem = (
   state: TranscriptState,
-  item: TranscriptRenderableLiveItem,
-  chunk: TranscriptChunk,
+  placement: LiveItemPlacement,
   delta: string,
 ) => {
   if (delta.length === 0) {
     return;
   }
 
+  const { item } = placement;
   const hadVisibleContribution = item.transientText.length > 0;
   item.transientText += delta;
   item.status = "streaming";
   item.revision += 1;
-  chunk.revision += 1;
-  if (!hadVisibleContribution) {
+  if (placement.type === "middle") {
+    placement.chunk.revision += 1;
+  }
+  if (!hadVisibleContribution && placement.type === "middle") {
     const turn = state.turnsById[item.turnId];
     if (turn != null) {
       turn.middleEntryCount += 1;
+    }
+  }
+  if (!hadVisibleContribution && placement.type === "final") {
+    const turn = state.turnsById[item.turnId];
+    if (turn != null && !turn.finalAssistantEntryIds.includes(item.key)) {
+      turn.finalAssistantEntryIds.push(item.key);
     }
   }
   bumpLiveScrollPulse(state);
@@ -96,12 +118,12 @@ export const applyAcceptedProjectionDeltaBatch = (
   }
 
   for (const { turnId, itemId, deltas } of buckets) {
-    const itemAndChunk = findMiddleLiveItemAndChunk(state, turnId, itemId);
-    if (itemAndChunk == null) {
+    const placement = findLiveItemPlacement(state, turnId, itemId);
+    if (placement == null) {
       continue;
     }
 
     const delta = deltas.length === 1 ? deltas[0] : deltas.join("");
-    appendDeltaToLiveItem(state, itemAndChunk.item, itemAndChunk.chunk, delta);
+    appendDeltaToLiveItem(state, placement, delta);
   }
 };
