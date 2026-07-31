@@ -302,6 +302,90 @@ describe("transcript state live item lifecycle reducer", () => {
     ).toStrictEqual([itemId]);
   });
 
+  it("reclassifies a visible phase-null live item as final on completion", () => {
+    const store = makeStore();
+    const turnId = "turn-phase-null-to-final";
+    const itemId = "agent-phase-null-to-final";
+    const entryId = transcriptEntryIdFor(turnId, itemId);
+    const chunkId = `${turnId}:chunk:0`;
+    const initialItem = agentMessage(itemId, "", null);
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-phase-null-to-final-started",
+          turnId,
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [agentMessageDelta(eventAgentMessageDelta, turnId, itemId, "Visible draft")],
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+      type: "live",
+      id: itemId,
+      key: entryId,
+      turnId,
+      itemId,
+      status: "streaming",
+      initialItem,
+      transientText: "Visible draft",
+      revision: 1,
+    });
+    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      leadingPromptEntryId: null,
+      middleChunkIds: [chunkId],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+    ).toStrictEqual([itemId]);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-phase-null-to-final-completed",
+          turnId,
+          agentMessage(itemId, "Completed answer", "final_answer"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+      type: "message",
+      id: itemId,
+      turnId,
+      role: "assistant",
+      source: "Completed answer",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 2,
+    });
+    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: itemId,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [entryId],
+    });
+    expect(selectTranscriptChunk(store.getState(), chunkId)).toBeNull();
+  });
+
   it("keeps the later live item addressable after removing an earlier live item", () => {
     const store = makeStore();
 
