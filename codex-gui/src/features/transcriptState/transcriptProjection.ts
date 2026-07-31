@@ -11,7 +11,7 @@ import {
   recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
-} from "./transcriptCommittedProjection";
+} from "./transcriptStateImplementation";
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
 import { applyAcceptedProjectionDeltaBatch } from "./transcriptLiveProjection";
 import type { TranscriptState } from "./transcriptStateModel";

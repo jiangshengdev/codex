@@ -1,5 +1,5 @@
 import type { ThreadItem, Turn } from "@codex-protocol/v2";
-import { materializeTranscriptItem } from "./transcriptEntryMaterialization";
+import { projectTranscriptItem } from "./transcriptItemPolicy";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   createEmptyTranscriptState,
@@ -291,8 +291,8 @@ export const applyCompletedTranscriptItem = (
   item: ThreadItem,
 ): boolean => {
   recordOriginalFirstTranscriptItem(state, turnId, item);
-  const entry = materializeTranscriptItem(item, turnId);
-  if (entry == null) {
+  const projection = projectTranscriptItem(item, turnId);
+  if (projection.kind === "ignore") {
     const entryId = transcriptEntryIdFor(turnId, item.id);
     const existingEntry = state.entriesById[entryId];
     if (existingEntry?.type === "live" && existingEntry.turnId === turnId) {
@@ -303,7 +303,7 @@ export const applyCompletedTranscriptItem = (
     return false;
   }
 
-  upsertLiveCommittedEntry(state, entry);
+  upsertLiveCommittedEntry(state, projection.entry);
   return true;
 };
 
@@ -322,9 +322,9 @@ export const rebuildTranscriptFromSnapshot = (
   for (const turn of turns) {
     upsertTranscriptTurn(nextState, turn);
     for (const item of turn.items) {
-      const entry = materializeTranscriptItem(item, turn.id);
-      if (entry != null) {
-        appendBaselineEntry(nextState, entry);
+      const projection = projectTranscriptItem(item, turn.id);
+      if (projection.kind === "present") {
+        appendBaselineEntry(nextState, projection.entry);
       }
     }
   }

@@ -1,6 +1,10 @@
 import type { ThreadItem, UserInput } from "@codex-protocol/v2";
 import type { TranscriptEntry } from "./transcriptStateModel";
 
+export type TranscriptItemProjection =
+  | { kind: "ignore" }
+  | { kind: "present"; entry: TranscriptEntry };
+
 const textFromUserInput = (input: UserInput): string => {
   switch (input.type) {
     case "text":
@@ -18,42 +22,48 @@ const textFromUserInput = (input: UserInput): string => {
   return exhaustiveInput;
 };
 
-export const materializeTranscriptItem = (
+export const projectTranscriptItem = (
   item: ThreadItem,
   turnId: string,
-): TranscriptEntry | null => {
+): TranscriptItemProjection => {
   switch (item.type) {
     case "userMessage": {
       const source = item.content.map(textFromUserInput).join("");
       if (source.length === 0) {
-        return null;
+        return { kind: "ignore" };
       }
 
       return {
-        type: "message",
-        id: item.id,
-        turnId,
-        role: "user",
-        source,
-        sourceKind: "plainText",
-        phase: null,
-        revision: 0,
+        kind: "present",
+        entry: {
+          type: "message",
+          id: item.id,
+          turnId,
+          role: "user",
+          source,
+          sourceKind: "plainText",
+          phase: null,
+          revision: 0,
+        },
       };
     }
     case "agentMessage":
       if (item.text.length === 0) {
-        return null;
+        return { kind: "ignore" };
       }
 
       return {
-        type: "message",
-        id: item.id,
-        turnId,
-        role: "assistant",
-        source: item.text,
-        sourceKind: "markdown",
-        phase: item.phase,
-        revision: 0,
+        kind: "present",
+        entry: {
+          type: "message",
+          id: item.id,
+          turnId,
+          role: "assistant",
+          source: item.text,
+          sourceKind: "markdown",
+          phase: item.phase,
+          revision: 0,
+        },
       };
     case "hookPrompt":
     case "plan":
@@ -71,7 +81,7 @@ export const materializeTranscriptItem = (
     case "enteredReviewMode":
     case "exitedReviewMode":
     case "contextCompaction":
-      return null;
+      return { kind: "ignore" };
   }
 
   const exhaustiveItem: never = item;
