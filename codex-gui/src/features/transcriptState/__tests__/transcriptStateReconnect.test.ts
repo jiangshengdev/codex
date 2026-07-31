@@ -54,9 +54,7 @@ describe("transcript state reconnect reducer", () => {
       id: "agent-existing",
       turnId: "turn-existing",
       role: "assistant",
-      source: "Existing answer",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Existing answer" },
       revision: 0,
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
@@ -176,9 +174,7 @@ describe("transcript state reconnect reducer", () => {
       id: "agent-reconnect-live",
       turnId: "turn-reconnect-live",
       role: "assistant",
-      source: "Completed before reconnect",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Completed before reconnect" },
       revision: 1,
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
@@ -211,9 +207,7 @@ describe("transcript state reconnect reducer", () => {
       id: "agent-after-reconnect",
       turnId: "turn-after-reconnect",
       role: "assistant",
-      source: "After reconnect",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "After reconnect" },
       revision: 0,
     });
   });

@@ -36,7 +36,7 @@ import {
 } from "../transcriptStateSlice";
 
 describe("transcript state committed projection reducer", () => {
-  it("preserves assistant message phase in live completed transcript entries", () => {
+  it("preserves assistant message phase in stored live completions while projecting views", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
@@ -60,12 +60,15 @@ describe("transcript state committed projection reducer", () => {
         id: "agent-live-commentary",
         turnId: "turn-live-phase",
         role: "assistant",
-        source: "Still working",
-        sourceKind: "markdown",
-        phase: "commentary",
+        rendering: { mode: "staticMarkdown", source: "Still working" },
         revision: 0,
       },
     ]);
+    expect(
+      store.getState().transcriptState.entriesById[
+        transcriptEntryIdFor("turn-live-phase", "agent-live-commentary")
+      ],
+    ).toMatchObject({ type: "message", phase: "commentary" });
   });
 
   it("keeps a later completed user in middle when the first completed item is assistant", () => {
@@ -121,9 +124,7 @@ describe("transcript state committed projection reducer", () => {
       id: "agent-live",
       turnId: "turn-live",
       role: "assistant",
-      source: "Live answer",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Live answer" },
       revision: 0,
     });
     expect(
@@ -168,10 +169,16 @@ describe("transcript state committed projection reducer", () => {
       finalAssistantEntryIds: [],
     });
     expect(
+      store.getState().transcriptState.chunksById["turn-started-first:chunk:0"]?.entryIds,
+    ).toStrictEqual([
+      transcriptEntryIdFor("turn-started-first", "agent-started-first"),
+      transcriptEntryIdFor("turn-started-first", "user-after-started"),
+    ]);
+    expect(
       selectTranscriptChunk(store.getState(), "turn-started-first:chunk:0")?.entries.map(
         ({ id }) => id,
       ),
-    ).toStrictEqual(["agent-started-first", "user-after-started"]);
+    ).toStrictEqual(["user-after-started"]);
   });
 
   it("records a started reasoning item as the original first item without creating a middle slot", () => {
@@ -297,9 +304,7 @@ describe("transcript state committed projection reducer", () => {
       id: "user-started-leading",
       turnId: "turn-started-leading-user",
       role: "user",
-      source: "Prompt",
-      sourceKind: "plainText",
-      phase: null,
+      rendering: { mode: "plainText", source: "Prompt" },
       revision: 0,
     });
     expect(selectTranscriptChunk(store.getState(), "turn-started-leading-user:chunk:0")).toBeNull();
@@ -342,9 +347,7 @@ describe("transcript state committed projection reducer", () => {
       id: "agent-live-normalized",
       turnId: "turn-live-normalized",
       role: "assistant",
-      source: "Live normalized answer",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Live normalized answer" },
       revision: 0,
     });
   });
@@ -490,9 +493,7 @@ describe("transcript state committed projection reducer", () => {
       id: "agent-update",
       turnId: "turn-update",
       role: "assistant",
-      source: "Second",
-      sourceKind: "markdown",
-      phase: "commentary",
+      rendering: { mode: "staticMarkdown", source: "Second" },
       revision: 1,
     });
     expect(selectTranscriptChunk(store.getState(), "turn-update:chunk:0")).toStrictEqual({
@@ -505,9 +506,7 @@ describe("transcript state committed projection reducer", () => {
           id: "agent-update",
           turnId: "turn-update",
           role: "assistant",
-          source: "Second",
-          sourceKind: "markdown",
-          phase: "commentary",
+          rendering: { mode: "staticMarkdown", source: "Second" },
           revision: 1,
         },
       ],
@@ -551,9 +550,7 @@ describe("transcript state committed projection reducer", () => {
       id: "agent-phase-update",
       turnId: "turn-phase-update",
       role: "assistant",
-      source: "Done",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Done" },
       revision: 1,
     });
     expect(selectTranscriptTurn(store.getState(), "turn-phase-update")).toStrictEqual({
@@ -566,6 +563,11 @@ describe("transcript state committed projection reducer", () => {
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-phase-update", "agent-phase-update")],
     });
     expect(selectTranscriptChunk(store.getState(), "turn-phase-update:chunk:0")).toBeNull();
+    expect(
+      store.getState().transcriptState.entriesById[
+        transcriptEntryIdFor("turn-phase-update", "agent-phase-update")
+      ],
+    ).toMatchObject({ type: "message", phase: "final_answer" });
   });
 
   it("updates an existing final assistant entry without creating a middle chunk", () => {
@@ -614,9 +616,7 @@ describe("transcript state committed projection reducer", () => {
       id: "agent-final-update",
       turnId: "turn-final-update",
       role: "assistant",
-      source: "Second",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Second" },
       revision: 1,
     });
   });

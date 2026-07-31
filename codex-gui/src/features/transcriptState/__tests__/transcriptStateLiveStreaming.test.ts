@@ -47,7 +47,7 @@ describe("transcript state live streaming reducer", () => {
     );
 
     const entryId = transcriptEntryIdFor("turn-live-started-slot", "agent-live-started");
-    const expectedStartedPayload = {
+    const expectedStartedStoredEntry = {
       type: "live" as const,
       id: "agent-live-started",
       key: entryId,
@@ -58,7 +58,10 @@ describe("transcript state live streaming reducer", () => {
       transientText: "",
       revision: 0,
     };
-    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual(expectedStartedPayload);
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual(
+      expectedStartedStoredEntry,
+    );
+    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
     expect(selectTranscriptTurn(store.getState(), "turn-live-started-slot")).toStrictEqual({
       id: "turn-live-started-slot",
       status: "inProgress",
@@ -84,10 +87,21 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
-      ...expectedStartedPayload,
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
+      ...expectedStartedStoredEntry,
       status: "streaming",
       transientText: "Initial text should stay live only",
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+      type: "message",
+      id: "agent-live-started",
+      turnId: "turn-live-started-slot",
+      role: "assistant",
+      rendering: {
+        mode: "streamingMarkdown",
+        source: "Initial text should stay live only",
+      },
       revision: 1,
     });
     expect(selectTranscriptTurn(store.getState(), "turn-live-started-slot")).toStrictEqual({
@@ -141,10 +155,11 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    const expectedStreamingPayload = {
+    const entryId = transcriptEntryIdFor("turn-streaming", "agent-streaming");
+    const expectedStreamingStoredEntry = {
       type: "live" as const,
       id: "agent-streaming",
-      key: transcriptEntryIdFor("turn-streaming", "agent-streaming"),
+      key: entryId,
       turnId: "turn-streaming",
       itemId: "agent-streaming",
       status: "streaming",
@@ -152,17 +167,23 @@ describe("transcript state live streaming reducer", () => {
       transientText: "Hello world",
       revision: 2,
     };
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-streaming", "agent-streaming"),
-      ),
-    ).toStrictEqual(expectedStreamingPayload);
+    const expectedStreamingView = {
+      type: "message" as const,
+      id: "agent-streaming",
+      turnId: "turn-streaming",
+      role: "assistant" as const,
+      rendering: { mode: "streamingMarkdown" as const, source: "Hello world" },
+      revision: 2,
+    };
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual(
+      expectedStreamingStoredEntry,
+    );
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual(expectedStreamingView);
     expect(selectTranscriptChunk(store.getState(), "turn-streaming:chunk:0")).toStrictEqual({
       id: "turn-streaming:chunk:0",
       turnId: "turn-streaming",
       revision: 3,
-      entries: [expectedStreamingPayload],
+      entries: [expectedStreamingView],
     });
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
     expect(selectTranscriptTurn(store.getState(), "turn-streaming")?.middleEntryCount).toBe(1);
@@ -196,12 +217,14 @@ describe("transcript state live streaming reducer", () => {
 
     expect(selectTranscriptTurn(store.getState(), "turn-empty-delta")?.middleEntryCount).toBe(0);
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-empty-delta", "agent-empty-delta"),
-      ),
-    ).toMatchObject({ status: "started", transientText: "", revision: 0 });
+    const entryId = transcriptEntryIdFor("turn-empty-delta", "agent-empty-delta");
+    expect(store.getState().transcriptState.entriesById[entryId]).toMatchObject({
+      type: "live",
+      status: "started",
+      transientText: "",
+      revision: 0,
+    });
+    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
   });
 
   it("coalesces accepted agent message delta batches per live item in notification order", () => {
@@ -237,10 +260,11 @@ describe("transcript state live streaming reducer", () => {
 
     store.dispatch(threadRuntimeDeltasAccepted({ notifications: [firstDelta, secondDelta] }));
 
-    const expectedBatchPayload = {
+    const entryId = transcriptEntryIdFor("turn-streaming-batch", "agent-streaming-batch");
+    const expectedBatchStoredEntry = {
       type: "live" as const,
       id: "agent-streaming-batch",
-      key: transcriptEntryIdFor("turn-streaming-batch", "agent-streaming-batch"),
+      key: entryId,
       turnId: "turn-streaming-batch",
       itemId: "agent-streaming-batch",
       status: "streaming",
@@ -248,17 +272,23 @@ describe("transcript state live streaming reducer", () => {
       transientText: "Hello world",
       revision: 1,
     };
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-streaming-batch", "agent-streaming-batch"),
-      ),
-    ).toStrictEqual(expectedBatchPayload);
+    const expectedBatchView = {
+      type: "message" as const,
+      id: "agent-streaming-batch",
+      turnId: "turn-streaming-batch",
+      role: "assistant" as const,
+      rendering: { mode: "streamingMarkdown" as const, source: "Hello world" },
+      revision: 1,
+    };
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual(
+      expectedBatchStoredEntry,
+    );
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual(expectedBatchView);
     expect(selectTranscriptChunk(store.getState(), "turn-streaming-batch:chunk:0")).toStrictEqual({
       id: "turn-streaming-batch:chunk:0",
       turnId: "turn-streaming-batch",
       revision: 2,
-      entries: [expectedBatchPayload],
+      entries: [expectedBatchView],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
   });
@@ -294,10 +324,14 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    const expectedSingleBatchPayload = {
+    const entryId = transcriptEntryIdFor(
+      "turn-streaming-single-batch",
+      "agent-streaming-single-batch",
+    );
+    const expectedSingleBatchStoredEntry = {
       type: "live" as const,
       id: "agent-streaming-single-batch",
-      key: transcriptEntryIdFor("turn-streaming-single-batch", "agent-streaming-single-batch"),
+      key: entryId,
       turnId: "turn-streaming-single-batch",
       itemId: "agent-streaming-single-batch",
       status: "streaming",
@@ -305,19 +339,25 @@ describe("transcript state live streaming reducer", () => {
       transientText: "Hello",
       revision: 1,
     };
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-streaming-single-batch", "agent-streaming-single-batch"),
-      ),
-    ).toStrictEqual(expectedSingleBatchPayload);
+    const expectedSingleBatchView = {
+      type: "message" as const,
+      id: "agent-streaming-single-batch",
+      turnId: "turn-streaming-single-batch",
+      role: "assistant" as const,
+      rendering: { mode: "streamingMarkdown" as const, source: "Hello" },
+      revision: 1,
+    };
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual(
+      expectedSingleBatchStoredEntry,
+    );
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual(expectedSingleBatchView);
     expect(
       selectTranscriptChunk(store.getState(), "turn-streaming-single-batch:chunk:0"),
     ).toStrictEqual({
       id: "turn-streaming-single-batch:chunk:0",
       turnId: "turn-streaming-single-batch",
       revision: 2,
-      entries: [expectedSingleBatchPayload],
+      entries: [expectedSingleBatchView],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
   });
@@ -383,10 +423,18 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    const expectedFirstPayload = {
+    const firstEntryId = transcriptEntryIdFor(
+      "turn-streaming-batch-isolated",
+      "agent-streaming-batch-first",
+    );
+    const secondEntryId = transcriptEntryIdFor(
+      "turn-streaming-batch-isolated",
+      "agent-streaming-batch-second",
+    );
+    const expectedFirstStoredEntry = {
       type: "live" as const,
       id: "agent-streaming-batch-first",
-      key: transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-first"),
+      key: firstEntryId,
       turnId: "turn-streaming-batch-isolated",
       itemId: "agent-streaming-batch-first",
       status: "streaming",
@@ -394,10 +442,10 @@ describe("transcript state live streaming reducer", () => {
       transientText: "First message",
       revision: 1,
     };
-    const expectedSecondPayload = {
+    const expectedSecondStoredEntry = {
       type: "live" as const,
       id: "agent-streaming-batch-second",
-      key: transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-second"),
+      key: secondEntryId,
       turnId: "turn-streaming-batch-isolated",
       itemId: "agent-streaming-batch-second",
       status: "streaming",
@@ -405,25 +453,39 @@ describe("transcript state live streaming reducer", () => {
       transientText: "Second message",
       revision: 1,
     };
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-first"),
-      ),
-    ).toStrictEqual(expectedFirstPayload);
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-streaming-batch-isolated", "agent-streaming-batch-second"),
-      ),
-    ).toStrictEqual(expectedSecondPayload);
+    const expectedFirstView = {
+      type: "message" as const,
+      id: "agent-streaming-batch-first",
+      turnId: "turn-streaming-batch-isolated",
+      role: "assistant" as const,
+      rendering: { mode: "streamingMarkdown" as const, source: "First message" },
+      revision: 1,
+    };
+    const expectedSecondView = {
+      type: "message" as const,
+      id: "agent-streaming-batch-second",
+      turnId: "turn-streaming-batch-isolated",
+      role: "assistant" as const,
+      rendering: { mode: "streamingMarkdown" as const, source: "Second message" },
+      revision: 1,
+    };
+    expect(store.getState().transcriptState.entriesById[firstEntryId]).toStrictEqual(
+      expectedFirstStoredEntry,
+    );
+    expect(store.getState().transcriptState.entriesById[secondEntryId]).toStrictEqual(
+      expectedSecondStoredEntry,
+    );
+    expect(selectTranscriptEntry(store.getState(), firstEntryId)).toStrictEqual(expectedFirstView);
+    expect(selectTranscriptEntry(store.getState(), secondEntryId)).toStrictEqual(
+      expectedSecondView,
+    );
     expect(
       selectTranscriptChunk(store.getState(), "turn-streaming-batch-isolated:chunk:0"),
     ).toStrictEqual({
       id: "turn-streaming-batch-isolated:chunk:0",
       turnId: "turn-streaming-batch-isolated",
       revision: 4,
-      entries: [expectedFirstPayload, expectedSecondPayload],
+      entries: [expectedFirstView, expectedSecondView],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 2);
   });
@@ -514,10 +576,14 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    const expectedFilteredPayload = {
+    const entryId = transcriptEntryIdFor(
+      "turn-streaming-filtered-batch",
+      "agent-streaming-filtered-batch",
+    );
+    const expectedFilteredStoredEntry = {
       type: "live" as const,
       id: "agent-streaming-filtered-batch",
-      key: transcriptEntryIdFor("turn-streaming-filtered-batch", "agent-streaming-filtered-batch"),
+      key: entryId,
       turnId: "turn-streaming-filtered-batch",
       itemId: "agent-streaming-filtered-batch",
       status: "streaming",
@@ -525,19 +591,25 @@ describe("transcript state live streaming reducer", () => {
       transientText: "Visible text",
       revision: 1,
     };
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-streaming-filtered-batch", "agent-streaming-filtered-batch"),
-      ),
-    ).toStrictEqual(expectedFilteredPayload);
+    const expectedFilteredView = {
+      type: "message" as const,
+      id: "agent-streaming-filtered-batch",
+      turnId: "turn-streaming-filtered-batch",
+      role: "assistant" as const,
+      rendering: { mode: "streamingMarkdown" as const, source: "Visible text" },
+      revision: 1,
+    };
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual(
+      expectedFilteredStoredEntry,
+    );
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual(expectedFilteredView);
     expect(
       selectTranscriptChunk(store.getState(), "turn-streaming-filtered-batch:chunk:0"),
     ).toStrictEqual({
       id: "turn-streaming-filtered-batch:chunk:0",
       turnId: "turn-streaming-filtered-batch",
       revision: 2,
-      entries: [expectedFilteredPayload],
+      entries: [expectedFilteredView],
     });
     expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(pulseAfterStarted + 1);
   });

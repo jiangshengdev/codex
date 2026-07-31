@@ -316,15 +316,11 @@ test("App batches accepted projection deltas until the next animation frame", as
       agentMessageDelta(eventAgentMessageDelta, "turn-raf-batch", "agent-raf-batch", " world"),
     );
 
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
-      ),
-    ).toStrictEqual({
+    const entryId = transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch");
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
       type: "live",
       id: "agent-raf-batch",
-      key: transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
+      key: entryId,
       turnId: "turn-raf-batch",
       itemId: "agent-raf-batch",
       status: "started",
@@ -332,25 +328,29 @@ test("App batches accepted projection deltas until the next animation frame", as
       transientText: "",
       revision: 0,
     });
+    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
 
     vi.advanceTimersToNextFrame();
 
     await expect.element(screen.getByText("Hello world")).toBeVisible();
 
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
-      ),
-    ).toStrictEqual({
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
       type: "live",
       id: "agent-raf-batch",
-      key: transcriptEntryIdFor("turn-raf-batch", "agent-raf-batch"),
+      key: entryId,
       turnId: "turn-raf-batch",
       itemId: "agent-raf-batch",
       status: "streaming",
       initialItem,
       transientText: "Hello world",
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+      type: "message",
+      id: "agent-raf-batch",
+      turnId: "turn-raf-batch",
+      role: "assistant",
+      rendering: { mode: "streamingMarkdown", source: "Hello world" },
       revision: 1,
     });
   } finally {
@@ -403,12 +403,8 @@ test("App flushes pending projection deltas before structural projection events"
     );
     emitProjectionEvent(options, itemCompletedEvent);
 
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-raf-flush-event", "agent-raf-flush-event"),
-      ),
-    ).toStrictEqual({
+    const entryId = transcriptEntryIdFor("turn-raf-flush-event", "agent-raf-flush-event");
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
       type: "message",
       id: "agent-raf-flush-event",
       turnId: "turn-raf-flush-event",
@@ -416,6 +412,14 @@ test("App flushes pending projection deltas before structural projection events"
       source: "Completed answer",
       sourceKind: "markdown",
       phase: "final_answer",
+      revision: 2,
+    });
+    expect(selectTranscriptEntry(store.getState(), entryId)).toStrictEqual({
+      type: "message",
+      id: "agent-raf-flush-event",
+      turnId: "turn-raf-flush-event",
+      role: "assistant",
+      rendering: { mode: "staticMarkdown", source: "Completed answer" },
       revision: 2,
     });
   } finally {
@@ -951,15 +955,11 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
     vi.advanceTimersToNextFrame();
 
     expect(getCleanupConnectionCallCount()).toBe(1);
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup"),
-      ),
-    ).toStrictEqual({
+    const entryId = transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup");
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
       type: "live",
       id: "agent-raf-cleanup",
-      key: transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup"),
+      key: entryId,
       turnId: "turn-raf-cleanup",
       itemId: "agent-raf-cleanup",
       status: "started",
@@ -967,6 +967,7 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
       transientText: "",
       revision: 0,
     });
+    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
   } finally {
     vi.useRealTimers();
   }

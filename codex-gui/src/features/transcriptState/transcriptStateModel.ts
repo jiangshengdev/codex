@@ -62,13 +62,6 @@ export type TranscriptGlobalStatus = {
   subscriptionId: string | null;
 };
 
-export type TranscriptChunkView = {
-  id: string;
-  turnId: string;
-  revision: number;
-  entries: TranscriptMiddlePayload[];
-};
-
 export type TranscriptRenderableLiveItem = {
   type: "live";
   id: string;
@@ -81,7 +74,38 @@ export type TranscriptRenderableLiveItem = {
   revision: number;
 };
 
-export type TranscriptMiddlePayload = TranscriptEntry | TranscriptRenderableLiveItem;
+export type TranscriptStoredEntry = TranscriptEntry | TranscriptRenderableLiveItem;
+
+export type TranscriptMessageRendering =
+  | { mode: "plainText"; source: string }
+  | { mode: "staticMarkdown"; source: string }
+  | { mode: "streamingMarkdown"; source: string };
+
+export type TranscriptMessageView = {
+  type: "message";
+  id: string;
+  turnId: string;
+  role: "user" | "assistant";
+  rendering: TranscriptMessageRendering;
+  revision: number;
+};
+
+export type TranscriptStatusView = {
+  type: "status";
+  id: string;
+  turnId: string;
+  status: "interrupted" | "failed";
+  revision: number;
+};
+
+export type TranscriptEntryView = TranscriptMessageView | TranscriptStatusView;
+
+export type TranscriptChunkView = {
+  id: string;
+  turnId: string;
+  revision: number;
+  entries: TranscriptEntryView[];
+};
 
 export type TranscriptState = {
   threadId: string | null;
@@ -91,7 +115,7 @@ export type TranscriptState = {
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunksById: Record<string, TranscriptChunk>;
-  entriesById: Record<TranscriptEntryId, TranscriptMiddlePayload>;
+  entriesById: Record<TranscriptEntryId, TranscriptStoredEntry>;
   entryChunkById: Record<TranscriptEntryId, string>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;

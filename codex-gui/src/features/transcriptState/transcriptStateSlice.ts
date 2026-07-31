@@ -10,11 +10,11 @@ import {
   initialTranscriptState,
   type TranscriptChunkView,
   type TranscriptEntryId,
+  type TranscriptEntryView,
   type TranscriptGlobalStatus,
-  type TranscriptMiddlePayload,
   type TranscriptTurn,
 } from "./transcriptStateModel";
-import { transcriptChunkView } from "./transcriptStateSelectors";
+import { transcriptChunkView, transcriptEntryView } from "./transcriptStateSelectors";
 
 export {
   MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
@@ -25,13 +25,12 @@ export type {
   TranscriptChunk,
   TranscriptChunkView,
   TranscriptEntryId,
-  TranscriptEntry,
+  TranscriptEntryView,
   TranscriptGlobalStatus,
-  TranscriptLiveItemStatus,
-  TranscriptMessagePhase,
-  TranscriptMiddlePayload,
-  TranscriptRenderableLiveItem,
+  TranscriptMessageRendering,
+  TranscriptMessageView,
   TranscriptState,
+  TranscriptStatusView,
   TranscriptTurn,
 } from "./transcriptStateModel";
 
@@ -51,7 +50,7 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptEntry: (
       transcriptState,
       entryId: TranscriptEntryId,
-    ): TranscriptMiddlePayload | null => transcriptState.entriesById[entryId] ?? null,
+    ): TranscriptEntryView | null => transcriptEntryView(transcriptState, entryId),
     selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
       transcriptState.globalStatus,
   },
