@@ -92,9 +92,16 @@ describe("composerTurnControlModel", () => {
       canSend({ connectionUsable: true, activeTurnId: null, draft: "Hello", isSending: true }),
     ).toBe(false);
 
-    expect(canStop({ connectionUsable: true, activeTurnId: "turn-1" })).toBe(true);
-    expect(canStop({ connectionUsable: true, activeTurnId: null })).toBe(false);
-    expect(canStop({ connectionUsable: false, activeTurnId: "turn-1" })).toBe(false);
+    expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: false })).toBe(
+      true,
+    );
+    expect(canStop({ connectionUsable: true, activeTurnId: null, isStopping: false })).toBe(false);
+    expect(canStop({ connectionUsable: false, activeTurnId: "turn-1", isStopping: false })).toBe(
+      false,
+    );
+    expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: true })).toBe(
+      false,
+    );
   });
 
   it("extracts human-readable error descriptions", () => {

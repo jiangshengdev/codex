@@ -6,6 +6,10 @@ use crate::config::ManagedFeatures;
 use crate::config::NetworkProxySpec;
 use crate::config::test_config;
 use crate::guardian::approval_request::guardian_request_target_item_id;
+use crate::guardian::prompt::BUNDLED_GUARDIAN_POLICY;
+use crate::guardian::prompt::BUNDLED_GUARDIAN_POLICY_TEMPLATE;
+use crate::guardian::prompt::guardian_policy_prompt_with_config_and_template;
+use crate::guardian::review::guardian_review_session_config;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::test_support;
@@ -248,7 +252,6 @@ async fn guardian_test_session_turn_and_rx(
     turn_mut.config = Arc::clone(&config);
     turn_mut.provider =
         create_model_provider(config.model_provider.clone(), turn_mut.auth_manager.clone());
-    turn_mut.user_instructions = None;
 
     (session, turn, rx)
 }
@@ -280,7 +283,6 @@ async fn guardian_test_session_and_turn_with_base_url(
     session.services.models_manager = models_manager;
     turn.config = Arc::clone(&config);
     turn.provider = create_model_provider(config.model_provider.clone(), turn.auth_manager.clone());
-    turn.user_instructions = None;
 
     (Arc::new(session), Arc::new(turn))
 }
@@ -344,7 +346,7 @@ fn response_item_contains_message_text(item: &ResponseItem, needle: &str) -> boo
     };
     content.iter().any(|item| match item {
         ContentItem::InputText { text } | ContentItem::OutputText { text } => text.contains(needle),
-        ContentItem::InputImage { .. } => false,
+        ContentItem::InputImage { .. } | ContentItem::InputAudio { .. } => false,
     })
 }
 
@@ -471,18 +473,21 @@ async fn build_guardian_prompt_includes_parent_turn_denied_reads() -> anyhow::Re
                     value: codex_protocol::permissions::FileSystemSpecialPath::Root,
                 },
                 access: FileSystemAccessMode::Read,
+                missing_path_behavior: None,
             },
             FileSystemSandboxEntry {
                 path: FileSystemPath::Path {
                     path: denied_root.clone(),
                 },
                 access: FileSystemAccessMode::Deny,
+                missing_path_behavior: None,
             },
             FileSystemSandboxEntry {
                 path: FileSystemPath::GlobPattern {
                     pattern: denied_glob.clone(),
                 },
                 access: FileSystemAccessMode::Deny,
+                missing_path_behavior: None,
             },
         ]),
         NetworkSandboxPolicy::Restricted,
@@ -925,6 +930,7 @@ fn guardian_approval_request_to_json_renders_mcp_tool_call_shape() -> serde_json
         connector_id: None,
         connector_name: Some("Playwright".to_string()),
         connector_description: None,
+        connected_account_email: Some("owner@example.com".to_string()),
         tool_title: Some("Navigate".to_string()),
         tool_description: None,
         annotations: Some(GuardianMcpAnnotations {
@@ -944,6 +950,7 @@ fn guardian_approval_request_to_json_renders_mcp_tool_call_shape() -> serde_json
                 "url": "https://example.com",
             },
             "connector_name": "Playwright",
+            "connected_account_email": "owner@example.com",
             "tool_title": "Navigate",
             "annotations": {
                 "destructive_hint": true,
@@ -1160,8 +1167,11 @@ async fn cancelled_guardian_review_emits_terminal_abort_without_warning() {
                 .to_string(),
         },
         /*retry_reason*/ None,
-        GuardianApprovalRequestSource::MainTurn,
-        cancel_token,
+        GuardianReviewOptions {
+            plugin_attribution_override: None,
+            approval_request_source: GuardianApprovalRequestSource::MainTurn,
+            external_cancel: Some(cancel_token),
+        },
     )
     .await;
 
@@ -1743,6 +1753,16 @@ async fn guardian_review_request_layout_matches_model_visible_request_snapshot()
     ));
     let request = request_log.single_request();
     let request_body = request.body_json();
+    let guardian_tool_names = request_body["tools"]
+        .as_array()
+        .expect("guardian request tools")
+        .iter()
+        .map(|tool| tool["name"].as_str().expect("guardian request tool name"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        guardian_tool_names,
+        vec!["exec_command", "write_stdin", "view_image"]
+    );
     let guardian_user_text = request.message_input_texts("user").join("\n");
     assert!(
         guardian_user_text.contains(&format!("${GUARDIAN_SKILL_NAME}")),
@@ -2216,10 +2236,12 @@ async fn guardian_reused_trunk_ignores_stale_prior_turn_completion() -> anyhow::
             id: "stale-turn".to_string(),
             msg: EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: "stale-turn".to_string(),
+                started_at: None,
                 last_agent_message: Some(
                     "{\"risk_level\":\"high\",\"user_authorization\":\"low\",\"outcome\":\"deny\",\"rationale\":\"stale guardian rationale\"}"
                         .to_string(),
                 ),
+                error: None,
                 completed_at: None,
                 duration_ms: None,
                 time_to_first_token_ms: Some(1),
@@ -2303,7 +2325,6 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() -> 
     turn_mut.config = Arc::clone(&config);
     turn_mut.provider =
         create_model_provider(config.model_provider.clone(), turn_mut.auth_manager.clone());
-    turn_mut.user_instructions = None;
 
     seed_guardian_parent_history(&session, &turn).await;
 
@@ -2323,7 +2344,9 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() -> 
     )
     .await;
 
-    assert_eq!(decision, ReviewDecision::Denied);
+    let ReviewDecision::Denied { rejection } = decision else {
+        panic!("guardian error should deny the approval");
+    };
     assert_eq!(request_log.requests().len(), 1);
 
     let mut warnings = Vec::new();
@@ -2359,17 +2382,10 @@ async fn guardian_review_surfaces_responses_api_errors_in_rejection_reason() -> 
         }),
         "denial rationale should not fall back to the generic missing payload error"
     );
-    {
-        let rationales = session.services.guardian_rejections.lock().await;
-        assert!(rationales.contains_key("review-shell-guardian-error"));
-        assert!(!rationales.contains_key("shell-guardian-error"));
-    }
-    let rejection_message =
-        guardian_rejection_message(session.as_ref(), "review-shell-guardian-error").await;
     assert!(
-        rejection_message.contains("Reason: Automatic approval review failed:")
-            && rejection_message.contains(error_message),
-        "rejection message should include guardian rationale: {rejection_message}"
+        rejection.contains("Reason: Automatic approval review failed:")
+            && rejection.contains(error_message),
+        "rejection message should include guardian rationale: {rejection}"
     );
 
     Ok(())
@@ -2456,7 +2472,7 @@ async fn guardian_review_does_not_retry_missing_assessment_payload() -> anyhow::
     )
     .await;
 
-    assert_eq!(decision, ReviewDecision::Denied);
+    assert!(matches!(decision, ReviewDecision::Denied { .. }));
     assert_eq!(request_log.requests().len(), 1);
     Ok(())
 }
@@ -2560,7 +2576,7 @@ async fn guardian_review_exhausts_three_failures_with_one_terminal_event() -> an
     )
     .await;
 
-    assert_eq!(decision, ReviewDecision::Denied);
+    assert!(matches!(decision, ReviewDecision::Denied { .. }));
     assert_eq!(request_log.requests().len(), 3);
     let mut statuses = Vec::new();
     while let Ok(event) = rx.try_recv() {
@@ -2611,7 +2627,7 @@ async fn guardian_review_does_not_retry_valid_denial() -> anyhow::Result<()> {
     )
     .await;
 
-    assert_eq!(decision, ReviewDecision::Denied);
+    assert!(matches!(decision, ReviewDecision::Denied { .. }));
     assert_eq!(request_log.requests().len(), 1);
     Ok(())
 }
@@ -2897,6 +2913,7 @@ async fn guardian_review_session_config_preserves_parent_network_proxy() {
         /*live_network_config*/ None,
         "parent-active-model",
         Some(codex_protocol::openai_models::ReasoningEffort::Low),
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
@@ -2920,6 +2937,69 @@ async fn guardian_review_session_config_preserves_parent_network_proxy() {
 }
 
 #[tokio::test]
+async fn guardian_review_session_config_clears_context_overrides_for_distinct_effective_model() {
+    let server = start_mock_server().await;
+    let (session, mut turn) = guardian_test_session_and_turn(&server).await;
+    let mut config = (*turn.config).clone();
+    config.model = Some("codex-auto-review".to_string());
+    config.model_context_window = Some(900_000);
+    config.model_auto_compact_token_limit = Some(600_000);
+    Arc::get_mut(&mut turn)
+        .expect("turn should be unique")
+        .config = Arc::new(config);
+
+    let guardian_config = guardian_review_session_config(session.as_ref(), turn.as_ref())
+        .await
+        .expect("guardian config")
+        .spawn_config;
+
+    assert_eq!(
+        (
+            guardian_config.model_context_window,
+            guardian_config.model_auto_compact_token_limit,
+        ),
+        (None, None)
+    );
+}
+
+#[tokio::test]
+async fn guardian_review_session_config_preserves_context_overrides_for_same_effective_model() {
+    let server = start_mock_server().await;
+    let (mut session, mut turn) = guardian_test_session_and_turn(&server).await;
+    let parent_model = turn.model_info.clone();
+    let auth_manager = Arc::clone(&session.services.auth_manager);
+    Arc::get_mut(&mut session)
+        .expect("session should be unique")
+        .services
+        .models_manager = Arc::new(StaticModelsManager::new(
+        Some(auth_manager),
+        ModelsResponse {
+            models: vec![parent_model],
+        },
+    ));
+    let mut config = (*turn.config).clone();
+    config.model = Some("stale-parent-model".to_string());
+    config.model_context_window = Some(128_000);
+    config.model_auto_compact_token_limit = Some(100_000);
+    Arc::get_mut(&mut turn)
+        .expect("turn should be unique")
+        .config = Arc::new(config);
+
+    let guardian_config = guardian_review_session_config(session.as_ref(), turn.as_ref())
+        .await
+        .expect("guardian config")
+        .spawn_config;
+
+    assert_eq!(
+        (
+            guardian_config.model_context_window,
+            guardian_config.model_auto_compact_token_limit,
+        ),
+        (Some(128_000), Some(100_000))
+    );
+}
+
+#[tokio::test]
 async fn guardian_review_session_config_clears_parent_developer_instructions() {
     let mut parent_config = test_config().await;
     parent_config.developer_instructions =
@@ -2930,13 +3010,17 @@ async fn guardian_review_session_config_clears_parent_developer_instructions() {
         /*live_network_config*/ None,
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
     assert_eq!(guardian_config.developer_instructions, None);
     assert_eq!(
         guardian_config.base_instructions,
-        Some(guardian_policy_prompt())
+        Some(guardian_policy_prompt_with_config_and_template(
+            BUNDLED_GUARDIAN_POLICY,
+            BUNDLED_GUARDIAN_POLICY_TEMPLATE,
+        ))
     );
 }
 
@@ -2953,6 +3037,7 @@ async fn guardian_review_session_config_clears_legacy_notify() {
         /*live_network_config*/ None,
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
@@ -2962,11 +3047,11 @@ async fn guardian_review_session_config_clears_legacy_notify() {
 #[tokio::test]
 async fn guardian_review_session_config_uses_live_network_proxy_state() {
     let mut parent_config = test_config().await;
-    let mut parent_network = NetworkProxyConfig::default();
-    parent_network.network.enabled = true;
-    parent_network
-        .network
-        .set_allowed_domains(vec!["parent.example".to_string()]);
+    let mut parent_network = NetworkProxyConfig {
+        enabled: true,
+        ..Default::default()
+    };
+    parent_network.set_allowed_domains(vec!["parent.example".to_string()]);
     parent_config.permissions.network = Some(
         NetworkProxySpec::from_config_and_constraints(
             parent_network,
@@ -2976,17 +3061,18 @@ async fn guardian_review_session_config_uses_live_network_proxy_state() {
         .expect("parent network proxy spec"),
     );
 
-    let mut live_network = NetworkProxyConfig::default();
-    live_network.network.enabled = true;
-    live_network
-        .network
-        .set_allowed_domains(vec!["github.com".to_string()]);
+    let mut live_network = NetworkProxyConfig {
+        enabled: true,
+        ..Default::default()
+    };
+    live_network.set_allowed_domains(vec!["github.com".to_string()]);
 
     let guardian_config = build_guardian_review_session_config_for_test(
         &parent_config,
         Some(live_network.clone()),
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
@@ -3029,6 +3115,7 @@ async fn guardian_review_session_config_disables_mcp_apps_plugins_and_memories()
         /*live_network_config*/ None,
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
@@ -3059,6 +3146,7 @@ async fn guardian_review_session_config_allows_pinned_disabled_feature() {
         /*live_network_config*/ None,
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config should continue when a disabled feature is pinned on");
 
@@ -3077,6 +3165,7 @@ async fn guardian_review_session_config_uses_parent_active_model_instead_of_hard
         /*live_network_config*/ None,
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
@@ -3095,6 +3184,7 @@ async fn guardian_review_session_config_keeps_bedrock_provider_for_bedrock_gpt_5
         /*live_network_config*/ None,
         AMAZON_BEDROCK_GPT_5_4_MODEL_ID,
         Some(ReasoningEffort::Low),
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
@@ -3149,14 +3239,16 @@ async fn guardian_review_session_config_uses_requirements_guardian_policy_config
         /*live_network_config*/ None,
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
     assert_eq!(guardian_config.developer_instructions, None);
     assert_eq!(
         guardian_config.base_instructions,
-        Some(guardian_policy_prompt_with_config(
-            "Use the workspace-managed guardian policy."
+        Some(guardian_policy_prompt_with_config_and_template(
+            "Use the workspace-managed guardian policy.",
+            BUNDLED_GUARDIAN_POLICY_TEMPLATE,
         ))
     );
 }
@@ -3187,12 +3279,16 @@ async fn guardian_review_session_config_uses_default_guardian_policy_without_req
         /*live_network_config*/ None,
         "active-model",
         /*reasoning_effort*/ None,
+        /*model_messages*/ None,
     )
     .expect("guardian config");
 
     assert_eq!(guardian_config.developer_instructions, None);
     assert_eq!(
         guardian_config.base_instructions,
-        Some(guardian_policy_prompt())
+        Some(guardian_policy_prompt_with_config_and_template(
+            BUNDLED_GUARDIAN_POLICY,
+            BUNDLED_GUARDIAN_POLICY_TEMPLATE,
+        ))
     );
 }

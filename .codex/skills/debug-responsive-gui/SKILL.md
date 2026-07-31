@@ -14,7 +14,7 @@ description: Use only when debugging the Codex GUI with playwright-cli in a visi
 - Do not use Computer Use.
 - Do not click by coordinates.
 - Do not automatically choose or verify a specific device model.
-- Use AppleScript only to activate `Google Chrome for Testing`, query windows, move windows, close recognizable restore dialogs, and send the allowed `Command+Shift+M` shortcut in the DevTools window.
+- Use AppleScript only to activate `Google Chrome for Testing`, query windows, move windows, close recognizable restore dialogs, send the allowed `Command+Shift+M` shortcut in the DevTools window, and drive IME keyboard actions through `ime-control.mjs`.
 - Query state or take a screenshot when the visual state is unclear. Do not guess.
 
 ## Automation Entrypoint
@@ -58,6 +58,19 @@ node .codex/skills/debug-responsive-gui/scripts/inspect-redux.mjs --path transcr
 The script only inspects the current page controlled by `playwright-cli`. It does not launch, navigate, or close the browser. It writes JSON only to stdout. It enters the React fiber tree through `#root.__reactContainer$...`, finds the React-Redux Provider at `memoizedProps.value.store`, then reads `store.getState()`. It does not depend on the Redux DevTools extension or on `__REACT_DEVTOOLS_GLOBAL_HOOK__.getFiberRoots()`.
 
 The default output is a safe summary, not the full store. Use `--path <dot.path>` for a specific state subtree. Output is still bounded by `--max-depth`, `--max-keys`, `--max-array-items`, and `--max-string-length`.
+
+## IME control
+
+Use `ime-control.mjs` when testing macOS Simplified Pinyin input, IME candidate windows, or IME Enter behavior in visible `Google Chrome for Testing`.
+
+```bash
+node .codex/skills/debug-responsive-gui/scripts/ime-control.mjs start
+node .codex/skills/debug-responsive-gui/scripts/ime-control.mjs type nihao --session <session-id>
+node .codex/skills/debug-responsive-gui/scripts/ime-control.mjs key arrow-down --session <session-id>
+node .codex/skills/debug-responsive-gui/scripts/ime-control.mjs key digit-3 --session <session-id>
+```
+
+Read `/tmp/codex-ime-control/<session-id>/latest-candidate.json` first. Open `candidate.png` only when AX output is suspicious or visual verification is needed.
 
 ## Workflow
 

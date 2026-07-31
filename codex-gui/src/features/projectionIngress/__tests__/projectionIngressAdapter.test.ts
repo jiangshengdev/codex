@@ -1,51 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
+  attachWithHeadCommitId,
+  attachWithTurns,
+  closedWithEnvelope,
+  deltaWithEnvelope,
+  eventWithEnvelope,
+} from "@/features/projection/__tests__/projectionTestBuilders";
+import {
   attachBaseline,
   attachReplacement,
   closedBackpressure,
+  eventAgentMessageDelta,
   eventItemStarted,
   eventSubscriptionReplacement,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import type {
-  ThreadProjectionAttachResponse,
-  ThreadProjectionClosedNotification,
-  ThreadProjectionEventNotification,
-  Turn,
-} from "@codex-protocol/v2";
 import { ProjectionIngressAdapter } from "../projectionIngressAdapter";
 
 const projectionThreadId = attachBaseline.snapshot.thread.id;
-
-const deriveEvent = (
-  event: ThreadProjectionEventNotification,
-  overrides: Partial<ThreadProjectionEventNotification>,
-): ThreadProjectionEventNotification => ({
-  ...event,
-  ...overrides,
-});
-
-const attachWithTurnsAndHead = (
-  turns: Turn[],
-  headCommitId: string | null,
-): ThreadProjectionAttachResponse => ({
-  ...attachBaseline,
-  snapshot: {
-    ...attachBaseline.snapshot,
-    headCommitId,
-    thread: {
-      ...attachBaseline.snapshot.thread,
-      turns,
-    },
-  },
-});
-
-const closed = (
-  overrides: Partial<ThreadProjectionClosedNotification> = {},
-): ThreadProjectionClosedNotification => ({
-  ...closedBackpressure,
-  ...overrides,
-});
 
 describe("ProjectionIngressAdapter", () => {
   it("accepts attach and contiguous projection events", () => {
@@ -61,13 +33,27 @@ describe("ProjectionIngressAdapter", () => {
     });
   });
 
+  it("accepts matching projection deltas without advancing the commit chain", () => {
+    const adapter = new ProjectionIngressAdapter(projectionThreadId);
+    adapter.handleAttach(attachBaseline);
+
+    expect(adapter.handleDelta(eventAgentMessageDelta)).toStrictEqual({
+      type: "deltaAccepted",
+      notification: eventAgentMessageDelta,
+    });
+    expect(adapter.handleEvent(eventTurnStarted)).toStrictEqual({
+      type: "eventAccepted",
+      notification: eventTurnStarted,
+    });
+  });
+
   it("ignores wrong-thread events", () => {
     const adapter = new ProjectionIngressAdapter(projectionThreadId);
     adapter.handleAttach(attachBaseline);
 
     expect(
       adapter.handleEvent(
-        deriveEvent(eventTurnStarted, {
+        eventWithEnvelope(eventTurnStarted, {
           threadId: "00000000-0000-0000-0000-000000000099",
         }),
       ),
@@ -84,13 +70,33 @@ describe("ProjectionIngressAdapter", () => {
     });
   });
 
+  it("ignores wrong-thread and stale-subscription deltas", () => {
+    const adapter = new ProjectionIngressAdapter(projectionThreadId);
+    adapter.handleAttach(attachBaseline);
+
+    expect(
+      adapter.handleDelta(
+        deltaWithEnvelope(eventAgentMessageDelta, {
+          threadId: "00000000-0000-0000-0000-000000000099",
+        }),
+      ),
+    ).toStrictEqual({ type: "ignored", reason: "wrongThread" });
+    expect(
+      adapter.handleDelta(
+        deltaWithEnvelope(eventAgentMessageDelta, {
+          subscriptionId: "projection-fixture-replacement-subscription",
+        }),
+      ),
+    ).toStrictEqual({ type: "ignored", reason: "staleSubscription" });
+  });
+
   it("ignores duplicate latest commit events", () => {
     const adapter = new ProjectionIngressAdapter(projectionThreadId);
     if (eventTurnStarted.event.type !== "turnStarted") {
       throw new Error("fixture must contain a turnStarted projection event");
     }
-    const snapshotAtCommit = attachWithTurnsAndHead(
-      [eventTurnStarted.event.notification.turn],
+    const snapshotAtCommit = attachWithHeadCommitId(
+      attachWithTurns(attachBaseline, [eventTurnStarted.event.notification.turn]),
       eventTurnStarted.commitId,
     );
     adapter.handleAttach(snapshotAtCommit);
@@ -106,8 +112,8 @@ describe("ProjectionIngressAdapter", () => {
     if (eventTurnStarted.event.type !== "turnStarted") {
       throw new Error("fixture must contain a turnStarted projection event");
     }
-    const snapshotAheadWithOldHead = attachWithTurnsAndHead(
-      [eventTurnStarted.event.notification.turn],
+    const snapshotAheadWithOldHead = attachWithHeadCommitId(
+      attachWithTurns(attachBaseline, [eventTurnStarted.event.notification.turn]),
       eventTurnStarted.parentCommitId,
     );
     adapter.handleAttach(snapshotAheadWithOldHead);
@@ -132,8 +138,8 @@ describe("ProjectionIngressAdapter", () => {
 
   it("requires manual reconnect when an item event is missing its parent turn", () => {
     const adapter = new ProjectionIngressAdapter(projectionThreadId);
-    const snapshotWithoutLiveTurn = attachWithTurnsAndHead(
-      attachBaseline.snapshot.thread.turns,
+    const snapshotWithoutLiveTurn = attachWithHeadCommitId(
+      attachWithTurns(attachBaseline, attachBaseline.snapshot.thread.turns),
       eventTurnStarted.commitId,
     );
     adapter.handleAttach(snapshotWithoutLiveTurn);
@@ -152,6 +158,17 @@ describe("ProjectionIngressAdapter", () => {
     adapter.handleEvent(eventItemStarted);
 
     expect(adapter.handleEvent(eventTurnStarted)).toStrictEqual({
+      type: "ignored",
+      reason: "alreadyRequiresManualReconnect",
+    });
+  });
+
+  it("ignores deltas after manual reconnect is required", () => {
+    const adapter = new ProjectionIngressAdapter(projectionThreadId);
+    adapter.handleAttach(attachBaseline);
+    adapter.handleClosed(closedBackpressure);
+
+    expect(adapter.handleDelta(eventAgentMessageDelta)).toStrictEqual({
       type: "ignored",
       reason: "alreadyRequiresManualReconnect",
     });
@@ -176,9 +193,9 @@ describe("ProjectionIngressAdapter", () => {
     const adapter = new ProjectionIngressAdapter(projectionThreadId);
     adapter.handleAttach(attachBaseline);
 
-    expect(adapter.handleClosed(closed())).toStrictEqual({
+    expect(adapter.handleClosed(closedBackpressure)).toStrictEqual({
       type: "manualReconnectRequired",
-      reason: "backpressure",
+      reason: closedBackpressure.reason,
       threadId: projectionThreadId,
       subscriptionId: attachBaseline.subscriptionId,
     });
@@ -193,11 +210,17 @@ describe("ProjectionIngressAdapter", () => {
     adapter.handleAttach(attachBaseline);
 
     expect(
-      adapter.handleClosed(closed({ threadId: "00000000-0000-0000-0000-000000000099" })),
+      adapter.handleClosed(
+        closedWithEnvelope(closedBackpressure, {
+          threadId: "00000000-0000-0000-0000-000000000099",
+        }),
+      ),
     ).toStrictEqual({ type: "ignored", reason: "wrongThread" });
     expect(
       adapter.handleClosed(
-        closed({ subscriptionId: "projection-fixture-replacement-subscription" }),
+        closedWithEnvelope(closedBackpressure, {
+          subscriptionId: "projection-fixture-replacement-subscription",
+        }),
       ),
     ).toStrictEqual({ type: "ignored", reason: "staleSubscription" });
   });

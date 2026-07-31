@@ -98,6 +98,13 @@ export const emitProjectionEvent = (
   options.onProjectionEvent?.(notification);
 };
 
+export const emitProjectionDelta = (
+  options: StartGuiHostConnectionOptions,
+  notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onProjectionDelta"]>>[0],
+): void => {
+  options.onProjectionDelta?.(notification);
+};
+
 export const emitProjectionClosed = (
   options: StartGuiHostConnectionOptions,
   notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onProjectionClosed"]>>[0],

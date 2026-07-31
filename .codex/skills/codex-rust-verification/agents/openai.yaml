@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Rust Verification"
+  short_description: "Scoped Rust checks for Codex"
+  default_prompt: "Use $codex-rust-verification to choose safe Rust verification commands for a Codex change."

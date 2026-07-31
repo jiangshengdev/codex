@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 
 use crate::LaunchToken;
+use crate::browser_contract::THREAD_QUERY_KEY;
+use crate::browser_contract::TOKEN_FRAGMENT_KEY;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuiLaunchUrlKind {
@@ -76,7 +78,7 @@ pub fn launch_url_for_thread(
                 let port = addr.port();
                 let thread_id = urlencoding::encode(&thread_id);
                 format!(
-                    "http://127.0.0.1:{port}/?threadId={thread_id}#token={}",
+                    "http://127.0.0.1:{port}/?{THREAD_QUERY_KEY}={thread_id}#{TOKEN_FRAGMENT_KEY}={}",
                     token.as_str()
                 )
             },
@@ -99,7 +101,7 @@ pub fn launch_urls_for_thread(
                 host.kind,
                 host.label.clone(),
                 format!(
-                    "http://{}:{port}/?threadId={thread_id}#token={}",
+                    "http://{}:{port}/?{THREAD_QUERY_KEY}={thread_id}#{TOKEN_FRAGMENT_KEY}={}",
                     host_for_url(&host.host),
                     token.as_str()
                 ),

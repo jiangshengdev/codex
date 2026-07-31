@@ -1,0 +1,95 @@
+name: upload-artifact-with-retry
+description: Upload an artifact with up to three static attempts and shared retry backoff.
+
+inputs:
+  name:
+    description: Artifact name.
+    required: true
+  path:
+    description: File, directory, or wildcard pattern to upload.
+    required: true
+  if-no-files-found:
+    description: Behavior when no files are found at the provided path.
+    required: false
+    default: warn
+  retention-days:
+    description: Number of days to retain the artifact. Use 0 for the repository default.
+    required: false
+    default: "0"
+  compression-level:
+    description: Zlib compression level from 0 through 9.
+    required: false
+    default: "6"
+  overwrite:
+    description: Replace an artifact with the same name on the first attempt.
+    required: false
+    default: "false"
+  include-hidden-files:
+    description: Include hidden files in the artifact.
+    required: false
+    default: "false"
+  archive:
+    description: Archive uploaded paths before storing the artifact.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Upload artifact (attempt 1)
+      id: upload-attempt-1
+      continue-on-error: true
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        retention-days: ${{ inputs.retention-days }}
+        compression-level: ${{ inputs.compression-level }}
+        overwrite: ${{ inputs.overwrite }}
+        include-hidden-files: ${{ inputs.include-hidden-files }}
+        archive: ${{ inputs.archive }}
+
+    - name: Wait before upload attempt 2
+      if: steps.upload-attempt-1.outcome == 'failure'
+      shell: bash
+      run: |
+        set -euo pipefail
+        source "${GITHUB_ACTION_PATH}/../../scripts/retry-policy.sh"
+        retry_wait_after_failure 1
+
+    - name: Upload artifact (attempt 2)
+      id: upload-attempt-2
+      if: steps.upload-attempt-1.outcome == 'failure'
+      continue-on-error: true
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        retention-days: ${{ inputs.retention-days }}
+        compression-level: ${{ inputs.compression-level }}
+        overwrite: true
+        include-hidden-files: ${{ inputs.include-hidden-files }}
+        archive: ${{ inputs.archive }}
+
+    - name: Wait before upload attempt 3
+      if: steps.upload-attempt-1.outcome == 'failure' && steps.upload-attempt-2.outcome == 'failure'
+      shell: bash
+      run: |
+        set -euo pipefail
+        source "${GITHUB_ACTION_PATH}/../../scripts/retry-policy.sh"
+        retry_wait_after_failure 2
+
+    - name: Upload artifact (attempt 3)
+      if: steps.upload-attempt-1.outcome == 'failure' && steps.upload-attempt-2.outcome == 'failure'
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}
+        retention-days: ${{ inputs.retention-days }}
+        compression-level: ${{ inputs.compression-level }}
+        overwrite: true
+        include-hidden-files: ${{ inputs.include-hidden-files }}
+        archive: ${{ inputs.archive }}

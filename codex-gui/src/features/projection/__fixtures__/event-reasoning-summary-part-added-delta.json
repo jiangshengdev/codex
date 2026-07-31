@@ -1,0 +1,13 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "subscriptionId": "projection-fixture-subscription",
+  "delta": {
+    "type": "reasoningSummaryPartAdded",
+    "notification": {
+      "threadId": "00000000-0000-0000-0000-000000000001",
+      "turnId": "turn-in-progress",
+      "itemId": "reasoning-item",
+      "summaryIndex": 1
+    }
+  }
+}

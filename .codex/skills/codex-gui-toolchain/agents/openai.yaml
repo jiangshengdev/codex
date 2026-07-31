@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex GUI Toolchain"
+  short_description: "fnm and pnpm workflow for codex-gui"
+  default_prompt: "Use $codex-gui-toolchain before running pnpm commands or writing GUI verification steps."

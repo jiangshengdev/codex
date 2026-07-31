@@ -16,6 +16,7 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"],
+      "@codex-gui-host-contract": ["../codex-rs/gui-host/schema/typescript/browserContract.ts"],
       "@codex-protocol": ["../codex-rs/app-server-protocol/schema/typescript/index.ts"],
       "@codex-protocol/*": ["../codex-rs/app-server-protocol/schema/typescript/*"]
     },

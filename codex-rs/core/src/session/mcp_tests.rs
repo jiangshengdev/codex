@@ -61,6 +61,7 @@ fn guardian_elicitation_review_request_builds_mcp_tool_call() {
         connector_id,
         connector_name,
         connector_description,
+        connected_account_email,
         tool_title,
         tool_description,
         annotations,
@@ -76,6 +77,7 @@ fn guardian_elicitation_review_request_builds_mcp_tool_call() {
     assert_eq!(connector_id.as_deref(), Some("browser-use"));
     assert_eq!(connector_name.as_deref(), Some("Browser Use"));
     assert_eq!(connector_description, None);
+    assert_eq!(connected_account_email, None);
     assert_eq!(tool_title.as_deref(), Some("Access browser origin"));
     assert_eq!(tool_description, None);
     assert_eq!(annotations, None);
@@ -219,10 +221,7 @@ fn guardian_elicitation_review_request_declines_unsupported_opt_in_shapes() {
 #[test]
 fn guardian_decisions_map_to_elicitation_responses_without_session_state() {
     assert_eq!(
-        mcp_elicitation_response_from_guardian_decision_parts(
-            ReviewDecision::Approved,
-            /*denial_message*/ None,
-        ),
+        mcp_elicitation_response_from_guardian_decision(ReviewDecision::Approved),
         ElicitationResponse {
             action: ElicitationAction::Accept,
             content: Some(json!({})),
@@ -232,10 +231,9 @@ fn guardian_decisions_map_to_elicitation_responses_without_session_state() {
         }
     );
     assert_eq!(
-        mcp_elicitation_response_from_guardian_decision_parts(
-            ReviewDecision::Denied,
-            Some("Denied by Guardian".to_string()),
-        ),
+        mcp_elicitation_response_from_guardian_decision(ReviewDecision::denied(
+            "Denied by Guardian",
+        )),
         ElicitationResponse {
             action: ElicitationAction::Decline,
             content: None,
@@ -246,10 +244,7 @@ fn guardian_decisions_map_to_elicitation_responses_without_session_state() {
         }
     );
     assert_eq!(
-        mcp_elicitation_response_from_guardian_decision_parts(
-            ReviewDecision::TimedOut,
-            /*denial_message*/ None,
-        ),
+        mcp_elicitation_response_from_guardian_decision(ReviewDecision::TimedOut),
         ElicitationResponse {
             action: ElicitationAction::Decline,
             content: None,
@@ -260,10 +255,7 @@ fn guardian_decisions_map_to_elicitation_responses_without_session_state() {
         }
     );
     assert_eq!(
-        mcp_elicitation_response_from_guardian_decision_parts(
-            ReviewDecision::Abort,
-            /*denial_message*/ None,
-        ),
+        mcp_elicitation_response_from_guardian_decision(ReviewDecision::Abort),
         ElicitationResponse {
             action: ElicitationAction::Cancel,
             content: None,

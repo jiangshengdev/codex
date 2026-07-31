@@ -180,6 +180,7 @@ impl GuiExtensionHarness {
                     session_source: &source,
                     persistent_thread_state_available: true,
                     environments: &[],
+                    mcp_resource_client: None,
                     session_store: &session_store,
                     thread_store: &thread_store,
                 })
@@ -266,6 +267,7 @@ impl TestLaunchGuiTool {
                 call_id: "call-test".to_string(),
                 tool_name: ToolName::plain(LAUNCH_GUI_TOOL_NAME),
                 model: "test-model".to_string(),
+                codex_turn_metadata: None,
                 truncation_policy: TruncationPolicy::Bytes(4096),
                 environments: Vec::new(),
                 conversation_history: codex_extension_api::ConversationHistory::default(),

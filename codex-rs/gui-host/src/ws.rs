@@ -22,6 +22,9 @@ use crate::AdvertisedHost;
 use crate::AuthenticatedGuiConnection;
 use crate::GuiBackend;
 use crate::LaunchToken;
+use crate::browser_contract::AUTHENTICATE_METHOD;
+use crate::browser_contract::GuiAuthenticateParams;
+use crate::browser_contract::GuiAuthenticateResult;
 use crate::host::GuiHostState;
 use crate::host::is_advertised_host;
 use crate::is_allowed_client_notification_method;
@@ -38,12 +41,7 @@ struct AuthenticateRequest {
     jsonrpc: String,
     id: serde_json::Value,
     method: String,
-    params: AuthenticateParams,
-}
-
-#[derive(Deserialize)]
-struct AuthenticateParams {
-    token: String,
+    params: GuiAuthenticateParams,
 }
 
 #[derive(Deserialize)]
@@ -113,7 +111,7 @@ pub(crate) fn parse_authenticate_request(
 ) -> Result<serde_json::Value, ()> {
     let request: AuthenticateRequest = serde_json::from_str(text).map_err(|_| ())?;
     if request.jsonrpc == "2.0"
-        && request.method == "gui/authenticate"
+        && request.method == AUTHENTICATE_METHOD
         // The launch token is loopback-only, high entropy, and matched directly as specified.
         && request.params.token == expected_token.as_str()
     {
@@ -227,9 +225,7 @@ fn authenticate_response(id: serde_json::Value) -> String {
     serde_json::json!({
         "jsonrpc": "2.0",
         "id": id,
-        "result": {
-            "authenticated": true,
-        },
+        "result": GuiAuthenticateResult { authenticated: true },
     })
     .to_string()
 }
@@ -398,9 +394,9 @@ mod tests {
         let text = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 7,
-            "method": "gui/authenticate",
-            "params": {
-                "token": token.as_str(),
+            "method": AUTHENTICATE_METHOD,
+            "params": GuiAuthenticateParams {
+                token: token.as_str().to_string(),
             },
         })
         .to_string();
@@ -528,9 +524,9 @@ mod tests {
         let text = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 7,
-            "method": "gui/authenticate",
-            "params": {
-                "token": "wrong-token",
+            "method": AUTHENTICATE_METHOD,
+            "params": GuiAuthenticateParams {
+                token: "wrong-token".to_string(),
             },
         })
         .to_string();

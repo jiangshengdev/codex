@@ -269,6 +269,7 @@ async fn build_test_processor(
         session_source: SessionSource::VSCode,
         auth_manager,
         installation_id: "11111111-1111-4111-8111-111111111111".to_string(),
+        code_mode_session_provider: None,
         rpc_transport: AppServerRpcTransport::Stdio,
         remote_control_handle: None,
         plugin_startup_tasks: crate::PluginStartupTasks::Start,
@@ -483,7 +484,7 @@ async fn read_thread_started_notification(
                     continue;
                 };
                 if matches!(
-                    notification,
+                    notification.notification,
                     codex_app_server_protocol::ServerNotification::ThreadStarted(_)
                 ) {
                     return;
@@ -496,7 +497,7 @@ async fn read_thread_started_notification(
                     continue;
                 };
                 if matches!(
-                    notification,
+                    notification.notification,
                     codex_app_server_protocol::ServerNotification::ThreadStarted(_)
                 ) {
                     return;

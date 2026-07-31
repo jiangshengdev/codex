@@ -3,6 +3,7 @@ import { makeStore } from "@/app/store";
 import {
   attachBaseline,
   eventItemCompleted,
+  eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
@@ -14,12 +15,14 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
   attachWithTurns,
   baseTurn,
   itemCompleted,
+  itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state reconnect reducer", () => {
@@ -39,9 +42,14 @@ describe("transcript state reconnect reducer", () => {
     );
 
     expect(selectTranscriptTurn(store.getState(), "turn-existing")).toMatchObject({
-      finalAssistantEntryIds: ["agent-existing"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-existing", "agent-existing")],
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-existing")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-existing", "agent-existing"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-existing",
       turnId: "turn-existing",
@@ -104,8 +112,109 @@ describe("transcript state reconnect reducer", () => {
 
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-after-reconnect"]);
     expect(selectTranscriptTurn(store.getState(), "turn-after-reconnect")).toMatchObject({
-      finalAssistantEntryIds: ["agent-after", "agent-live-after"],
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-after-reconnect", "agent-after"),
+        transcriptEntryIdFor("turn-after-reconnect", "agent-live-after"),
+      ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
+
+  it("keeps committed transcript during manual reconnect after live item settlement", () => {
+    const store = makeStore();
+    const initialItem = agentMessage("agent-reconnect-live", "");
+    const completedItem = agentMessage("agent-reconnect-live", "Completed before reconnect");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-reconnect-started",
+          "turn-reconnect-live",
+          initialItem,
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-reconnect-completed",
+          "turn-reconnect-live",
+          completedItem,
+        ),
+        replay: "live",
+      }),
+    );
+
+    store.dispatch(
+      threadRuntimeManualReconnectRequired({
+        reason: "backpressure",
+        threadId: attachBaseline.snapshot.thread.id,
+        subscriptionId: attachBaseline.subscriptionId,
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), "turn-reconnect-live")).toStrictEqual({
+      id: "turn-reconnect-live",
+      status: "inProgress",
+      originalFirstItemId: "agent-reconnect-live",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-reconnect-live", "agent-reconnect-live")],
+    });
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-reconnect-live", "agent-reconnect-live"),
+      ),
+    ).toStrictEqual({
+      type: "message",
+      id: "agent-reconnect-live",
+      turnId: "turn-reconnect-live",
+      role: "assistant",
+      source: "Completed before reconnect",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 1,
+    });
+    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
+      {
+        id: `subscriptionInterrupted:${attachBaseline.snapshot.thread.id}:${attachBaseline.subscriptionId}:backpressure`,
+        status: "subscriptionInterrupted",
+        reason: "backpressure",
+        subscriptionId: attachBaseline.subscriptionId,
+      },
+    ]);
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-after-reconnect", [
+            agentMessage("agent-after-reconnect", "After reconnect"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-after-reconnect", "agent-after-reconnect"),
+      ),
+    ).toStrictEqual({
+      type: "message",
+      id: "agent-after-reconnect",
+      turnId: "turn-after-reconnect",
+      role: "assistant",
+      source: "After reconnect",
+      sourceKind: "markdown",
+      phase: "final_answer",
+      revision: 0,
+    });
   });
 });

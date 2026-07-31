@@ -1,6 +1,8 @@
 use crate::ClientNotification;
 use crate::ClientRequest;
+use crate::JSONRPCMessage;
 use crate::ServerNotification;
+use crate::ServerNotificationEnvelope;
 use crate::ServerRequest;
 use crate::experimental_api::experimental_fields;
 use crate::export_client_notification_schemas;
@@ -17,6 +19,8 @@ use crate::protocol::common::EXPERIMENTAL_CLIENT_METHODS;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHOD_PARAM_TYPES;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHOD_RESPONSE_TYPES;
 use crate::protocol::common::EXPERIMENTAL_SERVER_METHODS;
+use crate::protocol::common::EXPERIMENTAL_SERVER_NOTIFICATION_METHODS;
+use crate::protocol::common::client_request_definitions;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -27,6 +31,7 @@ use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::OsStr;
@@ -43,9 +48,13 @@ pub(crate) const GENERATED_TS_HEADER: &str = "// GENERATED CODE! DO NOT MODIFY B
 const IGNORED_DEFINITIONS: &[&str] = &["Option<()>"];
 const JSON_V1_ALLOWLIST: &[&str] = &["InitializeParams", "InitializeResponse"];
 const EXPERIMENTAL_CLIENT_METHOD_DEPENDENCY_TYPES: &[&str] = &[
+    "EnvironmentShellInfo",
+    "EnvironmentStatusKind",
     "RemoteControlClient",
     "RemoteControlClientsListOrder",
     "ThreadBackgroundTerminal",
+    "ThreadSearchOccurrence",
+    "ThreadSearchTextRange",
 ];
 const SPECIAL_DEFINITIONS: &[&str] = &[
     "ClientNotification",
@@ -56,7 +65,8 @@ const SPECIAL_DEFINITIONS: &[&str] = &[
 const FLAT_V2_SHARED_DEFINITIONS: &[&str] = &["ClientRequest", "ServerNotification"];
 const V1_CLIENT_REQUEST_METHODS: &[&str] =
     &["getConversationSummary", "gitDiffToRemote", "getAuthStatus"];
-const EXCLUDED_SERVER_NOTIFICATION_METHODS_FOR_JSON: &[&str] = &["rawResponseItem/completed"];
+const EXCLUDED_SERVER_NOTIFICATION_METHODS_FOR_JSON: &[&str] =
+    &["rawResponseItem/completed", "rawResponse/completed"];
 
 #[derive(Clone)]
 pub struct GeneratedSchema {
@@ -119,6 +129,7 @@ pub fn generate_ts_with_options(
     ensure_dir(out_dir)?;
     ensure_dir(&v2_out_dir)?;
 
+    JSONRPCMessage::export_all_to(out_dir)?;
     ClientRequest::export_all_to(out_dir)?;
     export_client_responses(out_dir)?;
     ClientNotification::export_all_to(out_dir)?;
@@ -126,10 +137,22 @@ pub fn generate_ts_with_options(
     ServerRequest::export_all_to(out_dir)?;
     export_server_responses(out_dir)?;
     ServerNotification::export_all_to(out_dir)?;
+    ServerNotificationEnvelope::export_all_to(out_dir)?;
 
     if !options.experimental_api {
         filter_experimental_ts(out_dir)?;
     }
+    let client_request_definition_path = out_dir.join("ClientRequestDefinition.ts");
+    fs::write(
+        &client_request_definition_path,
+        client_request_definition_ts(options.experimental_api),
+    )
+    .with_context(|| {
+        format!(
+            "Failed to write {}",
+            client_request_definition_path.display()
+        )
+    })?;
 
     if options.generate_indices {
         generate_index_ts(out_dir)?;
@@ -240,12 +263,157 @@ pub fn generate_json_with_experimental(out_dir: &Path, experimental_api: bool) -
         out_dir.join("codex_app_server_protocol.v2.schemas.json"),
         &flat_v2_bundle,
     )?;
-
+    let mut server_notification_definitions =
+        server_notification_definition_manifest(&flat_v2_bundle)?;
+    if !experimental_api {
+        server_notification_definitions.retain(|definition| {
+            !EXPERIMENTAL_SERVER_NOTIFICATION_METHODS.contains(&definition.method.as_str())
+        });
+    }
+    write_pretty_json(
+        out_dir.join("server-notification-definitions.json"),
+        &server_notification_definitions,
+    )?;
     if !experimental_api {
         filter_experimental_json_files(out_dir)?;
     }
+    let client_request_definitions = client_request_definitions(experimental_api)
+        .into_iter()
+        .map(|definition| {
+            let response_schema = definition.response.schema_path.with_context(|| {
+                format!(
+                    "client request response for method {} does not have a schema",
+                    definition.method
+                )
+            })?;
+            Ok(ClientRequestDefinitionManifestEntry {
+                method: definition.method,
+                params_schema: definition.params.schema_path,
+                response_schema,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    write_pretty_json(
+        out_dir.join("client-request-definitions.json"),
+        &client_request_definitions,
+    )?;
 
     Ok(())
+}
+
+pub(crate) fn client_request_definition_ts(experimental_api: bool) -> String {
+    let definitions = client_request_definitions(experimental_api);
+    let mut imports = BTreeSet::new();
+    for definition in &definitions {
+        for type_definition in [&definition.params, &definition.response] {
+            if let (Some(import_name), Some(import_path)) =
+                (&type_definition.import_name, &type_definition.import_path)
+            {
+                let import_path = import_path
+                    .with_extension("")
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                imports.insert((import_name.clone(), import_path));
+            }
+        }
+    }
+
+    let mut content = String::new();
+    for (type_name, import_path) in imports {
+        content.push_str(&format!(
+            "import type {{ {type_name} }} from \"./{import_path}\";\n"
+        ));
+    }
+    if !content.is_empty() {
+        content.push('\n');
+    }
+    content.push_str("export type ClientRequestDefinition =\n");
+    for definition in definitions {
+        content.push_str(&format!(
+            "  | {{ method: {:?}; params: {}; response: {}; }}\n",
+            definition.method, definition.params.name, definition.response.name
+        ));
+    }
+    content
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ClientRequestDefinitionManifestEntry {
+    method: String,
+    params_schema: Option<String>,
+    response_schema: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ServerNotificationDefinitionManifestEntry {
+    method: String,
+    params_schema: String,
+}
+
+fn server_notification_definition_manifest(
+    flat_v2_bundle: &Value,
+) -> Result<Vec<ServerNotificationDefinitionManifestEntry>> {
+    let server_notification = flat_v2_bundle
+        .pointer("/definitions/ServerNotification")
+        .context("flat v2 schema is missing the ServerNotification root definition")?;
+    let variants = server_notification
+        .get("oneOf")
+        .and_then(Value::as_array)
+        .context("flat v2 ServerNotification oneOf must be an array")?;
+
+    let mut methods = BTreeSet::new();
+    let mut manifest = Vec::with_capacity(variants.len());
+    for (index, variant) in variants.iter().enumerate() {
+        let method_values = variant
+            .pointer("/properties/method/enum")
+            .and_then(Value::as_array)
+            .with_context(|| {
+                format!(
+                    "flat v2 ServerNotification variant {index} method enum must be a single string"
+                )
+            })?;
+        let [method] = method_values.as_slice() else {
+            return Err(anyhow!(
+                "flat v2 ServerNotification variant {index} method enum must be a single string"
+            ));
+        };
+        let method = method.as_str().with_context(|| {
+            format!(
+                "flat v2 ServerNotification variant {index} method enum must be a single string"
+            )
+        })?;
+        let params_reference = variant
+            .pointer("/properties/params/$ref")
+            .and_then(Value::as_str)
+            .with_context(|| {
+                format!(
+                    "flat v2 ServerNotification variant {index} ({method}) is missing params $ref"
+                )
+            })?;
+        let params_schema = params_reference
+            .strip_prefix("#/definitions/")
+            .with_context(|| {
+                format!(
+                    "flat v2 ServerNotification variant {index} ({method}) params $ref must start with #/definitions/"
+                )
+            })?;
+
+        if !methods.insert(method) {
+            return Err(anyhow!(
+                "flat v2 ServerNotification contains duplicate method {method}"
+            ));
+        }
+        manifest.push(ServerNotificationDefinitionManifestEntry {
+            method: method.to_string(),
+            params_schema: format!("v2/{params_schema}"),
+        });
+    }
+    manifest.sort_by(|left, right| left.method.cmp(&right.method));
+    Ok(manifest)
 }
 
 fn filter_experimental_ts(out_dir: &Path) -> Result<()> {
@@ -1377,6 +1545,7 @@ where
             strip_v1_client_request_variants_from_json_schema(&mut schema_value);
         } else if file_stem == "ServerNotification" {
             strip_v1_server_notification_variants_from_json_schema(&mut schema_value);
+            add_server_notification_emitted_at_to_json_schema(&mut schema_value)?;
         }
         enforce_numbered_definition_collision_overrides(file_stem, &mut schema_value);
         annotate_schema(&mut schema_value, Some(file_stem));
@@ -1407,6 +1576,25 @@ where
         logical_name: logical_name.to_string(),
         value: schema_value,
     })
+}
+
+fn add_server_notification_emitted_at_to_json_schema(schema: &mut Value) -> Result<()> {
+    let schema = schema
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("expected ServerNotification schema to be an object"))?;
+    schema.insert(
+        "properties".to_string(),
+        serde_json::json!({
+            "emittedAtMs": {
+                "description": "Unix timestamp (in milliseconds) when app-server emitted this notification.",
+                "format": "int64",
+                "type": "integer"
+            }
+        }),
+    );
+    // Keep this optional in generated client schemas for compatibility with
+    // older app-server versions. New servers still always emit it.
+    Ok(())
 }
 
 fn enforce_numbered_definition_collision_overrides(schema_name: &str, schema: &mut Value) {

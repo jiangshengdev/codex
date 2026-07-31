@@ -24,6 +24,86 @@
       ],
       "type": "object"
     },
+    "ReasoningSummaryPartAddedNotification": {
+      "properties": {
+        "itemId": {
+          "type": "string"
+        },
+        "summaryIndex": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "itemId",
+        "summaryIndex",
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
+    "ReasoningSummaryTextDeltaNotification": {
+      "properties": {
+        "delta": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "summaryIndex": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delta",
+        "itemId",
+        "summaryIndex",
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
+    "ReasoningTextDeltaNotification": {
+      "properties": {
+        "contentIndex": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "itemId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contentIndex",
+        "delta",
+        "itemId",
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "ThreadProjectionDelta": {
       "oneOf": [
         {
@@ -44,6 +124,66 @@
             "type"
           ],
           "title": "AgentMessageThreadProjectionDelta",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ReasoningSummaryTextDeltaNotification"
+            },
+            "type": {
+              "enum": [
+                "reasoningSummaryText"
+              ],
+              "title": "ReasoningSummaryTextThreadProjectionDeltaType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ReasoningSummaryTextThreadProjectionDelta",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ReasoningSummaryPartAddedNotification"
+            },
+            "type": {
+              "enum": [
+                "reasoningSummaryPartAdded"
+              ],
+              "title": "ReasoningSummaryPartAddedThreadProjectionDeltaType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ReasoningSummaryPartAddedThreadProjectionDelta",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ReasoningTextDeltaNotification"
+            },
+            "type": {
+              "enum": [
+                "reasoningText"
+              ],
+              "title": "ReasoningTextThreadProjectionDeltaType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "ReasoningTextThreadProjectionDelta",
           "type": "object"
         }
       ]

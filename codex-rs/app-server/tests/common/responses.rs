@@ -44,6 +44,27 @@ pub fn create_streaming_assistant_message_sse_response(
     ]))
 }
 
+pub fn create_streaming_reasoning_sse_response(
+    item_id: &str,
+    summary_delta: &str,
+    raw_delta: &str,
+    final_summary: &str,
+    final_raw: &str,
+) -> anyhow::Result<String> {
+    Ok(responses::sse(vec![
+        responses::ev_response_created("resp-1"),
+        responses::ev_reasoning_item_added(item_id, &[""]),
+        responses::ev_reasoning_summary_text_delta(summary_delta),
+        serde_json::json!({
+            "type": "response.reasoning_summary_part.added",
+            "summary_index": 1,
+        }),
+        responses::ev_reasoning_text_delta(raw_delta),
+        responses::ev_reasoning_item(item_id, &[final_summary], &[final_raw]),
+        responses::ev_completed("resp-1"),
+    ]))
+}
+
 pub fn create_apply_patch_sse_response(
     patch_content: &str,
     call_id: &str,

@@ -1,4 +1,5 @@
 import { expect, vi } from "vitest";
+import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
 import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 import {
   startGuiHostConnection,
@@ -20,12 +21,6 @@ export class MemoryStorage {
 
   setItem(key: string, value: string): void {
     this.values.set(key, value);
-  }
-}
-
-export class ThrowingSetItemStorage extends MemoryStorage {
-  override setItem(): void {
-    throw new Error("sessionStorage unavailable");
   }
 }
 
@@ -52,6 +47,17 @@ export function readRpcMethod(message: string): string | undefined {
   }
 
   return typeof parsed.method === "string" ? parsed.method : undefined;
+}
+
+export function readLatestRpcRequest(socket: RecordingWebSocket, method: string): ParsedRpcRequest {
+  const request = socket.sent
+    .map(readRpcRequest)
+    .findLast((candidate) => candidate.method === method);
+  if (!request) {
+    throw new Error(`Expected ${method} request`);
+  }
+
+  return request;
 }
 
 export function recordStatusLabels(): {
@@ -119,18 +125,27 @@ export function sendJsonRpcError(
 }
 
 export function sendAuthenticateResult(socket: RecordingWebSocket): void {
-  sendJsonRpcResult(socket, 1, { authenticated: true });
+  const request = readLatestRpcRequest(socket, "gui/authenticate");
+  sendJsonRpcResult(socket, request.id, { authenticated: true });
 }
 
 export function sendInitializeResult(socket: RecordingWebSocket): void {
-  sendJsonRpcResult(socket, 2, {});
+  const request = readLatestRpcRequest(socket, "initialize");
+  const response: InitializeResponse = {
+    userAgent: "codex-test",
+    codexHome: "/codex-home",
+    platformFamily: "test",
+    platformOs: "test",
+  };
+  sendJsonRpcResult(socket, request.id, response);
 }
 
 export function sendAttachResult(
   socket: RecordingWebSocket,
   attachResponse: ThreadProjectionAttachResponse,
 ): void {
-  sendJsonRpcResult(socket, 3, attachResponse);
+  const request = readLatestRpcRequest(socket, "thread/projection/attach");
+  sendJsonRpcResult(socket, request.id, attachResponse);
 }
 
 export function startGuiHostConnectionWithSocket({
@@ -139,6 +154,7 @@ export function startGuiHostConnectionWithSocket({
   onCommandsUnavailable,
   onProjectionAttached,
   onProjectionClosed,
+  onProjectionDelta,
   onProjectionEvent,
   onStatus,
 }: {
@@ -147,6 +163,7 @@ export function startGuiHostConnectionWithSocket({
   onCommandsUnavailable?: StartGuiHostConnectionOptions["onCommandsUnavailable"];
   onProjectionAttached?: StartGuiHostConnectionOptions["onProjectionAttached"];
   onProjectionClosed?: StartGuiHostConnectionOptions["onProjectionClosed"];
+  onProjectionDelta?: StartGuiHostConnectionOptions["onProjectionDelta"];
   onProjectionEvent?: StartGuiHostConnectionOptions["onProjectionEvent"];
   onStatus?: StartGuiHostConnectionOptions["onStatus"];
 }): {
@@ -166,6 +183,7 @@ export function startGuiHostConnectionWithSocket({
     onCommandsUnavailable,
     onProjectionAttached,
     onProjectionClosed,
+    onProjectionDelta,
     onProjectionEvent,
     onStatus,
   });

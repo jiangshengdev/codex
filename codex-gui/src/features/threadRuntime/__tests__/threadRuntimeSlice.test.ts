@@ -3,6 +3,7 @@ import { makeStore } from "@/app/store";
 import {
   attachBaseline,
   attachReplacement,
+  eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
   eventTurnCompleted,
@@ -11,10 +12,13 @@ import {
 import {
   agentMessage,
   attachWithTurns,
+  eventWithEnvelope,
   itemCompleted,
   itemStarted,
   turnCompleted,
   turnStarted,
+  turnWithId,
+  turnWithItems,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   replayForProjectionEvent,
@@ -26,9 +30,11 @@ import {
   selectThreadRuntimeThreadId,
   snapshotReplayIndexFromTurns,
   threadRuntimeAttached,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
   threadRuntimeSlice,
+  type ThreadRuntimeProjectionDeltasPayload,
   type ThreadRuntimeProjectionEventPayload,
   type ThreadRuntimeState,
 } from "../threadRuntimeSlice";
@@ -38,6 +44,7 @@ const reduce = (
   state: ThreadRuntimeState | undefined,
   action:
     | ReturnType<typeof threadRuntimeAttached>
+    | ReturnType<typeof threadRuntimeDeltasAccepted>
     | ReturnType<typeof threadRuntimeEventBuffered>
     | ReturnType<typeof threadRuntimeManualReconnectRequired>,
 ) => threadRuntimeSlice.reducer(state, action);
@@ -71,7 +78,6 @@ describe("thread runtime reducer", () => {
       sessionId: attachBaseline.snapshot.thread.sessionId,
       thread: threadMetadata,
       snapshotTurns,
-      snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
       eventBuffer: [],
       activeTurnId: null,
       subscription: { state: "active" },
@@ -144,10 +150,11 @@ describe("thread runtime reducer", () => {
       attached,
       threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
     );
-    const nonMatchingCompleted = turnCompleted(eventTurnCompleted, eventTurnCompleted.commitId, {
-      ...eventTurnCompleted.event.notification.turn,
-      id: "another-turn",
-    });
+    const nonMatchingCompleted = turnCompleted(
+      eventTurnCompleted,
+      eventTurnCompleted.commitId,
+      turnWithId(eventTurnCompleted.event.notification.turn, "another-turn"),
+    );
 
     const state = reduce(
       started,
@@ -185,6 +192,25 @@ describe("thread runtime reducer", () => {
       { type: "projectionEvent", notification: eventItemStarted, replay: "live" },
       { type: "projectionEvent", notification: eventItemCompleted, replay: "live" },
     ]);
+  });
+
+  it("exports accepted projection delta batch actions without mutating runtime buffers", () => {
+    expectTypeOf<
+      Parameters<typeof threadRuntimeDeltasAccepted>[0]
+    >().toEqualTypeOf<ThreadRuntimeProjectionDeltasPayload>();
+
+    const state = reduce(undefined, threadRuntimeAttached(attachBaseline));
+    const nextState = reduce(
+      state,
+      threadRuntimeDeltasAccepted({ notifications: [eventAgentMessageDelta] }),
+    );
+
+    expect(nextState).toStrictEqual(state);
+    expect(
+      threadRuntimeDeltasAccepted({ notifications: [eventAgentMessageDelta] }).payload,
+    ).toStrictEqual({
+      notifications: [eventAgentMessageDelta],
+    });
   });
 
   it("marks live turn events already present in the attach snapshot as snapshot duplicates", () => {
@@ -263,10 +289,7 @@ describe("thread runtime reducer", () => {
       throw new Error("fixture must contain a turnStarted projection event");
     }
     const snapshotItem = agentMessage("agent-snapshot-duplicate", "Already in snapshot");
-    const snapshotTurn = {
-      ...eventTurnStarted.event.notification.turn,
-      items: [snapshotItem],
-    };
+    const snapshotTurn = turnWithItems(eventTurnStarted.event.notification.turn, [snapshotItem]);
     const attached = reduce(
       undefined,
       threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])),
@@ -327,13 +350,16 @@ describe("thread runtime reducer", () => {
       state = reduce(
         state,
         threadRuntimeEventBuffered({
-          notification: {
-            ...turnStarted(eventTurnStarted, `commit-buffer-${commitIndex}`, {
-              ...eventTurnStarted.event.notification.turn,
-              id: `turn-buffer-${commitIndex}`,
-            }),
-            parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
-          },
+          notification: eventWithEnvelope(
+            turnStarted(
+              eventTurnStarted,
+              `commit-buffer-${commitIndex}`,
+              turnWithId(eventTurnStarted.event.notification.turn, `turn-buffer-${commitIndex}`),
+            ),
+            {
+              parentCommitId: index === 0 ? null : `commit-buffer-${parentCommitIndex}`,
+            },
+          ),
           replay: "live",
         }),
       );

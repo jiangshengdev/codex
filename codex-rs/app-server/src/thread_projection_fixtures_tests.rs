@@ -95,14 +95,21 @@ fn generated_fixtures_round_trip_through_protocol_types() -> Result<()> {
     assert_round_trips::<ThreadProjectionClosedNotification>(
         &fixtures["closed-backpressure.json"],
     )?;
-    assert_round_trips::<ThreadProjectionDeltaNotification>(
-        &fixtures["event-agent-message-delta.json"],
-    )?;
+    for name in [
+        "event-agent-message-delta.json",
+        "event-reasoning-summary-text-delta.json",
+        "event-reasoning-summary-part-added-delta.json",
+        "event-reasoning-text-delta.json",
+    ] {
+        assert_round_trips::<ThreadProjectionDeltaNotification>(&fixtures[name])?;
+    }
 
     for name in [
         "event-turn-started.json",
         "event-item-started.json",
         "event-item-completed.json",
+        "event-reasoning-item-started.json",
+        "event-reasoning-item-completed.json",
         "event-turn-completed.json",
         "event-subscription-replacement.json",
     ] {
@@ -126,6 +133,27 @@ fn generated_closed_backpressure_fixture_uses_current_subscription() -> Result<(
             reason: ThreadProjectionClosedReason::Backpressure,
         }
     );
+
+    Ok(())
+}
+
+#[test]
+fn generated_reasoning_delta_fixtures_are_transient_and_subscription_scoped() -> Result<()> {
+    let fixtures = generate_fixture_files()?;
+
+    for name in [
+        "event-reasoning-summary-text-delta.json",
+        "event-reasoning-summary-part-added-delta.json",
+        "event-reasoning-text-delta.json",
+    ] {
+        let raw: Value = serde_json::from_str(&fixtures[name])?;
+        assert_absent_recursive(&raw, "commitId");
+        assert_absent_recursive(&raw, "parentCommitId");
+
+        let delta: ThreadProjectionDeltaNotification = serde_json::from_str(&fixtures[name])?;
+        assert_eq!(delta.thread_id, THREAD_ID.to_string());
+        assert_eq!(delta.subscription_id, SUBSCRIPTION_ID.to_string());
+    }
 
     Ok(())
 }
@@ -174,6 +202,10 @@ fn generated_commit_chain_is_contiguous() -> Result<()> {
         serde_json::from_str(&fixtures["event-item-started.json"])?;
     let item_completed: ThreadProjectionEventNotification =
         serde_json::from_str(&fixtures["event-item-completed.json"])?;
+    let reasoning_item_started: ThreadProjectionEventNotification =
+        serde_json::from_str(&fixtures["event-reasoning-item-started.json"])?;
+    let reasoning_item_completed: ThreadProjectionEventNotification =
+        serde_json::from_str(&fixtures["event-reasoning-item-completed.json"])?;
     let turn_completed: ThreadProjectionEventNotification =
         serde_json::from_str(&fixtures["event-turn-completed.json"])?;
     let replacement: ThreadProjectionEventNotification =
@@ -186,8 +218,16 @@ fn generated_commit_chain_is_contiguous() -> Result<()> {
         Some(item_started.commit_id)
     );
     assert_eq!(
-        turn_completed.parent_commit_id,
+        reasoning_item_started.parent_commit_id,
         Some(item_completed.commit_id)
+    );
+    assert_eq!(
+        reasoning_item_completed.parent_commit_id,
+        Some(reasoning_item_started.commit_id)
+    );
+    assert_eq!(
+        turn_completed.parent_commit_id,
+        Some(reasoning_item_completed.commit_id)
     );
     assert_eq!(
         replacement.parent_commit_id,

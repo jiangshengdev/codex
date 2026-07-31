@@ -1,0 +1,24 @@
+{
+  "threadId": "00000000-0000-0000-0000-000000000001",
+  "subscriptionId": "projection-fixture-subscription",
+  "commitId": "commit-reasoning-item-completed",
+  "parentCommitId": "commit-reasoning-item-started",
+  "event": {
+    "type": "itemCompleted",
+    "notification": {
+      "item": {
+        "type": "reasoning",
+        "id": "reasoning-item",
+        "summary": [
+          "thinking summary"
+        ],
+        "content": [
+          "raw reasoning"
+        ]
+      },
+      "threadId": "00000000-0000-0000-0000-000000000001",
+      "turnId": "turn-in-progress",
+      "completedAtMs": 1700000015750
+    }
+  }
+}

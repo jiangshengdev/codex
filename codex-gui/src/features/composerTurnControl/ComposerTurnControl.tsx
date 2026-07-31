@@ -1,11 +1,8 @@
 import { Button, Surface, TextArea, toast } from "@heroui/react";
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
-import type {
-  GuiHostCommands,
-  GuiHostStatus,
-  LaunchParams,
-} from "@/features/guiHost/guiHostClient";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
 import {
@@ -20,20 +17,27 @@ import {
   errorDescription,
   isConnectionUsable,
 } from "./composerTurnControlModel";
+import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
   commands: GuiHostCommands | null;
+  guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
-  launchParams: LaunchParams | null;
+  launchParams: BrowserLaunchParams | null;
 };
 
 export function ComposerTurnControl({
   commands,
+  guardCompositionEndEnter,
   guiHostStatus,
   launchParams,
 }: ComposerTurnControlProps) {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const composerShellRef = useRef<HTMLElement | null>(null);
+  const isComposingRef = useRef(false);
+  const suppressNextEnterRef = useRef(false);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
@@ -56,7 +60,10 @@ export function ComposerTurnControl({
   const stopEnabled = canStop({
     connectionUsable,
     activeTurnId,
+    isStopping,
   });
+
+  useRevealComposerOnViewportResize(composerShellRef);
 
   const submit = async (): Promise<void> => {
     if (!sendEnabled || threadId == null || commands == null) {
@@ -86,6 +93,7 @@ export function ComposerTurnControl({
       return;
     }
 
+    setIsStopping(true);
     try {
       await commands.interruptTurn({
         threadId,
@@ -95,21 +103,53 @@ export function ComposerTurnControl({
       toast.danger("Stop failed", {
         description: errorDescription(error),
       });
+    } finally {
+      setIsStopping(false);
     }
   };
 
+  const onCompositionStart = (): void => {
+    isComposingRef.current = true;
+    suppressNextEnterRef.current = false;
+  };
+
+  const onCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
+    const wasComposing = isComposingRef.current;
+    isComposingRef.current = false;
+    if (wasComposing && guardCompositionEndEnter) {
+      suppressNextEnterRef.current = true;
+    }
+    setDraft(event.currentTarget.value);
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      suppressNextEnterRef.current = false;
       return;
     }
+
+    if (event.nativeEvent.isComposing || isComposingRef.current) {
+      return;
+    }
+
+    if (suppressNextEnterRef.current) {
+      event.preventDefault();
+      suppressNextEnterRef.current = false;
+      return;
+    }
+
     event.preventDefault();
     void submit();
   };
 
   return (
-    <section aria-label="Message composer" className="fixed inset-x-0 bottom-0 z-10 pt-3 pb-0">
+    <section
+      aria-label="Message composer"
+      className="composer-shell sticky bottom-0 z-10 pb-3"
+      ref={composerShellRef}
+    >
       <Surface
-        className="mx-auto grid w-full max-w-3xl gap-2 rounded-t-[20px] p-2 shadow-lg"
+        className="composer-panel mx-auto grid w-full max-w-3xl gap-2 rounded-[20px] p-2 shadow-md"
         variant="default"
       >
         <TextArea
@@ -118,6 +158,8 @@ export function ComposerTurnControl({
           onChange={(event) => {
             setDraft(event.target.value);
           }}
+          onCompositionEnd={onCompositionEnd}
+          onCompositionStart={onCompositionStart}
           onKeyDown={onKeyDown}
           placeholder="Message Codex"
           value={draft}

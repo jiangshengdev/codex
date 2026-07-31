@@ -1,0 +1,238 @@
+[
+  {
+    "method": "account/login/completed",
+    "paramsSchema": "v2/AccountLoginCompletedNotification"
+  },
+  {
+    "method": "account/rateLimits/updated",
+    "paramsSchema": "v2/AccountRateLimitsUpdatedNotification"
+  },
+  {
+    "method": "account/updated",
+    "paramsSchema": "v2/AccountUpdatedNotification"
+  },
+  {
+    "method": "app/list/updated",
+    "paramsSchema": "v2/AppListUpdatedNotification"
+  },
+  {
+    "method": "command/exec/outputDelta",
+    "paramsSchema": "v2/CommandExecOutputDeltaNotification"
+  },
+  {
+    "method": "configWarning",
+    "paramsSchema": "v2/ConfigWarningNotification"
+  },
+  {
+    "method": "deprecationNotice",
+    "paramsSchema": "v2/DeprecationNoticeNotification"
+  },
+  {
+    "method": "error",
+    "paramsSchema": "v2/ErrorNotification"
+  },
+  {
+    "method": "externalAgentConfig/import/completed",
+    "paramsSchema": "v2/ExternalAgentConfigImportCompletedNotification"
+  },
+  {
+    "method": "externalAgentConfig/import/progress",
+    "paramsSchema": "v2/ExternalAgentConfigImportProgressNotification"
+  },
+  {
+    "method": "fs/changed",
+    "paramsSchema": "v2/FsChangedNotification"
+  },
+  {
+    "method": "fuzzyFileSearch/sessionCompleted",
+    "paramsSchema": "v2/FuzzyFileSearchSessionCompletedNotification"
+  },
+  {
+    "method": "fuzzyFileSearch/sessionUpdated",
+    "paramsSchema": "v2/FuzzyFileSearchSessionUpdatedNotification"
+  },
+  {
+    "method": "guardianWarning",
+    "paramsSchema": "v2/GuardianWarningNotification"
+  },
+  {
+    "method": "hook/completed",
+    "paramsSchema": "v2/HookCompletedNotification"
+  },
+  {
+    "method": "hook/started",
+    "paramsSchema": "v2/HookStartedNotification"
+  },
+  {
+    "method": "item/agentMessage/delta",
+    "paramsSchema": "v2/AgentMessageDeltaNotification"
+  },
+  {
+    "method": "item/autoApprovalReview/completed",
+    "paramsSchema": "v2/ItemGuardianApprovalReviewCompletedNotification"
+  },
+  {
+    "method": "item/autoApprovalReview/started",
+    "paramsSchema": "v2/ItemGuardianApprovalReviewStartedNotification"
+  },
+  {
+    "method": "item/commandExecution/outputDelta",
+    "paramsSchema": "v2/CommandExecutionOutputDeltaNotification"
+  },
+  {
+    "method": "item/commandExecution/terminalInteraction",
+    "paramsSchema": "v2/TerminalInteractionNotification"
+  },
+  {
+    "method": "item/completed",
+    "paramsSchema": "v2/ItemCompletedNotification"
+  },
+  {
+    "method": "item/fileChange/outputDelta",
+    "paramsSchema": "v2/FileChangeOutputDeltaNotification"
+  },
+  {
+    "method": "item/fileChange/patchUpdated",
+    "paramsSchema": "v2/FileChangePatchUpdatedNotification"
+  },
+  {
+    "method": "item/mcpToolCall/progress",
+    "paramsSchema": "v2/McpToolCallProgressNotification"
+  },
+  {
+    "method": "item/plan/delta",
+    "paramsSchema": "v2/PlanDeltaNotification"
+  },
+  {
+    "method": "item/reasoning/summaryPartAdded",
+    "paramsSchema": "v2/ReasoningSummaryPartAddedNotification"
+  },
+  {
+    "method": "item/reasoning/summaryTextDelta",
+    "paramsSchema": "v2/ReasoningSummaryTextDeltaNotification"
+  },
+  {
+    "method": "item/reasoning/textDelta",
+    "paramsSchema": "v2/ReasoningTextDeltaNotification"
+  },
+  {
+    "method": "item/started",
+    "paramsSchema": "v2/ItemStartedNotification"
+  },
+  {
+    "method": "mcpServer/oauthLogin/completed",
+    "paramsSchema": "v2/McpServerOauthLoginCompletedNotification"
+  },
+  {
+    "method": "mcpServer/startupStatus/updated",
+    "paramsSchema": "v2/McpServerStatusUpdatedNotification"
+  },
+  {
+    "method": "model/rerouted",
+    "paramsSchema": "v2/ModelReroutedNotification"
+  },
+  {
+    "method": "model/safetyBuffering/updated",
+    "paramsSchema": "v2/ModelSafetyBufferingUpdatedNotification"
+  },
+  {
+    "method": "model/verification",
+    "paramsSchema": "v2/ModelVerificationNotification"
+  },
+  {
+    "method": "remoteControl/status/changed",
+    "paramsSchema": "v2/RemoteControlStatusChangedNotification"
+  },
+  {
+    "method": "serverRequest/resolved",
+    "paramsSchema": "v2/ServerRequestResolvedNotification"
+  },
+  {
+    "method": "skills/changed",
+    "paramsSchema": "v2/SkillsChangedNotification"
+  },
+  {
+    "method": "thread/archived",
+    "paramsSchema": "v2/ThreadArchivedNotification"
+  },
+  {
+    "method": "thread/closed",
+    "paramsSchema": "v2/ThreadClosedNotification"
+  },
+  {
+    "method": "thread/compacted",
+    "paramsSchema": "v2/ContextCompactedNotification"
+  },
+  {
+    "method": "thread/deleted",
+    "paramsSchema": "v2/ThreadDeletedNotification"
+  },
+  {
+    "method": "thread/goal/cleared",
+    "paramsSchema": "v2/ThreadGoalClearedNotification"
+  },
+  {
+    "method": "thread/goal/updated",
+    "paramsSchema": "v2/ThreadGoalUpdatedNotification"
+  },
+  {
+    "method": "thread/name/updated",
+    "paramsSchema": "v2/ThreadNameUpdatedNotification"
+  },
+  {
+    "method": "thread/projection/closed",
+    "paramsSchema": "v2/ThreadProjectionClosedNotification"
+  },
+  {
+    "method": "thread/projection/delta",
+    "paramsSchema": "v2/ThreadProjectionDeltaNotification"
+  },
+  {
+    "method": "thread/projection/event",
+    "paramsSchema": "v2/ThreadProjectionEventNotification"
+  },
+  {
+    "method": "thread/started",
+    "paramsSchema": "v2/ThreadStartedNotification"
+  },
+  {
+    "method": "thread/status/changed",
+    "paramsSchema": "v2/ThreadStatusChangedNotification"
+  },
+  {
+    "method": "thread/tokenUsage/updated",
+    "paramsSchema": "v2/ThreadTokenUsageUpdatedNotification"
+  },
+  {
+    "method": "thread/unarchived",
+    "paramsSchema": "v2/ThreadUnarchivedNotification"
+  },
+  {
+    "method": "turn/completed",
+    "paramsSchema": "v2/TurnCompletedNotification"
+  },
+  {
+    "method": "turn/diff/updated",
+    "paramsSchema": "v2/TurnDiffUpdatedNotification"
+  },
+  {
+    "method": "turn/plan/updated",
+    "paramsSchema": "v2/TurnPlanUpdatedNotification"
+  },
+  {
+    "method": "turn/started",
+    "paramsSchema": "v2/TurnStartedNotification"
+  },
+  {
+    "method": "warning",
+    "paramsSchema": "v2/WarningNotification"
+  },
+  {
+    "method": "windows/worldWritableWarning",
+    "paramsSchema": "v2/WindowsWorldWritableWarningNotification"
+  },
+  {
+    "method": "windowsSandbox/setupCompleted",
+    "paramsSchema": "v2/WindowsSandboxSetupCompletedNotification"
+  }
+]

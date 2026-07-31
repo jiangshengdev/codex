@@ -1,14 +1,12 @@
 import type {
   ThreadItem,
   ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   Turn,
   UserInput,
 } from "@codex-protocol/v2";
-import {
-  snapshotReplayIndexFromTurns,
-  type ThreadRuntimeRecord,
-} from "@/features/threadRuntime/threadRuntimeSlice";
 
 export const textInput = (text: string): UserInput => ({
   type: "text",
@@ -19,6 +17,16 @@ export const textInput = (text: string): UserInput => ({
 export const imageInput = (url: string): UserInput => ({
   type: "image",
   url,
+});
+
+export const audioInput = (url: string): UserInput => ({
+  type: "audio",
+  url,
+});
+
+export const localAudioInput = (path: string): UserInput => ({
+  type: "localAudio",
+  path,
 });
 
 export const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
@@ -72,6 +80,21 @@ export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   durationMs: null,
 });
 
+export const turnWithItems = (turn: Turn, items: ThreadItem[]): Turn => ({
+  ...turn,
+  items,
+});
+
+export const turnWithId = (turn: Turn, id: string): Turn => ({
+  ...turn,
+  id,
+});
+
+export const turnWithStatus = (turn: Turn, status: Turn["status"]): Turn => ({
+  ...turn,
+  status,
+});
+
 export const attachWithTurns = (
   attachBaseline: ThreadProjectionAttachResponse,
   turns: Turn[],
@@ -86,19 +109,93 @@ export const attachWithTurns = (
   },
 });
 
-export const runtimeFromAttach = (attach: ThreadProjectionAttachResponse): ThreadRuntimeRecord => {
-  const { turns: snapshotTurns, ...thread } = attach.snapshot.thread;
+export const attachWithHeadCommitId = (
+  attach: ThreadProjectionAttachResponse,
+  headCommitId: string | null,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    headCommitId,
+  },
+});
+
+export const attachWithThreadId = (
+  attach: ThreadProjectionAttachResponse,
+  threadId: string,
+): ThreadProjectionAttachResponse => ({
+  ...attach,
+  snapshot: {
+    ...attach.snapshot,
+    thread: {
+      ...attach.snapshot.thread,
+      id: threadId,
+    },
+  },
+});
+
+type EventEnvelopeOverrides = {
+  threadId?: ThreadProjectionEventNotification["threadId"];
+  subscriptionId?: ThreadProjectionEventNotification["subscriptionId"];
+  commitId?: ThreadProjectionEventNotification["commitId"];
+  parentCommitId?: ThreadProjectionEventNotification["parentCommitId"];
+};
+
+export const eventWithEnvelope = (
+  event: ThreadProjectionEventNotification,
+  overrides: EventEnvelopeOverrides,
+): ThreadProjectionEventNotification => ({
+  ...event,
+  ...overrides,
+});
+
+type DeltaEnvelopeOverrides = {
+  threadId?: ThreadProjectionDeltaNotification["threadId"];
+  subscriptionId?: ThreadProjectionDeltaNotification["subscriptionId"];
+};
+
+export const deltaWithEnvelope = (
+  delta: ThreadProjectionDeltaNotification,
+  overrides: DeltaEnvelopeOverrides,
+): ThreadProjectionDeltaNotification => ({
+  ...delta,
+  ...overrides,
+});
+
+type ClosedEnvelopeOverrides = {
+  threadId?: ThreadProjectionClosedNotification["threadId"];
+  subscriptionId?: ThreadProjectionClosedNotification["subscriptionId"];
+};
+
+export const closedWithEnvelope = (
+  closed: ThreadProjectionClosedNotification,
+  overrides: ClosedEnvelopeOverrides,
+): ThreadProjectionClosedNotification => ({
+  ...closed,
+  ...overrides,
+});
+
+export const agentMessageDelta = (
+  eventAgentMessageDelta: ThreadProjectionDeltaNotification,
+  turnId: string,
+  itemId: string,
+  delta: string,
+): ThreadProjectionDeltaNotification => {
+  if (eventAgentMessageDelta.delta.type !== "agentMessage") {
+    throw new Error("fixture must contain an agentMessage projection delta");
+  }
 
   return {
-    threadId: thread.id,
-    sessionId: thread.sessionId,
-    thread,
-    snapshotTurns,
-    snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
-    eventBuffer: [],
-    activeTurnId:
-      snapshotTurns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null,
-    subscription: { state: "active" },
+    ...eventAgentMessageDelta,
+    delta: {
+      ...eventAgentMessageDelta.delta,
+      notification: {
+        ...eventAgentMessageDelta.delta.notification,
+        turnId,
+        itemId,
+        delta,
+      },
+    },
   };
 };
 

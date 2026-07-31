@@ -377,6 +377,7 @@ pub fn build_exec_request(
         args: args.to_vec(),
         cwd,
         env,
+        managed_network: None,
         additional_permissions: None,
     };
     let options = ExecOptions {
@@ -459,6 +460,8 @@ pub(crate) async fn execute_exec_request(
         arg0,
         exec_server_sandbox: _,
         exec_server_enforce_managed_network: _,
+        exec_server_managed_network: _,
+        exec_server_network_proxy: _,
     } = exec_request;
 
     // TODO(anp): Keep PathUri through the local process launch boundary.
@@ -629,6 +632,18 @@ async fn exec_windows_sandbox(
                 network_proxy_environment_error(network_environment_id.as_deref(), err)
             })?;
     }
+    let network_proxy_restricting_sid = network
+        .as_ref()
+        .map(|network| {
+            network
+                .network_proxy_restricting_sid(network_environment_id.as_deref())
+                .ok_or_else(|| {
+                    CodexErr::Io(io::Error::other(
+                        "managed Windows proxy route is missing its restricting SID",
+                    ))
+                })
+        })
+        .transpose()?;
 
     // Windows sandbox capture still receives timeout and cancellation separately.
     let (cancellation, timeout_ms) = if capture_policy.uses_expiration() {
@@ -683,6 +698,7 @@ async fn exec_windows_sandbox(
                     cancellation,
                     use_private_desktop: windows_sandbox_private_desktop,
                     proxy_enforced,
+                    network_proxy_restricting_sid,
                     read_roots_override: elevated_read_roots_override.as_deref(),
                     read_roots_include_platform_defaults:
                         elevated_read_roots_include_platform_defaults,

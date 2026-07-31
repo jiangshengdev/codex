@@ -1,18 +1,24 @@
 import { Alert, Surface, Toast } from "@heroui/react";
+import type { ReactNode } from "react";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
-import type {
-  GuiHostCommands,
-  GuiHostStatus,
-  LaunchParams,
-} from "@/features/guiHost/guiHostClient";
+import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { useCommittedTranscriptStickyBottom } from "./useCommittedTranscriptStickyBottom";
 
 export type AppShellProps = {
   status: GuiHostStatus;
   commands: GuiHostCommands | null;
-  launchParams: LaunchParams | null;
+  launchParams: BrowserLaunchParams | null;
 };
+
+function isMacAppleWebKitRuntime(): boolean {
+  return (
+    navigator.vendor === "Apple Computer, Inc." &&
+    navigator.platform === "MacIntel" &&
+    navigator.maxTouchPoints <= 1
+  );
+}
 
 function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   if (status.label !== "error") {
@@ -20,7 +26,7 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   }
 
   return (
-    <Alert className="mx-auto mb-4 w-full max-w-3xl" status="danger">
+    <Alert className="w-full" status="danger">
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>Unable to start Codex GUI</Alert.Title>
@@ -30,18 +36,32 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
   );
 }
 
+function AppShellTopNotices({ children }: { children: ReactNode }) {
+  return (
+    <div className="sticky top-0 z-20" data-app-shell-top-notices="">
+      <div className="mx-auto grid w-full max-w-3xl gap-2 pt-3">{children}</div>
+    </div>
+  );
+}
+
 export function AppShell({ status, commands, launchParams }: AppShellProps) {
   const transcriptBottomRef = useCommittedTranscriptStickyBottom();
+  const guardCompositionEndEnter = isMacAppleWebKitRuntime();
+  const hasTopNotice = status.label === "error";
 
   return (
     <main
-      className="min-h-svh w-full bg-background px-4 py-6 pb-44 text-foreground sm:px-6 lg:px-8"
+      className="flex min-h-svh w-full flex-col gap-4 bg-background text-foreground"
       data-gui-host-status={status.label}
     >
       <Toast.Provider placement="top" />
-      <GuiHostErrorAlert status={status} />
+      {hasTopNotice ? (
+        <AppShellTopNotices>
+          <GuiHostErrorAlert status={status} />
+        </AppShellTopNotices>
+      ) : null}
       <Surface
-        className="mx-auto grid min-w-0 w-full max-w-3xl content-start"
+        className="mx-auto grid min-w-0 w-full max-w-3xl flex-1 content-start"
         variant="transparent"
       >
         <CommittedTranscriptSurface />
@@ -51,7 +71,12 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
         className="committed-transcript-bottom-sentinel h-px w-full"
         ref={transcriptBottomRef}
       />
-      <ComposerTurnControl commands={commands} guiHostStatus={status} launchParams={launchParams} />
+      <ComposerTurnControl
+        commands={commands}
+        guardCompositionEndEnter={guardCompositionEndEnter}
+        guiHostStatus={status}
+        launchParams={launchParams}
+      />
     </main>
   );
 }

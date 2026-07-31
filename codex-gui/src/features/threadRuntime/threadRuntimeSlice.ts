@@ -4,6 +4,7 @@ import type { ProjectionManualReconnectReason } from "@/features/projectionIngre
 import type {
   Thread,
   ThreadProjectionAttachResponse,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
   Turn,
 } from "@codex-protocol/v2";
@@ -23,6 +24,10 @@ export type ThreadRuntimeProjectionEventPayload = {
   replay: ThreadRuntimeEventReplay;
 };
 
+export type ThreadRuntimeProjectionDeltasPayload = {
+  notifications: ThreadProjectionDeltaNotification[];
+};
+
 export type ThreadRuntimeBufferedEvent = {
   type: "projectionEvent";
   notification: ThreadProjectionEventNotification;
@@ -34,7 +39,6 @@ export type ThreadRuntimeRecord = {
   sessionId: string;
   thread: Omit<Thread, "turns">;
   snapshotTurns: Turn[];
-  snapshotReplayIndex: SnapshotReplayIndex;
   eventBuffer: ThreadRuntimeBufferedEvent[];
   activeTurnId: string | null;
   subscription: ThreadRuntimeSubscription;
@@ -93,6 +97,7 @@ export const replayForProjectionEvent = (
         ? "snapshotDuplicate"
         : "live";
   }
+  notification.event satisfies never;
 };
 
 export const threadRuntimeSlice = createAppSlice({
@@ -108,12 +113,15 @@ export const threadRuntimeSlice = createAppSlice({
           sessionId: thread.sessionId,
           thread,
           snapshotTurns,
-          snapshotReplayIndex: snapshotReplayIndexFromTurns(snapshotTurns),
           eventBuffer: [],
           activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
           subscription: { state: "active" },
         };
       },
+    ),
+    threadRuntimeDeltasAccepted: create.reducer(
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- Accepted projection delta batches are a cross-slice signal; runtime intentionally does not mutate buffers.
+      (_state, _action: PayloadAction<ThreadRuntimeProjectionDeltasPayload>) => {},
     ),
     threadRuntimeEventBuffered: create.reducer(
       (state, action: PayloadAction<ThreadRuntimeProjectionEventPayload>) => {
@@ -153,6 +161,7 @@ export const threadRuntimeSlice = createAppSlice({
           case "itemCompleted":
             return;
         }
+        notification.event satisfies never;
       },
     ),
     threadRuntimeManualReconnectRequired: create.reducer(
@@ -184,6 +193,7 @@ export const threadRuntimeSlice = createAppSlice({
 
 export const {
   threadRuntimeAttached,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } = threadRuntimeSlice.actions;

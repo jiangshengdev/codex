@@ -1,32 +1,14 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
-import type {
-  GuiHostCommands,
-  GuiHostStatus,
-  LaunchParams,
-} from "@/features/guiHost/guiHostClient";
+import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
-import {
-  ProjectionIngressAdapter,
-  type ProjectionIngressOutcome,
-} from "@/features/projectionIngress/projectionIngressAdapter";
-import {
-  attachedThreadIdObserved,
-  launchThreadIdRecorded,
-} from "@/features/threadIdentity/threadIdentitySlice";
-import {
-  replayForProjectionEvent,
-  snapshotReplayIndexFromTurns,
-  type SnapshotReplayIndex,
-  threadRuntimeAttached,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import { ProjectionApplicationCoordinator } from "@/features/projectionCoordination/projectionApplicationCoordinator";
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
   setCommands: (commands: GuiHostCommands | null) => void;
-  setLaunchParams: (params: LaunchParams | null) => void;
+  setLaunchParams: (params: BrowserLaunchParams | null) => void;
 };
 
 export function GuiHostConnectionBridge({
@@ -39,38 +21,15 @@ export function GuiHostConnectionBridge({
   useEffect(() => {
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
-    let launchThreadId: string | null = null;
-    let projectionIngress: ProjectionIngressAdapter | null = null;
-    let snapshotReplayIndex: SnapshotReplayIndex | null = null;
-    const dispatchProjectionOutcome = (outcome: ProjectionIngressOutcome) => {
-      switch (outcome.type) {
-        case "attachAccepted":
-          dispatch(threadRuntimeAttached(outcome.response));
-          return;
-        case "eventAccepted":
-          dispatch(
-            threadRuntimeEventBuffered({
-              notification: outcome.notification,
-              replay:
-                snapshotReplayIndex == null
-                  ? "live"
-                  : replayForProjectionEvent(snapshotReplayIndex, outcome.notification),
-            }),
-          );
-          return;
-        case "manualReconnectRequired":
-          dispatch(
-            threadRuntimeManualReconnectRequired({
-              reason: outcome.reason,
-              threadId: outcome.threadId,
-              subscriptionId: outcome.subscriptionId,
-            }),
-          );
-          return;
-        case "ignored":
-          return;
-      }
-    };
+    const coordinator = new ProjectionApplicationCoordinator({
+      dispatch,
+      scheduler: {
+        requestFrame: (callback) => window.requestAnimationFrame(callback),
+        cancelFrame: (frameId) => {
+          window.cancelAnimationFrame(frameId);
+        },
+      },
+    });
 
     try {
       cleanupConnection = startGuiHostConnection({
@@ -79,41 +38,19 @@ export function GuiHostConnectionBridge({
         onStatus: setStatus,
         onLaunchParams: (params) => {
           setLaunchParams(params);
-          launchThreadId = params.threadId;
-          projectionIngress = new ProjectionIngressAdapter(params.threadId);
-          snapshotReplayIndex = null;
-          dispatch(launchThreadIdRecorded(params.threadId));
+          coordinator.handleLaunchThread(params.threadId);
         },
         onProjectionAttached: (response) => {
-          const attachedThreadId = response.snapshot.thread.id;
-          dispatch(attachedThreadIdObserved(attachedThreadId));
-
-          if (launchThreadId !== attachedThreadId || projectionIngress == null) {
-            return;
-          }
-
-          const outcome = projectionIngress.handleAttach(response);
-          if (outcome.type === "attachAccepted") {
-            snapshotReplayIndex = snapshotReplayIndexFromTurns(
-              outcome.response.snapshot.thread.turns,
-            );
-          }
-
-          dispatchProjectionOutcome(outcome);
+          coordinator.handleProjectionAttached(response);
         },
         onProjectionEvent: (notification) => {
-          if (projectionIngress == null) {
-            return;
-          }
-
-          dispatchProjectionOutcome(projectionIngress.handleEvent(notification));
+          coordinator.handleProjectionEvent(notification);
+        },
+        onProjectionDelta: (notification) => {
+          coordinator.handleProjectionDelta(notification);
         },
         onProjectionClosed: (notification) => {
-          if (projectionIngress == null) {
-            return;
-          }
-
-          dispatchProjectionOutcome(projectionIngress.handleClosed(notification));
+          coordinator.handleProjectionClosed(notification);
         },
         onCommandsReady: setCommands,
         onCommandsUnavailable: () => {
@@ -138,6 +75,7 @@ export function GuiHostConnectionBridge({
       isMounted = false;
       setCommands(null);
       setLaunchParams(null);
+      coordinator.dispose();
       cleanupConnection?.();
     };
   }, [dispatch, setCommands, setLaunchParams, setStatus]);

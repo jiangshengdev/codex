@@ -13,6 +13,8 @@ use crate::extensions::ThreadExtensionDependencies;
 use crate::extensions::app_server_extension_event_sink;
 use crate::extensions::guardian_agent_spawner;
 use crate::extensions::thread_extensions;
+use crate::external_agent_migration::ExternalAgentConfigRequestProcessor;
+use crate::external_agent_migration::ExternalAgentConfigRequestProcessorArgs;
 use crate::fs_watch::FsWatchManager;
 use crate::gui_launch_service::AppServerGuiLaunchService;
 use crate::outgoing_message::ConnectionId;
@@ -25,8 +27,6 @@ use crate::request_processors::CatalogRequestProcessor;
 use crate::request_processors::CommandExecRequestProcessor;
 use crate::request_processors::ConfigRequestProcessor;
 use crate::request_processors::EnvironmentRequestProcessor;
-use crate::request_processors::ExternalAgentConfigRequestProcessor;
-use crate::request_processors::ExternalAgentConfigRequestProcessorArgs;
 use crate::request_processors::FeedbackRequestProcessor;
 use crate::request_processors::FsRequestProcessor;
 use crate::request_processors::GitRequestProcessor;
@@ -51,10 +51,6 @@ use crate::transport::AppServerTransport;
 use crate::transport::RemoteControlHandle;
 use codex_analytics::AnalyticsEventsClient;
 use codex_analytics::AppServerRpcTransport;
-use codex_app_server_protocol::AuthMode as LoginAuthMode;
-use codex_app_server_protocol::ChatgptAuthTokensRefreshParams;
-use codex_app_server_protocol::ChatgptAuthTokensRefreshReason;
-use codex_app_server_protocol::ChatgptAuthTokensRefreshResponse;
 use codex_app_server_protocol::ClientNotification;
 use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::ClientResponsePayload;
@@ -65,10 +61,10 @@ use codex_app_server_protocol::JSONRPCErrorError;
 use codex_app_server_protocol::JSONRPCNotification;
 use codex_app_server_protocol::JSONRPCRequest;
 use codex_app_server_protocol::JSONRPCResponse;
-use codex_app_server_protocol::ServerRequestPayload;
 use codex_app_server_protocol::experimental_required_message;
 use codex_arg0::Arg0DispatchPaths;
 use codex_chatgpt::workspace_settings;
+use codex_code_mode::CodeModeSessionProvider;
 use codex_core::ThreadManager;
 use codex_core::config::Config;
 use codex_exec_server::EnvironmentManager;
@@ -76,10 +72,6 @@ use codex_feedback::CodexFeedback;
 use codex_goal_extension::GoalService;
 use codex_home::CodexHomeUserInstructionsProvider;
 use codex_login::AuthManager;
-use codex_login::auth::ExternalAuth;
-use codex_login::auth::ExternalAuthRefreshContext;
-use codex_login::auth::ExternalAuthRefreshReason;
-use codex_login::auth::ExternalAuthTokens;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::W3cTraceContext;
@@ -96,92 +88,11 @@ use tracing::Instrument;
 
 use crate::models_refresh_worker::ModelsRefreshWorker;
 
-const EXTERNAL_AUTH_REFRESH_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECTION_RPC_DRAIN_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 30);
 
-fn deserialize_client_request(
-    request: &JSONRPCRequest,
-) -> Result<ClientRequest, JSONRPCErrorError> {
-    serde_json::to_value(request)
+fn deserialize_client_request(request: JSONRPCRequest) -> Result<ClientRequest, JSONRPCErrorError> {
+    ClientRequest::try_from(request)
         .map_err(|err| invalid_request(format!("Invalid request: {err}")))
-        .and_then(|request_json| {
-            serde_json::from_value(request_json)
-                .map_err(|err| invalid_request(format!("Invalid request: {err}")))
-        })
-}
-
-#[derive(Clone)]
-struct ExternalAuthRefreshBridge {
-    outgoing: Arc<OutgoingMessageSender>,
-}
-
-impl ExternalAuthRefreshBridge {
-    fn map_reason(reason: ExternalAuthRefreshReason) -> ChatgptAuthTokensRefreshReason {
-        match reason {
-            ExternalAuthRefreshReason::Unauthorized => ChatgptAuthTokensRefreshReason::Unauthorized,
-        }
-    }
-
-    async fn refresh(
-        &self,
-        context: ExternalAuthRefreshContext,
-    ) -> std::io::Result<ExternalAuthTokens> {
-        let params = ChatgptAuthTokensRefreshParams {
-            reason: Self::map_reason(context.reason),
-            previous_account_id: context.previous_account_id,
-        };
-
-        let (request_id, rx) = self
-            .outgoing
-            .send_request(ServerRequestPayload::ChatgptAuthTokensRefresh(params))
-            .await;
-
-        let result = match timeout(EXTERNAL_AUTH_REFRESH_TIMEOUT, rx).await {
-            Ok(result) => {
-                // Two failure scenarios:
-                // 1) `oneshot::Receiver` failed (sender dropped) => request canceled/channel closed.
-                // 2) client answered with JSON-RPC error payload => propagate code/message.
-                let result = result.map_err(|err| {
-                    std::io::Error::other(format!("auth refresh request canceled: {err}"))
-                })?;
-                result.map_err(|err| {
-                    std::io::Error::other(format!(
-                        "auth refresh request failed: code={} message={}",
-                        err.code, err.message
-                    ))
-                })?
-            }
-            Err(_) => {
-                let _canceled = self.outgoing.cancel_request(&request_id).await;
-                return Err(std::io::Error::other(format!(
-                    "auth refresh request timed out after {}s",
-                    EXTERNAL_AUTH_REFRESH_TIMEOUT.as_secs()
-                )));
-            }
-        };
-
-        let response: ChatgptAuthTokensRefreshResponse =
-            serde_json::from_value(result).map_err(std::io::Error::other)?;
-
-        Ok(ExternalAuthTokens::chatgpt(
-            response.access_token,
-            response.chatgpt_account_id,
-            response.chatgpt_plan_type,
-        ))
-    }
-}
-
-impl ExternalAuth for ExternalAuthRefreshBridge {
-    fn auth_mode(&self) -> LoginAuthMode {
-        LoginAuthMode::Chatgpt
-    }
-
-    fn refresh(
-        &self,
-        context: ExternalAuthRefreshContext,
-    ) -> codex_login::ExternalAuthFuture<'_, ExternalAuthTokens> {
-        Box::pin(ExternalAuthRefreshBridge::refresh(self, context))
-    }
 }
 
 pub(crate) struct MessageProcessor {
@@ -302,6 +213,7 @@ pub(crate) struct MessageProcessorArgs {
     pub(crate) session_source: SessionSource,
     pub(crate) auth_manager: Arc<AuthManager>,
     pub(crate) installation_id: String,
+    pub(crate) code_mode_session_provider: Option<Arc<dyn CodeModeSessionProvider>>,
     pub(crate) rpc_transport: AppServerRpcTransport,
     pub(crate) remote_control_handle: Option<RemoteControlHandle>,
     pub(crate) plugin_startup_tasks: crate::PluginStartupTasks,
@@ -326,14 +238,12 @@ impl MessageProcessor {
             session_source,
             auth_manager,
             installation_id,
+            code_mode_session_provider,
             rpc_transport,
             remote_control_handle,
             plugin_startup_tasks,
             gui_launch_service,
         } = args;
-        auth_manager.set_external_auth(Arc::new(ExternalAuthRefreshBridge {
-            outgoing: outgoing.clone(),
-        }));
         let thread_state_manager = ThreadStateManager::new();
         // The thread store is intentionally process-scoped. Config reloads can
         // affect per-thread behavior, but they must not move newly started,
@@ -350,9 +260,11 @@ impl MessageProcessor {
         );
         let goal_service = Arc::new(GoalService::new());
         let thread_manager = Arc::new_cyclic(|thread_manager| {
-            ThreadManager::new(
+            let manager = ThreadManager::new(
                 config.as_ref(),
                 auth_manager.clone(),
+                codex_core::build_models_manager(config.as_ref(), auth_manager.clone()),
+                codex_core::CodexAppsToolsCache::default(),
                 session_source,
                 environment_manager,
                 thread_extensions(
@@ -370,6 +282,8 @@ impl MessageProcessor {
                         environment_manager: Arc::clone(&environment_manager_for_extensions),
                         executor_skill_provider: Arc::clone(&executor_skill_provider),
                         gui_launch_service: gui_launch_service.clone(),
+                        git_attribution_base_url: config.chatgpt_base_url.clone(),
+                        http_client_factory: config.http_client_factory(),
                         thread_store: Arc::clone(&thread_store),
                     },
                 ),
@@ -378,7 +292,7 @@ impl MessageProcessor {
                 )),
                 Some(analytics_events_client.clone()),
                 Arc::clone(&thread_store),
-                state_db.clone(),
+                codex_core::local_agent_graph_store_from_state_db(state_db.as_ref()),
                 installation_id,
                 Some(app_server_attestation_provider(
                     outgoing.clone(),
@@ -388,14 +302,23 @@ impl MessageProcessor {
                     outgoing.clone(),
                     thread_state_manager.clone(),
                 )),
-            )
+            );
+            match code_mode_session_provider {
+                Some(provider) => manager.with_code_mode_session_provider(provider),
+                None => manager,
+            }
         });
         let models_manager = thread_manager.get_models_manager();
-        let models_refresh_worker = crate::models_refresh_worker::spawn(&models_manager);
+        let models_refresh_worker =
+            crate::models_refresh_worker::spawn(&models_manager, config.http_client_factory());
         thread_manager
             .plugins_manager()
             .set_analytics_events_client(analytics_events_client.clone());
-        let skills_watcher = SkillsWatcher::new(thread_manager.skills_service(), outgoing.clone());
+        let skills_watcher = SkillsWatcher::new(
+            thread_manager.skills_service(),
+            &config.codex_home,
+            outgoing.clone(),
+        );
 
         let pending_thread_unloads = Arc::new(Mutex::new(HashSet::new()));
         let thread_watch_manager =
@@ -404,6 +327,21 @@ impl MessageProcessor {
         let workspace_settings_cache =
             Arc::new(workspace_settings::WorkspaceSettingsCache::default());
         let app_list_shutdown_token = CancellationToken::new();
+        let request_serialization_queues = RequestSerializationQueues::default();
+        let config_processor = ConfigRequestProcessor::new(
+            outgoing.clone(),
+            config_manager.clone(),
+            thread_manager.clone(),
+            analytics_events_client.clone(),
+        );
+        let on_effective_plugins_changed =
+            crate::effective_plugin_change::effective_plugins_changed_callback(
+                auth_manager.clone(),
+                Arc::clone(&thread_manager),
+                config_manager.clone(),
+                config_processor.clone(),
+                request_serialization_queues.clone(),
+            );
         let account_processor = AccountRequestProcessor::new(
             auth_manager.clone(),
             Arc::clone(&thread_manager),
@@ -452,7 +390,7 @@ impl MessageProcessor {
             outgoing.clone(),
             analytics_events_client.clone(),
             Arc::clone(&config),
-            config_warnings,
+            config_warnings.clone(),
             rpc_transport,
         );
         let marketplace_processor = MarketplaceRequestProcessor::new(
@@ -473,6 +411,7 @@ impl MessageProcessor {
             analytics_events_client.clone(),
             config_manager.clone(),
             workspace_settings_cache,
+            on_effective_plugins_changed,
         );
         let remote_control_processor = RemoteControlRequestProcessor::new(remote_control_handle);
         let search_processor = SearchRequestProcessor::new(outgoing.clone());
@@ -500,6 +439,7 @@ impl MessageProcessor {
             state_db.clone(),
             log_db,
             Arc::clone(&skills_watcher),
+            config_warnings,
         );
         let turn_processor = TurnRequestProcessor::new(
             auth_manager.clone(),
@@ -527,12 +467,6 @@ impl MessageProcessor {
                     Some(on_effective_plugins_changed),
                 );
         }
-        let config_processor = ConfigRequestProcessor::new(
-            outgoing.clone(),
-            config_manager.clone(),
-            thread_manager.clone(),
-            analytics_events_client.clone(),
-        );
         let external_agent_config_processor =
             ExternalAgentConfigRequestProcessor::new(ExternalAgentConfigRequestProcessorArgs {
                 outgoing: outgoing.clone(),
@@ -582,7 +516,7 @@ impl MessageProcessor {
             thread_processor,
             turn_processor,
             windows_sandbox_processor,
-            request_serialization_queues: RequestSerializationQueues::default(),
+            request_serialization_queues,
             gui_launch_service,
         }
     }
@@ -623,7 +557,7 @@ impl MessageProcessor {
             Arc::clone(&self.outgoing),
             request_context.clone(),
             async {
-                let codex_request = deserialize_client_request(&request);
+                let codex_request = deserialize_client_request(request);
                 let result = match codex_request {
                     Ok(codex_request) => {
                         // Websocket callers finalize outbound readiness in lib.rs after mirroring
@@ -995,6 +929,11 @@ impl MessageProcessor {
                 .import(request_id.clone(), params)
                 .await
                 .map(|()| None),
+            ClientRequest::ExternalAgentConfigImportHistoryRecord { params, .. } => self
+                .external_agent_config_processor
+                .record_import_history(params)
+                .await
+                .map(|response| Some(response.into())),
             ClientRequest::ExternalAgentConfigImportHistoriesRead { .. } => self
                 .external_agent_config_processor
                 .read_import_histories()
@@ -1058,6 +997,12 @@ impl MessageProcessor {
                 .map(|response| Some(response.into())),
             ClientRequest::EnvironmentAdd { params, .. } => {
                 self.environment_processor.environment_add(params).await
+            }
+            ClientRequest::EnvironmentInfo { params, .. } => {
+                self.environment_processor.environment_info(params).await
+            }
+            ClientRequest::EnvironmentStatus { params, .. } => {
+                self.environment_processor.environment_status(params).await
             }
             ClientRequest::FsReadFile { params, .. } => self
                 .fs_processor
@@ -1237,7 +1182,7 @@ impl MessageProcessor {
             }
             ClientRequest::ThreadRollback { params, .. } => {
                 self.thread_processor
-                    .thread_rollback(&request_id, params)
+                    .thread_rollback(&request_id, params, app_server_client_name.as_deref())
                     .await
             }
             ClientRequest::ThreadList { params, .. } => {
@@ -1245,6 +1190,11 @@ impl MessageProcessor {
             }
             ClientRequest::ThreadSearch { params, .. } => {
                 self.thread_processor.thread_search(params).await
+            }
+            ClientRequest::ThreadSearchOccurrences { params, .. } => {
+                self.thread_processor
+                    .thread_search_occurrences(params)
+                    .await
             }
             ClientRequest::ThreadLoadedList { params, .. } => {
                 self.thread_processor.thread_loaded_list(params).await
@@ -1255,8 +1205,8 @@ impl MessageProcessor {
             ClientRequest::ThreadTurnsList { params, .. } => {
                 self.thread_processor.thread_turns_list(params).await
             }
-            ClientRequest::ThreadTurnsItemsList { params, .. } => {
-                self.thread_processor.thread_turns_items_list(params).await
+            ClientRequest::ThreadItemsList { params, .. } => {
+                self.thread_processor.thread_items_list(params).await
             }
             ClientRequest::ThreadShellCommand { params, .. } => {
                 self.thread_processor
@@ -1318,9 +1268,15 @@ impl MessageProcessor {
             ClientRequest::PluginShareDelete { params, .. } => {
                 self.plugin_processor.plugin_share_delete(params).await
             }
+            ClientRequest::AppsRead { params, .. } => self.apps_processor.apps_read(params).await,
             ClientRequest::AppsList { params, .. } => {
                 self.apps_processor.apps_list(&request_id, params).await
             }
+            ClientRequest::AppsInstalled { params, .. } => self
+                .apps_processor
+                .apps_installed(params)
+                .await
+                .map(|response| Some(response.into())),
             ClientRequest::SkillsConfigWrite { params, .. } => {
                 self.catalog_processor.skills_config_write(params).await
             }

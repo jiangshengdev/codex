@@ -359,13 +359,15 @@ mod tests {
         let thread_manager = Arc::new(ThreadManager::new(
             &config,
             auth_manager.clone(),
+            codex_core::build_models_manager(&config, auth_manager.clone()),
+            codex_core::CodexAppsToolsCache::default(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
             thread_store.clone(),
-            /*state_db*/ None,
+            /*agent_graph_store*/ None,
             uuid::Uuid::new_v4().to_string(),
             /*attestation_provider*/ None,
             /*external_time_provider*/ None,
@@ -384,7 +386,11 @@ mod tests {
             /*state_db*/ None,
             Arc::new(GoalService::new()),
         );
-        let skills_watcher = SkillsWatcher::new(thread_manager.skills_service(), outgoing.clone());
+        let skills_watcher = SkillsWatcher::new(
+            thread_manager.skills_service(),
+            &config.codex_home,
+            outgoing.clone(),
+        );
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
@@ -409,9 +415,12 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*initial_config_warnings*/ Vec::new(),
         );
 
-        let new_thread = thread_manager.start_thread(config.as_ref().clone()).await?;
+        let new_thread = thread_manager
+            .start_thread(StartThreadOptions::new(config.as_ref().clone()))
+            .await?;
         let thread_id = new_thread.thread_id;
         let persisted_items = persisted_in_progress_history_items("persisted-turn", "persisted");
         store
@@ -597,6 +606,8 @@ mod tests {
                 codex_protocol::protocol::TurnCompleteEvent {
                     turn_id: "turn-final".to_string(),
                     last_agent_message: Some("final answer".to_string()),
+                    error: None,
+                    started_at: Some(1),
                     completed_at: Some(2),
                     duration_ms: None,
                     time_to_first_token_ms: None,
@@ -663,13 +674,15 @@ mod tests {
         let thread_manager = Arc::new(ThreadManager::new(
             &config,
             auth_manager.clone(),
+            codex_core::build_models_manager(&config, auth_manager.clone()),
+            codex_core::CodexAppsToolsCache::default(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
             thread_store.clone(),
-            /*state_db*/ None,
+            /*agent_graph_store*/ None,
             uuid::Uuid::new_v4().to_string(),
             /*attestation_provider*/ None,
             /*external_time_provider*/ None,
@@ -688,7 +701,11 @@ mod tests {
             /*state_db*/ None,
             Arc::new(GoalService::new()),
         );
-        let skills_watcher = SkillsWatcher::new(thread_manager.skills_service(), outgoing.clone());
+        let skills_watcher = SkillsWatcher::new(
+            thread_manager.skills_service(),
+            &config.codex_home,
+            outgoing.clone(),
+        );
         let processor = ThreadRequestProcessor::new(
             auth_manager,
             thread_manager.clone(),
@@ -713,10 +730,11 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*initial_config_warnings*/ Vec::new(),
         );
 
         let thread_id = thread_manager
-            .start_thread(config.as_ref().clone())
+            .start_thread(StartThreadOptions::new(config.as_ref().clone()))
             .await?
             .thread_id;
         store
@@ -753,6 +771,8 @@ mod tests {
                     image_details: vec![Some(ImageDetail::Original)],
                     local_images: vec![PathBuf::from("/tmp/projection-local.png")],
                     local_image_details: vec![Some(ImageDetail::Original)],
+                    audio: None,
+                    local_audio: Vec::new(),
                     text_elements: Vec::new(),
                 },
             )),
@@ -767,6 +787,8 @@ mod tests {
                     V2UserInput::Text { text, .. } => Some(text.as_str()),
                     V2UserInput::Image { .. }
                     | V2UserInput::LocalImage { .. }
+                    | V2UserInput::Audio { .. }
+                    | V2UserInput::LocalAudio { .. }
                     | V2UserInput::Skill { .. }
                     | V2UserInput::Mention { .. } => None,
                 },

@@ -1,20 +1,25 @@
 import type {
-  ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
-  TurnInterruptParams,
-  TurnInterruptResponse,
-  TurnStartParams,
-  TurnStartResponse,
 } from "@codex-protocol/v2";
+import type { JSONRPCMessage } from "@codex-protocol/JSONRPCMessage";
+import { WEBSOCKET_PATH } from "@codex-gui-host-contract";
 import {
-  formatRpcId,
-  isThreadProjectionAttachResponse,
-  isThreadProjectionClosedNotification,
-  isThreadProjectionEventNotification,
-  parseRpcMessage,
-  type RpcMessage,
-} from "./guiHostProtocol";
+  consumeBrowserLaunchParams,
+  type BrowserLaunchParams,
+} from "@/features/browserLaunch/browserLaunchParams";
+import { classifyServerNotification } from "@/generated/appServerProtocol";
+import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
+import type { RequestResponse } from "./appServerProtocol";
+import { GuiHostCommandGateway, type GuiHostCommands } from "./guiHostCommandGateway";
+import { GuiHostHandshakeController } from "./guiHostHandshakeController";
+import { parseRpcMessage } from "./guiHostProtocol";
+import { GuiHostTransportSession } from "./guiHostTransportSession";
+
+export type { GuiHostCommands } from "./guiHostCommandGateway";
+
+const unavailableMessage = "GUI host WebSocket is not available";
 
 export type GuiHostStatus =
   | { label: "connecting" }
@@ -24,24 +29,15 @@ export type GuiHostStatus =
   | { label: "closed" }
   | { label: "error"; message: string };
 
-export type LaunchParams = {
-  threadId: string;
-  token: string;
-};
-
-export type GuiHostCommands = {
-  startTurn: (params: TurnStartParams) => Promise<TurnStartResponse>;
-  interruptTurn: (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
-};
-
 export type StartGuiHostConnectionOptions = {
   location: URL;
   replaceState: History["replaceState"];
   tokenStorage?: Pick<Storage, "getItem" | "setItem">;
   createWebSocket?: (url: string) => WebSocket;
   onStatus?: (status: GuiHostStatus) => void;
-  onLaunchParams?: (params: LaunchParams) => void;
-  onProjectionAttached?: (response: ThreadProjectionAttachResponse) => void;
+  onLaunchParams?: (params: BrowserLaunchParams) => void;
+  onProjectionAttached?: (response: RequestResponse<"thread/projection/attach">) => void;
+  onProjectionDelta?: (notification: ThreadProjectionDeltaNotification) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
   onProjectionClosed?: (notification: ThreadProjectionClosedNotification) => void;
   onCommandsReady?: (commands: GuiHostCommands) => void;
@@ -49,43 +45,6 @@ export type StartGuiHostConnectionOptions = {
 };
 
 export type GuiHostConnectionCleanup = () => void;
-
-const launchTokenStorageKey = "codex-gui.launchToken";
-
-export function readLaunchParams(
-  url: URL,
-  tokenStorage?: Pick<Storage, "getItem" | "setItem">,
-): LaunchParams {
-  const threadId = url.searchParams.get("threadId");
-  const fragmentToken = new URLSearchParams(url.hash.replace(/^#/, "")).get("token");
-
-  if (!threadId) {
-    throw new Error("Missing threadId query parameter");
-  }
-
-  if (fragmentToken) {
-    try {
-      tokenStorage?.setItem(launchTokenStorageKey, fragmentToken);
-    } catch {
-      // The fragment token is still valid for this connection if storage is unavailable.
-    }
-    return { threadId, token: fragmentToken };
-  }
-
-  const storedToken = tokenStorage?.getItem(launchTokenStorageKey);
-  if (!storedToken) {
-    throw new Error("Missing launch token fragment");
-  }
-
-  return { threadId, token: storedToken };
-}
-
-export function clearLaunchTokenFragment(
-  location: URL,
-  replaceState: History["replaceState"],
-): void {
-  replaceState(null, "", `${location.pathname}${location.search}`);
-}
 
 export function startGuiHostConnection({
   location,
@@ -95,22 +54,25 @@ export function startGuiHostConnection({
   onStatus,
   onLaunchParams,
   onProjectionAttached,
+  onProjectionDelta,
   onProjectionEvent,
   onProjectionClosed,
   onCommandsReady,
   onCommandsUnavailable,
 }: StartGuiHostConnectionOptions): GuiHostConnectionCleanup {
-  clearLaunchTokenFragment(location, replaceState);
-  const launchParams = readLaunchParams(location, tokenStorage ?? readSessionStorage());
+  const launchParams = consumeBrowserLaunchParams({
+    location,
+    replaceState,
+    tokenStorage,
+  });
   const { threadId, token } = launchParams;
   onLaunchParams?.(launchParams);
 
-  const socket = createWebSocket(`${webSocketProtocol(location)}://${location.host}/ws`);
+  const socket = createWebSocket(
+    `${webSocketProtocol(location)}://${location.host}${WEBSOCKET_PATH}`,
+  );
   let terminalError = false;
   let closed = false;
-  let nextRequestId = 1;
-  const pendingRequests = new Map<number, PendingRequest>();
-  let commandsReady = false;
 
   const emit = (status: GuiHostStatus): void => {
     if (closed) {
@@ -125,17 +87,42 @@ export function startGuiHostConnection({
     onStatus?.(status);
   };
 
-  emit({ label: "connecting" });
+  const transport = new GuiHostTransportSession(socket, {
+    onOpen: () => {
+      handshake.start();
+    },
+    onMessage: (event) => {
+      handleMessage(event);
+    },
+    onError: () => {
+      handshake.stop();
+      transport.invalidate(unavailableMessage);
+      invalidateCommands();
+      emit({
+        label: "error",
+        message: "GUI host WebSocket failed",
+      });
+    },
+    onClose: (event) => {
+      handshake.stop();
+      transport.invalidate(unavailableMessage);
+      invalidateCommands();
+      if (event.code === 1000) {
+        emit({ label: "closed" });
+        return;
+      }
 
-  const rejectPendingRequests = (reason: string): void => {
-    const error = new Error(reason);
-    for (const request of pendingRequests.values()) {
-      request.reject(error);
-    }
-    pendingRequests.clear();
+      emit({
+        label: "error",
+        message: `GUI host WebSocket closed (code=${String(event.code)}${event.reason ? `, reason=${event.reason}` : ""})`,
+      });
+    },
+  });
 
-    if (commandsReady) {
-      commandsReady = false;
+  const commandGateway = new GuiHostCommandGateway(transport);
+
+  const invalidateCommands = (): void => {
+    if (commandGateway.invalidate()) {
       onCommandsUnavailable?.();
     }
   };
@@ -145,210 +132,127 @@ export function startGuiHostConnection({
       label: "error",
       message,
     });
-    rejectPendingRequests("GUI host WebSocket is not available");
+    handshake.stop();
+    transport.invalidate(unavailableMessage);
+    invalidateCommands();
   };
 
   const failProtocolAndClose = (message: string, closeReason: string): void => {
     emitProtocolError(message);
+    transport.close(1000, closeReason);
+  };
+
+  const handshake = new GuiHostHandshakeController({
+    requests: transport,
+    token,
+    threadId,
+    callbacks: {
+      onAuthenticated: () => {
+        emit({ label: "authenticated" });
+      },
+      onInitialized: () => {
+        emit({ label: "initialized" });
+      },
+      onAttached: (response) => {
+        onProjectionAttached?.(response);
+        emit({ label: "attached" });
+        if (commandGateway.activate()) {
+          onCommandsReady?.(commandGateway.commands);
+        }
+      },
+      onTerminalFailure: ({ message, closeReason }) => {
+        failProtocolAndClose(message, closeReason);
+      },
+    },
+  });
+
+  const handleMessage = (event: MessageEvent): void => {
+    let parsedMessage: unknown;
     try {
-      socket.close(1000, closeReason);
-    } catch {
-      // Ignore close races; the status above is already terminal.
-    }
-  };
-
-  const request = <TResponse>(
-    method: string,
-    params: unknown,
-    { terminalOnError }: { terminalOnError: boolean },
-  ): Promise<TResponse> => {
-    if (
-      closed ||
-      socket.readyState === WebSocket.CLOSING ||
-      socket.readyState === WebSocket.CLOSED
-    ) {
-      return Promise.reject(new Error("GUI host WebSocket is not available"));
-    }
-
-    const id = nextRequestId;
-    nextRequestId += 1;
-
-    return new Promise<TResponse>((resolve, reject) => {
-      pendingRequests.set(id, {
-        terminalOnError,
-        resolve: (result) => {
-          resolve(result as TResponse);
-        },
-        reject,
-      });
-      try {
-        sendRequest(socket, id, method, params);
-      } catch (error) {
-        pendingRequests.delete(id);
-        reject(error instanceof Error ? error : new Error("GUI host WebSocket is not available"));
-      }
-    });
-  };
-
-  const commandRequest = <TResponse>(method: string, params: unknown): Promise<TResponse> => {
-    if (!commandsReady) {
-      return Promise.reject(new Error("GUI host WebSocket is not available"));
-    }
-
-    return request<TResponse>(method, params, { terminalOnError: false });
-  };
-
-  const commands: GuiHostCommands = {
-    startTurn: (params) => commandRequest<TurnStartResponse>("turn/start", params),
-    interruptTurn: (params) => commandRequest<TurnInterruptResponse>("turn/interrupt", params),
-  };
-
-  const startHandshakeRequest = (method: string, params: unknown): void => {
-    void request(method, params, { terminalOnError: true }).catch(() => undefined);
-  };
-
-  socket.onopen = () => {
-    startHandshakeRequest("gui/authenticate", { token });
-  };
-
-  socket.onerror = () => {
-    rejectPendingRequests("GUI host WebSocket is not available");
-    emit({
-      label: "error",
-      message: "GUI host WebSocket failed",
-    });
-  };
-
-  socket.onclose = (event) => {
-    rejectPendingRequests("GUI host WebSocket is not available");
-    if (event.code === 1000) {
-      emit({ label: "closed" });
-      return;
-    }
-
-    emit({
-      label: "error",
-      message: `GUI host WebSocket closed (code=${String(event.code)}${event.reason ? `, reason=${event.reason}` : ""})`,
-    });
-  };
-
-  socket.onmessage = (event) => {
-    let message: RpcMessage;
-    try {
-      message = parseRpcMessage(event.data);
+      parsedMessage = parseRpcMessage(event.data);
     } catch {
       failProtocolAndClose("Malformed JSON-RPC message", "invalid message");
       return;
     }
 
-    if (typeof message.id === "number" && pendingRequests.has(message.id)) {
-      const pending = pendingRequests.get(message.id);
-      pendingRequests.delete(message.id);
-
-      if (!pending) {
+    if (!validateJSONRPCMessage(parsedMessage)) {
+      if (
+        typeof parsedMessage === "object" &&
+        parsedMessage !== null &&
+        !Array.isArray(parsedMessage) &&
+        "id" in parsedMessage &&
+        typeof parsedMessage.id === "number" &&
+        !("result" in parsedMessage) &&
+        !("error" in parsedMessage) &&
+        transport.settleMissingResult(parsedMessage.id)
+      ) {
         return;
       }
 
-      if (message.error) {
-        const error = new Error(
-          `JSON-RPC error (id=${String(message.id)}, code=${String(message.error.code)}): ${
-            message.error.message ?? ""
-          }`.trim(),
-        );
-        pending.reject(error);
-
-        if (pending.terminalOnError) {
-          failProtocolAndClose(error.message, "handshake error");
-        }
-        return;
-      }
-
-      pending.resolve(message.result ?? {});
-      if (!pending.terminalOnError) {
-        return;
-      }
+      failProtocolAndClose("Malformed JSON-RPC message", "invalid message");
+      return;
     }
 
-    if (message.error) {
+    const message: JSONRPCMessage = parsedMessage;
+    if ("result" in message) {
+      if (typeof message.id === "number") {
+        transport.settleResult(message.id, message.result);
+      }
+      return;
+    }
+    if ("error" in message) {
+      if (typeof message.id === "number") {
+        transport.settleRpcError(message.id, message.error);
+        return;
+      }
+
       failProtocolAndClose(
-        `JSON-RPC error (id=${formatRpcId(message.id)}, code=${String(message.error.code)}): ${
-          message.error.message ?? ""
-        }`.trim(),
+        `JSON-RPC error (id=${message.id}, code=${String(message.error.code)}): ${message.error.message}`.trim(),
         "handshake error",
       );
       return;
     }
-
-    if (message.id === 1 && message.result?.authenticated === true) {
-      emit({ label: "authenticated" });
-      startHandshakeRequest("initialize", {
-        clientInfo: { name: "codex-gui", version: "0.0.0" },
-        capabilities: {},
-      });
+    if ("id" in message) {
       return;
     }
 
-    if (message.id === 2) {
-      if (!message.result) {
-        failProtocolAndClose("initialize returned no result payload", "protocol error");
-        return;
+    const classification = classifyServerNotification(message);
+    switch (classification.type) {
+      case "selected": {
+        const notification = classification.notification;
+        switch (notification.method) {
+          case "thread/projection/event":
+            onProjectionEvent?.(notification.params);
+            return;
+          case "thread/projection/delta":
+            onProjectionDelta?.(notification.params);
+            return;
+          case "thread/projection/closed":
+            onProjectionClosed?.(notification.params);
+            return;
+          default:
+            notification satisfies never;
+            return;
+        }
       }
-
-      emit({ label: "initialized" });
-      startHandshakeRequest("thread/projection/attach", { threadId });
-      return;
-    }
-
-    if (message.id === 3) {
-      if (!message.result) {
+      case "selectedInvalid":
         failProtocolAndClose(
-          "thread/projection/attach returned no result payload",
+          `${classification.method} returned malformed params payload`,
           "protocol error",
         );
         return;
-      }
-
-      if (!isThreadProjectionAttachResponse(message.result)) {
-        failProtocolAndClose(
-          "thread/projection/attach returned malformed result payload",
-          "protocol error",
-        );
+      case "knownUnconsumed":
         return;
-      }
-
-      onProjectionAttached?.(message.result);
-      emit({ label: "attached" });
-      commandsReady = true;
-      onCommandsReady?.(commands);
-      return;
-    }
-
-    if (message.method === "thread/projection/event") {
-      if (!isThreadProjectionEventNotification(message.params)) {
-        failProtocolAndClose(
-          "thread/projection/event returned malformed params payload",
-          "protocol error",
-        );
+      case "unknown":
+        failProtocolAndClose("Malformed JSON-RPC message", "invalid message");
         return;
-      }
-
-      const notification = message.params;
-      onProjectionEvent?.(notification);
-    }
-
-    if (message.method === "thread/projection/closed") {
-      if (!isThreadProjectionClosedNotification(message.params)) {
-        failProtocolAndClose(
-          "thread/projection/closed returned malformed params payload",
-          "protocol error",
-        );
+      default:
+        classification satisfies never;
         return;
-      }
-
-      const notification = message.params;
-      onProjectionClosed?.(notification);
     }
   };
+
+  emit({ label: "connecting" });
 
   return () => {
     if (closed) {
@@ -356,38 +260,13 @@ export function startGuiHostConnection({
     }
 
     closed = true;
-    rejectPendingRequests("GUI host WebSocket is not available");
-    socket.onopen = null;
-    socket.onerror = null;
-    socket.onclose = null;
-    socket.onmessage = null;
-
-    try {
-      socket.close(1000, "cleanup");
-    } catch {
-      // The browser may reject close if the socket is already gone.
-    }
+    handshake.stop();
+    transport.invalidate(unavailableMessage);
+    invalidateCommands();
+    transport.dispose(1000, "cleanup");
   };
 }
 
-type PendingRequest = {
-  terminalOnError: boolean;
-  resolve: (result: Record<string, unknown>) => void;
-  reject: (error: Error) => void;
-};
-
 function webSocketProtocol(location: URL): "ws" | "wss" {
   return location.protocol === "https:" ? "wss" : "ws";
-}
-
-function sendRequest(socket: WebSocket, id: number, method: string, params: unknown): void {
-  socket.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
-}
-
-function readSessionStorage(): Pick<Storage, "getItem" | "setItem"> | undefined {
-  try {
-    return globalThis.sessionStorage;
-  } catch {
-    return undefined;
-  }
 }

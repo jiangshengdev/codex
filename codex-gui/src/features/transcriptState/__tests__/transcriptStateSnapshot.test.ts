@@ -9,12 +9,15 @@ import {
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
   selectTranscriptTurnIds,
+  transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 import {
   agentMessage,
+  audioInput,
   attachWithTurns,
   baseTurn,
   imageInput,
+  localAudioInput,
   planItem,
   sleepItem,
   textInput,
@@ -50,12 +53,18 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-snapshot")).toStrictEqual({
       id: "turn-snapshot",
       status: "completed",
-      leadingPromptEntryId: "user-snapshot",
+      originalFirstItemId: "user-snapshot",
+      leadingPromptEntryId: transcriptEntryIdFor("turn-snapshot", "user-snapshot"),
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-snapshot"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-snapshot", "agent-snapshot")],
     });
-    expect(selectTranscriptEntry(store.getState(), "user-snapshot")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-snapshot", "user-snapshot"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "user-snapshot",
       turnId: "turn-snapshot",
@@ -65,7 +74,12 @@ describe("transcript state snapshot reducer", () => {
       phase: null,
       revision: 0,
     });
-    expect(selectTranscriptEntry(store.getState(), "agent-snapshot")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-snapshot", "agent-snapshot"),
+      ),
+    ).toStrictEqual({
       type: "message",
       id: "agent-snapshot",
       turnId: "turn-snapshot",
@@ -98,10 +112,11 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-layout")).toStrictEqual({
       id: "turn-layout",
       status: "completed",
-      leadingPromptEntryId: "user-leading",
+      originalFirstItemId: "user-leading",
+      leadingPromptEntryId: transcriptEntryIdFor("turn-layout", "user-leading"),
       middleChunkIds: ["turn-layout:chunk:0"],
       middleEntryCount: 3,
-      finalAssistantEntryIds: ["agent-final"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-layout", "agent-final")],
     });
     expect(selectTranscriptChunk(store.getState(), "turn-layout:chunk:0")?.entries).toStrictEqual([
       {
@@ -135,7 +150,9 @@ describe("transcript state snapshot reducer", () => {
         revision: 0,
       },
     ]);
-    expect(selectTranscriptEntry(store.getState(), "agent-final")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-layout", "agent-final")),
+    ).toStrictEqual({
       type: "message",
       id: "agent-final",
       turnId: "turn-layout",
@@ -164,10 +181,11 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-assistant-first")).toStrictEqual({
       id: "turn-assistant-first",
       status: "completed",
+      originalFirstItemId: "agent-first-commentary",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-assistant-first:chunk:0"],
       middleEntryCount: 1,
-      finalAssistantEntryIds: ["agent-first-final"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-assistant-first", "agent-first-final")],
     });
     expect(
       selectTranscriptChunk(store.getState(), "turn-assistant-first:chunk:0")?.entries,
@@ -202,10 +220,11 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-final-first")).toStrictEqual({
       id: "turn-final-first",
       status: "completed",
+      originalFirstItemId: "agent-final-first",
       leadingPromptEntryId: null,
       middleChunkIds: ["turn-final-first:chunk:0"],
       middleEntryCount: 1,
-      finalAssistantEntryIds: ["agent-final-first"],
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-final-first", "agent-final-first")],
     });
     expect(
       selectTranscriptChunk(store.getState(), "turn-final-first:chunk:0")?.entries,
@@ -241,10 +260,14 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-multi-final")).toStrictEqual({
       id: "turn-multi-final",
       status: "completed",
-      leadingPromptEntryId: "user-multi-final",
+      originalFirstItemId: "user-multi-final",
+      leadingPromptEntryId: transcriptEntryIdFor("turn-multi-final", "user-multi-final"),
       middleChunkIds: [],
       middleEntryCount: 0,
-      finalAssistantEntryIds: ["agent-final-one", "agent-final-two"],
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-multi-final", "agent-final-one"),
+        transcriptEntryIdFor("turn-multi-final", "agent-final-two"),
+      ],
     });
   });
 
@@ -274,7 +297,9 @@ describe("transcript state snapshot reducer", () => {
         revision: 0,
       },
     ]);
-    expect(selectTranscriptEntry(store.getState(), "agent-final")).toStrictEqual({
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor("turn-phase", "agent-final")),
+    ).toStrictEqual({
       type: "message",
       id: "agent-final",
       turnId: "turn-phase",
@@ -294,10 +319,13 @@ describe("transcript state snapshot reducer", () => {
         attachWithTurns(attachBaseline, [
           baseTurn("turn-filtered", [
             userMessage("image-only", [imageInput("https://example.invalid/image.png")]),
+            userMessage("audio-only", [audioInput("https://example.invalid/audio.mp3")]),
+            userMessage("local-audio-only", [localAudioInput("/tmp/audio.mp3")]),
             userMessage("empty-user", [textInput("")]),
             agentMessage("empty-agent", ""),
             planItem("hidden-plan"),
             sleepItem("hidden-sleep"),
+            userMessage("visible-later", [textInput("Visible later")]),
           ]),
         ]),
       ),
@@ -307,9 +335,10 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurn(store.getState(), "turn-filtered")).toStrictEqual({
       id: "turn-filtered",
       status: "completed",
+      originalFirstItemId: "image-only",
       leadingPromptEntryId: null,
-      middleChunkIds: [],
-      middleEntryCount: 0,
+      middleChunkIds: ["turn-filtered:chunk:0"],
+      middleEntryCount: 1,
       finalAssistantEntryIds: [],
     });
   });

@@ -281,6 +281,7 @@ mod tests {
     use codex_app_server_protocol::ConfigWarningNotification;
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ServerNotification;
+    use codex_app_server_protocol::ServerNotificationEnvelope;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnStartedNotification;
     use codex_app_server_protocol::TurnStatus;
@@ -356,13 +357,15 @@ mod tests {
         let thread_manager = Arc::new(ThreadManager::new(
             &config,
             auth_manager.clone(),
+            codex_core::build_models_manager(&config, auth_manager.clone()),
+            codex_core::CodexAppsToolsCache::default(),
             SessionSource::Cli,
             Arc::new(EnvironmentManager::default_for_tests()),
             Arc::new(codex_extension_api::ExtensionRegistryBuilder::new().build()),
             Arc::new(codex_core::test_support::EmptyUserInstructionsProvider),
             /*analytics_events_client*/ None,
             thread_store.clone(),
-            /*state_db*/ None,
+            /*agent_graph_store*/ None,
             uuid::Uuid::new_v4().to_string(),
             /*attestation_provider*/ None,
             /*external_time_provider*/ None,
@@ -398,10 +401,15 @@ mod tests {
             thread_goal_processor,
             /*state_db*/ None,
             /*log_db*/ None,
-            crate::skills_watcher::SkillsWatcher::new(thread_manager.skills_service(), outgoing),
+            crate::skills_watcher::SkillsWatcher::new(
+                thread_manager.skills_service(),
+                &config.codex_home,
+                outgoing,
+            ),
+            /*initial_config_warnings*/ Vec::new(),
         );
         let thread_id = thread_manager
-            .start_thread(config.as_ref().clone())
+            .start_thread(codex_core::StartThreadOptions::new(config.as_ref().clone()))
             .await?
             .thread_id;
         Ok(ProjectionRuntimeHarness {
@@ -926,7 +934,10 @@ stream_max_retries = 0
         {
             if let OutgoingEnvelope::ToConnection {
                 message:
-                    OutgoingMessage::AppServerNotification(ServerNotification::ThreadProjectionEvent(_)),
+                    OutgoingMessage::AppServerNotification(ServerNotificationEnvelope {
+                        notification: ServerNotification::ThreadProjectionEvent(_),
+                        ..
+                    }),
                 ..
             } = envelope
             {

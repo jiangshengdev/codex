@@ -9,20 +9,24 @@ This is a documentation-navigation skill. Do not copy Vitest docs into this skil
 
 ## Documentation Root
 
-Resolve the Vitest documentation from the current project root:
+Run `git rev-parse --show-toplevel` as a standalone command to identify the Git repository
+root. Resolve the Vitest documentation as its sibling path:
 
 ```text
-../vitest/docs
+<git-repository-root>/../vitest/docs
 ```
+
+Treat the resolved absolute path as `<vitest-docs-root>`. Do not resolve `../vitest/docs`
+from a package or other nested working directory.
 
 ## Workflow
 
-1. Verify the local documentation root exists.
+1. Resolve `<vitest-docs-root>` from the Git repository root and verify it exists.
 2. Search the docs with `rg` before answering, reviewing, or editing React Browser Mode tests.
 3. Prefer searching these subtrees first:
-   - `../vitest/docs/api/browser`
-   - `../vitest/docs/config/browser`
-   - `../vitest/docs/guide/browser`
+   - `<vitest-docs-root>/api/browser`
+   - `<vitest-docs-root>/config/browser`
+   - `<vitest-docs-root>/guide/browser`
 4. Read only the documents directly relevant to the task.
 5. Base recommendations and code changes on the local docs you read.
 

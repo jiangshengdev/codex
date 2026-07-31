@@ -1,6 +1,7 @@
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
   ThreadProjectionEvent,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
@@ -26,6 +27,10 @@ export type ProjectionIngressOutcome =
       notification: ThreadProjectionEventNotification;
     }
   | {
+      type: "deltaAccepted";
+      notification: ThreadProjectionDeltaNotification;
+    }
+  | {
       type: "manualReconnectRequired";
       reason: ProjectionManualReconnectReason;
       threadId: string;
@@ -48,17 +53,36 @@ type ProjectionIngressCursor = {
   manualReconnect: ProjectionManualReconnect | null;
 };
 
+function createProjectionIngressCursor({
+  threadId,
+  subscriptionId,
+  headCommitId,
+  knownTurnIds,
+}: {
+  threadId: string;
+  subscriptionId: string | null;
+  headCommitId: string | null;
+  knownTurnIds: Iterable<string>;
+}): ProjectionIngressCursor {
+  return {
+    threadId,
+    subscriptionId,
+    headCommitId,
+    knownTurnIds: new Set(knownTurnIds),
+    manualReconnect: null,
+  };
+}
+
 export class ProjectionIngressAdapter {
   private cursor: ProjectionIngressCursor;
 
   constructor(threadId: string) {
-    this.cursor = {
+    this.cursor = createProjectionIngressCursor({
       threadId,
       subscriptionId: null,
       headCommitId: null,
-      knownTurnIds: new Set(),
-      manualReconnect: null,
-    };
+      knownTurnIds: [],
+    });
   }
 
   handleAttach(response: ThreadProjectionAttachResponse): ProjectionIngressOutcome {
@@ -67,13 +91,12 @@ export class ProjectionIngressAdapter {
       return { type: "ignored", reason: "wrongThread" };
     }
 
-    this.cursor = {
+    this.cursor = createProjectionIngressCursor({
       threadId: thread.id,
       subscriptionId: response.subscriptionId,
       headCommitId: response.snapshot.headCommitId,
-      knownTurnIds: new Set(thread.turns.map((turn) => turn.id)),
-      manualReconnect: null,
-    };
+      knownTurnIds: thread.turns.map((turn) => turn.id),
+    });
 
     return { type: "attachAccepted", response };
   }
@@ -105,6 +128,18 @@ export class ProjectionIngressAdapter {
     return { type: "eventAccepted", notification };
   }
 
+  handleDelta(notification: ThreadProjectionDeltaNotification): ProjectionIngressOutcome {
+    const ignored = this.ignoreReasonForNotification(
+      notification.threadId,
+      notification.subscriptionId,
+    );
+    if (ignored != null) {
+      return { type: "ignored", reason: ignored };
+    }
+
+    return { type: "deltaAccepted", notification };
+  }
+
   handleClosed(notification: ThreadProjectionClosedNotification): ProjectionIngressOutcome {
     const ignored = this.ignoreReasonForNotification(
       notification.threadId,
@@ -114,7 +149,7 @@ export class ProjectionIngressAdapter {
       return { type: "ignored", reason: ignored };
     }
 
-    return this.requireManualReconnect("backpressure");
+    return this.requireManualReconnect(notification.reason);
   }
 
   private ignoreReasonForNotification(
@@ -157,6 +192,9 @@ export class ProjectionIngressAdapter {
       case "itemStarted":
       case "itemCompleted":
         return !this.cursor.knownTurnIds.has(event.notification.turnId);
+      default:
+        event satisfies never;
+        return false;
     }
   }
 
@@ -169,6 +207,8 @@ export class ProjectionIngressAdapter {
       case "itemStarted":
       case "itemCompleted":
         return;
+      default:
+        event satisfies never;
     }
   }
 }
