@@ -514,7 +514,7 @@ describe("transcript state committed projection reducer", () => {
     });
   });
 
-  it("moves an existing middle entry to final when its phase changes", () => {
+  it("defensively reclassifies an existing middle entry when a repeated completion changes phase", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
