@@ -269,12 +269,6 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
     return;
   }
 
-  if (isUserMessageEntry(entry) && entry.id === turn.originalFirstItemId) {
-    removeEntryFromMiddleChunk(state, entry.turnId, entry.id, hadVisibleMiddleContribution);
-    turn.leadingPromptEntryId = entryId;
-    return;
-  }
-
   if (isFinalAssistantEntry(entry)) {
     removeEntryFromMiddleChunk(state, entry.turnId, entry.id, hadVisibleMiddleContribution);
     appendEntryToFinal(state, entry.turnId, entryId);
