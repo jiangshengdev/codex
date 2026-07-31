@@ -1,5 +1,10 @@
-import type { ThreadItem, Turn } from "@codex-protocol/v2";
-import { projectTranscriptItem } from "./transcriptItemPolicy";
+import type { ThreadItem, ThreadProjectionDeltaNotification, Turn } from "@codex-protocol/v2";
+import {
+  projectCompletedTranscriptItem,
+  projectStartedTranscriptItem,
+  projectTranscriptDelta,
+  type TranscriptAgentMessageDelta,
+} from "./transcriptItemPolicy";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   createEmptyTranscriptState,
@@ -7,6 +12,8 @@ import {
   transcriptEntryIdFor,
   type TranscriptChunk,
   type TranscriptEntry,
+  type TranscriptEntryId,
+  type TranscriptRenderableLiveItem,
   type TranscriptState,
   type TranscriptTurn,
 } from "./transcriptStateModel";
@@ -22,35 +29,44 @@ export const appendStartedTranscriptItem = (
   turnId: string,
   item: ThreadItem,
 ) => {
-  if (item.type !== "agentMessage") {
-    return;
+  recordOriginalFirstTranscriptItem(state, turnId, item);
+  const projection = projectStartedTranscriptItem(item);
+  switch (projection.kind) {
+    case "ignore":
+      return;
+    case "reserve": {
+      const { item: agentMessage } = projection;
+      if (hasTranscriptEntry(state, turnId, agentMessage.id)) {
+        return;
+      }
+
+      const entryId = transcriptEntryIdFor(turnId, agentMessage.id);
+      state.entriesById[entryId] = {
+        type: "live",
+        id: agentMessage.id,
+        key: entryId,
+        turnId,
+        itemId: agentMessage.id,
+        status: "started",
+        initialItem: agentMessage,
+        transientText: "",
+        revision: 0,
+      };
+
+      if (agentMessage.phase === "final_answer") {
+        return;
+      }
+
+      const chunk = getOrCreateMiddleChunk(state, turnId);
+      chunk.entryIds.push(entryId);
+      chunk.revision += 1;
+      state.entryChunkById[entryId] = chunk.id;
+      return;
+    }
   }
 
-  if (hasTranscriptEntry(state, turnId, item.id)) {
-    return;
-  }
-
-  const entryId = transcriptEntryIdFor(turnId, item.id);
-  state.entriesById[entryId] = {
-    type: "live",
-    id: item.id,
-    key: entryId,
-    turnId,
-    itemId: item.id,
-    status: "started",
-    initialItem: item,
-    transientText: "",
-    revision: 0,
-  };
-
-  if (item.phase === "final_answer") {
-    return;
-  }
-
-  const chunk = getOrCreateMiddleChunk(state, turnId);
-  chunk.entryIds.push(entryId);
-  chunk.revision += 1;
-  state.entryChunkById[entryId] = chunk.id;
+  const exhaustiveProjection: never = projection;
+  return exhaustiveProjection;
 };
 
 const chunkIdForIndex = (turnId: string, index: number): string =>
@@ -78,7 +94,7 @@ export const ensureTranscriptTurn = (state: TranscriptState, turnId: string): Tr
   return turn;
 };
 
-export const recordOriginalFirstTranscriptItem = (
+const recordOriginalFirstTranscriptItem = (
   state: TranscriptState,
   turnId: string,
   item: ThreadItem,
@@ -209,6 +225,128 @@ const removeEntryFromFinal = (state: TranscriptState, turnId: string, itemId: st
   return true;
 };
 
+const bumpLiveScrollPulse = (state: TranscriptState) => {
+  state.liveScrollPulse += 1;
+};
+
+type LiveItemPlacement =
+  | {
+      type: "middle";
+      item: TranscriptRenderableLiveItem;
+      chunk: TranscriptChunk;
+    }
+  | {
+      type: "final";
+      item: TranscriptRenderableLiveItem;
+    };
+
+const findLiveItemPlacement = (
+  state: TranscriptState,
+  turnId: string,
+  itemId: string,
+): LiveItemPlacement | null => {
+  const entryId = transcriptEntryIdFor(turnId, itemId);
+  const item = state.entriesById[entryId];
+  if (item?.type !== "live" || item.turnId !== turnId || item.itemId !== itemId) {
+    return null;
+  }
+
+  const chunkId = state.entryChunkById[entryId];
+  const chunk = chunkId == null ? null : state.chunksById[chunkId];
+  if (chunk?.turnId === turnId) {
+    return { type: "middle", item, chunk };
+  }
+
+  if (state.turnsById[turnId] != null && item.initialItem.phase === "final_answer") {
+    return { type: "final", item };
+  }
+
+  return null;
+};
+
+type AgentMessageDeltaBucket = {
+  turnId: TranscriptAgentMessageDelta["turnId"];
+  itemId: TranscriptAgentMessageDelta["itemId"];
+  deltas: [TranscriptAgentMessageDelta["delta"], ...TranscriptAgentMessageDelta["delta"][]];
+};
+
+const appendDeltaToLiveItem = (
+  state: TranscriptState,
+  placement: LiveItemPlacement,
+  delta: string,
+) => {
+  if (delta.length === 0) {
+    return;
+  }
+
+  const { item } = placement;
+  const hadVisibleContribution = item.transientText.length > 0;
+  item.transientText += delta;
+  item.status = "streaming";
+  item.revision += 1;
+  if (placement.type === "middle") {
+    placement.chunk.revision += 1;
+  }
+  if (!hadVisibleContribution && placement.type === "middle") {
+    const turn = state.turnsById[item.turnId];
+    if (turn != null) {
+      turn.middleEntryCount += 1;
+    }
+  }
+  if (!hadVisibleContribution && placement.type === "final") {
+    const turn = state.turnsById[item.turnId];
+    if (turn != null && !turn.finalAssistantEntryIds.includes(item.key)) {
+      turn.finalAssistantEntryIds.push(item.key);
+    }
+  }
+  bumpLiveScrollPulse(state);
+};
+
+export const applyAcceptedProjectionDeltaBatch = (
+  state: TranscriptState,
+  notifications: ThreadProjectionDeltaNotification[],
+) => {
+  const buckets: AgentMessageDeltaBucket[] = [];
+  const bucketByKey: Record<TranscriptEntryId, AgentMessageDeltaBucket> = {};
+
+  for (const notification of notifications) {
+    if (state.threadId !== notification.threadId) {
+      continue;
+    }
+
+    const projection = projectTranscriptDelta(notification.delta);
+    switch (projection.kind) {
+      case "ignore":
+        continue;
+      case "present": {
+        const { turnId, itemId, delta } = projection.delta;
+        const key = transcriptEntryIdFor(turnId, itemId);
+        const bucket = bucketByKey[key];
+        if (bucket == null) {
+          const newBucket: AgentMessageDeltaBucket = { turnId, itemId, deltas: [delta] };
+          bucketByKey[key] = newBucket;
+          buckets.push(newBucket);
+        } else {
+          bucket.deltas.push(delta);
+        }
+        continue;
+      }
+    }
+
+    projection satisfies never;
+  }
+
+  for (const { turnId, itemId, deltas } of buckets) {
+    const placement = findLiveItemPlacement(state, turnId, itemId);
+    if (placement == null) {
+      continue;
+    }
+
+    const delta = deltas.length === 1 ? deltas[0] : deltas.join("");
+    appendDeltaToLiveItem(state, placement, delta);
+  }
+};
+
 const classifyNewEntry = (
   state: TranscriptState,
   entry: TranscriptEntry,
@@ -258,11 +396,7 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
       return;
     }
 
-    if (
-      existingEntry.type === "live" &&
-      existingEntry.initialItem.type === "agentMessage" &&
-      existingEntry.initialItem.phase === "final_answer"
-    ) {
+    if (existingEntry.type === "live" && existingEntry.initialItem.phase === "final_answer") {
       removeEntryFromFinal(state, entry.turnId, entry.id);
       appendEntryToMiddleChunk(state, entry, { bumpChunkRevision: true });
     }
@@ -289,22 +423,29 @@ export const applyCompletedTranscriptItem = (
   state: TranscriptState,
   turnId: string,
   item: ThreadItem,
-): boolean => {
+  commitId: string,
+): void => {
   recordOriginalFirstTranscriptItem(state, turnId, item);
-  const projection = projectTranscriptItem(item, turnId);
-  if (projection.kind === "ignore") {
-    const entryId = transcriptEntryIdFor(turnId, item.id);
-    const existingEntry = state.entriesById[entryId];
-    if (existingEntry?.type === "live" && existingEntry.turnId === turnId) {
-      removeEntryFromMiddleChunk(state, turnId, item.id, existingEntry.transientText.length > 0);
-      removeEntryFromFinal(state, turnId, item.id);
-      Reflect.deleteProperty(state.entriesById, entryId);
+  const projection = projectCompletedTranscriptItem(item, turnId);
+  switch (projection.kind) {
+    case "ignore":
+    case "remove": {
+      const entryId = transcriptEntryIdFor(turnId, item.id);
+      const existingEntry = state.entriesById[entryId];
+      if (existingEntry?.type === "live" && existingEntry.turnId === turnId) {
+        removeEntryFromMiddleChunk(state, turnId, item.id, existingEntry.transientText.length > 0);
+        removeEntryFromFinal(state, turnId, item.id);
+        Reflect.deleteProperty(state.entriesById, entryId);
+      }
+      return;
     }
-    return false;
+    case "present":
+      upsertLiveCommittedEntry(state, projection.entry);
+      state.committedScrollCommitKey = `event:${commitId}`;
+      return;
   }
 
-  upsertLiveCommittedEntry(state, projection.entry);
-  return true;
+  projection satisfies never;
 };
 
 export const rebuildTranscriptFromSnapshot = (
@@ -322,10 +463,17 @@ export const rebuildTranscriptFromSnapshot = (
   for (const turn of turns) {
     upsertTranscriptTurn(nextState, turn);
     for (const item of turn.items) {
-      const projection = projectTranscriptItem(item, turn.id);
-      if (projection.kind === "present") {
-        appendBaselineEntry(nextState, projection.entry);
+      const projection = projectCompletedTranscriptItem(item, turn.id);
+      switch (projection.kind) {
+        case "ignore":
+        case "remove":
+          continue;
+        case "present":
+          appendBaselineEntry(nextState, projection.entry);
+          continue;
       }
+
+      projection satisfies never;
     }
   }
 

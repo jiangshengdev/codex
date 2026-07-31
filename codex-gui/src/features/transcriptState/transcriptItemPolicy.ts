@@ -1,9 +1,25 @@
-import type { ThreadItem, UserInput } from "@codex-protocol/v2";
-import type { TranscriptEntry } from "./transcriptStateModel";
+import type { ThreadItem, ThreadProjectionDelta, UserInput } from "@codex-protocol/v2";
+import type { TranscriptAgentMessageItem, TranscriptEntry } from "./transcriptStateModel";
 
-export type TranscriptItemProjection =
-  | { kind: "ignore" }
-  | { kind: "present"; entry: TranscriptEntry };
+type IgnoreTranscriptItem = { kind: "ignore" };
+
+export type StartedTranscriptItemProjection =
+  | IgnoreTranscriptItem
+  | { kind: "reserve"; item: TranscriptAgentMessageItem };
+
+export type CompletedTranscriptItemProjection =
+  | IgnoreTranscriptItem
+  | { kind: "present"; entry: TranscriptEntry }
+  | { kind: "remove" };
+
+export type TranscriptAgentMessageDelta = Extract<
+  ThreadProjectionDelta,
+  { type: "agentMessage" }
+>["notification"];
+
+export type TranscriptDeltaProjection =
+  | IgnoreTranscriptItem
+  | { kind: "present"; delta: TranscriptAgentMessageDelta };
 
 const textFromUserInput = (input: UserInput): string => {
   switch (input.type) {
@@ -22,10 +38,38 @@ const textFromUserInput = (input: UserInput): string => {
   return exhaustiveInput;
 };
 
-export const projectTranscriptItem = (
+export const projectStartedTranscriptItem = (item: ThreadItem): StartedTranscriptItemProjection => {
+  switch (item.type) {
+    case "agentMessage":
+      return { kind: "reserve", item };
+    case "userMessage":
+    case "hookPrompt":
+    case "plan":
+    case "reasoning":
+    case "commandExecution":
+    case "fileChange":
+    case "mcpToolCall":
+    case "dynamicToolCall":
+    case "collabAgentToolCall":
+    case "subAgentActivity":
+    case "webSearch":
+    case "imageView":
+    case "sleep":
+    case "imageGeneration":
+    case "enteredReviewMode":
+    case "exitedReviewMode":
+    case "contextCompaction":
+      return { kind: "ignore" };
+  }
+
+  const exhaustiveItem: never = item;
+  return exhaustiveItem;
+};
+
+export const projectCompletedTranscriptItem = (
   item: ThreadItem,
   turnId: string,
-): TranscriptItemProjection => {
+): CompletedTranscriptItemProjection => {
   switch (item.type) {
     case "userMessage": {
       const source = item.content.map(textFromUserInput).join("");
@@ -49,7 +93,7 @@ export const projectTranscriptItem = (
     }
     case "agentMessage":
       if (item.text.length === 0) {
-        return { kind: "ignore" };
+        return { kind: "remove" };
       }
 
       return {
@@ -86,4 +130,18 @@ export const projectTranscriptItem = (
 
   const exhaustiveItem: never = item;
   return exhaustiveItem;
+};
+
+export const projectTranscriptDelta = (delta: ThreadProjectionDelta): TranscriptDeltaProjection => {
+  switch (delta.type) {
+    case "agentMessage":
+      return { kind: "present", delta: delta.notification };
+    case "reasoningSummaryText":
+    case "reasoningSummaryPartAdded":
+    case "reasoningText":
+      return { kind: "ignore" };
+  }
+
+  const exhaustiveDelta: never = delta;
+  return exhaustiveDelta;
 };

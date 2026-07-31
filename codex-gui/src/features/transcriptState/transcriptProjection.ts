@@ -6,14 +6,13 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   appendStartedTranscriptItem,
+  applyAcceptedProjectionDeltaBatch,
   applyCompletedTranscriptItem,
   hasTranscriptEntry,
-  recordOriginalFirstTranscriptItem,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
 } from "./transcriptStateImplementation";
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
-import { applyAcceptedProjectionDeltaBatch } from "./transcriptLiveProjection";
 import type { TranscriptState } from "./transcriptStateModel";
 
 type TranscriptInput =
@@ -63,14 +62,11 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
           return;
         case "itemCompleted": {
           const { item, turnId } = notification.event.notification;
-          if (applyCompletedTranscriptItem(state, turnId, item)) {
-            state.committedScrollCommitKey = `event:${notification.commitId}`;
-          }
+          applyCompletedTranscriptItem(state, turnId, item, notification.commitId);
           return;
         }
         case "itemStarted": {
           const { item, turnId } = notification.event.notification;
-          recordOriginalFirstTranscriptItem(state, turnId, item);
           appendStartedTranscriptItem(state, turnId, item);
           return;
         }

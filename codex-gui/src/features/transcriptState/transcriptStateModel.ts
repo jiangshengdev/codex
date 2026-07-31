@@ -32,7 +32,9 @@ export type TranscriptChunk = {
 
 export type TranscriptLiveItemStatus = "started" | "streaming";
 
-export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
+export type TranscriptAgentMessageItem = Extract<ThreadItem, { type: "agentMessage" }>;
+
+export type TranscriptMessagePhase = TranscriptAgentMessageItem["phase"];
 
 export type TranscriptEntry =
   | {
@@ -74,7 +76,7 @@ export type TranscriptRenderableLiveItem = {
   turnId: string;
   itemId: string;
   status: TranscriptLiveItemStatus;
-  initialItem: ThreadItem;
+  initialItem: TranscriptAgentMessageItem;
   transientText: string;
   revision: number;
 };
