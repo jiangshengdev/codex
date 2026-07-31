@@ -87,8 +87,10 @@ jobs:
         run: |
           set -euo pipefail
           if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap
+            bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
+              sudo apt-get update -y
+            bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap
           fi
 
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
@@ -311,8 +313,10 @@ jobs:
         run: |
           set -euo pipefail
           if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap
+            bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
+              sudo apt-get update -y
+            bash "${GITHUB_WORKSPACE}/.github/scripts/retry-command.sh" \
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pkg-config libcap-dev bubblewrap
           fi
 
       - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
