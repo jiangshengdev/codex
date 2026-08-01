@@ -32,7 +32,9 @@ export type TranscriptChunk = {
 
 export type TranscriptLiveItemStatus = "started" | "streaming";
 
-export type TranscriptMessagePhase = Extract<ThreadItem, { type: "agentMessage" }>["phase"];
+export type TranscriptAgentMessageItem = Extract<ThreadItem, { type: "agentMessage" }>;
+
+export type TranscriptMessagePhase = TranscriptAgentMessageItem["phase"];
 
 export type TranscriptEntry =
   | {
@@ -60,13 +62,6 @@ export type TranscriptGlobalStatus = {
   subscriptionId: string | null;
 };
 
-export type TranscriptChunkView = {
-  id: string;
-  turnId: string;
-  revision: number;
-  entries: TranscriptMiddlePayload[];
-};
-
 export type TranscriptRenderableLiveItem = {
   type: "live";
   id: string;
@@ -74,12 +69,43 @@ export type TranscriptRenderableLiveItem = {
   turnId: string;
   itemId: string;
   status: TranscriptLiveItemStatus;
-  initialItem: ThreadItem;
+  initialItem: TranscriptAgentMessageItem;
   transientText: string;
   revision: number;
 };
 
-export type TranscriptMiddlePayload = TranscriptEntry | TranscriptRenderableLiveItem;
+export type TranscriptStoredEntry = TranscriptEntry | TranscriptRenderableLiveItem;
+
+export type TranscriptMessageRendering =
+  | { mode: "plainText"; source: string }
+  | { mode: "staticMarkdown"; source: string }
+  | { mode: "streamingMarkdown"; source: string };
+
+export type TranscriptMessageView = {
+  type: "message";
+  id: string;
+  turnId: string;
+  role: "user" | "assistant";
+  rendering: TranscriptMessageRendering;
+  revision: number;
+};
+
+export type TranscriptStatusView = {
+  type: "status";
+  id: string;
+  turnId: string;
+  status: "interrupted" | "failed";
+  revision: number;
+};
+
+export type TranscriptEntryView = TranscriptMessageView | TranscriptStatusView;
+
+export type TranscriptChunkView = {
+  id: string;
+  turnId: string;
+  revision: number;
+  entries: TranscriptEntryView[];
+};
 
 export type TranscriptState = {
   threadId: string | null;
@@ -89,7 +115,7 @@ export type TranscriptState = {
   turnIds: string[];
   turnsById: Record<string, TranscriptTurn>;
   chunksById: Record<string, TranscriptChunk>;
-  entriesById: Record<TranscriptEntryId, TranscriptMiddlePayload>;
+  entriesById: Record<TranscriptEntryId, TranscriptStoredEntry>;
   entryChunkById: Record<TranscriptEntryId, string>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;

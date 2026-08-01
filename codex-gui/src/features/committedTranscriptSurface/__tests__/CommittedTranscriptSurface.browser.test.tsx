@@ -288,7 +288,7 @@ test("renders live assistant text between intermediate updates and final answers
         eventItemStarted,
         "commit-started",
         "turn-live",
-        agentMessage("agent-started", "Draft answer"),
+        agentMessage("agent-started", "Draft answer", "final_answer"),
       ),
       replay: "live",
     }),
@@ -317,7 +317,11 @@ test("renders live assistant text between intermediate updates and final answers
   await expect.element(screen.getByText("Streaming")).toBeVisible();
   await expect.element(screen.getByText("answer")).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
-  await expect.element(screen.getByRole("article", { name: "Turn turn-live" })).toBeVisible();
+  const turn = screen.getByRole("article", { name: "Turn turn-live" });
+  await expect.element(turn).toBeVisible();
+  await expect
+    .element(turn.getByRole("button", { name: /Intermediate updates/ }))
+    .not.toBeInTheDocument();
   expect(document.querySelector(".committed-transcript-live-assistant-message")).not.toBeNull();
   expect(
     document.querySelector(
@@ -332,7 +336,7 @@ test("renders live assistant text between intermediate updates and final answers
         eventItemCompleted,
         "commit-completed",
         "turn-live",
-        agentMessage("agent-started", "Final answer"),
+        agentMessage("agent-started", "Final answer", "final_answer"),
       ),
       replay: "live",
     }),
@@ -340,6 +344,9 @@ test("renders live assistant text between intermediate updates and final answers
 
   await expect.element(screen.getByText("Streaming")).not.toBeInTheDocument();
   await expect.element(screen.getByText("Final answer")).toBeVisible();
+  await expect
+    .element(turn.getByRole("button", { name: /Intermediate updates/ }))
+    .not.toBeInTheDocument();
   expect(document.querySelector(".committed-transcript-live-assistant-message")).toBeNull();
 });
 
