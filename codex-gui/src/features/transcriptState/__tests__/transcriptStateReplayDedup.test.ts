@@ -150,9 +150,7 @@ describe("transcript state replay and event dedup", () => {
       id: "agent-first",
       turnId: "turn-duplicate",
       role: "assistant",
-      source: "First",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "First" },
       revision: 0,
     });
   });

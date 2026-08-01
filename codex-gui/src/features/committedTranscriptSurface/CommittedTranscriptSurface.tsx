@@ -9,65 +9,97 @@ import {
   selectTranscriptTurnIds,
   transcriptEntryIdFor,
   type TranscriptEntryId,
-  type TranscriptEntry,
-  type TranscriptMiddlePayload,
-  type TranscriptRenderableLiveItem,
+  type TranscriptEntryView,
+  type TranscriptMessageRendering,
 } from "@/features/transcriptState/transcriptStateSlice";
-import { areTranscriptChunkViewsEqual } from "./committedTranscriptChunkEquality";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
 
 const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
 
-const entryText = (entry: TranscriptEntry): string => {
+const statusText = (status: Extract<TranscriptEntryView, { type: "status" }>["status"]): string => {
+  switch (status) {
+    case "interrupted":
+      return "Interrupted.";
+    case "failed":
+      return "Failed.";
+  }
+
+  const exhaustiveStatus: never = status;
+  return exhaustiveStatus;
+};
+
+const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering }) => {
+  switch (rendering.mode) {
+    case "plainText":
+      return (
+        <Typography
+          className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
+          type="body-sm"
+        >
+          {rendering.source}
+        </Typography>
+      );
+    case "staticMarkdown":
+      return <MarkdownText source={rendering.source} />;
+    case "streamingMarkdown":
+      return <LiveMarkdownText source={rendering.source} />;
+  }
+
+  const exhaustiveRendering: never = rendering;
+  return exhaustiveRendering;
+};
+
+const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
   switch (entry.type) {
-    case "message":
-      return entry.source;
+    case "message": {
+      const isStreaming = entry.rendering.mode === "streamingMarkdown";
+
+      return (
+        <Card
+          className={
+            isStreaming
+              ? "committed-transcript-live-entry committed-transcript-live-assistant-message min-w-0"
+              : "committed-transcript-entry committed-transcript-entry-message min-w-0"
+          }
+          role="article"
+          variant={isStreaming ? undefined : entry.role === "user" ? "secondary" : "default"}
+        >
+          <Card.Content className="grid min-w-0 gap-2">
+            <MessageEntryBody rendering={entry.rendering} />
+          </Card.Content>
+        </Card>
+      );
+    }
     case "status":
-      switch (entry.status) {
-        case "interrupted":
-          return "Interrupted.";
-        case "failed":
-          return "Failed.";
-      }
+      return (
+        <Card
+          className="committed-transcript-entry committed-transcript-entry-status min-w-0"
+          role="article"
+          variant="default"
+        >
+          <Card.Content className="grid min-w-0 gap-2">
+            <Typography
+              className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
+              type="body-sm"
+            >
+              {statusText(entry.status)}
+            </Typography>
+          </Card.Content>
+        </Card>
+      );
   }
 
   const exhaustiveEntry: never = entry;
   return exhaustiveEntry;
 };
 
-const CommittedTranscriptEntry = ({ entry }: { entry: TranscriptEntry }) => {
-  const shouldRenderMarkdown =
-    entry.type === "message" && entry.role === "assistant" && entry.sourceKind === "markdown";
-
-  return (
-    <Card
-      className={`committed-transcript-entry committed-transcript-entry-${entry.type} min-w-0`}
-      role="article"
-      variant={entry.type === "message" && entry.role === "user" ? "secondary" : "default"}
-    >
-      <Card.Content className="grid min-w-0 gap-2">
-        {shouldRenderMarkdown ? (
-          <MarkdownText source={entry.source} />
-        ) : (
-          <Typography
-            className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
-            type="body-sm"
-          >
-            {entryText(entry)}
-          </Typography>
-        )}
-      </Card.Content>
-    </Card>
-  );
-};
-
 const intermediateUpdatesLabel = (count: number): string =>
   `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
 const areTranscriptEntryArraysEqual = (
-  previous: TranscriptEntry[],
-  next: TranscriptEntry[],
+  previous: TranscriptEntryView[],
+  next: TranscriptEntryView[],
 ): boolean => {
   if (previous === next) {
     return true;
@@ -85,18 +117,15 @@ const LeadingPromptEntry = ({ entryId }: { entryId: TranscriptEntryId | null }) 
     entryId == null ? null : selectTranscriptEntry(state, entryId),
   );
 
-  if (entry == null || entry.type === "live") {
+  if (entry == null) {
     return null;
   }
 
-  return <CommittedTranscriptEntry entry={entry} />;
+  return <TranscriptEntryRenderer entry={entry} />;
 };
 
 const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
-  const chunk = useAppSelector(
-    (state) => selectTranscriptChunk(state, chunkId),
-    areTranscriptChunkViewsEqual,
-  );
+  const chunk = useAppSelector((state) => selectTranscriptChunk(state, chunkId));
 
   if (chunk == null || chunk.entries.length === 0) {
     return null;
@@ -105,7 +134,7 @@ const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
   return (
     <div className="committed-transcript-middle-chunk grid min-w-0 gap-3">
       {chunk.entries.map((entry) => (
-        <MiddleTranscriptEntry entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
+        <TranscriptEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
       ))}
     </div>
   );
@@ -167,7 +196,7 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] })
     (state) =>
       entryIds.flatMap((entryId) => {
         const entry = selectTranscriptEntry(state, entryId);
-        return entry == null || entry.type === "live" ? [] : [entry];
+        return entry == null ? [] : [entry];
       }),
     areTranscriptEntryArraysEqual,
   );
@@ -179,40 +208,10 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] })
   return (
     <>
       {entries.map((entry) => (
-        <CommittedTranscriptEntry
-          key={transcriptEntryIdFor(entry.turnId, entry.id)}
-          entry={entry}
-        />
+        <TranscriptEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
       ))}
     </>
   );
-};
-
-const LiveAssistantMessageEntry = ({ item }: { item: TranscriptRenderableLiveItem }) => (
-  <Card
-    className="committed-transcript-live-entry committed-transcript-live-assistant-message min-w-0"
-    role="article"
-  >
-    <Card.Content className="grid min-w-0 gap-2">
-      <LiveMarkdownText source={item.transientText} />
-    </Card.Content>
-  </Card>
-);
-
-const MiddleTranscriptEntry = ({ entry }: { entry: TranscriptMiddlePayload }) => {
-  if (entry.type !== "live") {
-    return <CommittedTranscriptEntry entry={entry} />;
-  }
-
-  if (entry.initialItem.type !== "agentMessage") {
-    return null;
-  }
-
-  if (entry.transientText.length === 0) {
-    return null;
-  }
-
-  return <LiveAssistantMessageEntry item={entry} />;
 };
 
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {

@@ -69,9 +69,7 @@ describe("transcript state snapshot reducer", () => {
       id: "user-snapshot",
       turnId: "turn-snapshot",
       role: "user",
-      source: "Hello there",
-      sourceKind: "plainText",
-      phase: null,
+      rendering: { mode: "plainText", source: "Hello there" },
       revision: 0,
     });
     expect(
@@ -84,9 +82,7 @@ describe("transcript state snapshot reducer", () => {
       id: "agent-snapshot",
       turnId: "turn-snapshot",
       role: "assistant",
-      source: "**Plain** text",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "**Plain** text" },
       revision: 0,
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
@@ -124,9 +120,7 @@ describe("transcript state snapshot reducer", () => {
         id: "agent-commentary",
         turnId: "turn-layout",
         role: "assistant",
-        source: "Working",
-        sourceKind: "markdown",
-        phase: "commentary",
+        rendering: { mode: "staticMarkdown", source: "Working" },
         revision: 0,
       },
       {
@@ -134,9 +128,7 @@ describe("transcript state snapshot reducer", () => {
         id: "user-follow-up",
         turnId: "turn-layout",
         role: "user",
-        source: "Extra input",
-        sourceKind: "plainText",
-        phase: null,
+        rendering: { mode: "plainText", source: "Extra input" },
         revision: 0,
       },
       {
@@ -144,9 +136,7 @@ describe("transcript state snapshot reducer", () => {
         id: "agent-legacy",
         turnId: "turn-layout",
         role: "assistant",
-        source: "Legacy assistant",
-        sourceKind: "markdown",
-        phase: null,
+        rendering: { mode: "staticMarkdown", source: "Legacy assistant" },
         revision: 0,
       },
     ]);
@@ -157,9 +147,7 @@ describe("transcript state snapshot reducer", () => {
       id: "agent-final",
       turnId: "turn-layout",
       role: "assistant",
-      source: "Final answer",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Final answer" },
       revision: 0,
     });
   });
@@ -195,9 +183,7 @@ describe("transcript state snapshot reducer", () => {
         id: "agent-first-commentary",
         turnId: "turn-assistant-first",
         role: "assistant",
-        source: "Working first",
-        sourceKind: "markdown",
-        phase: "commentary",
+        rendering: { mode: "staticMarkdown", source: "Working first" },
         revision: 0,
       },
     ]);
@@ -234,9 +220,7 @@ describe("transcript state snapshot reducer", () => {
         id: "user-after-final",
         turnId: "turn-final-first",
         role: "user",
-        source: "After final",
-        sourceKind: "plainText",
-        phase: null,
+        rendering: { mode: "plainText", source: "After final" },
         revision: 0,
       },
     ]);
@@ -271,7 +255,7 @@ describe("transcript state snapshot reducer", () => {
     });
   });
 
-  it("preserves assistant message phase in snapshot transcript entries", () => {
+  it("preserves assistant message phase in stored snapshot entries while projecting views", () => {
     const store = makeStore();
 
     store.dispatch(
@@ -291,9 +275,7 @@ describe("transcript state snapshot reducer", () => {
         id: "agent-commentary",
         turnId: "turn-phase",
         role: "assistant",
-        source: "Working",
-        sourceKind: "markdown",
-        phase: "commentary",
+        rendering: { mode: "staticMarkdown", source: "Working" },
         revision: 0,
       },
     ]);
@@ -304,11 +286,19 @@ describe("transcript state snapshot reducer", () => {
       id: "agent-final",
       turnId: "turn-phase",
       role: "assistant",
-      source: "Done",
-      sourceKind: "markdown",
-      phase: "final_answer",
+      rendering: { mode: "staticMarkdown", source: "Done" },
       revision: 0,
     });
+    expect(
+      store.getState().transcriptState.entriesById[
+        transcriptEntryIdFor("turn-phase", "agent-commentary")
+      ],
+    ).toMatchObject({ type: "message", phase: "commentary" });
+    expect(
+      store.getState().transcriptState.entriesById[
+        transcriptEntryIdFor("turn-phase", "agent-final")
+      ],
+    ).toMatchObject({ type: "message", phase: "final_answer" });
   });
 
   it("filters empty text, non-text user inputs, and non-chat snapshot items", () => {
