@@ -118,6 +118,8 @@ const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
           </Card.Content>
         </Card>
       );
+    case "collabAgent":
+      return <ActivityEntryShell details={entry.details} title={entry.title} />;
     case "subAgentActivity":
       return <ActivityEntryShell details={entry.details} title={entry.title} />;
   }

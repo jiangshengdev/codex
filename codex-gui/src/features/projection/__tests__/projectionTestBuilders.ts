@@ -78,6 +78,36 @@ export const subAgentActivity = (
   ...overrides,
 });
 
+type CollabAgentToolCallItem = Extract<ThreadItem, { type: "collabAgentToolCall" }>;
+type CollabAgentToolCallOverrides = Partial<
+  Omit<CollabAgentToolCallItem, "type" | "id" | "tool" | "status">
+>;
+type CollabAgentState = NonNullable<CollabAgentToolCallItem["agentsStates"][string]>;
+
+export const collabAgentState = (
+  status: CollabAgentState["status"],
+  message: CollabAgentState["message"] = null,
+): CollabAgentState => ({ status, message });
+
+export const collabAgentToolCall = (
+  id: string,
+  tool: CollabAgentToolCallItem["tool"],
+  status: CollabAgentToolCallItem["status"],
+  overrides: CollabAgentToolCallOverrides = {},
+): CollabAgentToolCallItem => ({
+  type: "collabAgentToolCall",
+  id,
+  tool,
+  status,
+  senderThreadId: "sender-thread-id",
+  receiverThreadIds: [],
+  prompt: null,
+  model: null,
+  reasoningEffort: null,
+  agentsStates: {},
+  ...overrides,
+});
+
 export const baseTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   id,
   items,

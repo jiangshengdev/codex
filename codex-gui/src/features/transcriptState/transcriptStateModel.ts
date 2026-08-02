@@ -36,6 +36,45 @@ export type TranscriptAgentMessageItem = Extract<ThreadItem, { type: "agentMessa
 
 export type TranscriptMessagePhase = TranscriptAgentMessageItem["phase"];
 
+export type TranscriptCollabAgentItem = Extract<ThreadItem, { type: "collabAgentToolCall" }>;
+
+export type TranscriptCollabAgentState = NonNullable<
+  TranscriptCollabAgentItem["agentsStates"][string]
+>;
+
+export type TranscriptCollabAgentStateSummary = {
+  threadId: string;
+  status: TranscriptCollabAgentState["status"];
+  messagePreview: string | null;
+};
+
+type TranscriptCollabAgentStoredEntryBase = {
+  type: "collabAgent";
+  id: string;
+  turnId: string;
+  receiverThreadIds: readonly string[];
+  receiverCount: number;
+  omittedReceiverCount: number;
+  promptPreview: string | null;
+  model: TranscriptCollabAgentItem["model"];
+  reasoningEffort: TranscriptCollabAgentItem["reasoningEffort"];
+  agentStateSummaries: readonly TranscriptCollabAgentStateSummary[];
+  omittedAgentStateCount: number;
+  revision: number;
+};
+
+export type TranscriptCollabAgentStoredEntry = TranscriptCollabAgentStoredEntryBase &
+  (
+    | {
+        tool: TranscriptCollabAgentItem["tool"];
+        toolStatus: Exclude<TranscriptCollabAgentItem["status"], "inProgress">;
+      }
+    | {
+        tool: Extract<TranscriptCollabAgentItem["tool"], "resumeAgent" | "wait">;
+        toolStatus: Extract<TranscriptCollabAgentItem["status"], "inProgress">;
+      }
+  );
+
 export type TranscriptSubAgentActivityItem = Extract<ThreadItem, { type: "subAgentActivity" }>;
 
 export type TranscriptSubAgentActivityStoredEntry = {
@@ -65,6 +104,7 @@ export type TranscriptEntry =
       status: "interrupted" | "failed";
       revision: number;
     }
+  | TranscriptCollabAgentStoredEntry
   | TranscriptSubAgentActivityStoredEntry;
 
 export type TranscriptGlobalStatus = {
@@ -110,6 +150,15 @@ export type TranscriptStatusView = {
   revision: number;
 };
 
+export type TranscriptCollabAgentView = {
+  type: "collabAgent";
+  id: string;
+  turnId: string;
+  title: string;
+  details: readonly string[];
+  revision: number;
+};
+
 export type TranscriptSubAgentActivityView = {
   type: "subAgentActivity";
   id: string;
@@ -122,6 +171,7 @@ export type TranscriptSubAgentActivityView = {
 export type TranscriptEntryView =
   | TranscriptMessageView
   | TranscriptStatusView
+  | TranscriptCollabAgentView
   | TranscriptSubAgentActivityView;
 
 export type TranscriptChunkView = {

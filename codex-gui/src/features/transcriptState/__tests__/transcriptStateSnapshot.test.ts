@@ -16,6 +16,8 @@ import {
   audioInput,
   attachWithTurns,
   baseTurn,
+  collabAgentState,
+  collabAgentToolCall,
   imageInput,
   localAudioInput,
   planItem,
@@ -218,6 +220,52 @@ describe("transcript state snapshot reducer", () => {
         revision: 0,
       },
     ]);
+  });
+
+  it("keeps terminal collab activities in snapshot middle order", () => {
+    const store = makeStore();
+    const turnId = "turn-collab-snapshot";
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            userMessage("user-collab-snapshot", [textInput("Delegate work")]),
+            collabAgentToolCall("collab-spawn-snapshot", "spawnAgent", "completed", {
+              receiverThreadIds: ["agent-builder"],
+              prompt: "Build the feature",
+            }),
+            agentMessage("agent-collab-commentary", "Coordinating", "commentary"),
+            collabAgentToolCall("collab-wait-snapshot", "wait", "failed", {
+              receiverThreadIds: ["agent-builder"],
+              agentsStates: { "agent-builder": collabAgentState("completed", "Built") },
+            }),
+            agentMessage("agent-collab-final", "Done", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      leadingPromptEntryId: transcriptEntryIdFor(turnId, "user-collab-snapshot"),
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-collab-final")],
+    });
+    const entries = selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries;
+    expect(entries?.map(({ id }) => id)).toStrictEqual([
+      "collab-spawn-snapshot",
+      "agent-collab-commentary",
+      "collab-wait-snapshot",
+    ]);
+    expect(entries?.[0]).toMatchObject({
+      title: "Spawned agent-builder",
+      details: ["Build the feature"],
+    });
+    expect(entries?.[2]).toMatchObject({
+      title: "Finished waiting",
+      details: ["agent-builder: Completed - Built"],
+    });
   });
 
   it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {

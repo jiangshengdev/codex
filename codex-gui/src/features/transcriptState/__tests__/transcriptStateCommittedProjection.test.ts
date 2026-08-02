@@ -12,6 +12,8 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  collabAgentState,
+  collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
   itemStarted,
@@ -173,6 +175,59 @@ describe("transcript state committed projection reducer", () => {
       leadingPromptEntryId: null,
       middleEntryCount: 1,
       finalAssistantEntryIds: [],
+    });
+  });
+
+  it("projects completed-only and snapshot terminal collab activity to the same middle view", () => {
+    const turnId = "turn-collab-settled-equivalence";
+    const leading = userMessage("user-collab-settled", [textInput("Delegate")]);
+    const activity = collabAgentToolCall("collab-settled", "wait", "completed", {
+      receiverThreadIds: ["agent-a"],
+      agentsStates: { "agent-a": collabAgentState("completed", "Done") },
+    });
+    const final = agentMessage("agent-collab-settled", "Final", "final_answer");
+    const snapshotStore = makeStore();
+    const completedOnlyStore = makeStore();
+
+    snapshotStore.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, [leading, activity, final])]),
+      ),
+    );
+    completedOnlyStore.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    for (const [commitId, item] of [
+      ["leading", leading],
+      ["activity", activity],
+      ["final", final],
+    ] as const) {
+      completedOnlyStore.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemCompleted(
+            eventItemCompleted,
+            `commit-collab-${commitId}`,
+            turnId,
+            item,
+          ),
+          replay: "live",
+        }),
+      );
+    }
+
+    const entryId = transcriptEntryIdFor(turnId, activity.id);
+    const chunkId = `${turnId}:chunk:0`;
+    expect(selectTranscriptEntry(completedOnlyStore.getState(), entryId)).toStrictEqual(
+      selectTranscriptEntry(snapshotStore.getState(), entryId),
+    );
+    const completedOnlyChunk = selectTranscriptChunk(completedOnlyStore.getState(), chunkId);
+    const snapshotChunk = selectTranscriptChunk(snapshotStore.getState(), chunkId);
+    expect(completedOnlyChunk?.entries).toStrictEqual(snapshotChunk?.entries);
+    expect(completedOnlyChunk?.revision).toBe(1);
+    expect(snapshotChunk?.revision).toBe(0);
+    expect(selectTranscriptTurn(completedOnlyStore.getState(), turnId)).toMatchObject({
+      leadingPromptEntryId: transcriptEntryIdFor(turnId, leading.id),
+      middleChunkIds: [chunkId],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, final.id)],
     });
   });
 

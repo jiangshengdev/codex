@@ -4,6 +4,7 @@ import {
   agentMessageDelta,
   attachWithTurns,
   baseTurn,
+  collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
   itemStarted,
@@ -142,6 +143,67 @@ test("renders accessible sub-agent activity and folds it after the final answer"
   for (const [index, title] of activityTitles.entries()) {
     await expect.element(turnEntries.nth(index + 1)).toHaveAccessibleName(title);
   }
+});
+
+test("renders terminal collab activity accessibly and restores its order after expansion", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-collab-activity-surface";
+  const spawnTitle = "Spawned agent-builder";
+  const closeTitle = "Closed agent-reviewer";
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          userMessage("user-collab-surface", [textInput("Delegate work")]),
+          collabAgentToolCall("collab-spawn-surface", "spawnAgent", "completed", {
+            receiverThreadIds: ["agent-builder"],
+            prompt: "Build the feature",
+          }),
+          collabAgentToolCall("collab-close-surface", "closeAgent", "failed", {
+            receiverThreadIds: ["agent-reviewer"],
+          }),
+        ]),
+      ]),
+    ),
+  );
+
+  const spawn = screen.getByRole("article", { name: spawnTitle });
+  const close = screen.getByRole("article", { name: closeTitle });
+  await expect.element(spawn).toBeVisible();
+  await expect.element(close).toBeVisible();
+  await expect.element(close).not.toHaveAccessibleDescription();
+  const title = spawn.getByText(spawnTitle).element();
+  const detail = spawn.getByText("Build the feature").element();
+  expect(title.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  for (const activity of [spawn, close]) {
+    expect(
+      activity
+        .element()
+        .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+    ).toHaveLength(0);
+  }
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-collab-surface-final",
+        turnId,
+        agentMessage("agent-collab-surface-final", "Visible final answer", "final_answer"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  await expect.element(spawn).not.toBeInTheDocument();
+  await expect.element(close).not.toBeInTheDocument();
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 2 items" });
+  await trigger.click();
+  const entries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  await expect.element(entries.nth(1)).toHaveAccessibleName(spawnTitle);
+  await expect.element(entries.nth(2)).toHaveAccessibleName(closeTitle);
 });
 
 test("keeps same raw item ids isolated between turns", async () => {

@@ -24,6 +24,7 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  collabAgentToolCall,
   itemCompleted,
   itemStarted,
   subAgentActivity,
@@ -496,6 +497,68 @@ describe("transcript state selector cache", () => {
       middleChunkIds: [firstChunkId, secondChunkId],
       middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
       finalAssistantEntryIds: [],
+    });
+  });
+
+  it("invalidates only the changed terminal collab entry and its middle chunk view", () => {
+    const store = makeStore();
+    const turnId = "turn-collab-cache";
+    const target = collabAgentToolCall("collab-cache-0", "spawnAgent", "completed", {
+      receiverThreadIds: ["agent-before"],
+    });
+    const stable = collabAgentToolCall("collab-cache-1", "spawnAgent", "completed", {
+      receiverThreadIds: ["agent-stable"],
+    });
+    const entries = [
+      target,
+      stable,
+      ...Array.from({ length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1 }, (_, index) =>
+        collabAgentToolCall(`collab-cache-${String(index + 2)}`, "spawnAgent", "completed", {
+          receiverThreadIds: [`agent-${String(index + 2)}`],
+        }),
+      ),
+    ];
+    store.dispatch(
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, entries)])),
+    );
+
+    const targetId = transcriptEntryIdFor(turnId, target.id);
+    const stableId = transcriptEntryIdFor(turnId, stable.id);
+    const firstChunkId = `${turnId}:chunk:0`;
+    const secondChunkId = `${turnId}:chunk:1`;
+    const beforeTarget = selectTranscriptEntry(store.getState(), targetId);
+    const beforeStable = selectTranscriptEntry(store.getState(), stableId);
+    const beforeFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
+    const beforeSecondChunk = selectTranscriptChunk(store.getState(), secondChunkId);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-collab-cache-update",
+          turnId,
+          collabAgentToolCall(target.id, "spawnAgent", "failed", {
+            receiverThreadIds: ["agent-after"],
+          }),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
+    expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
+      title: "Spawned agent-after",
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
+    expect(selectTranscriptChunk(store.getState(), firstChunkId)).not.toBe(beforeFirstChunk);
+    expect(selectTranscriptChunk(store.getState(), firstChunkId)?.entries[1]).toBe(
+      beforeFirstChunk?.entries[1],
+    );
+    expect(selectTranscriptChunk(store.getState(), secondChunkId)).toBe(beforeSecondChunk);
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      middleChunkIds: [firstChunkId, secondChunkId],
+      middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
     });
   });
 });
