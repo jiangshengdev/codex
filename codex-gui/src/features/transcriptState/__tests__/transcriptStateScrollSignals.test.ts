@@ -12,6 +12,7 @@ import {
   agentMessage,
   agentMessageDelta,
   attachWithTurns,
+  collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
   itemStarted,
@@ -275,5 +276,77 @@ describe("transcript state scroll signals", () => {
       selectTranscriptChunk(store.getState(), "turn-plan-live-scroll-pulse:chunk:0"),
     ).toBeNull();
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
+  it("signals only visible started activity DOM changes through the committed key", () => {
+    const store = makeStore();
+    const turnId = "turn-collab-scroll-signals";
+    const wait = collabAgentToolCall("collab-scroll-wait", "wait", "inProgress");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
+    const dispatchStarted = (commitId: string, item: ReturnType<typeof collabAgentToolCall>) => {
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemStarted(eventItemStarted, commitId, turnId, item),
+          replay: "live",
+        }),
+      );
+    };
+    const dispatchCompleted = (commitId: string, item: ReturnType<typeof collabAgentToolCall>) => {
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemCompleted(eventItemCompleted, commitId, turnId, item),
+          replay: "live",
+        }),
+      );
+    };
+
+    dispatchStarted("commit-collab-scroll-wait-started", wait);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-collab-scroll-wait-started",
+    );
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+
+    dispatchStarted("commit-collab-scroll-wait-duplicate", wait);
+    dispatchStarted(
+      "commit-collab-scroll-hidden-started",
+      collabAgentToolCall("collab-scroll-hidden", "spawnAgent", "inProgress"),
+    );
+    dispatchCompleted(
+      "commit-collab-scroll-filtered-completed",
+      collabAgentToolCall("collab-scroll-filtered", "spawnAgent", "inProgress"),
+    );
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-collab-scroll-wait-started",
+    );
+
+    dispatchCompleted(
+      "commit-collab-scroll-wait-completed",
+      collabAgentToolCall(wait.id, "wait", "completed"),
+    );
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-collab-scroll-wait-completed",
+    );
+
+    dispatchStarted(
+      "commit-collab-scroll-resume-started",
+      collabAgentToolCall("collab-scroll-resume", "resumeAgent", "inProgress", {
+        receiverThreadIds: ["agent-a"],
+      }),
+    );
+    dispatchCompleted(
+      "commit-collab-scroll-resume-removed",
+      collabAgentToolCall("collab-scroll-resume", "resumeAgent", "completed"),
+    );
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-collab-scroll-resume-removed",
+    );
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnId, "collab-scroll-resume")),
+    ).toBeNull();
+    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
+    expect(attachKey).not.toBe(selectCommittedTranscriptScrollCommitKey(store.getState()));
   });
 });

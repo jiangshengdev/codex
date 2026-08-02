@@ -561,4 +561,61 @@ describe("transcript state selector cache", () => {
       middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
     });
   });
+
+  it("invalidates only a settled started activity and its owning chunk", () => {
+    const store = makeStore();
+    const turnId = "turn-started-collab-cache";
+    const stableItems = Array.from(
+      { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 },
+      (_, index) =>
+        collabAgentToolCall(`stable-collab-${String(index)}`, "spawnAgent", "completed", {
+          receiverThreadIds: [`stable-agent-${String(index)}`],
+        }),
+    );
+    const target = collabAgentToolCall("started-collab-cache", "wait", "inProgress");
+
+    store.dispatch(
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, stableItems)])),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(eventItemStarted, "commit-started-collab-cache", turnId, target),
+        replay: "live",
+      }),
+    );
+
+    const targetId = transcriptEntryIdFor(turnId, target.id);
+    const stableId = transcriptEntryIdFor(turnId, "stable-collab-0");
+    const chunkIds = [`${turnId}:chunk:0`, `${turnId}:chunk:1`, `${turnId}:chunk:2`] as const;
+    const beforeTarget = selectTranscriptEntry(store.getState(), targetId);
+    const beforeStable = selectTranscriptEntry(store.getState(), stableId);
+    const beforeChunks = chunkIds.map((chunkId) =>
+      selectTranscriptChunk(store.getState(), chunkId),
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-settled-collab-cache",
+          turnId,
+          collabAgentToolCall(target.id, "wait", "completed"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
+    expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
+      title: "Finished waiting",
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
+    expect(selectTranscriptChunk(store.getState(), chunkIds[0])).toBe(beforeChunks[0]);
+    expect(selectTranscriptChunk(store.getState(), chunkIds[1])).toBe(beforeChunks[1]);
+    expect(selectTranscriptChunk(store.getState(), chunkIds[2])).not.toBe(beforeChunks[2]);
+    expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(
+      TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 + 1,
+    );
+  });
 });

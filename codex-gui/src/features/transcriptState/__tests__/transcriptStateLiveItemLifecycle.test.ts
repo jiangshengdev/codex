@@ -10,6 +10,7 @@ import {
   agentMessage,
   agentMessageDelta,
   attachWithTurns,
+  collabAgentToolCall,
   itemCompleted,
   itemStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -799,5 +800,36 @@ describe("transcript state live item lifecycle reducer", () => {
       itemId: chunkTwoItemId,
     });
     expect(selectTranscriptEntry(store.getState(), chunkTwoEntryId)).toBeNull();
+  });
+
+  it("keeps 100 and 101 visible started activities in bounded middle chunks", () => {
+    const store = makeStore();
+    const turnId = "turn-started-activity-chunks";
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    for (let index = 0; index <= TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT; index += 1) {
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemStarted(
+            eventItemStarted,
+            `commit-started-activity-${String(index)}`,
+            turnId,
+            collabAgentToolCall(`collab-started-${String(index)}`, "wait", "inProgress"),
+          ),
+          replay: "live",
+        }),
+      );
+    }
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      middleChunkIds: [`${turnId}:chunk:0`, `${turnId}:chunk:1`],
+      middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
+    });
+    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toHaveLength(
+      TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+    );
+    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:1`)?.entries).toMatchObject([
+      { id: `collab-started-${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT)}` },
+    ]);
   });
 });

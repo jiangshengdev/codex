@@ -28,6 +28,25 @@ const completedCollabView = (item: ReturnType<typeof collabAgentToolCall>) => {
   return view;
 };
 
+const startedCollabPresentation = (item: ReturnType<typeof collabAgentToolCall>) => {
+  const turnId = "turn-started-collab";
+  const projection = projectStartedTranscriptItem(item, turnId);
+  if (projection.kind !== "present") {
+    return { kind: projection.kind, title: null, details: null, revision: null };
+  }
+
+  const state = createEmptyTranscriptState();
+  const entryId = transcriptEntryIdFor(turnId, item.id);
+  state.entriesById[entryId] = projection.entry;
+  const view = transcriptEntryView(state, entryId);
+  return {
+    kind: projection.kind,
+    title: view?.type === "collabAgent" ? view.title : null,
+    details: view?.type === "collabAgent" ? view.details : null,
+    revision: view?.type === "collabAgent" ? view.revision : null,
+  };
+};
+
 describe("transcript item policy", () => {
   it.each([
     ["started", "Started `agents/planner`"],
@@ -39,7 +58,7 @@ describe("transcript item policy", () => {
       agentThreadId: `agent-thread-${kind}`,
     });
 
-    expect(projectStartedTranscriptItem(item)).toStrictEqual({ kind: "ignore" });
+    expect(projectStartedTranscriptItem(item, turnId)).toStrictEqual({ kind: "ignore" });
 
     const projection = projectCompletedTranscriptItem(item, turnId);
     expect(projection.kind).toBe("present");
@@ -101,6 +120,67 @@ describe("transcript item policy", () => {
       details,
       revision: 0,
     });
+  });
+
+  it.each([
+    ["spawnAgent", "inProgress", null],
+    ["spawnAgent", "completed", null],
+    ["spawnAgent", "failed", null],
+    ["sendInput", "inProgress", null],
+    ["sendInput", "completed", null],
+    ["sendInput", "failed", null],
+    ["resumeAgent", "inProgress", "Resuming agent-a"],
+    ["resumeAgent", "completed", null],
+    ["resumeAgent", "failed", null],
+    ["wait", "inProgress", "Waiting for agent-a"],
+    ["wait", "completed", null],
+    ["wait", "failed", null],
+    ["closeAgent", "inProgress", null],
+    ["closeAgent", "completed", null],
+    ["closeAgent", "failed", null],
+  ] as const)("projects started %s %s", (tool, status, title) => {
+    const item = collabAgentToolCall(`started-${tool}-${status}`, tool, status, {
+      receiverThreadIds: ["agent-a"],
+    });
+    const expected =
+      title == null
+        ? { kind: "ignore", title: null, details: null, revision: null }
+        : { kind: "present", title, details: [], revision: 0 };
+
+    expect(startedCollabPresentation(item)).toStrictEqual(expected);
+  });
+
+  it("requires a resume receiver and bounds multi-receiver started wait details", () => {
+    expect(
+      projectStartedTranscriptItem(
+        collabAgentToolCall("resume-started-no-receiver", "resumeAgent", "inProgress"),
+        "turn-started-collab",
+      ),
+    ).toStrictEqual({ kind: "ignore" });
+
+    const receiverThreadIds = Array.from(
+      { length: 66 },
+      (_, index) => `agent-${String(index).padStart(2, "0")}`,
+    );
+    const item = collabAgentToolCall("wait-started-many", "wait", "inProgress", {
+      receiverThreadIds,
+    });
+    const projection = projectStartedTranscriptItem(item, "turn-started-collab");
+    if (projection.kind !== "present") {
+      throw new Error("Expected multi-receiver started wait to be present");
+    }
+    const state = createEmptyTranscriptState();
+    const entryId = transcriptEntryIdFor("turn-started-collab", item.id);
+    state.entriesById[entryId] = projection.entry;
+    const view = transcriptEntryView(state, entryId);
+
+    expect(view).toMatchObject({ title: "Waiting for 66 agents" });
+    expect(view?.type === "collabAgent" ? view.details : []).toHaveLength(64);
+    expect(view?.type === "collabAgent" ? view.details.slice(0, 2) : []).toStrictEqual([
+      "agent-00",
+      "agent-01",
+    ]);
+    expect(view?.type === "collabAgent" ? view.details.at(-1) : null).toBe("... and 3 more");
   });
 
   it.each([

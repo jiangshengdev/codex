@@ -268,6 +268,34 @@ describe("transcript state snapshot reducer", () => {
     });
   });
 
+  it("keeps an activity-first turn out of leading and final placement", () => {
+    const store = makeStore();
+    const turnId = "turn-activity-first-snapshot";
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            collabAgentToolCall("collab-first-snapshot", "wait", "completed"),
+            userMessage("user-after-activity-snapshot", [textInput("Later prompt")]),
+            agentMessage("agent-after-activity-final", "Done", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      originalFirstItemId: "collab-first-snapshot",
+      leadingPromptEntryId: null,
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 2,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-after-activity-final")],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries.map(({ id }) => id),
+    ).toStrictEqual(["collab-first-snapshot", "user-after-activity-snapshot"]);
+  });
+
   it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {
     const store = makeStore();
 

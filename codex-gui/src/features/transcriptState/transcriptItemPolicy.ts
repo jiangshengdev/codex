@@ -11,7 +11,8 @@ type IgnoreTranscriptItem = { kind: "ignore" };
 
 export type StartedTranscriptItemProjection =
   | IgnoreTranscriptItem
-  | { kind: "reserve"; item: TranscriptAgentMessageItem };
+  | { kind: "reserve"; item: TranscriptAgentMessageItem }
+  | { kind: "present"; entry: TranscriptEntry };
 
 export type CompletedTranscriptItemProjection =
   | IgnoreTranscriptItem
@@ -122,6 +123,65 @@ const collabPromptPreview = (prompt: string | null): string | null => {
     : truncateGraphemePreview(trimmedPrompt, COLLAB_PROMPT_PREVIEW_GRAPHEMES);
 };
 
+const collabAgentEntryFacts = (item: TranscriptCollabAgentItem, turnId: string) => {
+  const receivers = boundedDetailItems(item.receiverThreadIds);
+  const agentStates = boundedDetailItems(orderedCollabAgentStates(item));
+  return {
+    type: "collabAgent" as const,
+    id: item.id,
+    turnId,
+    receiverThreadIds: receivers.items,
+    receiverCount: item.receiverThreadIds.length,
+    omittedReceiverCount: receivers.omittedCount,
+    promptPreview: collabPromptPreview(item.prompt),
+    model: item.model,
+    reasoningEffort: item.reasoningEffort,
+    agentStateSummaries: agentStates.items.map(collabAgentStateSummary),
+    omittedAgentStateCount: agentStates.omittedCount,
+    revision: 0,
+  };
+};
+
+const projectStartedCollabAgentItem = (
+  item: TranscriptCollabAgentItem,
+  turnId: string,
+): StartedTranscriptItemProjection => {
+  if (item.status !== "inProgress") {
+    return { kind: "ignore" };
+  }
+
+  switch (item.tool) {
+    case "resumeAgent":
+      if (item.receiverThreadIds[0] == null) {
+        return { kind: "ignore" };
+      }
+      return {
+        kind: "present",
+        entry: {
+          ...collabAgentEntryFacts(item, turnId),
+          tool: item.tool,
+          toolStatus: item.status,
+        },
+      };
+    case "wait":
+      return {
+        kind: "present",
+        entry: {
+          ...collabAgentEntryFacts(item, turnId),
+          tool: item.tool,
+          toolStatus: item.status,
+        },
+      };
+    case "spawnAgent":
+    case "sendInput":
+    case "closeAgent":
+      return { kind: "ignore" };
+  }
+
+  const exhaustiveTool: never = item.tool;
+  return exhaustiveTool;
+};
+
 const projectCompletedCollabAgentItem = (
   item: TranscriptCollabAgentItem,
   turnId: string,
@@ -147,25 +207,12 @@ const projectCompletedCollabAgentItem = (
     }
   }
 
-  const receivers = boundedDetailItems(item.receiverThreadIds);
-  const agentStates = boundedDetailItems(orderedCollabAgentStates(item));
   return {
     kind: "present",
     entry: {
-      type: "collabAgent",
-      id: item.id,
-      turnId,
+      ...collabAgentEntryFacts(item, turnId),
       tool: item.tool,
       toolStatus: item.status,
-      receiverThreadIds: receivers.items,
-      receiverCount: item.receiverThreadIds.length,
-      omittedReceiverCount: receivers.omittedCount,
-      promptPreview: collabPromptPreview(item.prompt),
-      model: item.model,
-      reasoningEffort: item.reasoningEffort,
-      agentStateSummaries: agentStates.items.map(collabAgentStateSummary),
-      omittedAgentStateCount: agentStates.omittedCount,
-      revision: 0,
     },
   };
 };
@@ -187,10 +234,15 @@ const textFromUserInput = (input: UserInput): string => {
   return exhaustiveInput;
 };
 
-export const projectStartedTranscriptItem = (item: ThreadItem): StartedTranscriptItemProjection => {
+export const projectStartedTranscriptItem = (
+  item: ThreadItem,
+  turnId: string,
+): StartedTranscriptItemProjection => {
   switch (item.type) {
     case "agentMessage":
       return { kind: "reserve", item };
+    case "collabAgentToolCall":
+      return projectStartedCollabAgentItem(item, turnId);
     case "userMessage":
     case "hookPrompt":
     case "plan":
@@ -199,7 +251,6 @@ export const projectStartedTranscriptItem = (item: ThreadItem): StartedTranscrip
     case "fileChange":
     case "mcpToolCall":
     case "dynamicToolCall":
-    case "collabAgentToolCall":
     case "subAgentActivity":
     case "webSearch":
     case "imageView":

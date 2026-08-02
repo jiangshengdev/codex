@@ -231,6 +231,109 @@ describe("transcript state committed projection reducer", () => {
     });
   });
 
+  it("settles started resume and empty wait in place from authoritative terminal payloads", () => {
+    const store = makeStore();
+    const turnId = "turn-collab-started-terminal";
+    const waitId = "collab-empty-wait";
+    const resumeId = "collab-authoritative-resume";
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    for (const [commitId, item] of [
+      ["wait", collabAgentToolCall(waitId, "wait", "inProgress")],
+      [
+        "resume",
+        collabAgentToolCall(resumeId, "resumeAgent", "inProgress", {
+          receiverThreadIds: ["started-agent"],
+          prompt: "started prompt",
+          model: "started-model",
+          reasoningEffort: "high",
+          agentsStates: { "started-agent": collabAgentState("running") },
+        }),
+      ],
+    ] as const) {
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemStarted(
+            eventItemStarted,
+            `commit-collab-started-${commitId}`,
+            turnId,
+            item,
+          ),
+          replay: "live",
+        }),
+      );
+    }
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      leadingPromptEntryId: null,
+      middleEntryCount: 2,
+      finalAssistantEntryIds: [],
+    });
+    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toMatchObject([
+      { id: waitId, title: "Waiting for agents", details: [], revision: 0 },
+      { id: resumeId, title: "Resuming started-agent", details: [], revision: 0 },
+    ]);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-collab-between",
+          turnId,
+          agentMessage("agent-between-collab", "Between", "commentary"),
+        ),
+        replay: "live",
+      }),
+    );
+    for (const [commitId, item] of [
+      ["wait", collabAgentToolCall(waitId, "wait", "completed")],
+      [
+        "resume",
+        collabAgentToolCall(resumeId, "resumeAgent", "failed", {
+          receiverThreadIds: ["terminal-agent"],
+          agentsStates: { "terminal-agent": collabAgentState("completed", "Terminal") },
+        }),
+      ],
+    ] as const) {
+      store.dispatch(
+        threadRuntimeEventBuffered({
+          notification: itemCompleted(
+            eventItemCompleted,
+            `commit-collab-terminal-${commitId}`,
+            turnId,
+            item,
+          ),
+          replay: "live",
+        }),
+      );
+    }
+
+    expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(3);
+    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toMatchObject([
+      { id: waitId, title: "Finished waiting", details: ["No agents completed yet"], revision: 1 },
+      {
+        id: resumeId,
+        title: "Resumed terminal-agent",
+        details: ["Completed - Terminal"],
+        revision: 1,
+      },
+      { id: "agent-between-collab" },
+    ]);
+    const storedResume =
+      store.getState().transcriptState.entriesById[transcriptEntryIdFor(turnId, resumeId)];
+    expect(storedResume).toMatchObject({
+      receiverThreadIds: ["terminal-agent"],
+      promptPreview: null,
+      model: null,
+      reasoningEffort: null,
+      agentStateSummaries: [{ threadId: "terminal-agent", messagePreview: "Terminal" }],
+    });
+    const storedResumeJson = JSON.stringify(storedResume);
+    for (const staleFact of ["started-agent", "started prompt", "started-model"]) {
+      expect(storedResumeJson).not.toContain(staleFact);
+    }
+  });
+
   it("keeps a later completed user in middle when the first completed item is assistant", () => {
     const store = makeStore();
 

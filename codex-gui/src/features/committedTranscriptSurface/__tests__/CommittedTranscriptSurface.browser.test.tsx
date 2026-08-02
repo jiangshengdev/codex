@@ -206,6 +206,81 @@ test("renders terminal collab activity accessibly and restores its order after e
   await expect.element(entries.nth(2)).toHaveAccessibleName(closeTitle);
 });
 
+test("settles one started wait article in place across intermediate disclosure states", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-started-wait-surface";
+  const itemId = "collab-started-wait-surface";
+
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemStarted(
+        eventItemStarted,
+        "commit-started-wait-surface",
+        turnId,
+        collabAgentToolCall(itemId, "wait", "inProgress"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  const turn = screen.getByRole("article", { name: `Turn ${turnId}` });
+  const activity = turn.getByRole("article", { name: /Waiting for agents|Finished waiting/ });
+  await expect.element(activity).toHaveAccessibleName("Waiting for agents");
+  await expect
+    .element(turn.getByRole("button", { name: "Intermediate updates · 1 item" }))
+    .toBeDisabled();
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-between-started-wait",
+        turnId,
+        agentMessage("agent-between-started-wait", "Between activity", "commentary"),
+      ),
+      replay: "live",
+    }),
+  );
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-terminal-wait-surface",
+        turnId,
+        collabAgentToolCall(itemId, "wait", "completed"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(activity).toHaveAccessibleName("Finished waiting");
+  await expect.element(activity.getByText("No agents completed yet")).toBeVisible();
+  await expect
+    .element(turn.getByRole("article", { name: /Waiting|Finished/ }).nth(1))
+    .not.toBeInTheDocument();
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-final-started-wait",
+        turnId,
+        agentMessage("agent-final-started-wait", "Final after wait", "final_answer"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("Final after wait")).toBeVisible();
+  await expect.element(activity).not.toBeInTheDocument();
+  const trigger = turn.getByRole("button", { name: "Intermediate updates · 2 items" });
+  await trigger.click();
+  const entries = turn.getByRole("article");
+  await expect.element(entries.nth(0)).toHaveAccessibleName("Finished waiting");
+  await expect.element(entries.nth(1)).toHaveTextContent("Between activity");
+});
+
 test("keeps same raw item ids isolated between turns", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
 
