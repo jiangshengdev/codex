@@ -13,8 +13,10 @@ import {
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   selectTranscriptChunk,
   selectTranscriptEntry,
+  selectTranscriptTurn,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 import {
@@ -24,6 +26,7 @@ import {
   baseTurn,
   itemCompleted,
   itemStarted,
+  subAgentActivity,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state selector cache", () => {
@@ -417,5 +420,82 @@ describe("transcript state selector cache", () => {
       ],
     });
     expect(afterSettlementEntry).toBe(afterSettlement?.entries[0]);
+  });
+
+  it("invalidates only the changed sub-agent activity entry and its middle chunk view", () => {
+    const store = makeStore();
+    const turnId = "turn-sub-agent-cache";
+    const targetActivity = subAgentActivity(
+      "activity-sub-agent-cache-0",
+      "started",
+      "agents/cache-0",
+    );
+    const stableActivity = subAgentActivity(
+      "activity-sub-agent-cache-1",
+      "started",
+      "agents/cache-1",
+    );
+    const activities = [
+      targetActivity,
+      stableActivity,
+      ...Array.from({ length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1 }, (_, index) => {
+        const activityIndex = index + 2;
+        return subAgentActivity(
+          `activity-sub-agent-cache-${String(activityIndex)}`,
+          "started",
+          `agents/cache-${String(activityIndex)}`,
+        );
+      }),
+    ];
+
+    store.dispatch(
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, activities)])),
+    );
+
+    const targetEntryId = transcriptEntryIdFor(turnId, targetActivity.id);
+    const stableEntryId = transcriptEntryIdFor(turnId, stableActivity.id);
+    const firstChunkId = `${turnId}:chunk:0`;
+    const secondChunkId = `${turnId}:chunk:1`;
+    const beforeTargetEntry = selectTranscriptEntry(store.getState(), targetEntryId);
+    const beforeStableEntry = selectTranscriptEntry(store.getState(), stableEntryId);
+    const beforeFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
+    const beforeSecondChunk = selectTranscriptChunk(store.getState(), secondChunkId);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-sub-agent-cache-update",
+          turnId,
+          subAgentActivity(targetActivity.id, "interacted", "agents/cache-0"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const afterTargetEntry = selectTranscriptEntry(store.getState(), targetEntryId);
+    const afterFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
+
+    expect(afterTargetEntry).not.toBe(beforeTargetEntry);
+    expect(afterTargetEntry).toStrictEqual({
+      type: "subAgentActivity",
+      id: targetActivity.id,
+      turnId,
+      title: "Interacted with `agents/cache-0`",
+      details: [],
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), stableEntryId)).toBe(beforeStableEntry);
+    expect(afterFirstChunk).not.toBe(beforeFirstChunk);
+    expect(afterFirstChunk?.entries.map(({ id }) => id)).toStrictEqual(
+      beforeFirstChunk?.entries.map(({ id }) => id),
+    );
+    expect(afterFirstChunk?.entries[1]).toBe(beforeFirstChunk?.entries[1]);
+    expect(selectTranscriptChunk(store.getState(), secondChunkId)).toBe(beforeSecondChunk);
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      middleChunkIds: [firstChunkId, secondChunkId],
+      middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
+      finalAssistantEntryIds: [],
+    });
   });
 });

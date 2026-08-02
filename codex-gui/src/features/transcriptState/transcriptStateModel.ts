@@ -36,6 +36,17 @@ export type TranscriptAgentMessageItem = Extract<ThreadItem, { type: "agentMessa
 
 export type TranscriptMessagePhase = TranscriptAgentMessageItem["phase"];
 
+export type TranscriptSubAgentActivityItem = Extract<ThreadItem, { type: "subAgentActivity" }>;
+
+export type TranscriptSubAgentActivityStoredEntry = {
+  type: "subAgentActivity";
+  id: string;
+  turnId: string;
+  activityKind: TranscriptSubAgentActivityItem["kind"];
+  agentPath: TranscriptSubAgentActivityItem["agentPath"];
+  revision: number;
+};
+
 export type TranscriptEntry =
   | {
       type: "message";
@@ -53,7 +64,8 @@ export type TranscriptEntry =
       turnId: string;
       status: "interrupted" | "failed";
       revision: number;
-    };
+    }
+  | TranscriptSubAgentActivityStoredEntry;
 
 export type TranscriptGlobalStatus = {
   id: string;
@@ -98,7 +110,19 @@ export type TranscriptStatusView = {
   revision: number;
 };
 
-export type TranscriptEntryView = TranscriptMessageView | TranscriptStatusView;
+export type TranscriptSubAgentActivityView = {
+  type: "subAgentActivity";
+  id: string;
+  turnId: string;
+  title: string;
+  details: readonly [];
+  revision: number;
+};
+
+export type TranscriptEntryView =
+  | TranscriptMessageView
+  | TranscriptStatusView
+  | TranscriptSubAgentActivityView;
 
 export type TranscriptChunkView = {
   id: string;

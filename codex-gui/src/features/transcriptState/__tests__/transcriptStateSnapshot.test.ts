@@ -20,6 +20,7 @@ import {
   localAudioInput,
   planItem,
   sleepItem,
+  subAgentActivity,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -150,6 +151,73 @@ describe("transcript state snapshot reducer", () => {
       rendering: { mode: "staticMarkdown", source: "Final answer" },
       revision: 0,
     });
+  });
+
+  it("keeps completed sub-agent activities in snapshot middle order", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-sub-agent-activity-snapshot", [
+            userMessage("user-sub-agent-activity-snapshot", [textInput("Initial prompt")]),
+            subAgentActivity("activity-sub-agent-started-snapshot", "started", "agents/researcher"),
+            agentMessage("agent-sub-agent-commentary-snapshot", "Still working", "commentary"),
+            subAgentActivity(
+              "activity-sub-agent-interacted-snapshot",
+              "interacted",
+              "agents/reviewer",
+            ),
+            agentMessage("agent-sub-agent-final-snapshot", "Final answer", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(
+      selectTranscriptTurn(store.getState(), "turn-sub-agent-activity-snapshot"),
+    ).toStrictEqual({
+      id: "turn-sub-agent-activity-snapshot",
+      status: "completed",
+      originalFirstItemId: "user-sub-agent-activity-snapshot",
+      leadingPromptEntryId: transcriptEntryIdFor(
+        "turn-sub-agent-activity-snapshot",
+        "user-sub-agent-activity-snapshot",
+      ),
+      middleChunkIds: ["turn-sub-agent-activity-snapshot:chunk:0"],
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-sub-agent-activity-snapshot", "agent-sub-agent-final-snapshot"),
+      ],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-sub-agent-activity-snapshot:chunk:0")?.entries,
+    ).toStrictEqual([
+      {
+        type: "subAgentActivity",
+        id: "activity-sub-agent-started-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        title: "Started `agents/researcher`",
+        details: [],
+        revision: 0,
+      },
+      {
+        type: "message",
+        id: "agent-sub-agent-commentary-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        role: "assistant",
+        rendering: { mode: "staticMarkdown", source: "Still working" },
+        revision: 0,
+      },
+      {
+        type: "subAgentActivity",
+        id: "activity-sub-agent-interacted-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        title: "Interacted with `agents/reviewer`",
+        details: [],
+        revision: 0,
+      },
+    ]);
   });
 
   it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {

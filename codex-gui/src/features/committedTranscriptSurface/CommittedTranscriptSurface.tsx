@@ -50,6 +50,36 @@ const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering
   return exhaustiveRendering;
 };
 
+const ActivityEntryShell = ({ title, details }: { title: string; details: readonly string[] }) => (
+  <Card
+    aria-label={title}
+    className="committed-transcript-entry committed-transcript-entry-activity min-w-0"
+    role="article"
+    variant="transparent"
+  >
+    <Card.Header className="grid min-w-0 gap-1">
+      <Card.Title className="flex min-w-0 items-start gap-2 text-sm leading-6 font-normal">
+        <span aria-hidden="true">•</span>
+        <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{title}</span>
+      </Card.Title>
+      {details.length > 0 ? (
+        <Card.Description className="grid min-w-0 gap-1">
+          {details.map((detail, index) => (
+            <span className="flex min-w-0 items-start gap-2" key={`${String(index)}:${detail}`}>
+              <span aria-hidden="true" className="w-3 shrink-0">
+                {index === 0 ? "└" : ""}
+              </span>
+              <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">
+                {detail}
+              </span>
+            </span>
+          ))}
+        </Card.Description>
+      ) : null}
+    </Card.Header>
+  </Card>
+);
+
 const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
   switch (entry.type) {
     case "message": {
@@ -88,6 +118,8 @@ const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
           </Card.Content>
         </Card>
       );
+    case "subAgentActivity":
+      return <ActivityEntryShell details={entry.details} title={entry.title} />;
   }
 
   const exhaustiveEntry: never = entry;

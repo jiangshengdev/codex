@@ -62,6 +62,22 @@ export const sleepItem = (id: string): ThreadItem => ({
   durationMs: 1000,
 });
 
+type SubAgentActivityItem = Extract<ThreadItem, { type: "subAgentActivity" }>;
+
+export const subAgentActivity = (
+  id: string,
+  kind: SubAgentActivityItem["kind"],
+  agentPath: string,
+  overrides: Partial<Pick<SubAgentActivityItem, "agentThreadId">> = {},
+): SubAgentActivityItem => ({
+  type: "subAgentActivity",
+  id,
+  kind,
+  agentThreadId: "agent-thread-id",
+  agentPath,
+  ...overrides,
+});
+
 export const baseTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   id,
   items,

@@ -109,6 +109,18 @@ export const projectCompletedTranscriptItem = (
           revision: 0,
         },
       };
+    case "subAgentActivity":
+      return {
+        kind: "present",
+        entry: {
+          type: "subAgentActivity",
+          id: item.id,
+          turnId,
+          activityKind: item.kind,
+          agentPath: item.agentPath,
+          revision: 0,
+        },
+      };
     case "hookPrompt":
     case "plan":
     case "reasoning":
@@ -117,7 +129,6 @@ export const projectCompletedTranscriptItem = (
     case "mcpToolCall":
     case "dynamicToolCall":
     case "collabAgentToolCall":
-    case "subAgentActivity":
     case "webSearch":
     case "imageView":
     case "sleep":

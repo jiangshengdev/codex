@@ -45,6 +45,33 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
         status: entry.status,
         revision: entry.revision,
       };
+    case "subAgentActivity": {
+      let title: string;
+      switch (entry.activityKind) {
+        case "started":
+          title = `Started \`${entry.agentPath}\``;
+          break;
+        case "interacted":
+          title = `Interacted with \`${entry.agentPath}\``;
+          break;
+        case "interrupted":
+          title = `Interrupted \`${entry.agentPath}\``;
+          break;
+        default: {
+          const exhaustiveActivityKind: never = entry.activityKind;
+          return exhaustiveActivityKind;
+        }
+      }
+
+      return {
+        type: "subAgentActivity",
+        id: entry.id,
+        turnId: entry.turnId,
+        title,
+        details: [],
+        revision: entry.revision,
+      };
+    }
     case "live":
       if (entry.transientText.length === 0) {
         return null;

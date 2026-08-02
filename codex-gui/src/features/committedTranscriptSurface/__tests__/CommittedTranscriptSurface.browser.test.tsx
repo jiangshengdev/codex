@@ -7,6 +7,7 @@ import {
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  subAgentActivity,
   textInput,
   turnStarted,
   userMessage,
@@ -66,6 +67,81 @@ test("renders committed user and assistant messages from an attached baseline", 
     { isSecondary: true, text: "Hello surface" },
     { isSecondary: false, text: "Committed response" },
   ]);
+});
+
+test("renders accessible sub-agent activity and folds it after the final answer", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-sub-agent-activity-surface";
+  const activityTitles = [
+    "Started `agents/browser-starter`",
+    "Interacted with `agents/browser-reviewer`",
+    "Interrupted `agents/browser-worker`",
+  ];
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          userMessage("user-sub-agent-activity-surface", [textInput("Inspect activity")]),
+          subAgentActivity(
+            "activity-sub-agent-started-surface",
+            "started",
+            "agents/browser-starter",
+          ),
+          subAgentActivity(
+            "activity-sub-agent-interacted-surface",
+            "interacted",
+            "agents/browser-reviewer",
+          ),
+          subAgentActivity(
+            "activity-sub-agent-interrupted-surface",
+            "interrupted",
+            "agents/browser-worker",
+          ),
+        ]),
+      ]),
+    ),
+  );
+
+  const activities = activityTitles.map((title) => screen.getByRole("article", { name: title }));
+  for (const activity of activities) {
+    await expect.element(activity).toBeVisible();
+    await expect.element(activity).not.toHaveAccessibleDescription();
+    expect(
+      activity
+        .element()
+        .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+    ).toHaveLength(0);
+  }
+  await expect
+    .element(screen.getByRole("button", { name: "Intermediate updates · 3 items" }))
+    .toBeDisabled();
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-sub-agent-surface-final",
+        turnId,
+        agentMessage("agent-sub-agent-surface-final", "Visible final answer", "final_answer"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  for (const activity of activities) {
+    await expect.element(activity).not.toBeInTheDocument();
+  }
+
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 3 items" });
+  await expect.element(trigger).toBeEnabled();
+  await trigger.click();
+
+  const turnEntries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  for (const [index, title] of activityTitles.entries()) {
+    await expect.element(turnEntries.nth(index + 1)).toHaveAccessibleName(title);
+  }
 });
 
 test("keeps same raw item ids isolated between turns", async () => {

@@ -17,6 +17,7 @@ import {
   itemStarted,
   planItem,
   sleepItem,
+  subAgentActivity,
   textInput,
   turnCompleted,
   turnStarted,
@@ -69,6 +70,110 @@ describe("transcript state committed projection reducer", () => {
         transcriptEntryIdFor("turn-live-phase", "agent-live-commentary")
       ],
     ).toMatchObject({ type: "message", phase: "commentary" });
+  });
+
+  it("ignores sub-agent itemStarted until the same item completes into one middle entry", () => {
+    const store = makeStore();
+    const turnId = "turn-sub-agent-started-completed";
+    const activity = subAgentActivity(
+      "activity-sub-agent-started-completed",
+      "started",
+      "agents/implementer",
+    );
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(eventItemStarted, "commit-sub-agent-started", turnId, activity),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: activity.id,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnId, activity.id)),
+    ).toBeNull();
+    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)).toBeNull();
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-sub-agent-completed",
+          turnId,
+          activity,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+      id: turnId,
+      status: "inProgress",
+      originalFirstItemId: activity.id,
+      leadingPromptEntryId: null,
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
+    expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toStrictEqual([
+      {
+        type: "subAgentActivity",
+        id: activity.id,
+        turnId,
+        title: "Started `agents/implementer`",
+        details: [],
+        revision: 0,
+      },
+    ]);
+  });
+
+  it("projects completed-only and snapshot sub-agent activities to the same settled view", () => {
+    const turnId = "turn-sub-agent-settled-equivalence";
+    const activity = subAgentActivity(
+      "activity-sub-agent-settled-equivalence",
+      "interrupted",
+      "agents/tester",
+    );
+    const snapshotStore = makeStore();
+    const completedOnlyStore = makeStore();
+
+    snapshotStore.dispatch(
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, [activity])])),
+    );
+    completedOnlyStore.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    completedOnlyStore.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-sub-agent-completed-only",
+          turnId,
+          activity,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const entryId = transcriptEntryIdFor(turnId, activity.id);
+    expect(selectTranscriptEntry(completedOnlyStore.getState(), entryId)).toStrictEqual(
+      selectTranscriptEntry(snapshotStore.getState(), entryId),
+    );
+    expect(
+      selectTranscriptChunk(completedOnlyStore.getState(), `${turnId}:chunk:0`)?.entries,
+    ).toStrictEqual(selectTranscriptChunk(snapshotStore.getState(), `${turnId}:chunk:0`)?.entries);
+    expect(selectTranscriptTurn(completedOnlyStore.getState(), turnId)).toMatchObject({
+      leadingPromptEntryId: null,
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [],
+    });
   });
 
   it("keeps a later completed user in middle when the first completed item is assistant", () => {
