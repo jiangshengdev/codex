@@ -5,25 +5,16 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import {
-  appendStartedItemToMiddle,
-  applyCompletedTranscriptItem,
-  hasStartedItemInMiddle,
-  recordOriginalFirstTranscriptItem,
-  rebuildTranscriptFromSnapshot,
-  upsertTranscriptTurn,
-} from "./transcriptCommittedProjection";
-import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
-import { applyAcceptedProjectionDeltaBatch } from "./transcriptLiveProjection";
+import { reduceTranscriptInput } from "./transcriptProjection";
 import {
   initialTranscriptState,
   type TranscriptChunkView,
   type TranscriptEntryId,
+  type TranscriptEntryView,
   type TranscriptGlobalStatus,
-  type TranscriptMiddlePayload,
   type TranscriptTurn,
 } from "./transcriptStateModel";
-import { transcriptChunkView } from "./transcriptStateSelectors";
+import { transcriptChunkView, transcriptEntryView } from "./transcriptStateSelectors";
 
 export {
   MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
@@ -34,13 +25,12 @@ export type {
   TranscriptChunk,
   TranscriptChunkView,
   TranscriptEntryId,
-  TranscriptEntry,
+  TranscriptEntryView,
   TranscriptGlobalStatus,
-  TranscriptLiveItemStatus,
-  TranscriptMessagePhase,
-  TranscriptMiddlePayload,
-  TranscriptRenderableLiveItem,
+  TranscriptMessageRendering,
+  TranscriptMessageView,
   TranscriptState,
+  TranscriptStatusView,
   TranscriptTurn,
 } from "./transcriptStateModel";
 
@@ -60,81 +50,23 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptEntry: (
       transcriptState,
       entryId: TranscriptEntryId,
-    ): TranscriptMiddlePayload | null => transcriptState.entriesById[entryId] ?? null,
+    ): TranscriptEntryView | null => transcriptEntryView(transcriptState, entryId),
     selectTranscriptGlobalStatus: (transcriptState): TranscriptGlobalStatus[] =>
       transcriptState.globalStatus,
   },
   extraReducers: (builder) => {
     builder
       .addCase(threadRuntimeAttached, (state, action) => {
-        rebuildTranscriptFromSnapshot(
-          state,
-          action.payload.snapshot.thread.id,
-          action.payload.subscriptionId,
-          action.payload.snapshot.headCommitId,
-          action.payload.snapshot.thread.turns,
-        );
+        reduceTranscriptInput(state, action);
       })
       .addCase(threadRuntimeEventBuffered, (state, action) => {
-        const { notification, replay } = action.payload;
-        if (replay === "snapshotDuplicate") {
-          return;
-        }
-
-        if (state.threadId !== notification.threadId) {
-          return;
-        }
-
-        if (hasAppliedTranscriptEvent(state, notification.commitId)) {
-          return;
-        }
-
-        if (notification.event.type === "itemStarted") {
-          const { item, turnId } = notification.event.notification;
-          if (hasStartedItemInMiddle(state, turnId, item.id)) {
-            return;
-          }
-        }
-
-        recordAppliedTranscriptEvent(state, notification.commitId);
-
-        switch (notification.event.type) {
-          case "turnStarted":
-          case "turnCompleted":
-            upsertTranscriptTurn(state, notification.event.notification.turn);
-            return;
-          case "itemCompleted": {
-            const { item, turnId } = notification.event.notification;
-            if (applyCompletedTranscriptItem(state, turnId, item)) {
-              state.committedScrollCommitKey = `event:${notification.commitId}`;
-            }
-            return;
-          }
-          case "itemStarted": {
-            const { item, turnId } = notification.event.notification;
-            recordOriginalFirstTranscriptItem(state, turnId, item);
-            appendStartedItemToMiddle(state, turnId, item);
-            return;
-          }
-        }
-        notification.event satisfies never;
+        reduceTranscriptInput(state, action);
       })
       .addCase(threadRuntimeDeltasAccepted, (state, action) => {
-        applyAcceptedProjectionDeltaBatch(state, action.payload.notifications);
+        reduceTranscriptInput(state, action);
       })
       .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
-        if (state.threadId !== action.payload.threadId) {
-          return;
-        }
-
-        state.globalStatus = [
-          {
-            id: `subscriptionInterrupted:${action.payload.threadId}:${action.payload.subscriptionId ?? "none"}:${action.payload.reason}`,
-            status: "subscriptionInterrupted",
-            reason: action.payload.reason,
-            subscriptionId: action.payload.subscriptionId,
-          },
-        ];
+        reduceTranscriptInput(state, action);
       });
   },
 });

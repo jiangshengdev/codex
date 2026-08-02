@@ -1,4 +1,16 @@
-import type { TranscriptChunk, TranscriptChunkView, TranscriptState } from "./transcriptStateModel";
+import type {
+  TranscriptChunk,
+  TranscriptChunkView,
+  TranscriptEntryId,
+  TranscriptEntryView,
+  TranscriptState,
+  TranscriptStoredEntry,
+} from "./transcriptStateModel";
+
+type TranscriptEntryViewCacheEntry = {
+  revision: number;
+  view: TranscriptEntryView | null;
+};
 
 type TranscriptChunkViewCacheEntry = {
   revision: number;
@@ -6,6 +18,70 @@ type TranscriptChunkViewCacheEntry = {
 };
 
 const transcriptChunkViewCache = new WeakMap<TranscriptChunk, TranscriptChunkViewCacheEntry>();
+const transcriptEntryViewCache = new WeakMap<
+  TranscriptStoredEntry,
+  TranscriptEntryViewCacheEntry
+>();
+
+const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntryView | null => {
+  switch (entry.type) {
+    case "message":
+      return {
+        type: "message",
+        id: entry.id,
+        turnId: entry.turnId,
+        role: entry.role,
+        rendering: {
+          mode: entry.sourceKind === "plainText" ? "plainText" : "staticMarkdown",
+          source: entry.source,
+        },
+        revision: entry.revision,
+      };
+    case "status":
+      return {
+        type: "status",
+        id: entry.id,
+        turnId: entry.turnId,
+        status: entry.status,
+        revision: entry.revision,
+      };
+    case "live":
+      if (entry.transientText.length === 0) {
+        return null;
+      }
+
+      return {
+        type: "message",
+        id: entry.id,
+        turnId: entry.turnId,
+        role: "assistant",
+        rendering: { mode: "streamingMarkdown", source: entry.transientText },
+        revision: entry.revision,
+      };
+  }
+
+  const exhaustiveEntry: never = entry;
+  return exhaustiveEntry;
+};
+
+export const transcriptEntryView = (
+  transcriptState: TranscriptState,
+  entryId: TranscriptEntryId,
+): TranscriptEntryView | null => {
+  const entry = transcriptState.entriesById[entryId];
+  if (entry == null) {
+    return null;
+  }
+
+  const cachedEntry = transcriptEntryViewCache.get(entry);
+  if (cachedEntry?.revision === entry.revision) {
+    return cachedEntry.view;
+  }
+
+  const view = createTranscriptEntryView(entry);
+  transcriptEntryViewCache.set(entry, { revision: entry.revision, view });
+  return view;
+};
 
 export const transcriptChunkView = (
   transcriptState: TranscriptState,
@@ -26,7 +102,7 @@ export const transcriptChunkView = (
     turnId: chunk.turnId,
     revision: chunk.revision,
     entries: chunk.entryIds.flatMap((entryId) => {
-      const entry = transcriptState.entriesById[entryId];
+      const entry = transcriptEntryView(transcriptState, entryId);
       return entry == null ? [] : [entry];
     }),
   };
