@@ -150,12 +150,68 @@ export type TranscriptStatusView = {
   revision: number;
 };
 
+export type TranscriptActivityCopy =
+  | {
+      kind: "agentStarted";
+      agentPath: TranscriptSubAgentActivityItem["agentPath"];
+    }
+  | {
+      kind: "agentInteracted";
+      agentPath: TranscriptSubAgentActivityItem["agentPath"];
+    }
+  | {
+      kind: "agentInterrupted";
+      agentPath: TranscriptSubAgentActivityItem["agentPath"];
+    }
+  | {
+      kind: "agentResuming";
+      receiver: TranscriptCollabAgentItem["receiverThreadIds"][number];
+    }
+  | {
+      kind: "agentsWaiting";
+      receiver: TranscriptCollabAgentItem["receiverThreadIds"][number] | null;
+      receiverCount: number;
+    }
+  | { kind: "agentSpawnFailed" }
+  | {
+      kind: "agentSpawned";
+      receiver: TranscriptCollabAgentItem["receiverThreadIds"][number];
+      model: TranscriptCollabAgentItem["model"];
+      reasoningEffort: TranscriptCollabAgentItem["reasoningEffort"];
+    }
+  | {
+      kind: "inputSent";
+      receiver: TranscriptCollabAgentItem["receiverThreadIds"][number];
+    }
+  | {
+      kind: "agentResumed";
+      receiver: TranscriptCollabAgentItem["receiverThreadIds"][number];
+    }
+  | { kind: "agentsFinishedWaiting" }
+  | {
+      kind: "agentClosed";
+      receiver: TranscriptCollabAgentItem["receiverThreadIds"][number];
+    }
+  | {
+      kind: "agentState";
+      threadId: TranscriptCollabAgentStateSummary["threadId"] | null;
+      status: TranscriptCollabAgentStateSummary["status"];
+      messagePreview: TranscriptCollabAgentStateSummary["messagePreview"];
+    }
+  | { kind: "agentResumeFailed" }
+  | { kind: "noAgentsCompletedYet" }
+  | { kind: "omitted"; count: number };
+
+export type TranscriptActivityDetail =
+  | { kind: "raw"; text: string }
+  | { kind: "copy"; copy: TranscriptActivityCopy };
+
 export type TranscriptCollabAgentView = {
   type: "collabAgent";
   id: string;
   turnId: string;
-  title: string;
-  details: readonly string[];
+  title: TranscriptActivityCopy;
+  details: readonly TranscriptActivityDetail[];
   revision: number;
 };
 
@@ -163,7 +219,7 @@ export type TranscriptSubAgentActivityView = {
   type: "subAgentActivity";
   id: string;
   turnId: string;
-  title: string;
+  title: TranscriptActivityCopy;
   details: readonly [];
   revision: number;
 };

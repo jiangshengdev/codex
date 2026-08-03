@@ -1,12 +1,15 @@
 import type {
+  TranscriptActivityDetail,
   TranscriptChunk,
   TranscriptChunkView,
   TranscriptCollabAgentStateSummary,
   TranscriptCollabAgentStoredEntry,
+  TranscriptCollabAgentView,
   TranscriptEntryId,
   TranscriptEntryView,
   TranscriptState,
   TranscriptStoredEntry,
+  TranscriptSubAgentActivityView,
 } from "./transcriptStateModel";
 
 type TranscriptEntryViewCacheEntry = {
@@ -25,52 +28,32 @@ const transcriptEntryViewCache = new WeakMap<
   TranscriptEntryViewCacheEntry
 >();
 
-type TranscriptCollabAgentPresentation = {
-  title: string;
-  details: readonly string[];
-};
+type TranscriptCollabAgentPresentation = Pick<TranscriptCollabAgentView, "title" | "details">;
 
-const collabAgentStateDetail = (summary: TranscriptCollabAgentStateSummary): string => {
-  switch (summary.status) {
-    case "pendingInit":
-      return "Pending init";
-    case "running":
-      return "Running";
-    case "interrupted":
-      return "Interrupted";
-    case "completed":
-      return summary.messagePreview == null || summary.messagePreview.length === 0
-        ? "Completed"
-        : `Completed - ${summary.messagePreview}`;
-    case "errored":
-      if (summary.messagePreview == null) {
-        return "Error - Agent errored";
-      }
-      return summary.messagePreview.length === 0 ? "Error" : `Error - ${summary.messagePreview}`;
-    case "shutdown":
-      return "Shutdown";
-    case "notFound":
-      return "Not found";
-  }
+const rawActivityDetail = (text: string): TranscriptActivityDetail => ({ kind: "raw", text });
 
-  const exhaustiveStatus: never = summary.status;
-  return exhaustiveStatus;
-};
+const copyActivityDetail = (
+  copy: Extract<TranscriptActivityDetail, { kind: "copy" }>["copy"],
+): TranscriptActivityDetail => ({ kind: "copy", copy });
 
-const withOmittedDetail = (details: string[], omittedCount: number): readonly string[] =>
-  omittedCount === 0 ? details : [...details, `... and ${String(omittedCount)} more`];
+const agentStateDetail = (
+  summary: TranscriptCollabAgentStateSummary,
+  threadId: TranscriptCollabAgentStateSummary["threadId"] | null,
+): TranscriptActivityDetail =>
+  copyActivityDetail({
+    kind: "agentState",
+    threadId,
+    status: summary.status,
+    messagePreview: summary.messagePreview,
+  });
 
-const spawnRequestSuffix = (entry: TranscriptCollabAgentStoredEntry): string => {
-  if (entry.model == null || entry.reasoningEffort == null) {
-    return "";
-  }
-
-  const model = entry.model.trim();
-  if (model.length > 0) {
-    return ` (${model} ${entry.reasoningEffort})`;
-  }
-  return entry.reasoningEffort === "medium" ? "" : ` (${entry.reasoningEffort})`;
-};
+const withOmittedDetail = (
+  details: TranscriptActivityDetail[],
+  omittedCount: number,
+): readonly TranscriptActivityDetail[] =>
+  omittedCount === 0
+    ? details
+    : [...details, copyActivityDetail({ kind: "omitted", count: omittedCount })];
 
 const collabAgentPresentation = (
   entry: TranscriptCollabAgentStoredEntry,
@@ -79,17 +62,21 @@ const collabAgentPresentation = (
   if (entry.toolStatus === "inProgress") {
     switch (entry.tool) {
       case "resumeAgent":
-        return receiver == null ? null : { title: `Resuming ${receiver}`, details: [] };
+        return receiver == null
+          ? null
+          : { title: { kind: "agentResuming", receiver }, details: [] };
       case "wait": {
-        const title =
-          entry.receiverCount === 0
-            ? "Waiting for agents"
-            : entry.receiverCount === 1 && receiver != null
-              ? `Waiting for ${receiver}`
-              : `Waiting for ${String(entry.receiverCount)} agents`;
+        const title = {
+          kind: "agentsWaiting" as const,
+          receiver: receiver ?? null,
+          receiverCount: entry.receiverCount,
+        };
         const details =
           entry.receiverCount > 1
-            ? withOmittedDetail([...entry.receiverThreadIds], entry.omittedReceiverCount)
+            ? withOmittedDetail(
+                entry.receiverThreadIds.map(rawActivityDetail),
+                entry.omittedReceiverCount,
+              )
             : [];
         return { title, details };
       }
@@ -104,16 +91,21 @@ const collabAgentPresentation = (
       return {
         title:
           receiver == null
-            ? "Agent spawn failed"
-            : `Spawned ${receiver}${spawnRequestSuffix(entry)}`,
-        details: entry.promptPreview == null ? [] : [entry.promptPreview],
+            ? { kind: "agentSpawnFailed" }
+            : {
+                kind: "agentSpawned",
+                receiver,
+                model: entry.model,
+                reasoningEffort: entry.reasoningEffort,
+              },
+        details: entry.promptPreview == null ? [] : [rawActivityDetail(entry.promptPreview)],
       };
     case "sendInput":
       return receiver == null
         ? null
         : {
-            title: `Sent input to ${receiver}`,
-            details: entry.promptPreview == null ? [] : [entry.promptPreview],
+            title: { kind: "inputSent", receiver },
+            details: entry.promptPreview == null ? [] : [rawActivityDetail(entry.promptPreview)],
           };
     case "resumeAgent": {
       if (receiver == null) {
@@ -122,26 +114,28 @@ const collabAgentPresentation = (
 
       const agentState = entry.agentStateSummaries[0];
       return {
-        title: `Resumed ${receiver}`,
+        title: { kind: "agentResumed", receiver },
         details: [
-          agentState == null ? "Error - Agent resume failed" : collabAgentStateDetail(agentState),
+          agentState == null
+            ? copyActivityDetail({ kind: "agentResumeFailed" })
+            : agentStateDetail(agentState, null),
         ],
       };
     }
     case "wait": {
-      const stateDetails = entry.agentStateSummaries.map(
-        (summary) => `${summary.threadId}: ${collabAgentStateDetail(summary)}`,
+      const stateDetails = entry.agentStateSummaries.map((summary) =>
+        agentStateDetail(summary, summary.threadId),
       );
       return {
-        title: "Finished waiting",
+        title: { kind: "agentsFinishedWaiting" },
         details:
           stateDetails.length === 0 && entry.omittedAgentStateCount === 0
-            ? ["No agents completed yet"]
+            ? [copyActivityDetail({ kind: "noAgentsCompletedYet" })]
             : withOmittedDetail(stateDetails, entry.omittedAgentStateCount),
       };
     }
     case "closeAgent":
-      return receiver == null ? null : { title: `Closed ${receiver}`, details: [] };
+      return receiver == null ? null : { title: { kind: "agentClosed", receiver }, details: [] };
   }
 
   entry satisfies never;
@@ -186,16 +180,16 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
       };
     }
     case "subAgentActivity": {
-      let title: string;
+      let title: TranscriptSubAgentActivityView["title"];
       switch (entry.activityKind) {
         case "started":
-          title = `Started \`${entry.agentPath}\``;
+          title = { kind: "agentStarted", agentPath: entry.agentPath };
           break;
         case "interacted":
-          title = `Interacted with \`${entry.agentPath}\``;
+          title = { kind: "agentInteracted", agentPath: entry.agentPath };
           break;
         case "interrupted":
-          title = `Interrupted \`${entry.agentPath}\``;
+          title = { kind: "agentInterrupted", agentPath: entry.agentPath };
           break;
         default: {
           const exhaustiveActivityKind: never = entry.activityKind;

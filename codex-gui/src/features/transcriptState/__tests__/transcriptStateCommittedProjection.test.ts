@@ -131,7 +131,7 @@ describe("transcript state committed projection reducer", () => {
         type: "subAgentActivity",
         id: activity.id,
         turnId,
-        title: "Started `agents/implementer`",
+        title: { kind: "agentStarted", agentPath: "agents/implementer" },
         details: [],
         revision: 0,
       },
@@ -270,8 +270,18 @@ describe("transcript state committed projection reducer", () => {
       finalAssistantEntryIds: [],
     });
     expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toMatchObject([
-      { id: waitId, title: "Waiting for agents", details: [], revision: 0 },
-      { id: resumeId, title: "Resuming started-agent", details: [], revision: 0 },
+      {
+        id: waitId,
+        title: { kind: "agentsWaiting", receiver: null, receiverCount: 0 },
+        details: [],
+        revision: 0,
+      },
+      {
+        id: resumeId,
+        title: { kind: "agentResuming", receiver: "started-agent" },
+        details: [],
+        revision: 0,
+      },
     ]);
 
     store.dispatch(
@@ -310,11 +320,26 @@ describe("transcript state committed projection reducer", () => {
 
     expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(3);
     expect(selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries).toMatchObject([
-      { id: waitId, title: "Finished waiting", details: ["No agents completed yet"], revision: 1 },
+      {
+        id: waitId,
+        title: { kind: "agentsFinishedWaiting" },
+        details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+        revision: 1,
+      },
       {
         id: resumeId,
-        title: "Resumed terminal-agent",
-        details: ["Completed - Terminal"],
+        title: { kind: "agentResumed", receiver: "terminal-agent" },
+        details: [
+          {
+            kind: "copy",
+            copy: {
+              kind: "agentState",
+              threadId: null,
+              status: "completed",
+              messagePreview: "Terminal",
+            },
+          },
+        ],
         revision: 1,
       },
       { id: "agent-between-collab" },

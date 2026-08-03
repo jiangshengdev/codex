@@ -199,7 +199,7 @@ describe("transcript state snapshot reducer", () => {
         type: "subAgentActivity",
         id: "activity-sub-agent-started-snapshot",
         turnId: "turn-sub-agent-activity-snapshot",
-        title: "Started `agents/researcher`",
+        title: { kind: "agentStarted", agentPath: "agents/researcher" },
         details: [],
         revision: 0,
       },
@@ -215,7 +215,7 @@ describe("transcript state snapshot reducer", () => {
         type: "subAgentActivity",
         id: "activity-sub-agent-interacted-snapshot",
         turnId: "turn-sub-agent-activity-snapshot",
-        title: "Interacted with `agents/reviewer`",
+        title: { kind: "agentInteracted", agentPath: "agents/reviewer" },
         details: [],
         revision: 0,
       },
@@ -258,13 +258,36 @@ describe("transcript state snapshot reducer", () => {
       "agent-collab-commentary",
       "collab-wait-snapshot",
     ]);
-    expect(entries?.[0]).toMatchObject({
-      title: "Spawned agent-builder",
-      details: ["Build the feature"],
+    expect(entries?.[0]).toStrictEqual({
+      type: "collabAgent",
+      id: "collab-spawn-snapshot",
+      turnId,
+      title: {
+        kind: "agentSpawned",
+        receiver: "agent-builder",
+        model: null,
+        reasoningEffort: null,
+      },
+      details: [{ kind: "raw", text: "Build the feature" }],
+      revision: 0,
     });
-    expect(entries?.[2]).toMatchObject({
-      title: "Finished waiting",
-      details: ["agent-builder: Completed - Built"],
+    expect(entries?.[2]).toStrictEqual({
+      type: "collabAgent",
+      id: "collab-wait-snapshot",
+      turnId,
+      title: { kind: "agentsFinishedWaiting" },
+      details: [
+        {
+          kind: "copy",
+          copy: {
+            kind: "agentState",
+            threadId: "agent-builder",
+            status: "completed",
+            messagePreview: "Built",
+          },
+        },
+      ],
+      revision: 0,
     });
   });
 

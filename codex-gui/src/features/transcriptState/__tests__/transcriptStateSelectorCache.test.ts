@@ -482,7 +482,7 @@ describe("transcript state selector cache", () => {
       type: "subAgentActivity",
       id: targetActivity.id,
       turnId,
-      title: "Interacted with `agents/cache-0`",
+      title: { kind: "agentInteracted", agentPath: "agents/cache-0" },
       details: [],
       revision: 1,
     });
@@ -547,7 +547,13 @@ describe("transcript state selector cache", () => {
 
     expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
     expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
-      title: "Spawned agent-after",
+      title: {
+        kind: "agentSpawned",
+        receiver: "agent-after",
+        model: null,
+        reasoningEffort: null,
+      },
+      details: [],
       revision: 1,
     });
     expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
@@ -607,7 +613,8 @@ describe("transcript state selector cache", () => {
 
     expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
     expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
-      title: "Finished waiting",
+      title: { kind: "agentsFinishedWaiting" },
+      details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
       revision: 1,
     });
     expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);

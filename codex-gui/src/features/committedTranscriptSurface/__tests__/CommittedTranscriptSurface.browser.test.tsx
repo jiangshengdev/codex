@@ -1,9 +1,11 @@
 import { expect, test } from "vitest";
+import { makeStore } from "@/app/store";
 import {
   agentMessage,
   agentMessageDelta,
   attachWithTurns,
   baseTurn,
+  collabAgentState,
   collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
@@ -26,7 +28,11 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
+import {
+  selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptEntry,
+  transcriptEntryIdFor,
+} from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 
@@ -148,7 +154,7 @@ test("renders accessible sub-agent activity and folds it after the final answer"
 test("renders terminal collab activity accessibly and restores its order after expansion", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
   const turnId = "turn-collab-activity-surface";
-  const spawnTitle = "Spawned agent-builder";
+  const spawnTitle = "Spawned agent-builder (gpt-5 high)";
   const closeTitle = "Closed agent-reviewer";
 
   store.dispatch(
@@ -159,6 +165,8 @@ test("renders terminal collab activity accessibly and restores its order after e
           collabAgentToolCall("collab-spawn-surface", "spawnAgent", "completed", {
             receiverThreadIds: ["agent-builder"],
             prompt: "Build the feature",
+            model: "gpt-5",
+            reasoningEffort: "high",
           }),
           collabAgentToolCall("collab-close-surface", "closeAgent", "failed", {
             receiverThreadIds: ["agent-reviewer"],
@@ -204,6 +212,72 @@ test("renders terminal collab activity accessibly and restores its order after e
   const entries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
   await expect.element(entries.nth(1)).toHaveAccessibleName(spawnTitle);
   await expect.element(entries.nth(2)).toHaveAccessibleName(closeTitle);
+});
+
+test("localizes transcript copy without rebuilding semantic activity views", async () => {
+  const turnId = "turn-locale-surface";
+  const activityId = "activity-locale-surface";
+  const waitId = "collab-wait-locale-surface";
+  const agentPath = "agents/locale-worker";
+  const agentThreadId = "thread-locale-worker";
+  const rawMessage = "Server completion message stays raw";
+  const store = makeStore();
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          subAgentActivity(activityId, "started", agentPath),
+          collabAgentToolCall(waitId, "wait", "completed", {
+            agentsStates: {
+              [agentThreadId]: collabAgentState("completed", rawMessage),
+            },
+          }),
+        ]),
+      ]),
+    ),
+  );
+
+  const waitEntryId = transcriptEntryIdFor(turnId, waitId);
+  const semanticView = selectTranscriptEntry(store.getState(), waitEntryId);
+  expect(semanticView).not.toBeNull();
+
+  const englishScreen = await renderWithProviders(<CommittedTranscriptSurface />, { store });
+  const englishRegion = englishScreen.getByRole("region", { name: "Committed transcript" });
+  const englishTurn = englishRegion.getByRole("article", { name: `Turn ${turnId}` });
+
+  await expect.element(englishRegion).toBeVisible();
+  await expect.element(englishTurn).toHaveTextContent("Completed");
+  await expect
+    .element(englishTurn.getByRole("button", { name: "Intermediate updates · 2 items" }))
+    .toBeDisabled();
+  await expect
+    .element(englishTurn.getByRole("article", { name: `Started \`${agentPath}\`` }))
+    .toBeVisible();
+  await expect
+    .element(englishTurn.getByRole("article", { name: "Finished waiting" }))
+    .toHaveTextContent(`${agentThreadId}: Completed - ${rawMessage}`);
+
+  await englishScreen.unmount();
+
+  const chineseScreen = await renderWithProviders(<CommittedTranscriptSurface />, {
+    locale: "zh-CN",
+    store,
+  });
+  const chineseRegion = chineseScreen.getByRole("region", { name: "已提交的对话记录" });
+  const chineseTurn = chineseRegion.getByRole("article", { name: `轮次 ${turnId}` });
+
+  await expect.element(chineseRegion).toBeVisible();
+  await expect.element(chineseTurn).toHaveTextContent("已完成");
+  await expect.element(chineseTurn.getByRole("button", { name: "中间更新 · 2 项" })).toBeDisabled();
+  await expect
+    .element(chineseTurn.getByRole("article", { name: `已启动 \`${agentPath}\`` }))
+    .toBeVisible();
+  await expect
+    .element(chineseTurn.getByRole("article", { name: "等待结束" }))
+    .toHaveTextContent(`${agentThreadId}：已完成：${rawMessage}`);
+
+  expect(selectTranscriptEntry(store.getState(), waitEntryId)).toBe(semanticView);
 });
 
 test("settles one started wait article in place across intermediate disclosure states", async () => {

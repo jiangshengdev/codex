@@ -228,14 +228,30 @@ describe("transcript state replay and event dedup", () => {
 
     expect(
       selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnA, itemId)),
-    ).toMatchObject({
-      title: "Waiting for agent-a",
+    ).toStrictEqual({
+      type: "collabAgent",
+      id: itemId,
+      turnId: turnA,
+      title: {
+        kind: "agentsWaiting",
+        receiver: "agent-a",
+        receiverCount: 1,
+      },
+      details: [],
       revision: 0,
     });
     expect(
       selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnB, itemId)),
-    ).toMatchObject({
-      title: "Waiting for agent-b",
+    ).toStrictEqual({
+      type: "collabAgent",
+      id: itemId,
+      turnId: turnB,
+      title: {
+        kind: "agentsWaiting",
+        receiver: "agent-b",
+        receiverCount: 1,
+      },
+      details: [],
       revision: 0,
     });
     expect(selectTranscriptTurn(store.getState(), turnA)?.middleEntryCount).toBe(1);
@@ -267,8 +283,16 @@ describe("transcript state replay and event dedup", () => {
     );
     expect(
       selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnId, itemId)),
-    ).toMatchObject({
-      title: "Waiting for started-agent",
+    ).toStrictEqual({
+      type: "collabAgent",
+      id: itemId,
+      turnId,
+      title: {
+        kind: "agentsWaiting",
+        receiver: "started-agent",
+        receiverCount: 1,
+      },
+      details: [],
       revision: 0,
     });
 
@@ -300,8 +324,25 @@ describe("transcript state replay and event dedup", () => {
       itemId,
       "agent-after-collab-replacement",
     ]);
-    expect(chunk?.entries.filter(({ id }) => id === itemId)).toMatchObject([
-      { title: "Finished waiting", details: ["terminal-agent: Completed - Terminal"], revision: 0 },
+    expect(chunk?.entries.filter(({ id }) => id === itemId)).toStrictEqual([
+      {
+        type: "collabAgent",
+        id: itemId,
+        turnId,
+        title: { kind: "agentsFinishedWaiting" },
+        details: [
+          {
+            kind: "copy",
+            copy: {
+              kind: "agentState",
+              threadId: "terminal-agent",
+              status: "completed",
+              messagePreview: "Terminal",
+            },
+          },
+        ],
+        revision: 0,
+      },
     ]);
     const stored =
       store.getState().transcriptState.entriesById[transcriptEntryIdFor(turnId, itemId)];

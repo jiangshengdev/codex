@@ -8,8 +8,16 @@ import {
   projectCompletedTranscriptItem,
   projectStartedTranscriptItem,
 } from "../transcriptItemPolicy";
-import { createEmptyTranscriptState, transcriptEntryIdFor } from "../transcriptStateModel";
+import {
+  createEmptyTranscriptState,
+  transcriptEntryIdFor,
+  type TranscriptActivityCopy,
+} from "../transcriptStateModel";
 import { transcriptEntryView } from "../transcriptStateSelectors";
+
+const rawDetail = (text: string) => ({ kind: "raw" as const, text });
+
+const copyDetail = (copy: TranscriptActivityCopy) => ({ kind: "copy" as const, copy });
 
 const completedCollabView = (item: ReturnType<typeof collabAgentToolCall>) => {
   const turnId = "turn-collab";
@@ -49,9 +57,9 @@ const startedCollabPresentation = (item: ReturnType<typeof collabAgentToolCall>)
 
 describe("transcript item policy", () => {
   it.each([
-    ["started", "Started `agents/planner`"],
-    ["interacted", "Interacted with `agents/planner`"],
-    ["interrupted", "Interrupted `agents/planner`"],
+    ["started", { kind: "agentStarted", agentPath: "agents/planner" }],
+    ["interacted", { kind: "agentInteracted", agentPath: "agents/planner" }],
+    ["interrupted", { kind: "agentInterrupted", agentPath: "agents/planner" }],
   ] as const)("projects completed sub-agent %s activity", (kind, title) => {
     const turnId = `turn-${kind}`;
     const item = subAgentActivity(`activity-${kind}`, kind, "agents/planner", {
@@ -93,16 +101,65 @@ describe("transcript item policy", () => {
   });
 
   it.each([
-    ["spawnAgent", "completed", "Spawned agent-a", []],
-    ["spawnAgent", "failed", "Spawned agent-a", []],
-    ["sendInput", "completed", "Sent input to agent-a", ["Send this"]],
-    ["sendInput", "failed", "Sent input to agent-a", ["Send this"]],
-    ["resumeAgent", "completed", "Resumed agent-a", ["Running"]],
-    ["resumeAgent", "failed", "Resumed agent-a", ["Running"]],
-    ["wait", "completed", "Finished waiting", ["agent-a: Running"]],
-    ["wait", "failed", "Finished waiting", ["agent-a: Running"]],
-    ["closeAgent", "completed", "Closed agent-a", []],
-    ["closeAgent", "failed", "Closed agent-a", []],
+    [
+      "spawnAgent",
+      "completed",
+      { kind: "agentSpawned", receiver: "agent-a", model: null, reasoningEffort: null },
+      [],
+    ],
+    [
+      "spawnAgent",
+      "failed",
+      { kind: "agentSpawned", receiver: "agent-a", model: null, reasoningEffort: null },
+      [],
+    ],
+    [
+      "sendInput",
+      "completed",
+      { kind: "inputSent", receiver: "agent-a" },
+      [rawDetail("Send this")],
+    ],
+    ["sendInput", "failed", { kind: "inputSent", receiver: "agent-a" }, [rawDetail("Send this")]],
+    [
+      "resumeAgent",
+      "completed",
+      { kind: "agentResumed", receiver: "agent-a" },
+      [copyDetail({ kind: "agentState", threadId: null, status: "running", messagePreview: null })],
+    ],
+    [
+      "resumeAgent",
+      "failed",
+      { kind: "agentResumed", receiver: "agent-a" },
+      [copyDetail({ kind: "agentState", threadId: null, status: "running", messagePreview: null })],
+    ],
+    [
+      "wait",
+      "completed",
+      { kind: "agentsFinishedWaiting" },
+      [
+        copyDetail({
+          kind: "agentState",
+          threadId: "agent-a",
+          status: "running",
+          messagePreview: null,
+        }),
+      ],
+    ],
+    [
+      "wait",
+      "failed",
+      { kind: "agentsFinishedWaiting" },
+      [
+        copyDetail({
+          kind: "agentState",
+          threadId: "agent-a",
+          status: "running",
+          messagePreview: null,
+        }),
+      ],
+    ],
+    ["closeAgent", "completed", { kind: "agentClosed", receiver: "agent-a" }, []],
+    ["closeAgent", "failed", { kind: "agentClosed", receiver: "agent-a" }, []],
   ] as const)("projects terminal %s %s with the action wording", (tool, status, title, details) => {
     const view = completedCollabView(
       collabAgentToolCall(`collab-${tool}-${status}`, tool, status, {
@@ -129,10 +186,10 @@ describe("transcript item policy", () => {
     ["sendInput", "inProgress", null],
     ["sendInput", "completed", null],
     ["sendInput", "failed", null],
-    ["resumeAgent", "inProgress", "Resuming agent-a"],
+    ["resumeAgent", "inProgress", { kind: "agentResuming", receiver: "agent-a" }],
     ["resumeAgent", "completed", null],
     ["resumeAgent", "failed", null],
-    ["wait", "inProgress", "Waiting for agent-a"],
+    ["wait", "inProgress", { kind: "agentsWaiting", receiver: "agent-a", receiverCount: 1 }],
     ["wait", "completed", null],
     ["wait", "failed", null],
     ["closeAgent", "inProgress", null],
@@ -174,24 +231,28 @@ describe("transcript item policy", () => {
     state.entriesById[entryId] = projection.entry;
     const view = transcriptEntryView(state, entryId);
 
-    expect(view).toMatchObject({ title: "Waiting for 66 agents" });
+    expect(view).toMatchObject({
+      title: { kind: "agentsWaiting", receiver: "agent-00", receiverCount: 66 },
+    });
     expect(view?.type === "collabAgent" ? view.details : []).toHaveLength(64);
     expect(view?.type === "collabAgent" ? view.details.slice(0, 2) : []).toStrictEqual([
-      "agent-00",
-      "agent-01",
+      rawDetail("agent-00"),
+      rawDetail("agent-01"),
     ]);
-    expect(view?.type === "collabAgent" ? view.details.at(-1) : null).toBe("... and 3 more");
+    expect(view?.type === "collabAgent" ? view.details.at(-1) : null).toStrictEqual(
+      copyDetail({ kind: "omitted", count: 3 }),
+    );
   });
 
   it.each([
-    ["gpt-5", "high", " (gpt-5 high)"],
-    ["", "high", " (high)"],
-    [" ", "medium", ""],
-    [null, "high", ""],
-    ["gpt-5", null, ""],
+    ["gpt-5", "high"],
+    ["", "high"],
+    [" ", "medium"],
+    [null, "high"],
+    ["gpt-5", null],
   ] as const)(
-    "formats the authoritative spawn suffix for model %j and effort %j",
-    (model, reasoningEffort, suffix) => {
+    "preserves the authoritative spawn facts for model %j and effort %j",
+    (model, reasoningEffort) => {
       const view = completedCollabView(
         collabAgentToolCall("spawn-suffix", "spawnAgent", "completed", {
           receiverThreadIds: ["agent-a"],
@@ -200,17 +261,25 @@ describe("transcript item policy", () => {
         }),
       );
 
-      expect(view.title).toBe(`Spawned agent-a${suffix}`);
+      expect(view.title).toStrictEqual({
+        kind: "agentSpawned",
+        receiver: "agent-a",
+        model,
+        reasoningEffort,
+      });
     },
   );
 
   it("handles missing and multiple terminal receivers without inventing an agent", () => {
     expect(
       completedCollabView(collabAgentToolCall("spawn-none", "spawnAgent", "failed")),
-    ).toMatchObject({ title: "Agent spawn failed", details: [] });
+    ).toMatchObject({ title: { kind: "agentSpawnFailed" }, details: [] });
     expect(
       completedCollabView(collabAgentToolCall("wait-none", "wait", "completed")),
-    ).toMatchObject({ title: "Finished waiting", details: ["No agents completed yet"] });
+    ).toMatchObject({
+      title: { kind: "agentsFinishedWaiting" },
+      details: [copyDetail({ kind: "noAgentsCompletedYet" })],
+    });
 
     for (const tool of ["sendInput", "resumeAgent", "closeAgent"] as const) {
       expect(
@@ -233,18 +302,23 @@ describe("transcript item policy", () => {
         omittedReceiverCount: 0,
       },
     });
-    expect(completedCollabView(item).title).toBe("Spawned agent-a");
+    expect(completedCollabView(item).title).toStrictEqual({
+      kind: "agentSpawned",
+      receiver: "agent-a",
+      model: null,
+      reasoningEffort: null,
+    });
   });
 
-  it("formats every terminal agent state", () => {
+  it("preserves every terminal agent state", () => {
     const statuses = [
-      ["pending", collabAgentState("pendingInit"), "Pending init"],
-      ["running", collabAgentState("running"), "Running"],
-      ["interrupted", collabAgentState("interrupted"), "Interrupted"],
-      ["completed", collabAgentState("completed", "done"), "Completed - done"],
-      ["errored", collabAgentState("errored"), "Error - Agent errored"],
-      ["shutdown", collabAgentState("shutdown"), "Shutdown"],
-      ["not-found", collabAgentState("notFound"), "Not found"],
+      ["pending", collabAgentState("pendingInit")],
+      ["running", collabAgentState("running")],
+      ["interrupted", collabAgentState("interrupted")],
+      ["completed", collabAgentState("completed", "done")],
+      ["errored", collabAgentState("errored")],
+      ["shutdown", collabAgentState("shutdown")],
+      ["not-found", collabAgentState("notFound")],
     ] as const;
     const view = completedCollabView(
       collabAgentToolCall("wait-states", "wait", "completed", {
@@ -253,16 +327,57 @@ describe("transcript item policy", () => {
       }),
     );
 
-    expect(view.details).toStrictEqual(
-      statuses.map(([threadId, , detail]) => `${threadId}: ${detail}`),
-    );
+    expect(view.details).toStrictEqual([
+      copyDetail({
+        kind: "agentState",
+        threadId: "pending",
+        status: "pendingInit",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "running",
+        status: "running",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "interrupted",
+        status: "interrupted",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "completed",
+        status: "completed",
+        messagePreview: "done",
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "errored",
+        status: "errored",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "shutdown",
+        status: "shutdown",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "not-found",
+        status: "notFound",
+        messagePreview: null,
+      }),
+    ]);
   });
 
   it.each([
-    [null, "Error - Agent errored"],
-    ["", "Error"],
-    [" \n\t ", "Error"],
-  ] as const)("formats errored message %j", (message, expected) => {
+    [null, null],
+    ["", ""],
+    [" \n\t ", ""],
+  ] as const)("preserves normalized errored message preview %j", (message, messagePreview) => {
     const view = completedCollabView(
       collabAgentToolCall("wait-error-fallback", "wait", "failed", {
         receiverThreadIds: ["agent-error"],
@@ -270,7 +385,14 @@ describe("transcript item policy", () => {
       }),
     );
 
-    expect(view.details).toStrictEqual([`agent-error: ${expected}`]);
+    expect(view.details).toStrictEqual([
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-error",
+        status: "errored",
+        messagePreview,
+      }),
+    ]);
   });
 
   it("selects the first available resume state before falling back", () => {
@@ -307,10 +429,26 @@ describe("transcript item policy", () => {
       }),
     );
 
-    expect(targetState.details).toStrictEqual(["Interrupted"]);
-    expect(laterReceiverState.details).toStrictEqual(["Completed - Done"]);
-    expect(remainingState.details).toStrictEqual(["Shutdown"]);
-    expect(noState.details).toStrictEqual(["Error - Agent resume failed"]);
+    expect(targetState.details).toStrictEqual([
+      copyDetail({
+        kind: "agentState",
+        threadId: null,
+        status: "interrupted",
+        messagePreview: null,
+      }),
+    ]);
+    expect(laterReceiverState.details).toStrictEqual([
+      copyDetail({
+        kind: "agentState",
+        threadId: null,
+        status: "completed",
+        messagePreview: "Done",
+      }),
+    ]);
+    expect(remainingState.details).toStrictEqual([
+      copyDetail({ kind: "agentState", threadId: null, status: "shutdown", messagePreview: null }),
+    ]);
+    expect(noState.details).toStrictEqual([copyDetail({ kind: "agentResumeFailed" })]);
   });
 
   it("orders wait states by receiver order and then remaining thread id", () => {
@@ -327,21 +465,86 @@ describe("transcript item policy", () => {
     );
 
     expect(view.details).toStrictEqual([
-      "agent-b: Running",
-      "agent-a: Completed",
-      "agent-c: Pending init",
-      "agent-z: Shutdown",
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-b",
+        status: "running",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-a",
+        status: "completed",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-c",
+        status: "pendingInit",
+        messagePreview: null,
+      }),
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-z",
+        status: "shutdown",
+        messagePreview: null,
+      }),
     ]);
   });
 
   it.each([
-    ["prompt boundary", "spawnAgent", "p".repeat(160), "p".repeat(160)],
-    ["prompt grapheme overflow", "spawnAgent", "👨‍👩‍👧‍👦".repeat(161), `${"👨‍👩‍👧‍👦".repeat(157)}...`],
-    ["completed boundary", "wait", "c".repeat(240), `agent-a: Completed - ${"c".repeat(240)}`],
-    ["completed overflow", "wait", "c".repeat(241), `agent-a: Completed - ${"c".repeat(237)}...`],
-    ["error boundary", "wait", "e".repeat(160), `agent-a: Error - ${"e".repeat(160)}`],
-    ["error overflow", "wait", "e".repeat(161), `agent-a: Error - ${"e".repeat(157)}...`],
-  ] as const)("applies the %s preview limit", (_name, tool, source, expected) => {
+    ["prompt boundary", "spawnAgent", "p".repeat(160), rawDetail("p".repeat(160))],
+    [
+      "prompt grapheme overflow",
+      "spawnAgent",
+      "👨‍👩‍👧‍👦".repeat(161),
+      rawDetail(`${"👨‍👩‍👧‍👦".repeat(157)}...`),
+    ],
+    [
+      "completed boundary",
+      "wait",
+      "c".repeat(240),
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-a",
+        status: "completed",
+        messagePreview: "c".repeat(240),
+      }),
+    ],
+    [
+      "completed overflow",
+      "wait",
+      "c".repeat(241),
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-a",
+        status: "completed",
+        messagePreview: `${"c".repeat(237)}...`,
+      }),
+    ],
+    [
+      "error boundary",
+      "wait",
+      "e".repeat(160),
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-a",
+        status: "errored",
+        messagePreview: "e".repeat(160),
+      }),
+    ],
+    [
+      "error overflow",
+      "wait",
+      "e".repeat(161),
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-a",
+        status: "errored",
+        messagePreview: `${"e".repeat(157)}...`,
+      }),
+    ],
+  ] as const)("applies the %s preview limit", (_name, tool, source, expectedDetail) => {
     const isPrompt = tool === "spawnAgent";
     const view = completedCollabView(
       collabAgentToolCall(`preview-${_name}`, tool, "completed", {
@@ -358,7 +561,7 @@ describe("transcript item policy", () => {
       }),
     );
 
-    expect(view.details).toStrictEqual([expected]);
+    expect(view.details).toStrictEqual([expectedDetail]);
   });
 
   it("applies prompt and state whitespace rules", () => {
@@ -369,7 +572,7 @@ describe("transcript item policy", () => {
           prompt: "  line one \n line two  ",
         }),
       ).details,
-    ).toStrictEqual(["line one \n line two"]);
+    ).toStrictEqual([rawDetail("line one \n line two")]);
     expect(
       completedCollabView(
         collabAgentToolCall("state-whitespace", "wait", "completed", {
@@ -377,7 +580,14 @@ describe("transcript item policy", () => {
           agentsStates: { "agent-a": collabAgentState("completed", "  line one \n line two  ") },
         }),
       ).details,
-    ).toStrictEqual(["agent-a: Completed - line one line two"]);
+    ).toStrictEqual([
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-a",
+        status: "completed",
+        messagePreview: "line one line two",
+      }),
+    ]);
     expect(
       completedCollabView(
         collabAgentToolCall("blank-prompt", "spawnAgent", "completed", {
@@ -400,9 +610,23 @@ describe("transcript item policy", () => {
     );
 
     expect(view.details).toHaveLength(64);
-    expect(view.details[0]).toBe("agent-00: Running");
-    expect(view.details[62]).toBe("agent-62: Running");
-    expect(view.details[63]).toBe("... and 3 more");
+    expect(view.details[0]).toStrictEqual(
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-00",
+        status: "running",
+        messagePreview: null,
+      }),
+    );
+    expect(view.details[62]).toStrictEqual(
+      copyDetail({
+        kind: "agentState",
+        threadId: "agent-62",
+        status: "running",
+        messagePreview: null,
+      }),
+    );
+    expect(view.details[63]).toStrictEqual(copyDetail({ kind: "omitted", count: 3 }));
   });
 
   it("ignores in-progress collab items and hides sender and item ids from visible text", () => {
@@ -413,14 +637,15 @@ describe("transcript item policy", () => {
       ),
     ).toStrictEqual({ kind: "ignore" });
 
-    const view = completedCollabView(
+    const presentation = completedCollabView(
       collabAgentToolCall("hidden-item-id", "spawnAgent", "completed", {
         senderThreadId: "hidden-sender-id",
         receiverThreadIds: ["visible-receiver"],
         prompt: "Visible prompt",
       }),
     );
-    const visibleText = [view.title, ...view.details].join("\n");
+    const view = { title: presentation.title, details: presentation.details };
+    const visibleText = JSON.stringify(view);
     expect(visibleText).not.toContain("hidden-item-id");
     expect(visibleText).not.toContain("hidden-sender-id");
   });
