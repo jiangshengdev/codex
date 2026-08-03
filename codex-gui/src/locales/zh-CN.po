@@ -58,6 +58,10 @@ msgstr "已完成：{messagePreview}"
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
 
+#: src/NotFoundPage.tsx:34
+msgid "Contact support"
+msgstr "联系支持"
+
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:129
 msgid "Error"
@@ -92,6 +96,10 @@ msgstr "失败。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
+#: src/NotFoundPage.tsx:31
+msgid "Go back home"
+msgstr "返回首页"
+
 #. Status chip for a turn that is still in progress
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:539
 msgid "In progress"
@@ -119,6 +127,18 @@ msgstr "已中断 `{agentPath}`"
 msgid "Interrupted."
 msgstr "已中断。"
 
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:166
+msgid "Message Codex"
+msgstr "向 Codex 发送消息"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:149
+msgid "Message composer"
+msgstr "消息输入区"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:85
+msgid "Message failed to send"
+msgstr "消息发送失败"
+
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:285
 msgid "No agents completed yet"
@@ -133,10 +153,22 @@ msgstr "暂无已提交的消息。"
 msgid "Not found"
 msgstr "未找到"
 
+#: src/NotFoundPage.tsx:19
+msgid "Page not found"
+msgstr "找不到页面"
+
 #. Status of a collaborating agent before initialization finishes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:87
 msgid "Pending init"
 msgstr "等待初始化"
+
+#: src/features/qrAccess/QrAccessPopover.tsx:51
+msgid "QR access is unavailable until the GUI launch token is ready."
+msgstr "GUI 启动令牌尚未就绪，暂时无法通过二维码访问。"
+
+#: src/features/qrAccess/QrAccessPopover.tsx:57
+msgid "QR code for current GUI URL"
+msgstr "当前 GUI URL 的二维码。"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:263
@@ -153,6 +185,15 @@ msgstr "正在恢复 {receiver}"
 msgid "Running"
 msgstr "运行中"
 
+#: src/features/qrAccess/QrAccessPopover.tsx:37
+#: src/features/qrAccess/QrAccessPopover.tsx:47
+msgid "Scan with phone"
+msgstr "使用手机扫描"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+msgid "Send"
+msgstr "发送"
+
 #. Collaboration activity showing the raw receiver value of the agent that received input
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:255
 msgid "Sent input to {receiver}"
@@ -162,6 +203,10 @@ msgstr "已向 {receiver} 发送输入"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:142
 msgid "Shutdown"
 msgstr "已关闭"
+
+#: src/NotFoundPage.tsx:27
+msgid "Sorry, we couldn’t find the page you’re looking for."
+msgstr "抱歉，找不到您要访问的页面。"
 
 #. Collaboration activity showing the raw receiver value of a newly created agent
 #. Collaboration activity showing the raw receiver value of a newly created agent
@@ -185,10 +230,22 @@ msgstr "已启动 {receiver}（{reasoningEffort}）"
 msgid "Started `{agentPath}`"
 msgstr "已启动 `{agentPath}`"
 
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
+msgid "Stop"
+msgstr "停止"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
+msgid "Stop failed"
+msgstr "停止失败"
+
 #. Accessible label for a transcript turn identified by its raw turn ID
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:550
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
+
+#: src/features/appShell/AppShell.tsx:34
+msgid "Unable to start Codex GUI"
+msgstr "无法启动 Codex GUI"
 
 #. Collaboration activity waiting for the agent identified by the raw receiver value
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:208

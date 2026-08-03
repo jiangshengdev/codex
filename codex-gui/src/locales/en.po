@@ -58,6 +58,10 @@ msgstr "Completed - {messagePreview}"
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
 
+#: src/NotFoundPage.tsx:34
+msgid "Contact support"
+msgstr "Contact support"
+
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:129
 msgid "Error"
@@ -92,6 +96,10 @@ msgstr "Failed."
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
+#: src/NotFoundPage.tsx:31
+msgid "Go back home"
+msgstr "Go back home"
+
 #. Status chip for a turn that is still in progress
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:539
 msgid "In progress"
@@ -119,6 +127,18 @@ msgstr "Interrupted `{agentPath}`"
 msgid "Interrupted."
 msgstr "Interrupted."
 
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:166
+msgid "Message Codex"
+msgstr "Message Codex"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:149
+msgid "Message composer"
+msgstr "Message composer"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:85
+msgid "Message failed to send"
+msgstr "Message failed to send"
+
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:285
 msgid "No agents completed yet"
@@ -133,10 +153,22 @@ msgstr "No committed messages yet."
 msgid "Not found"
 msgstr "Not found"
 
+#: src/NotFoundPage.tsx:19
+msgid "Page not found"
+msgstr "Page not found"
+
 #. Status of a collaborating agent before initialization finishes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:87
 msgid "Pending init"
 msgstr "Pending init"
+
+#: src/features/qrAccess/QrAccessPopover.tsx:51
+msgid "QR access is unavailable until the GUI launch token is ready."
+msgstr "QR access is unavailable until the GUI launch token is ready."
+
+#: src/features/qrAccess/QrAccessPopover.tsx:57
+msgid "QR code for current GUI URL"
+msgstr "QR code for current GUI URL"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:263
@@ -153,6 +185,15 @@ msgstr "Resuming {receiver}"
 msgid "Running"
 msgstr "Running"
 
+#: src/features/qrAccess/QrAccessPopover.tsx:37
+#: src/features/qrAccess/QrAccessPopover.tsx:47
+msgid "Scan with phone"
+msgstr "Scan with phone"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+msgid "Send"
+msgstr "Send"
+
 #. Collaboration activity showing the raw receiver value of the agent that received input
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:255
 msgid "Sent input to {receiver}"
@@ -162,6 +203,10 @@ msgstr "Sent input to {receiver}"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:142
 msgid "Shutdown"
 msgstr "Shutdown"
+
+#: src/NotFoundPage.tsx:27
+msgid "Sorry, we couldn’t find the page you’re looking for."
+msgstr "Sorry, we couldn’t find the page you’re looking for."
 
 #. Collaboration activity showing the raw receiver value of a newly created agent
 #. Collaboration activity showing the raw receiver value of a newly created agent
@@ -185,10 +230,22 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started `{agentPath}`"
 msgstr "Started `{agentPath}`"
 
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
+msgid "Stop"
+msgstr "Stop"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
+msgid "Stop failed"
+msgstr "Stop failed"
+
 #. Accessible label for a transcript turn identified by its raw turn ID
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:550
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
+
+#: src/features/appShell/AppShell.tsx:34
+msgid "Unable to start Codex GUI"
+msgstr "Unable to start Codex GUI"
 
 #. Collaboration activity waiting for the agent identified by the raw receiver value
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:208

@@ -1,4 +1,5 @@
 import { Alert, Surface, Toast } from "@heroui/react";
+import { Trans } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
@@ -29,7 +30,9 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
     <Alert className="w-full" status="danger">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>Unable to start Codex GUI</Alert.Title>
+        <Alert.Title>
+          <Trans>Unable to start Codex GUI</Trans>
+        </Alert.Title>
         <Alert.Description>{status.message}</Alert.Description>
       </Alert.Content>
     </Alert>
