@@ -3,6 +3,8 @@ import { describe, expect, expectTypeOf, test } from "vitest";
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type {
   ThreadProjectionAttachParams,
+  TurnSteerParams,
+  TurnSteerResponse,
   TurnStartParams,
   TurnStartResponse,
 } from "@codex-protocol/v2";
@@ -27,6 +29,22 @@ describe("generated GUI Host protocol boundary", () => {
     const result: unknown = {};
     if (descriptor.validateResponse(result)) {
       expectTypeOf(result).toEqualTypeOf<TurnStartResponse>();
+    }
+  });
+
+  test("associates turn/steer with its generated params, response, and schemas", () => {
+    const descriptor = requestDescriptors["turn/steer"];
+    type Method = typeof descriptor.method;
+
+    expectTypeOf<Method>().toEqualTypeOf<"turn/steer">();
+    expectTypeOf<RequestParams<Method>>().toEqualTypeOf<TurnSteerParams>();
+    expectTypeOf<RequestResponse<Method>>().toEqualTypeOf<TurnSteerResponse>();
+    expect(descriptor.paramsSchema).toBe("v2/TurnSteerParams");
+    expect(descriptor.responseSchema).toBe("v2/TurnSteerResponse");
+
+    const result: unknown = { turnId: "turn-active" };
+    if (descriptor.validateResponse(result)) {
+      expectTypeOf(result).toEqualTypeOf<TurnSteerResponse>();
     }
   });
 

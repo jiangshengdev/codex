@@ -18,6 +18,7 @@ export const APP_SERVER_REQUEST_METHODS = [
   "initialize",
   "thread/projection/attach",
   "turn/start",
+  "turn/steer",
   "turn/interrupt",
 ] as const satisfies readonly ClientRequestDefinition["method"][];
 

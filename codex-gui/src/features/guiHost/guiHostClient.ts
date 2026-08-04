@@ -17,7 +17,12 @@ import { GuiHostHandshakeController } from "./guiHostHandshakeController";
 import { parseRpcMessage } from "./guiHostProtocol";
 import { GuiHostTransportSession } from "./guiHostTransportSession";
 
-export type { GuiHostCommands } from "./guiHostCommandGateway";
+export {
+  GuiHostCommandError,
+  isGuiHostCommandError,
+  type GuiHostCommandFailureSource,
+  type GuiHostCommands,
+} from "./guiHostCommandGateway";
 
 const unavailableMessage = "GUI host WebSocket is not available";
 
