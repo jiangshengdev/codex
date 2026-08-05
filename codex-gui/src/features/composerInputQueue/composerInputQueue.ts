@@ -52,8 +52,12 @@ export type ComposerInputQueueResult =
         | "startAccepted"
         | "steerAccepted"
         | "steerRetryIssued"
+        | "queueCleared"
+        | "queueItemDeleted"
+        | "queueItemEdited"
         | "turnStarted"
         | "turnCompleted"
+        | "undoApplied"
         | "userMessageCommitted";
     }>
   | Readonly<{
@@ -67,8 +71,12 @@ export type ComposerInputQueueResult =
     }>
   | Readonly<{ type: "deliveryUnknown"; claimType: "start" | "steer" }>
   | Readonly<{ type: "rejected"; reason: "noActive" | "nonSteerable" }>
-  | Readonly<{ type: "invalidInput"; reason: "emptyText" }>
+  | Readonly<{ type: "invalidInput"; reason: "emptyEdit" | "emptyText" }>
   | Readonly<{ type: "duplicateIdentity"; messageId: string }>
+  | Readonly<{ type: "lockedIdentity"; messageId: string }>
+  | Readonly<{ type: "unknownIdentity"; messageId: string }>
+  | Readonly<{ type: "unchanged"; subject: "clear" | "edit" }>
+  | Readonly<{ type: "undoUnavailable"; reason: "expired" | "missing" | "replayed" }>
   | Readonly<{
       type: "idempotentReplay";
       subject: "runtimeCommit" | "startSettlement" | "steerSettlement" | "runtimeObservation";
@@ -93,6 +101,8 @@ export type ComposerInputQueueView = Readonly<{
   pendingSteerCount: number;
   rejectedSteerCount: number;
   hasDeliveryUnknown: boolean;
+  manageableMessageIds: readonly string[];
+  canUndo: boolean;
 }>;
 
 export type SubmitInput =
@@ -126,10 +136,17 @@ export type RuntimeObservation =
       commitId: string;
     }>;
 
+export type QueueManagementCommand =
+  | Readonly<{ type: "edit"; messageId: string; text: string }>
+  | Readonly<{ type: "delete"; messageId: string }>
+  | Readonly<{ type: "clear" }>
+  | Readonly<{ type: "undo" }>;
+
 export type ComposerInputQueue = {
   submit(input: SubmitInput): ComposerInputQueueTransition;
   settle(settlement: StartClaimSettlement | SteerClaimSettlement): ComposerInputQueueTransition;
   observe(observation: RuntimeObservation): ComposerInputQueueTransition;
+  manage(command: QueueManagementCommand): ComposerInputQueueTransition;
   view(): ComposerInputQueueView;
 };
 
@@ -180,6 +197,10 @@ type RejectedSteer = Readonly<{
   order: number;
   turnId: string;
 }>;
+
+type UndoRecord =
+  | Readonly<{ type: "delete"; message: ComposerQueueMessage; index: number }>
+  | Readonly<{ type: "clear"; messages: readonly ComposerQueueMessage[] }>;
 
 const noEffects = Object.freeze([]) as readonly ComposerInputQueueEffect[];
 
@@ -262,6 +283,15 @@ export function createComposerInputQueue(
   let latestRuntimeFact: RuntimeFact | null = null;
   let latestCommittedFact: Readonly<{ clientId: string; turnId: string; commitId: string }> | null =
     null;
+  let undoRecord: UndoRecord | null = null;
+  let undoStatus: "available" | "expired" | "missing" | "replayed" = "missing";
+
+  const invalidateUndo = (): void => {
+    if (undoStatus === "available") {
+      undoRecord = null;
+      undoStatus = "expired";
+    }
+  };
 
   const issueStartClaim = (
     messagesInput: readonly ComposerQueueMessage[],
@@ -299,7 +329,11 @@ export function createComposerInputQueue(
       return null;
     }
     const message = ordinary.shift();
-    return message == null ? null : issueStartClaim([message]).effect;
+    if (message == null) {
+      return null;
+    }
+    invalidateUndo();
+    return issueStartClaim([message]).effect;
   };
 
   const issueSteerClaim = (
@@ -591,6 +625,9 @@ export function createComposerInputQueue(
         ...pendingSteers.filter(({ turnId }) => !unblocksDrain && turnId !== completion.turnId),
       );
       if (unblocksDrain) {
+        if (ordinary.length > 0) {
+          invalidateUndo();
+        }
         ordinary.splice(0);
       }
       releaseMessages(messages);
@@ -745,6 +782,7 @@ export function createComposerInputQueue(
       }
 
       ordinary.push(ownedMessage);
+      invalidateUndo();
       return transition({ type: "queued", messageId: ownedMessage.id });
     },
 
@@ -942,6 +980,87 @@ export function createComposerInputQueue(
       }
     },
 
+    manage(command: QueueManagementCommand): ComposerInputQueueTransition {
+      switch (command.type) {
+        case "edit": {
+          const index = ordinary.findIndex(({ id }) => id === command.messageId);
+          if (index < 0) {
+            return transition(
+              knownMessageIds.has(command.messageId)
+                ? { type: "lockedIdentity", messageId: command.messageId }
+                : { type: "unknownIdentity", messageId: command.messageId },
+            );
+          }
+          if (command.text.trim() === "") {
+            return transition({ type: "invalidInput", reason: "emptyEdit" });
+          }
+          const current = ordinary[index];
+          if (current?.text === command.text) {
+            return transition({ type: "unchanged", subject: "edit" });
+          }
+          if (current == null) {
+            return transition({ type: "unknownIdentity", messageId: command.messageId });
+          }
+          ordinary[index] = immutableMessage({ id: current.id, text: command.text });
+          return transition({ type: "applied", operation: "queueItemEdited" });
+        }
+        case "delete": {
+          const index = ordinary.findIndex(({ id }) => id === command.messageId);
+          if (index < 0) {
+            return transition(
+              knownMessageIds.has(command.messageId)
+                ? { type: "lockedIdentity", messageId: command.messageId }
+                : { type: "unknownIdentity", messageId: command.messageId },
+            );
+          }
+          const [removed] = ordinary.splice(index, 1);
+          if (removed == null) {
+            return transition({ type: "unknownIdentity", messageId: command.messageId });
+          }
+          knownMessageIds.delete(removed.id);
+          undoRecord = Object.freeze({ type: "delete", message: removed, index });
+          undoStatus = "available";
+          return transition({ type: "applied", operation: "queueItemDeleted" });
+        }
+        case "clear": {
+          if (ordinary.length === 0) {
+            return transition({ type: "unchanged", subject: "clear" });
+          }
+          const messages = Object.freeze([...ordinary]);
+          ordinary.splice(0);
+          releaseMessages(messages);
+          undoRecord = Object.freeze({ type: "clear", messages });
+          undoStatus = "available";
+          return transition({ type: "applied", operation: "queueCleared" });
+        }
+        case "undo": {
+          if (undoStatus !== "available" || undoRecord == null) {
+            return transition({
+              type: "undoUnavailable",
+              reason: undoStatus === "available" ? "missing" : undoStatus,
+            });
+          }
+          const messages = undoRecord.type === "clear" ? undoRecord.messages : [undoRecord.message];
+          if (messages.some(({ id }) => knownMessageIds.has(id))) {
+            undoRecord = null;
+            undoStatus = "expired";
+            return transition({ type: "undoUnavailable", reason: "expired" });
+          }
+          if (undoRecord.type === "clear") {
+            ordinary.push(...undoRecord.messages);
+          } else {
+            ordinary.splice(undoRecord.index, 0, undoRecord.message);
+          }
+          for (const message of messages) {
+            knownMessageIds.add(message.id);
+          }
+          undoRecord = null;
+          undoStatus = "replayed";
+          return transition({ type: "applied", operation: "undoApplied" });
+        }
+      }
+    },
+
     view(): ComposerInputQueueView {
       return Object.freeze({
         ordinary: Object.freeze(ordinary.map(immutableMessage)),
@@ -951,6 +1070,8 @@ export function createComposerInputQueue(
         hasDeliveryUnknown:
           pendingStart?.phase === "deliveryUnknown" ||
           pendingSteers.some(({ phase }) => phase === "deliveryUnknown"),
+        manageableMessageIds: Object.freeze(ordinary.map(({ id }) => id)),
+        canUndo: undoStatus === "available",
       });
     },
   });

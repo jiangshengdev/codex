@@ -62,6 +62,8 @@ describe("ComposerInputQueue ordinary start ownership", () => {
       pendingSteerCount: 0,
       rejectedSteerCount: 0,
       hasDeliveryUnknown: false,
+      manageableMessageIds: [],
+      canUndo: false,
     });
   });
 
@@ -108,6 +110,8 @@ describe("ComposerInputQueue ordinary start ownership", () => {
       pendingSteerCount: 0,
       rejectedSteerCount: 0,
       hasDeliveryUnknown: false,
+      manageableMessageIds: ["message-2"],
+      canUndo: false,
     });
     expect(submit(queue, "message-3").effects).toStrictEqual([]);
 
@@ -121,6 +125,8 @@ describe("ComposerInputQueue ordinary start ownership", () => {
       pendingSteerCount: 0,
       rejectedSteerCount: 0,
       hasDeliveryUnknown: false,
+      manageableMessageIds: ["message-2", "message-3"],
+      canUndo: false,
     });
   });
 
@@ -162,6 +168,8 @@ describe("ComposerInputQueue ordinary start ownership", () => {
       pendingSteerCount: 0,
       rejectedSteerCount: 0,
       hasDeliveryUnknown: false,
+      manageableMessageIds: ["message-2"],
+      canUndo: false,
     });
   });
 
@@ -184,6 +192,8 @@ describe("ComposerInputQueue ordinary start ownership", () => {
       pendingSteerCount: 0,
       rejectedSteerCount: 0,
       hasDeliveryUnknown: false,
+      manageableMessageIds: [],
+      canUndo: false,
     });
   });
 
@@ -227,6 +237,8 @@ describe("ComposerInputQueue ordinary start ownership", () => {
       pendingSteerCount: 0,
       rejectedSteerCount: 0,
       hasDeliveryUnknown: false,
+      manageableMessageIds: ["message-3"],
+      canUndo: false,
     });
   });
 
@@ -246,6 +258,8 @@ describe("ComposerInputQueue ordinary start ownership", () => {
       pendingSteerCount: 0,
       rejectedSteerCount: 0,
       hasDeliveryUnknown: true,
+      manageableMessageIds: ["message-2", "message-3"],
+      canUndo: false,
     });
   });
 
@@ -626,5 +640,250 @@ describe("ComposerInputQueue steer and terminal ownership", () => {
       rejectedSteerCount: 0,
       hasDeliveryUnknown: false,
     });
+  });
+});
+
+describe("ComposerInputQueue ordinary management", () => {
+  it("edits in place and deletes then restores the original FIFO position", () => {
+    const queue = createComposerInputQueue({ activeTurnId: "turn-1" });
+    submit(queue, "message-1");
+    submit(queue, "message-2");
+    submit(queue, "message-3");
+
+    expect(
+      queue.manage({ type: "edit", messageId: "message-2", text: "edited" }).result,
+    ).toStrictEqual({
+      type: "applied",
+      operation: "queueItemEdited",
+    });
+    expect(queue.manage({ type: "delete", messageId: "message-2" }).result).toStrictEqual({
+      type: "applied",
+      operation: "queueItemDeleted",
+    });
+    expect(queue.view()).toMatchObject({
+      ordinary: [message("message-1"), message("message-3")],
+      manageableMessageIds: ["message-1", "message-3"],
+      canUndo: true,
+    });
+    expect(queue.manage({ type: "undo" }).result).toStrictEqual({
+      type: "applied",
+      operation: "undoApplied",
+    });
+    expect(queue.view().ordinary).toStrictEqual([
+      message("message-1"),
+      message("message-2", "edited"),
+      message("message-3"),
+    ]);
+  });
+
+  it("classifies invalid, unchanged, unknown, and locked management explicitly", () => {
+    const queue = createComposerInputQueue({ activeTurnId: "turn-1" });
+    submit(queue, "ordinary-1", "text");
+    expect(queue.manage({ type: "edit", messageId: "ordinary-1", text: " " }).result).toStrictEqual(
+      {
+        type: "invalidInput",
+        reason: "emptyEdit",
+      },
+    );
+    expect(
+      queue.manage({ type: "edit", messageId: "ordinary-1", text: "text" }).result,
+    ).toStrictEqual({
+      type: "unchanged",
+      subject: "edit",
+    });
+    expect(queue.manage({ type: "delete", messageId: "missing" }).result).toStrictEqual({
+      type: "unknownIdentity",
+      messageId: "missing",
+    });
+
+    const lockedQueue = createComposerInputQueue();
+    submit(lockedQueue, "locked-1");
+    expect(lockedQueue.manage({ type: "delete", messageId: "locked-1" }).result).toStrictEqual({
+      type: "lockedIdentity",
+      messageId: "locked-1",
+    });
+    expect(
+      lockedQueue.manage({ type: "edit", messageId: "locked-1", text: "changed" }).result,
+    ).toStrictEqual({ type: "lockedIdentity", messageId: "locked-1" });
+  });
+
+  it("expires undo on later membership mutation and reports replay after successful undo", () => {
+    const queue = createComposerInputQueue({ activeTurnId: "turn-1" });
+    submit(queue, "message-1");
+    submit(queue, "message-2");
+    queue.manage({ type: "delete", messageId: "message-1" });
+    submit(queue, "message-3");
+    expect(queue.manage({ type: "undo" }).result).toStrictEqual({
+      type: "undoUnavailable",
+      reason: "expired",
+    });
+
+    queue.manage({ type: "delete", messageId: "message-2" });
+    queue.manage({ type: "undo" });
+    expect(queue.manage({ type: "undo" }).result).toStrictEqual({
+      type: "undoUnavailable",
+      reason: "replayed",
+    });
+  });
+
+  it("clears and restores an unbounded ordinary sequence", () => {
+    const queue = createComposerInputQueue({ activeTurnId: "turn-1" });
+    const messages = Array.from({ length: 32 }, (_, index) => message(`message-${String(index)}`));
+    for (const item of messages) {
+      queue.submit({ intent: "queue", message: item });
+    }
+
+    expect(queue.manage({ type: "clear" }).result).toStrictEqual({
+      type: "applied",
+      operation: "queueCleared",
+    });
+    expect(queue.view()).toMatchObject({ ordinary: [], canUndo: true });
+    queue.manage({ type: "undo" });
+    expect(queue.view().ordinary).toStrictEqual(messages);
+  });
+
+  it("returns frozen management views without exposing mutable queue references", () => {
+    const queue = createComposerInputQueue({ activeTurnId: "turn-1" });
+    submit(queue, "message-1");
+    const view = queue.view();
+
+    expect(Object.isFrozen(view)).toBe(true);
+    expect(Object.isFrozen(view.ordinary)).toBe(true);
+    expect(Object.isFrozen(view.ordinary[0])).toBe(true);
+    expect(Object.isFrozen(view.manageableMessageIds)).toBe(true);
+  });
+
+  it("conserves identities through a fixed commit-reject-drain-recovery sequence", () => {
+    const queue = createComposerInputQueue({ activeTurnId: "turn-1" });
+    const serverOwner = new Set<string>();
+    const recoveryOwner = new Set<string>();
+    const deletedOwner = new Set<string>();
+    const expectAtMostOneStart = (transition: ComposerInputQueueTransition) => {
+      expect(transition.effects.filter(({ type }) => type === "performStart")).toHaveLength(
+        transition.effects.some(({ type }) => type === "performStart") ? 1 : 0,
+      );
+    };
+
+    const committed = steerAttempt(queue.submit({ intent: "steer", message: message("server-1") }));
+    queue.settle({ type: "steerAccepted", attempt: committed });
+    queue.observe({
+      type: "userMessageCommitted",
+      clientId: "server-1",
+      turnId: "turn-1",
+      commitId: "commit-server-1",
+    });
+    serverOwner.add("server-1");
+    expect(queue.view().pendingSteerCount).toBe(0);
+
+    const rejected = steerAttempt(
+      queue.submit({ intent: "steer", message: message("rejected-1") }),
+    );
+    queue.settle({ type: "steerNonSteerable", attempt: rejected });
+    submit(queue, "ordinary-1");
+    submit(queue, "ordinary-2");
+    submit(queue, "ordinary-3");
+    expect(queue.view()).toMatchObject({
+      ordinary: [message("ordinary-1"), message("ordinary-2"), message("ordinary-3")],
+      rejectedSteerCount: 1,
+      pendingSteerCount: 0,
+    });
+    expect(submit(queue, "ordinary-1", "duplicate")).toStrictEqual({
+      result: { type: "duplicateIdentity", messageId: "ordinary-1" },
+      effects: [],
+    });
+    queue.manage({ type: "delete", messageId: "ordinary-2" });
+    deletedOwner.add("ordinary-2");
+    expect(queue.view()).toMatchObject({
+      ordinary: [message("ordinary-1"), message("ordinary-3")],
+      canUndo: true,
+    });
+
+    const rejectedStart = complete(queue, "turn-1", "commit-turn-1", "failed");
+    expectAtMostOneStart(rejectedStart);
+    expect(startClaim(rejectedStart).messages).toStrictEqual([message("rejected-1")]);
+    expect(queue.view()).toMatchObject({
+      ordinary: [message("ordinary-1"), message("ordinary-3")],
+      hasPendingStart: true,
+      rejectedSteerCount: 0,
+      canUndo: true,
+    });
+    expect(submit(queue, "ordinary-1", "still duplicate")).toStrictEqual({
+      result: { type: "duplicateIdentity", messageId: "ordinary-1" },
+      effects: [],
+    });
+    const rejectedClaim = startClaim(rejectedStart);
+    queue.settle({ type: "startAccepted", claim: rejectedClaim, turnId: "turn-2" });
+    queue.observe({ type: "turnStarted", turnId: "turn-2" });
+    serverOwner.add("rejected-1");
+    const ordinaryStart = complete(queue, "turn-2", "commit-turn-2");
+    expectAtMostOneStart(ordinaryStart);
+    expect(startClaim(ordinaryStart).messages).toStrictEqual([message("ordinary-1")]);
+    expect(queue.view()).toMatchObject({
+      ordinary: [message("ordinary-3")],
+      hasPendingStart: true,
+      canUndo: false,
+    });
+    expect(queue.manage({ type: "undo" }).result).toStrictEqual({
+      type: "undoUnavailable",
+      reason: "expired",
+    });
+    const ordinaryClaim = startClaim(ordinaryStart);
+    const rejectedOrdinary = queue.settle({
+      type: "startDefinitelyNotAccepted",
+      claim: ordinaryClaim,
+    });
+    expectAtMostOneStart(rejectedOrdinary);
+    expect(recoveryBatch(rejectedOrdinary).messages).toStrictEqual([message("ordinary-1")]);
+    recoveryOwner.add("ordinary-1");
+    expect(startClaim(rejectedOrdinary).messages).toStrictEqual([message("ordinary-3")]);
+    expect(queue.view()).toMatchObject({
+      ordinary: [],
+      hasPendingStart: true,
+      pendingSteerCount: 0,
+      rejectedSteerCount: 0,
+    });
+
+    const finalStart = startClaim(rejectedOrdinary);
+    queue.settle({ type: "startAccepted", claim: finalStart, turnId: "turn-3" });
+    queue.observe({ type: "turnStarted", turnId: "turn-3" });
+    serverOwner.add("ordinary-3");
+    const interruptedRejected = steerAttempt(
+      queue.submit({ intent: "steer", message: message("interrupted-rejected") }),
+    );
+    queue.settle({ type: "steerNonSteerable", attempt: interruptedRejected });
+    queue.submit({ intent: "steer", message: message("interrupted-pending") });
+    submit(queue, "interrupted-ordinary");
+
+    const interrupted = complete(queue, "turn-3", "commit-turn-3", "interrupted");
+    expect(interrupted.effects.map(({ type }) => type)).toStrictEqual(["recover"]);
+    expect(recoveryBatch(interrupted).messages).toStrictEqual([
+      message("interrupted-rejected"),
+      message("interrupted-pending"),
+      message("interrupted-ordinary"),
+    ]);
+    for (const item of recoveryBatch(interrupted).messages) {
+      recoveryOwner.add(item.id);
+    }
+    expect(queue.view()).toMatchObject({
+      ordinary: [],
+      hasPendingStart: false,
+      pendingSteerCount: 0,
+      rejectedSteerCount: 0,
+    });
+
+    const allOwners = [...serverOwner, ...recoveryOwner, ...deletedOwner];
+    expect(new Set(allOwners).size).toBe(allOwners.length);
+    expect(new Set(allOwners)).toStrictEqual(
+      new Set([
+        "server-1",
+        "rejected-1",
+        "ordinary-1",
+        "ordinary-2",
+        "ordinary-3",
+        "interrupted-rejected",
+        "interrupted-pending",
+        "interrupted-ordinary",
+      ]),
+    );
   });
 });
