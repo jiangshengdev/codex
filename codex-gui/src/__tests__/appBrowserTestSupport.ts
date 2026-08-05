@@ -33,6 +33,9 @@ export const createGuiHostCommands = (): GuiHostCommands => ({
   startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
     turn: inProgressTurn("turn-started-from-app"),
   }),
+  steerTurn: vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
+    turnId: "turn-steered-from-app",
+  }),
   interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
 });
 

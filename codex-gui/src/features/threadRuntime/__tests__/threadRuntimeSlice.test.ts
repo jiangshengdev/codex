@@ -19,11 +19,13 @@ import {
   turnStarted,
   turnWithId,
   turnWithItems,
+  turnWithStatus,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   replayForProjectionEvent,
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeEventBuffer,
+  selectThreadRuntimeLatestLiveTurnCompletion,
   selectThreadRuntimeRecord,
   selectThreadRuntimeSubscription,
   selectThreadRuntimeSubscriptionState,
@@ -61,6 +63,7 @@ describe("thread runtime reducer", () => {
     expect(selectThreadRuntimeThreadId(store.getState())).toBeNull();
     expect(selectThreadRuntimeSubscriptionState(store.getState())).toBeNull();
     expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
+    expect(selectThreadRuntimeLatestLiveTurnCompletion(store.getState())).toBeNull();
   });
 
   it("returns a stable empty event buffer when no runtime exists", () => {
@@ -80,6 +83,7 @@ describe("thread runtime reducer", () => {
       snapshotTurns,
       eventBuffer: [],
       activeTurnId: null,
+      latestLiveTurnCompletion: null,
       subscription: { state: "active" },
     });
     expect(selectThreadRuntimeRecord(runtimeRoot(state))).toStrictEqual(state.current);
@@ -122,6 +126,11 @@ describe("thread runtime reducer", () => {
 
     expect(started.current?.activeTurnId).toBe("turn-in-progress");
     expect(completed.current?.activeTurnId).toBeNull();
+    expect(completed.current?.latestLiveTurnCompletion).toStrictEqual({
+      status: "completed",
+      turnId: "turn-in-progress",
+      commitId: "commit-turn-completed",
+    });
     expect(completed.current?.eventBuffer).toStrictEqual([
       { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
       { type: "projectionEvent", notification: eventTurnCompleted, replay: "live" },
@@ -162,6 +171,11 @@ describe("thread runtime reducer", () => {
     );
 
     expect(state.current?.activeTurnId).toBe("turn-in-progress");
+    expect(state.current?.latestLiveTurnCompletion).toStrictEqual({
+      status: "completed",
+      turnId: "another-turn",
+      commitId: eventTurnCompleted.commitId,
+    });
     expect(state.current?.eventBuffer.at(-1)).toStrictEqual({
       type: "projectionEvent",
       notification: nonMatchingCompleted,
@@ -187,6 +201,7 @@ describe("thread runtime reducer", () => {
     expect(itemCompleted.current?.snapshotTurns).toStrictEqual(
       attachBaseline.snapshot.thread.turns,
     );
+    expect(itemCompleted.current?.latestLiveTurnCompletion).toBeNull();
     expect(itemCompleted.current?.eventBuffer).toStrictEqual([
       { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
       { type: "projectionEvent", notification: eventItemStarted, replay: "live" },
@@ -206,6 +221,7 @@ describe("thread runtime reducer", () => {
     );
 
     expect(nextState).toStrictEqual(state);
+    expect(nextState.current?.latestLiveTurnCompletion).toBeNull();
     expect(
       threadRuntimeDeltasAccepted({ notifications: [eventAgentMessageDelta] }).payload,
     ).toStrictEqual({
@@ -275,6 +291,11 @@ describe("thread runtime reducer", () => {
 
     expect(replay).toBe("live");
     expect(state.current?.activeTurnId).toBeNull();
+    expect(state.current?.latestLiveTurnCompletion).toStrictEqual({
+      status: "completed",
+      turnId: eventTurnCompleted.event.notification.turn.id,
+      commitId: eventTurnCompleted.commitId,
+    });
     expect(state.current?.eventBuffer).toStrictEqual([
       {
         type: "projectionEvent",
@@ -282,6 +303,60 @@ describe("thread runtime reducer", () => {
         replay: "live",
       },
     ]);
+  });
+
+  it.each(["completed", "interrupted", "failed"] as const)(
+    "records the latest live %s turn completion",
+    (status) => {
+      if (eventTurnCompleted.event.type !== "turnCompleted") {
+        throw new Error("fixture must contain a turnCompleted projection event");
+      }
+      const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
+      const completion = turnCompleted(
+        eventTurnCompleted,
+        `commit-turn-${status}`,
+        turnWithStatus(eventTurnCompleted.event.notification.turn, status),
+      );
+
+      const state = reduce(
+        attached,
+        threadRuntimeEventBuffered({ notification: completion, replay: "live" }),
+      );
+      const root = runtimeRoot(state);
+
+      expect(selectThreadRuntimeLatestLiveTurnCompletion(root)).toStrictEqual({
+        status,
+        turnId: eventTurnCompleted.event.notification.turn.id,
+        commitId: `commit-turn-${status}`,
+      });
+      expect(selectThreadRuntimeLatestLiveTurnCompletion(root)).toBe(
+        selectThreadRuntimeLatestLiveTurnCompletion(root),
+      );
+    },
+  );
+
+  it("does not record a snapshot duplicate turn completion", () => {
+    if (eventTurnCompleted.event.type !== "turnCompleted") {
+      throw new Error("fixture must contain a turnCompleted projection event");
+    }
+    const snapshotTurn = eventTurnCompleted.event.notification.turn;
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])),
+    );
+
+    const state = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: eventTurnCompleted,
+        replay: replayForProjectionEvent(
+          snapshotReplayIndexFromTurns([snapshotTurn]),
+          eventTurnCompleted,
+        ),
+      }),
+    );
+
+    expect(state.current?.latestLiveTurnCompletion).toBeNull();
   });
 
   it("marks live item events already present in the attach snapshot as snapshot duplicates", () => {
@@ -424,8 +499,12 @@ describe("thread runtime reducer", () => {
 
   it("rebuilds baseline and clears manual reconnect state on a new attach", () => {
     const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
-    const interrupted = reduce(
+    const completed = reduce(
       attached,
+      threadRuntimeEventBuffered({ notification: eventTurnCompleted, replay: "live" }),
+    );
+    const interrupted = reduce(
+      completed,
       threadRuntimeManualReconnectRequired({
         reason: "backpressure",
         threadId: attachBaseline.snapshot.thread.id,
@@ -438,6 +517,7 @@ describe("thread runtime reducer", () => {
     expect(state.current?.thread.name).toBe("Replacement projection fixture");
     expect(state.current?.snapshotTurns).toStrictEqual(attachReplacement.snapshot.thread.turns);
     expect(state.current?.eventBuffer).toStrictEqual([]);
+    expect(state.current?.latestLiveTurnCompletion).toBeNull();
     expect(state.current?.subscription).toStrictEqual({ state: "active" });
   });
 });

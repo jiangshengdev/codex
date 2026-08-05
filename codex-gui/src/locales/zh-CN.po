@@ -13,27 +13,249 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: src/PluralExample.tsx:17
-msgid "{count, plural, one {# month} other {# months}}"
-msgstr "{count, plural, one {# 个月} other {# 个月}}"
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:291
+msgid "... and {count} more"
+msgstr "…另有 {count} 项"
 
-#: src/MsgExample.tsx:11
-msgid "Blue"
-msgstr "蓝色"
+#. Disclosure label showing how many intermediate transcript updates it contains
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:457
+msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
+msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更新 · # 项}}"
 
-#: src/PluralExample.tsx:12
-msgid "Click on this button to test plurals"
-msgstr "点击此按钮测试复数形式"
+#. Activity detail showing a raw collaborating-agent thread ID followed by its translated status
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:165
+msgid "{threadId}: {agentState}"
+msgstr "{threadId}：{agentState}"
 
-#: src/LanguageSwitcher.tsx:33
-#: src/LanguageSwitcher.tsx:40
-msgid "Language"
-msgstr "语言"
+#. Status shown when creation of a collaborating agent fails
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:218
+msgid "Agent spawn failed"
+msgstr "启动智能体失败"
 
-#: src/MsgExample.tsx:15
-msgid "Orange"
-msgstr "橙色"
+#. Collaboration activity showing the raw receiver value of the closed agent
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:272
+msgid "Closed {receiver}"
+msgstr "已关闭 {receiver}"
 
-#: src/MsgExample.tsx:7
-msgid "Red"
-msgstr "红色"
+#. Accessible name for the region containing committed transcript turns
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:595
+msgid "Committed transcript"
+msgstr "已提交的对话记录"
+
+#. Status chip for a completed turn
+#. Status of a collaborating agent that completed its work
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:108
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:524
+msgid "Completed"
+msgstr "已完成"
+
+#. Status of a collaborating agent followed by its raw completion-message preview
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:112
+msgid "Completed - {messagePreview}"
+msgstr "已完成：{messagePreview}"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:613
+msgid "Connection interrupted. Reconnect required."
+msgstr "连接已中断，需要重新连接。"
+
+#: src/NotFoundPage.tsx:34
+msgid "Contact support"
+msgstr "联系支持"
+
+#. Status of a collaborating agent that failed
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:129
+msgid "Error"
+msgstr "错误"
+
+#. Status of a collaborating agent followed by its raw error-message preview
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:133
+msgid "Error - {messagePreview}"
+msgstr "错误：{messagePreview}"
+
+#. Status of a collaborating agent that failed without an error preview
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:122
+msgid "Error - Agent errored"
+msgstr "错误 - 智能体出错"
+
+#. Status shown when resuming a collaborating agent fails
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:280
+msgid "Error - Agent resume failed"
+msgstr "错误 - 恢复智能体失败"
+
+#. Status chip for a failed turn
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:534
+msgid "Failed"
+msgstr "失败"
+
+#. Status entry indicating that transcript processing failed
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:321
+msgid "Failed."
+msgstr "失败。"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:269
+msgid "Finished waiting"
+msgstr "等待结束"
+
+#: src/NotFoundPage.tsx:31
+msgid "Go back home"
+msgstr "返回首页"
+
+#. Status chip for a turn that is still in progress
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:539
+msgid "In progress"
+msgstr "进行中"
+
+#. Activity showing the raw path of a sub-agent that was contacted
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:183
+msgid "Interacted with `{agentPath}`"
+msgstr "已与 `{agentPath}` 交互"
+
+#. Status chip for an interrupted turn
+#. Status of a collaborating agent whose work was interrupted
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:99
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:529
+msgid "Interrupted"
+msgstr "已中断"
+
+#. Activity showing the raw path of a sub-agent that was interrupted
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:190
+msgid "Interrupted `{agentPath}`"
+msgstr "已中断 `{agentPath}`"
+
+#. Status entry indicating that transcript processing was interrupted
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:315
+msgid "Interrupted."
+msgstr "已中断。"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:166
+msgid "Message Codex"
+msgstr "向 Codex 发送消息"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:149
+msgid "Message composer"
+msgstr "消息输入区"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:85
+msgid "Message failed to send"
+msgstr "消息发送失败"
+
+#. Status shown when waiting finishes before any collaborating agent completes
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:285
+msgid "No agents completed yet"
+msgstr "尚无智能体完成任务"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:624
+msgid "No committed messages yet."
+msgstr "暂无已提交的消息。"
+
+#. Status indicating that a collaborating agent could not be found
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:148
+msgid "Not found"
+msgstr "未找到"
+
+#: src/NotFoundPage.tsx:19
+msgid "Page not found"
+msgstr "找不到页面"
+
+#. Status of a collaborating agent before initialization finishes
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:87
+msgid "Pending init"
+msgstr "等待初始化"
+
+#: src/features/qrAccess/QrAccessPopover.tsx:51
+msgid "QR access is unavailable until the GUI launch token is ready."
+msgstr "GUI 启动令牌尚未就绪，暂时无法通过二维码访问。"
+
+#: src/features/qrAccess/QrAccessPopover.tsx:57
+msgid "QR code for current GUI URL"
+msgstr "当前 GUI URL 的二维码。"
+
+#. Collaboration activity showing the raw receiver value of the resumed agent
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:263
+msgid "Resumed {receiver}"
+msgstr "已恢复 {receiver}"
+
+#. Collaboration activity resuming the agent identified by the raw receiver value
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:197
+msgid "Resuming {receiver}"
+msgstr "正在恢复 {receiver}"
+
+#. Status of a collaborating agent that is currently working
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:93
+msgid "Running"
+msgstr "运行中"
+
+#: src/features/qrAccess/QrAccessPopover.tsx:37
+#: src/features/qrAccess/QrAccessPopover.tsx:47
+msgid "Scan with phone"
+msgstr "使用手机扫描"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+msgid "Send"
+msgstr "发送"
+
+#. Collaboration activity showing the raw receiver value of the agent that received input
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:255
+msgid "Sent input to {receiver}"
+msgstr "已向 {receiver} 发送输入"
+
+#. Status of a collaborating agent that has shut down
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:142
+msgid "Shutdown"
+msgstr "已关闭"
+
+#: src/NotFoundPage.tsx:27
+msgid "Sorry, we couldn’t find the page you’re looking for."
+msgstr "抱歉，找不到您要访问的页面。"
+
+#. Collaboration activity showing the raw receiver value of a newly created agent
+#. Collaboration activity showing the raw receiver value of a newly created agent
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:226
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:242
+msgid "Spawned {receiver}"
+msgstr "已启动 {receiver}"
+
+#. Collaboration activity showing raw receiver, model, and reasoning-effort values for a newly created agent
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:235
+msgid "Spawned {receiver} ({model} {reasoningEffort})"
+msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
+
+#. Collaboration activity showing raw receiver and reasoning-effort values for a newly created agent
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:247
+msgid "Spawned {receiver} ({reasoningEffort})"
+msgstr "已启动 {receiver}（{reasoningEffort}）"
+
+#. Activity showing the raw path of a sub-agent that started
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:176
+msgid "Started `{agentPath}`"
+msgstr "已启动 `{agentPath}`"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
+msgid "Stop"
+msgstr "停止"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
+msgid "Stop failed"
+msgstr "停止失败"
+
+#. Accessible label for a transcript turn identified by its raw turn ID
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:550
+msgid "Turn {resolvedTurnId}"
+msgstr "轮次 {resolvedTurnId}"
+
+#: src/features/appShell/AppShell.tsx:34
+msgid "Unable to start Codex GUI"
+msgstr "无法启动 Codex GUI"
+
+#. Collaboration activity waiting for the agent identified by the raw receiver value
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:208
+msgid "Waiting for {receiver}"
+msgstr "正在等待 {receiver}"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:215
+msgid "Waiting for {receiverCount} agents"
+msgstr "正在等待 {receiverCount} 个智能体"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:205
+msgid "Waiting for agents"
+msgstr "正在等待智能体"

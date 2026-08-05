@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { TurnStartParams, TurnStartResponse } from "@codex-protocol/v2";
+import type {
+  TurnStartParams,
+  TurnStartResponse,
+  TurnSteerParams,
+  TurnSteerResponse,
+} from "@codex-protocol/v2";
+import { isGuiHostCommandError } from "../guiHostClient";
 import {
   recordStatusLabels,
   readLatestRpcRequest,
@@ -14,6 +20,13 @@ const turnStartParams = (threadId: string): TurnStartParams => ({
   threadId,
   clientUserMessageId: null,
   input: [{ type: "text", text: "Hello", text_elements: [] }],
+});
+
+const turnSteerParams = (threadId: string): TurnSteerParams => ({
+  threadId,
+  expectedTurnId: "turn-active",
+  clientUserMessageId: null,
+  input: [{ type: "text", text: "Guide", text_elements: [] }],
 });
 
 describe("guiHostClient commands", () => {
@@ -63,6 +76,27 @@ describe("guiHostClient commands", () => {
     await expect(promise).resolves.toEqual({});
   });
 
+  it("sends turn/steer through the ready command API", async () => {
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+    });
+    const params = turnSteerParams(threadId);
+    const response: TurnSteerResponse = { turnId: params.expectedTurnId };
+    const promise = commands.steerTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/steer");
+
+    expect(request).toEqual({
+      jsonrpc: "2.0",
+      id: request.id,
+      method: "turn/steer",
+      params,
+    });
+
+    sendJsonRpcResult(socket, request.id, response);
+
+    await expect(promise).resolves.toEqual(response);
+  });
+
   it("rejects command JSON-RPC errors without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
     const { commands, socket, threadId } = startConnectionUntilCommandsReady({
@@ -70,15 +104,15 @@ describe("guiHostClient commands", () => {
       onStatus,
     });
 
-    const params = turnStartParams(threadId);
-    const promise = commands.startTurn(params);
-    const request = readLatestRpcRequest(socket, "turn/start");
+    const params = turnSteerParams(threadId);
+    const promise = commands.steerTurn(params);
+    const request = readLatestRpcRequest(socket, "turn/steer");
 
     expect(typeof request.id).toBe("number");
     expect(request).toEqual({
       jsonrpc: "2.0",
       id: request.id,
-      method: "turn/start",
+      method: "turn/steer",
       params,
     });
 
@@ -87,7 +121,17 @@ describe("guiHostClient commands", () => {
       message: "active turn already running",
     });
 
-    await expect(promise).rejects.toThrow("active turn already running");
+    const error: unknown = await promise.catch((failure: unknown) => failure);
+    if (!isGuiHostCommandError(error)) {
+      throw new Error("Expected GuiHostCommandError");
+    }
+    expect(error.source).toBe("rpc");
+    expect(error.message).toContain("active turn already running");
+    if (!(error.cause instanceof Error)) {
+      throw new Error("Expected GuiHostCommandError cause");
+    }
+    expect(error.cause).toBeInstanceOf(Error);
+    expect(error.message).toBe(error.cause.message);
     expect(socket.closed).toEqual([]);
     expect(statuses.at(-1)).toBe("attached");
   });

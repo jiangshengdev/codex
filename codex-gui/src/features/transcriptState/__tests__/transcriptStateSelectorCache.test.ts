@@ -13,8 +13,10 @@ import {
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   selectTranscriptChunk,
   selectTranscriptEntry,
+  selectTranscriptTurn,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 import {
@@ -22,8 +24,10 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  collabAgentToolCall,
   itemCompleted,
   itemStarted,
+  subAgentActivity,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state selector cache", () => {
@@ -417,5 +421,208 @@ describe("transcript state selector cache", () => {
       ],
     });
     expect(afterSettlementEntry).toBe(afterSettlement?.entries[0]);
+  });
+
+  it("invalidates only the changed sub-agent activity entry and its middle chunk view", () => {
+    const store = makeStore();
+    const turnId = "turn-sub-agent-cache";
+    const targetActivity = subAgentActivity(
+      "activity-sub-agent-cache-0",
+      "started",
+      "agents/cache-0",
+    );
+    const stableActivity = subAgentActivity(
+      "activity-sub-agent-cache-1",
+      "started",
+      "agents/cache-1",
+    );
+    const activities = [
+      targetActivity,
+      stableActivity,
+      ...Array.from({ length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1 }, (_, index) => {
+        const activityIndex = index + 2;
+        return subAgentActivity(
+          `activity-sub-agent-cache-${String(activityIndex)}`,
+          "started",
+          `agents/cache-${String(activityIndex)}`,
+        );
+      }),
+    ];
+
+    store.dispatch(
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, activities)])),
+    );
+
+    const targetEntryId = transcriptEntryIdFor(turnId, targetActivity.id);
+    const stableEntryId = transcriptEntryIdFor(turnId, stableActivity.id);
+    const firstChunkId = `${turnId}:chunk:0`;
+    const secondChunkId = `${turnId}:chunk:1`;
+    const beforeTargetEntry = selectTranscriptEntry(store.getState(), targetEntryId);
+    const beforeStableEntry = selectTranscriptEntry(store.getState(), stableEntryId);
+    const beforeFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
+    const beforeSecondChunk = selectTranscriptChunk(store.getState(), secondChunkId);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-sub-agent-cache-update",
+          turnId,
+          subAgentActivity(targetActivity.id, "interacted", "agents/cache-0"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const afterTargetEntry = selectTranscriptEntry(store.getState(), targetEntryId);
+    const afterFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
+
+    expect(afterTargetEntry).not.toBe(beforeTargetEntry);
+    expect(afterTargetEntry).toStrictEqual({
+      type: "subAgentActivity",
+      id: targetActivity.id,
+      turnId,
+      title: { kind: "agentInteracted", agentPath: "agents/cache-0" },
+      details: [],
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), stableEntryId)).toBe(beforeStableEntry);
+    expect(afterFirstChunk).not.toBe(beforeFirstChunk);
+    expect(afterFirstChunk?.entries.map(({ id }) => id)).toStrictEqual(
+      beforeFirstChunk?.entries.map(({ id }) => id),
+    );
+    expect(afterFirstChunk?.entries[1]).toBe(beforeFirstChunk?.entries[1]);
+    expect(selectTranscriptChunk(store.getState(), secondChunkId)).toBe(beforeSecondChunk);
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      middleChunkIds: [firstChunkId, secondChunkId],
+      middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
+      finalAssistantEntryIds: [],
+    });
+  });
+
+  it("invalidates only the changed terminal collab entry and its middle chunk view", () => {
+    const store = makeStore();
+    const turnId = "turn-collab-cache";
+    const target = collabAgentToolCall("collab-cache-0", "spawnAgent", "completed", {
+      receiverThreadIds: ["agent-before"],
+    });
+    const stable = collabAgentToolCall("collab-cache-1", "spawnAgent", "completed", {
+      receiverThreadIds: ["agent-stable"],
+    });
+    const entries = [
+      target,
+      stable,
+      ...Array.from({ length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT - 1 }, (_, index) =>
+        collabAgentToolCall(`collab-cache-${String(index + 2)}`, "spawnAgent", "completed", {
+          receiverThreadIds: [`agent-${String(index + 2)}`],
+        }),
+      ),
+    ];
+    store.dispatch(
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, entries)])),
+    );
+
+    const targetId = transcriptEntryIdFor(turnId, target.id);
+    const stableId = transcriptEntryIdFor(turnId, stable.id);
+    const firstChunkId = `${turnId}:chunk:0`;
+    const secondChunkId = `${turnId}:chunk:1`;
+    const beforeTarget = selectTranscriptEntry(store.getState(), targetId);
+    const beforeStable = selectTranscriptEntry(store.getState(), stableId);
+    const beforeFirstChunk = selectTranscriptChunk(store.getState(), firstChunkId);
+    const beforeSecondChunk = selectTranscriptChunk(store.getState(), secondChunkId);
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-collab-cache-update",
+          turnId,
+          collabAgentToolCall(target.id, "spawnAgent", "failed", {
+            receiverThreadIds: ["agent-after"],
+          }),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
+    expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
+      title: {
+        kind: "agentSpawned",
+        receiver: "agent-after",
+        model: null,
+        reasoningEffort: null,
+      },
+      details: [],
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
+    expect(selectTranscriptChunk(store.getState(), firstChunkId)).not.toBe(beforeFirstChunk);
+    expect(selectTranscriptChunk(store.getState(), firstChunkId)?.entries[1]).toBe(
+      beforeFirstChunk?.entries[1],
+    );
+    expect(selectTranscriptChunk(store.getState(), secondChunkId)).toBe(beforeSecondChunk);
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      middleChunkIds: [firstChunkId, secondChunkId],
+      middleEntryCount: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1,
+    });
+  });
+
+  it("invalidates only a settled started activity and its owning chunk", () => {
+    const store = makeStore();
+    const turnId = "turn-started-collab-cache";
+    const stableItems = Array.from(
+      { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 },
+      (_, index) =>
+        collabAgentToolCall(`stable-collab-${String(index)}`, "spawnAgent", "completed", {
+          receiverThreadIds: [`stable-agent-${String(index)}`],
+        }),
+    );
+    const target = collabAgentToolCall("started-collab-cache", "wait", "inProgress");
+
+    store.dispatch(
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, stableItems)])),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(eventItemStarted, "commit-started-collab-cache", turnId, target),
+        replay: "live",
+      }),
+    );
+
+    const targetId = transcriptEntryIdFor(turnId, target.id);
+    const stableId = transcriptEntryIdFor(turnId, "stable-collab-0");
+    const chunkIds = [`${turnId}:chunk:0`, `${turnId}:chunk:1`, `${turnId}:chunk:2`] as const;
+    const beforeTarget = selectTranscriptEntry(store.getState(), targetId);
+    const beforeStable = selectTranscriptEntry(store.getState(), stableId);
+    const beforeChunks = chunkIds.map((chunkId) =>
+      selectTranscriptChunk(store.getState(), chunkId),
+    );
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-settled-collab-cache",
+          turnId,
+          collabAgentToolCall(target.id, "wait", "completed"),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
+    expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
+      title: { kind: "agentsFinishedWaiting" },
+      details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+      revision: 1,
+    });
+    expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
+    expect(selectTranscriptChunk(store.getState(), chunkIds[0])).toBe(beforeChunks[0]);
+    expect(selectTranscriptChunk(store.getState(), chunkIds[1])).toBe(beforeChunks[1]);
+    expect(selectTranscriptChunk(store.getState(), chunkIds[2])).not.toBe(beforeChunks[2]);
+    expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(
+      TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 + 1,
+    );
   });
 });

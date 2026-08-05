@@ -67,7 +67,7 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
         }
         case "itemStarted": {
           const { item, turnId } = notification.event.notification;
-          appendStartedTranscriptItem(state, turnId, item);
+          appendStartedTranscriptItem(state, turnId, item, notification.commitId);
           return;
         }
       }

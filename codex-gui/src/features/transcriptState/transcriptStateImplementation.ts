@@ -28,9 +28,10 @@ export const appendStartedTranscriptItem = (
   state: TranscriptState,
   turnId: string,
   item: ThreadItem,
+  commitId: string,
 ) => {
   recordOriginalFirstTranscriptItem(state, turnId, item);
-  const projection = projectStartedTranscriptItem(item);
+  const projection = projectStartedTranscriptItem(item, turnId);
   switch (projection.kind) {
     case "ignore":
       return;
@@ -63,6 +64,14 @@ export const appendStartedTranscriptItem = (
       state.entryChunkById[entryId] = chunk.id;
       return;
     }
+    case "present":
+      if (hasTranscriptEntry(state, turnId, projection.entry.id)) {
+        return;
+      }
+
+      classifyNewEntry(state, projection.entry, { bumpChunkRevision: true });
+      state.committedScrollCommitKey = `event:${commitId}`;
+      return;
   }
 
   const exhaustiveProjection: never = projection;
@@ -432,10 +441,29 @@ export const applyCompletedTranscriptItem = (
     case "remove": {
       const entryId = transcriptEntryIdFor(turnId, item.id);
       const existingEntry = state.entriesById[entryId];
+      let didChangeVisibleDom = false;
       if (existingEntry?.type === "live" && existingEntry.turnId === turnId) {
-        removeEntryFromMiddleChunk(state, turnId, item.id, existingEntry.transientText.length > 0);
-        removeEntryFromFinal(state, turnId, item.id);
+        const hadVisibleContribution = existingEntry.transientText.length > 0;
+        const removedFromMiddle = removeEntryFromMiddleChunk(
+          state,
+          turnId,
+          item.id,
+          hadVisibleContribution,
+        );
+        const removedFromFinal = removeEntryFromFinal(state, turnId, item.id);
         Reflect.deleteProperty(state.entriesById, entryId);
+        didChangeVisibleDom = hadVisibleContribution && (removedFromMiddle || removedFromFinal);
+      } else if (
+        existingEntry?.type === "collabAgent" &&
+        existingEntry.turnId === turnId &&
+        existingEntry.toolStatus === "inProgress"
+      ) {
+        didChangeVisibleDom = removeEntryFromMiddleChunk(state, turnId, item.id, true);
+        Reflect.deleteProperty(state.entriesById, entryId);
+      }
+
+      if (didChangeVisibleDom) {
+        state.committedScrollCommitKey = `event:${commitId}`;
       }
       return;
     }

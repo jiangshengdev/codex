@@ -16,10 +16,13 @@ import {
   audioInput,
   attachWithTurns,
   baseTurn,
+  collabAgentState,
+  collabAgentToolCall,
   imageInput,
   localAudioInput,
   planItem,
   sleepItem,
+  subAgentActivity,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -150,6 +153,170 @@ describe("transcript state snapshot reducer", () => {
       rendering: { mode: "staticMarkdown", source: "Final answer" },
       revision: 0,
     });
+  });
+
+  it("keeps completed sub-agent activities in snapshot middle order", () => {
+    const store = makeStore();
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn("turn-sub-agent-activity-snapshot", [
+            userMessage("user-sub-agent-activity-snapshot", [textInput("Initial prompt")]),
+            subAgentActivity("activity-sub-agent-started-snapshot", "started", "agents/researcher"),
+            agentMessage("agent-sub-agent-commentary-snapshot", "Still working", "commentary"),
+            subAgentActivity(
+              "activity-sub-agent-interacted-snapshot",
+              "interacted",
+              "agents/reviewer",
+            ),
+            agentMessage("agent-sub-agent-final-snapshot", "Final answer", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(
+      selectTranscriptTurn(store.getState(), "turn-sub-agent-activity-snapshot"),
+    ).toStrictEqual({
+      id: "turn-sub-agent-activity-snapshot",
+      status: "completed",
+      originalFirstItemId: "user-sub-agent-activity-snapshot",
+      leadingPromptEntryId: transcriptEntryIdFor(
+        "turn-sub-agent-activity-snapshot",
+        "user-sub-agent-activity-snapshot",
+      ),
+      middleChunkIds: ["turn-sub-agent-activity-snapshot:chunk:0"],
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [
+        transcriptEntryIdFor("turn-sub-agent-activity-snapshot", "agent-sub-agent-final-snapshot"),
+      ],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), "turn-sub-agent-activity-snapshot:chunk:0")?.entries,
+    ).toStrictEqual([
+      {
+        type: "subAgentActivity",
+        id: "activity-sub-agent-started-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        title: { kind: "agentStarted", agentPath: "agents/researcher" },
+        details: [],
+        revision: 0,
+      },
+      {
+        type: "message",
+        id: "agent-sub-agent-commentary-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        role: "assistant",
+        rendering: { mode: "staticMarkdown", source: "Still working" },
+        revision: 0,
+      },
+      {
+        type: "subAgentActivity",
+        id: "activity-sub-agent-interacted-snapshot",
+        turnId: "turn-sub-agent-activity-snapshot",
+        title: { kind: "agentInteracted", agentPath: "agents/reviewer" },
+        details: [],
+        revision: 0,
+      },
+    ]);
+  });
+
+  it("keeps terminal collab activities in snapshot middle order", () => {
+    const store = makeStore();
+    const turnId = "turn-collab-snapshot";
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            userMessage("user-collab-snapshot", [textInput("Delegate work")]),
+            collabAgentToolCall("collab-spawn-snapshot", "spawnAgent", "completed", {
+              receiverThreadIds: ["agent-builder"],
+              prompt: "Build the feature",
+            }),
+            agentMessage("agent-collab-commentary", "Coordinating", "commentary"),
+            collabAgentToolCall("collab-wait-snapshot", "wait", "failed", {
+              receiverThreadIds: ["agent-builder"],
+              agentsStates: { "agent-builder": collabAgentState("completed", "Built") },
+            }),
+            agentMessage("agent-collab-final", "Done", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      leadingPromptEntryId: transcriptEntryIdFor(turnId, "user-collab-snapshot"),
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-collab-final")],
+    });
+    const entries = selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries;
+    expect(entries?.map(({ id }) => id)).toStrictEqual([
+      "collab-spawn-snapshot",
+      "agent-collab-commentary",
+      "collab-wait-snapshot",
+    ]);
+    expect(entries?.[0]).toStrictEqual({
+      type: "collabAgent",
+      id: "collab-spawn-snapshot",
+      turnId,
+      title: {
+        kind: "agentSpawned",
+        receiver: "agent-builder",
+        model: null,
+        reasoningEffort: null,
+      },
+      details: [{ kind: "raw", text: "Build the feature" }],
+      revision: 0,
+    });
+    expect(entries?.[2]).toStrictEqual({
+      type: "collabAgent",
+      id: "collab-wait-snapshot",
+      turnId,
+      title: { kind: "agentsFinishedWaiting" },
+      details: [
+        {
+          kind: "copy",
+          copy: {
+            kind: "agentState",
+            threadId: "agent-builder",
+            status: "completed",
+            messagePreview: "Built",
+          },
+        },
+      ],
+      revision: 0,
+    });
+  });
+
+  it("keeps an activity-first turn out of leading and final placement", () => {
+    const store = makeStore();
+    const turnId = "turn-activity-first-snapshot";
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [
+          baseTurn(turnId, [
+            collabAgentToolCall("collab-first-snapshot", "wait", "completed"),
+            userMessage("user-after-activity-snapshot", [textInput("Later prompt")]),
+            agentMessage("agent-after-activity-final", "Done", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      originalFirstItemId: "collab-first-snapshot",
+      leadingPromptEntryId: null,
+      middleChunkIds: [`${turnId}:chunk:0`],
+      middleEntryCount: 2,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-after-activity-final")],
+    });
+    expect(
+      selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`)?.entries.map(({ id }) => id),
+    ).toStrictEqual(["collab-first-snapshot", "user-after-activity-snapshot"]);
   });
 
   it("leaves leading prompt empty when the first visible entry is assistant commentary", () => {
