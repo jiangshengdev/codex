@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
+import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useAppSelector } from "@/app/hooks";
 import {
   selectTranscriptChunk,
@@ -11,23 +12,10 @@ import {
   type TranscriptEntryId,
   type TranscriptEntryView,
   type TranscriptMessageRendering,
+  type TranscriptTurn,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
-
-const subscriptionInterruptedStatusText = "Connection interrupted. Reconnect required.";
-
-const statusText = (status: Extract<TranscriptEntryView, { type: "status" }>["status"]): string => {
-  switch (status) {
-    case "interrupted":
-      return "Interrupted.";
-    case "failed":
-      return "Failed.";
-  }
-
-  const exhaustiveStatus: never = status;
-  return exhaustiveStatus;
-};
 
 const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering }) => {
   switch (rendering.mode) {
@@ -48,6 +36,315 @@ const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering
 
   const exhaustiveRendering: never = rendering;
   return exhaustiveRendering;
+};
+
+const ActivityEntryShell = ({ title, details }: { title: string; details: readonly string[] }) => (
+  <Card
+    aria-label={title}
+    className="committed-transcript-entry committed-transcript-entry-activity min-w-0"
+    role="article"
+    variant="transparent"
+  >
+    <Card.Header className="grid min-w-0 gap-1">
+      <Card.Title className="flex min-w-0 items-start gap-2 text-sm leading-6 font-normal">
+        <span aria-hidden="true">•</span>
+        <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{title}</span>
+      </Card.Title>
+      {details.length > 0 ? (
+        <Card.Description className="grid min-w-0 gap-1">
+          {details.map((detail, index) => (
+            <span className="flex min-w-0 items-start gap-2" key={`${String(index)}:${detail}`}>
+              <span aria-hidden="true" className="w-3 shrink-0">
+                {index === 0 ? "└" : ""}
+              </span>
+              <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">
+                {detail}
+              </span>
+            </span>
+          ))}
+        </Card.Description>
+      ) : null}
+    </Card.Header>
+  </Card>
+);
+
+type TranscriptActivityEntryView = Extract<
+  TranscriptEntryView,
+  { type: "collabAgent" | "subAgentActivity" }
+>;
+
+type TranscriptActivityCopy = TranscriptActivityEntryView["title"];
+
+const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }) => {
+  const { t } = useLingui();
+
+  const agentStateText = (
+    copy: Extract<TranscriptActivityCopy, { kind: "agentState" }>,
+  ): string => {
+    let stateText: string;
+    switch (copy.status) {
+      case "pendingInit":
+        stateText = t({
+          comment: "Status of a collaborating agent before initialization finishes",
+          message: "Pending init",
+        });
+        break;
+      case "running":
+        stateText = t({
+          comment: "Status of a collaborating agent that is currently working",
+          message: "Running",
+        });
+        break;
+      case "interrupted":
+        stateText = t({
+          comment: "Status of a collaborating agent whose work was interrupted",
+          message: "Interrupted",
+        });
+        break;
+      case "completed": {
+        const messagePreview = copy.messagePreview;
+        stateText =
+          messagePreview == null || messagePreview.length === 0
+            ? t({
+                comment: "Status of a collaborating agent that completed its work",
+                message: "Completed",
+              })
+            : t({
+                comment:
+                  "Status of a collaborating agent followed by its raw completion-message preview",
+                message: `Completed - ${messagePreview}`,
+              });
+        break;
+      }
+      case "errored": {
+        const messagePreview = copy.messagePreview;
+        if (messagePreview == null) {
+          stateText = t({
+            comment: "Status of a collaborating agent that failed without an error preview",
+            message: "Error - Agent errored",
+          });
+        } else {
+          stateText =
+            messagePreview.length === 0
+              ? t({
+                  comment: "Status of a collaborating agent that failed",
+                  message: "Error",
+                })
+              : t({
+                  comment:
+                    "Status of a collaborating agent followed by its raw error-message preview",
+                  message: `Error - ${messagePreview}`,
+                });
+        }
+        break;
+      }
+      case "shutdown":
+        stateText = t({
+          comment: "Status of a collaborating agent that has shut down",
+          message: "Shutdown",
+        });
+        break;
+      case "notFound":
+        stateText = t({
+          comment: "Status indicating that a collaborating agent could not be found",
+          message: "Not found",
+        });
+        break;
+      default: {
+        const exhaustiveStatus: never = copy.status;
+        return exhaustiveStatus;
+      }
+    }
+
+    const threadId = copy.threadId;
+    if (threadId == null) {
+      return stateText;
+    }
+
+    const agentState = stateText;
+    return t({
+      comment:
+        "Activity detail showing a raw collaborating-agent thread ID followed by its translated status",
+      message: `${threadId}: ${agentState}`,
+    });
+  };
+
+  const copyText = (copy: TranscriptActivityCopy): string => {
+    switch (copy.kind) {
+      case "agentStarted": {
+        const agentPath = copy.agentPath;
+        return t({
+          comment: "Activity showing the raw path of a sub-agent that started",
+          message: `Started \`${agentPath}\``,
+        });
+      }
+      case "agentInteracted": {
+        const agentPath = copy.agentPath;
+        return t({
+          comment: "Activity showing the raw path of a sub-agent that was contacted",
+          message: `Interacted with \`${agentPath}\``,
+        });
+      }
+      case "agentInterrupted": {
+        const agentPath = copy.agentPath;
+        return t({
+          comment: "Activity showing the raw path of a sub-agent that was interrupted",
+          message: `Interrupted \`${agentPath}\``,
+        });
+      }
+      case "agentResuming": {
+        const receiver = copy.receiver;
+        return t({
+          comment: "Collaboration activity resuming the agent identified by the raw receiver value",
+          message: `Resuming ${receiver}`,
+        });
+      }
+      case "agentsWaiting": {
+        const receiver = copy.receiver;
+        if (copy.receiverCount === 0) {
+          return t`Waiting for agents`;
+        }
+        if (copy.receiverCount === 1 && receiver != null) {
+          return t({
+            comment:
+              "Collaboration activity waiting for the agent identified by the raw receiver value",
+            message: `Waiting for ${receiver}`,
+          });
+        }
+        const receiverCount = copy.receiverCount;
+        return t`Waiting for ${receiverCount} agents`;
+      }
+      case "agentSpawnFailed":
+        return t({
+          comment: "Status shown when creation of a collaborating agent fails",
+          message: "Agent spawn failed",
+        });
+      case "agentSpawned": {
+        const receiver = copy.receiver;
+        const reasoningEffort = copy.reasoningEffort;
+        if (copy.model == null || reasoningEffort == null) {
+          return t({
+            comment:
+              "Collaboration activity showing the raw receiver value of a newly created agent",
+            message: `Spawned ${receiver}`,
+          });
+        }
+
+        const model = copy.model.trim();
+        if (model.length > 0) {
+          return t({
+            comment:
+              "Collaboration activity showing raw receiver, model, and reasoning-effort values for a newly created agent",
+            message: `Spawned ${receiver} (${model} ${reasoningEffort})`,
+          });
+        }
+        return reasoningEffort === "medium"
+          ? t({
+              comment:
+                "Collaboration activity showing the raw receiver value of a newly created agent",
+              message: `Spawned ${receiver}`,
+            })
+          : t({
+              comment:
+                "Collaboration activity showing raw receiver and reasoning-effort values for a newly created agent",
+              message: `Spawned ${receiver} (${reasoningEffort})`,
+            });
+      }
+      case "inputSent": {
+        const receiver = copy.receiver;
+        return t({
+          comment:
+            "Collaboration activity showing the raw receiver value of the agent that received input",
+          message: `Sent input to ${receiver}`,
+        });
+      }
+      case "agentResumed": {
+        const receiver = copy.receiver;
+        return t({
+          comment: "Collaboration activity showing the raw receiver value of the resumed agent",
+          message: `Resumed ${receiver}`,
+        });
+      }
+      case "agentsFinishedWaiting":
+        return t`Finished waiting`;
+      case "agentClosed": {
+        const receiver = copy.receiver;
+        return t({
+          comment: "Collaboration activity showing the raw receiver value of the closed agent",
+          message: `Closed ${receiver}`,
+        });
+      }
+      case "agentState":
+        return agentStateText(copy);
+      case "agentResumeFailed":
+        return t({
+          comment: "Status shown when resuming a collaborating agent fails",
+          message: "Error - Agent resume failed",
+        });
+      case "noAgentsCompletedYet":
+        return t({
+          comment: "Status shown when waiting finishes before any collaborating agent completes",
+          message: "No agents completed yet",
+        });
+      case "omitted": {
+        const count = copy.count;
+        return t`... and ${count} more`;
+      }
+    }
+
+    const exhaustiveCopy: never = copy;
+    return exhaustiveCopy;
+  };
+
+  const title = copyText(entry.title);
+  const details = entry.details.map((detail) =>
+    detail.kind === "raw" ? detail.text : copyText(detail.copy),
+  );
+  return <ActivityEntryShell details={details} title={title} />;
+};
+
+const StatusEntryRenderer = ({
+  status,
+}: {
+  status: Extract<TranscriptEntryView, { type: "status" }>["status"];
+}) => {
+  const { t } = useLingui();
+  let text: string;
+  switch (status) {
+    case "interrupted":
+      text = t({
+        comment: "Status entry indicating that transcript processing was interrupted",
+        message: "Interrupted.",
+      });
+      break;
+    case "failed":
+      text = t({
+        comment: "Status entry indicating that transcript processing failed",
+        message: "Failed.",
+      });
+      break;
+    default: {
+      const exhaustiveStatus: never = status;
+      return exhaustiveStatus;
+    }
+  }
+
+  return (
+    <Card
+      className="committed-transcript-entry committed-transcript-entry-status min-w-0"
+      role="article"
+      variant="default"
+    >
+      <Card.Content className="grid min-w-0 gap-2">
+        <Typography
+          className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
+          type="body-sm"
+        >
+          {text}
+        </Typography>
+      </Card.Content>
+    </Card>
+  );
 };
 
 const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
@@ -72,30 +369,16 @@ const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
       );
     }
     case "status":
-      return (
-        <Card
-          className="committed-transcript-entry committed-transcript-entry-status min-w-0"
-          role="article"
-          variant="default"
-        >
-          <Card.Content className="grid min-w-0 gap-2">
-            <Typography
-              className="committed-transcript-entry-source min-w-0 max-w-full whitespace-pre-wrap wrap-break-word leading-6"
-              type="body-sm"
-            >
-              {statusText(entry.status)}
-            </Typography>
-          </Card.Content>
-        </Card>
-      );
+      return <StatusEntryRenderer status={entry.status} />;
+    case "collabAgent":
+      return <ActivityEntryRenderer entry={entry} />;
+    case "subAgentActivity":
+      return <ActivityEntryRenderer entry={entry} />;
   }
 
   const exhaustiveEntry: never = entry;
   return exhaustiveEntry;
 };
-
-const intermediateUpdatesLabel = (count: number): string =>
-  `Intermediate updates · ${String(count)} ${count === 1 ? "item" : "items"}`;
 
 const areTranscriptEntryArraysEqual = (
   previous: TranscriptEntryView[],
@@ -152,7 +435,6 @@ const MiddleTranscriptModule = ({
   middleEntryCount: number;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const label = intermediateUpdatesLabel(middleEntryCount);
   const shouldShowEntries = !hasFinalAnswer || isExpanded;
 
   if (middleEntryCount === 0) {
@@ -172,7 +454,12 @@ const MiddleTranscriptModule = ({
           slot="trigger"
           variant="outline"
         >
-          {label}
+          <Plural
+            comment="Disclosure label showing how many intermediate transcript updates it contains"
+            one="Intermediate updates · # item"
+            other="Intermediate updates · # items"
+            value={middleEntryCount}
+          />
           <Disclosure.Indicator />
         </Button>
       </Disclosure.Heading>
@@ -215,6 +502,7 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] })
 };
 
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
+  const { t } = useLingui();
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
 
   if (turn == null) {
@@ -230,14 +518,45 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
     return null;
   }
 
+  const turnStatusText = (status: TranscriptTurn["status"]): string => {
+    switch (status) {
+      case "completed":
+        return t({
+          comment: "Status chip for a completed turn",
+          message: "Completed",
+        });
+      case "interrupted":
+        return t({
+          comment: "Status chip for an interrupted turn",
+          message: "Interrupted",
+        });
+      case "failed":
+        return t({
+          comment: "Status chip for a failed turn",
+          message: "Failed",
+        });
+      case "inProgress":
+        return t({
+          comment: "Status chip for a turn that is still in progress",
+          message: "In progress",
+        });
+    }
+
+    const exhaustiveStatus: never = status;
+    return exhaustiveStatus;
+  };
+
+  const resolvedTurnId = turn.id;
+  const turnLabel = t({
+    comment: "Accessible label for a transcript turn identified by its raw turn ID",
+    message: `Turn ${resolvedTurnId}`,
+  });
+
   return (
-    <article
-      aria-label={`Turn ${turn.id}`}
-      className="committed-transcript-turn grid min-w-0 gap-3"
-    >
+    <article aria-label={turnLabel} className="committed-transcript-turn grid min-w-0 gap-3">
       <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
         <Chip className="committed-transcript-turn-status" color="default" size="sm">
-          {turn.status}
+          {turnStatusText(turn.status)}
         </Chip>
       </div>
       <div className="committed-transcript-chunk grid min-w-0 gap-3">
@@ -256,6 +575,7 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
 CommittedTranscriptTurn.displayName = "CommittedTranscriptTurn";
 
 export const CommittedTranscriptSurface = () => {
+  const { t } = useLingui();
   const turnIds = useAppSelector(selectTranscriptTurnIds);
   const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
   const hasSurfaceContent = useAppSelector((state) =>
@@ -272,7 +592,10 @@ export const CommittedTranscriptSurface = () => {
 
   return (
     <section
-      aria-label="Committed transcript"
+      aria-label={t({
+        comment: "Accessible name for the region containing committed transcript turns",
+        message: "Committed transcript",
+      })}
       className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4"
     >
       {globalStatus.length > 0 ? (
@@ -286,7 +609,9 @@ export const CommittedTranscriptSurface = () => {
             >
               <Alert.Indicator />
               <Alert.Content>
-                <Alert.Title>{subscriptionInterruptedStatusText}</Alert.Title>
+                <Alert.Title>
+                  <Trans>Connection interrupted. Reconnect required.</Trans>
+                </Alert.Title>
               </Alert.Content>
             </Alert>
           ))}
@@ -296,7 +621,7 @@ export const CommittedTranscriptSurface = () => {
         <Card className="committed-transcript-empty">
           <Card.Content>
             <Typography color="muted" type="body-sm">
-              No committed messages yet.
+              <Trans>No committed messages yet.</Trans>
             </Typography>
           </Card.Content>
         </Card>

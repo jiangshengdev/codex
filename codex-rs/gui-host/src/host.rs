@@ -675,6 +675,15 @@ mod tests {
             ),
             (
                 3,
+                "turn/steer",
+                serde_json::json!({
+                    "threadId": "thread-abc",
+                    "input": [{ "type": "text", "text": "Follow this direction", "text_elements": [] }],
+                    "expectedTurnId": "turn-1",
+                }),
+            ),
+            (
+                4,
                 "turn/interrupt",
                 serde_json::json!({
                     "threadId": "thread-abc",
@@ -699,9 +708,9 @@ mod tests {
 
         assert_eq!(
             backend
-                .wait_for_received(&["turn/start", "turn/interrupt"])
+                .wait_for_received(&["turn/start", "turn/steer", "turn/interrupt"])
                 .await,
-            vec!["turn/start", "turn/interrupt"]
+            vec!["turn/start", "turn/steer", "turn/interrupt"]
         );
 
         handle.shutdown().await;

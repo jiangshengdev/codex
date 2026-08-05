@@ -1,10 +1,15 @@
 import type {
+  TranscriptActivityDetail,
   TranscriptChunk,
   TranscriptChunkView,
+  TranscriptCollabAgentStateSummary,
+  TranscriptCollabAgentStoredEntry,
+  TranscriptCollabAgentView,
   TranscriptEntryId,
   TranscriptEntryView,
   TranscriptState,
   TranscriptStoredEntry,
+  TranscriptSubAgentActivityView,
 } from "./transcriptStateModel";
 
 type TranscriptEntryViewCacheEntry = {
@@ -22,6 +27,120 @@ const transcriptEntryViewCache = new WeakMap<
   TranscriptStoredEntry,
   TranscriptEntryViewCacheEntry
 >();
+
+type TranscriptCollabAgentPresentation = Pick<TranscriptCollabAgentView, "title" | "details">;
+
+const rawActivityDetail = (text: string): TranscriptActivityDetail => ({ kind: "raw", text });
+
+const copyActivityDetail = (
+  copy: Extract<TranscriptActivityDetail, { kind: "copy" }>["copy"],
+): TranscriptActivityDetail => ({ kind: "copy", copy });
+
+const agentStateDetail = (
+  summary: TranscriptCollabAgentStateSummary,
+  threadId: TranscriptCollabAgentStateSummary["threadId"] | null,
+): TranscriptActivityDetail =>
+  copyActivityDetail({
+    kind: "agentState",
+    threadId,
+    status: summary.status,
+    messagePreview: summary.messagePreview,
+  });
+
+const withOmittedDetail = (
+  details: TranscriptActivityDetail[],
+  omittedCount: number,
+): readonly TranscriptActivityDetail[] =>
+  omittedCount === 0
+    ? details
+    : [...details, copyActivityDetail({ kind: "omitted", count: omittedCount })];
+
+const collabAgentPresentation = (
+  entry: TranscriptCollabAgentStoredEntry,
+): TranscriptCollabAgentPresentation | null => {
+  const receiver = entry.receiverThreadIds[0];
+  if (entry.toolStatus === "inProgress") {
+    switch (entry.tool) {
+      case "resumeAgent":
+        return receiver == null
+          ? null
+          : { title: { kind: "agentResuming", receiver }, details: [] };
+      case "wait": {
+        const title = {
+          kind: "agentsWaiting" as const,
+          receiver: receiver ?? null,
+          receiverCount: entry.receiverCount,
+        };
+        const details =
+          entry.receiverCount > 1
+            ? withOmittedDetail(
+                entry.receiverThreadIds.map(rawActivityDetail),
+                entry.omittedReceiverCount,
+              )
+            : [];
+        return { title, details };
+      }
+    }
+
+    entry satisfies never;
+    return entry;
+  }
+
+  switch (entry.tool) {
+    case "spawnAgent":
+      return {
+        title:
+          receiver == null
+            ? { kind: "agentSpawnFailed" }
+            : {
+                kind: "agentSpawned",
+                receiver,
+                model: entry.model,
+                reasoningEffort: entry.reasoningEffort,
+              },
+        details: entry.promptPreview == null ? [] : [rawActivityDetail(entry.promptPreview)],
+      };
+    case "sendInput":
+      return receiver == null
+        ? null
+        : {
+            title: { kind: "inputSent", receiver },
+            details: entry.promptPreview == null ? [] : [rawActivityDetail(entry.promptPreview)],
+          };
+    case "resumeAgent": {
+      if (receiver == null) {
+        return null;
+      }
+
+      const agentState = entry.agentStateSummaries[0];
+      return {
+        title: { kind: "agentResumed", receiver },
+        details: [
+          agentState == null
+            ? copyActivityDetail({ kind: "agentResumeFailed" })
+            : agentStateDetail(agentState, null),
+        ],
+      };
+    }
+    case "wait": {
+      const stateDetails = entry.agentStateSummaries.map((summary) =>
+        agentStateDetail(summary, summary.threadId),
+      );
+      return {
+        title: { kind: "agentsFinishedWaiting" },
+        details:
+          stateDetails.length === 0 && entry.omittedAgentStateCount === 0
+            ? [copyActivityDetail({ kind: "noAgentsCompletedYet" })]
+            : withOmittedDetail(stateDetails, entry.omittedAgentStateCount),
+      };
+    }
+    case "closeAgent":
+      return receiver == null ? null : { title: { kind: "agentClosed", receiver }, details: [] };
+  }
+
+  entry satisfies never;
+  return entry;
+};
 
 const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntryView | null => {
   switch (entry.type) {
@@ -45,6 +164,48 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
         status: entry.status,
         revision: entry.revision,
       };
+    case "collabAgent": {
+      const presentation = collabAgentPresentation(entry);
+      if (presentation == null) {
+        return null;
+      }
+
+      return {
+        type: "collabAgent",
+        id: entry.id,
+        turnId: entry.turnId,
+        title: presentation.title,
+        details: presentation.details,
+        revision: entry.revision,
+      };
+    }
+    case "subAgentActivity": {
+      let title: TranscriptSubAgentActivityView["title"];
+      switch (entry.activityKind) {
+        case "started":
+          title = { kind: "agentStarted", agentPath: entry.agentPath };
+          break;
+        case "interacted":
+          title = { kind: "agentInteracted", agentPath: entry.agentPath };
+          break;
+        case "interrupted":
+          title = { kind: "agentInterrupted", agentPath: entry.agentPath };
+          break;
+        default: {
+          const exhaustiveActivityKind: never = entry.activityKind;
+          return exhaustiveActivityKind;
+        }
+      }
+
+      return {
+        type: "subAgentActivity",
+        id: entry.id,
+        turnId: entry.turnId,
+        title,
+        details: [],
+        revision: entry.revision,
+      };
+    }
     case "live":
       if (entry.transientText.length === 0) {
         return null;

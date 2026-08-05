@@ -1,12 +1,16 @@
 import { expect, test } from "vitest";
+import { makeStore } from "@/app/store";
 import {
   agentMessage,
   agentMessageDelta,
   attachWithTurns,
   baseTurn,
+  collabAgentState,
+  collabAgentToolCall,
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  subAgentActivity,
   textInput,
   turnStarted,
   userMessage,
@@ -24,7 +28,11 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
-import { selectCommittedTranscriptScrollCommitKey } from "@/features/transcriptState/transcriptStateSlice";
+import {
+  selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptEntry,
+  transcriptEntryIdFor,
+} from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 
@@ -66,6 +74,285 @@ test("renders committed user and assistant messages from an attached baseline", 
     { isSecondary: true, text: "Hello surface" },
     { isSecondary: false, text: "Committed response" },
   ]);
+});
+
+test("renders accessible sub-agent activity and folds it after the final answer", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-sub-agent-activity-surface";
+  const activityTitles = [
+    "Started `agents/browser-starter`",
+    "Interacted with `agents/browser-reviewer`",
+    "Interrupted `agents/browser-worker`",
+  ];
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          userMessage("user-sub-agent-activity-surface", [textInput("Inspect activity")]),
+          subAgentActivity(
+            "activity-sub-agent-started-surface",
+            "started",
+            "agents/browser-starter",
+          ),
+          subAgentActivity(
+            "activity-sub-agent-interacted-surface",
+            "interacted",
+            "agents/browser-reviewer",
+          ),
+          subAgentActivity(
+            "activity-sub-agent-interrupted-surface",
+            "interrupted",
+            "agents/browser-worker",
+          ),
+        ]),
+      ]),
+    ),
+  );
+
+  const activities = activityTitles.map((title) => screen.getByRole("article", { name: title }));
+  for (const activity of activities) {
+    await expect.element(activity).toBeVisible();
+    await expect.element(activity).not.toHaveAccessibleDescription();
+    expect(
+      activity
+        .element()
+        .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+    ).toHaveLength(0);
+  }
+  await expect
+    .element(screen.getByRole("button", { name: "Intermediate updates · 3 items" }))
+    .toBeDisabled();
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-sub-agent-surface-final",
+        turnId,
+        agentMessage("agent-sub-agent-surface-final", "Visible final answer", "final_answer"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  for (const activity of activities) {
+    await expect.element(activity).not.toBeInTheDocument();
+  }
+
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 3 items" });
+  await expect.element(trigger).toBeEnabled();
+  await trigger.click();
+
+  const turnEntries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  for (const [index, title] of activityTitles.entries()) {
+    await expect.element(turnEntries.nth(index + 1)).toHaveAccessibleName(title);
+  }
+});
+
+test("renders terminal collab activity accessibly and restores its order after expansion", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-collab-activity-surface";
+  const spawnTitle = "Spawned agent-builder (gpt-5 high)";
+  const closeTitle = "Closed agent-reviewer";
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          userMessage("user-collab-surface", [textInput("Delegate work")]),
+          collabAgentToolCall("collab-spawn-surface", "spawnAgent", "completed", {
+            receiverThreadIds: ["agent-builder"],
+            prompt: "Build the feature",
+            model: "gpt-5",
+            reasoningEffort: "high",
+          }),
+          collabAgentToolCall("collab-close-surface", "closeAgent", "failed", {
+            receiverThreadIds: ["agent-reviewer"],
+          }),
+        ]),
+      ]),
+    ),
+  );
+
+  const spawn = screen.getByRole("article", { name: spawnTitle });
+  const close = screen.getByRole("article", { name: closeTitle });
+  await expect.element(spawn).toBeVisible();
+  await expect.element(close).toBeVisible();
+  await expect.element(close).not.toHaveAccessibleDescription();
+  const title = spawn.getByText(spawnTitle).element();
+  const detail = spawn.getByText("Build the feature").element();
+  expect(title.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  for (const activity of [spawn, close]) {
+    expect(
+      activity
+        .element()
+        .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+    ).toHaveLength(0);
+  }
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-collab-surface-final",
+        turnId,
+        agentMessage("agent-collab-surface-final", "Visible final answer", "final_answer"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("Visible final answer")).toBeVisible();
+  await expect.element(spawn).not.toBeInTheDocument();
+  await expect.element(close).not.toBeInTheDocument();
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 2 items" });
+  await trigger.click();
+  const entries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  await expect.element(entries.nth(1)).toHaveAccessibleName(spawnTitle);
+  await expect.element(entries.nth(2)).toHaveAccessibleName(closeTitle);
+});
+
+test("localizes transcript copy without rebuilding semantic activity views", async () => {
+  const turnId = "turn-locale-surface";
+  const activityId = "activity-locale-surface";
+  const waitId = "collab-wait-locale-surface";
+  const agentPath = "agents/locale-worker";
+  const agentThreadId = "thread-locale-worker";
+  const rawMessage = "Server completion message stays raw";
+  const store = makeStore();
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          subAgentActivity(activityId, "started", agentPath),
+          collabAgentToolCall(waitId, "wait", "completed", {
+            agentsStates: {
+              [agentThreadId]: collabAgentState("completed", rawMessage),
+            },
+          }),
+        ]),
+      ]),
+    ),
+  );
+
+  const waitEntryId = transcriptEntryIdFor(turnId, waitId);
+  const semanticView = selectTranscriptEntry(store.getState(), waitEntryId);
+  expect(semanticView).not.toBeNull();
+
+  const englishScreen = await renderWithProviders(<CommittedTranscriptSurface />, { store });
+  const englishRegion = englishScreen.getByRole("region", { name: "Committed transcript" });
+  const englishTurn = englishRegion.getByRole("article", { name: `Turn ${turnId}` });
+
+  await expect.element(englishRegion).toBeVisible();
+  await expect.element(englishTurn).toHaveTextContent("Completed");
+  await expect
+    .element(englishTurn.getByRole("button", { name: "Intermediate updates · 2 items" }))
+    .toBeDisabled();
+  await expect
+    .element(englishTurn.getByRole("article", { name: `Started \`${agentPath}\`` }))
+    .toBeVisible();
+  await expect
+    .element(englishTurn.getByRole("article", { name: "Finished waiting" }))
+    .toHaveTextContent(`${agentThreadId}: Completed - ${rawMessage}`);
+
+  await englishScreen.unmount();
+
+  const chineseScreen = await renderWithProviders(<CommittedTranscriptSurface />, {
+    locale: "zh-CN",
+    store,
+  });
+  const chineseRegion = chineseScreen.getByRole("region", { name: "已提交的对话记录" });
+  const chineseTurn = chineseRegion.getByRole("article", { name: `轮次 ${turnId}` });
+
+  await expect.element(chineseRegion).toBeVisible();
+  await expect.element(chineseTurn).toHaveTextContent("已完成");
+  await expect.element(chineseTurn.getByRole("button", { name: "中间更新 · 2 项" })).toBeDisabled();
+  await expect
+    .element(chineseTurn.getByRole("article", { name: `已启动 \`${agentPath}\`` }))
+    .toBeVisible();
+  await expect
+    .element(chineseTurn.getByRole("article", { name: "等待结束" }))
+    .toHaveTextContent(`${agentThreadId}：已完成：${rawMessage}`);
+
+  expect(selectTranscriptEntry(store.getState(), waitEntryId)).toBe(semanticView);
+});
+
+test("settles one started wait article in place across intermediate disclosure states", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-started-wait-surface";
+  const itemId = "collab-started-wait-surface";
+
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemStarted(
+        eventItemStarted,
+        "commit-started-wait-surface",
+        turnId,
+        collabAgentToolCall(itemId, "wait", "inProgress"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  const turn = screen.getByRole("article", { name: `Turn ${turnId}` });
+  const activity = turn.getByRole("article", { name: /Waiting for agents|Finished waiting/ });
+  await expect.element(activity).toHaveAccessibleName("Waiting for agents");
+  await expect
+    .element(turn.getByRole("button", { name: "Intermediate updates · 1 item" }))
+    .toBeDisabled();
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-between-started-wait",
+        turnId,
+        agentMessage("agent-between-started-wait", "Between activity", "commentary"),
+      ),
+      replay: "live",
+    }),
+  );
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-terminal-wait-surface",
+        turnId,
+        collabAgentToolCall(itemId, "wait", "completed"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(activity).toHaveAccessibleName("Finished waiting");
+  await expect.element(activity.getByText("No agents completed yet")).toBeVisible();
+  await expect
+    .element(turn.getByRole("article", { name: /Waiting|Finished/ }).nth(1))
+    .not.toBeInTheDocument();
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: itemCompleted(
+        eventItemCompleted,
+        "commit-final-started-wait",
+        turnId,
+        agentMessage("agent-final-started-wait", "Final after wait", "final_answer"),
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect.element(screen.getByText("Final after wait")).toBeVisible();
+  await expect.element(activity).not.toBeInTheDocument();
+  const trigger = turn.getByRole("button", { name: "Intermediate updates · 2 items" });
+  await trigger.click();
+  const entries = turn.getByRole("article");
+  await expect.element(entries.nth(0)).toHaveAccessibleName("Finished waiting");
+  await expect.element(entries.nth(1)).toHaveTextContent("Between activity");
 });
 
 test("keeps same raw item ids isolated between turns", async () => {

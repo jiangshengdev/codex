@@ -34,6 +34,14 @@ export type ThreadRuntimeBufferedEvent = {
   replay: ThreadRuntimeEventReplay;
 };
 
+export type ThreadRuntimeTurnCompletionStatus = Exclude<Turn["status"], "inProgress">;
+
+export type ThreadRuntimeLiveTurnCompletion = {
+  status: ThreadRuntimeTurnCompletionStatus;
+  turnId: string;
+  commitId: string;
+};
+
 export type ThreadRuntimeRecord = {
   threadId: string;
   sessionId: string;
@@ -41,6 +49,7 @@ export type ThreadRuntimeRecord = {
   snapshotTurns: Turn[];
   eventBuffer: ThreadRuntimeBufferedEvent[];
   activeTurnId: string | null;
+  latestLiveTurnCompletion: ThreadRuntimeLiveTurnCompletion | null;
   subscription: ThreadRuntimeSubscription;
 };
 
@@ -115,6 +124,7 @@ export const threadRuntimeSlice = createAppSlice({
           snapshotTurns,
           eventBuffer: [],
           activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
+          latestLiveTurnCompletion: null,
           subscription: { state: "active" },
         };
       },
@@ -156,6 +166,13 @@ export const threadRuntimeSlice = createAppSlice({
             if (runtime.activeTurnId === notification.event.notification.turn.id) {
               runtime.activeTurnId = null;
             }
+            if (notification.event.notification.turn.status !== "inProgress") {
+              runtime.latestLiveTurnCompletion = {
+                status: notification.event.notification.turn.status,
+                turnId: notification.event.notification.turn.id,
+                commitId: notification.commitId,
+              };
+            }
             return;
           case "itemStarted":
           case "itemCompleted":
@@ -182,6 +199,8 @@ export const threadRuntimeSlice = createAppSlice({
   selectors: {
     selectThreadRuntimeRecord: (threadRuntime) => threadRuntime.current,
     selectThreadRuntimeActiveTurnId: (threadRuntime) => threadRuntime.current?.activeTurnId ?? null,
+    selectThreadRuntimeLatestLiveTurnCompletion: (threadRuntime) =>
+      threadRuntime.current?.latestLiveTurnCompletion ?? null,
     selectThreadRuntimeSubscription: (threadRuntime) => threadRuntime.current?.subscription ?? null,
     selectThreadRuntimeThreadId: (threadRuntime) => threadRuntime.current?.threadId ?? null,
     selectThreadRuntimeSubscriptionState: (threadRuntime) =>
@@ -201,6 +220,7 @@ export const {
 export const {
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeEventBuffer,
+  selectThreadRuntimeLatestLiveTurnCompletion,
   selectThreadRuntimeRecord,
   selectThreadRuntimeSubscription,
   selectThreadRuntimeSubscriptionState,

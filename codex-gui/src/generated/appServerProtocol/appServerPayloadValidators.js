@@ -9418,6 +9418,34 @@ function validate73(data, { instancePath = "", parentData, parentDataProperty, r
   validate73.errors = vErrors;
   return errors === 0;
 }
+var validateV2TurnSteerResponse = validate77;
+function validate77(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+  ;
+  let vErrors = null;
+  let errors = 0;
+  const _errs0 = errors;
+  if (errors === _errs0) {
+    if (data && typeof data == "object" && !Array.isArray(data)) {
+      let missing0;
+      if (data.turnId === void 0 && (missing0 = "turnId")) {
+        validate77.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/required", keyword: "required", params: { missingProperty: missing0 } }];
+        return false;
+      } else {
+        if (data.turnId !== void 0) {
+          if (typeof data.turnId !== "string") {
+            validate77.errors = [{ instancePath: instancePath + "/turnId", schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/properties/turnId/type", keyword: "type", params: { type: "string" } }];
+            return false;
+          }
+        }
+      }
+    } else {
+      validate77.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/type", keyword: "type", params: { type: "object" } }];
+      return false;
+    }
+  }
+  validate77.errors = vErrors;
+  return errors === 0;
+}
 export {
   validateInitializeResponse,
   validateV2ThreadProjectionAttachResponse,
@@ -9425,5 +9453,6 @@ export {
   validateV2ThreadProjectionDeltaNotification,
   validateV2ThreadProjectionEventNotification,
   validateV2TurnInterruptResponse,
-  validateV2TurnStartResponse
+  validateV2TurnStartResponse,
+  validateV2TurnSteerResponse
 };

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
+  attachReplacement,
   eventItemCompleted,
   eventItemStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
@@ -9,8 +10,12 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  collabAgentState,
+  collabAgentToolCall,
   itemCompleted,
   itemStarted,
+  textInput,
+  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
@@ -18,6 +23,7 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptTurn,
   transcriptEntryIdFor,
@@ -153,5 +159,202 @@ describe("transcript state replay and event dedup", () => {
       rendering: { mode: "staticMarkdown", source: "First" },
       revision: 0,
     });
+  });
+
+  it("deduplicates started activity replay while isolating the same raw id across turns", () => {
+    const store = makeStore();
+    const itemId = "collab-replayed";
+    const turnA = "turn-collab-replay-a";
+    const turnB = "turn-collab-replay-b";
+    const startedA = collabAgentToolCall(itemId, "wait", "inProgress", {
+      receiverThreadIds: ["agent-a"],
+    });
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(eventItemStarted, "commit-collab-replay-a", turnA, startedA),
+        replay: "live",
+      }),
+    );
+    const beforeReplay = selectTranscriptEntry(
+      store.getState(),
+      transcriptEntryIdFor(turnA, itemId),
+    );
+
+    for (const payload of [
+      {
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-collab-replay-a",
+          turnA,
+          collabAgentToolCall(itemId, "wait", "completed"),
+        ),
+        replay: "live" as const,
+      },
+      {
+        notification: itemStarted(eventItemStarted, "commit-collab-restarted", turnA, startedA),
+        replay: "live" as const,
+      },
+      {
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-collab-snapshot-duplicate",
+          turnA,
+          collabAgentToolCall(itemId, "wait", "completed"),
+        ),
+        replay: "snapshotDuplicate" as const,
+      },
+    ]) {
+      store.dispatch(threadRuntimeEventBuffered(payload));
+    }
+
+    expect(selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnA, itemId))).toBe(
+      beforeReplay,
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-collab-replay-b",
+          turnB,
+          collabAgentToolCall(itemId, "wait", "inProgress", {
+            receiverThreadIds: ["agent-b"],
+          }),
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnA, itemId)),
+    ).toStrictEqual({
+      type: "collabAgent",
+      id: itemId,
+      turnId: turnA,
+      title: {
+        kind: "agentsWaiting",
+        receiver: "agent-a",
+        receiverCount: 1,
+      },
+      details: [],
+      revision: 0,
+    });
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnB, itemId)),
+    ).toStrictEqual({
+      type: "collabAgent",
+      id: itemId,
+      turnId: turnB,
+      title: {
+        kind: "agentsWaiting",
+        receiver: "agent-b",
+        receiverCount: 1,
+      },
+      details: [],
+      revision: 0,
+    });
+    expect(selectTranscriptTurn(store.getState(), turnA)?.middleEntryCount).toBe(1);
+    expect(selectTranscriptTurn(store.getState(), turnB)?.middleEntryCount).toBe(1);
+  });
+
+  it("replaces live started activity with the authoritative terminal attach snapshot", () => {
+    const store = makeStore();
+    const turnId = "turn-collab-replacement";
+    const itemId = "collab-replacement";
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-collab-replacement-started",
+          turnId,
+          collabAgentToolCall(itemId, "wait", "inProgress", {
+            receiverThreadIds: ["started-agent"],
+            prompt: "started prompt",
+            model: "started-model",
+            reasoningEffort: "high",
+            agentsStates: { "started-agent": collabAgentState("running") },
+          }),
+        ),
+        replay: "live",
+      }),
+    );
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnId, itemId)),
+    ).toStrictEqual({
+      type: "collabAgent",
+      id: itemId,
+      turnId,
+      title: {
+        kind: "agentsWaiting",
+        receiver: "started-agent",
+        receiverCount: 1,
+      },
+      details: [],
+      revision: 0,
+    });
+
+    store.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachReplacement, [
+          baseTurn(turnId, [
+            userMessage("user-collab-replacement", [textInput("Prompt")]),
+            agentMessage("agent-before-collab-replacement", "Before", "commentary"),
+            collabAgentToolCall(itemId, "wait", "completed", {
+              receiverThreadIds: ["terminal-agent"],
+              agentsStates: { "terminal-agent": collabAgentState("completed", "Terminal") },
+            }),
+            agentMessage("agent-after-collab-replacement", "After", "commentary"),
+            agentMessage("agent-final-collab-replacement", "Final", "final_answer"),
+          ]),
+        ]),
+      ),
+    );
+
+    expect(selectTranscriptTurn(store.getState(), turnId)).toMatchObject({
+      leadingPromptEntryId: transcriptEntryIdFor(turnId, "user-collab-replacement"),
+      middleEntryCount: 3,
+      finalAssistantEntryIds: [transcriptEntryIdFor(turnId, "agent-final-collab-replacement")],
+    });
+    const chunk = selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`);
+    expect(chunk?.entries.map(({ id }) => id)).toStrictEqual([
+      "agent-before-collab-replacement",
+      itemId,
+      "agent-after-collab-replacement",
+    ]);
+    expect(chunk?.entries.filter(({ id }) => id === itemId)).toStrictEqual([
+      {
+        type: "collabAgent",
+        id: itemId,
+        turnId,
+        title: { kind: "agentsFinishedWaiting" },
+        details: [
+          {
+            kind: "copy",
+            copy: {
+              kind: "agentState",
+              threadId: "terminal-agent",
+              status: "completed",
+              messagePreview: "Terminal",
+            },
+          },
+        ],
+        revision: 0,
+      },
+    ]);
+    const stored =
+      store.getState().transcriptState.entriesById[transcriptEntryIdFor(turnId, itemId)];
+    expect(stored).toMatchObject({
+      receiverThreadIds: ["terminal-agent"],
+      promptPreview: null,
+      model: null,
+      reasoningEffort: null,
+    });
+    const storedJson = JSON.stringify(stored);
+    for (const staleFact of ["started-agent", "started prompt", "started-model"]) {
+      expect(storedJson).not.toContain(staleFact);
+    }
   });
 });

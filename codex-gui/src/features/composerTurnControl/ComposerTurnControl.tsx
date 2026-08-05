@@ -1,4 +1,5 @@
 import { Button, Surface, TextArea, toast } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useRef, useState, type CompositionEvent, type KeyboardEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
@@ -32,6 +33,7 @@ export function ComposerTurnControl({
   guiHostStatus,
   launchParams,
 }: ComposerTurnControlProps) {
+  const { t } = useLingui();
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -80,7 +82,7 @@ export function ComposerTurnControl({
       });
       setDraft((currentDraft) => (currentDraft === submittedDraft ? "" : currentDraft));
     } catch (error) {
-      toast.danger("Message failed to send", {
+      toast.danger(t`Message failed to send`, {
         description: errorDescription(error),
       });
     } finally {
@@ -100,7 +102,7 @@ export function ComposerTurnControl({
         turnId: activeTurnId,
       });
     } catch (error) {
-      toast.danger("Stop failed", {
+      toast.danger(t`Stop failed`, {
         description: errorDescription(error),
       });
     } finally {
@@ -144,7 +146,7 @@ export function ComposerTurnControl({
 
   return (
     <section
-      aria-label="Message composer"
+      aria-label={t`Message composer`}
       className="composer-shell sticky bottom-0 z-10 pb-3"
       ref={composerShellRef}
     >
@@ -161,7 +163,7 @@ export function ComposerTurnControl({
           onCompositionEnd={onCompositionEnd}
           onCompositionStart={onCompositionStart}
           onKeyDown={onKeyDown}
-          placeholder="Message Codex"
+          placeholder={t`Message Codex`}
           value={draft}
           variant="primary"
         />
@@ -175,7 +177,7 @@ export function ComposerTurnControl({
               }}
               variant="danger-soft"
             >
-              Stop
+              <Trans>Stop</Trans>
             </Button>
             <Button
               isDisabled={!sendEnabled}
@@ -184,7 +186,7 @@ export function ComposerTurnControl({
               }}
               variant="outline"
             >
-              Send
+              <Trans>Send</Trans>
             </Button>
           </div>
         </div>

@@ -16,6 +16,7 @@ import {
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
@@ -43,6 +44,7 @@ function deferred<T>() {
 async function renderAttached(
   commandHandle: GuiHostCommands | null = createGuiHostCommands(),
   guardCompositionEndEnter = false,
+  locale: AppLocale = "en",
 ) {
   const result = await renderWithProviders(
     <>
@@ -54,6 +56,7 @@ async function renderAttached(
         launchParams={null}
       />
     </>,
+    { locale },
   );
   result.store.dispatch(launchThreadIdRecorded(threadId));
   result.store.dispatch(attachedThreadIdObserved(threadId));
@@ -583,6 +586,22 @@ test("send failure keeps draft and shows a toast", async () => {
 
   await expect.element(composer).toHaveValue("Keep this draft");
   await expect.element(screen.getByText("Message failed to send")).toBeVisible();
+  await expect.element(screen.getByText("network failed")).toBeVisible();
+});
+
+test("renders Simplified Chinese composer copy while keeping send errors raw", async () => {
+  const commandHandle = createGuiHostCommands();
+  vi.mocked(commandHandle.startTurn).mockRejectedValueOnce(new Error("network failed"));
+  const screen = await renderAttached(commandHandle, false, "zh-CN");
+  const composer = screen.getByPlaceholder("向 Codex 发送消息");
+
+  await expect.element(screen.getByRole("region", { name: "消息输入区" })).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "停止" })).toBeDisabled();
+  await composer.fill("保留这份草稿");
+  await screen.getByRole("button", { name: "发送" }).click();
+
+  await expect.element(composer).toHaveValue("保留这份草稿");
+  await expect.element(screen.getByText("消息发送失败")).toBeVisible();
   await expect.element(screen.getByText("network failed")).toBeVisible();
 });
 

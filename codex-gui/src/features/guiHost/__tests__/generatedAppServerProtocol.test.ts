@@ -77,6 +77,12 @@ describe("generated app-server protocol", () => {
     ).toBe(false);
   });
 
+  it("validates turn/steer responses with the generated descriptor", () => {
+    expect(requestDescriptors["turn/steer"].validateResponse({ turnId: "turn-active" })).toBe(true);
+    expect(requestDescriptors["turn/steer"].validateResponse({})).toBe(false);
+    expect(requestDescriptors["turn/steer"].validateResponse({ turnId: null })).toBe(false);
+  });
+
   it.each([
     ["event", validateV2ThreadProjectionEventNotification, eventTurnStarted],
     ["delta", validateV2ThreadProjectionDeltaNotification, eventAgentMessageDelta],

@@ -4,6 +4,7 @@ import {
   validateInitializeResponse,
   validateV2ThreadProjectionAttachResponse,
   validateV2TurnStartResponse,
+  validateV2TurnSteerResponse,
   validateV2TurnInterruptResponse,
 } from "./appServerPayloadValidators.js";
 export const requestDescriptors = {
@@ -25,6 +26,12 @@ export const requestDescriptors = {
     responseSchema: "v2/TurnStartResponse",
     validateResponse: validateV2TurnStartResponse,
   },
+  "turn/steer": {
+    method: "turn/steer",
+    paramsSchema: "v2/TurnSteerParams",
+    responseSchema: "v2/TurnSteerResponse",
+    validateResponse: validateV2TurnSteerResponse,
+  },
   "turn/interrupt": {
     method: "turn/interrupt",
     paramsSchema: "v2/TurnInterruptParams",
@@ -32,7 +39,12 @@ export const requestDescriptors = {
     validateResponse: validateV2TurnInterruptResponse,
   },
 } satisfies {
-  [M in "initialize" | "thread/projection/attach" | "turn/start" | "turn/interrupt"]: {
+  [M in
+    | "initialize"
+    | "thread/projection/attach"
+    | "turn/start"
+    | "turn/steer"
+    | "turn/interrupt"]: {
     method: M;
     paramsSchema: string;
     responseSchema: string;

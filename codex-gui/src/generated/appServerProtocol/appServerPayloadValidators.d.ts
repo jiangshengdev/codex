@@ -33,3 +33,4 @@ export declare const validateV2TurnInterruptResponse: ProtocolValidator<
   RequestResponse<"turn/interrupt">
 >;
 export declare const validateV2TurnStartResponse: ProtocolValidator<RequestResponse<"turn/start">>;
+export declare const validateV2TurnSteerResponse: ProtocolValidator<RequestResponse<"turn/steer">>;
