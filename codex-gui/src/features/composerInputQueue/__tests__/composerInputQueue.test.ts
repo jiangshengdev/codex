@@ -42,8 +42,6 @@ describe("composer input queue", () => {
       effects: [{ type: "performStart", claim }],
     });
     expect(claim).toMatchObject({ type: "start", message: message("a") });
-    expect(Object.isFrozen(claim)).toBe(true);
-    expect(Object.isFrozen(claim.message)).toBe(true);
   });
 
   it("issues distinct client message identities across queue instances", () => {

@@ -122,17 +122,17 @@ type TurnCompleted = Extract<RuntimeObservation, { type: "turnCompleted" }>;
 
 type PendingFacts = { readonly claim: StartClaim; readonly facts: RuntimeObservation[] };
 
-const noEffects = Object.freeze([]) as readonly ComposerInputQueueEffect[];
+const noEffects: readonly ComposerInputQueueEffect[] = [];
 
 function transition(
   result: ComposerInputQueueResult,
   effects: readonly ComposerInputQueueEffect[] = noEffects,
 ): ComposerInputQueueTransition {
-  return Object.freeze({ result: Object.freeze(result), effects: Object.freeze([...effects]) });
+  return { result, effects: [...effects] };
 }
 
 function ownMessage(message: ComposerQueueMessage): ComposerQueueMessage {
-  return Object.freeze({ id: message.id, text: message.text });
+  return { id: message.id, text: message.text };
 }
 
 function sameObservation(left: RuntimeObservation, right: RuntimeObservation): boolean {
@@ -167,14 +167,14 @@ export function createComposerInputQueue(
   const issueStart = (message: ComposerQueueMessage): ComposerInputQueueEffect => {
     nextClientUserMessageSequence += 1;
     const clientUserMessageId = `composer-input-queue-${String(nextClientUserMessageSequence)}`;
-    const claim: StartClaim = Object.freeze({
+    const claim: StartClaim = {
       type: "start",
       message,
       clientUserMessageId,
       [startClaimCapability]: true as const,
-    });
-    pendingStart = Object.freeze({ phase: "issuing", claim });
-    return Object.freeze({ type: "performStart", claim });
+    };
+    pendingStart = { phase: "issuing", claim };
+    return { type: "performStart", claim };
   };
 
   const drainOrdinary = (): ComposerInputQueueEffect | null => {
@@ -301,21 +301,21 @@ export function createComposerInputQueue(
       );
     }
 
-    const messages = Object.freeze(ordinary.splice(0));
+    const messages = ordinary.splice(0);
     for (const message of messages) {
       knownMessageIds.delete(message.id);
     }
     if (messages.length === 0) {
       return transition({ type: "applied", operation: "turnCompleted" });
     }
-    const batch: RecoveryBatch = Object.freeze({ reason: "interrupted", messages });
+    const batch: RecoveryBatch = { reason: "interrupted", messages };
     return transition(
       {
         type: "recoveryProduced",
         reason: "interrupted",
-        messageIds: Object.freeze(messages.map(({ id }) => id)),
+        messageIds: messages.map(({ id }) => id),
       },
-      [Object.freeze({ type: "recover", batch })],
+      [{ type: "recover", batch }],
     );
   };
 
@@ -364,7 +364,7 @@ export function createComposerInputQueue(
     );
   };
 
-  return Object.freeze({
+  return {
     submit(message: ComposerQueueMessage): ComposerInputQueueTransition {
       if (message.text.trim() === "") {
         return transition({ type: "invalidInput", reason: "emptyText" });
@@ -390,21 +390,21 @@ export function createComposerInputQueue(
         return classifyRecordedSettlement(settlement);
       }
 
-      latestSettlement = Object.freeze({
+      latestSettlement = {
         claim: settlement.claim,
         type: settlement.type,
         ...(settlement.type === "accepted" ? { turnId: settlement.turnId } : {}),
-      });
+      };
       switch (settlement.type) {
         case "accepted":
-          pendingStart = Object.freeze({
+          pendingStart = {
             phase: "acceptedAwaitingStart",
             claim: settlement.claim,
             turnId: settlement.turnId,
-          });
+          };
           return reconcilePending() ?? transition({ type: "applied", operation: "startAccepted" });
         case "deliveryUnknown": {
-          pendingStart = Object.freeze({ phase: "deliveryUnknown", claim: settlement.claim });
+          pendingStart = { phase: "deliveryUnknown", claim: settlement.claim };
           return reconcilePending() ?? transition({ type: "deliveryUnknown" });
         }
         case "definitelyNotAccepted": {
@@ -412,11 +412,11 @@ export function createComposerInputQueue(
           pendingFacts = null;
           const recoveredMessage = settlement.claim.message;
           knownMessageIds.delete(recoveredMessage.id);
-          const batch: RecoveryBatch = Object.freeze({
+          const batch: RecoveryBatch = {
             reason: "startDefinitelyNotAccepted",
-            messages: Object.freeze([recoveredMessage]),
-          });
-          const effects: ComposerInputQueueEffect[] = [Object.freeze({ type: "recover", batch })];
+            messages: [recoveredMessage],
+          };
+          const effects: ComposerInputQueueEffect[] = [{ type: "recover", batch }];
           const nextStart = drainOrdinary();
           if (nextStart != null) {
             effects.push(nextStart);
@@ -425,7 +425,7 @@ export function createComposerInputQueue(
             {
               type: "recoveryProduced",
               reason: "startDefinitelyNotAccepted",
-              messageIds: Object.freeze([recoveredMessage.id]),
+              messageIds: [recoveredMessage.id],
             },
             effects,
           );
@@ -486,5 +486,5 @@ export function createComposerInputQueue(
           return applyTerminal(observation);
       }
     },
-  });
+  };
 }
