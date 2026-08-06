@@ -153,18 +153,20 @@ function sameObservation(left: RuntimeObservation, right: RuntimeObservation): b
   }
 }
 
-export function createComposerInputQueue(
-  input: CreateComposerInputQueueInput = { activeTurnId: null },
-): ComposerInputQueue {
-  const ordinary: ComposerQueueMessage[] = [];
-  const knownMessageIds = new Set<string>();
-  let activeTurnId = input.activeTurnId;
-  let pendingStart: PendingStart | null = null;
-  let pendingFacts: PendingFacts | null = null;
-  let latestSettlement: SettlementRecord | null = null;
-  const recentObservations: RuntimeObservation[] = [];
+class ComposerInputQueueImpl implements ComposerInputQueue {
+  private readonly ordinary: ComposerQueueMessage[] = [];
+  private readonly knownMessageIds = new Set<string>();
+  private pendingStart: PendingStart | null = null;
+  private pendingFacts: PendingFacts | null = null;
+  private latestSettlement: SettlementRecord | null = null;
+  private readonly recentObservations: RuntimeObservation[] = [];
+  private activeTurnId: TurnIdentity | null;
 
-  const issueStart = (message: ComposerQueueMessage): ComposerInputQueueEffect => {
+  constructor(activeTurnId: TurnIdentity | null) {
+    this.activeTurnId = activeTurnId;
+  }
+
+  private issueStart(message: ComposerQueueMessage): ComposerInputQueueEffect {
     nextClientUserMessageSequence += 1;
     const clientUserMessageId = `composer-input-queue-${String(nextClientUserMessageSequence)}`;
     const claim: StartClaim = {
@@ -173,52 +175,47 @@ export function createComposerInputQueue(
       clientUserMessageId,
       [startClaimCapability]: true as const,
     };
-    pendingStart = { phase: "issuing", claim };
+    this.pendingStart = { phase: "issuing", claim };
     return { type: "performStart", claim };
-  };
+  }
 
-  const drainOrdinary = (): ComposerInputQueueEffect | null => {
-    if (activeTurnId != null || pendingStart != null) {
+  private drainOrdinary(): ComposerInputQueueEffect | null {
+    if (this.activeTurnId != null || this.pendingStart != null) {
       return null;
     }
-    const message = ordinary.shift();
-    return message == null ? null : issueStart(message);
-  };
+    const message = this.ordinary.shift();
+    return message == null ? null : this.issueStart(message);
+  }
 
-  const classifyRecordedSettlement = (
-    settlement: StartSettlement,
-  ): ComposerInputQueueTransition => {
-    if (latestSettlement?.claim !== settlement.claim) {
+  private classifySettlement(settlement: StartSettlement): ComposerInputQueueTransition {
+    if (this.latestSettlement?.claim !== settlement.claim) {
       return transition({ type: "ownershipMismatch", subject: "startClaim" });
     }
     const exactReplay =
-      latestSettlement.type === settlement.type &&
-      (settlement.type !== "accepted" || latestSettlement.turnId === settlement.turnId);
+      this.latestSettlement.type === settlement.type &&
+      (settlement.type !== "accepted" || this.latestSettlement.turnId === settlement.turnId);
     return transition(
       exactReplay
         ? { type: "idempotentReplay", subject: "startSettlement" }
         : { type: "stale", subject: "startSettlement" },
     );
-  };
+  }
 
-  const rememberRecent = (observation: RuntimeObservation): void => {
-    recentObservations.push(observation);
-    if (recentObservations.length > RECENT_FACT_LIMIT) {
-      recentObservations.splice(0, recentObservations.length - RECENT_FACT_LIMIT);
+  private rememberRecent(observation: RuntimeObservation): void {
+    this.recentObservations.push(observation);
+    if (this.recentObservations.length > RECENT_FACT_LIMIT) {
+      this.recentObservations.splice(0, this.recentObservations.length - RECENT_FACT_LIMIT);
     }
-  };
+  }
 
-  const replaySubject = (
-    observation: RuntimeObservation,
-  ): "runtimeCommit" | "runtimeObservation" =>
-    observation.type === "userMessageCommitted" ? "runtimeCommit" : "runtimeObservation";
-
-  const classifyFact = (
+  private classifyFact(
     previous: RuntimeObservation,
     observation: RuntimeObservation,
-  ): ComposerInputQueueTransition => {
+  ): ComposerInputQueueTransition {
+    const subject =
+      observation.type === "userMessageCommitted" ? "runtimeCommit" : "runtimeObservation";
     if (sameObservation(previous, observation)) {
-      return transition({ type: "idempotentReplay", subject: replaySubject(observation) });
+      return transition({ type: "idempotentReplay", subject });
     }
     if (previous.commitId === observation.commitId) {
       return transition({
@@ -226,84 +223,84 @@ export function createComposerInputQueue(
         subject: observation.type === "userMessageCommitted" ? "runtimeCommit" : "runtimeTurn",
       });
     }
-    return transition({ type: "stale", subject: replaySubject(observation) });
-  };
+    return transition({ type: "stale", subject });
+  }
 
-  const classifyRecent = (observation: RuntimeObservation): ComposerInputQueueTransition | null => {
-    const matchingCommit = recentObservations.find(
+  private classifyRecent(observation: RuntimeObservation): ComposerInputQueueTransition | null {
+    const matchingCommit = this.recentObservations.find(
       ({ commitId }) => commitId === observation.commitId,
     );
     if (matchingCommit != null) {
-      return classifyFact(matchingCommit, observation);
+      return this.classifyFact(matchingCommit, observation);
     }
     if (
       observation.type !== "userMessageCommitted" &&
-      recentObservations.some(
+      this.recentObservations.some(
         (fact) => fact.type === "turnCompleted" && fact.turnId === observation.turnId,
       )
     ) {
       return transition({ type: "stale", subject: "runtimeObservation" });
     }
     return null;
-  };
+  }
 
-  const rememberPending = (
-    observation: RuntimeObservation,
-  ): ComposerInputQueueTransition | null => {
-    if (pendingStart == null) {
+  private rememberPending(observation: RuntimeObservation): ComposerInputQueueTransition | null {
+    if (this.pendingStart == null) {
       return transition({ type: "stale", subject: "runtimeObservation" });
     }
-    if (pendingFacts?.claim !== pendingStart.claim) {
-      pendingFacts = { claim: pendingStart.claim, facts: [] };
+    if (this.pendingFacts?.claim !== this.pendingStart.claim) {
+      this.pendingFacts = { claim: this.pendingStart.claim, facts: [] };
     }
-    const previous = pendingFacts.facts.find(({ commitId }) => commitId === observation.commitId);
+    const previous = this.pendingFacts.facts.find(
+      ({ commitId }) => commitId === observation.commitId,
+    );
     if (previous != null) {
-      return classifyFact(previous, observation);
+      return this.classifyFact(previous, observation);
     }
-    pendingFacts.facts.push(observation);
-    if (pendingFacts.facts.length > PENDING_FACT_LIMIT) {
-      pendingFacts.facts.splice(0, pendingFacts.facts.length - PENDING_FACT_LIMIT);
+    this.pendingFacts.facts.push(observation);
+    if (this.pendingFacts.facts.length > PENDING_FACT_LIMIT) {
+      this.pendingFacts.facts.splice(0, this.pendingFacts.facts.length - PENDING_FACT_LIMIT);
     }
     return null;
-  };
+  }
 
-  const releasePending = (): void => {
-    if (pendingStart != null) {
-      knownMessageIds.delete(pendingStart.claim.message.id);
+  private releasePending(): void {
+    if (this.pendingStart != null) {
+      this.knownMessageIds.delete(this.pendingStart.claim.message.id);
     }
-    pendingStart = null;
-    pendingFacts = null;
-  };
+    this.pendingStart = null;
+    this.pendingFacts = null;
+  }
 
-  const acceptRuntimeOwner = (
+  private acceptOwner(
     observation: TurnStarted | UserMessageCommitted,
-  ): ComposerInputQueueTransition => {
-    releasePending();
-    activeTurnId = observation.turnId;
-    rememberRecent(observation);
+  ): ComposerInputQueueTransition {
+    this.releasePending();
+    this.activeTurnId = observation.turnId;
+    this.rememberRecent(observation);
     return transition({
       type: "applied",
       operation: observation.type === "turnStarted" ? "turnStarted" : "userMessageCommitted",
     });
-  };
+  }
 
-  const applyTerminal = (observation: TurnCompleted): ComposerInputQueueTransition => {
-    releasePending();
-    if (activeTurnId === observation.turnId) {
-      activeTurnId = null;
+  private applyTerminal(observation: TurnCompleted): ComposerInputQueueTransition {
+    this.releasePending();
+    if (this.activeTurnId === observation.turnId) {
+      this.activeTurnId = null;
     }
-    rememberRecent(observation);
+    this.rememberRecent(observation);
     if (observation.status !== "interrupted") {
-      const nextStart = drainOrdinary();
+      const nextStart = this.drainOrdinary();
       return transition(
         { type: "applied", operation: "turnCompleted" },
         nextStart == null ? noEffects : [nextStart],
       );
     }
 
-    const messages = ordinary.splice(0);
+    const messages = this.ordinary.splice(0);
     for (const message of messages) {
-      knownMessageIds.delete(message.id);
+      this.knownMessageIds.delete(message.id);
     }
     if (messages.length === 0) {
       return transition({ type: "applied", operation: "turnCompleted" });
@@ -317,21 +314,27 @@ export function createComposerInputQueue(
       },
       [{ type: "recover", batch }],
     );
-  };
+  }
 
-  const reconcilePending = (): ComposerInputQueueTransition | null => {
-    if (pendingStart == null || pendingStart.phase === "issuing" || pendingFacts == null) {
+  private reconcilePending(): ComposerInputQueueTransition | null {
+    if (
+      this.pendingStart == null ||
+      this.pendingStart.phase === "issuing" ||
+      this.pendingFacts == null
+    ) {
       return null;
     }
-    const committed = pendingFacts.facts.findLast(
+    const committed = this.pendingFacts.facts.findLast(
       (fact): fact is UserMessageCommitted => fact.type === "userMessageCommitted",
     );
     const turnId =
-      pendingStart.phase === "acceptedAwaitingStart" ? pendingStart.turnId : committed?.turnId;
+      this.pendingStart.phase === "acceptedAwaitingStart"
+        ? this.pendingStart.turnId
+        : committed?.turnId;
     if (turnId == null) {
       return null;
     }
-    const matchingFacts = pendingFacts.facts.filter((fact) => fact.turnId === turnId);
+    const matchingFacts = this.pendingFacts.facts.filter((fact) => fact.turnId === turnId);
     const selected =
       matchingFacts.findLast((fact): fact is TurnCompleted => fact.type === "turnCompleted") ??
       matchingFacts.findLast(
@@ -340,151 +343,157 @@ export function createComposerInputQueue(
       matchingFacts.findLast((fact): fact is TurnStarted => fact.type === "turnStarted") ??
       null;
     if (selected == null) {
-      if (pendingStart.phase === "acceptedAwaitingStart") {
-        pendingFacts = null;
+      if (this.pendingStart.phase === "acceptedAwaitingStart") {
+        this.pendingFacts = null;
       }
       return null;
     }
     for (const fact of matchingFacts) {
       if (fact !== selected) {
-        rememberRecent(fact);
+        this.rememberRecent(fact);
       }
     }
     return selected.type === "turnCompleted"
-      ? applyTerminal(selected)
-      : acceptRuntimeOwner(selected);
-  };
+      ? this.applyTerminal(selected)
+      : this.acceptOwner(selected);
+  }
 
-  const acceptObservation = (observation: RuntimeObservation): ComposerInputQueueTransition => {
-    const classification = rememberPending(observation);
+  private acceptObservation(observation: RuntimeObservation): ComposerInputQueueTransition {
+    const classification = this.rememberPending(observation);
     return (
       classification ??
-      reconcilePending() ??
+      this.reconcilePending() ??
       transition({ type: "applied", operation: "observationRecorded" })
     );
+  }
+
+  public submit = (message: ComposerQueueMessage): ComposerInputQueueTransition => {
+    if (message.text.trim() === "") {
+      return transition({ type: "invalidInput", reason: "emptyText" });
+    }
+    if (this.knownMessageIds.has(message.id)) {
+      return transition({ type: "duplicateIdentity", messageId: message.id });
+    }
+
+    const ownedMessage = ownMessage(message);
+    this.knownMessageIds.add(ownedMessage.id);
+    if (this.activeTurnId == null && this.pendingStart == null && this.ordinary.length === 0) {
+      return transition({ type: "claimIssued" }, [this.issueStart(ownedMessage)]);
+    }
+    this.ordinary.push(ownedMessage);
+    return transition({ type: "queued", messageId: ownedMessage.id });
   };
 
-  return {
-    submit(message: ComposerQueueMessage): ComposerInputQueueTransition {
-      if (message.text.trim() === "") {
-        return transition({ type: "invalidInput", reason: "emptyText" });
-      }
-      if (knownMessageIds.has(message.id)) {
-        return transition({ type: "duplicateIdentity", messageId: message.id });
-      }
+  public settleStart = (settlement: StartSettlement): ComposerInputQueueTransition => {
+    if (this.pendingStart?.claim !== settlement.claim) {
+      return this.classifySettlement(settlement);
+    }
+    if (this.pendingStart.phase !== "issuing") {
+      return this.classifySettlement(settlement);
+    }
 
-      const ownedMessage = ownMessage(message);
-      knownMessageIds.add(ownedMessage.id);
-      if (activeTurnId == null && pendingStart == null && ordinary.length === 0) {
-        return transition({ type: "claimIssued" }, [issueStart(ownedMessage)]);
+    this.latestSettlement = {
+      claim: settlement.claim,
+      type: settlement.type,
+      ...(settlement.type === "accepted" ? { turnId: settlement.turnId } : {}),
+    };
+    switch (settlement.type) {
+      case "accepted":
+        this.pendingStart = {
+          phase: "acceptedAwaitingStart",
+          claim: settlement.claim,
+          turnId: settlement.turnId,
+        };
+        return (
+          this.reconcilePending() ?? transition({ type: "applied", operation: "startAccepted" })
+        );
+      case "deliveryUnknown": {
+        this.pendingStart = { phase: "deliveryUnknown", claim: settlement.claim };
+        return this.reconcilePending() ?? transition({ type: "deliveryUnknown" });
       }
-      ordinary.push(ownedMessage);
-      return transition({ type: "queued", messageId: ownedMessage.id });
-    },
-
-    settleStart(settlement: StartSettlement): ComposerInputQueueTransition {
-      if (pendingStart?.claim !== settlement.claim) {
-        return classifyRecordedSettlement(settlement);
-      }
-      if (pendingStart.phase !== "issuing") {
-        return classifyRecordedSettlement(settlement);
-      }
-
-      latestSettlement = {
-        claim: settlement.claim,
-        type: settlement.type,
-        ...(settlement.type === "accepted" ? { turnId: settlement.turnId } : {}),
-      };
-      switch (settlement.type) {
-        case "accepted":
-          pendingStart = {
-            phase: "acceptedAwaitingStart",
-            claim: settlement.claim,
-            turnId: settlement.turnId,
-          };
-          return reconcilePending() ?? transition({ type: "applied", operation: "startAccepted" });
-        case "deliveryUnknown": {
-          pendingStart = { phase: "deliveryUnknown", claim: settlement.claim };
-          return reconcilePending() ?? transition({ type: "deliveryUnknown" });
+      case "definitelyNotAccepted": {
+        this.pendingStart = null;
+        this.pendingFacts = null;
+        const recoveredMessage = settlement.claim.message;
+        this.knownMessageIds.delete(recoveredMessage.id);
+        const batch: RecoveryBatch = {
+          reason: "startDefinitelyNotAccepted",
+          messages: [recoveredMessage],
+        };
+        const effects: ComposerInputQueueEffect[] = [{ type: "recover", batch }];
+        const nextStart = this.drainOrdinary();
+        if (nextStart != null) {
+          effects.push(nextStart);
         }
-        case "definitelyNotAccepted": {
-          pendingStart = null;
-          pendingFacts = null;
-          const recoveredMessage = settlement.claim.message;
-          knownMessageIds.delete(recoveredMessage.id);
-          const batch: RecoveryBatch = {
+        return transition(
+          {
+            type: "recoveryProduced",
             reason: "startDefinitelyNotAccepted",
-            messages: [recoveredMessage],
-          };
-          const effects: ComposerInputQueueEffect[] = [{ type: "recover", batch }];
-          const nextStart = drainOrdinary();
-          if (nextStart != null) {
-            effects.push(nextStart);
-          }
-          return transition(
-            {
-              type: "recoveryProduced",
-              reason: "startDefinitelyNotAccepted",
-              messageIds: [recoveredMessage.id],
-            },
-            effects,
-          );
-        }
+            messageIds: [recoveredMessage.id],
+          },
+          effects,
+        );
       }
-    },
-
-    observe(observation: RuntimeObservation): ComposerInputQueueTransition {
-      const recent = classifyRecent(observation);
-      if (recent != null) {
-        return recent;
-      }
-      switch (observation.type) {
-        case "turnStarted":
-          if (pendingStart?.phase === "acceptedAwaitingStart") {
-            if (pendingStart.turnId !== observation.turnId) {
-              return transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
-            }
-          }
-          if (pendingStart != null) {
-            return acceptObservation(observation);
-          }
-          if (activeTurnId != null && activeTurnId !== observation.turnId) {
-            return transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
-          }
-          activeTurnId = observation.turnId;
-          rememberRecent(observation);
-          return transition({ type: "applied", operation: "turnStarted" });
-        case "userMessageCommitted":
-          if (pendingStart?.claim.clientUserMessageId !== observation.clientId) {
-            return transition({
-              type: pendingStart == null ? "stale" : "ownershipMismatch",
-              subject: "runtimeCommit",
-            });
-          }
-          if (
-            pendingStart.phase === "acceptedAwaitingStart" &&
-            pendingStart.turnId !== observation.turnId
-          ) {
-            return transition({ type: "ownershipMismatch", subject: "runtimeCommit" });
-          }
-          return acceptObservation(observation);
-        case "turnCompleted":
-          if (
-            pendingStart?.phase === "acceptedAwaitingStart" &&
-            pendingStart.turnId !== observation.turnId
-          ) {
-            return transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
-          }
-          if (pendingStart != null) {
-            return acceptObservation(observation);
-          }
-          if (activeTurnId !== observation.turnId) {
-            return activeTurnId == null
-              ? transition({ type: "stale", subject: "runtimeObservation" })
-              : transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
-          }
-          return applyTerminal(observation);
-      }
-    },
+    }
   };
+
+  public observe = (observation: RuntimeObservation): ComposerInputQueueTransition => {
+    const recent = this.classifyRecent(observation);
+    if (recent != null) {
+      return recent;
+    }
+    switch (observation.type) {
+      case "turnStarted":
+        if (this.pendingStart?.phase === "acceptedAwaitingStart") {
+          if (this.pendingStart.turnId !== observation.turnId) {
+            return transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
+          }
+        }
+        if (this.pendingStart != null) {
+          return this.acceptObservation(observation);
+        }
+        if (this.activeTurnId != null && this.activeTurnId !== observation.turnId) {
+          return transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
+        }
+        this.activeTurnId = observation.turnId;
+        this.rememberRecent(observation);
+        return transition({ type: "applied", operation: "turnStarted" });
+      case "userMessageCommitted":
+        if (this.pendingStart?.claim.clientUserMessageId !== observation.clientId) {
+          return transition({
+            type: this.pendingStart == null ? "stale" : "ownershipMismatch",
+            subject: "runtimeCommit",
+          });
+        }
+        if (
+          this.pendingStart.phase === "acceptedAwaitingStart" &&
+          this.pendingStart.turnId !== observation.turnId
+        ) {
+          return transition({ type: "ownershipMismatch", subject: "runtimeCommit" });
+        }
+        return this.acceptObservation(observation);
+      case "turnCompleted":
+        if (
+          this.pendingStart?.phase === "acceptedAwaitingStart" &&
+          this.pendingStart.turnId !== observation.turnId
+        ) {
+          return transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
+        }
+        if (this.pendingStart != null) {
+          return this.acceptObservation(observation);
+        }
+        if (this.activeTurnId !== observation.turnId) {
+          return this.activeTurnId == null
+            ? transition({ type: "stale", subject: "runtimeObservation" })
+            : transition({ type: "ownershipMismatch", subject: "runtimeTurn" });
+        }
+        return this.applyTerminal(observation);
+    }
+  };
+}
+
+export function createComposerInputQueue(
+  input: CreateComposerInputQueueInput = { activeTurnId: null },
+): ComposerInputQueue {
+  return new ComposerInputQueueImpl(input.activeTurnId);
 }
