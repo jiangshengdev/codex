@@ -13,6 +13,18 @@
 - Compatible upstream additions that are not consumed locally do not need artificial failures. Do not suppress genuine incompatibilities that affect existing consumers.
 - Designs, plans, and reviews must identify the authoritative source and derivation path for affected contracts. If a proposal duplicates a contract or interrupts compile-time failure propagation, stop and redesign before implementation.
 
+## Frontend State and Runtime Defense Invariants
+
+- Treat typed, in-process frontend modules as trusted TypeScript boundaries by default. Use `Readonly` to express non-mutating contracts and copy caller-owned inputs when alias isolation is required.
+- Do not add `Object.freeze`, deep-freeze utilities, proxies, runtime immutability wrappers, or equivalent defensive machinery unless a documented, realistic mutation path crosses an untrusted JavaScript or external boundary.
+- Do not freeze module-internal state, transition records, effects, or other newly allocated return values merely because they are conceptually immutable. Runtime hardening must address a concrete failure that `Readonly`, ownership, copying, or encapsulation cannot address.
+- Existing runtime immutability patterns are evidence to investigate, not precedent to copy. Before adding a runtime guard, identify who can trigger the guarded mutation through a supported path and what invariant would otherwise fail.
+- Do not assert `Object.isFrozen` or otherwise lock runtime immutability implementation details in tests unless runtime tamper resistance is an explicit product or security requirement.
+- A small public interface does not justify concentrating the implementation in one large factory or closure. Factories should construct instances, not contain an entire multi-operation state machine.
+- When one instance owns shared mutable state across multiple public operations, prefer a non-exported implementation class or explicit state-transition functions. Keep input validation, ownership transitions, fact classification/reconciliation, and effect construction in separately named methods or functions.
+- Review function scope independently from file size. A module remaining below its line limit does not excuse a function that accumulates many nested helpers, state owners, transition families, or unrelated responsibilities.
+- Use TypeScript `private` for ordinary in-process encapsulation. Add `#private` fields or runtime enforcement only when the same concrete threat-model test above demonstrates that compile-time privacy is insufficient.
+
 ## HeroUI Design System Invariants
 
 - UI design, implementation plans, and code changes in `codex-gui` should default to HeroUI v3 as the component system. Prefer `@heroui/react` components for interactive controls, overlays, feedback, layout primitives, and typography before creating custom HTML/CSS controls.
