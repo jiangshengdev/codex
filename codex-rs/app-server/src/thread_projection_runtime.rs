@@ -278,6 +278,7 @@ mod tests {
     use crate::request_processors::ThreadGoalRequestProcessor;
     use crate::thread_state::ConnectionCapabilities;
     use crate::thread_status::ThreadWatchManager;
+    use codex_app_server_protocol::ClientResponsePayload;
     use codex_app_server_protocol::ConfigWarningNotification;
     use codex_app_server_protocol::RequestId;
     use codex_app_server_protocol::ServerNotification;
@@ -628,7 +629,10 @@ stream_max_retries = 0
                 } => response,
                 other => panic!("expected attach response, got {other:?}"),
             };
-            Ok(serde_json::from_value(response.result)?)
+            match *response.result {
+                ClientResponsePayload::ThreadProjectionAttach(response) => Ok(response),
+                other => panic!("expected thread projection attach response, got {other:?}"),
+            }
         }
 
         async fn recv_attach_error_message(&mut self) -> String {

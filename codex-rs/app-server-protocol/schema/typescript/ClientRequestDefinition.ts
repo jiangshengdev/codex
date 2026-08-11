@@ -162,6 +162,16 @@ import type { ThreadResumeParams } from "./v2/ThreadResumeParams";
 import type { ThreadResumeResponse } from "./v2/ThreadResumeResponse";
 import type { ThreadRollbackParams } from "./v2/ThreadRollbackParams";
 import type { ThreadRollbackResponse } from "./v2/ThreadRollbackResponse";
+import type { ThreadSectionCreateParams } from "./v2/ThreadSectionCreateParams";
+import type { ThreadSectionCreateResponse } from "./v2/ThreadSectionCreateResponse";
+import type { ThreadSectionDeleteParams } from "./v2/ThreadSectionDeleteParams";
+import type { ThreadSectionDeleteResponse } from "./v2/ThreadSectionDeleteResponse";
+import type { ThreadSectionListParams } from "./v2/ThreadSectionListParams";
+import type { ThreadSectionListResponse } from "./v2/ThreadSectionListResponse";
+import type { ThreadSectionMoveParams } from "./v2/ThreadSectionMoveParams";
+import type { ThreadSectionMoveResponse } from "./v2/ThreadSectionMoveResponse";
+import type { ThreadSectionUpdateParams } from "./v2/ThreadSectionUpdateParams";
+import type { ThreadSectionUpdateResponse } from "./v2/ThreadSectionUpdateResponse";
 import type { ThreadSetNameParams } from "./v2/ThreadSetNameParams";
 import type { ThreadSetNameResponse } from "./v2/ThreadSetNameResponse";
 import type { ThreadShellCommandParams } from "./v2/ThreadShellCommandParams";
@@ -197,12 +207,17 @@ export type ClientRequestDefinition =
   | { method: "thread/goal/get"; params: ThreadGoalGetParams; response: ThreadGoalGetResponse; }
   | { method: "thread/goal/clear"; params: ThreadGoalClearParams; response: ThreadGoalClearResponse; }
   | { method: "thread/metadata/update"; params: ThreadMetadataUpdateParams; response: ThreadMetadataUpdateResponse; }
+  | { method: "thread/section/move"; params: ThreadSectionMoveParams; response: ThreadSectionMoveResponse; }
   | { method: "thread/unarchive"; params: ThreadUnarchiveParams; response: ThreadUnarchiveResponse; }
   | { method: "thread/compact/start"; params: ThreadCompactStartParams; response: ThreadCompactStartResponse; }
   | { method: "thread/shellCommand"; params: ThreadShellCommandParams; response: ThreadShellCommandResponse; }
   | { method: "thread/approveGuardianDeniedAction"; params: ThreadApproveGuardianDeniedActionParams; response: ThreadApproveGuardianDeniedActionResponse; }
   | { method: "thread/rollback"; params: ThreadRollbackParams; response: ThreadRollbackResponse; }
   | { method: "thread/list"; params: ThreadListParams; response: ThreadListResponse; }
+  | { method: "threadSection/list"; params: ThreadSectionListParams; response: ThreadSectionListResponse; }
+  | { method: "threadSection/create"; params: ThreadSectionCreateParams; response: ThreadSectionCreateResponse; }
+  | { method: "threadSection/update"; params: ThreadSectionUpdateParams; response: ThreadSectionUpdateResponse; }
+  | { method: "threadSection/delete"; params: ThreadSectionDeleteParams; response: ThreadSectionDeleteResponse; }
   | { method: "thread/loaded/list"; params: ThreadLoadedListParams; response: ThreadLoadedListResponse; }
   | { method: "thread/read"; params: ThreadReadParams; response: ThreadReadResponse; }
   | { method: "thread/inject_items"; params: ThreadInjectItemsParams; response: ThreadInjectItemsResponse; }
