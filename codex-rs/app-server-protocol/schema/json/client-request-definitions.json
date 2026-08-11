@@ -70,6 +70,11 @@
     "responseSchema": "v2/ThreadMetadataUpdateResponse"
   },
   {
+    "method": "thread/section/move",
+    "paramsSchema": "v2/ThreadSectionMoveParams",
+    "responseSchema": "v2/ThreadSectionMoveResponse"
+  },
+  {
     "method": "thread/unarchive",
     "paramsSchema": "v2/ThreadUnarchiveParams",
     "responseSchema": "v2/ThreadUnarchiveResponse"
@@ -98,6 +103,26 @@
     "method": "thread/list",
     "paramsSchema": "v2/ThreadListParams",
     "responseSchema": "v2/ThreadListResponse"
+  },
+  {
+    "method": "threadSection/list",
+    "paramsSchema": "v2/ThreadSectionListParams",
+    "responseSchema": "v2/ThreadSectionListResponse"
+  },
+  {
+    "method": "threadSection/create",
+    "paramsSchema": "v2/ThreadSectionCreateParams",
+    "responseSchema": "v2/ThreadSectionCreateResponse"
+  },
+  {
+    "method": "threadSection/update",
+    "paramsSchema": "v2/ThreadSectionUpdateParams",
+    "responseSchema": "v2/ThreadSectionUpdateResponse"
+  },
+  {
+    "method": "threadSection/delete",
+    "paramsSchema": "v2/ThreadSectionDeleteParams",
+    "responseSchema": "v2/ThreadSectionDeleteResponse"
   },
   {
     "method": "thread/loaded/list",
