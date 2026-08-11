@@ -114,6 +114,7 @@ async fn launch_gui_tool_names_for_service(
                 persistent_thread_state_available: true,
                 environments: &[],
                 mcp_resource_client: None,
+                extension_metrics: None,
                 session_store: &session_store,
                 thread_store: &thread_store,
             })

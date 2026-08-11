@@ -556,7 +556,9 @@ fn serialize_outgoing_text(message: codex_app_server_transport::OutgoingMessage)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codex_app_server_protocol::ClientResponsePayload;
     use codex_app_server_protocol::JSONRPC_VERSION;
+    use codex_app_server_protocol::ThreadArchiveResponse;
     use codex_app_server_transport::OutgoingMessage;
     use codex_app_server_transport::OutgoingResponse;
     use pretty_assertions::assert_eq;
@@ -574,13 +576,15 @@ mod tests {
     fn serialize_outgoing_text_adds_jsonrpc_version() {
         let text = serialize_outgoing_text(OutgoingMessage::Response(OutgoingResponse {
             id: codex_app_server_protocol::RequestId::Integer(7),
-            result: serde_json::json!({"ok": true}),
+            result: Box::new(ClientResponsePayload::ThreadArchive(
+                ThreadArchiveResponse {},
+            )),
         }))
         .expect("response should serialize");
         let value: serde_json::Value = serde_json::from_str(&text).expect("text should be JSON");
         assert_eq!(value["jsonrpc"], JSONRPC_VERSION);
         assert_eq!(value["id"], 7);
-        assert_eq!(value["result"], serde_json::json!({"ok": true}));
+        assert_eq!(value["result"], serde_json::json!({}));
     }
 
     #[tokio::test]
