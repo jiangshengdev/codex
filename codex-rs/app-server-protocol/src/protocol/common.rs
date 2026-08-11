@@ -116,6 +116,7 @@ macro_rules! experimental_type_entry {
     };
 }
 
+#[cfg(test)]
 macro_rules! params_ts_type_override {
     (#[ts(type = $ts_type:literal)] $($rest:tt)*) => {
         Some($ts_type)
@@ -128,6 +129,7 @@ macro_rules! params_ts_type_override {
     };
 }
 
+#[cfg(test)]
 macro_rules! client_request_params_definition {
     ($params:ty, [$($params_meta:tt)*]) => {
         ClientRequestTypeDefinition::new::<$params>(
@@ -140,6 +142,7 @@ macro_rules! client_request_params_definition {
     };
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ClientRequestTypeDefinition {
     pub(crate) name: String,
@@ -148,6 +151,7 @@ pub(crate) struct ClientRequestTypeDefinition {
     pub(crate) schema_path: Option<String>,
 }
 
+#[cfg(test)]
 impl ClientRequestTypeDefinition {
     fn new<T: TS>(rust_type_name: &str, ts_type_override: Option<&str>) -> Self {
         let name = ts_type_override.map_or_else(T::ident, str::to_string);
@@ -177,6 +181,7 @@ impl ClientRequestTypeDefinition {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ClientRequestDefinition {
     pub(crate) method: String,
@@ -1546,6 +1551,7 @@ macro_rules! server_request_definitions {
 
 /// Generates `ServerNotification` enum and helpers, including a JSON Schema
 /// exporter for each notification.
+#[cfg(test)]
 macro_rules! experimental_server_notification_method_entry {
     (
         [$(=> $wire:literal)?]
@@ -1621,6 +1627,7 @@ macro_rules! server_notification_definitions {
             Ok(schemas)
         }
 
+        #[cfg(test)]
         pub(crate) const EXPERIMENTAL_SERVER_NOTIFICATION_METHODS: &[&str] = &[
             $(
                 experimental_server_notification_method_entry!(
