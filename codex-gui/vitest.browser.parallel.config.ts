@@ -11,9 +11,9 @@ export default mergeConfig(
   defineConfig({
     test: {
       root: import.meta.dirname,
-      name: `${packageJson.name}-browser`,
+      name: `${packageJson.name}-browser-parallel`,
       include: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
-      exclude: [...configDefaults.exclude, "e2e/**"],
+      exclude: [...configDefaults.exclude, "e2e/**", "src/__tests__/sequential/**"],
       typecheck: {
         enabled: true,
         tsconfig: path.join(import.meta.dirname, "tsconfig.vitest.browser.json"),
