@@ -1,6 +1,6 @@
 import path from "node:path";
-import { defineConfig, configDefaults, mergeConfig } from "vitest/config";
 import { playwright } from "@vitest/browser-playwright";
+import { defineConfig, mergeConfig } from "vitest/config";
 import packageJson from "./package.json" with { type: "json" };
 import viteConfig from "./vite.config";
 
@@ -11,9 +11,12 @@ export default mergeConfig(
   defineConfig({
     test: {
       root: import.meta.dirname,
-      name: `${packageJson.name}-browser`,
-      include: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
-      exclude: [...configDefaults.exclude, "e2e/**", "src/__tests__/sequential/**"],
+      name: `${packageJson.name}-browser-sequential`,
+      fileParallelism: false,
+      include: [
+        "src/__tests__/sequential/**/*.browser.test.ts",
+        "src/__tests__/sequential/**/*.browser.test.tsx",
+      ],
       typecheck: {
         enabled: true,
         tsconfig: path.join(import.meta.dirname, "tsconfig.vitest.browser.json"),
@@ -23,7 +26,6 @@ export default mergeConfig(
         enabled: true,
         headless: true,
         provider: playwright(),
-        // https://vitest.dev/config/browser/playwright
         instances: [{ browser: "chromium" }, { browser: "firefox" }, { browser: "webkit" }],
       },
     },
