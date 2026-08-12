@@ -21,7 +21,7 @@
     "type-check": "tsc -b --noEmit",
     "test:unit": "vitest --run",
     "test:browser": "pnpm run test:browser:parallel && pnpm run test:browser:sequential",
-    "test:browser:parallel": "vitest --config=vitest.browser.config.ts",
+    "test:browser:parallel": "vitest --config=vitest.browser.parallel.config.ts",
     "test:browser:sequential": "vitest --config=vitest.browser.sequential.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
