@@ -388,6 +388,7 @@ const groupTranscriptEntries = (
         activityEntries.push(entry);
         break;
       case "message":
+      case "reasoning":
       case "status":
         flushActivityEntries();
         groups.push({ type: "entry", entry });
@@ -457,6 +458,40 @@ const StatusEntryRenderer = ({
   );
 };
 
+const ReasoningEntryRenderer = ({
+  entry,
+}: {
+  entry: Extract<TranscriptEntryView, { type: "reasoning" }>;
+}) => {
+  switch (entry.lifecycle) {
+    case "streaming":
+      return (
+        <Typography
+          aria-atomic="true"
+          aria-live="polite"
+          className="committed-transcript-entry-reasoning min-w-0 max-w-full wrap-break-word leading-6"
+          color="muted"
+          role="status"
+          type="body-sm"
+        >
+          {entry.title}
+        </Typography>
+      );
+    case "completed":
+      return (
+        <article className="committed-transcript-entry committed-transcript-entry-reasoning grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-1 text-sm text-muted italic">
+          <span aria-hidden="true" className="leading-6">
+            •
+          </span>
+          <MarkdownText source={entry.source} />
+        </article>
+      );
+  }
+
+  const exhaustiveEntry: never = entry;
+  return exhaustiveEntry;
+};
+
 const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
   switch (entry.type) {
     case "message": {
@@ -478,6 +513,8 @@ const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
         </Card>
       );
     }
+    case "reasoning":
+      return <ReasoningEntryRenderer entry={entry} />;
     case "status":
       return <StatusEntryRenderer status={entry.status} />;
     case "collabAgent":
