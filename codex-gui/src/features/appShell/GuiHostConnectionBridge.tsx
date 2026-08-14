@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import {
+  createComposerInputQueueCoordinator,
+  type ComposerInputQueueCoordinator,
+} from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
 import { ProjectionApplicationCoordinator } from "@/features/projectionCoordination/projectionApplicationCoordinator";
@@ -9,18 +13,23 @@ export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
   setCommands: (commands: GuiHostCommands | null) => void;
   setLaunchParams: (params: BrowserLaunchParams | null) => void;
+  setComposerInputQueueController: (controller: ComposerInputQueueCoordinator | null) => void;
 };
 
 export function GuiHostConnectionBridge({
   setStatus,
   setCommands,
   setLaunchParams,
+  setComposerInputQueueController,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
+    let launchThreadId: string | null = null;
+    let initialActiveTurnId: string | null | undefined;
+    let queueCoordinator: ComposerInputQueueCoordinator | null = null;
     const coordinator = new ProjectionApplicationCoordinator({
       dispatch,
       scheduler: {
@@ -28,6 +37,9 @@ export function GuiHostConnectionBridge({
         cancelFrame: (frameId) => {
           window.cancelAnimationFrame(frameId);
         },
+      },
+      acceptedEventSink: (payload) => {
+        queueCoordinator?.observeAcceptedEvent(payload);
       },
     });
 
@@ -38,10 +50,17 @@ export function GuiHostConnectionBridge({
         onStatus: setStatus,
         onLaunchParams: (params) => {
           setLaunchParams(params);
+          launchThreadId = params.threadId;
           coordinator.handleLaunchThread(params.threadId);
         },
         onProjectionAttached: (response) => {
           coordinator.handleProjectionAttached(response);
+          if (initialActiveTurnId === undefined && response.snapshot.thread.id === launchThreadId) {
+            initialActiveTurnId =
+              response.snapshot.thread.turns
+                .toReversed()
+                .find((turn) => turn.status === "inProgress")?.id ?? null;
+          }
         },
         onProjectionEvent: (notification) => {
           coordinator.handleProjectionEvent(notification);
@@ -52,7 +71,21 @@ export function GuiHostConnectionBridge({
         onProjectionClosed: (notification) => {
           coordinator.handleProjectionClosed(notification);
         },
-        onCommandsReady: setCommands,
+        onCommandsReady: (commands) => {
+          setCommands(commands);
+          if (
+            queueCoordinator == null &&
+            launchThreadId != null &&
+            initialActiveTurnId !== undefined
+          ) {
+            queueCoordinator = createComposerInputQueueCoordinator({
+              threadId: launchThreadId,
+              activeTurnId: initialActiveTurnId,
+              startTurn: commands.startTurn,
+            });
+            setComposerInputQueueController(queueCoordinator);
+          }
+        },
         onCommandsUnavailable: () => {
           setCommands(null);
         },
@@ -75,10 +108,12 @@ export function GuiHostConnectionBridge({
       isMounted = false;
       setCommands(null);
       setLaunchParams(null);
+      setComposerInputQueueController(null);
+      queueCoordinator?.dispose();
       coordinator.dispose();
       cleanupConnection?.();
     };
-  }, [dispatch, setCommands, setLaunchParams, setStatus]);
+  }, [dispatch, setCommands, setComposerInputQueueController, setLaunchParams, setStatus]);
 
   return null;
 }

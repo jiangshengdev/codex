@@ -22,6 +22,7 @@ import type {
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
+import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
 
 export type ProjectionAnimationFrameScheduler = {
   requestFrame: (callback: () => void) => number;
@@ -31,11 +32,15 @@ export type ProjectionAnimationFrameScheduler = {
 type ProjectionApplicationCoordinatorOptions = {
   dispatch: AppDispatch;
   scheduler: ProjectionAnimationFrameScheduler;
+  acceptedEventSink?: (payload: Readonly<ThreadRuntimeProjectionEventPayload>) => void;
 };
 
 export class ProjectionApplicationCoordinator {
   private readonly dispatch: AppDispatch;
   private readonly scheduler: ProjectionAnimationFrameScheduler;
+  private readonly acceptedEventSink:
+    | ((payload: Readonly<ThreadRuntimeProjectionEventPayload>) => void)
+    | undefined;
   private launchThreadId: string | null = null;
   private projectionIngress: ProjectionIngressAdapter | null = null;
   private snapshotReplayIndex: SnapshotReplayIndex | null = null;
@@ -43,9 +48,10 @@ export class ProjectionApplicationCoordinator {
   private pendingDeltaFrame: number | null = null;
   private disposed = false;
 
-  constructor({ dispatch, scheduler }: ProjectionApplicationCoordinatorOptions) {
+  constructor({ dispatch, scheduler, acceptedEventSink }: ProjectionApplicationCoordinatorOptions) {
     this.dispatch = dispatch;
     this.scheduler = scheduler;
+    this.acceptedEventSink = acceptedEventSink;
   }
 
   handleLaunchThread(threadId: string): void {
@@ -121,18 +127,19 @@ export class ProjectionApplicationCoordinator {
         this.flushPendingDeltas();
         this.dispatch(threadRuntimeAttached(outcome.response));
         return;
-      case "eventAccepted":
+      case "eventAccepted": {
         this.flushPendingDeltas();
-        this.dispatch(
-          threadRuntimeEventBuffered({
-            notification: outcome.notification,
-            replay:
-              this.snapshotReplayIndex == null
-                ? "live"
-                : replayForProjectionEvent(this.snapshotReplayIndex, outcome.notification),
-          }),
-        );
+        const payload = {
+          notification: outcome.notification,
+          replay:
+            this.snapshotReplayIndex == null
+              ? "live"
+              : replayForProjectionEvent(this.snapshotReplayIndex, outcome.notification),
+        } satisfies ThreadRuntimeProjectionEventPayload;
+        this.dispatch(threadRuntimeEventBuffered(payload));
+        this.acceptedEventSink?.(payload);
         return;
+      }
       case "deltaAccepted":
         this.enqueueProjectionDelta(outcome.notification);
         return;

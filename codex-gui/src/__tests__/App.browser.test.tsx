@@ -11,11 +11,16 @@ import {
   getHostOptions,
   launchThreadId,
   markCommandsReady,
+  markCommandsUnavailable,
   markHostAttached,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import App from "@/App";
+import {
+  createComposerInputQueueCoordinator,
+  type ComposerInputQueueCoordinator,
+} from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import {
   attachReplacement,
@@ -58,12 +63,15 @@ const guiHostClientMock = vi.hoisted(() => ({
 vi.mock("@/features/guiHost/guiHostClient", () => ({
   startGuiHostConnection: guiHostClientMock.startGuiHostConnection,
 }));
+vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: true });
 
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
+  vi.mocked(createComposerInputQueueCoordinator).mockRestore();
+  vi.mocked(createComposerInputQueueCoordinator).mockClear();
 });
 
 const longTranscriptText = (label: string): string =>
@@ -147,6 +155,7 @@ const expectAppComposerDisabled = async (
 };
 
 afterEach(() => {
+  vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   scrollToDocumentTop();
 });
 
@@ -935,6 +944,69 @@ test("App closes the host connection when unmounted", async () => {
   await screen.unmount();
 
   expect(getCleanupConnectionCallCount()).toBe(1);
+});
+
+test("App owns one queue coordinator for the matching attached launch thread until cleanup", async () => {
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createGuiHostCommands();
+  const createQueueCoordinator = vi.mocked(createComposerInputQueueCoordinator);
+  const observeAcceptedEvent = vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>();
+  const dispose = vi.fn<ComposerInputQueueCoordinator["dispose"]>();
+  const queueCoordinator = {
+    submit: vi.fn<ComposerInputQueueCoordinator["submit"]>(),
+    recover: vi.fn<ComposerInputQueueCoordinator["recover"]>(),
+    observeAcceptedEvent,
+    getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
+      queuedCount: 0,
+      recoveryCount: 0,
+      isRecovering: false,
+    }),
+    subscribe: vi.fn<ComposerInputQueueCoordinator["subscribe"]>().mockReturnValue(vi.fn()),
+    dispose,
+  } satisfies ComposerInputQueueCoordinator;
+  createQueueCoordinator.mockReturnValue(queueCoordinator);
+  const mismatchedAttach = attachWithThreadId(attachResponse, "thread-mismatch");
+
+  attachProjection(options, mismatchedAttach);
+  markCommandsReady(options, commands);
+
+  expect(createQueueCoordinator).not.toHaveBeenCalled();
+
+  attachProjection(options, attachResponse);
+  markCommandsReady(options, commands);
+
+  expect(createQueueCoordinator).toHaveBeenCalledOnce();
+  expect(createQueueCoordinator).toHaveBeenCalledWith({
+    threadId: launchThreadId,
+    activeTurnId: null,
+    startTurn: commands.startTurn,
+  });
+  emitProjectionEvent(options, eventTurnStarted);
+
+  expect(observeAcceptedEvent).toHaveBeenCalledOnce();
+  expect(observeAcceptedEvent).toHaveBeenCalledWith({
+    notification: eventTurnStarted,
+    replay: "live",
+  });
+
+  attachProjection(options, mismatchedAttach);
+  markCommandsUnavailable(options);
+
+  expect(createQueueCoordinator).toHaveBeenCalledOnce();
+  expect(dispose).not.toHaveBeenCalled();
+
+  await screen.unmount();
+
+  expect(dispose).toHaveBeenCalledOnce();
+  expect(getCleanupConnectionCallCount()).toBe(1);
+
+  emitProjectionEvent(options, eventTurnStarted);
+  attachProjection(options, attachResponse);
+  markCommandsReady(options, commands);
+
+  expect(observeAcceptedEvent).toHaveBeenCalledOnce();
+  expect(createQueueCoordinator).toHaveBeenCalledOnce();
 });
 
 test("App cancels pending projection delta frame dispatch when unmounted", async () => {
