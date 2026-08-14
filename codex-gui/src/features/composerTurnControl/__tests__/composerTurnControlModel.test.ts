@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import {
-  buildPlainTextInput,
+  canRecoverComposerQueue,
   canSend,
   canStop,
   errorDescription,
@@ -13,14 +13,6 @@ const attachedStatus: GuiHostStatus = {
 };
 
 describe("composerTurnControlModel", () => {
-  it("builds plain text UserInput with text_elements", () => {
-    expect(buildPlainTextInput("Hello")).toEqual({
-      type: "text",
-      text: "Hello",
-      text_elements: [],
-    });
-  });
-
   it("requires attached identity, active subscription, thread id, and usable host status", () => {
     expect(
       isConnectionUsable({
@@ -72,24 +64,56 @@ describe("composerTurnControlModel", () => {
     expect(
       canSend({
         connectionUsable: true,
-        activeTurnId: null,
+        controllerReady: true,
         draft: "Hello",
         isSending: false,
+        recoveryCount: 0,
       }),
     ).toBe(true);
     expect(
-      canSend({ connectionUsable: true, activeTurnId: null, draft: "   ", isSending: false }),
+      canSend({
+        connectionUsable: true,
+        controllerReady: true,
+        draft: "   ",
+        isSending: false,
+        recoveryCount: 0,
+      }),
     ).toBe(false);
     expect(
       canSend({
         connectionUsable: true,
-        activeTurnId: "turn-1",
+        controllerReady: true,
         draft: "Hello",
         isSending: false,
+        recoveryCount: 0,
+      }),
+    ).toBe(true);
+    expect(
+      canSend({
+        connectionUsable: true,
+        controllerReady: true,
+        draft: "Hello",
+        isSending: true,
+        recoveryCount: 0,
       }),
     ).toBe(false);
     expect(
-      canSend({ connectionUsable: true, activeTurnId: null, draft: "Hello", isSending: true }),
+      canSend({
+        connectionUsable: true,
+        controllerReady: false,
+        draft: "Hello",
+        isSending: false,
+        recoveryCount: 0,
+      }),
+    ).toBe(false);
+    expect(
+      canSend({
+        connectionUsable: true,
+        controllerReady: true,
+        draft: "Hello",
+        isSending: false,
+        recoveryCount: 2,
+      }),
     ).toBe(false);
 
     expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: false })).toBe(
@@ -102,6 +126,71 @@ describe("composerTurnControlModel", () => {
     expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: true })).toBe(
       false,
     );
+  });
+
+  it.each([
+    {
+      caseName: "commands unavailable",
+      input: {
+        connectionUsable: false,
+        hasController: true,
+        recoveryCount: 2,
+        isRecovering: false,
+      },
+      expected: false,
+    },
+    {
+      caseName: "manual reconnect required",
+      input: {
+        connectionUsable: false,
+        hasController: true,
+        recoveryCount: 2,
+        isRecovering: false,
+      },
+      expected: false,
+    },
+    {
+      caseName: "no recovery batch",
+      input: {
+        connectionUsable: true,
+        hasController: true,
+        recoveryCount: 0,
+        isRecovering: false,
+      },
+      expected: false,
+    },
+    {
+      caseName: "recovery already running",
+      input: {
+        connectionUsable: true,
+        hasController: true,
+        recoveryCount: 2,
+        isRecovering: true,
+      },
+      expected: false,
+    },
+    {
+      caseName: "controller unavailable",
+      input: {
+        connectionUsable: true,
+        hasController: false,
+        recoveryCount: 2,
+        isRecovering: false,
+      },
+      expected: false,
+    },
+    {
+      caseName: "recovery available",
+      input: {
+        connectionUsable: true,
+        hasController: true,
+        recoveryCount: 2,
+        isRecovering: false,
+      },
+      expected: true,
+    },
+  ])("derives queue recovery availability for $caseName", ({ input, expected }) => {
+    expect(canRecoverComposerQueue(input)).toBe(expected);
   });
 
   it("extracts human-readable error descriptions", () => {

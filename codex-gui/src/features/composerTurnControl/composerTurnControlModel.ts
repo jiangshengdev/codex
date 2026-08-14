@@ -1,6 +1,5 @@
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import type { ThreadRuntimeSubscription } from "@/features/threadRuntime/threadRuntimeSlice";
-import type { UserInput } from "@codex-protocol/v2";
 
 export type ComposerAvailabilityInput = {
   canAdvanceThreadIdentity: boolean;
@@ -8,10 +7,6 @@ export type ComposerAvailabilityInput = {
   threadId: string | null;
   subscriptionState: ThreadRuntimeSubscription["state"] | null;
 };
-
-export function buildPlainTextInput(text: string): UserInput {
-  return { type: "text", text, text_elements: [] };
-}
 
 export function isConnectionUsable(input: ComposerAvailabilityInput): boolean {
   return (
@@ -25,15 +20,28 @@ export function isConnectionUsable(input: ComposerAvailabilityInput): boolean {
 
 export function canSend(input: {
   connectionUsable: boolean;
-  activeTurnId: string | null;
+  controllerReady: boolean;
   draft: string;
   isSending: boolean;
+  recoveryCount: number;
 }): boolean {
   return (
     input.connectionUsable &&
-    input.activeTurnId == null &&
+    input.controllerReady &&
     input.draft.trim().length > 0 &&
-    !input.isSending
+    !input.isSending &&
+    input.recoveryCount === 0
+  );
+}
+
+export function canRecoverComposerQueue(input: {
+  connectionUsable: boolean;
+  hasController: boolean;
+  recoveryCount: number;
+  isRecovering: boolean;
+}): boolean {
+  return (
+    input.connectionUsable && input.hasController && input.recoveryCount > 0 && !input.isRecovering
   );
 }
 

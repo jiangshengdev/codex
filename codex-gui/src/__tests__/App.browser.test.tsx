@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import {
   attachProjection,
   attachResponse,
@@ -21,7 +21,10 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
+import type {
+  GuiHostCommands,
+  StartGuiHostConnectionOptions,
+} from "@/features/guiHost/guiHostClient";
 import {
   attachReplacement,
   closedBackpressure,
@@ -29,6 +32,7 @@ import {
   eventItemCompleted,
   eventItemStarted,
   eventSubscriptionReplacement,
+  eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
@@ -42,6 +46,7 @@ import {
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  turnCompleted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
@@ -67,6 +72,47 @@ vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: tr
 
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
+
+const startTurnParamsAt = (
+  startTurn: Mock<GuiHostCommands["startTurn"]>,
+  index: number,
+): Parameters<GuiHostCommands["startTurn"]>[0] => {
+  const call = startTurn.mock.calls.at(index);
+  if (call == null) {
+    throw new Error(`startTurn call ${String(index + 1)} must be recorded`);
+  }
+  return call[0];
+};
+
+const expectStartTurnCalledOnceWithText = (
+  startTurn: Mock<GuiHostCommands["startTurn"]>,
+  text: string,
+): void => {
+  expect(startTurn).toHaveBeenCalledOnce();
+  const params = startTurnParamsAt(startTurn, 0);
+  const clientUserMessageId = params.clientUserMessageId;
+  expect(typeof clientUserMessageId).toBe("string");
+  expect(startTurn).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+    clientUserMessageId,
+    input: [{ type: "text", text, text_elements: [] }],
+  });
+};
+
+const expectStartTurnSecondCallWithText = (
+  startTurn: Mock<GuiHostCommands["startTurn"]>,
+  text: string,
+): void => {
+  expect(startTurn).toHaveBeenCalledTimes(2);
+  const params = startTurnParamsAt(startTurn, 1);
+  const clientUserMessageId = params.clientUserMessageId;
+  expect(typeof clientUserMessageId).toBe("string");
+  expect(startTurn).toHaveBeenNthCalledWith(2, {
+    threadId: launchThreadId,
+    clientUserMessageId,
+    input: [{ type: "text", text, text_elements: [] }],
+  });
+};
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
@@ -142,12 +188,31 @@ const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
   return { commandHandle, options, screen };
 };
 
+const renderActiveApp = async () => {
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
+    turn: inProgressTurn("turn-started-from-app"),
+  });
+  const commandHandle: GuiHostCommands = {
+    ...createGuiHostCommands(),
+    startTurn,
+  };
+  const screen = await renderWithProviders(<App />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const activeTurn = inProgressTurn("turn-active-queue");
+
+  attachProjection(options, attachWithTurns(attachResponse, [activeTurn]));
+  markHostAttached(options);
+  markCommandsReady(options, commandHandle);
+
+  return { activeTurn, options, screen, startTurn };
+};
+
 const expectAppComposerDisabled = async (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
 ): Promise<void> => {
   for (const control of [
     screen.getByPlaceholder("Message Codex"),
-    screen.getByRole("button", { name: "Send" }),
+    screen.getByRole("button", { name: "Send", exact: true }),
     screen.getByRole("button", { name: "Stop" }),
   ]) {
     await expect.element(control).toBeDisabled();
@@ -550,17 +615,88 @@ test("App classifies from the new snapshot after new launch params and attach", 
 });
 
 test("App passes ready commands to composer and sends plain text", async () => {
-  const commandHandle = createGuiHostCommands();
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
+    turn: inProgressTurn("turn-started-from-app"),
+  });
+  const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), startTurn };
   const { screen } = await renderReadyApp(commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Hello from App composer");
-  await screen.getByRole("button", { name: "Send" }).click();
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
 
-  expect(commandHandle.startTurn).toHaveBeenCalledWith({
-    threadId: launchThreadId,
-    clientUserMessageId: null,
-    input: [{ type: "text", text: "Hello from App composer", text_elements: [] }],
+  expectStartTurnCalledOnceWithText(startTurn, "Hello from App composer");
+});
+
+test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
+  const { activeTurn, options, screen, startTurn } = await renderActiveApp();
+
+  await screen.getByPlaceholder("Message Codex").fill("Queued from active turn");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+
+  await expect.element(screen.getByText("1 message queued")).toBeVisible();
+  await expect.element(screen.getByText("Queued from active turn")).not.toBeInTheDocument();
+  expect(startTurn).not.toHaveBeenCalled();
+
+  const completed = turnCompleted(eventTurnCompleted, "commit-active-terminal", {
+    ...activeTurn,
+    status: "completed",
   });
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(completed, { parentCommitId: attachResponse.snapshot.headCommitId }),
+  );
+
+  expectStartTurnCalledOnceWithText(startTurn, "Queued from active turn");
+  await expect.element(screen.getByText("Queued from active turn")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+});
+
+test("App does not auto-start interrupted messages and recovers them in FIFO order", async () => {
+  const { activeTurn, options, screen, startTurn } = await renderActiveApp();
+  const composer = screen.getByPlaceholder("Message Codex");
+
+  await composer.fill("First interrupted message");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await composer.fill("Second interrupted message");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+
+  const interrupted = turnCompleted(eventTurnCompleted, "commit-active-interrupted", {
+    ...activeTurn,
+    status: "interrupted",
+  });
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(interrupted, { parentCommitId: attachResponse.snapshot.headCommitId }),
+  );
+
+  await expect.element(screen.getByText("2 messages have not been sent")).toBeVisible();
+  expect(startTurn).not.toHaveBeenCalled();
+  await composer.fill("Draft preserved during recovery");
+  await expect.element(composer).toBeEnabled();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+
+  await screen.getByRole("button", { name: "Continue sending" }).click();
+
+  expectStartTurnCalledOnceWithText(startTurn, "First interrupted message");
+  await expect.element(composer).toHaveValue("Draft preserved during recovery");
+
+  const recoveredFirstCompleted = turnCompleted(
+    eventTurnCompleted,
+    "commit-recovered-first",
+    baseTurn("turn-started-from-app"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredFirstCompleted, {
+      parentCommitId: interrupted.commitId,
+    }),
+  );
+
+  expectStartTurnSecondCallWithText(startTurn, "Second interrupted message");
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  expect(startTurn).toHaveBeenCalledTimes(2);
+  await expect.element(screen.getByText("1 message queued")).toBeVisible();
 });
 
 test("App enables Stop for the current active turn", async () => {
@@ -573,7 +709,7 @@ test("App enables Stop for the current active turn", async () => {
     throw new Error("fixture must contain a turnStarted projection event");
   }
 
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
   await screen.getByRole("button", { name: "Stop" }).click();
 
@@ -962,7 +1098,9 @@ test("App owns one queue coordinator for the matching attached launch thread unt
       recoveryCount: 0,
       isRecovering: false,
     }),
-    subscribe: vi.fn<ComposerInputQueueCoordinator["subscribe"]>().mockReturnValue(vi.fn()),
+    subscribe: vi
+      .fn<ComposerInputQueueCoordinator["subscribe"]>()
+      .mockReturnValue(vi.fn<() => void>()),
     dispose,
   } satisfies ComposerInputQueueCoordinator;
   createQueueCoordinator.mockReturnValue(queueCoordinator);
@@ -1061,7 +1199,7 @@ test("App does not render optimistic user messages after send", async () => {
   const { screen } = await renderReadyApp(commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Not optimistic");
-  await screen.getByRole("button", { name: "Send" }).click();
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect.element(screen.getByText("Not optimistic")).not.toBeInTheDocument();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();

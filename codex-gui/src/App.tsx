@@ -1,4 +1,4 @@
-import { useDebugValue, useState } from "react";
+import { useState } from "react";
 import { AppShell } from "./features/appShell/AppShell";
 import { GuiHostConnectionBridge } from "./features/appShell/GuiHostConnectionBridge";
 import type { BrowserLaunchParams } from "./features/browserLaunch/browserLaunchParams";
@@ -13,10 +13,6 @@ function App() {
   const [launchParams, setLaunchParams] = useState<BrowserLaunchParams | null>(null);
   const [composerInputQueueController, setComposerInputQueueController] =
     useState<ComposerInputQueueCoordinator | null>(null);
-  useDebugValue(composerInputQueueController, (controller) =>
-    controller == null ? "composer queue unavailable" : "composer queue ready",
-  );
-
   return (
     <>
       <GuiHostConnectionBridge
@@ -25,7 +21,12 @@ function App() {
         setLaunchParams={setLaunchParams}
         setComposerInputQueueController={setComposerInputQueueController}
       />
-      <AppShell status={status} commands={commands} launchParams={launchParams} />
+      <AppShell
+        status={status}
+        commands={commands}
+        composerInputQueueController={composerInputQueueController}
+        launchParams={launchParams}
+      />
     </>
   );
 }

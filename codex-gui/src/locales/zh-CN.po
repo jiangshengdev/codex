@@ -17,6 +17,16 @@ msgstr ""
 msgid "... and {count} more"
 msgstr "…另有 {count} 项"
 
+#. placeholder {0}: queueSnapshot.recoveryCount
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:195
+msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
+msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
+
+#. placeholder {0}: queueSnapshot.queuedCount
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:185
+msgid "{0, plural, one {# message queued} other {# messages queued}}"
+msgstr "{0, plural, one {已排队 # 条} other {已排队 # 条}}"
+
 #. Disclosure label showing how many intermediate transcript updates it contains
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:457
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
@@ -61,6 +71,10 @@ msgstr "连接已中断，需要重新连接。"
 #: src/NotFoundPage.tsx:34
 msgid "Contact support"
 msgstr "联系支持"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:208
+msgid "Continue sending"
+msgstr "继续发送"
 
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:129
@@ -127,17 +141,17 @@ msgstr "已中断 `{agentPath}`"
 msgid "Interrupted."
 msgstr "已中断。"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:166
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:177
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:149
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:160
 msgid "Message composer"
 msgstr "消息输入区"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:85
-msgid "Message failed to send"
-msgstr "消息发送失败"
+#~ msgid "Message failed to send"
+#~ msgstr "消息发送失败"
 
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:285
@@ -190,7 +204,7 @@ msgstr "运行中"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:233
 msgid "Send"
 msgstr "发送"
 
@@ -230,11 +244,11 @@ msgstr "已启动 {receiver}（{reasoningEffort}）"
 msgid "Started `{agentPath}`"
 msgstr "已启动 `{agentPath}`"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:116
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -243,7 +257,7 @@ msgstr "停止失败"
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
-#: src/features/appShell/AppShell.tsx:34
+#: src/features/appShell/AppShell.tsx:36
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 

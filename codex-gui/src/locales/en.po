@@ -17,6 +17,16 @@ msgstr ""
 msgid "... and {count} more"
 msgstr "... and {count} more"
 
+#. placeholder {0}: queueSnapshot.recoveryCount
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:195
+msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
+msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
+
+#. placeholder {0}: queueSnapshot.queuedCount
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:185
+msgid "{0, plural, one {# message queued} other {# messages queued}}"
+msgstr "{0, plural, one {# message queued} other {# messages queued}}"
+
 #. Disclosure label showing how many intermediate transcript updates it contains
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:457
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
@@ -61,6 +71,10 @@ msgstr "Connection interrupted. Reconnect required."
 #: src/NotFoundPage.tsx:34
 msgid "Contact support"
 msgstr "Contact support"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:208
+msgid "Continue sending"
+msgstr "Continue sending"
 
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:129
@@ -127,17 +141,17 @@ msgstr "Interrupted `{agentPath}`"
 msgid "Interrupted."
 msgstr "Interrupted."
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:166
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:177
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:149
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:160
 msgid "Message composer"
 msgstr "Message composer"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:85
-msgid "Message failed to send"
-msgstr "Message failed to send"
+#~ msgid "Message failed to send"
+#~ msgstr "Message failed to send"
 
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:285
@@ -190,7 +204,7 @@ msgstr "Running"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:189
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:233
 msgid "Send"
 msgstr "Send"
 
@@ -230,11 +244,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started `{agentPath}`"
 msgstr "Started `{agentPath}`"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:105
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:116
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -243,7 +257,7 @@ msgstr "Stop failed"
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/appShell/AppShell.tsx:34
+#: src/features/appShell/AppShell.tsx:36
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
