@@ -6,6 +6,7 @@ import {
   eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
+  eventReasoningSummaryTextDelta,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
@@ -17,6 +18,8 @@ import {
   itemCompleted,
   itemStarted,
   planItem,
+  reasoningItem,
+  reasoningSummaryTextDelta,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
@@ -116,42 +119,72 @@ describe("transcript state scroll signals", () => {
     );
   });
 
-  it("does not advance the live scroll pulse for an empty started assistant item", () => {
+  it("signals reasoning title changes and only committed visible replacements", () => {
     const store = makeStore();
-
+    const turnId = "turn-reasoning-scroll";
+    const itemId = "reasoning-scroll";
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
     const initialPulse = selectTranscriptLiveScrollPulse(store.getState());
-
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-started-scroll-pulse",
-          "turn-started-scroll-pulse",
-          agentMessage("agent-started-scroll-pulse", ""),
-        ),
-        replay: "live",
-      }),
+    const signals = () => [
+      selectTranscriptLiveScrollPulse(store.getState()),
+      selectCommittedTranscriptScrollCommitKey(store.getState()),
+    ];
+    const observed = [signals()];
+    const event = (notification: ReturnType<typeof itemStarted>) =>
+      store.dispatch(threadRuntimeEventBuffered({ notification, replay: "live" }));
+    const delta = (targetId: string, text: string, summaryIndex = 0) =>
+      store.dispatch(
+        threadRuntimeDeltasAccepted({
+          notifications: [
+            reasoningSummaryTextDelta(
+              eventReasoningSummaryTextDelta,
+              turnId,
+              targetId,
+              text,
+              summaryIndex,
+            ),
+          ],
+        }),
+      );
+    event(itemStarted(eventItemStarted, "reasoning-started", turnId, reasoningItem(itemId, [])));
+    observed.push(signals());
+    delta(itemId, "**First title**");
+    observed.push(signals());
+    delta(itemId, "**Updated title**", 1);
+    observed.push(signals());
+    event(
+      itemCompleted(
+        eventItemCompleted,
+        "reasoning-completed",
+        turnId,
+        reasoningItem(itemId, ["Authoritative summary"]),
+      ),
     );
-
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
-
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemStarted(
-          eventItemStarted,
-          "commit-started-scroll-pulse-duplicate",
-          "turn-started-scroll-pulse",
-          agentMessage("agent-started-scroll-pulse", "Updated duplicate"),
-        ),
-        replay: "live",
-      }),
+    observed.push(signals());
+    event(itemStarted(eventItemStarted, "visible-started", turnId, reasoningItem("visible", [])));
+    delta("visible", "**Visible title**");
+    observed.push(signals());
+    event(
+      itemCompleted(eventItemCompleted, "visible-removed", turnId, reasoningItem("visible", [])),
     );
-
-    expect(selectTranscriptLiveScrollPulse(store.getState())).toBe(initialPulse);
-    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+    observed.push(signals());
+    event(itemStarted(eventItemStarted, "empty-started", turnId, reasoningItem("empty", [])));
+    event(itemCompleted(eventItemCompleted, "empty-removed", turnId, reasoningItem("empty", [])));
+    observed.push(signals());
+    expect(observed).toEqual([
+      [initialPulse, attachKey],
+      [initialPulse, attachKey],
+      [initialPulse + 1, attachKey],
+      [initialPulse + 2, attachKey],
+      [initialPulse + 2, "event:reasoning-completed"],
+      [initialPulse + 3, "event:reasoning-completed"],
+      [initialPulse + 3, "event:visible-removed"],
+      [initialPulse + 3, "event:visible-removed"],
+    ]);
+    expect(
+      selectTranscriptEntry(store.getState(), transcriptEntryIdFor(turnId, "empty")),
+    ).toBeNull();
   });
 
   it("advances a live scroll pulse for live assistant display changes without changing the committed scroll key", () => {

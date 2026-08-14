@@ -21,6 +21,7 @@ import {
   imageInput,
   localAudioInput,
   planItem,
+  reasoningItem,
   sleepItem,
   subAgentActivity,
   textInput,
@@ -46,6 +47,7 @@ describe("transcript state snapshot reducer", () => {
         ]),
         agentMessage("agent-snapshot", "**Plain** text"),
         planItem("plan-snapshot"),
+        reasoningItem("reasoning-snapshot", [" **First** ", " ", "\nSecond\n"], ["raw reasoning"]),
       ]),
     ]);
     const store = makeStore();
@@ -58,8 +60,8 @@ describe("transcript state snapshot reducer", () => {
       status: "completed",
       originalFirstItemId: "user-snapshot",
       leadingPromptEntryId: transcriptEntryIdFor("turn-snapshot", "user-snapshot"),
-      middleChunkIds: [],
-      middleEntryCount: 0,
+      middleChunkIds: ["turn-snapshot:chunk:0"],
+      middleEntryCount: 1,
       finalAssistantEntryIds: [transcriptEntryIdFor("turn-snapshot", "agent-snapshot")],
     });
     expect(
@@ -87,6 +89,30 @@ describe("transcript state snapshot reducer", () => {
       role: "assistant",
       rendering: { mode: "staticMarkdown", source: "**Plain** text" },
       revision: 0,
+    });
+    const reasoningEntryId = transcriptEntryIdFor("turn-snapshot", "reasoning-snapshot");
+    expect({
+      stored: store.getState().transcriptState.entriesById[reasoningEntryId],
+      views: selectTranscriptChunk(store.getState(), "turn-snapshot:chunk:0")?.entries,
+    }).toStrictEqual({
+      stored: {
+        type: "reasoning",
+        id: "reasoning-snapshot",
+        turnId: "turn-snapshot",
+        lifecycle: "completed",
+        summaryParts: ["**First**", "Second"],
+        revision: 0,
+      },
+      views: [
+        {
+          type: "reasoning",
+          id: "reasoning-snapshot",
+          turnId: "turn-snapshot",
+          lifecycle: "completed",
+          source: "**First**\n\nSecond",
+          revision: 0,
+        },
+      ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
   });

@@ -14,6 +14,7 @@ import {
   collabAgentToolCall,
   itemCompleted,
   itemStarted,
+  reasoningItem,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -30,10 +31,10 @@ import {
 } from "../transcriptStateSlice";
 
 describe("transcript state replay and event dedup", () => {
-  it("ignores snapshot duplicate live items without changing transcript or scroll key", () => {
+  it("ignores snapshot duplicate reasoning without changing transcript or scroll key", () => {
     const store = makeStore();
     const snapshotTurn = baseTurn("turn-snapshot-duplicate", [
-      agentMessage("agent-snapshot-duplicate", "Already attached"),
+      reasoningItem("reasoning-snapshot-duplicate", ["Already attached"]),
     ]);
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
@@ -41,7 +42,7 @@ describe("transcript state replay and event dedup", () => {
     const beforeTurn = selectTranscriptTurn(store.getState(), "turn-snapshot-duplicate");
     const beforeEntry = selectTranscriptEntry(
       store.getState(),
-      transcriptEntryIdFor("turn-snapshot-duplicate", "agent-snapshot-duplicate"),
+      transcriptEntryIdFor("turn-snapshot-duplicate", "reasoning-snapshot-duplicate"),
     );
 
     store.dispatch(
@@ -50,7 +51,7 @@ describe("transcript state replay and event dedup", () => {
           eventItemCompleted,
           "commit-snapshot-duplicate",
           "turn-snapshot-duplicate",
-          agentMessage("agent-snapshot-duplicate", "Live replay should be ignored"),
+          reasoningItem("reasoning-snapshot-duplicate", ["Live replay should be ignored"]),
         ),
         replay: "snapshotDuplicate",
       }),
@@ -63,7 +64,7 @@ describe("transcript state replay and event dedup", () => {
     expect(
       selectTranscriptEntry(
         store.getState(),
-        transcriptEntryIdFor("turn-snapshot-duplicate", "agent-snapshot-duplicate"),
+        transcriptEntryIdFor("turn-snapshot-duplicate", "reasoning-snapshot-duplicate"),
       ),
     ).toStrictEqual(beforeEntry);
   });
@@ -116,17 +117,19 @@ describe("transcript state replay and event dedup", () => {
     ).toStrictEqual(beforeEntry);
   });
 
-  it("uses commitId to avoid applying the same live notification twice", () => {
+  it("uses commitId to keep repeated completed reasoning in one entry and count", () => {
     const store = makeStore();
+    const turnId = "turn-reasoning-duplicate";
+    const itemId = "reasoning-duplicate";
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
-          "commit-duplicate",
-          "turn-duplicate",
-          agentMessage("agent-first", "First"),
+          "commit-reasoning-duplicate",
+          turnId,
+          reasoningItem(itemId, ["First"]),
         ),
         replay: "live",
       }),
@@ -135,29 +138,42 @@ describe("transcript state replay and event dedup", () => {
       threadRuntimeEventBuffered({
         notification: itemCompleted(
           eventItemCompleted,
-          "commit-duplicate",
-          "turn-duplicate",
-          agentMessage("agent-second", "Second should be ignored"),
+          "commit-reasoning-duplicate",
+          turnId,
+          reasoningItem(itemId, ["Second authoritative summary"]),
         ),
         replay: "live",
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-duplicate")).toMatchObject({
-      finalAssistantEntryIds: [transcriptEntryIdFor("turn-duplicate", "agent-first")],
-    });
-    expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-duplicate", "agent-first"),
-      ),
-    ).toStrictEqual({
-      type: "message",
-      id: "agent-first",
-      turnId: "turn-duplicate",
-      role: "assistant",
-      rendering: { mode: "staticMarkdown", source: "First" },
-      revision: 0,
+    expect({
+      turn: selectTranscriptTurn(store.getState(), turnId),
+      chunk: selectTranscriptChunk(store.getState(), `${turnId}:chunk:0`),
+    }).toStrictEqual({
+      turn: {
+        id: turnId,
+        status: "inProgress",
+        originalFirstItemId: itemId,
+        leadingPromptEntryId: null,
+        middleChunkIds: [`${turnId}:chunk:0`],
+        middleEntryCount: 1,
+        finalAssistantEntryIds: [],
+      },
+      chunk: {
+        id: `${turnId}:chunk:0`,
+        turnId,
+        revision: 1,
+        entries: [
+          {
+            type: "reasoning",
+            id: itemId,
+            turnId,
+            lifecycle: "completed",
+            source: "First",
+            revision: 0,
+          },
+        ],
+      },
     });
   });
 
