@@ -80,11 +80,16 @@ test("renders committed user and assistant messages from an attached baseline", 
 test("renders accessible sub-agent activity and folds it after the final answer", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
   const turnId = "turn-sub-agent-activity-surface";
+  const startedTitle = "Started agents/browser-starter";
+  const spawnedTitle = "Spawned agents/browser-reviewer (gpt-5 high)";
+  const interactedTitle = "Interacted with agents/browser-reviewer";
+  const interruptedTitle = "Interrupted agents/browser-worker";
   const activityTitles = [
-    "Started `agents/browser-starter`",
-    "Spawned agents/browser-reviewer (gpt-5 high)",
-    "Interacted with `agents/browser-reviewer`",
-    "Interrupted `agents/browser-worker`",
+    startedTitle,
+    spawnedTitle,
+    interactedTitle,
+    interactedTitle,
+    interruptedTitle,
   ];
 
   store.dispatch(
@@ -109,6 +114,11 @@ test("renders accessible sub-agent activity and folds it after the final answer"
             "agents/browser-reviewer",
           ),
           subAgentActivity(
+            "activity-sub-agent-interacted-again-surface",
+            "interacted",
+            "agents/browser-reviewer",
+          ),
+          subAgentActivity(
             "activity-sub-agent-interrupted-surface",
             "interrupted",
             "agents/browser-worker",
@@ -118,25 +128,42 @@ test("renders accessible sub-agent activity and folds it after the final answer"
     ),
   );
 
-  const activities = activityTitles.map((title) => screen.getByRole("article", { name: title }));
-  const [startedActivity, spawnedActivity, interactedActivity, interruptedActivity] = activities;
-  if (
-    startedActivity == null ||
-    spawnedActivity == null ||
-    interactedActivity == null ||
-    interruptedActivity == null
-  ) {
-    throw new Error("Expected all four activity locators");
-  }
+  const startedActivity = screen.getByRole("article", { name: startedTitle });
+  const spawnedActivity = screen.getByRole("article", { name: spawnedTitle });
+  const interactedActivities = screen.getByRole("article", { name: interactedTitle });
+  const interactedActivity = interactedActivities.nth(0);
+  const repeatedInteractedActivity = interactedActivities.nth(1);
+  const interruptedActivity = screen.getByRole("article", { name: interruptedTitle });
+  const activities = [
+    startedActivity,
+    spawnedActivity,
+    interactedActivity,
+    repeatedInteractedActivity,
+    interruptedActivity,
+  ];
   for (const activity of activities) {
     await expect.element(activity).toBeVisible();
     await expect.element(activity).not.toHaveAccessibleDescription();
-    expect(
-      activity
-        .element()
-        .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-    ).toHaveLength(0);
   }
+  for (const [activity, agentPath] of [
+    [startedActivity, "agents/browser-starter"],
+    [interactedActivity, "agents/browser-reviewer"],
+    [repeatedInteractedActivity, "agents/browser-reviewer"],
+    [interruptedActivity, "agents/browser-worker"],
+  ] as const) {
+    const tagGroup = activity.getByRole("grid", { name: agentPath });
+    const tag = tagGroup.getByRole("row", { name: agentPath });
+    await expect.element(tagGroup).toBeVisible();
+    await expect.element(tag).toBeVisible();
+    await expect.element(tag).toHaveTextContent(agentPath);
+    await expect.element(tag).toHaveAttribute("tabindex", "0");
+    await expect.element(tag).not.toHaveAttribute("aria-selected");
+    await expect.element(tagGroup.getByRole("button")).not.toBeInTheDocument();
+    await expect.element(tagGroup.getByRole("link")).not.toBeInTheDocument();
+  }
+  await expect
+    .element(spawnedActivity.getByRole("grid", { name: "agents/browser-reviewer" }))
+    .not.toBeInTheDocument();
   const activityGroup = startedActivity
     .element()
     .closest<HTMLElement>(".committed-transcript-activity-group");
@@ -147,12 +174,18 @@ test("renders accessible sub-agent activity and folds it after the final answer"
         activity.element().closest(".committed-transcript-activity-group") === activityGroup,
     ),
   ).toBe(true);
+  expect(activityGroup?.textContent).not.toMatch(/[•└`]/u);
   await expect.element(spawnedActivity.getByText("Review browser activity")).toBeVisible();
-  for (const activity of [startedActivity, interactedActivity, interruptedActivity]) {
+  for (const activity of [
+    startedActivity,
+    interactedActivity,
+    repeatedInteractedActivity,
+    interruptedActivity,
+  ]) {
     await expect.element(activity.getByText("Review browser activity")).not.toBeInTheDocument();
   }
   await expect
-    .element(screen.getByRole("button", { name: "Intermediate updates · 4 items" }))
+    .element(screen.getByRole("button", { name: "Intermediate updates · 5 items" }))
     .toBeDisabled();
 
   store.dispatch(
@@ -172,7 +205,7 @@ test("renders accessible sub-agent activity and folds it after the final answer"
     await expect.element(activity).not.toBeInTheDocument();
   }
 
-  const trigger = screen.getByRole("button", { name: "Intermediate updates · 4 items" });
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 5 items" });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
@@ -185,7 +218,7 @@ test("renders accessible sub-agent activity and folds it after the final answer"
 test("separates activity groups around middle messages", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
   const turnId = "turn-activity-message-boundary";
-  const beforeTitle = "Started `agents/before-message`";
+  const beforeTitle = "Started agents/before-message";
   const afterTitle = "Closed agents/after-message";
 
   store.dispatch(
@@ -227,8 +260,8 @@ test("separates activity groups around middle messages", async () => {
 test("separates activity groups around middle status entries", async () => {
   const turnId = "turn-activity-status-boundary";
   const chunkId = `${turnId}:chunk:0`;
-  const beforeTitle = "Started `agents/before-status`";
-  const afterTitle = "Interrupted `agents/after-status`";
+  const beforeTitle = "Started agents/before-status";
+  const afterTitle = "Interrupted agents/after-status";
   const sourceStore = makeStore();
   sourceStore.dispatch(
     threadRuntimeAttached(
@@ -350,6 +383,7 @@ test("renders terminal collab activity accessibly and restores its order after e
 test("localizes transcript copy without rebuilding semantic activity views", async () => {
   const turnId = "turn-locale-surface";
   const activityId = "activity-locale-surface";
+  const interactedActivityId = "activity-interacted-locale-surface";
   const waitId = "collab-wait-locale-surface";
   const agentPath = "agents/locale-worker";
   const agentThreadId = "thread-locale-worker";
@@ -361,6 +395,7 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           subAgentActivity(activityId, "started", agentPath),
+          subAgentActivity(interactedActivityId, "interacted", agentPath),
           collabAgentToolCall(waitId, "wait", "completed", {
             agentsStates: {
               [agentThreadId]: collabAgentState("completed", rawMessage),
@@ -382,11 +417,26 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
   await expect.element(englishRegion).toBeVisible();
   await expect.element(englishTurn).toHaveTextContent("Completed");
   await expect
-    .element(englishTurn.getByRole("button", { name: "Intermediate updates · 2 items" }))
+    .element(englishTurn.getByRole("button", { name: "Intermediate updates · 3 items" }))
     .toBeDisabled();
-  await expect
-    .element(englishTurn.getByRole("article", { name: `Started \`${agentPath}\`` }))
-    .toBeVisible();
+  const englishStartedActivity = englishTurn.getByRole("article", {
+    name: `Started ${agentPath}`,
+  });
+  const englishAgentTag = englishStartedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(englishStartedActivity).toBeVisible();
+  await expect.element(englishAgentTag).toBeVisible();
+  expect(englishStartedActivity.element().textContent).toBe(`Started ${agentPath}`);
+  const englishInteractedActivity = englishTurn.getByRole("article", {
+    name: `Interacted with ${agentPath}`,
+  });
+  const englishInteractedAgentTag = englishInteractedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(englishInteractedActivity).toBeVisible();
+  await expect.element(englishInteractedAgentTag).toBeVisible();
+  expect(englishInteractedActivity.element().textContent).toBe(`Interacted with ${agentPath}`);
   await expect
     .element(englishTurn.getByRole("article", { name: "Finished waiting" }))
     .toHaveTextContent(`${agentThreadId}: Completed - ${rawMessage}`);
@@ -402,10 +452,25 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
 
   await expect.element(chineseRegion).toBeVisible();
   await expect.element(chineseTurn).toHaveTextContent("已完成");
-  await expect.element(chineseTurn.getByRole("button", { name: "中间更新 · 2 项" })).toBeDisabled();
-  await expect
-    .element(chineseTurn.getByRole("article", { name: `已启动 \`${agentPath}\`` }))
-    .toBeVisible();
+  await expect.element(chineseTurn.getByRole("button", { name: "中间更新 · 3 项" })).toBeDisabled();
+  const chineseStartedActivity = chineseTurn.getByRole("article", {
+    name: `已启动 ${agentPath}`,
+  });
+  const chineseAgentTag = chineseStartedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(chineseStartedActivity).toBeVisible();
+  await expect.element(chineseAgentTag).toBeVisible();
+  expect(chineseStartedActivity.element().textContent).toBe(`已启动${agentPath}`);
+  const chineseInteractedActivity = chineseTurn.getByRole("article", {
+    name: `已与 ${agentPath} 交互`,
+  });
+  const chineseInteractedAgentTag = chineseInteractedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(chineseInteractedActivity).toBeVisible();
+  await expect.element(chineseInteractedAgentTag).toBeVisible();
+  expect(chineseInteractedActivity.element().textContent).toBe(`已与${agentPath}交互`);
   await expect
     .element(chineseTurn.getByRole("article", { name: "等待结束" }))
     .toHaveTextContent(`${agentThreadId}：已完成：${rawMessage}`);
@@ -958,10 +1023,10 @@ test("renders one collapsed temporary module for a turn split across chunks", as
         `agents/cross-chunk-${String(index)}`,
       ),
   );
-  const firstActivityTitle = "Started `agents/cross-chunk-0`";
-  const lastActivityTitle = `Started \`agents/cross-chunk-${String(
+  const firstActivityTitle = "Started agents/cross-chunk-0";
+  const lastActivityTitle = `Started agents/cross-chunk-${String(
     TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
-  )}\``;
+  )}`;
 
   store.dispatch(
     threadRuntimeAttached(

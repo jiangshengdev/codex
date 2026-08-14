@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
+import { memo, useId, useState, type ReactNode } from "react";
+import { Alert, Button, Card, Chip, Disclosure, Tag, TagGroup, Typography } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useAppSelector } from "@/app/hooks";
 import {
@@ -38,29 +38,46 @@ const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering
   return exhaustiveRendering;
 };
 
-const ActivityEntryRow = ({ title, details }: { title: string; details: readonly string[] }) => (
-  <article
-    aria-label={title}
-    className="committed-transcript-entry committed-transcript-entry-activity grid min-w-0 gap-1"
-  >
-    <Card.Title className="flex min-w-0 items-start gap-2 text-sm leading-6 font-normal">
-      <span aria-hidden="true">•</span>
-      <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{title}</span>
-    </Card.Title>
-    {details.length > 0 ? (
-      <Card.Description className="grid min-w-0 gap-1">
-        {details.map((detail, index) => (
-          <span className="flex min-w-0 items-start gap-2" key={`${String(index)}:${detail}`}>
-            <span aria-hidden="true" className="w-3 shrink-0">
-              {index === 0 ? "└" : ""}
+type RenderedActivityDetail = {
+  key: string;
+  content: ReactNode;
+};
+
+const ActivityEntryRow = ({
+  title,
+  details,
+}: {
+  title: ReactNode;
+  details: readonly RenderedActivityDetail[];
+}) => {
+  const titleId = useId();
+
+  return (
+    <article
+      aria-labelledby={titleId}
+      className="committed-transcript-entry committed-transcript-entry-activity grid min-w-0 gap-1"
+    >
+      <Card.Title
+        className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-6 font-normal"
+        id={titleId}
+      >
+        {title}
+      </Card.Title>
+      {details.length > 0 ? (
+        <Card.Description className="grid min-w-0 gap-1 pl-5">
+          {details.map((detail) => (
+            <span
+              className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word"
+              key={detail.key}
+            >
+              {detail.content}
             </span>
-            <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{detail}</span>
-          </span>
-        ))}
-      </Card.Description>
-    ) : null}
-  </article>
-);
+          ))}
+        </Card.Description>
+      ) : null}
+    </article>
+  );
+};
 
 type TranscriptActivityEntryView = Extract<
   TranscriptEntryView,
@@ -68,6 +85,21 @@ type TranscriptActivityEntryView = Extract<
 >;
 
 type TranscriptActivityCopy = TranscriptActivityEntryView["title"];
+
+type TranscriptTextActivityCopy = Exclude<
+  TranscriptActivityCopy,
+  { kind: "agentStarted" | "agentInteracted" | "agentInterrupted" }
+>;
+
+const AgentPathTag = ({ agentPath }: { agentPath: string }) => (
+  <TagGroup aria-label={agentPath} selectionMode="none" size="sm" variant="default">
+    <TagGroup.List>
+      <Tag id={agentPath} textValue={agentPath}>
+        {agentPath}
+      </Tag>
+    </TagGroup.List>
+  </TagGroup>
+);
 
 const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }) => {
   const { t } = useLingui();
@@ -163,29 +195,8 @@ const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }
     });
   };
 
-  const copyText = (copy: TranscriptActivityCopy): string => {
+  const copyText = (copy: TranscriptTextActivityCopy): string => {
     switch (copy.kind) {
-      case "agentStarted": {
-        const agentPath = copy.agentPath;
-        return t({
-          comment: "Activity showing the raw path of a sub-agent that started",
-          message: `Started \`${agentPath}\``,
-        });
-      }
-      case "agentInteracted": {
-        const agentPath = copy.agentPath;
-        return t({
-          comment: "Activity showing the raw path of a sub-agent that was contacted",
-          message: `Interacted with \`${agentPath}\``,
-        });
-      }
-      case "agentInterrupted": {
-        const agentPath = copy.agentPath;
-        return t({
-          comment: "Activity showing the raw path of a sub-agent that was interrupted",
-          message: `Interrupted \`${agentPath}\``,
-        });
-      }
       case "agentResuming": {
         const receiver = copy.receiver;
         return t({
@@ -290,10 +301,55 @@ const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }
     return exhaustiveCopy;
   };
 
-  const title = copyText(entry.title);
-  const details = entry.details.map((detail) =>
-    detail.kind === "raw" ? detail.text : copyText(detail.copy),
-  );
+  const renderCopy = (copy: TranscriptActivityCopy): ReactNode => {
+    switch (copy.kind) {
+      case "agentStarted": {
+        const agentPath = copy.agentPath;
+        return (
+          <Trans comment="Activity showing the raw path of a sub-agent that started">
+            Started <AgentPathTag agentPath={agentPath} />
+          </Trans>
+        );
+      }
+      case "agentInteracted": {
+        const agentPath = copy.agentPath;
+        return (
+          <Trans comment="Activity showing the raw path of a sub-agent that was contacted">
+            Interacted with <AgentPathTag agentPath={agentPath} />
+          </Trans>
+        );
+      }
+      case "agentInterrupted": {
+        const agentPath = copy.agentPath;
+        return (
+          <Trans comment="Activity showing the raw path of a sub-agent that was interrupted">
+            Interrupted <AgentPathTag agentPath={agentPath} />
+          </Trans>
+        );
+      }
+      default:
+        return copyText(copy);
+    }
+  };
+
+  const title = renderCopy(entry.title);
+  const details = entry.details.map((detail, index): RenderedActivityDetail => {
+    if (detail.kind === "raw") {
+      return {
+        key: `${String(index)}:raw:${detail.text}`,
+        content: detail.text,
+      };
+    }
+
+    const copy = detail.copy;
+    return {
+      key:
+        "agentPath" in copy
+          ? `${String(index)}:copy:${copy.kind}:${copy.agentPath}`
+          : `${String(index)}:copy:${copy.kind}`,
+      content: renderCopy(copy),
+    };
+  });
   return <ActivityEntryRow details={details} title={title} />;
 };
 
