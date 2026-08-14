@@ -31,6 +31,7 @@ import {
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptEntry,
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
@@ -81,6 +82,7 @@ test("renders accessible sub-agent activity and folds it after the final answer"
   const turnId = "turn-sub-agent-activity-surface";
   const activityTitles = [
     "Started `agents/browser-starter`",
+    "Spawned agents/browser-reviewer (gpt-5 high)",
     "Interacted with `agents/browser-reviewer`",
     "Interrupted `agents/browser-worker`",
   ];
@@ -95,6 +97,12 @@ test("renders accessible sub-agent activity and folds it after the final answer"
             "started",
             "agents/browser-starter",
           ),
+          collabAgentToolCall("activity-collab-spawned-surface", "spawnAgent", "completed", {
+            receiverThreadIds: ["agents/browser-reviewer"],
+            prompt: "Review browser activity",
+            model: "gpt-5",
+            reasoningEffort: "high",
+          }),
           subAgentActivity(
             "activity-sub-agent-interacted-surface",
             "interacted",
@@ -111,6 +119,15 @@ test("renders accessible sub-agent activity and folds it after the final answer"
   );
 
   const activities = activityTitles.map((title) => screen.getByRole("article", { name: title }));
+  const [startedActivity, spawnedActivity, interactedActivity, interruptedActivity] = activities;
+  if (
+    startedActivity == null ||
+    spawnedActivity == null ||
+    interactedActivity == null ||
+    interruptedActivity == null
+  ) {
+    throw new Error("Expected all four activity locators");
+  }
   for (const activity of activities) {
     await expect.element(activity).toBeVisible();
     await expect.element(activity).not.toHaveAccessibleDescription();
@@ -120,8 +137,22 @@ test("renders accessible sub-agent activity and folds it after the final answer"
         .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
     ).toHaveLength(0);
   }
+  const activityGroup = startedActivity
+    .element()
+    .closest<HTMLElement>(".committed-transcript-activity-group");
+  expect(activityGroup).not.toBeNull();
+  expect(
+    activities.every(
+      (activity) =>
+        activity.element().closest(".committed-transcript-activity-group") === activityGroup,
+    ),
+  ).toBe(true);
+  await expect.element(spawnedActivity.getByText("Review browser activity")).toBeVisible();
+  for (const activity of [startedActivity, interactedActivity, interruptedActivity]) {
+    await expect.element(activity.getByText("Review browser activity")).not.toBeInTheDocument();
+  }
   await expect
-    .element(screen.getByRole("button", { name: "Intermediate updates · 3 items" }))
+    .element(screen.getByRole("button", { name: "Intermediate updates · 4 items" }))
     .toBeDisabled();
 
   store.dispatch(
@@ -141,7 +172,7 @@ test("renders accessible sub-agent activity and folds it after the final answer"
     await expect.element(activity).not.toBeInTheDocument();
   }
 
-  const trigger = screen.getByRole("button", { name: "Intermediate updates · 3 items" });
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 4 items" });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
@@ -149,6 +180,108 @@ test("renders accessible sub-agent activity and folds it after the final answer"
   for (const [index, title] of activityTitles.entries()) {
     await expect.element(turnEntries.nth(index + 1)).toHaveAccessibleName(title);
   }
+});
+
+test("separates activity groups around middle messages", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-activity-message-boundary";
+  const beforeTitle = "Started `agents/before-message`";
+  const afterTitle = "Closed agents/after-message";
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          subAgentActivity("activity-before-message", "started", "agents/before-message"),
+          agentMessage("agent-activity-boundary", "Activity boundary message", "commentary"),
+          collabAgentToolCall("activity-after-message", "closeAgent", "completed", {
+            receiverThreadIds: ["agents/after-message"],
+          }),
+        ]),
+      ]),
+    ),
+  );
+
+  const before = screen.getByRole("article", { name: beforeTitle });
+  const boundary = screen.getByText("Activity boundary message");
+  const after = screen.getByRole("article", { name: afterTitle });
+  await expect.element(before).toBeVisible();
+  await expect.element(boundary).toBeVisible();
+  await expect.element(after).toBeVisible();
+
+  const beforeGroup = before.element().closest(".committed-transcript-activity-group");
+  const afterGroup = after.element().closest(".committed-transcript-activity-group");
+  expect(beforeGroup).not.toBeNull();
+  expect(afterGroup).not.toBeNull();
+  expect(beforeGroup).not.toBe(afterGroup);
+  expect(
+    boundary.element().closest("article")?.closest(".committed-transcript-activity-group"),
+  ).toBeNull();
+
+  const entries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  await expect.element(entries.nth(0)).toHaveAccessibleName(beforeTitle);
+  await expect.element(entries.nth(1)).toHaveTextContent("Activity boundary message");
+  await expect.element(entries.nth(2)).toHaveAccessibleName(afterTitle);
+});
+
+test("separates activity groups around middle status entries", async () => {
+  const turnId = "turn-activity-status-boundary";
+  const chunkId = `${turnId}:chunk:0`;
+  const beforeTitle = "Started `agents/before-status`";
+  const afterTitle = "Interrupted `agents/after-status`";
+  const sourceStore = makeStore();
+  sourceStore.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          subAgentActivity("activity-before-status", "started", "agents/before-status"),
+          subAgentActivity("activity-after-status", "interrupted", "agents/after-status"),
+        ]),
+      ]),
+    ),
+  );
+
+  const transcriptState = structuredClone(sourceStore.getState().transcriptState);
+  const chunk = transcriptState.chunksById[chunkId];
+  const turn = transcriptState.turnsById[turnId];
+  if (chunk == null || turn == null) {
+    throw new Error("Expected the activity fixture to create one transcript chunk");
+  }
+  const statusEntryId = transcriptEntryIdFor(turnId, "status-activity-boundary");
+  chunk.entryIds.splice(1, 0, statusEntryId);
+  transcriptState.entriesById[statusEntryId] = {
+    type: "status",
+    id: "status-activity-boundary",
+    turnId,
+    status: "interrupted",
+    revision: 0,
+  };
+  transcriptState.entryChunkById[statusEntryId] = chunkId;
+  turn.middleEntryCount += 1;
+
+  const screen = await renderWithProviders(<CommittedTranscriptSurface />, {
+    store: makeStore({ transcriptState }),
+  });
+  const before = screen.getByRole("article", { name: beforeTitle });
+  const status = screen.getByText("Interrupted.");
+  const after = screen.getByRole("article", { name: afterTitle });
+  await expect.element(before).toBeVisible();
+  await expect.element(status).toBeVisible();
+  await expect.element(after).toBeVisible();
+
+  const beforeGroup = before.element().closest(".committed-transcript-activity-group");
+  const afterGroup = after.element().closest(".committed-transcript-activity-group");
+  expect(beforeGroup).not.toBeNull();
+  expect(afterGroup).not.toBeNull();
+  expect(beforeGroup).not.toBe(afterGroup);
+  expect(
+    status.element().closest("article")?.closest(".committed-transcript-activity-group"),
+  ).toBeNull();
+
+  const entries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  await expect.element(entries.nth(0)).toHaveAccessibleName(beforeTitle);
+  await expect.element(entries.nth(1)).toHaveTextContent("Interrupted.");
+  await expect.element(entries.nth(2)).toHaveAccessibleName(afterTitle);
 });
 
 test("renders terminal collab activity accessibly and restores its order after expansion", async () => {
@@ -816,19 +949,25 @@ test("does not mount collapsed temporary markdown before expansion", async () =>
 
 test("renders one collapsed temporary module for a turn split across chunks", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
-  const commentaryMessages = Array.from({ length: 101 }, (_, index) =>
-    agentMessage(
-      `agent-cross-chunk-commentary-${String(index)}`,
-      `Cross chunk working note ${String(index)}`,
-      "commentary",
-    ),
+  const activityItems = Array.from(
+    { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1 },
+    (_, index) =>
+      subAgentActivity(
+        `activity-cross-chunk-${String(index)}`,
+        "started",
+        `agents/cross-chunk-${String(index)}`,
+      ),
   );
+  const firstActivityTitle = "Started `agents/cross-chunk-0`";
+  const lastActivityTitle = `Started \`agents/cross-chunk-${String(
+    TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  )}\``;
 
   store.dispatch(
     threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-temporary-cross-chunk", [
-          ...commentaryMessages,
+          ...activityItems,
           agentMessage(
             "agent-cross-chunk-final",
             "Visible final answer after chunk boundary",
@@ -840,13 +979,15 @@ test("renders one collapsed temporary module for a turn split across chunks", as
   );
 
   await expect.element(screen.getByText("Visible final answer after chunk boundary")).toBeVisible();
-  await expect.element(screen.getByText("Cross chunk working note 0")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("article", { name: firstActivityTitle }))
+    .not.toBeInTheDocument();
 
   const triggers = Array.from(
     document.querySelectorAll<HTMLButtonElement>(".committed-transcript-temporary-trigger"),
   );
   expect(triggers.map((trigger) => trigger.textContent)).toStrictEqual([
-    "Intermediate updates · 101 items",
+    `Intermediate updates · ${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1)} items`,
   ]);
   expect(triggers.map((trigger) => trigger.classList.contains("button--outline"))).toStrictEqual([
     true,
@@ -855,11 +996,30 @@ test("renders one collapsed temporary module for a turn split across chunks", as
     false,
   ]);
 
-  const trigger = screen.getByRole("button", { name: "Intermediate updates · 101 items" });
+  const trigger = screen.getByRole("button", {
+    name: `Intermediate updates · ${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1)} items`,
+  });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
-  await expect.element(screen.getByText("Cross chunk working note 0")).toBeVisible();
+  const firstActivity = screen.getByRole("article", { name: firstActivityTitle });
+  const lastActivity = screen.getByRole("article", { name: lastActivityTitle });
+  await expect.element(firstActivity).toBeVisible();
+  await expect.element(lastActivity).toBeVisible();
+  const activityGroups = Array.from(
+    document.querySelectorAll<HTMLElement>(".committed-transcript-activity-group"),
+  );
+  expect(activityGroups).toHaveLength(2);
+  expect(activityGroups.map((group) => group.querySelectorAll("article").length)).toStrictEqual([
+    TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+    1,
+  ]);
+  expect(firstActivity.element().closest(".committed-transcript-activity-group")).toBe(
+    activityGroups[0],
+  );
+  expect(lastActivity.element().closest(".committed-transcript-activity-group")).toBe(
+    activityGroups[1],
+  );
 });
 
 test("renders later user messages inside the intermediate disclosure", async () => {

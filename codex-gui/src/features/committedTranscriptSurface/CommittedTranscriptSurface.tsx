@@ -38,34 +38,28 @@ const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering
   return exhaustiveRendering;
 };
 
-const ActivityEntryShell = ({ title, details }: { title: string; details: readonly string[] }) => (
-  <Card
+const ActivityEntryRow = ({ title, details }: { title: string; details: readonly string[] }) => (
+  <article
     aria-label={title}
-    className="committed-transcript-entry committed-transcript-entry-activity min-w-0"
-    role="article"
-    variant="transparent"
+    className="committed-transcript-entry committed-transcript-entry-activity grid min-w-0 gap-1"
   >
-    <Card.Header className="grid min-w-0 gap-1">
-      <Card.Title className="flex min-w-0 items-start gap-2 text-sm leading-6 font-normal">
-        <span aria-hidden="true">•</span>
-        <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{title}</span>
-      </Card.Title>
-      {details.length > 0 ? (
-        <Card.Description className="grid min-w-0 gap-1">
-          {details.map((detail, index) => (
-            <span className="flex min-w-0 items-start gap-2" key={`${String(index)}:${detail}`}>
-              <span aria-hidden="true" className="w-3 shrink-0">
-                {index === 0 ? "└" : ""}
-              </span>
-              <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">
-                {detail}
-              </span>
+    <Card.Title className="flex min-w-0 items-start gap-2 text-sm leading-6 font-normal">
+      <span aria-hidden="true">•</span>
+      <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{title}</span>
+    </Card.Title>
+    {details.length > 0 ? (
+      <Card.Description className="grid min-w-0 gap-1">
+        {details.map((detail, index) => (
+          <span className="flex min-w-0 items-start gap-2" key={`${String(index)}:${detail}`}>
+            <span aria-hidden="true" className="w-3 shrink-0">
+              {index === 0 ? "└" : ""}
             </span>
-          ))}
-        </Card.Description>
-      ) : null}
-    </Card.Header>
-  </Card>
+            <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{detail}</span>
+          </span>
+        ))}
+      </Card.Description>
+    ) : null}
+  </article>
 );
 
 type TranscriptActivityEntryView = Extract<
@@ -300,8 +294,68 @@ const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }
   const details = entry.details.map((detail) =>
     detail.kind === "raw" ? detail.text : copyText(detail.copy),
   );
-  return <ActivityEntryShell details={details} title={title} />;
+  return <ActivityEntryRow details={details} title={title} />;
 };
+
+type TranscriptActivityEntryGroup = {
+  type: "activity";
+  entries: readonly [TranscriptActivityEntryView, ...TranscriptActivityEntryView[]];
+};
+
+type TranscriptSingletonEntryGroup = {
+  type: "entry";
+  entry: Exclude<TranscriptEntryView, TranscriptActivityEntryView>;
+};
+
+type TranscriptEntryRenderGroup = TranscriptActivityEntryGroup | TranscriptSingletonEntryGroup;
+
+const groupTranscriptEntries = (
+  entries: readonly TranscriptEntryView[],
+): TranscriptEntryRenderGroup[] => {
+  const groups: TranscriptEntryRenderGroup[] = [];
+  let activityEntries: TranscriptActivityEntryView[] = [];
+
+  const flushActivityEntries = () => {
+    const firstEntry = activityEntries[0];
+    if (firstEntry == null) {
+      return;
+    }
+
+    groups.push({ type: "activity", entries: [firstEntry, ...activityEntries.slice(1)] });
+    activityEntries = [];
+  };
+
+  for (const entry of entries) {
+    switch (entry.type) {
+      case "collabAgent":
+      case "subAgentActivity":
+        activityEntries.push(entry);
+        break;
+      case "message":
+      case "status":
+        flushActivityEntries();
+        groups.push({ type: "entry", entry });
+        break;
+      default: {
+        const exhaustiveEntry: never = entry;
+        return exhaustiveEntry;
+      }
+    }
+  }
+
+  flushActivityEntries();
+  return groups;
+};
+
+const ActivityEntryGroup = ({ entries }: { entries: TranscriptActivityEntryGroup["entries"] }) => (
+  <Card className="committed-transcript-activity-group min-w-0" variant="transparent">
+    <Card.Content className="grid min-w-0 gap-1">
+      {entries.map((entry) => (
+        <ActivityEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
+      ))}
+    </Card.Content>
+  </Card>
+);
 
 const StatusEntryRenderer = ({
   status,
@@ -414,11 +468,33 @@ const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
     return null;
   }
 
+  const entryGroups = groupTranscriptEntries(chunk.entries);
+
   return (
     <div className="committed-transcript-middle-chunk grid min-w-0 gap-3">
-      {chunk.entries.map((entry) => (
-        <TranscriptEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
-      ))}
+      {entryGroups.map((group) => {
+        switch (group.type) {
+          case "activity": {
+            const firstEntry = group.entries[0];
+            return (
+              <ActivityEntryGroup
+                entries={group.entries}
+                key={`activity-group:${transcriptEntryIdFor(firstEntry.turnId, firstEntry.id)}`}
+              />
+            );
+          }
+          case "entry":
+            return (
+              <TranscriptEntryRenderer
+                entry={group.entry}
+                key={transcriptEntryIdFor(group.entry.turnId, group.entry.id)}
+              />
+            );
+        }
+
+        const exhaustiveGroup: never = group;
+        return exhaustiveGroup;
+      })}
     </div>
   );
 });
