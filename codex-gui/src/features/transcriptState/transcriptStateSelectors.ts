@@ -164,6 +164,33 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
         status: entry.status,
         revision: entry.revision,
       };
+    case "reasoning":
+      switch (entry.lifecycle) {
+        case "streaming":
+          if (entry.title == null) {
+            return null;
+          }
+          return {
+            type: "reasoning",
+            id: entry.id,
+            turnId: entry.turnId,
+            lifecycle: entry.lifecycle,
+            title: entry.title,
+            revision: entry.revision,
+          };
+        case "completed":
+          return {
+            type: "reasoning",
+            id: entry.id,
+            turnId: entry.turnId,
+            lifecycle: entry.lifecycle,
+            source: entry.summaryParts.join("\n\n"),
+            revision: entry.revision,
+          };
+      }
+
+      entry satisfies never;
+      return entry;
     case "collabAgent": {
       const presentation = collabAgentPresentation(entry);
       if (presentation == null) {

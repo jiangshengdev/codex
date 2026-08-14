@@ -50,6 +50,19 @@ export const agentMessage = (
   memoryCitation: null,
 });
 
+type ReasoningItem = Extract<ThreadItem, { type: "reasoning" }>;
+
+export const reasoningItem = (
+  id: string,
+  summary: ReasoningItem["summary"],
+  content: ReasoningItem["content"] = [],
+): ReasoningItem => ({
+  type: "reasoning",
+  id,
+  summary,
+  content,
+});
+
 export const planItem = (id: string): ThreadItem => ({
   type: "plan",
   id,
@@ -240,6 +253,97 @@ export const agentMessageDelta = (
         turnId,
         itemId,
         delta,
+      },
+    },
+  };
+};
+
+type ReasoningSummaryTextDelta = Extract<
+  ThreadProjectionDeltaNotification["delta"],
+  { type: "reasoningSummaryText" }
+>;
+
+export const reasoningSummaryTextDelta = (
+  eventReasoningSummaryTextDelta: ThreadProjectionDeltaNotification,
+  turnId: ReasoningSummaryTextDelta["notification"]["turnId"],
+  itemId: ReasoningSummaryTextDelta["notification"]["itemId"],
+  delta: ReasoningSummaryTextDelta["notification"]["delta"],
+  summaryIndex: ReasoningSummaryTextDelta["notification"]["summaryIndex"],
+): ThreadProjectionDeltaNotification => {
+  if (eventReasoningSummaryTextDelta.delta.type !== "reasoningSummaryText") {
+    throw new Error("fixture must contain a reasoningSummaryText projection delta");
+  }
+
+  return {
+    ...eventReasoningSummaryTextDelta,
+    delta: {
+      ...eventReasoningSummaryTextDelta.delta,
+      notification: {
+        ...eventReasoningSummaryTextDelta.delta.notification,
+        turnId,
+        itemId,
+        delta,
+        summaryIndex,
+      },
+    },
+  };
+};
+
+type ReasoningSummaryPartAddedDelta = Extract<
+  ThreadProjectionDeltaNotification["delta"],
+  { type: "reasoningSummaryPartAdded" }
+>;
+
+export const reasoningSummaryPartAddedDelta = (
+  eventReasoningSummaryPartAddedDelta: ThreadProjectionDeltaNotification,
+  turnId: ReasoningSummaryPartAddedDelta["notification"]["turnId"],
+  itemId: ReasoningSummaryPartAddedDelta["notification"]["itemId"],
+  summaryIndex: ReasoningSummaryPartAddedDelta["notification"]["summaryIndex"],
+): ThreadProjectionDeltaNotification => {
+  if (eventReasoningSummaryPartAddedDelta.delta.type !== "reasoningSummaryPartAdded") {
+    throw new Error("fixture must contain a reasoningSummaryPartAdded projection delta");
+  }
+
+  return {
+    ...eventReasoningSummaryPartAddedDelta,
+    delta: {
+      ...eventReasoningSummaryPartAddedDelta.delta,
+      notification: {
+        ...eventReasoningSummaryPartAddedDelta.delta.notification,
+        turnId,
+        itemId,
+        summaryIndex,
+      },
+    },
+  };
+};
+
+type ReasoningTextDelta = Extract<
+  ThreadProjectionDeltaNotification["delta"],
+  { type: "reasoningText" }
+>;
+
+export const reasoningTextDelta = (
+  eventReasoningTextDelta: ThreadProjectionDeltaNotification,
+  turnId: ReasoningTextDelta["notification"]["turnId"],
+  itemId: ReasoningTextDelta["notification"]["itemId"],
+  delta: ReasoningTextDelta["notification"]["delta"],
+  contentIndex: ReasoningTextDelta["notification"]["contentIndex"],
+): ThreadProjectionDeltaNotification => {
+  if (eventReasoningTextDelta.delta.type !== "reasoningText") {
+    throw new Error("fixture must contain a reasoningText projection delta");
+  }
+
+  return {
+    ...eventReasoningTextDelta,
+    delta: {
+      ...eventReasoningTextDelta.delta,
+      notification: {
+        ...eventReasoningTextDelta.delta.notification,
+        turnId,
+        itemId,
+        delta,
+        contentIndex,
       },
     },
   };

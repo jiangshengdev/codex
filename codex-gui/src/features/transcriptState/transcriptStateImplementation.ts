@@ -4,6 +4,8 @@ import {
   projectStartedTranscriptItem,
   projectTranscriptDelta,
   type TranscriptAgentMessageDelta,
+  type TranscriptReasoningSummaryPartAddedDelta,
+  type TranscriptReasoningSummaryTextDelta,
 } from "./transcriptItemPolicy";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
@@ -15,6 +17,8 @@ import {
   type TranscriptEntryId,
   type TranscriptRenderableLiveItem,
   type TranscriptState,
+  type TranscriptStoredEntry,
+  type TranscriptStreamingReasoningStoredEntry,
   type TranscriptTurn,
 } from "./transcriptStateModel";
 
@@ -57,6 +61,30 @@ export const appendStartedTranscriptItem = (
       if (agentMessage.phase === "final_answer") {
         return;
       }
+
+      const chunk = getOrCreateMiddleChunk(state, turnId);
+      chunk.entryIds.push(entryId);
+      chunk.revision += 1;
+      state.entryChunkById[entryId] = chunk.id;
+      return;
+    }
+    case "reserveReasoning": {
+      const { item: reasoning } = projection;
+      if (hasTranscriptEntry(state, turnId, reasoning.id)) {
+        return;
+      }
+
+      const entryId = transcriptEntryIdFor(turnId, reasoning.id);
+      state.entriesById[entryId] = {
+        type: "reasoning",
+        id: reasoning.id,
+        turnId,
+        lifecycle: "streaming",
+        summaryParts: {},
+        currentSummaryIndex: null,
+        title: null,
+        revision: 0,
+      };
 
       const chunk = getOrCreateMiddleChunk(state, turnId);
       chunk.entryIds.push(entryId);
@@ -273,6 +301,108 @@ const findLiveItemPlacement = (
   return null;
 };
 
+type StreamingReasoningPlacement = {
+  item: TranscriptStreamingReasoningStoredEntry;
+  chunk: TranscriptChunk;
+};
+
+const findStreamingReasoningPlacement = (
+  state: TranscriptState,
+  turnId: string,
+  itemId: string,
+): StreamingReasoningPlacement | null => {
+  const entryId = transcriptEntryIdFor(turnId, itemId);
+  const item = state.entriesById[entryId];
+  if (item?.type !== "reasoning" || item.lifecycle !== "streaming" || item.turnId !== turnId) {
+    return null;
+  }
+
+  const chunkId = state.entryChunkById[entryId];
+  const chunk = chunkId == null ? null : state.chunksById[chunkId];
+  return chunk?.turnId === turnId ? { item, chunk } : null;
+};
+
+const extractFirstBoldTitle = (source: string): string | null => {
+  let searchStart = 0;
+  while (searchStart < source.length) {
+    const open = source.indexOf("**", searchStart);
+    if (open === -1) {
+      return null;
+    }
+
+    const close = source.indexOf("**", open + 2);
+    if (close === -1) {
+      return null;
+    }
+
+    const title = source.slice(open + 2, close).trim();
+    if (title.length > 0) {
+      return title;
+    }
+    searchStart = close + 2;
+  }
+
+  return null;
+};
+
+const commitStreamingReasoningMutation = (
+  state: TranscriptState,
+  placement: StreamingReasoningPlacement,
+  previousTitle: string | null,
+) => {
+  const { item, chunk } = placement;
+  const currentPart =
+    item.currentSummaryIndex == null ? "" : (item.summaryParts[item.currentSummaryIndex] ?? "");
+  const title = extractFirstBoldTitle(currentPart);
+  item.title = title;
+  item.revision += 1;
+  chunk.revision += 1;
+
+  const turn = state.turnsById[item.turnId];
+  if (turn != null) {
+    if (previousTitle == null && title != null) {
+      turn.middleEntryCount += 1;
+    } else if (previousTitle != null && title == null) {
+      turn.middleEntryCount -= 1;
+    }
+  }
+
+  if (title != null && title !== previousTitle) {
+    bumpLiveScrollPulse(state);
+  }
+};
+
+const applyReasoningSummaryTextDelta = (
+  state: TranscriptState,
+  delta: TranscriptReasoningSummaryTextDelta,
+) => {
+  const placement = findStreamingReasoningPlacement(state, delta.turnId, delta.itemId);
+  if (placement == null) {
+    return;
+  }
+
+  const previousTitle = placement.item.title;
+  placement.item.currentSummaryIndex = delta.summaryIndex;
+  placement.item.summaryParts[delta.summaryIndex] =
+    (placement.item.summaryParts[delta.summaryIndex] ?? "") + delta.delta;
+  commitStreamingReasoningMutation(state, placement, previousTitle);
+};
+
+const applyReasoningSummaryPartAddedDelta = (
+  state: TranscriptState,
+  delta: TranscriptReasoningSummaryPartAddedDelta,
+) => {
+  const placement = findStreamingReasoningPlacement(state, delta.turnId, delta.itemId);
+  if (placement == null) {
+    return;
+  }
+
+  const previousTitle = placement.item.title;
+  placement.item.currentSummaryIndex = delta.summaryIndex;
+  placement.item.summaryParts[delta.summaryIndex] ??= "";
+  commitStreamingReasoningMutation(state, placement, previousTitle);
+};
+
 type AgentMessageDeltaBucket = {
   turnId: TranscriptAgentMessageDelta["turnId"];
   itemId: TranscriptAgentMessageDelta["itemId"];
@@ -327,7 +457,7 @@ export const applyAcceptedProjectionDeltaBatch = (
     switch (projection.kind) {
       case "ignore":
         continue;
-      case "present": {
+      case "agentMessage": {
         const { turnId, itemId, delta } = projection.delta;
         const key = transcriptEntryIdFor(turnId, itemId);
         const bucket = bucketByKey[key];
@@ -340,6 +470,12 @@ export const applyAcceptedProjectionDeltaBatch = (
         }
         continue;
       }
+      case "reasoningSummaryText":
+        applyReasoningSummaryTextDelta(state, projection.delta);
+        continue;
+      case "reasoningSummaryPartAdded":
+        applyReasoningSummaryPartAddedDelta(state, projection.delta);
+        continue;
     }
 
     projection satisfies never;
@@ -382,6 +518,58 @@ const appendBaselineEntry = (state: TranscriptState, entry: TranscriptEntry) => 
   classifyNewEntry(state, entry, { bumpChunkRevision: false });
 };
 
+const hasVisibleMiddleContribution = (entry: TranscriptStoredEntry): boolean => {
+  if (entry.type === "live") {
+    return entry.transientText.length > 0;
+  }
+  if (entry.type === "reasoning" && entry.lifecycle === "streaming") {
+    return entry.title != null;
+  }
+  return true;
+};
+
+export const clearStreamingReasoningForTurn = (state: TranscriptState, turnId: string): boolean => {
+  const turn = state.turnsById[turnId];
+  if (turn == null) {
+    return false;
+  }
+
+  const entryIds = turn.middleChunkIds.flatMap(
+    (chunkId) => state.chunksById[chunkId]?.entryIds.slice() ?? [],
+  );
+  let didChangeVisibleDom = false;
+  for (const entryId of entryIds) {
+    const entry = state.entriesById[entryId];
+    if (entry?.type !== "reasoning" || entry.lifecycle !== "streaming") {
+      continue;
+    }
+
+    const hadVisibleContribution = entry.title != null;
+    const removedFromMiddle = removeEntryFromMiddleChunk(
+      state,
+      turnId,
+      entry.id,
+      hadVisibleContribution,
+    );
+    if (!removedFromMiddle) {
+      continue;
+    }
+
+    Reflect.deleteProperty(state.entriesById, entryId);
+    didChangeVisibleDom ||= hadVisibleContribution;
+  }
+
+  return didChangeVisibleDom;
+};
+
+export const clearAllStreamingReasoning = (state: TranscriptState): boolean => {
+  let didChangeVisibleDom = false;
+  for (const turnId of state.turnIds) {
+    didChangeVisibleDom = clearStreamingReasoningForTurn(state, turnId) || didChangeVisibleDom;
+  }
+  return didChangeVisibleDom;
+};
+
 const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry) => {
   const entryId = transcriptEntryIdFor(entry.turnId, entry.id);
   const existingEntry = state.entriesById[entryId];
@@ -390,8 +578,7 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
     return;
   }
 
-  const hadVisibleMiddleContribution =
-    existingEntry.type !== "live" || existingEntry.transientText.length > 0;
+  const hadVisibleMiddleContribution = hasVisibleMiddleContribution(existingEntry);
 
   state.entriesById[entryId] = {
     ...entry,
@@ -453,6 +640,16 @@ export const applyCompletedTranscriptItem = (
         const removedFromFinal = removeEntryFromFinal(state, turnId, item.id);
         Reflect.deleteProperty(state.entriesById, entryId);
         didChangeVisibleDom = hadVisibleContribution && (removedFromMiddle || removedFromFinal);
+      } else if (existingEntry?.type === "reasoning" && existingEntry.turnId === turnId) {
+        const hadVisibleContribution = hasVisibleMiddleContribution(existingEntry);
+        const removedFromMiddle = removeEntryFromMiddleChunk(
+          state,
+          turnId,
+          item.id,
+          hadVisibleContribution,
+        );
+        Reflect.deleteProperty(state.entriesById, entryId);
+        didChangeVisibleDom = hadVisibleContribution && removedFromMiddle;
       } else if (
         existingEntry?.type === "collabAgent" &&
         existingEntry.turnId === turnId &&
