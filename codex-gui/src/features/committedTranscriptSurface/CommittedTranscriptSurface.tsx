@@ -1,13 +1,27 @@
 import { memo, useId, useState, type ReactNode } from "react";
-import { Alert, Button, Card, Chip, Disclosure, Tag, TagGroup, Typography } from "@heroui/react";
+import {
+  Alert,
+  Button,
+  Card,
+  Chip,
+  Disclosure,
+  Separator,
+  Tag,
+  TagGroup,
+  Typography,
+} from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useAppSelector } from "@/app/hooks";
+import type { RootState } from "@/app/store";
+import { selectThreadRuntimeThreadId } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectTranscriptChunk,
+  selectTranscriptContextPage,
+  selectTranscriptContextPageIds,
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
-  selectTranscriptTurnIds,
+  selectTranscriptTurnFragment,
   transcriptEntryIdFor,
   type TranscriptEntryId,
   type TranscriptEntryView,
@@ -16,6 +30,7 @@ import {
 } from "@/features/transcriptState/transcriptStateSlice";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
+import { TranscriptContextPagination } from "./TranscriptContextPagination";
 
 const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering }) => {
   switch (rendering.mode) {
@@ -694,97 +709,172 @@ const TurnErrorAlert = ({ error }: { error: NonNullable<TranscriptTurn["error"]>
   </Alert>
 );
 
-const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
-  const { t } = useLingui();
-  const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
+const lastTranscriptFragmentIdsByTurnIdCache = new WeakMap<
+  RootState["transcriptState"]["contextPagesById"],
+  Record<string, string>
+>();
 
-  if (turn == null) {
-    return null;
+const selectLastTranscriptFragmentIdsByTurnId = (state: RootState): Record<string, string> => {
+  const contextPagesById = state.transcriptState.contextPagesById;
+  const cached = lastTranscriptFragmentIdsByTurnIdCache.get(contextPagesById);
+  if (cached != null) {
+    return cached;
   }
 
-  const hasEntries =
-    turn.leadingPromptEntryId != null ||
-    turn.middleEntryCount > 0 ||
-    turn.finalAssistantEntryIds.length > 0 ||
-    turn.error != null;
-
-  if (!hasEntries) {
-    return null;
+  const result: Record<string, string> = {};
+  const pageIds = selectTranscriptContextPageIds(state);
+  for (const pageId of pageIds) {
+    const page = selectTranscriptContextPage(state, pageId);
+    if (page == null) {
+      continue;
+    }
+    for (const fragmentId of page.turnFragmentIds) {
+      const fragment = selectTranscriptTurnFragment(state, fragmentId);
+      if (fragment != null) {
+        result[fragment.turnId] = fragment.id;
+      }
+    }
   }
+  lastTranscriptFragmentIdsByTurnIdCache.set(contextPagesById, result);
+  return result;
+};
 
-  const turnStatusText = (status: TranscriptTurn["status"]): string => {
-    switch (status) {
-      case "completed":
-        return t({
-          comment: "Status chip for a completed turn",
-          message: "Completed",
-        });
-      case "interrupted":
-        return t({
-          comment: "Status chip for an interrupted turn",
-          message: "Interrupted",
-        });
-      case "failed":
-        return t({
-          comment: "Status chip for a failed turn",
-          message: "Failed",
-        });
-      case "inProgress":
-        return t({
-          comment: "Status chip for a turn that is still in progress",
-          message: "In progress",
-        });
+const CommittedTranscriptTurnFragment = memo(
+  ({
+    fragmentId,
+    lastFragmentIdsByTurnId,
+  }: {
+    fragmentId: string;
+    lastFragmentIdsByTurnId: Record<string, string>;
+  }) => {
+    const { t } = useLingui();
+    const fragment = useAppSelector((state) => selectTranscriptTurnFragment(state, fragmentId));
+    const turn = useAppSelector((state) =>
+      fragment == null ? null : selectTranscriptTurn(state, fragment.turnId),
+    );
+
+    if (turn == null || fragment == null) {
+      return null;
+    }
+    const isLastFragment = lastFragmentIdsByTurnId[fragment.turnId] === fragment.id;
+
+    const hasEntries =
+      fragment.leadingPromptEntryId != null ||
+      fragment.middleEntryCount > 0 ||
+      fragment.finalAssistantEntryIds.length > 0 ||
+      (isLastFragment && turn.error != null);
+
+    if (!hasEntries) {
+      return null;
     }
 
-    const exhaustiveStatus: never = status;
-    return exhaustiveStatus;
-  };
+    const turnStatusText = (status: TranscriptTurn["status"]): string => {
+      switch (status) {
+        case "completed":
+          return t({
+            comment: "Status chip for a completed turn",
+            message: "Completed",
+          });
+        case "interrupted":
+          return t({
+            comment: "Status chip for an interrupted turn",
+            message: "Interrupted",
+          });
+        case "failed":
+          return t({
+            comment: "Status chip for a failed turn",
+            message: "Failed",
+          });
+        case "inProgress":
+          return t({
+            comment: "Status chip for a turn that is still in progress",
+            message: "In progress",
+          });
+      }
 
-  const resolvedTurnId = turn.id;
-  const turnLabel = t({
-    comment: "Accessible label for a transcript turn identified by its raw turn ID",
-    message: `Turn ${resolvedTurnId}`,
+      const exhaustiveStatus: never = status;
+      return exhaustiveStatus;
+    };
+
+    const resolvedTurnId = turn.id;
+    const turnLabel = t({
+      comment: "Accessible label for a transcript turn identified by its raw turn ID",
+      message: `Turn ${resolvedTurnId}`,
+    });
+
+    return (
+      <article aria-label={turnLabel} className="committed-transcript-turn grid min-w-0 gap-3">
+        {isLastFragment ? (
+          <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
+            <Chip className="committed-transcript-turn-status" color="default" size="sm">
+              {turnStatusText(turn.status)}
+            </Chip>
+          </div>
+        ) : null}
+        <div className="committed-transcript-chunk grid min-w-0 gap-3">
+          <LeadingPromptEntry entryId={fragment.leadingPromptEntryId} />
+          <MiddleTranscriptModule
+            chunkIds={fragment.middleChunkIds}
+            hasFinalAnswer={fragment.finalAssistantEntryIds.length > 0}
+            middleEntryCount={fragment.middleEntryCount}
+          />
+          <FinalAssistantMessages entryIds={fragment.finalAssistantEntryIds} />
+          {!isLastFragment || turn.error == null ? null : <TurnErrorAlert error={turn.error} />}
+        </div>
+      </article>
+    );
+  },
+);
+
+CommittedTranscriptTurnFragment.displayName = "CommittedTranscriptTurnFragment";
+
+const CommittedTranscriptSurfaceForThread = () => {
+  const { t } = useLingui();
+  const pageIds = useAppSelector(selectTranscriptContextPageIds);
+  const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
+  const lastFragmentIdsByTurnId = useAppSelector(selectLastTranscriptFragmentIdsByTurnId);
+  const totalPages = pageIds.length;
+  const [pageSelection, setPageSelection] = useState<{
+    page: number | null;
+    totalPages: number;
+  }>(() => ({ page: null, totalPages }));
+  if (pageSelection.totalPages !== totalPages) {
+    setPageSelection({
+      page: pageSelection.page == null ? null : Math.min(pageSelection.page, totalPages),
+      totalPages,
+    });
+  }
+  const selectedHistoricalPage = pageSelection.page;
+  const currentPageNumber =
+    selectedHistoricalPage == null ? totalPages : Math.min(selectedHistoricalPage, totalPages);
+  const currentPageId = pageIds[currentPageNumber - 1] ?? "";
+  const currentPage = useAppSelector((state) => selectTranscriptContextPage(state, currentPageId));
+  const hasSurfaceContent = useAppSelector((state) => {
+    const page = selectTranscriptContextPage(state, currentPageId);
+    if (page == null) {
+      return false;
+    }
+    if (page.leadingBoundaryId != null) {
+      return true;
+    }
+    return page.turnFragmentIds.some((fragmentId) => {
+      const fragment = selectTranscriptTurnFragment(state, fragmentId);
+      if (fragment == null) {
+        return false;
+      }
+      const turn = selectTranscriptTurn(state, fragment.turnId);
+      return (
+        fragment.leadingPromptEntryId != null ||
+        fragment.middleEntryCount > 0 ||
+        fragment.finalAssistantEntryIds.length > 0 ||
+        (turn?.error != null && lastFragmentIdsByTurnId[fragment.turnId] === fragment.id)
+      );
+    });
   });
 
-  return (
-    <article aria-label={turnLabel} className="committed-transcript-turn grid min-w-0 gap-3">
-      <div className="committed-transcript-turn-metadata flex min-w-0 flex-wrap items-center gap-2">
-        <Chip className="committed-transcript-turn-status" color="default" size="sm">
-          {turnStatusText(turn.status)}
-        </Chip>
-      </div>
-      <div className="committed-transcript-chunk grid min-w-0 gap-3">
-        <LeadingPromptEntry entryId={turn.leadingPromptEntryId} />
-        <MiddleTranscriptModule
-          chunkIds={turn.middleChunkIds}
-          hasFinalAnswer={turn.finalAssistantEntryIds.length > 0}
-          middleEntryCount={turn.middleEntryCount}
-        />
-        <FinalAssistantMessages entryIds={turn.finalAssistantEntryIds} />
-        {turn.error == null ? null : <TurnErrorAlert error={turn.error} />}
-      </div>
-    </article>
-  );
-});
-
-CommittedTranscriptTurn.displayName = "CommittedTranscriptTurn";
-
-export const CommittedTranscriptSurface = () => {
-  const { t } = useLingui();
-  const turnIds = useAppSelector(selectTranscriptTurnIds);
-  const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
-  const hasSurfaceContent = useAppSelector((state) =>
-    selectTranscriptTurnIds(state).some((turnId) => {
-      const turn = selectTranscriptTurn(state, turnId);
-      return (
-        turn != null &&
-        (turn.leadingPromptEntryId != null ||
-          turn.middleEntryCount > 0 ||
-          turn.finalAssistantEntryIds.length > 0 ||
-          turn.error != null)
-      );
-    }),
-  );
+  const handlePageChange = (page: number) => {
+    setPageSelection({ page: page === totalPages ? null : page, totalPages });
+  };
 
   return (
     <section
@@ -813,6 +903,14 @@ export const CommittedTranscriptSurface = () => {
           ))}
         </div>
       ) : null}
+      {currentPage?.leadingBoundaryId == null ? null : (
+        <div className="committed-transcript-context-boundary grid min-w-0 gap-2">
+          <Separator variant="tertiary" />
+          <Typography color="muted" type="body-sm">
+            <Trans>Context compressed</Trans>
+          </Typography>
+        </div>
+      )}
       {!hasSurfaceContent ? (
         <Card className="committed-transcript-empty">
           <Card.Content>
@@ -823,11 +921,26 @@ export const CommittedTranscriptSurface = () => {
         </Card>
       ) : (
         <div className="committed-transcript-turn-list grid min-w-0 gap-6">
-          {turnIds.map((turnId) => (
-            <CommittedTranscriptTurn key={turnId} turnId={turnId} />
+          {currentPage?.turnFragmentIds.map((fragmentId) => (
+            <CommittedTranscriptTurnFragment
+              fragmentId={fragmentId}
+              key={fragmentId}
+              lastFragmentIdsByTurnId={lastFragmentIdsByTurnId}
+            />
           ))}
         </div>
       )}
+      <TranscriptContextPagination
+        onPageChange={handlePageChange}
+        page={currentPageNumber}
+        totalPages={totalPages}
+      />
     </section>
   );
+};
+
+export const CommittedTranscriptSurface = () => {
+  const threadId = useAppSelector(selectThreadRuntimeThreadId);
+  const surfaceKey = threadId ?? "no-thread";
+  return <CommittedTranscriptSurfaceForThread key={surfaceKey} />;
 };

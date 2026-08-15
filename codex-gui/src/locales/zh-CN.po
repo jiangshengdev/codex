@@ -72,6 +72,15 @@ msgstr "连接已中断，需要重新连接。"
 msgid "Contact support"
 msgstr "联系支持"
 
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:912
+msgid "Context compressed"
+msgstr "上下文已压缩"
+
+#. Accessible name for a numbered transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:74
+msgid "Context page {item}"
+msgstr "上下文第 {item} 页"
+
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:208
 msgid "Continue sending"
 msgstr "继续发送"
@@ -163,6 +172,15 @@ msgstr "消息输入区"
 #~ msgid "Message failed to send"
 #~ msgstr "消息发送失败"
 
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:100
+msgid "Next"
+msgstr "下一页"
+
+#. Accessible name for the next transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:92
+msgid "Next context page"
+msgstr "下一上下文页"
+
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:290
 msgid "No agents completed yet"
@@ -185,6 +203,15 @@ msgstr "找不到页面"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:113
 msgid "Pending init"
 msgstr "等待初始化"
+
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:66
+msgid "Previous"
+msgstr "上一页"
+
+#. Accessible name for the previous transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:57
+msgid "Previous context page"
+msgstr "上一上下文页"
 
 #: src/features/qrAccess/QrAccessPopover.tsx:51
 msgid "QR access is unavailable until the GUI launch token is ready."
@@ -266,6 +293,11 @@ msgstr "停止"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:116
 msgid "Stop failed"
 msgstr "停止失败"
+
+#. Accessible name for pagination between transcript context generations
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
+msgid "Transcript context pages"
+msgstr "上下文分页"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:668

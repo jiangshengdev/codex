@@ -72,6 +72,15 @@ msgstr "Connection interrupted. Reconnect required."
 msgid "Contact support"
 msgstr "Contact support"
 
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:912
+msgid "Context compressed"
+msgstr "Context compressed"
+
+#. Accessible name for a numbered transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:74
+msgid "Context page {item}"
+msgstr "Context page {item}"
+
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:208
 msgid "Continue sending"
 msgstr "Continue sending"
@@ -163,6 +172,15 @@ msgstr "Message composer"
 #~ msgid "Message failed to send"
 #~ msgstr "Message failed to send"
 
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:100
+msgid "Next"
+msgstr "Next"
+
+#. Accessible name for the next transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:92
+msgid "Next context page"
+msgstr "Next context page"
+
 #. Status shown when waiting finishes before any collaborating agent completes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:290
 msgid "No agents completed yet"
@@ -185,6 +203,15 @@ msgstr "Page not found"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:113
 msgid "Pending init"
 msgstr "Pending init"
+
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:66
+msgid "Previous"
+msgstr "Previous"
+
+#. Accessible name for the previous transcript context page button
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:57
+msgid "Previous context page"
+msgstr "Previous context page"
 
 #: src/features/qrAccess/QrAccessPopover.tsx:51
 msgid "QR access is unavailable until the GUI launch token is ready."
@@ -266,6 +293,11 @@ msgstr "Stop"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:116
 msgid "Stop failed"
 msgstr "Stop failed"
+
+#. Accessible name for pagination between transcript context generations
+#: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:47
+msgid "Transcript context pages"
+msgstr "Transcript context pages"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:668

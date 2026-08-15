@@ -36,11 +36,20 @@ describe("transcript context pages", () => {
       contextCompaction("compaction-1"),
       "commit-compaction",
     );
+    const secondFragmentId = JSON.stringify(["context-page:2", turnId, 0]);
+    const boundaryFragment = state.turnFragmentsById[secondFragmentId];
+    expect(boundaryFragment).toStrictEqual({
+      id: secondFragmentId,
+      turnId,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
     applyCompletedTranscriptItem(state, turnId, afterItem, "commit-after");
 
     const afterEntryId = transcriptEntryIdFor(turnId, afterItem.id);
     const firstFragmentId = JSON.stringify(["context-page:1", turnId, 0]);
-    const secondFragmentId = JSON.stringify(["context-page:2", turnId, 0]);
     expect(state.contextPageIds).toStrictEqual(["context-page:1", "context-page:2"]);
     expect(state.contextPagesById).toStrictEqual({
       "context-page:1": {
@@ -72,6 +81,7 @@ describe("transcript context pages", () => {
         finalAssistantEntryIds: [],
       },
     });
+    expect(state.turnFragmentsById[secondFragmentId]).toBe(boundaryFragment);
     expect(state.chunksById).toStrictEqual({
       [`${turnId}:chunk:0`]: {
         id: `${turnId}:chunk:0`,
@@ -114,6 +124,8 @@ describe("transcript context pages", () => {
       "commit-compaction-2",
     );
 
+    const secondFragmentId = JSON.stringify(["context-page:2", turnId, 0]);
+    const thirdFragmentId = JSON.stringify(["context-page:3", turnId, 0]);
     expect(state.contextPageIds).toStrictEqual([
       "context-page:1",
       "context-page:2",
@@ -122,12 +134,30 @@ describe("transcript context pages", () => {
     expect(state.contextPagesById["context-page:2"]).toStrictEqual({
       id: "context-page:2",
       leadingBoundaryId: transcriptEntryIdFor(turnId, "compaction-1"),
-      turnFragmentIds: [],
+      turnFragmentIds: [secondFragmentId],
     });
     expect(state.contextPagesById["context-page:3"]).toStrictEqual({
       id: "context-page:3",
       leadingBoundaryId: transcriptEntryIdFor(turnId, "compaction-2"),
-      turnFragmentIds: [],
+      turnFragmentIds: [thirdFragmentId],
+    });
+    expect(state.turnFragmentsById).toStrictEqual({
+      [secondFragmentId]: {
+        id: secondFragmentId,
+        turnId,
+        leadingPromptEntryId: null,
+        middleChunkIds: [],
+        middleEntryCount: 0,
+        finalAssistantEntryIds: [],
+      },
+      [thirdFragmentId]: {
+        id: thirdFragmentId,
+        turnId,
+        leadingPromptEntryId: null,
+        middleChunkIds: [],
+        middleEntryCount: 0,
+        finalAssistantEntryIds: [],
+      },
     });
   });
 

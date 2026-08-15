@@ -75,6 +75,7 @@ export const appendTranscriptContextBoundary = (
   };
   state.contextPageIds.push(page.id);
   state.contextPagesById[page.id] = page;
+  createTurnFragment(state, page, turnId);
   return true;
 };
 
