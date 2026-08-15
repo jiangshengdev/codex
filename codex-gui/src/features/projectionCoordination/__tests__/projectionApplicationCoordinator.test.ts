@@ -32,11 +32,16 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
+  type ThreadRuntimeProjectionEventPayload,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 
 const projectionThreadId = attachBaseline.snapshot.thread.id;
 
-const createCoordinatorHarness = () => {
+const createCoordinatorHarness = (
+  acceptedEventSink?: ConstructorParameters<
+    typeof ProjectionApplicationCoordinator
+  >[0]["acceptedEventSink"],
+) => {
   const actions: UnknownAction[] = [];
   const frameCallbacks = new Map<number, () => void>();
   const canceledFrameIds: number[] = [];
@@ -60,7 +65,11 @@ const createCoordinatorHarness = () => {
     return action;
   }) as unknown as AppDispatch;
 
-  const coordinator = new ProjectionApplicationCoordinator({ dispatch, scheduler });
+  const coordinator = new ProjectionApplicationCoordinator({
+    dispatch,
+    scheduler,
+    acceptedEventSink,
+  });
 
   const runNextFrame = () => {
     const entry = frameCallbacks.entries().next().value;
@@ -120,7 +129,10 @@ describe("ProjectionApplicationCoordinator", () => {
   });
 
   it("classifies accepted events from the current replay baseline", () => {
-    const harness = createCoordinatorHarness();
+    const acceptedEvents: ThreadRuntimeProjectionEventPayload[] = [];
+    const harness = createCoordinatorHarness((payload) => {
+      acceptedEvents.push(payload);
+    });
     if (eventTurnStarted.event.type !== "turnStarted") {
       throw new Error("fixture must contain a turnStarted projection event");
     }
@@ -138,6 +150,12 @@ describe("ProjectionApplicationCoordinator", () => {
         replay: "snapshotDuplicate",
       }),
     ]);
+    expect(acceptedEvents).toStrictEqual([
+      { notification: eventTurnStarted, replay: "snapshotDuplicate" },
+    ]);
+    expect(acceptedEvents[0]).toBe(
+      (harness.actions[0] as ReturnType<typeof threadRuntimeEventBuffered>).payload,
+    );
   });
 
   it("keeps replay, RAF, dispatch, and disposal state scoped to each coordinator instance", () => {

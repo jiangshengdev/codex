@@ -4,13 +4,16 @@ import {
   attachBaseline,
   eventItemCompleted,
   eventItemStarted,
+  eventReasoningSummaryTextDelta,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
   threadRuntimeManualReconnectRequired,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
+  selectCommittedTranscriptScrollCommitKey,
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
@@ -23,16 +26,42 @@ import {
   baseTurn,
   itemCompleted,
   itemStarted,
+  reasoningItem,
+  reasoningSummaryTextDelta,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state reconnect reducer", () => {
-  it("preserves committed transcript and sets global status on manual reconnect", () => {
+  it("preserves completed reasoning and clears streaming reasoning on manual reconnect", () => {
     const store = makeStore();
     const attachWithChat = attachWithTurns(attachBaseline, [
-      baseTurn("turn-existing", [agentMessage("agent-existing", "Existing answer")]),
+      baseTurn("turn-existing", [reasoningItem("reasoning-existing", ["Existing summary"])]),
     ]);
 
     store.dispatch(threadRuntimeAttached(attachWithChat));
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-streaming",
+          "turn-streaming",
+          reasoningItem("reasoning-streaming", []),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          reasoningSummaryTextDelta(
+            eventReasoningSummaryTextDelta,
+            "turn-streaming",
+            "reasoning-streaming",
+            "**Working**",
+            0,
+          ),
+        ],
+      }),
+    );
     store.dispatch(
       threadRuntimeManualReconnectRequired({
         reason: "backpressure",
@@ -41,22 +70,37 @@ describe("transcript state reconnect reducer", () => {
       }),
     );
 
-    expect(selectTranscriptTurn(store.getState(), "turn-existing")).toMatchObject({
-      finalAssistantEntryIds: [transcriptEntryIdFor("turn-existing", "agent-existing")],
+    expect(selectTranscriptTurn(store.getState(), "turn-streaming")).toStrictEqual({
+      id: "turn-streaming",
+      status: "inProgress",
+      originalFirstItemId: "reasoning-streaming",
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
     });
     expect(
       selectTranscriptEntry(
         store.getState(),
-        transcriptEntryIdFor("turn-existing", "agent-existing"),
+        transcriptEntryIdFor("turn-existing", "reasoning-existing"),
       ),
     ).toStrictEqual({
-      type: "message",
-      id: "agent-existing",
+      type: "reasoning",
+      id: "reasoning-existing",
       turnId: "turn-existing",
-      role: "assistant",
-      rendering: { mode: "staticMarkdown", source: "Existing answer" },
+      lifecycle: "completed",
+      source: "Existing summary",
       revision: 0,
     });
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-streaming", "reasoning-streaming"),
+      ),
+    ).toBeNull();
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      `reconnect:${attachWithChat.snapshot.thread.id}:${attachWithChat.subscriptionId}:backpressure`,
+    );
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([
       {
         id: `subscriptionInterrupted:${attachWithChat.snapshot.thread.id}:${attachWithChat.subscriptionId}:backpressure`,
@@ -73,7 +117,7 @@ describe("transcript state reconnect reducer", () => {
       baseTurn("turn-before-reconnect", [agentMessage("agent-before", "Before reconnect")]),
     ]);
     const replacementAttach = attachWithTurns(attachBaseline, [
-      baseTurn("turn-after-reconnect", [agentMessage("agent-after", "After reconnect")]),
+      baseTurn("turn-after-reconnect", [reasoningItem("reasoning-after", ["Restored summary"])]),
     ]);
 
     store.dispatch(threadRuntimeAttached(attachWithChat));
@@ -95,6 +139,43 @@ describe("transcript state reconnect reducer", () => {
         subscriptionId: attachWithChat.subscriptionId,
       }),
     );
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemStarted(
+          eventItemStarted,
+          "commit-reattach-streaming",
+          "turn-reattach-streaming",
+          reasoningItem("reasoning-reattach-streaming", []),
+        ),
+        replay: "live",
+      }),
+    );
+    store.dispatch(
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          reasoningSummaryTextDelta(
+            eventReasoningSummaryTextDelta,
+            "turn-reattach-streaming",
+            "reasoning-reattach-streaming",
+            "**Before reattach**",
+            0,
+          ),
+        ],
+      }),
+    );
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-reattach-streaming", "reasoning-reattach-streaming"),
+      ),
+    ).toStrictEqual({
+      type: "reasoning",
+      id: "reasoning-reattach-streaming",
+      turnId: "turn-reattach-streaming",
+      lifecycle: "streaming",
+      title: "Before reattach",
+      revision: 1,
+    });
     store.dispatch(threadRuntimeAttached(replacementAttach));
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -109,11 +190,34 @@ describe("transcript state reconnect reducer", () => {
     );
 
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-after-reconnect"]);
-    expect(selectTranscriptTurn(store.getState(), "turn-after-reconnect")).toMatchObject({
-      finalAssistantEntryIds: [
-        transcriptEntryIdFor("turn-after-reconnect", "agent-after"),
-        transcriptEntryIdFor("turn-after-reconnect", "agent-live-after"),
-      ],
+    expect(selectTranscriptTurn(store.getState(), "turn-after-reconnect")).toStrictEqual({
+      id: "turn-after-reconnect",
+      status: "completed",
+      originalFirstItemId: "reasoning-after",
+      leadingPromptEntryId: null,
+      middleChunkIds: ["turn-after-reconnect:chunk:0"],
+      middleEntryCount: 1,
+      finalAssistantEntryIds: [transcriptEntryIdFor("turn-after-reconnect", "agent-live-after")],
+    });
+    expect(selectTranscriptTurn(store.getState(), "turn-reattach-streaming")).toBeNull();
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-reattach-streaming", "reasoning-reattach-streaming"),
+      ),
+    ).toBeNull();
+    expect(
+      selectTranscriptEntry(
+        store.getState(),
+        transcriptEntryIdFor("turn-after-reconnect", "reasoning-after"),
+      ),
+    ).toStrictEqual({
+      type: "reasoning",
+      id: "reasoning-after",
+      turnId: "turn-after-reconnect",
+      lifecycle: "completed",
+      source: "Restored summary",
+      revision: 0,
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
   });

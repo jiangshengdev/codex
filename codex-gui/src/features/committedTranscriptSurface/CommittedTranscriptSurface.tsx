@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
+import { memo, useId, useState, type ReactNode } from "react";
+import { Alert, Button, Card, Chip, Disclosure, Tag, TagGroup, Typography } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useAppSelector } from "@/app/hooks";
 import {
@@ -38,35 +38,46 @@ const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering
   return exhaustiveRendering;
 };
 
-const ActivityEntryShell = ({ title, details }: { title: string; details: readonly string[] }) => (
-  <Card
-    aria-label={title}
-    className="committed-transcript-entry committed-transcript-entry-activity min-w-0"
-    role="article"
-    variant="transparent"
-  >
-    <Card.Header className="grid min-w-0 gap-1">
-      <Card.Title className="flex min-w-0 items-start gap-2 text-sm leading-6 font-normal">
-        <span aria-hidden="true">•</span>
-        <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">{title}</span>
+type RenderedActivityDetail = {
+  key: string;
+  content: ReactNode;
+};
+
+const ActivityEntryRow = ({
+  title,
+  details,
+}: {
+  title: ReactNode;
+  details: readonly RenderedActivityDetail[];
+}) => {
+  const titleId = useId();
+
+  return (
+    <article
+      aria-labelledby={titleId}
+      className="committed-transcript-entry committed-transcript-entry-activity grid min-w-0 gap-2"
+    >
+      <Card.Title
+        className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-6 font-normal"
+        id={titleId}
+      >
+        {title}
       </Card.Title>
       {details.length > 0 ? (
-        <Card.Description className="grid min-w-0 gap-1">
-          {details.map((detail, index) => (
-            <span className="flex min-w-0 items-start gap-2" key={`${String(index)}:${detail}`}>
-              <span aria-hidden="true" className="w-3 shrink-0">
-                {index === 0 ? "└" : ""}
-              </span>
-              <span className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">
-                {detail}
-              </span>
+        <Card.Description className="grid min-w-0 gap-1 pl-5">
+          {details.map((detail) => (
+            <span
+              className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word"
+              key={detail.key}
+            >
+              {detail.content}
             </span>
           ))}
         </Card.Description>
       ) : null}
-    </Card.Header>
-  </Card>
-);
+    </article>
+  );
+};
 
 type TranscriptActivityEntryView = Extract<
   TranscriptEntryView,
@@ -74,6 +85,21 @@ type TranscriptActivityEntryView = Extract<
 >;
 
 type TranscriptActivityCopy = TranscriptActivityEntryView["title"];
+
+type TranscriptTextActivityCopy = Exclude<
+  TranscriptActivityCopy,
+  { kind: "agentStarted" | "agentInteracted" | "agentInterrupted" }
+>;
+
+const AgentPathTag = ({ agentPath }: { agentPath: string }) => (
+  <TagGroup aria-label={agentPath} selectionMode="none" size="sm" variant="default">
+    <TagGroup.List>
+      <Tag id={agentPath} textValue={agentPath}>
+        {agentPath}
+      </Tag>
+    </TagGroup.List>
+  </TagGroup>
+);
 
 const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }) => {
   const { t } = useLingui();
@@ -169,29 +195,8 @@ const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }
     });
   };
 
-  const copyText = (copy: TranscriptActivityCopy): string => {
+  const copyText = (copy: TranscriptTextActivityCopy): string => {
     switch (copy.kind) {
-      case "agentStarted": {
-        const agentPath = copy.agentPath;
-        return t({
-          comment: "Activity showing the raw path of a sub-agent that started",
-          message: `Started \`${agentPath}\``,
-        });
-      }
-      case "agentInteracted": {
-        const agentPath = copy.agentPath;
-        return t({
-          comment: "Activity showing the raw path of a sub-agent that was contacted",
-          message: `Interacted with \`${agentPath}\``,
-        });
-      }
-      case "agentInterrupted": {
-        const agentPath = copy.agentPath;
-        return t({
-          comment: "Activity showing the raw path of a sub-agent that was interrupted",
-          message: `Interrupted \`${agentPath}\``,
-        });
-      }
       case "agentResuming": {
         const receiver = copy.receiver;
         return t({
@@ -296,12 +301,118 @@ const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }
     return exhaustiveCopy;
   };
 
-  const title = copyText(entry.title);
-  const details = entry.details.map((detail) =>
-    detail.kind === "raw" ? detail.text : copyText(detail.copy),
-  );
-  return <ActivityEntryShell details={details} title={title} />;
+  const renderCopy = (copy: TranscriptActivityCopy): ReactNode => {
+    switch (copy.kind) {
+      case "agentStarted": {
+        const agentPath = copy.agentPath;
+        return (
+          <Trans comment="Activity showing the raw path of a sub-agent that started">
+            Started <AgentPathTag agentPath={agentPath} />
+          </Trans>
+        );
+      }
+      case "agentInteracted": {
+        const agentPath = copy.agentPath;
+        return (
+          <Trans comment="Activity showing the raw path of a sub-agent that was contacted">
+            Interacted with <AgentPathTag agentPath={agentPath} />
+          </Trans>
+        );
+      }
+      case "agentInterrupted": {
+        const agentPath = copy.agentPath;
+        return (
+          <Trans comment="Activity showing the raw path of a sub-agent that was interrupted">
+            Interrupted <AgentPathTag agentPath={agentPath} />
+          </Trans>
+        );
+      }
+      default:
+        return copyText(copy);
+    }
+  };
+
+  const title = renderCopy(entry.title);
+  const details = entry.details.map((detail, index): RenderedActivityDetail => {
+    if (detail.kind === "raw") {
+      return {
+        key: `${String(index)}:raw:${detail.text}`,
+        content: detail.text,
+      };
+    }
+
+    const copy = detail.copy;
+    return {
+      key:
+        "agentPath" in copy
+          ? `${String(index)}:copy:${copy.kind}:${copy.agentPath}`
+          : `${String(index)}:copy:${copy.kind}`,
+      content: renderCopy(copy),
+    };
+  });
+  return <ActivityEntryRow details={details} title={title} />;
 };
+
+type TranscriptActivityEntryGroup = {
+  type: "activity";
+  entries: readonly [TranscriptActivityEntryView, ...TranscriptActivityEntryView[]];
+};
+
+type TranscriptSingletonEntryGroup = {
+  type: "entry";
+  entry: Exclude<TranscriptEntryView, TranscriptActivityEntryView>;
+};
+
+type TranscriptEntryRenderGroup = TranscriptActivityEntryGroup | TranscriptSingletonEntryGroup;
+
+const groupTranscriptEntries = (
+  entries: readonly TranscriptEntryView[],
+): TranscriptEntryRenderGroup[] => {
+  const groups: TranscriptEntryRenderGroup[] = [];
+  let activityEntries: TranscriptActivityEntryView[] = [];
+
+  const flushActivityEntries = () => {
+    const firstEntry = activityEntries[0];
+    if (firstEntry == null) {
+      return;
+    }
+
+    groups.push({ type: "activity", entries: [firstEntry, ...activityEntries.slice(1)] });
+    activityEntries = [];
+  };
+
+  for (const entry of entries) {
+    switch (entry.type) {
+      case "collabAgent":
+      case "subAgentActivity":
+        activityEntries.push(entry);
+        break;
+      case "message":
+      case "reasoning":
+      case "status":
+        flushActivityEntries();
+        groups.push({ type: "entry", entry });
+        break;
+      default: {
+        const exhaustiveEntry: never = entry;
+        return exhaustiveEntry;
+      }
+    }
+  }
+
+  flushActivityEntries();
+  return groups;
+};
+
+const ActivityEntryGroup = ({ entries }: { entries: TranscriptActivityEntryGroup["entries"] }) => (
+  <Card className="committed-transcript-activity-group min-w-0" variant="default">
+    <Card.Content className="grid min-w-0 gap-2">
+      {entries.map((entry) => (
+        <ActivityEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
+      ))}
+    </Card.Content>
+  </Card>
+);
 
 const StatusEntryRenderer = ({
   status,
@@ -347,6 +458,50 @@ const StatusEntryRenderer = ({
   );
 };
 
+const ReasoningEntryRenderer = ({
+  entry,
+}: {
+  entry: Extract<TranscriptEntryView, { type: "reasoning" }>;
+}) => {
+  switch (entry.lifecycle) {
+    case "streaming":
+      return (
+        <Card
+          className="committed-transcript-entry committed-transcript-entry-reasoning min-w-0"
+          variant="default"
+        >
+          <Card.Content className="min-w-0">
+            <Typography
+              aria-atomic="true"
+              aria-live="polite"
+              className="min-w-0 max-w-full wrap-break-word leading-6"
+              color="muted"
+              role="status"
+              type="body-sm"
+            >
+              {entry.title}
+            </Typography>
+          </Card.Content>
+        </Card>
+      );
+    case "completed":
+      return (
+        <Card
+          className="committed-transcript-entry committed-transcript-entry-reasoning min-w-0 text-sm text-muted italic"
+          role="article"
+          variant="default"
+        >
+          <Card.Content className="min-w-0">
+            <MarkdownText source={entry.source} />
+          </Card.Content>
+        </Card>
+      );
+  }
+
+  const exhaustiveEntry: never = entry;
+  return exhaustiveEntry;
+};
+
 const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
   switch (entry.type) {
     case "message": {
@@ -368,6 +523,8 @@ const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
         </Card>
       );
     }
+    case "reasoning":
+      return <ReasoningEntryRenderer entry={entry} />;
     case "status":
       return <StatusEntryRenderer status={entry.status} />;
     case "collabAgent":
@@ -414,11 +571,33 @@ const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
     return null;
   }
 
+  const entryGroups = groupTranscriptEntries(chunk.entries);
+
   return (
     <div className="committed-transcript-middle-chunk grid min-w-0 gap-3">
-      {chunk.entries.map((entry) => (
-        <TranscriptEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
-      ))}
+      {entryGroups.map((group) => {
+        switch (group.type) {
+          case "activity": {
+            const firstEntry = group.entries[0];
+            return (
+              <ActivityEntryGroup
+                entries={group.entries}
+                key={`activity-group:${transcriptEntryIdFor(firstEntry.turnId, firstEntry.id)}`}
+              />
+            );
+          }
+          case "entry":
+            return (
+              <TranscriptEntryRenderer
+                entry={group.entry}
+                key={transcriptEntryIdFor(group.entry.turnId, group.entry.id)}
+              />
+            );
+        }
+
+        const exhaustiveGroup: never = group;
+        return exhaustiveGroup;
+      })}
     </div>
   );
 });

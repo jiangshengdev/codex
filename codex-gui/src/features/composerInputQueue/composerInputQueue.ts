@@ -75,6 +75,10 @@ export type ComposerInputQueueTransition = Readonly<{
   effects: readonly ComposerInputQueueEffect[];
 }>;
 
+export type ComposerInputQueueView = Readonly<{
+  queuedCount: number;
+}>;
+
 export type StartSettlement =
   | Readonly<{ type: "accepted"; claim: StartClaim; turnId: TurnIdentity }>
   | Readonly<{ type: "definitelyNotAccepted"; claim: StartClaim }>
@@ -96,6 +100,7 @@ export type RuntimeObservation =
     }>;
 
 export type ComposerInputQueue = Readonly<{
+  view(): ComposerInputQueueView;
   submit(message: ComposerQueueMessage): ComposerInputQueueTransition;
   settleStart(settlement: StartSettlement): ComposerInputQueueTransition;
   observe(observation: RuntimeObservation): ComposerInputQueueTransition;
@@ -165,6 +170,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   constructor(activeTurnId: TurnIdentity | null) {
     this.activeTurnId = activeTurnId;
   }
+
+  public view = (): ComposerInputQueueView => ({ queuedCount: this.ordinary.length });
 
   private issueStart(message: ComposerQueueMessage): ComposerInputQueueEffect {
     nextClientUserMessageSequence += 1;

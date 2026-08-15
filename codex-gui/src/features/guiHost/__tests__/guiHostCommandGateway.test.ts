@@ -7,7 +7,7 @@ import {
   type GuiHostCommands,
 } from "../guiHostClient";
 import { GuiHostCommandGateway } from "../guiHostCommandGateway";
-import { GuiHostTransportSession } from "../guiHostTransportSession";
+import { GuiHostTransportSession, type TransportRequestDelivery } from "../guiHostTransportSession";
 import {
   RecordingWebSocket,
   readLatestRpcRequest,
@@ -43,6 +43,7 @@ function setup(socket: RecordingWebSocket = new RecordingWebSocket()) {
 async function expectCommandFailure(
   promise: Promise<unknown>,
   source: GuiHostCommandFailureSource,
+  delivery: TransportRequestDelivery,
   message: string,
 ): Promise<void> {
   const error: unknown = await promise.catch((failure: unknown) => failure);
@@ -50,6 +51,7 @@ async function expectCommandFailure(
     throw new Error("Expected GuiHostCommandError");
   }
   expect(error.source).toBe(source);
+  expect(error.delivery).toBe(delivery);
   expect(error.message).toContain(message);
   if (!(error.cause instanceof Error)) {
     throw new Error("Expected GuiHostCommandError cause");
@@ -80,6 +82,7 @@ describe("GuiHostCommandGateway", () => {
     await expectCommandFailure(
       commands.interruptTurn({ threadId: "thread-1", turnId: "turn-1" }),
       "unavailable",
+      "definitelyNotAccepted",
       "GUI host WebSocket is not available",
     );
     expect(socket.sent).toEqual([]);
@@ -149,7 +152,7 @@ describe("GuiHostCommandGateway", () => {
     });
     const rpcRequest = readRpcRequest(rpc.socket.sent[0] ?? "");
     rpc.transport.settleRpcError(rpcRequest.id, { code: -32000, message: "rejected" });
-    await expectCommandFailure(rpcPromise, "rpc", "rejected");
+    await expectCommandFailure(rpcPromise, "rpc", "definitelyNotAccepted", "rejected");
     expect(rpc.gateway.activate()).toBe(false);
     await expectInterruptStillWorks(rpc, "turn-after-rpc");
 
@@ -161,7 +164,12 @@ describe("GuiHostCommandGateway", () => {
     });
     const missingRequest = readRpcRequest(missing.socket.sent[0] ?? "");
     missing.transport.settleMissingResult(missingRequest.id);
-    await expectCommandFailure(missingPromise, "missingResult", "returned no result payload");
+    await expectCommandFailure(
+      missingPromise,
+      "missingResult",
+      "deliveryUnknown",
+      "returned no result payload",
+    );
     expect(missing.gateway.activate()).toBe(false);
     await expectInterruptStillWorks(missing, "turn-after-missing");
 
@@ -177,6 +185,7 @@ describe("GuiHostCommandGateway", () => {
     await expectCommandFailure(
       malformedPromise,
       "malformedResult",
+      "deliveryUnknown",
       "returned malformed result payload",
     );
     expect(malformed.gateway.activate()).toBe(false);
@@ -189,6 +198,7 @@ describe("GuiHostCommandGateway", () => {
     await expectCommandFailure(
       send.gateway.commands.interruptTurn({ threadId: "thread-1", turnId: "turn-send" }),
       "send",
+      "definitelyNotAccepted",
       "send failed",
     );
     expect(send.gateway.activate()).toBe(false);
@@ -206,6 +216,7 @@ describe("GuiHostCommandGateway", () => {
     await expectCommandFailure(
       commands.interruptTurn({ threadId: "thread-1", turnId: "turn-after-close" }),
       "unavailable",
+      "definitelyNotAccepted",
       "GUI host WebSocket is not available",
     );
     expect(socket.sent).toEqual([]);

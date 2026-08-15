@@ -5,6 +5,7 @@ import {
   eventItemCompleted,
   eventItemStarted,
   eventReasoningItemStarted,
+  eventReasoningSummaryTextDelta,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
@@ -18,6 +19,8 @@ import {
   itemCompleted,
   itemStarted,
   planItem,
+  reasoningItem,
+  reasoningSummaryTextDelta,
   sleepItem,
   subAgentActivity,
   textInput,
@@ -27,10 +30,12 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   threadRuntimeAttached,
+  threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptTurn,
@@ -469,61 +474,179 @@ describe("transcript state committed projection reducer", () => {
     ).toStrictEqual(["user-after-started"]);
   });
 
-  it("records a started reasoning item as the original first item without creating a middle slot", () => {
+  it("keeps reasoning identity ordered while replacing and removing its authoritative completion", () => {
     const store = makeStore();
+    const turnId = "turn-in-progress";
+    const itemId = "reasoning-item";
+    const entryId = transcriptEntryIdFor(turnId, itemId);
+    const chunkId = turnId + ":chunk:0";
+    const before = agentMessage("commentary-before-reasoning", "Before", "commentary");
+    const after = subAgentActivity("activity-after-reasoning", "started", "agents/worker");
+    const live = (notification: Parameters<typeof threadRuntimeEventBuffered>[0]["notification"]) =>
+      store.dispatch(threadRuntimeEventBuffered({ notification, replay: "live" }));
 
     store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: eventReasoningItemStarted,
-        replay: "live",
-      }),
-    );
+    live(itemCompleted(eventItemCompleted, "commit-before-reasoning", turnId, before));
+    live(eventReasoningItemStarted);
+    live(itemCompleted(eventItemCompleted, "commit-after-reasoning", turnId, after));
 
-    expect(selectTranscriptTurn(store.getState(), "turn-in-progress")).toStrictEqual({
-      id: "turn-in-progress",
-      status: "inProgress",
-      originalFirstItemId: "reasoning-item",
-      leadingPromptEntryId: null,
-      middleChunkIds: [],
-      middleEntryCount: 0,
-      finalAssistantEntryIds: [],
+    expect({
+      entry: store.getState().transcriptState.entriesById[entryId],
+      mapping: store.getState().transcriptState.entryChunkById[entryId],
+      rawOrder: store.getState().transcriptState.chunksById[chunkId]?.entryIds,
+      visibleOrder: selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+      turn: selectTranscriptTurn(store.getState(), turnId),
+    }).toStrictEqual({
+      entry: {
+        type: "reasoning",
+        id: itemId,
+        turnId,
+        lifecycle: "streaming",
+        summaryParts: {},
+        currentSummaryIndex: null,
+        title: null,
+        revision: 0,
+      },
+      mapping: chunkId,
+      rawOrder: [
+        transcriptEntryIdFor(turnId, before.id),
+        entryId,
+        transcriptEntryIdFor(turnId, after.id),
+      ],
+      visibleOrder: [before.id, after.id],
+      turn: {
+        id: turnId,
+        status: "inProgress",
+        originalFirstItemId: before.id,
+        leadingPromptEntryId: null,
+        middleChunkIds: [chunkId],
+        middleEntryCount: 2,
+        finalAssistantEntryIds: [],
+      },
+    });
+    expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
+
+    live(
+      itemCompleted(
+        eventItemCompleted,
+        "commit-reasoning-summary",
+        turnId,
+        reasoningItem(itemId, [" Authoritative summary "], ["raw reasoning"]),
+      ),
+    );
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
+      type: "reasoning",
+      id: itemId,
+      turnId,
+      lifecycle: "completed",
+      summaryParts: ["Authoritative summary"],
+      revision: 1,
     });
     expect(
-      selectTranscriptEntry(
-        store.getState(),
-        transcriptEntryIdFor("turn-in-progress", "reasoning-item"),
-      ),
-    ).toBeNull();
-    expect(selectTranscriptChunk(store.getState(), "turn-in-progress:chunk:0")).toBeNull();
-
-    store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemCompleted(
-          eventItemCompleted,
-          "complete-user-after-reasoning",
-          "turn-in-progress",
-          userMessage("user-after-reasoning", [textInput("Later prompt")]),
-        ),
-        replay: "live",
-      }),
+      selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+    ).toStrictEqual([before.id, itemId, after.id]);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(
+      "event:commit-reasoning-summary",
     );
-
-    expect(selectTranscriptTurn(store.getState(), "turn-in-progress")).toStrictEqual({
-      id: "turn-in-progress",
-      status: "inProgress",
-      originalFirstItemId: "reasoning-item",
-      leadingPromptEntryId: null,
-      middleChunkIds: ["turn-in-progress:chunk:0"],
-      middleEntryCount: 1,
-      finalAssistantEntryIds: [],
-    });
-    expect(
-      selectTranscriptChunk(store.getState(), "turn-in-progress:chunk:0")?.entries.map(
-        ({ id }) => id,
+    live(
+      itemCompleted(
+        eventItemCompleted,
+        "commit-reasoning-empty",
+        turnId,
+        reasoningItem(itemId, [" \n "], ["late raw reasoning"]),
       ),
-    ).toStrictEqual(["user-after-reasoning"]);
+    );
+    expect({
+      entry: store.getState().transcriptState.entriesById[entryId],
+      mapping: store.getState().transcriptState.entryChunkById[entryId],
+      rawOrder: store.getState().transcriptState.chunksById[chunkId]?.entryIds,
+      visibleOrder: selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+      turn: selectTranscriptTurn(store.getState(), turnId),
+      signal: selectCommittedTranscriptScrollCommitKey(store.getState()),
+    }).toStrictEqual({
+      entry: undefined,
+      mapping: undefined,
+      rawOrder: [transcriptEntryIdFor(turnId, before.id), transcriptEntryIdFor(turnId, after.id)],
+      visibleOrder: [before.id, after.id],
+      turn: {
+        id: turnId,
+        status: "inProgress",
+        originalFirstItemId: before.id,
+        leadingPromptEntryId: null,
+        middleChunkIds: [chunkId],
+        middleEntryCount: 2,
+        finalAssistantEntryIds: [],
+      },
+      signal: "event:commit-reasoning-empty",
+    });
   });
+
+  it.each(["interrupted", "failed"] as const)(
+    "clears streaming reasoning when a turn is %s",
+    (status) => {
+      const store = makeStore();
+      const turnId = "turn-reasoning-" + status;
+      const itemId = "reasoning-" + status;
+      const activity = subAgentActivity("activity-" + status, "interrupted", "agents/worker");
+      const entryId = transcriptEntryIdFor(turnId, itemId);
+      const chunkId = turnId + ":chunk:0";
+      const live = (
+        notification: Parameters<typeof threadRuntimeEventBuffered>[0]["notification"],
+      ) => store.dispatch(threadRuntimeEventBuffered({ notification, replay: "live" }));
+
+      store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+      live(
+        itemStarted(eventItemStarted, "commit-start-" + status, turnId, reasoningItem(itemId, [])),
+      );
+      live(itemCompleted(eventItemCompleted, "commit-activity-" + status, turnId, activity));
+      store.dispatch(
+        threadRuntimeDeltasAccepted({
+          notifications: [
+            reasoningSummaryTextDelta(
+              eventReasoningSummaryTextDelta,
+              turnId,
+              itemId,
+              "**Visible**",
+              0,
+            ),
+          ],
+        }),
+      );
+      expect(
+        selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+      ).toStrictEqual([itemId, activity.id]);
+
+      live(
+        turnCompleted(eventTurnCompleted, "commit-terminal-" + status, {
+          ...baseTurn(turnId),
+          status,
+        }),
+      );
+      expect({
+        entry: store.getState().transcriptState.entriesById[entryId],
+        mapping: store.getState().transcriptState.entryChunkById[entryId],
+        rawOrder: store.getState().transcriptState.chunksById[chunkId]?.entryIds,
+        visibleOrder: selectTranscriptChunk(store.getState(), chunkId)?.entries.map(({ id }) => id),
+        turn: selectTranscriptTurn(store.getState(), turnId),
+        signal: selectCommittedTranscriptScrollCommitKey(store.getState()),
+      }).toStrictEqual({
+        entry: undefined,
+        mapping: undefined,
+        rawOrder: [transcriptEntryIdFor(turnId, activity.id)],
+        visibleOrder: [activity.id],
+        turn: {
+          id: turnId,
+          status,
+          originalFirstItemId: itemId,
+          leadingPromptEntryId: null,
+          middleChunkIds: [chunkId],
+          middleEntryCount: 1,
+          finalAssistantEntryIds: [],
+        },
+        signal: "event:commit-terminal-" + status,
+      });
+    },
+  );
 
   it("makes a completed first user item leading without a started middle slot", () => {
     const store = makeStore();

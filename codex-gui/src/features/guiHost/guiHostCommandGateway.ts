@@ -4,6 +4,7 @@ import type {
   AppServerRequestSender,
   GuiRequestMethod,
   RequestDescriptor,
+  TransportRequestDelivery,
   TransportRequestFailure,
 } from "./guiHostTransportSession";
 
@@ -11,11 +12,13 @@ export type GuiHostCommandFailureSource = TransportRequestFailure["source"];
 
 export class GuiHostCommandError extends Error {
   readonly source: GuiHostCommandFailureSource;
+  readonly delivery: TransportRequestDelivery;
 
   constructor(failure: TransportRequestFailure) {
     super(failure.error.message, { cause: failure.error });
     this.name = "GuiHostCommandError";
     this.source = failure.source;
+    this.delivery = failure.delivery;
   }
 }
 
@@ -82,6 +85,7 @@ export class GuiHostCommandGateway {
       return Promise.reject(
         new GuiHostCommandError({
           source: "unavailable",
+          delivery: "definitelyNotAccepted",
           error: new Error("GUI host WebSocket is not available"),
         }),
       );

@@ -2,11 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   collabAgentState,
   collabAgentToolCall,
+  reasoningItem,
+  reasoningSummaryPartAddedDelta,
+  reasoningSummaryTextDelta,
+  reasoningTextDelta,
   subAgentActivity,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
+  eventReasoningSummaryPartAddedDelta,
+  eventReasoningSummaryTextDelta,
+  eventReasoningTextDelta,
+} from "@/features/projection/__tests__/projectionFixtures";
+import {
   projectCompletedTranscriptItem,
   projectStartedTranscriptItem,
+  projectTranscriptDelta,
 } from "../transcriptItemPolicy";
 import {
   createEmptyTranscriptState,
@@ -56,6 +66,87 @@ const startedCollabPresentation = (item: ReturnType<typeof collabAgentToolCall>)
 };
 
 describe("transcript item policy", () => {
+  it("projects reasoning item lifecycle without exposing raw content", () => {
+    const started = reasoningItem("reasoning-started", [], ["raw started reasoning"]);
+    expect(projectStartedTranscriptItem(started, "turn-reasoning")).toStrictEqual({
+      kind: "reserveReasoning",
+      item: started,
+    });
+
+    const completed = reasoningItem(
+      "reasoning-completed",
+      ["  First  ", "\n\t", " Second\n"],
+      ["raw completed reasoning"],
+    );
+    expect(projectCompletedTranscriptItem(completed, "turn-reasoning")).toStrictEqual({
+      kind: "present",
+      entry: {
+        type: "reasoning",
+        id: completed.id,
+        turnId: "turn-reasoning",
+        lifecycle: "completed",
+        summaryParts: ["First", "Second"],
+        revision: 0,
+      },
+    });
+    expect(
+      projectCompletedTranscriptItem(
+        reasoningItem("reasoning-empty", ["", " \n\t "], ["raw reasoning"]),
+        "turn-reasoning",
+      ),
+    ).toStrictEqual({ kind: "remove" });
+  });
+
+  it("projects reasoning summary deltas and ignores raw reasoning deltas", () => {
+    const summaryText = reasoningSummaryTextDelta(
+      eventReasoningSummaryTextDelta,
+      "turn-reasoning",
+      "reasoning-streaming",
+      "Summary text",
+      2,
+    );
+    const summaryPart = reasoningSummaryPartAddedDelta(
+      eventReasoningSummaryPartAddedDelta,
+      "turn-reasoning",
+      "reasoning-streaming",
+      3,
+    );
+    const raw = reasoningTextDelta(
+      eventReasoningTextDelta,
+      "turn-reasoning",
+      "reasoning-streaming",
+      "raw reasoning",
+      4,
+    );
+
+    expect([
+      projectTranscriptDelta(summaryText.delta),
+      projectTranscriptDelta(summaryPart.delta),
+      projectTranscriptDelta(raw.delta),
+    ]).toStrictEqual([
+      {
+        kind: "reasoningSummaryText",
+        delta: {
+          threadId: "00000000-0000-0000-0000-000000000001",
+          turnId: "turn-reasoning",
+          itemId: "reasoning-streaming",
+          delta: "Summary text",
+          summaryIndex: 2,
+        },
+      },
+      {
+        kind: "reasoningSummaryPartAdded",
+        delta: {
+          threadId: "00000000-0000-0000-0000-000000000001",
+          turnId: "turn-reasoning",
+          itemId: "reasoning-streaming",
+          summaryIndex: 3,
+        },
+      },
+      { kind: "ignore" },
+    ]);
+  });
+
   it.each([
     ["started", { kind: "agentStarted", agentPath: "agents/planner" }],
     ["interacted", { kind: "agentInteracted", agentPath: "agents/planner" }],
