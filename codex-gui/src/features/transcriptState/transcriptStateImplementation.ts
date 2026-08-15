@@ -144,6 +144,11 @@ const recordOriginalFirstTranscriptItem = (
 export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void => {
   const transcriptTurn = ensureTranscriptTurn(state, turn.id);
   transcriptTurn.status = turn.status;
+  if (turn.error == null) {
+    Reflect.deleteProperty(transcriptTurn, "error");
+  } else {
+    transcriptTurn.error = { ...turn.error };
+  }
   const originalFirstItem = turn.items[0];
   if (originalFirstItem != null) {
     recordOriginalFirstTranscriptItem(state, turn.id, originalFirstItem);

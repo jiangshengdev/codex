@@ -1,5 +1,5 @@
 import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
-import type { ThreadItem, TurnStatus } from "@codex-protocol/v2";
+import type { ThreadItem, Turn } from "@codex-protocol/v2";
 
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
 export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
@@ -15,7 +15,8 @@ export const transcriptEntryIdFor = (turnId: string, itemId: string): Transcript
 
 export type TranscriptTurn = {
   id: string;
-  status: TurnStatus;
+  status: Turn["status"];
+  error?: NonNullable<Turn["error"]>;
   originalFirstItemId: string | null;
   leadingPromptEntryId: TranscriptEntryId | null;
   middleChunkIds: string[];

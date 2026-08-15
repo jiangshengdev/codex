@@ -139,6 +139,16 @@ export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   durationMs: null,
 });
 
+export const failedTurn = (
+  id: string,
+  error: NonNullable<Turn["error"]>,
+  items: ThreadItem[] = [],
+): Turn => ({
+  ...baseTurn(id, items),
+  status: "failed",
+  error,
+});
+
 export const turnWithItems = (turn: Turn, items: ThreadItem[]): Turn => ({
   ...turn,
   items,

@@ -18,6 +18,7 @@ import {
   baseTurn,
   collabAgentState,
   collabAgentToolCall,
+  failedTurn,
   imageInput,
   localAudioInput,
   planItem,
@@ -115,6 +116,33 @@ describe("transcript state snapshot reducer", () => {
       ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
+
+  it("restores the complete failed turn error without adding a transcript entry", () => {
+    const error = {
+      message:
+        "unexpected status 403 Forbidden: token quota is not enough\n(request id: request-snapshot), url: https://shapi.vip/v1/responses",
+      codexErrorInfo: { responseTooManyFailedAttempts: { httpStatusCode: 403 } },
+      additionalDetails: "provider quota exhausted",
+    } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+    const turn = failedTurn("turn-failed-snapshot", error);
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [turn])));
+
+    const transcriptTurn = selectTranscriptTurn(store.getState(), turn.id);
+    expect(transcriptTurn).toStrictEqual({
+      id: turn.id,
+      status: "failed",
+      error,
+      originalFirstItemId: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(store.getState().transcriptState.entriesById).toStrictEqual({});
+    expect(store.getState().transcriptState.chunksById).toStrictEqual({});
   });
 
   it("classifies leading prompt, middle entries, and final answers from snapshot entries", () => {
