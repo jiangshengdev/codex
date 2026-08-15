@@ -8,6 +8,8 @@
 
 用户确认原文：`开始进行`
 
+Task 1 测试 builder 范围补充：用户于 2026-08-15 明确确认。
+
 对应设计：[Codex GUI 失败 turn 错误信息展示设计](../../../../specs/2026/08/15/2026-08-15-codex-gui-failed-turn-error-display-design.md)
 
 设计确认：用户已明确确认目标，设计文档已于 2026-08-15 落盘。
@@ -44,6 +46,7 @@
 - `codex-gui/src/features/transcriptState/transcriptStateModel.ts`
 - `codex-gui/src/features/transcriptState/transcriptStateImplementation.ts`
 - `codex-gui/src/features/transcriptState/transcriptStateSelectors.ts`
+- `codex-gui/src/features/projection/__tests__/projectionTestBuilders.ts`
 - `codex-gui/src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx`
 - 与上述状态或 surface 直接对应的现有测试文件。
 
