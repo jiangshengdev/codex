@@ -55,7 +55,7 @@ const ActivityEntryRow = ({
   return (
     <article
       aria-labelledby={titleId}
-      className="committed-transcript-entry committed-transcript-entry-activity grid min-w-0 gap-1"
+      className="committed-transcript-entry committed-transcript-entry-activity grid min-w-0 gap-2"
     >
       <Card.Title
         className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm leading-6 font-normal"
@@ -405,8 +405,8 @@ const groupTranscriptEntries = (
 };
 
 const ActivityEntryGroup = ({ entries }: { entries: TranscriptActivityEntryGroup["entries"] }) => (
-  <Card className="committed-transcript-activity-group min-w-0" variant="transparent">
-    <Card.Content className="grid min-w-0 gap-1">
+  <Card className="committed-transcript-activity-group min-w-0" variant="default">
+    <Card.Content className="grid min-w-0 gap-2">
       {entries.map((entry) => (
         <ActivityEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
       ))}

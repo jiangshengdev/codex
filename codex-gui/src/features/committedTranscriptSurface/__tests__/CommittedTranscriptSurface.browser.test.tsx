@@ -168,12 +168,16 @@ test("renders accessible sub-agent activity and folds it after the final answer"
     .element()
     .closest<HTMLElement>(".committed-transcript-activity-group");
   expect(activityGroup).not.toBeNull();
+  expect(activityGroup?.classList.contains("card--default")).toBe(true);
+  expect(activityGroup?.classList.contains("card--transparent")).toBe(false);
+  expect(activityGroup?.firstElementChild?.classList.contains("gap-2")).toBe(true);
   expect(
     activities.every(
       (activity) =>
         activity.element().closest(".committed-transcript-activity-group") === activityGroup,
     ),
   ).toBe(true);
+  expect(activities.every((activity) => activity.element().classList.contains("gap-2"))).toBe(true);
   expect(activityGroup?.textContent).not.toMatch(/[•└`]/u);
   await expect.element(spawnedActivity.getByText("Review browser activity")).toBeVisible();
   for (const activity of [
