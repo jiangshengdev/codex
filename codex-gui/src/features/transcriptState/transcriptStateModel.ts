@@ -24,6 +24,23 @@ export type TranscriptTurn = {
   finalAssistantEntryIds: TranscriptEntryId[];
 };
 
+export type TranscriptContextBoundaryItem = Extract<ThreadItem, { type: "contextCompaction" }>;
+
+export type TranscriptTurnFragment = {
+  id: string;
+  turnId: string;
+  leadingPromptEntryId: TranscriptEntryId | null;
+  middleChunkIds: string[];
+  middleEntryCount: number;
+  finalAssistantEntryIds: TranscriptEntryId[];
+};
+
+export type TranscriptContextPage = {
+  id: string;
+  leadingBoundaryId: TranscriptEntryId | null;
+  turnFragmentIds: string[];
+};
+
 export type TranscriptChunk = {
   id: string;
   turnId: string;
@@ -303,25 +320,44 @@ export type TranscriptState = {
   chunksById: Record<string, TranscriptChunk>;
   entriesById: Record<TranscriptEntryId, TranscriptStoredEntry>;
   entryChunkById: Record<TranscriptEntryId, string>;
+  contextPageIds: string[];
+  contextPagesById: Record<string, TranscriptContextPage>;
+  turnFragmentsById: Record<string, TranscriptTurnFragment>;
+  entryFragmentById: Record<TranscriptEntryId, string>;
+  chunkFragmentById: Record<string, string>;
+  contextBoundaryIdsById: Record<TranscriptEntryId, true>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;
   appliedEventOrder: string[];
 };
 
-export const createEmptyTranscriptState = (): TranscriptState => ({
-  threadId: null,
-  subscriptionId: null,
-  committedScrollCommitKey: null,
-  liveScrollPulse: 0,
-  turnIds: [],
-  turnsById: {},
-  chunksById: {},
-  entriesById: {},
-  entryChunkById: {},
-  globalStatus: [],
-  appliedEventIdsById: {},
-  appliedEventOrder: [],
-});
+export const createEmptyTranscriptState = (): TranscriptState => {
+  const firstPage: TranscriptContextPage = {
+    id: "context-page:1",
+    leadingBoundaryId: null,
+    turnFragmentIds: [],
+  };
+  return {
+    threadId: null,
+    subscriptionId: null,
+    committedScrollCommitKey: null,
+    liveScrollPulse: 0,
+    turnIds: [],
+    turnsById: {},
+    chunksById: {},
+    entriesById: {},
+    entryChunkById: {},
+    contextPageIds: [firstPage.id],
+    contextPagesById: { [firstPage.id]: firstPage },
+    turnFragmentsById: {},
+    entryFragmentById: {},
+    chunkFragmentById: {},
+    contextBoundaryIdsById: {},
+    globalStatus: [],
+    appliedEventIdsById: {},
+    appliedEventOrder: [],
+  };
+};
 
 export const initialTranscriptState = createEmptyTranscriptState();
 

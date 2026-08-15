@@ -75,6 +75,13 @@ export const sleepItem = (id: string): ThreadItem => ({
   durationMs: 1000,
 });
 
+type ContextCompactionItem = Extract<ThreadItem, { type: "contextCompaction" }>;
+
+export const contextCompaction = (id: string): ContextCompactionItem => ({
+  type: "contextCompaction",
+  id,
+});
+
 type SubAgentActivityItem = Extract<ThreadItem, { type: "subAgentActivity" }>;
 
 export const subAgentActivity = (
@@ -382,6 +389,14 @@ export const itemCompleted = (
     },
   };
 };
+
+export const contextCompactionCompleted = (
+  eventItemCompleted: ThreadProjectionEventNotification,
+  commitId: string,
+  turnId: string,
+  itemId: string,
+): ThreadProjectionEventNotification =>
+  itemCompleted(eventItemCompleted, commitId, turnId, contextCompaction(itemId));
 
 export const itemStarted = (
   eventItemStarted: ThreadProjectionEventNotification,

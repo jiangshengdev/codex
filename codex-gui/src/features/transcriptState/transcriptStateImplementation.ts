@@ -21,6 +21,18 @@ import {
   type TranscriptStreamingReasoningStoredEntry,
   type TranscriptTurn,
 } from "./transcriptStateModel";
+import {
+  adjustTranscriptFragmentMiddleEntryCount,
+  appendChunkToTranscriptFragment,
+  appendFinalEntryToTranscriptFragment,
+  appendLeadingEntryToTranscriptFragment,
+  appendTranscriptContextBoundary,
+  ensureTranscriptEntryFragment,
+  forgetTranscriptEntryFragment,
+  removeChunkFromTranscriptFragment,
+  removeFinalEntryFromTranscriptFragment,
+  transcriptFragmentForMiddleEntry,
+} from "./transcriptContextPages";
 
 export const hasTranscriptEntry = (
   state: TranscriptState,
@@ -59,10 +71,11 @@ export const appendStartedTranscriptItem = (
       };
 
       if (agentMessage.phase === "final_answer") {
+        ensureTranscriptEntryFragment(state, turnId, entryId);
         return;
       }
 
-      const chunk = getOrCreateMiddleChunk(state, turnId);
+      const chunk = getOrCreateMiddleChunk(state, turnId, entryId);
       chunk.entryIds.push(entryId);
       chunk.revision += 1;
       state.entryChunkById[entryId] = chunk.id;
@@ -86,7 +99,7 @@ export const appendStartedTranscriptItem = (
         revision: 0,
       };
 
-      const chunk = getOrCreateMiddleChunk(state, turnId);
+      const chunk = getOrCreateMiddleChunk(state, turnId, entryId);
       chunk.entryIds.push(entryId);
       chunk.revision += 1;
       state.entryChunkById[entryId] = chunk.id;
@@ -155,10 +168,15 @@ export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void =
   }
 };
 
-const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): TranscriptChunk => {
+const getOrCreateMiddleChunk = (
+  state: TranscriptState,
+  turnId: string,
+  entryId: TranscriptEntryId,
+): TranscriptChunk => {
   const turn = ensureTranscriptTurn(state, turnId);
+  const fragment = transcriptFragmentForMiddleEntry(state, turnId, entryId);
   const chunkIds = turn.middleChunkIds;
-  const lastChunkId = chunkIds.at(-1);
+  const lastChunkId = fragment.middleChunkIds.at(-1);
   const lastChunk = lastChunkId == null ? null : state.chunksById[lastChunkId];
 
   if (lastChunk != null && lastChunk.entryIds.length < TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT) {
@@ -169,6 +187,7 @@ const getOrCreateMiddleChunk = (state: TranscriptState, turnId: string): Transcr
   const chunk: TranscriptChunk = { id: chunkId, turnId, entryIds: [], revision: 0 };
   state.chunksById[chunkId] = chunk;
   turn.middleChunkIds.push(chunkId);
+  appendChunkToTranscriptFragment(state, fragment, chunkId);
   return chunk;
 };
 
@@ -191,10 +210,11 @@ const appendEntryToMiddleChunk = (
   options: { bumpChunkRevision: boolean },
 ) => {
   const turn = ensureTranscriptTurn(state, entry.turnId);
-  const chunk = getOrCreateMiddleChunk(state, entry.turnId);
   const entryId = transcriptEntryIdFor(entry.turnId, entry.id);
+  const chunk = getOrCreateMiddleChunk(state, entry.turnId, entryId);
   chunk.entryIds.push(entryId);
   turn.middleEntryCount += 1;
+  adjustTranscriptFragmentMiddleEntryCount(state, entryId, 1);
   if (options.bumpChunkRevision) {
     chunk.revision += 1;
   }
@@ -224,6 +244,7 @@ const removeEntryFromMiddleChunk = (
   chunk.revision += 1;
   if (hadVisibleContribution) {
     turn.middleEntryCount -= 1;
+    adjustTranscriptFragmentMiddleEntryCount(state, entryId, -1);
   }
   Reflect.deleteProperty(state.entryChunkById, entryId);
 
@@ -232,6 +253,7 @@ const removeEntryFromMiddleChunk = (
   );
   if (!hasRemainingMiddleEntries) {
     for (const middleChunkId of turn.middleChunkIds) {
+      removeChunkFromTranscriptFragment(state, middleChunkId);
       Reflect.deleteProperty(state.chunksById, middleChunkId);
     }
     turn.middleChunkIds = [];
@@ -249,6 +271,7 @@ const appendEntryToFinal = (
   if (!turn.finalAssistantEntryIds.includes(entryId)) {
     turn.finalAssistantEntryIds.push(entryId);
   }
+  appendFinalEntryToTranscriptFragment(state, turnId, entryId);
 };
 
 const removeEntryFromFinal = (state: TranscriptState, turnId: string, itemId: string): boolean => {
@@ -264,6 +287,7 @@ const removeEntryFromFinal = (state: TranscriptState, turnId: string, itemId: st
   }
 
   turn.finalAssistantEntryIds.splice(entryIndex, 1);
+  removeFinalEntryFromTranscriptFragment(state, entryId);
   return true;
 };
 
@@ -359,6 +383,7 @@ const commitStreamingReasoningMutation = (
   const currentPart =
     item.currentSummaryIndex == null ? "" : (item.summaryParts[item.currentSummaryIndex] ?? "");
   const title = extractFirstBoldTitle(currentPart);
+  const entryId = transcriptEntryIdFor(item.turnId, item.id);
   item.title = title;
   item.revision += 1;
   chunk.revision += 1;
@@ -367,8 +392,10 @@ const commitStreamingReasoningMutation = (
   if (turn != null) {
     if (previousTitle == null && title != null) {
       turn.middleEntryCount += 1;
+      adjustTranscriptFragmentMiddleEntryCount(state, entryId, 1);
     } else if (previousTitle != null && title == null) {
       turn.middleEntryCount -= 1;
+      adjustTranscriptFragmentMiddleEntryCount(state, entryId, -1);
     }
   }
 
@@ -435,12 +462,13 @@ const appendDeltaToLiveItem = (
     const turn = state.turnsById[item.turnId];
     if (turn != null) {
       turn.middleEntryCount += 1;
+      adjustTranscriptFragmentMiddleEntryCount(state, item.key, 1);
     }
   }
   if (!hadVisibleContribution && placement.type === "final") {
     const turn = state.turnsById[item.turnId];
     if (turn != null && !turn.finalAssistantEntryIds.includes(item.key)) {
-      turn.finalAssistantEntryIds.push(item.key);
+      appendEntryToFinal(state, item.turnId, item.key);
     }
   }
   bumpLiveScrollPulse(state);
@@ -508,6 +536,7 @@ const classifyNewEntry = (
 
   if (isUserMessageEntry(entry) && entry.id === turn.originalFirstItemId) {
     turn.leadingPromptEntryId = entryId;
+    appendLeadingEntryToTranscriptFragment(state, entry.turnId, entryId);
     return;
   }
 
@@ -561,6 +590,7 @@ export const clearStreamingReasoningForTurn = (state: TranscriptState, turnId: s
     }
 
     Reflect.deleteProperty(state.entriesById, entryId);
+    forgetTranscriptEntryFragment(state, entryId);
     didChangeVisibleDom ||= hadVisibleContribution;
   }
 
@@ -612,6 +642,7 @@ const upsertLiveCommittedEntry = (state: TranscriptState, entry: TranscriptEntry
 
   if (!hadVisibleMiddleContribution) {
     turn.middleEntryCount += 1;
+    adjustTranscriptFragmentMiddleEntryCount(state, entryId, 1);
   }
 
   const chunk = state.chunksById[chunkId];
@@ -629,6 +660,11 @@ export const applyCompletedTranscriptItem = (
   recordOriginalFirstTranscriptItem(state, turnId, item);
   const projection = projectCompletedTranscriptItem(item, turnId);
   switch (projection.kind) {
+    case "contextBoundary":
+      if (appendTranscriptContextBoundary(state, turnId, projection.item.id)) {
+        state.committedScrollCommitKey = `event:${commitId}`;
+      }
+      return;
     case "ignore":
     case "remove": {
       const entryId = transcriptEntryIdFor(turnId, item.id);
@@ -644,6 +680,7 @@ export const applyCompletedTranscriptItem = (
         );
         const removedFromFinal = removeEntryFromFinal(state, turnId, item.id);
         Reflect.deleteProperty(state.entriesById, entryId);
+        forgetTranscriptEntryFragment(state, entryId);
         didChangeVisibleDom = hadVisibleContribution && (removedFromMiddle || removedFromFinal);
       } else if (existingEntry?.type === "reasoning" && existingEntry.turnId === turnId) {
         const hadVisibleContribution = hasVisibleMiddleContribution(existingEntry);
@@ -654,6 +691,7 @@ export const applyCompletedTranscriptItem = (
           hadVisibleContribution,
         );
         Reflect.deleteProperty(state.entriesById, entryId);
+        forgetTranscriptEntryFragment(state, entryId);
         didChangeVisibleDom = hadVisibleContribution && removedFromMiddle;
       } else if (
         existingEntry?.type === "collabAgent" &&
@@ -662,6 +700,7 @@ export const applyCompletedTranscriptItem = (
       ) {
         didChangeVisibleDom = removeEntryFromMiddleChunk(state, turnId, item.id, true);
         Reflect.deleteProperty(state.entriesById, entryId);
+        forgetTranscriptEntryFragment(state, entryId);
       }
 
       if (didChangeVisibleDom) {
@@ -695,6 +734,9 @@ export const rebuildTranscriptFromSnapshot = (
     for (const item of turn.items) {
       const projection = projectCompletedTranscriptItem(item, turn.id);
       switch (projection.kind) {
+        case "contextBoundary":
+          appendTranscriptContextBoundary(nextState, turn.id, projection.item.id);
+          continue;
         case "ignore":
         case "remove":
           continue;

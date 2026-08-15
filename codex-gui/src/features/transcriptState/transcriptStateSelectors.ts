@@ -5,12 +5,24 @@ import type {
   TranscriptCollabAgentStateSummary,
   TranscriptCollabAgentStoredEntry,
   TranscriptCollabAgentView,
+  TranscriptContextPage,
   TranscriptEntryId,
   TranscriptEntryView,
   TranscriptState,
   TranscriptStoredEntry,
   TranscriptSubAgentActivityView,
+  TranscriptTurnFragment,
 } from "./transcriptStateModel";
+
+export const transcriptContextPageTopology = (
+  transcriptState: TranscriptState,
+  pageId: string,
+): TranscriptContextPage | null => transcriptState.contextPagesById[pageId] ?? null;
+
+export const transcriptTurnFragmentTopology = (
+  transcriptState: TranscriptState,
+  fragmentId: string,
+): TranscriptTurnFragment | null => transcriptState.turnFragmentsById[fragmentId] ?? null;
 
 type TranscriptEntryViewCacheEntry = {
   revision: number;

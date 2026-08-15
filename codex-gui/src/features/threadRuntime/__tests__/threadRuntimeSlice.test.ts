@@ -12,6 +12,8 @@ import {
 import {
   agentMessage,
   attachWithTurns,
+  contextCompaction,
+  contextCompactionCompleted,
   eventWithEnvelope,
   itemCompleted,
   itemStarted,
@@ -404,6 +406,45 @@ describe("thread runtime reducer", () => {
         notification: duplicateStarted,
         replay: "snapshotDuplicate",
       },
+      {
+        type: "projectionEvent",
+        notification: duplicateCompleted,
+        replay: "snapshotDuplicate",
+      },
+    ]);
+  });
+
+  it("marks a completed context compaction already present in the attach snapshot as a snapshot duplicate", () => {
+    if (eventTurnStarted.event.type !== "turnStarted") {
+      throw new Error("fixture must contain a turnStarted projection event");
+    }
+    const snapshotItem = contextCompaction("compaction-snapshot-duplicate");
+    const snapshotTurn = turnWithItems(eventTurnStarted.event.notification.turn, [snapshotItem]);
+    const attached = reduce(
+      undefined,
+      threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])),
+    );
+    const duplicateCompleted = contextCompactionCompleted(
+      eventItemCompleted,
+      "commit-compaction-snapshot-duplicate",
+      snapshotTurn.id,
+      snapshotItem.id,
+    );
+    const replay = replayForProjectionEvent(
+      snapshotReplayIndexFromTurns([snapshotTurn]),
+      duplicateCompleted,
+    );
+
+    const state = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: duplicateCompleted,
+        replay,
+      }),
+    );
+
+    expect(replay).toBe("snapshotDuplicate");
+    expect(state.current?.eventBuffer).toStrictEqual([
       {
         type: "projectionEvent",
         notification: duplicateCompleted,
