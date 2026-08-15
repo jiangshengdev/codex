@@ -680,6 +680,20 @@ const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] })
   );
 };
 
+const TurnErrorAlert = ({ error }: { error: NonNullable<TranscriptTurn["error"]> }) => (
+  <Alert className="committed-transcript-turn-error min-w-0" role="alert" status="danger">
+    <Alert.Indicator />
+    <Alert.Content className="min-w-0">
+      <Alert.Title>
+        <Trans>Request failed</Trans>
+      </Alert.Title>
+      <Alert.Description className="min-w-0 max-w-full whitespace-pre-wrap wrap-break-word">
+        {error.message}
+      </Alert.Description>
+    </Alert.Content>
+  </Alert>
+);
+
 const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   const { t } = useLingui();
   const turn = useAppSelector((state) => selectTranscriptTurn(state, turnId));
@@ -691,7 +705,8 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
   const hasEntries =
     turn.leadingPromptEntryId != null ||
     turn.middleEntryCount > 0 ||
-    turn.finalAssistantEntryIds.length > 0;
+    turn.finalAssistantEntryIds.length > 0 ||
+    turn.error != null;
 
   if (!hasEntries) {
     return null;
@@ -746,6 +761,7 @@ const CommittedTranscriptTurn = memo(({ turnId }: { turnId: string }) => {
           middleEntryCount={turn.middleEntryCount}
         />
         <FinalAssistantMessages entryIds={turn.finalAssistantEntryIds} />
+        {turn.error == null ? null : <TurnErrorAlert error={turn.error} />}
       </div>
     </article>
   );
@@ -764,7 +780,8 @@ export const CommittedTranscriptSurface = () => {
         turn != null &&
         (turn.leadingPromptEntryId != null ||
           turn.middleEntryCount > 0 ||
-          turn.finalAssistantEntryIds.length > 0)
+          turn.finalAssistantEntryIds.length > 0 ||
+          turn.error != null)
       );
     }),
   );
