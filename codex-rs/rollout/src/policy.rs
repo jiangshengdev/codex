@@ -88,11 +88,14 @@ pub fn should_persist_event_msg(ev: &EventMsg, history_mode: ThreadHistoryMode) 
     match ev {
         EventMsg::ItemCompleted(event) => {
             // Paginated rollouts store TurnItems.
-            // Legacy rollouts keep only items with no raw ResponseItem or legacy equivalent.
+            // Legacy rollouts keep only items with no raw ResponseItem or legacy equivalent,
+            // plus canonical context compaction completions.
             matches!(history_mode, ThreadHistoryMode::Paginated)
                 || matches!(
                     event.item,
-                    TurnItem::Plan(_) | TurnItem::Extension(ExtensionItem::Sleep(_))
+                    TurnItem::Plan(_)
+                        | TurnItem::Extension(ExtensionItem::Sleep(_))
+                        | TurnItem::ContextCompaction(_)
                 )
         }
         EventMsg::TokenCount(_)
@@ -181,3 +184,7 @@ pub fn should_persist_event_msg(ev: &EventMsg, history_mode: ThreadHistoryMode) 
         | EventMsg::CollabResumeBegin(_) => false,
     }
 }
+
+#[cfg(test)]
+#[path = "policy_tests.rs"]
+mod tests;
