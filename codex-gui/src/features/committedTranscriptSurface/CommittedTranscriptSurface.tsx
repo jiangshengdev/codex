@@ -466,25 +466,35 @@ const ReasoningEntryRenderer = ({
   switch (entry.lifecycle) {
     case "streaming":
       return (
-        <Typography
-          aria-atomic="true"
-          aria-live="polite"
-          className="committed-transcript-entry-reasoning min-w-0 max-w-full wrap-break-word leading-6"
-          color="muted"
-          role="status"
-          type="body-sm"
+        <Card
+          className="committed-transcript-entry committed-transcript-entry-reasoning min-w-0"
+          variant="default"
         >
-          {entry.title}
-        </Typography>
+          <Card.Content className="min-w-0">
+            <Typography
+              aria-atomic="true"
+              aria-live="polite"
+              className="min-w-0 max-w-full wrap-break-word leading-6"
+              color="muted"
+              role="status"
+              type="body-sm"
+            >
+              {entry.title}
+            </Typography>
+          </Card.Content>
+        </Card>
       );
     case "completed":
       return (
-        <article className="committed-transcript-entry committed-transcript-entry-reasoning grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-1 text-sm text-muted italic">
-          <span aria-hidden="true" className="leading-6">
-            •
-          </span>
-          <MarkdownText source={entry.source} />
-        </article>
+        <Card
+          className="committed-transcript-entry committed-transcript-entry-reasoning min-w-0 text-sm text-muted italic"
+          role="article"
+          variant="default"
+        >
+          <Card.Content className="min-w-0">
+            <MarkdownText source={entry.source} />
+          </Card.Content>
+        </Card>
       );
   }
 

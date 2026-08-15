@@ -87,6 +87,7 @@ test("reveals only a closed reasoning title and keeps one live status across sum
   await expect.element(status).toHaveAttribute("aria-atomic", "true");
   await expect.element(status.nth(1)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/Thinking/i)).not.toBeInTheDocument();
+  expect(status.element().closest(".card.card--default")).not.toBeNull();
 
   store.dispatch(
     threadRuntimeDeltasAccepted({
@@ -147,16 +148,14 @@ test("replaces streaming reasoning in place with authoritative semantic Markdown
   await expect.element(code).toBeVisible();
   await expect.element(link).toHaveAttribute("href", "https://example.invalid/reasoning");
 
-  const reasoningArticle = emphasis.element().closest("article");
-  expect(reasoningArticle).not.toBeNull();
-  expect(reasoningArticle?.querySelector('[data-streamdown="strong"]')?.textContent).toBe(
+  const reasoningCard = emphasis.element().closest(".card.card--default");
+  expect(reasoningCard).not.toBeNull();
+  expect(reasoningCard?.getAttribute("role")).toBe("article");
+  expect(reasoningCard?.querySelector('[data-streamdown="strong"]')?.textContent).toBe(
     "Final emphasis",
   );
-  expect(reasoningArticle?.querySelector("code")?.textContent).toBe("inline code");
-  expect(reasoningArticle?.closest(".card")).toBeNull();
-  const marker = reasoningArticle?.querySelector(":scope > span");
-  expect(marker?.textContent).toBe("•");
-  expect(marker?.getAttribute("aria-hidden")).toBe("true");
+  expect(reasoningCard?.querySelector("code")?.textContent).toBe("inline code");
+  expect(reasoningCard?.textContent).not.toContain("•");
 });
 
 test("uses reasoning as an activity-group boundary without changing event order", async () => {
