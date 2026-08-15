@@ -4,10 +4,14 @@
 
 设计日期：2026-08-15
 
+修订日期：2026-08-15
+
 ## 主目标
 
 Codex GUI 按上下文压缩事件划分对话展示页，让用户可以按模型上下文代际查阅历史。
 分页仅改变 transcript 的展示组织，不引入性能分页、增量加载或存储分页。
+同时补齐 legacy compaction 的 canonical identity，使既有 snapshot replay 去重机制能够在
+attach-ahead 竞态中继续保证“一次成功压缩只建立一个展示页”。
 
 ## 当前实现与问题证据
 
@@ -30,7 +34,8 @@ projection 将 `snapshot.thread.turns` 交给重建逻辑，后者依次遍历�
 - `codex-gui/src/features/transcriptState/transcriptStateImplementation.ts:681-710`
 
 因此，本设计无需也不应给 attach 增加 cursor、limit 或按页读取协议。上下文页是在已加载
-历史之上的前端展示投影。
+历史之上的前端展示投影。本设计对 Rust 的窄修正只补齐既有 compaction marker identity，
+不恢复服务端强一致 snapshot cut，也不把展示分页下沉为后端分页。
 
 ### 现有 100-entry chunk 不是上下文页
 
@@ -61,6 +66,30 @@ contract 对应 `{ type: "contextCompaction", id: string }`：
 这正是当前 GUI 无法展示压缩边界、也无法据此划分上下文页的直接原因。frontend 需要
 忽略 started 的分页含义，并保留 successful completed 的展示语义，而不是另造压缩判断。
 
+### 既有竞态架构与本次修正边界
+
+仓库历史已经尝试过让 attach snapshot 与 projection head 使用强一致的 history cursor：
+
+- `c810a3dc7 feat(app-server): cut projection snapshots at history cursor` 跨 app-server、rollout、
+  listener 与 projection runtime 引入 `ProjectionHistoryCursor`，总计约 1054 行新增；
+- 该 cursor 后来被证明会把领域事件计数当成物理 rollout 下标，真实造成已经持久化的
+  final / complete 从刷新后的 snapshot 中消失；同时 listener 需要承担 history 读取和逐事件
+  cursor 维护成本；
+- `99531ff40 Remove projection history cursors from thread projections` 因此明确删除 cursor，允许
+  snapshot 暂时 ahead 于 projection head；
+- `3ea5dc02a Handle snapshot-duplicate projection events` 随后在 GUI 中按稳定 turn/item identity
+  将同语义 live replay 标为 `snapshotDuplicate`，避免重复 materialize。
+
+这是一项已经确认的架构取舍：保留完整持久化历史，接受 snapshot-ahead，并由现有 GUI replay
+分类处理同 identity 重放。本设计不得恢复 `ProjectionHistoryCursor`，不得修改 attach cut、
+listener ordering、thread store 或 core persistence/delivery 顺序，也不得重新尝试跨层强一致
+snapshot。
+
+compaction 的缺口只在于它没有满足现有折中方案的稳定 identity 前提：legacy snapshot 从无 ID
+的 deprecated echo 生成 synthetic `item-N`，live completed 则携带 canonical UUID。同一次压缩
+因此可能在 attach-ahead 时绕过 `snapshotDuplicate` 并建立两个页面。本设计只修复这一
+compaction identity 缺口，不重新解决全局竞态。
+
 ### Canonical lifecycle 与历史重建前置缺口
 
 `itemStarted(contextCompaction)` 在真正执行压缩之前发出；压缩失败会直接返回错误，因而
@@ -80,41 +109,60 @@ context 页。唯一建页信号是 successful canonical `itemCompleted(contextC
 completed 的 snapshot/live 重放以 `(turnId, item.id)` 为 identity 幂等，同一成功压缩无论
 被重复投递、reattach 后重放或同时出现在历史与 event buffer 中，都只能建立一个页。
 
-在实现 GUI 分页之前，还必须修正 `ThreadHistoryBuilder` 的内部历史重建缺口：
+在实现 GUI 分页之前，还必须修正 canonical compaction 的持久化与
+`ThreadHistoryBuilder` 历史重建缺口：
 
 - paginated rollout 会持久化所有 `ItemCompleted`，因此成功 compaction 的 canonical item
   已经在 rollout 中；`codex-rs/rollout/src/policy.rs:85-97`。
 - builder 虽同时接收 `ItemStarted` 与 `ItemCompleted`，但当前共用的 materialized lifecycle
   分支对 `TurnItem::ContextCompaction` 返回 `false`，导致 canonical completed 被忽略；
   `codex-rs/app-server-protocol/src/protocol/thread_history.rs:592-639`。
-- legacy rollout 只持久化 deprecated `ContextCompacted` echo；builder 处理该 echo 时通过
+- legacy rollout 当前只持久化 deprecated `ContextCompacted` echo；builder 处理该 echo 时通过
   `next_item_id()` 生成 synthetic id，无法与 live canonical item id 对齐；
   `codex-rs/app-server-protocol/src/protocol/thread_history.rs:1133-1136`。
 - canonical completed 会为兼容消费者派生同一 deprecated echo；
   `codex-rs/protocol/src/legacy_events.rs:569-599`。历史重建若同时接受二者而不配对，会把一次
   成功压缩错误地重建为两个 marker。
 
-前置修正必须让 canonical completed 优先：按其原始 `turnId + item.id` 写入历史 turn；随后
-配对的 deprecated echo 不再追加第二个 marker。对于确实只有 deprecated echo 的旧 legacy
-rollout，继续保留 synthetic-id fallback，使旧历史仍有可展示边界。此修正只恢复内部历史
-重建的 canonical identity 和去重，不改变 v2 `ThreadItem` 形状、schema 或压缩算法。
+前置修正必须遵循以下规则：
+
+- legacy persistence 新增保留 successful canonical
+  `ItemCompleted(ContextCompaction)`，使新历史拥有原始 `turnId + item.id`；
+- deprecated `ContextCompacted` echo 继续产出并在 legacy rollout 中持久化，不改变当前 legacy
+  数据格式与兼容消费者行为；
+- builder 只在 canonical completed 时按原始 identity 物化 marker；started 继续忽略；
+- builder 为当前 turn 维护待消费 deprecated echo 的 FIFO identity 队列。canonical completed
+  首次物化时登记一次；同一 `(turnId, item.id)` 的重复 completed 不重复登记；
+- `TokenCount`、`Compacted` 和其他中间事件不得清除 pending 配对。收到 deprecated echo 时，
+  若队列非空则消费最早配对项而不追加 marker；若队列为空则按旧行为生成 synthetic marker；
+- turn 边界清理未消费的 pending 项，使只有 canonical completed、没有 deprecated echo 的
+  paginated history 不影响后续 turn；
+- 禁止使用“抑制下一条 echo”的一次性布尔值或事件紧邻假设。真实 rollout 可以在物理
+  `Compacted` 与 deprecated echo 之间出现 `TokenCount` 等事件。
+
+这样，新 legacy history 的 canonical completed 与兼容 echo 只重建一个 canonical-ID marker；
+旧 echo-only rollout 仍通过 synthetic fallback 恢复边界；paginated canonical-only history
+同样保留原始 marker。修正不改变 v2 `ThreadItem` 形状、schema、压缩算法、attach cut 或全局
+竞态模型。
 
 ### 目标 rollout 证明压缩是时间线锚点
 
 目标 rollout 在第 470 行持久化 `type = "compacted"`，其中包含 replacement history、
-`window_number`、`previous_window_id` 和新的 `window_id`；紧随其后的第 472 行记录
-`event_msg.type = "context_compacted"`：
+`window_number`、`previous_window_id` 和新的 `window_id`；第 471 行是 `token_count`，第 472 行
+才记录 `event_msg.type = "context_compacted"`：
 
 - `/Users/jiangsheng/.codex/sessions/2026/08/14/rollout-2026-08-14T07-22-07-019ffd6e-d689-7413-92e3-db0abe9ea426.jsonl:470`
 - `/Users/jiangsheng/.codex/sessions/2026/08/14/rollout-2026-08-14T07-22-07-019ffd6e-d689-7413-92e3-db0abe9ea426.jsonl:472`
 
-这组相邻事实说明压缩是历史时间线中的真实语义事件，并对应一次上下文代际切换。GUI
+这组有序事实说明压缩是历史时间线中的真实语义事件，并对应一次上下文代际切换，同时证明
+不能用“下一事件”或物理紧邻关系配对 echo。GUI
 应使用协议已经投影出的 `ThreadItem::ContextCompaction` 作为展示锚点，不根据 token
 数量、turn 数量或页面长度推测压缩。
 
 ## 已确认的产品语义
 
-1. 分页是纯展示分页，目的是方便用户按上下文代际查阅；不改变历史加载、持久化或协议。
+1. 分页是纯展示分页，目的是方便用户按上下文代际查阅；不改变历史加载或协议，不新增分页
+   持久化。Rust 只补齐既有 successful compaction 的 canonical identity 持久化。
 2. 首次压缩之前的内容属于第 1 页。
 3. 每次成功压缩的 canonical completed 之后形成的新 context 属于下一页；completed marker
    是新页开头的语义边界，started 不建立页面。
@@ -198,6 +246,10 @@ page partitions 是 transcript state 的派生展示数据，不是 app-server �
 同一套边界归属规则；重复 completed、reconnect replay 与 snapshot duplicate 不得增加页数。
 started-only 失败尝试在两条路径中都不形成页面。
 
+现有 `snapshotReplayIndex` / `snapshotDuplicate` 仍是 attach-ahead replay 的唯一 GUI 协调机制；
+分页不得新增按 turn 数量、时间、尾页形状或相邻关系判断同一次压缩的启发式去重。Rust
+identity 补全后，snapshot marker 与 live completed 使用相同 item ID，直接复用现有分类。
+
 ## 前端性能与渲染约束
 
 - 保留现有 turn identity、entry identity、middle chunk 和 selector cache 边界。
@@ -271,8 +323,10 @@ Next 与页码链接必须具有 Lingui 本地化的可访问名称；交互使�
 - 不做性能分页、虚拟列表、无限滚动或按需获取历史。
 - 不给 `thread/projection/attach`、`thread/read` 或其他 app-server API 增加 cursor、limit、
   window number 或分页字段。
+- 不恢复 `ProjectionHistoryCursor`，不修改 snapshot cut、listener ordering、thread store、core
+  persistence/delivery 顺序或全局 snapshot-ahead 竞态模型。
 - 不修改 v2 `ThreadItem` 形状或 schema；Rust 侧只修正内部持久化历史的 canonical completed
-  重建、deprecated echo 配对去重与旧 echo-only fallback。
+  identity、deprecated echo FIFO 配对与旧 echo-only fallback。
 - 不修改 rollout 的压缩算法、自动压缩阈值、手动压缩行为或 context 内容。
 - 不展示、展开、解析或重新生成压缩摘要。
 - 不按 token 数、turn 数、item 数、时间或 100-entry chunk 推测上下文页。
@@ -309,8 +363,14 @@ Next 与页码链接必须具有 Lingui 本地化的可访问名称；交互使�
   或 reconnect replay 时，不重复产生页面或 Separator。
 - **snapshot 与 live 一致**：paginated rollout 中 canonical completed 经 attach rebuild 与
   live completed 产生相同 identity 和 page partitions；配对 deprecated echo 不重复建页。
-- **legacy fallback**：旧 echo-only rollout 仍用 synthetic id 重建一个边界；canonical
-  completed 与配对 echo 同时存在时优先 canonical id 且只重建一个边界。
+- **legacy canonical + echo**：canonical completed 与配对 echo 之间插入 `TokenCount`、
+  `Compacted` 等事件时仍只重建一个 canonical-ID 边界；重复 canonical completed 不增加 pending
+  echo，也不产生第二个边界。
+- **legacy fallback**：旧 echo-only rollout 仍用 synthetic id 重建一个边界；不重写或迁移旧
+  rollout。
+- **attach-ahead 专项竞态**：snapshot 已包含 compaction marker、`headCommitId` 仍落后、随后
+  canonical completed projection event 到达时，两端 item ID 相同，现有 `snapshotDuplicate`
+  分类阻止第二个页面和 Separator。
 - **snapshot / Browser 覆盖**：更新必要的稳定快照以审查用户可见的 Separator、分页导航和
   同 turn 分段，并用 Browser 测试覆盖 live transition 与交互。
 
@@ -320,8 +380,10 @@ Next 与页码链接必须具有 Lingui 本地化的可访问名称；交互使�
 ## 设计结论
 
 上下文压缩适合作为本功能的展示分页依据，因为 successful canonical completed 是协议中
-已经存在、并由 rollout 事实支持的上下文代际锚点。实现应先修正内部历史重建对 canonical
-completed 的忽略和 deprecated echo 的重复风险，再保持 app-server 的全量历史 attach 与
-GUI 现有 turn/chunk 结构，只在 transcript state 中从 completed `ThreadItem` 派生 context
-page partitions，并只渲染当前页。这样能够提供用户要求的按成功压缩查阅体验，同时避免
-把 started 尝试误判为新 context，也不会把展示分页误做成加载或存储协议。
+已经存在、并由 rollout 事实支持的上下文代际锚点。实现不恢复已经因成本和真实历史截断回归
+而移除的全局 history cursor；只让 legacy persistence 保留 canonical completed，并用按 turn
+限定的 FIFO 配对继续兼容 deprecated echo 与旧 echo-only rollout。这样 compaction 能满足
+既有 GUI `snapshotDuplicate` 架构的稳定 identity 前提。随后保持 app-server 的全量历史 attach
+与 GUI 现有 turn/chunk 结构，只在 transcript state 中从 completed `ThreadItem` 派生 context
+page partitions，并只渲染当前页。该方案既避免 started 尝试和 attach-ahead replay 产生错误
+页面，也不会把展示分页误做成加载、存储分页或跨层强一致 snapshot 重构。
