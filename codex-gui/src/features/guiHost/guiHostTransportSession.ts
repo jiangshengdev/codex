@@ -21,8 +21,11 @@ type JsonRpcErrorResponse = Extract<JSONRPCMessage, { error: unknown }>;
 
 export type TransportRequestFailure = {
   source: "rpc" | "missingResult" | "malformedResult" | "send" | "unavailable";
+  delivery: TransportRequestDelivery;
   error: Error;
 };
+
+export type TransportRequestDelivery = "definitelyNotAccepted" | "deliveryUnknown";
 
 export type TransportRequestSettlement<T> =
   | { type: "result"; response: T }
@@ -216,6 +219,7 @@ export class GuiHostTransportSession implements AppServerRequestSender, Authenti
       ) {
         immediateFailure = {
           source: "unavailable" as const,
+          delivery: "definitelyNotAccepted",
           error: this.unavailableError ?? new Error(unavailableMessage),
         };
         reject(immediateFailure.error);
@@ -231,7 +235,13 @@ export class GuiHostTransportSession implements AppServerRequestSender, Authenti
       this.pendingRequests.set(id, {
         settleResult: (result) => {
           if (!validateResponse(result)) {
-            fail(createFailure("malformedResult", `${method} returned malformed result payload`));
+            fail(
+              createFailure(
+                "malformedResult",
+                "deliveryUnknown",
+                `${method} returned malformed result payload`,
+              ),
+            );
             return;
           }
 
@@ -239,18 +249,25 @@ export class GuiHostTransportSession implements AppServerRequestSender, Authenti
           onSettlement?.({ type: "result", response: result });
         },
         settleMissingResult: () => {
-          fail(createFailure(missingResultFailure.source, missingResultFailure.message));
+          fail(
+            createFailure(
+              missingResultFailure.source,
+              "deliveryUnknown",
+              missingResultFailure.message,
+            ),
+          );
         },
         settleRpcError: (rpcError) => {
           fail(
             createFailure(
               "rpc",
+              "definitelyNotAccepted",
               `JSON-RPC error (id=${String(id)}, code=${String(rpcError.code)}): ${rpcError.message}`.trim(),
             ),
           );
         },
         settleUnavailable: (error) => {
-          fail({ source: "unavailable", error });
+          fail({ source: "unavailable", delivery: "deliveryUnknown", error });
         },
       });
 
@@ -258,7 +275,11 @@ export class GuiHostTransportSession implements AppServerRequestSender, Authenti
         this.socket.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
       } catch (error) {
         this.pendingRequests.delete(id);
-        immediateFailure = { source: "send", error: toPlainError(error) };
+        immediateFailure = {
+          source: "send",
+          delivery: "definitelyNotAccepted",
+          error: toPlainError(error),
+        };
         reject(immediateFailure.error);
       }
     });
@@ -286,9 +307,10 @@ export class GuiHostTransportSession implements AppServerRequestSender, Authenti
 
 function createFailure(
   source: TransportRequestFailure["source"],
+  delivery: TransportRequestDelivery,
   message: string,
 ): TransportRequestFailure {
-  return { source, error: new Error(message) };
+  return { source, delivery, error: new Error(message) };
 }
 
 function toPlainError(error: unknown): Error {

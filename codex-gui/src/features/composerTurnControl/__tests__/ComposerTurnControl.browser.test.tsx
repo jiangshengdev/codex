@@ -1,12 +1,18 @@
 import { Toast } from "@heroui/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi, type Mock } from "vitest";
+import { userEvent } from "vitest/browser";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import {
+  createComposerInputQueueCoordinator,
+  type ComposerInputQueueCoordinator,
+  type ComposerInputQueueCoordinatorSnapshot,
+} from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import {
   attachBaseline,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
@@ -23,6 +29,25 @@ import { ComposerTurnControl } from "../ComposerTurnControl";
 const attachedStatus: GuiHostStatus = { label: "attached" };
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
+
+const expectStartTurnCalledOnceWithText = (
+  startTurn: Mock<GuiHostCommands["startTurn"]>,
+  text: string,
+): void => {
+  expect(startTurn).toHaveBeenCalledOnce();
+  const call = startTurn.mock.calls.at(0);
+  if (call == null) {
+    throw new Error("startTurn must have one recorded call");
+  }
+  const [params] = call;
+  const clientUserMessageId = params.clientUserMessageId;
+  expect(typeof clientUserMessageId).toBe("string");
+  expect(startTurn).toHaveBeenCalledExactlyOnceWith({
+    threadId,
+    clientUserMessageId,
+    input: [{ type: "text", text, text_elements: [] }],
+  });
+};
 
 function deferred<T>() {
   const callbacks = {} as {
@@ -41,16 +66,50 @@ function deferred<T>() {
   };
 }
 
+const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnapshot) => {
+  let snapshot = initial;
+  const listeners = new Set<() => void>();
+  const recover = vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(true);
+  const controller = {
+    submit: vi.fn<ComposerInputQueueCoordinator["submit"]>(),
+    recover,
+    observeAcceptedEvent: vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>(),
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    dispose: vi.fn<ComposerInputQueueCoordinator["dispose"]>(),
+  } satisfies ComposerInputQueueCoordinator;
+
+  return {
+    controller,
+    recover,
+    publish(next: ComposerInputQueueCoordinatorSnapshot): void {
+      snapshot = next;
+      for (const listener of listeners) listener();
+    },
+  };
+};
+
 async function renderAttached(
   commandHandle: GuiHostCommands | null = createGuiHostCommands(),
   guardCompositionEndEnter = false,
   locale: AppLocale = "en",
+  controller: ComposerInputQueueCoordinator | null = commandHandle == null
+    ? null
+    : createComposerInputQueueCoordinator({
+        threadId,
+        activeTurnId: null,
+        startTurn: commandHandle.startTurn,
+      }),
 ) {
   const result = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={commandHandle}
+        composerInputQueueController={controller}
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={attachedStatus}
         launchParams={null}
@@ -68,7 +127,7 @@ const expectComposerDisabled = async (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
 ): Promise<void> => {
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
 
@@ -76,23 +135,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function beginPendingSend(draft: string) {
-  const pending = deferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
-  const commandHandle = createGuiHostCommands();
-  vi.mocked(commandHandle.startTurn).mockReturnValueOnce(pending.promise);
-  const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
-
-  await composer.fill(draft);
-  await screen.getByRole("button", { name: "Send" }).click();
-
-  return { commandHandle, composer, pending, screen };
-}
-
 async function beginPendingStop(draft: string) {
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["interruptTurn"]>>>();
-  const commandHandle = createGuiHostCommands();
-  vi.mocked(commandHandle.interruptTurn).mockReturnValueOnce(pending.promise);
+  const interruptTurn = vi
+    .fn<GuiHostCommands["interruptTurn"]>()
+    .mockReturnValueOnce(pending.promise);
+  const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), interruptTurn };
   const screen = await renderAttached(commandHandle);
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
@@ -101,9 +149,9 @@ async function beginPendingStop(draft: string) {
   const stopButton = screen.getByRole("button", { name: "Stop" });
 
   await composer.fill(draft);
-  await stopButton.click();
+  await userEvent.click(stopButton);
 
-  return { commandHandle, composer, pending, screen, stopButton };
+  return { composer, interruptTurn, pending, screen, stopButton };
 }
 
 test("disables controls before attach", async () => {
@@ -114,6 +162,7 @@ test("disables controls before attach", async () => {
       <Toast.Provider placement="top" />
       <ComposerTurnControl
         commands={createGuiHostCommands()}
+        composerInputQueueController={null}
         guardCompositionEndEnter={false}
         guiHostStatus={{ label: "connecting" }}
         launchParams={null}
@@ -165,19 +214,16 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(actions).toEqual(["Stop", "Send"]);
 });
 
-test("sends non-empty draft and clears it after success", async () => {
+test("submits a non-empty draft through the queue controller and clears it when accepted", async () => {
   const commandHandle = createGuiHostCommands();
+  const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle);
 
   await screen.getByPlaceholder("Message Codex").fill("Hello Codex");
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeEnabled();
-  await screen.getByRole("button", { name: "Send" }).click();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
 
-  expect(commandHandle.startTurn).toHaveBeenCalledWith({
-    threadId,
-    clientUserMessageId: null,
-    input: [{ type: "text", text: "Hello Codex", text_elements: [] }],
-  });
+  expectStartTurnCalledOnceWithText(startTurn, "Hello Codex");
   await expect.element(screen.getByPlaceholder("Message Codex")).toHaveValue("");
 });
 
@@ -187,7 +233,7 @@ test("keeps whitespace-only draft from submitting", async () => {
   const composer = screen.getByPlaceholder("Message Codex");
 
   await composer.fill("   ");
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await composer.click();
   await screen.user.keyboard("{Enter}");
 
@@ -234,6 +280,7 @@ test("keeps composing Enter from sending draft", async () => {
 
 test("sends completed composition Enter immediately when guard is disabled", async () => {
   const commandHandle = createGuiHostCommands();
+  const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
   const textarea = composer.element();
@@ -253,16 +300,12 @@ test("sends completed composition Enter immediately when guard is disabled", asy
   await expect.element(composer).toHaveValue("你好呀");
 
   await screen.user.keyboard("{Enter}");
-  expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
-  expect(commandHandle.startTurn).toHaveBeenCalledWith({
-    threadId,
-    clientUserMessageId: null,
-    input: [{ type: "text", text: "你好呀", text_elements: [] }],
-  });
+  expectStartTurnCalledOnceWithText(startTurn, "你好呀");
 });
 
 test("keeps guarded completed composition Enter from sending draft", async () => {
   const commandHandle = createGuiHostCommands();
+  const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle, true);
   const composer = screen.getByPlaceholder("Message Codex");
   const textarea = composer.element();
@@ -286,16 +329,12 @@ test("keeps guarded completed composition Enter from sending draft", async () =>
   await expect.element(composer).toHaveValue("你好呀");
 
   await screen.user.keyboard("{Enter}");
-  expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
-  expect(commandHandle.startTurn).toHaveBeenCalledWith({
-    threadId,
-    clientUserMessageId: null,
-    input: [{ type: "text", text: "你好呀", text_elements: [] }],
-  });
+  expectStartTurnCalledOnceWithText(startTurn, "你好呀");
 });
 
 test("clears completed composition suppression on the next non Enter keydown", async () => {
   const commandHandle = createGuiHostCommands();
+  const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle, true);
   const composer = screen.getByPlaceholder("Message Codex");
   const textarea = composer.element();
@@ -325,18 +364,14 @@ test("clears completed composition suppression on the next non Enter keydown", a
 
   await screen.user.keyboard("{Enter}");
 
-  expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
-  expect(commandHandle.startTurn).toHaveBeenCalledWith({
-    threadId,
-    clientUserMessageId: null,
-    input: [{ type: "text", text: "你好呀", text_elements: [] }],
-  });
+  expectStartTurnCalledOnceWithText(startTurn, "你好呀");
 });
 
 test.each([" ", "Enter"])(
   "keeps completed composition suppression through keyup %s",
   async (key) => {
     const commandHandle = createGuiHostCommands();
+    const startTurn = vi.mocked(commandHandle.startTurn);
     const screen = await renderAttached(commandHandle, true);
     const composer = screen.getByPlaceholder("Message Codex");
     const textarea = composer.element();
@@ -371,32 +406,35 @@ test.each([" ", "Enter"])(
 
     await screen.user.keyboard("{Enter}");
 
-    expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
-    expect(commandHandle.startTurn).toHaveBeenCalledWith({
-      threadId,
-      clientUserMessageId: null,
-      input: [{ type: "text", text: "你好呀", text_elements: [] }],
-    });
+    expectStartTurnCalledOnceWithText(startTurn, "你好呀");
   },
 );
 
-test("active turn disables Send and enables Stop", async () => {
+test("active turn allows queuing and enables Stop", async () => {
   const commandHandle = createGuiHostCommands();
-  const screen = await renderAttached(commandHandle);
   const event = eventTurnStarted;
+  if (event.event.type !== "turnStarted") {
+    throw new Error("fixture must be turnStarted");
+  }
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: event.event.notification.turn.id,
+    startTurn: commandHandle.startTurn,
+  });
+  const screen = await renderAttached(commandHandle, false, "en", controller);
   screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
 
   await screen.getByPlaceholder("Message Codex").fill("Next draft");
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await expect.element(screen.getByText("1 message queued")).toBeVisible();
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
   const stopButton = screen.getByRole("button", { name: "Stop" });
   await expect.element(stopButton).toBeEnabled();
   await expect.element(stopButton).toHaveClass("button--danger-soft");
   await stopButton.click();
 
-  if (event.event.type !== "turnStarted") {
-    throw new Error("fixture must be turnStarted");
-  }
-  expect(commandHandle.interruptTurn).toHaveBeenCalledWith({
+  expect(commandHandle.interruptTurn).toHaveBeenCalledExactlyOnceWith({
     threadId,
     turnId: event.event.notification.turn.id,
   });
@@ -417,23 +455,37 @@ test("manual reconnect disables composer operations", async () => {
   await expectComposerDisabled(screen);
 });
 
-test("send failure keeps draft and shows a toast", async () => {
+test("definite send failure exposes recovery without restoring the submitted draft", async () => {
   const commandHandle = createGuiHostCommands();
-  vi.mocked(commandHandle.startTurn).mockRejectedValueOnce(new Error("network failed"));
+  const startTurn = vi.mocked(commandHandle.startTurn);
+  startTurn.mockRejectedValueOnce(
+    new GuiHostCommandError({
+      error: new Error("network failed"),
+      delivery: "definitelyNotAccepted",
+      source: "rpc",
+    }),
+  );
   const screen = await renderAttached(commandHandle);
   const composer = screen.getByPlaceholder("Message Codex");
 
   await composer.fill("Keep this draft");
-  await screen.getByRole("button", { name: "Send" }).click();
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
 
-  await expect.element(composer).toHaveValue("Keep this draft");
-  await expect.element(screen.getByText("Message failed to send")).toBeVisible();
-  await expect.element(screen.getByText("network failed")).toBeVisible();
+  await expect.element(composer).toHaveValue("");
+  await expect.element(screen.getByText("1 message has not been sent")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Continue sending" })).toBeVisible();
 });
 
-test("renders Simplified Chinese composer copy while keeping send errors raw", async () => {
+test("renders Simplified Chinese composer and recovery copy", async () => {
   const commandHandle = createGuiHostCommands();
-  vi.mocked(commandHandle.startTurn).mockRejectedValueOnce(new Error("network failed"));
+  const startTurn = vi.mocked(commandHandle.startTurn);
+  startTurn.mockRejectedValueOnce(
+    new GuiHostCommandError({
+      error: new Error("network failed"),
+      delivery: "definitelyNotAccepted",
+      source: "rpc",
+    }),
+  );
   const screen = await renderAttached(commandHandle, false, "zh-CN");
   const composer = screen.getByPlaceholder("向 Codex 发送消息");
 
@@ -442,53 +494,81 @@ test("renders Simplified Chinese composer copy while keeping send errors raw", a
   await composer.fill("保留这份草稿");
   await screen.getByRole("button", { name: "发送" }).click();
 
-  await expect.element(composer).toHaveValue("保留这份草稿");
-  await expect.element(screen.getByText("消息发送失败")).toBeVisible();
-  await expect.element(screen.getByText("network failed")).toBeVisible();
-});
-
-test("pending send disables duplicate submission", async () => {
-  const { commandHandle, composer, pending, screen } = await beginPendingSend("Send once");
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeDisabled();
-  composer.element().focus();
-  await expect.element(composer).toHaveFocus();
-  await screen.user.keyboard("{Enter}");
-
-  expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
-
-  pending.resolve({
-    turn: inProgressTurn("turn-finished"),
-  });
   await expect.element(composer).toHaveValue("");
+  await expect.element(screen.getByText("1 条消息尚未发送")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "继续发送" })).toBeVisible();
 });
 
-test("pending send keeps newer draft after the submitted draft succeeds", async () => {
-  const { composer, pending, screen } = await beginPendingSend("Submitted draft");
-  await composer.fill("New draft");
-
-  pending.resolve({
-    turn: inProgressTurn("turn-finished"),
+test("recovery disables send, keeps the textarea editable, and prevents duplicate recovery", async () => {
+  const initialSnapshot: ComposerInputQueueCoordinatorSnapshot = {
+    queuedCount: 0,
+    recoveryCount: 2,
+    isRecovering: false,
+  };
+  const harness = createQueueControllerHarness(initialSnapshot);
+  harness.recover.mockImplementation(() => {
+    harness.publish({ ...initialSnapshot, isRecovering: true });
+    return true;
   });
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const composer = screen.getByPlaceholder("Message Codex");
+  const recoverButton = screen.getByRole("button", { name: "Continue sending" });
 
-  await expect.element(screen.getByRole("button", { name: "Send" })).toBeEnabled();
-  await expect.element(composer).toHaveValue("New draft");
+  await composer.fill("Draft while recovering");
+  await expect.element(composer).toBeEnabled();
+  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
+  await expect.element(recoverButton).toHaveAccessibleDescription("2 messages have not been sent");
+  await userEvent.click(recoverButton);
+  await expect.element(recoverButton).toBeDisabled();
+
+  expect(harness.recover).toHaveBeenCalledExactlyOnceWith();
+  await expect.element(composer).toHaveValue("Draft while recovering");
+});
+
+test("guards recovery when commands are unavailable", async () => {
+  const harness = createQueueControllerHarness({
+    queuedCount: 0,
+    recoveryCount: 2,
+    isRecovering: false,
+  });
+  const screen = await renderAttached(null, false, "en", harness.controller);
+  const composer = screen.getByPlaceholder("Message Codex");
+  const recoverButton = screen.getByRole("button", { name: "Continue sending" });
+
+  await expect.element(composer).toBeDisabled();
+  await expect.element(recoverButton).toBeDisabled();
+});
+
+test("guards recovery while manual reconnect is required", async () => {
+  const harness = createQueueControllerHarness({
+    queuedCount: 0,
+    recoveryCount: 2,
+    isRecovering: false,
+  });
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeManualReconnectRequired({
+      reason: "backpressure",
+      threadId,
+      subscriptionId: attachResponse.subscriptionId,
+    }),
+  );
+  const composer = screen.getByPlaceholder("Message Codex");
+  const recoverButton = screen.getByRole("button", { name: "Continue sending" });
+
+  await expect.element(composer).toBeDisabled();
+  await expect.element(recoverButton).toBeDisabled();
 });
 
 test("pending stop disables duplicate interruption until success", async () => {
-  const { commandHandle, composer, pending, stopButton } =
+  const { composer, interruptTurn, pending, stopButton } =
     await beginPendingStop("Draft while stopping");
 
   await expect.element(stopButton).toBeDisabled();
-  const stopButtonElement = stopButton.element();
-  if (!(stopButtonElement instanceof HTMLButtonElement)) {
-    throw new Error("Stop control must render as a button");
-  }
-  stopButtonElement.click();
-  expect(commandHandle.interruptTurn).toHaveBeenCalledTimes(1);
   if (eventTurnStarted.event.type !== "turnStarted") {
     throw new Error("fixture must be turnStarted");
   }
-  expect(commandHandle.interruptTurn).toHaveBeenCalledWith({
+  expect(interruptTurn).toHaveBeenCalledExactlyOnceWith({
     threadId,
     turnId: eventTurnStarted.event.notification.turn.id,
   });
@@ -499,7 +579,7 @@ test("pending stop disables duplicate interruption until success", async () => {
 });
 
 test("stop failure keeps draft and shows a toast", async () => {
-  const { commandHandle, composer, pending, screen, stopButton } =
+  const { composer, interruptTurn, pending, screen, stopButton } =
     await beginPendingStop("Draft while stopping");
 
   await expect.element(stopButton).toBeDisabled();
@@ -509,5 +589,5 @@ test("stop failure keeps draft and shows a toast", async () => {
   await expect.element(composer).toHaveValue("Draft while stopping");
   await expect.element(screen.getByText("Stop failed")).toBeVisible();
   await expect.element(screen.getByText("interrupt failed")).toBeVisible();
-  expect(commandHandle.interruptTurn).toHaveBeenCalledTimes(1);
+  expect(interruptTurn).toHaveBeenCalledTimes(1);
 });

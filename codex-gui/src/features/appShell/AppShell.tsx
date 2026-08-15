@@ -3,6 +3,7 @@ import { Trans } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
+import type { ComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { useCommittedTranscriptStickyBottom } from "./useCommittedTranscriptStickyBottom";
@@ -10,6 +11,7 @@ import { useCommittedTranscriptStickyBottom } from "./useCommittedTranscriptStic
 export type AppShellProps = {
   status: GuiHostStatus;
   commands: GuiHostCommands | null;
+  composerInputQueueController: ComposerInputQueueCoordinator | null;
   launchParams: BrowserLaunchParams | null;
 };
 
@@ -47,7 +49,12 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
   );
 }
 
-export function AppShell({ status, commands, launchParams }: AppShellProps) {
+export function AppShell({
+  status,
+  commands,
+  composerInputQueueController,
+  launchParams,
+}: AppShellProps) {
   const transcriptBottomRef = useCommittedTranscriptStickyBottom();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
   const hasTopNotice = status.label === "error";
@@ -76,6 +83,7 @@ export function AppShell({ status, commands, launchParams }: AppShellProps) {
       />
       <ComposerTurnControl
         commands={commands}
+        composerInputQueueController={composerInputQueueController}
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={status}
         launchParams={launchParams}

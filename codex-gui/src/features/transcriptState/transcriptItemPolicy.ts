@@ -5,6 +5,7 @@ import type {
   TranscriptCollabAgentState,
   TranscriptCollabAgentStateSummary,
   TranscriptEntry,
+  TranscriptReasoningItem,
 } from "./transcriptStateModel";
 
 type IgnoreTranscriptItem = { kind: "ignore" };
@@ -12,6 +13,7 @@ type IgnoreTranscriptItem = { kind: "ignore" };
 export type StartedTranscriptItemProjection =
   | IgnoreTranscriptItem
   | { kind: "reserve"; item: TranscriptAgentMessageItem }
+  | { kind: "reserveReasoning"; item: TranscriptReasoningItem }
   | { kind: "present"; entry: TranscriptEntry };
 
 export type CompletedTranscriptItemProjection =
@@ -24,9 +26,21 @@ export type TranscriptAgentMessageDelta = Extract<
   { type: "agentMessage" }
 >["notification"];
 
+export type TranscriptReasoningSummaryTextDelta = Extract<
+  ThreadProjectionDelta,
+  { type: "reasoningSummaryText" }
+>["notification"];
+
+export type TranscriptReasoningSummaryPartAddedDelta = Extract<
+  ThreadProjectionDelta,
+  { type: "reasoningSummaryPartAdded" }
+>["notification"];
+
 export type TranscriptDeltaProjection =
   | IgnoreTranscriptItem
-  | { kind: "present"; delta: TranscriptAgentMessageDelta };
+  | { kind: "agentMessage"; delta: TranscriptAgentMessageDelta }
+  | { kind: "reasoningSummaryText"; delta: TranscriptReasoningSummaryTextDelta }
+  | { kind: "reasoningSummaryPartAdded"; delta: TranscriptReasoningSummaryPartAddedDelta };
 
 const MAX_COLLAB_AGENT_DETAIL_COUNT = 64;
 const COLLAB_PROMPT_PREVIEW_GRAPHEMES = 160;
@@ -241,12 +255,13 @@ export const projectStartedTranscriptItem = (
   switch (item.type) {
     case "agentMessage":
       return { kind: "reserve", item };
+    case "reasoning":
+      return { kind: "reserveReasoning", item };
     case "collabAgentToolCall":
       return projectStartedCollabAgentItem(item, turnId);
     case "userMessage":
     case "hookPrompt":
     case "plan":
-    case "reasoning":
     case "commandExecution":
     case "fileChange":
     case "mcpToolCall":
@@ -309,6 +324,26 @@ export const projectCompletedTranscriptItem = (
           revision: 0,
         },
       };
+    case "reasoning": {
+      const summaryParts = item.summary
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0);
+      if (summaryParts.length === 0) {
+        return { kind: "remove" };
+      }
+
+      return {
+        kind: "present",
+        entry: {
+          type: "reasoning",
+          id: item.id,
+          turnId,
+          lifecycle: "completed",
+          summaryParts,
+          revision: 0,
+        },
+      };
+    }
     case "collabAgentToolCall":
       return projectCompletedCollabAgentItem(item, turnId);
     case "subAgentActivity":
@@ -325,7 +360,6 @@ export const projectCompletedTranscriptItem = (
       };
     case "hookPrompt":
     case "plan":
-    case "reasoning":
     case "commandExecution":
     case "fileChange":
     case "mcpToolCall":
@@ -347,9 +381,11 @@ export const projectCompletedTranscriptItem = (
 export const projectTranscriptDelta = (delta: ThreadProjectionDelta): TranscriptDeltaProjection => {
   switch (delta.type) {
     case "agentMessage":
-      return { kind: "present", delta: delta.notification };
+      return { kind: "agentMessage", delta: delta.notification };
     case "reasoningSummaryText":
+      return { kind: "reasoningSummaryText", delta: delta.notification };
     case "reasoningSummaryPartAdded":
+      return { kind: "reasoningSummaryPartAdded", delta: delta.notification };
     case "reasoningText":
       return { kind: "ignore" };
   }

@@ -94,6 +94,10 @@ export const markCommandsReady = (
   return commands;
 };
 
+export const markCommandsUnavailable = (options: StartGuiHostConnectionOptions): void => {
+  options.onCommandsUnavailable?.();
+};
+
 export const emitProjectionEvent = (
   options: StartGuiHostConnectionOptions,
   notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onProjectionEvent"]>>[0],

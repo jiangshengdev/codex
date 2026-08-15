@@ -6,6 +6,7 @@ import {
   eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
+  eventReasoningSummaryTextDelta,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   threadRuntimeAttached,
@@ -27,6 +28,8 @@ import {
   collabAgentToolCall,
   itemCompleted,
   itemStarted,
+  reasoningItem,
+  reasoningSummaryTextDelta,
   subAgentActivity,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
@@ -568,7 +571,7 @@ describe("transcript state selector cache", () => {
     });
   });
 
-  it("invalidates only a settled started activity and its owning chunk", () => {
+  it("invalidates only the changed reasoning entry and its owning chunk", () => {
     const store = makeStore();
     const turnId = "turn-started-collab-cache";
     const stableItems = Array.from(
@@ -578,14 +581,14 @@ describe("transcript state selector cache", () => {
           receiverThreadIds: [`stable-agent-${String(index)}`],
         }),
     );
-    const target = collabAgentToolCall("started-collab-cache", "wait", "inProgress");
+    const target = reasoningItem("reasoning-cache", []);
 
     store.dispatch(
       threadRuntimeAttached(attachWithTurns(attachBaseline, [baseTurn(turnId, stableItems)])),
     );
     store.dispatch(
       threadRuntimeEventBuffered({
-        notification: itemStarted(eventItemStarted, "commit-started-collab-cache", turnId, target),
+        notification: itemStarted(eventItemStarted, "commit-reasoning-cache", turnId, target),
         replay: "live",
       }),
     );
@@ -600,27 +603,37 @@ describe("transcript state selector cache", () => {
     );
 
     store.dispatch(
-      threadRuntimeEventBuffered({
-        notification: itemCompleted(
-          eventItemCompleted,
-          "commit-settled-collab-cache",
-          turnId,
-          collabAgentToolCall(target.id, "wait", "completed"),
-        ),
-        replay: "live",
+      threadRuntimeDeltasAccepted({
+        notifications: [
+          reasoningSummaryTextDelta(
+            eventReasoningSummaryTextDelta,
+            turnId,
+            target.id,
+            "**Cached reasoning**",
+            0,
+          ),
+        ],
       }),
     );
 
-    expect(selectTranscriptEntry(store.getState(), targetId)).not.toBe(beforeTarget);
-    expect(selectTranscriptEntry(store.getState(), targetId)).toMatchObject({
-      title: { kind: "agentsFinishedWaiting" },
-      details: [{ kind: "copy", copy: { kind: "noAgentsCompletedYet" } }],
+    const afterTarget = selectTranscriptEntry(store.getState(), targetId);
+    const afterChunks = chunkIds.map((chunkId) => selectTranscriptChunk(store.getState(), chunkId));
+    expect(afterTarget).not.toBe(beforeTarget);
+    expect(afterTarget).toStrictEqual({
+      type: "reasoning",
+      id: target.id,
+      turnId,
+      lifecycle: "streaming",
+      title: "Cached reasoning",
       revision: 1,
     });
     expect(selectTranscriptEntry(store.getState(), stableId)).toBe(beforeStable);
-    expect(selectTranscriptChunk(store.getState(), chunkIds[0])).toBe(beforeChunks[0]);
-    expect(selectTranscriptChunk(store.getState(), chunkIds[1])).toBe(beforeChunks[1]);
-    expect(selectTranscriptChunk(store.getState(), chunkIds[2])).not.toBe(beforeChunks[2]);
+    expect(afterChunks.map((chunk, index) => chunk === beforeChunks[index])).toStrictEqual([
+      true,
+      true,
+      false,
+    ]);
+    expect(afterChunks[2]?.entries.at(-1)).toBe(afterTarget);
     expect(selectTranscriptTurn(store.getState(), turnId)?.middleEntryCount).toBe(
       TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT * 2 + 1,
     );

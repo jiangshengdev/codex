@@ -34,6 +34,7 @@ describe("composer input queue", () => {
   it("issues one opaque single-message start claim for an idle submit", () => {
     const queue = createComposerInputQueue({ activeTurnId: null });
 
+    expect(queue.view()).toEqual({ queuedCount: 0 });
     const transition = submit(queue, "a");
     const claim = startClaim(transition);
 
@@ -42,6 +43,7 @@ describe("composer input queue", () => {
       effects: [{ type: "performStart", claim }],
     });
     expect(claim).toMatchObject({ type: "start", message: message("a") });
+    expect(queue.view()).toEqual({ queuedCount: 0 });
   });
 
   it("issues distinct client message identities across queue instances", () => {
@@ -57,6 +59,7 @@ describe("composer input queue", () => {
       result: { type: "queued", messageId: "active" },
       effects: [],
     });
+    expect(activeQueue.view()).toEqual({ queuedCount: 1 });
 
     const queue = createComposerInputQueue({ activeTurnId: null });
     const firstClaim = startClaim(submit(queue, "a"));
@@ -64,18 +67,22 @@ describe("composer input queue", () => {
       result: { type: "queued", messageId: "b" },
       effects: [],
     });
+    expect(queue.view()).toEqual({ queuedCount: 1 });
     expect(submit(queue, "c")).toEqual({
       result: { type: "queued", messageId: "c" },
       effects: [],
     });
+    expect(queue.view()).toEqual({ queuedCount: 2 });
 
     const afterFirst = queue.settleStart({ type: "definitelyNotAccepted", claim: firstClaim });
     const secondClaim = startClaim({ ...afterFirst, effects: afterFirst.effects.slice(1) });
     expect(secondClaim.message).toEqual(message("b"));
+    expect(queue.view()).toEqual({ queuedCount: 1 });
 
     const afterSecond = queue.settleStart({ type: "definitelyNotAccepted", claim: secondClaim });
     const thirdClaim = startClaim({ ...afterSecond, effects: afterSecond.effects.slice(1) });
     expect(thirdClaim.message).toEqual(message("c"));
+    expect(queue.view()).toEqual({ queuedCount: 0 });
   });
 
   it("rejects blank and locally owned duplicate messages without changing ownership", () => {
@@ -138,14 +145,17 @@ describe("composer input queue", () => {
       result: { type: "deliveryUnknown" },
       effects: [],
     });
+    expect(queue.view()).toEqual({ queuedCount: 0 });
     expect(submit(queue, "b")).toEqual({
       result: { type: "queued", messageId: "b" },
       effects: [],
     });
+    expect(queue.view()).toEqual({ queuedCount: 1 });
     expect(queue.settleStart(unknown)).toEqual({
       result: { type: "idempotentReplay", subject: "startSettlement" },
       effects: [],
     });
+    expect(queue.view()).toEqual({ queuedCount: 1 });
     expect(submit(queue, "a")).toEqual({
       result: { type: "duplicateIdentity", messageId: "a" },
       effects: [],
@@ -298,6 +308,7 @@ describe("composer input queue", () => {
       type: "ownershipMismatch",
       subject: "runtimeCommit",
     });
+    expect(queue.view()).toEqual({ queuedCount: 1 });
     const completed = queue.observe({
       type: "turnCompleted",
       turnId: "turn-a",
@@ -305,6 +316,7 @@ describe("composer input queue", () => {
       commitId: "terminal-a",
     });
     expect(startClaim(completed).message).toEqual(message("b"));
+    expect(queue.view()).toEqual({ queuedCount: 0 });
 
     const terminalQueue = createComposerInputQueue();
     const terminalClaim = startClaim(submit(terminalQueue, "a"));
@@ -458,6 +470,7 @@ describe("composer input queue", () => {
     const queue = createComposerInputQueue({ activeTurnId: "turn-a" });
     submit(queue, "b");
     submit(queue, "c");
+    expect(queue.view()).toEqual({ queuedCount: 2 });
     const interrupted = {
       type: "turnCompleted",
       turnId: "turn-a",
@@ -474,6 +487,7 @@ describe("composer input queue", () => {
         },
       ],
     });
+    expect(queue.view()).toEqual({ queuedCount: 0 });
     expect(queue.observe(interrupted)).toEqual({
       result: { type: "idempotentReplay", subject: "runtimeObservation" },
       effects: [],
@@ -535,6 +549,7 @@ describe("composer input queue", () => {
       queue.observe(committedMessage(first, "turn-a", "message-a")),
       queue.settleStart({ type: "accepted", claim: first, turnId: "turn-a" }),
     );
+    expect(queue.view()).toEqual({ queuedCount: 2 });
     const failed = queue.observe({
       type: "turnCompleted",
       turnId: "turn-a",
@@ -543,6 +558,7 @@ describe("composer input queue", () => {
     });
     transitions.push(failed);
     const second = startClaim(failed);
+    expect(queue.view()).toEqual({ queuedCount: 1 });
     transitions.push(
       queue.settleStart({ type: "accepted", claim: second, turnId: "turn-b" }),
       queue.observe({ type: "turnStarted", turnId: "turn-b", commitId: "start-b" }),

@@ -31,6 +31,7 @@ import {
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptEntry,
+  TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
@@ -79,10 +80,16 @@ test("renders committed user and assistant messages from an attached baseline", 
 test("renders accessible sub-agent activity and folds it after the final answer", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
   const turnId = "turn-sub-agent-activity-surface";
+  const startedTitle = "Started agents/browser-starter";
+  const spawnedTitle = "Spawned agents/browser-reviewer (gpt-5 high)";
+  const interactedTitle = "Interacted with agents/browser-reviewer";
+  const interruptedTitle = "Interrupted agents/browser-worker";
   const activityTitles = [
-    "Started `agents/browser-starter`",
-    "Interacted with `agents/browser-reviewer`",
-    "Interrupted `agents/browser-worker`",
+    startedTitle,
+    spawnedTitle,
+    interactedTitle,
+    interactedTitle,
+    interruptedTitle,
   ];
 
   store.dispatch(
@@ -95,8 +102,19 @@ test("renders accessible sub-agent activity and folds it after the final answer"
             "started",
             "agents/browser-starter",
           ),
+          collabAgentToolCall("activity-collab-spawned-surface", "spawnAgent", "completed", {
+            receiverThreadIds: ["agents/browser-reviewer"],
+            prompt: "Review browser activity",
+            model: "gpt-5",
+            reasoningEffort: "high",
+          }),
           subAgentActivity(
             "activity-sub-agent-interacted-surface",
+            "interacted",
+            "agents/browser-reviewer",
+          ),
+          subAgentActivity(
+            "activity-sub-agent-interacted-again-surface",
             "interacted",
             "agents/browser-reviewer",
           ),
@@ -110,18 +128,68 @@ test("renders accessible sub-agent activity and folds it after the final answer"
     ),
   );
 
-  const activities = activityTitles.map((title) => screen.getByRole("article", { name: title }));
+  const startedActivity = screen.getByRole("article", { name: startedTitle });
+  const spawnedActivity = screen.getByRole("article", { name: spawnedTitle });
+  const interactedActivities = screen.getByRole("article", { name: interactedTitle });
+  const interactedActivity = interactedActivities.nth(0);
+  const repeatedInteractedActivity = interactedActivities.nth(1);
+  const interruptedActivity = screen.getByRole("article", { name: interruptedTitle });
+  const activities = [
+    startedActivity,
+    spawnedActivity,
+    interactedActivity,
+    repeatedInteractedActivity,
+    interruptedActivity,
+  ];
   for (const activity of activities) {
     await expect.element(activity).toBeVisible();
     await expect.element(activity).not.toHaveAccessibleDescription();
-    expect(
-      activity
-        .element()
-        .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-    ).toHaveLength(0);
+  }
+  for (const [activity, agentPath] of [
+    [startedActivity, "agents/browser-starter"],
+    [interactedActivity, "agents/browser-reviewer"],
+    [repeatedInteractedActivity, "agents/browser-reviewer"],
+    [interruptedActivity, "agents/browser-worker"],
+  ] as const) {
+    const tagGroup = activity.getByRole("grid", { name: agentPath });
+    const tag = tagGroup.getByRole("row", { name: agentPath });
+    await expect.element(tagGroup).toBeVisible();
+    await expect.element(tag).toBeVisible();
+    await expect.element(tag).toHaveTextContent(agentPath);
+    await expect.element(tag).toHaveAttribute("tabindex", "0");
+    await expect.element(tag).not.toHaveAttribute("aria-selected");
+    await expect.element(tagGroup.getByRole("button")).not.toBeInTheDocument();
+    await expect.element(tagGroup.getByRole("link")).not.toBeInTheDocument();
   }
   await expect
-    .element(screen.getByRole("button", { name: "Intermediate updates · 3 items" }))
+    .element(spawnedActivity.getByRole("grid", { name: "agents/browser-reviewer" }))
+    .not.toBeInTheDocument();
+  const activityGroup = startedActivity
+    .element()
+    .closest<HTMLElement>(".committed-transcript-activity-group");
+  expect(activityGroup).not.toBeNull();
+  expect(activityGroup?.classList.contains("card--default")).toBe(true);
+  expect(activityGroup?.classList.contains("card--transparent")).toBe(false);
+  expect(activityGroup?.firstElementChild?.classList.contains("gap-2")).toBe(true);
+  expect(
+    activities.every(
+      (activity) =>
+        activity.element().closest(".committed-transcript-activity-group") === activityGroup,
+    ),
+  ).toBe(true);
+  expect(activities.every((activity) => activity.element().classList.contains("gap-2"))).toBe(true);
+  expect(activityGroup?.textContent).not.toMatch(/[•└`]/u);
+  await expect.element(spawnedActivity.getByText("Review browser activity")).toBeVisible();
+  for (const activity of [
+    startedActivity,
+    interactedActivity,
+    repeatedInteractedActivity,
+    interruptedActivity,
+  ]) {
+    await expect.element(activity.getByText("Review browser activity")).not.toBeInTheDocument();
+  }
+  await expect
+    .element(screen.getByRole("button", { name: "Intermediate updates · 5 items" }))
     .toBeDisabled();
 
   store.dispatch(
@@ -141,7 +209,7 @@ test("renders accessible sub-agent activity and folds it after the final answer"
     await expect.element(activity).not.toBeInTheDocument();
   }
 
-  const trigger = screen.getByRole("button", { name: "Intermediate updates · 3 items" });
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 5 items" });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
@@ -149,6 +217,108 @@ test("renders accessible sub-agent activity and folds it after the final answer"
   for (const [index, title] of activityTitles.entries()) {
     await expect.element(turnEntries.nth(index + 1)).toHaveAccessibleName(title);
   }
+});
+
+test("separates activity groups around middle messages", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-activity-message-boundary";
+  const beforeTitle = "Started agents/before-message";
+  const afterTitle = "Closed agents/after-message";
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          subAgentActivity("activity-before-message", "started", "agents/before-message"),
+          agentMessage("agent-activity-boundary", "Activity boundary message", "commentary"),
+          collabAgentToolCall("activity-after-message", "closeAgent", "completed", {
+            receiverThreadIds: ["agents/after-message"],
+          }),
+        ]),
+      ]),
+    ),
+  );
+
+  const before = screen.getByRole("article", { name: beforeTitle });
+  const boundary = screen.getByText("Activity boundary message");
+  const after = screen.getByRole("article", { name: afterTitle });
+  await expect.element(before).toBeVisible();
+  await expect.element(boundary).toBeVisible();
+  await expect.element(after).toBeVisible();
+
+  const beforeGroup = before.element().closest(".committed-transcript-activity-group");
+  const afterGroup = after.element().closest(".committed-transcript-activity-group");
+  expect(beforeGroup).not.toBeNull();
+  expect(afterGroup).not.toBeNull();
+  expect(beforeGroup).not.toBe(afterGroup);
+  expect(
+    boundary.element().closest("article")?.closest(".committed-transcript-activity-group"),
+  ).toBeNull();
+
+  const entries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  await expect.element(entries.nth(0)).toHaveAccessibleName(beforeTitle);
+  await expect.element(entries.nth(1)).toHaveTextContent("Activity boundary message");
+  await expect.element(entries.nth(2)).toHaveAccessibleName(afterTitle);
+});
+
+test("separates activity groups around middle status entries", async () => {
+  const turnId = "turn-activity-status-boundary";
+  const chunkId = `${turnId}:chunk:0`;
+  const beforeTitle = "Started agents/before-status";
+  const afterTitle = "Interrupted agents/after-status";
+  const sourceStore = makeStore();
+  sourceStore.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          subAgentActivity("activity-before-status", "started", "agents/before-status"),
+          subAgentActivity("activity-after-status", "interrupted", "agents/after-status"),
+        ]),
+      ]),
+    ),
+  );
+
+  const transcriptState = structuredClone(sourceStore.getState().transcriptState);
+  const chunk = transcriptState.chunksById[chunkId];
+  const turn = transcriptState.turnsById[turnId];
+  if (chunk == null || turn == null) {
+    throw new Error("Expected the activity fixture to create one transcript chunk");
+  }
+  const statusEntryId = transcriptEntryIdFor(turnId, "status-activity-boundary");
+  chunk.entryIds.splice(1, 0, statusEntryId);
+  transcriptState.entriesById[statusEntryId] = {
+    type: "status",
+    id: "status-activity-boundary",
+    turnId,
+    status: "interrupted",
+    revision: 0,
+  };
+  transcriptState.entryChunkById[statusEntryId] = chunkId;
+  turn.middleEntryCount += 1;
+
+  const screen = await renderWithProviders(<CommittedTranscriptSurface />, {
+    store: makeStore({ transcriptState }),
+  });
+  const before = screen.getByRole("article", { name: beforeTitle });
+  const status = screen.getByText("Interrupted.");
+  const after = screen.getByRole("article", { name: afterTitle });
+  await expect.element(before).toBeVisible();
+  await expect.element(status).toBeVisible();
+  await expect.element(after).toBeVisible();
+
+  const beforeGroup = before.element().closest(".committed-transcript-activity-group");
+  const afterGroup = after.element().closest(".committed-transcript-activity-group");
+  expect(beforeGroup).not.toBeNull();
+  expect(afterGroup).not.toBeNull();
+  expect(beforeGroup).not.toBe(afterGroup);
+  expect(
+    status.element().closest("article")?.closest(".committed-transcript-activity-group"),
+  ).toBeNull();
+
+  const entries = screen.getByRole("article", { name: `Turn ${turnId}` }).getByRole("article");
+  await expect.element(entries.nth(0)).toHaveAccessibleName(beforeTitle);
+  await expect.element(entries.nth(1)).toHaveTextContent("Interrupted.");
+  await expect.element(entries.nth(2)).toHaveAccessibleName(afterTitle);
 });
 
 test("renders terminal collab activity accessibly and restores its order after expansion", async () => {
@@ -217,6 +387,7 @@ test("renders terminal collab activity accessibly and restores its order after e
 test("localizes transcript copy without rebuilding semantic activity views", async () => {
   const turnId = "turn-locale-surface";
   const activityId = "activity-locale-surface";
+  const interactedActivityId = "activity-interacted-locale-surface";
   const waitId = "collab-wait-locale-surface";
   const agentPath = "agents/locale-worker";
   const agentThreadId = "thread-locale-worker";
@@ -228,6 +399,7 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
       attachWithTurns(attachBaseline, [
         baseTurn(turnId, [
           subAgentActivity(activityId, "started", agentPath),
+          subAgentActivity(interactedActivityId, "interacted", agentPath),
           collabAgentToolCall(waitId, "wait", "completed", {
             agentsStates: {
               [agentThreadId]: collabAgentState("completed", rawMessage),
@@ -249,11 +421,26 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
   await expect.element(englishRegion).toBeVisible();
   await expect.element(englishTurn).toHaveTextContent("Completed");
   await expect
-    .element(englishTurn.getByRole("button", { name: "Intermediate updates · 2 items" }))
+    .element(englishTurn.getByRole("button", { name: "Intermediate updates · 3 items" }))
     .toBeDisabled();
-  await expect
-    .element(englishTurn.getByRole("article", { name: `Started \`${agentPath}\`` }))
-    .toBeVisible();
+  const englishStartedActivity = englishTurn.getByRole("article", {
+    name: `Started ${agentPath}`,
+  });
+  const englishAgentTag = englishStartedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(englishStartedActivity).toBeVisible();
+  await expect.element(englishAgentTag).toBeVisible();
+  expect(englishStartedActivity.element().textContent).toBe(`Started ${agentPath}`);
+  const englishInteractedActivity = englishTurn.getByRole("article", {
+    name: `Interacted with ${agentPath}`,
+  });
+  const englishInteractedAgentTag = englishInteractedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(englishInteractedActivity).toBeVisible();
+  await expect.element(englishInteractedAgentTag).toBeVisible();
+  expect(englishInteractedActivity.element().textContent).toBe(`Interacted with ${agentPath}`);
   await expect
     .element(englishTurn.getByRole("article", { name: "Finished waiting" }))
     .toHaveTextContent(`${agentThreadId}: Completed - ${rawMessage}`);
@@ -269,10 +456,25 @@ test("localizes transcript copy without rebuilding semantic activity views", asy
 
   await expect.element(chineseRegion).toBeVisible();
   await expect.element(chineseTurn).toHaveTextContent("已完成");
-  await expect.element(chineseTurn.getByRole("button", { name: "中间更新 · 2 项" })).toBeDisabled();
-  await expect
-    .element(chineseTurn.getByRole("article", { name: `已启动 \`${agentPath}\`` }))
-    .toBeVisible();
+  await expect.element(chineseTurn.getByRole("button", { name: "中间更新 · 3 项" })).toBeDisabled();
+  const chineseStartedActivity = chineseTurn.getByRole("article", {
+    name: `已启动 ${agentPath}`,
+  });
+  const chineseAgentTag = chineseStartedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(chineseStartedActivity).toBeVisible();
+  await expect.element(chineseAgentTag).toBeVisible();
+  expect(chineseStartedActivity.element().textContent).toBe(`已启动${agentPath}`);
+  const chineseInteractedActivity = chineseTurn.getByRole("article", {
+    name: `已与 ${agentPath} 交互`,
+  });
+  const chineseInteractedAgentTag = chineseInteractedActivity
+    .getByRole("grid", { name: agentPath })
+    .getByRole("row", { name: agentPath });
+  await expect.element(chineseInteractedActivity).toBeVisible();
+  await expect.element(chineseInteractedAgentTag).toBeVisible();
+  expect(chineseInteractedActivity.element().textContent).toBe(`已与${agentPath}交互`);
   await expect
     .element(chineseTurn.getByRole("article", { name: "等待结束" }))
     .toHaveTextContent(`${agentThreadId}：已完成：${rawMessage}`);
@@ -816,19 +1018,25 @@ test("does not mount collapsed temporary markdown before expansion", async () =>
 
 test("renders one collapsed temporary module for a turn split across chunks", async () => {
   const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
-  const commentaryMessages = Array.from({ length: 101 }, (_, index) =>
-    agentMessage(
-      `agent-cross-chunk-commentary-${String(index)}`,
-      `Cross chunk working note ${String(index)}`,
-      "commentary",
-    ),
+  const activityItems = Array.from(
+    { length: TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1 },
+    (_, index) =>
+      subAgentActivity(
+        `activity-cross-chunk-${String(index)}`,
+        "started",
+        `agents/cross-chunk-${String(index)}`,
+      ),
   );
+  const firstActivityTitle = "Started agents/cross-chunk-0";
+  const lastActivityTitle = `Started agents/cross-chunk-${String(
+    TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+  )}`;
 
   store.dispatch(
     threadRuntimeAttached(
       attachWithTurns(attachBaseline, [
         baseTurn("turn-temporary-cross-chunk", [
-          ...commentaryMessages,
+          ...activityItems,
           agentMessage(
             "agent-cross-chunk-final",
             "Visible final answer after chunk boundary",
@@ -840,13 +1048,15 @@ test("renders one collapsed temporary module for a turn split across chunks", as
   );
 
   await expect.element(screen.getByText("Visible final answer after chunk boundary")).toBeVisible();
-  await expect.element(screen.getByText("Cross chunk working note 0")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("article", { name: firstActivityTitle }))
+    .not.toBeInTheDocument();
 
   const triggers = Array.from(
     document.querySelectorAll<HTMLButtonElement>(".committed-transcript-temporary-trigger"),
   );
   expect(triggers.map((trigger) => trigger.textContent)).toStrictEqual([
-    "Intermediate updates · 101 items",
+    `Intermediate updates · ${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1)} items`,
   ]);
   expect(triggers.map((trigger) => trigger.classList.contains("button--outline"))).toStrictEqual([
     true,
@@ -855,11 +1065,30 @@ test("renders one collapsed temporary module for a turn split across chunks", as
     false,
   ]);
 
-  const trigger = screen.getByRole("button", { name: "Intermediate updates · 101 items" });
+  const trigger = screen.getByRole("button", {
+    name: `Intermediate updates · ${String(TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT + 1)} items`,
+  });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
-  await expect.element(screen.getByText("Cross chunk working note 0")).toBeVisible();
+  const firstActivity = screen.getByRole("article", { name: firstActivityTitle });
+  const lastActivity = screen.getByRole("article", { name: lastActivityTitle });
+  await expect.element(firstActivity).toBeVisible();
+  await expect.element(lastActivity).toBeVisible();
+  const activityGroups = Array.from(
+    document.querySelectorAll<HTMLElement>(".committed-transcript-activity-group"),
+  );
+  expect(activityGroups).toHaveLength(2);
+  expect(activityGroups.map((group) => group.querySelectorAll("article").length)).toStrictEqual([
+    TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
+    1,
+  ]);
+  expect(firstActivity.element().closest(".committed-transcript-activity-group")).toBe(
+    activityGroups[0],
+  );
+  expect(lastActivity.element().closest(".committed-transcript-activity-group")).toBe(
+    activityGroups[1],
+  );
 });
 
 test("renders later user messages inside the intermediate disclosure", async () => {

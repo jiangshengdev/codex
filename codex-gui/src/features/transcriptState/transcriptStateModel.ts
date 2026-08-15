@@ -36,6 +36,34 @@ export type TranscriptAgentMessageItem = Extract<ThreadItem, { type: "agentMessa
 
 export type TranscriptMessagePhase = TranscriptAgentMessageItem["phase"];
 
+export type TranscriptReasoningItem = Extract<ThreadItem, { type: "reasoning" }>;
+
+export type TranscriptReasoningSummaryPart = TranscriptReasoningItem["summary"][number];
+
+export type TranscriptStreamingReasoningStoredEntry = {
+  type: "reasoning";
+  id: string;
+  turnId: string;
+  lifecycle: "streaming";
+  summaryParts: Partial<Record<number, TranscriptReasoningSummaryPart>>;
+  currentSummaryIndex: number | null;
+  title: TranscriptReasoningSummaryPart | null;
+  revision: number;
+};
+
+export type TranscriptCompletedReasoningStoredEntry = {
+  type: "reasoning";
+  id: string;
+  turnId: string;
+  lifecycle: "completed";
+  summaryParts: readonly TranscriptReasoningSummaryPart[];
+  revision: number;
+};
+
+export type TranscriptReasoningStoredEntry =
+  | TranscriptStreamingReasoningStoredEntry
+  | TranscriptCompletedReasoningStoredEntry;
+
 export type TranscriptCollabAgentItem = Extract<ThreadItem, { type: "collabAgentToolCall" }>;
 
 export type TranscriptCollabAgentState = NonNullable<
@@ -104,6 +132,7 @@ export type TranscriptEntry =
       status: "interrupted" | "failed";
       revision: number;
     }
+  | TranscriptCompletedReasoningStoredEntry
   | TranscriptCollabAgentStoredEntry
   | TranscriptSubAgentActivityStoredEntry;
 
@@ -126,7 +155,10 @@ export type TranscriptRenderableLiveItem = {
   revision: number;
 };
 
-export type TranscriptStoredEntry = TranscriptEntry | TranscriptRenderableLiveItem;
+export type TranscriptStoredEntry =
+  | TranscriptEntry
+  | TranscriptRenderableLiveItem
+  | TranscriptStreamingReasoningStoredEntry;
 
 export type TranscriptMessageRendering =
   | { mode: "plainText"; source: string }
@@ -149,6 +181,28 @@ export type TranscriptStatusView = {
   status: "interrupted" | "failed";
   revision: number;
 };
+
+export type TranscriptStreamingReasoningView = {
+  type: "reasoning";
+  id: string;
+  turnId: string;
+  lifecycle: "streaming";
+  title: TranscriptReasoningSummaryPart;
+  revision: number;
+};
+
+export type TranscriptCompletedReasoningView = {
+  type: "reasoning";
+  id: string;
+  turnId: string;
+  lifecycle: "completed";
+  source: TranscriptReasoningSummaryPart;
+  revision: number;
+};
+
+export type TranscriptReasoningView =
+  | TranscriptStreamingReasoningView
+  | TranscriptCompletedReasoningView;
 
 export type TranscriptActivityCopy =
   | {
@@ -227,6 +281,7 @@ export type TranscriptSubAgentActivityView = {
 export type TranscriptEntryView =
   | TranscriptMessageView
   | TranscriptStatusView
+  | TranscriptReasoningView
   | TranscriptCollabAgentView
   | TranscriptSubAgentActivityView;
 

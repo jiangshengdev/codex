@@ -8,6 +8,8 @@ import {
   appendStartedTranscriptItem,
   applyAcceptedProjectionDeltaBatch,
   applyCompletedTranscriptItem,
+  clearAllStreamingReasoning,
+  clearStreamingReasoningForTurn,
   hasTranscriptEntry,
   rebuildTranscriptFromSnapshot,
   upsertTranscriptTurn,
@@ -57,9 +59,19 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
 
       switch (notification.event.type) {
         case "turnStarted":
-        case "turnCompleted":
           upsertTranscriptTurn(state, notification.event.notification.turn);
           return;
+        case "turnCompleted": {
+          const { turn } = notification.event.notification;
+          upsertTranscriptTurn(state, turn);
+          if (
+            (turn.status === "interrupted" || turn.status === "failed") &&
+            clearStreamingReasoningForTurn(state, turn.id)
+          ) {
+            state.committedScrollCommitKey = `event:${notification.commitId}`;
+          }
+          return;
+        }
         case "itemCompleted": {
           const { item, turnId } = notification.event.notification;
           applyCompletedTranscriptItem(state, turnId, item, notification.commitId);
@@ -80,6 +92,10 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
     case threadRuntimeManualReconnectRequired.type:
       if (state.threadId !== action.payload.threadId) {
         return;
+      }
+
+      if (clearAllStreamingReasoning(state)) {
+        state.committedScrollCommitKey = `reconnect:${action.payload.threadId}:${action.payload.subscriptionId ?? "none"}:${action.payload.reason}`;
       }
 
       state.globalStatus = [
