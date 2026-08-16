@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { Outlet } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import type { AppCapabilities } from "./features/appShell/AppCapabilities";
+import { AppCapabilitiesProvider } from "./features/appShell/AppCapabilitiesContext";
 import { AppShell } from "./features/appShell/AppShell";
 import { GuiHostConnectionBridge } from "./features/appShell/GuiHostConnectionBridge";
 import type { BrowserLaunchParams } from "./features/browserLaunch/browserLaunchParams";
@@ -13,6 +16,11 @@ function App() {
   const [launchParams, setLaunchParams] = useState<BrowserLaunchParams | null>(null);
   const [composerInputQueueController, setComposerInputQueueController] =
     useState<ComposerInputQueueCoordinator | null>(null);
+  const capabilities = useMemo<AppCapabilities>(
+    () => ({ status, commands, launchParams, composerInputQueueController }),
+    [commands, composerInputQueueController, launchParams, status],
+  );
+
   return (
     <>
       <GuiHostConnectionBridge
@@ -21,12 +29,11 @@ function App() {
         setLaunchParams={setLaunchParams}
         setComposerInputQueueController={setComposerInputQueueController}
       />
-      <AppShell
-        status={status}
-        commands={commands}
-        composerInputQueueController={composerInputQueueController}
-        launchParams={launchParams}
-      />
+      <AppCapabilitiesProvider capabilities={capabilities}>
+        <AppShell>
+          <Outlet />
+        </AppShell>
+      </AppCapabilitiesProvider>
     </>
   );
 }

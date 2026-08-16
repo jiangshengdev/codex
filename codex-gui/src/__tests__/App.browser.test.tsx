@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
+import { useState } from "react";
+import {
   attachProjection,
   attachResponse,
   attachWithCommittedMessages,
@@ -16,7 +24,7 @@ import {
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
-import App from "@/App";
+import RootApp from "@/App";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -25,6 +33,7 @@ import type {
   GuiHostCommands,
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
+import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
 import {
   attachReplacement,
   closedBackpressure,
@@ -72,6 +81,24 @@ vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: tr
 
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
+
+function App() {
+  const [router] = useState(() => {
+    const rootRoute = createRootRoute({ component: RootApp });
+    const indexRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: "/",
+      component: CurrentTaskPage,
+    });
+
+    return createRouter({
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+      routeTree: rootRoute.addChildren([indexRoute]),
+    });
+  });
+
+  return <RouterProvider router={router} />;
+}
 
 const startTurnParamsAt = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
@@ -305,6 +332,8 @@ test("App displays GUI host startup errors in the sticky top notices region", as
 
   const screen = await renderWithProviders(<App />);
   const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
+  const banner = screen.getByRole("banner").element();
+  const main = screen.getByRole("main").element();
   const errorTitle = screen.getByText("Unable to start Codex GUI").element();
   const errorMessage = screen.getByText("Missing launch token fragment").element();
 
@@ -320,10 +349,9 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
   await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
   expect(topNotices.classList.contains("sticky")).toBe(true);
-  expect(topNotices.classList.contains("top-0")).toBe(true);
   expect(topNotices.classList.contains("z-20")).toBe(true);
-  expect(topNotices.classList.contains("pt-3")).toBe(false);
-  expect(topNoticesContent.classList.contains("pt-3")).toBe(true);
+  expect(banner.compareDocumentPosition(topNotices) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  expect(topNotices.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
   await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
