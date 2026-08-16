@@ -1,4 +1,5 @@
 import { createAppSlice } from "@/app/createAppSlice";
+import { liveThreadReplacementCommitted } from "@/features/projectionCoordination/liveThreadReplacement";
 import {
   threadRuntimeAttached,
   threadRuntimeDeltasAccepted,
@@ -8,6 +9,7 @@ import {
 import { reduceTranscriptInput } from "./transcriptProjection";
 import {
   initialTranscriptState,
+  resetTranscriptState,
   type TranscriptChunkView,
   type TranscriptContextPage,
   type TranscriptEntryId,
@@ -72,6 +74,9 @@ export const transcriptStateSlice = createAppSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(liveThreadReplacementCommitted, (state, action) => {
+        resetTranscriptState(state, action.payload.transcriptState);
+      })
       .addCase(threadRuntimeAttached, (state, action) => {
         reduceTranscriptInput(state, action);
       })

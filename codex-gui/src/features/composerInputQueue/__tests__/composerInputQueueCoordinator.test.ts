@@ -37,6 +37,44 @@ const live = (notification: typeof eventItemStarted) => ({
 });
 const flush = (): Promise<void> => Promise.resolve();
 describe("ComposerInputQueueCoordinator", () => {
+  it("reserves a safe release, blocks queue operations until release, and rejects disposal", () => {
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-active",
+      startTurn: vi.fn<StartTurn>(),
+    });
+    const reserved = coordinator.reserveRelease();
+
+    if (reserved.type !== "reserved") throw new Error("expected a release reservation");
+    expect({ type: reserved.type, release: typeof reserved.reservation.release }).toEqual({
+      type: "reserved",
+      release: "function",
+    });
+    expect({
+      readiness: coordinator.getReleaseReadiness(),
+      submit: coordinator.submit("blocked"),
+      recover: coordinator.recover(),
+      reserveAgain: coordinator.reserveRelease(),
+    }).toEqual({
+      readiness: { type: "blocked", blockers: [{ type: "releaseReserved" }] },
+      submit: { type: "rejected", reason: "releaseReserved" },
+      recover: false,
+      reserveAgain: { type: "blocked", blockers: [{ type: "releaseReserved" }] },
+    });
+
+    reserved.reservation.release();
+    expect({
+      readiness: coordinator.getReleaseReadiness(),
+      submit: coordinator.submit("accepted after release"),
+    }).toEqual({ readiness: { type: "safe" }, submit: { type: "accepted" } });
+
+    coordinator.dispose();
+    expect(coordinator.reserveRelease()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "disposed" }],
+    });
+  });
+
   it("exposes its owner and combines queue release readiness without treating an active turn as blocked", async () => {
     const active = createCoordinator({
       threadId: "thread-active",

@@ -1,6 +1,7 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import { createAppSlice } from "@/app/createAppSlice";
 import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
+import { liveThreadReplacementCommitted } from "@/features/projectionCoordination/liveThreadReplacement";
 import type {
   Thread,
   ThreadProjectionAttachResponse,
@@ -73,6 +74,22 @@ const MAX_THREAD_RUNTIME_EVENT_BUFFER_LENGTH = 500;
 const activeTurnIdFromSnapshot = (turns: Turn[]): string | null =>
   turns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null;
 
+const threadRuntimeRecordFromAttach = (
+  response: ThreadProjectionAttachResponse,
+): ThreadRuntimeRecord => {
+  const { turns: snapshotTurns, ...thread } = response.snapshot.thread;
+  return {
+    threadId: thread.id,
+    sessionId: thread.sessionId,
+    thread,
+    snapshotTurns,
+    eventBuffer: [],
+    activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
+    latestLiveTurnCompletion: null,
+    subscription: { state: "active" },
+  };
+};
+
 export type SnapshotReplayIndex = {
   turnStatusById: Partial<Record<string, Turn["status"]>>;
   itemIdsById: Record<string, true>;
@@ -115,18 +132,7 @@ export const threadRuntimeSlice = createAppSlice({
   reducers: (create) => ({
     threadRuntimeAttached: create.reducer(
       (state, action: PayloadAction<ThreadProjectionAttachResponse>) => {
-        const { turns: snapshotTurns, ...thread } = action.payload.snapshot.thread;
-
-        state.current = {
-          threadId: thread.id,
-          sessionId: thread.sessionId,
-          thread,
-          snapshotTurns,
-          eventBuffer: [],
-          activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
-          latestLiveTurnCompletion: null,
-          subscription: { state: "active" },
-        };
+        state.current = threadRuntimeRecordFromAttach(action.payload);
       },
     ),
     threadRuntimeDeltasAccepted: create.reducer(
@@ -196,6 +202,11 @@ export const threadRuntimeSlice = createAppSlice({
       },
     ),
   }),
+  extraReducers: (builder) => {
+    builder.addCase(liveThreadReplacementCommitted, (state, action) => {
+      state.current = threadRuntimeRecordFromAttach(action.payload.response);
+    });
+  },
   selectors: {
     selectThreadRuntimeRecord: (threadRuntime) => threadRuntime.current,
     selectThreadRuntimeActiveTurnId: (threadRuntime) => threadRuntime.current?.activeTurnId ?? null,
