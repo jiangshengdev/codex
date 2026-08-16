@@ -75,6 +75,13 @@ export const sleepItem = (id: string): ThreadItem => ({
   durationMs: 1000,
 });
 
+type ContextCompactionItem = Extract<ThreadItem, { type: "contextCompaction" }>;
+
+export const contextCompaction = (id: string): ContextCompactionItem => ({
+  type: "contextCompaction",
+  id,
+});
+
 type SubAgentActivityItem = Extract<ThreadItem, { type: "subAgentActivity" }>;
 
 export const subAgentActivity = (
@@ -137,6 +144,16 @@ export const inProgressTurn = (id: string, items: ThreadItem[] = []): Turn => ({
   status: "inProgress",
   completedAt: null,
   durationMs: null,
+});
+
+export const failedTurn = (
+  id: string,
+  error: NonNullable<Turn["error"]>,
+  items: ThreadItem[] = [],
+): Turn => ({
+  ...baseTurn(id, items),
+  status: "failed",
+  error,
 });
 
 export const turnWithItems = (turn: Turn, items: ThreadItem[]): Turn => ({
@@ -208,6 +225,28 @@ export const eventWithEnvelope = (
   ...overrides,
 });
 
+type ProjectionNotificationOwner = Pick<
+  ThreadProjectionEventNotification,
+  "threadId" | "subscriptionId"
+>;
+
+const projectionPayloadForThread = <T extends { notification: { threadId: string } }>(
+  payload: T,
+  threadId: string,
+): T => ({
+  ...payload,
+  notification: { ...payload.notification, threadId },
+});
+
+export const eventForThreadOwner = (
+  event: ThreadProjectionEventNotification,
+  owner: ProjectionNotificationOwner,
+): ThreadProjectionEventNotification => ({
+  ...event,
+  ...owner,
+  event: projectionPayloadForThread(event.event, owner.threadId),
+});
+
 type DeltaEnvelopeOverrides = {
   threadId?: ThreadProjectionDeltaNotification["threadId"];
   subscriptionId?: ThreadProjectionDeltaNotification["subscriptionId"];
@@ -219,6 +258,15 @@ export const deltaWithEnvelope = (
 ): ThreadProjectionDeltaNotification => ({
   ...delta,
   ...overrides,
+});
+
+export const deltaForThreadOwner = (
+  delta: ThreadProjectionDeltaNotification,
+  owner: ProjectionNotificationOwner,
+): ThreadProjectionDeltaNotification => ({
+  ...delta,
+  ...owner,
+  delta: projectionPayloadForThread(delta.delta, owner.threadId),
 });
 
 type ClosedEnvelopeOverrides = {
@@ -372,6 +420,14 @@ export const itemCompleted = (
     },
   };
 };
+
+export const contextCompactionCompleted = (
+  eventItemCompleted: ThreadProjectionEventNotification,
+  commitId: string,
+  turnId: string,
+  itemId: string,
+): ThreadProjectionEventNotification =>
+  itemCompleted(eventItemCompleted, commitId, turnId, contextCompaction(itemId));
 
 export const itemStarted = (
   eventItemStarted: ThreadProjectionEventNotification,

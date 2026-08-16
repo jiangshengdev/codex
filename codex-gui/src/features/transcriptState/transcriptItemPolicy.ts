@@ -4,6 +4,7 @@ import type {
   TranscriptCollabAgentItem,
   TranscriptCollabAgentState,
   TranscriptCollabAgentStateSummary,
+  TranscriptContextBoundaryItem,
   TranscriptEntry,
   TranscriptReasoningItem,
 } from "./transcriptStateModel";
@@ -18,6 +19,7 @@ export type StartedTranscriptItemProjection =
 
 export type CompletedTranscriptItemProjection =
   | IgnoreTranscriptItem
+  | { kind: "contextBoundary"; item: TranscriptContextBoundaryItem }
   | { kind: "present"; entry: TranscriptEntry }
   | { kind: "remove" };
 
@@ -370,8 +372,9 @@ export const projectCompletedTranscriptItem = (
     case "imageGeneration":
     case "enteredReviewMode":
     case "exitedReviewMode":
-    case "contextCompaction":
       return { kind: "ignore" };
+    case "contextCompaction":
+      return { kind: "contextBoundary", item };
   }
 
   const exhaustiveItem: never = item;

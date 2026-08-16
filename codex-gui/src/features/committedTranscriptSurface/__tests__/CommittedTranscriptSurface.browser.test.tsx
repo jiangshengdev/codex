@@ -7,11 +7,13 @@ import {
   baseTurn,
   collabAgentState,
   collabAgentToolCall,
+  failedTurn,
   inProgressTurn,
   itemCompleted,
   itemStarted,
   subAgentActivity,
   textInput,
+  turnCompleted,
   turnStarted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -20,6 +22,7 @@ import {
   eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
+  eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
@@ -36,6 +39,17 @@ import {
 } from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
+
+const quotaErrorMessage = [
+  "unexpected status 403 Forbidden: token quota is not enough, token remain quota: ¥0.064714, need quota: ¥0.072198 (request id: 202608140209338062200938268d9d60dAEpcHp), url:",
+  "https://shapi.vip/v1/responses",
+].join("\n");
+
+const quotaError = {
+  message: quotaErrorMessage,
+  codexErrorInfo: "usageLimitExceeded",
+  additionalDetails: null,
+} satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
 
 test("renders an empty committed transcript region", async () => {
   const screen = await renderWithProviders(<CommittedTranscriptSurface />);
@@ -75,6 +89,73 @@ test("renders committed user and assistant messages from an attached baseline", 
     { isSecondary: true, text: "Hello surface" },
     { isSecondary: false, text: "Committed response" },
   ]);
+});
+
+test("renders an attached failed-turn error after the turn content", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-attached-failed-error";
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        failedTurn(turnId, quotaError, [
+          userMessage("user-attached-failed-error", [textInput("Use the remaining quota")]),
+          agentMessage("agent-attached-failed-error", "Final response before the request failed"),
+        ]),
+      ]),
+    ),
+  );
+
+  const turn = screen.getByRole("article", { name: `Turn ${turnId}` });
+  const failedStatus = turn.getByText("Failed", { exact: true });
+  const finalMessage = turn.getByText("Final response before the request failed", {
+    exact: true,
+  });
+  const errorAlert = turn.getByRole("alert");
+  await expect.element(turn).toBeVisible();
+  await expect.element(failedStatus).toBeVisible();
+  await expect.element(finalMessage).toBeVisible();
+  await expect.element(errorAlert).toBeVisible();
+  await expect.element(errorAlert.getByText("Request failed", { exact: true })).toBeVisible();
+  await expect
+    .element(errorAlert.getByText("202608140209338062200938268d9d60dAEpcHp", { exact: false }))
+    .toBeVisible();
+  await expect
+    .element(errorAlert.getByText("https://shapi.vip/v1/responses", { exact: false }))
+    .toBeVisible();
+  expect(errorAlert.element().textContent).toBe(`Request failed${quotaErrorMessage}`);
+  expect(
+    failedStatus.element().compareDocumentPosition(finalMessage.element()) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+  expect(
+    finalMessage.element().compareDocumentPosition(errorAlert.element()) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+});
+
+test("renders one error alert for a repeated live error-only turn completion", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-live-error-only";
+  const failedNotification = turnCompleted(
+    eventTurnCompleted,
+    "commit-live-error-only",
+    failedTurn(turnId, quotaError),
+  );
+
+  store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+  store.dispatch(threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }));
+  store.dispatch(threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }));
+
+  const turn = screen.getByRole("article", { name: `Turn ${turnId}` });
+  const errorAlert = turn.getByRole("alert");
+  await expect.element(turn).toBeVisible();
+  await expect.element(turn.getByText("Failed", { exact: true })).toBeVisible();
+  await expect.element(errorAlert).toBeVisible();
+  await expect.element(errorAlert.getByText("Request failed", { exact: true })).toBeVisible();
+  expect(errorAlert.element().textContent).toBe(`Request failed${quotaErrorMessage}`);
+  expect(turn.getByRole("alert").elements()).toHaveLength(1);
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
 });
 
 test("renders accessible sub-agent activity and folds it after the final answer", async () => {

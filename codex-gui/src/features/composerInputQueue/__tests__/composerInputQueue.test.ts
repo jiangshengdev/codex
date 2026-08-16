@@ -34,7 +34,7 @@ describe("composer input queue", () => {
   it("issues one opaque single-message start claim for an idle submit", () => {
     const queue = createComposerInputQueue({ activeTurnId: null });
 
-    expect(queue.view()).toEqual({ queuedCount: 0 });
+    expect(queue.view()).toEqual({ queuedCount: 0, releaseState: { type: "safe" } });
     const transition = submit(queue, "a");
     const claim = startClaim(transition);
 
@@ -43,7 +43,13 @@ describe("composer input queue", () => {
       effects: [{ type: "performStart", claim }],
     });
     expect(claim).toMatchObject({ type: "start", message: message("a") });
-    expect(queue.view()).toEqual({ queuedCount: 0 });
+    expect(queue.view()).toEqual({
+      queuedCount: 0,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "pendingStart", phase: "issuing" }],
+      },
+    });
   });
 
   it("issues distinct client message identities across queue instances", () => {
@@ -53,13 +59,67 @@ describe("composer input queue", () => {
     expect(firstClaim.clientUserMessageId).not.toBe(secondClaim.clientUserMessageId);
   });
 
+  it("exposes every local release blocker without exposing owned messages", () => {
+    expect(createComposerInputQueue().view().releaseState).toEqual({ type: "safe" });
+    expect(createComposerInputQueue({ activeTurnId: "turn-active" }).view().releaseState).toEqual({
+      type: "safe",
+    });
+
+    const ordinary = createComposerInputQueue({ activeTurnId: "turn-active" });
+    submit(ordinary, "ordinary");
+    expect(ordinary.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+    });
+
+    const pending = createComposerInputQueue();
+    const claim = startClaim(submit(pending, "owned"));
+    expect(pending.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [{ type: "pendingStart", phase: "issuing" }],
+    });
+    submit(pending, "ordinary");
+    expect(pending.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "ordinaryQueued", count: 1 },
+        { type: "pendingStart", phase: "issuing" },
+      ],
+    });
+
+    pending.settleStart({ type: "accepted", claim, turnId: "turn-owned" });
+    expect(pending.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "ordinaryQueued", count: 1 },
+        { type: "pendingStart", phase: "acceptedAwaitingRuntime" },
+      ],
+    });
+
+    const deliveryUnknown = createComposerInputQueue();
+    const unknownClaim = startClaim(submit(deliveryUnknown, "unknown"));
+    deliveryUnknown.settleStart({ type: "deliveryUnknown", claim: unknownClaim });
+    expect(deliveryUnknown.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [{ type: "pendingStart", phase: "deliveryUnknown" }],
+    });
+    deliveryUnknown.observe(committedMessage(unknownClaim, "turn-unknown", "commit-unknown"));
+    expect(deliveryUnknown.view().releaseState).toEqual({ type: "safe" });
+  });
+
   it("queues active, pending, and busy submissions without outbound effects and keeps FIFO", () => {
     const activeQueue = createComposerInputQueue({ activeTurnId: "turn-active" });
     expect(submit(activeQueue, "active")).toEqual({
       result: { type: "queued", messageId: "active" },
       effects: [],
     });
-    expect(activeQueue.view()).toEqual({ queuedCount: 1 });
+    expect(activeQueue.view()).toEqual({
+      queuedCount: 1,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "ordinaryQueued", count: 1 }],
+      },
+    });
 
     const queue = createComposerInputQueue({ activeTurnId: null });
     const firstClaim = startClaim(submit(queue, "a"));
@@ -67,22 +127,55 @@ describe("composer input queue", () => {
       result: { type: "queued", messageId: "b" },
       effects: [],
     });
-    expect(queue.view()).toEqual({ queuedCount: 1 });
+    expect(queue.view()).toEqual({
+      queuedCount: 1,
+      releaseState: {
+        type: "blocked",
+        blockers: [
+          { type: "ordinaryQueued", count: 1 },
+          { type: "pendingStart", phase: "issuing" },
+        ],
+      },
+    });
     expect(submit(queue, "c")).toEqual({
       result: { type: "queued", messageId: "c" },
       effects: [],
     });
-    expect(queue.view()).toEqual({ queuedCount: 2 });
+    expect(queue.view()).toEqual({
+      queuedCount: 2,
+      releaseState: {
+        type: "blocked",
+        blockers: [
+          { type: "ordinaryQueued", count: 2 },
+          { type: "pendingStart", phase: "issuing" },
+        ],
+      },
+    });
 
     const afterFirst = queue.settleStart({ type: "definitelyNotAccepted", claim: firstClaim });
     const secondClaim = startClaim({ ...afterFirst, effects: afterFirst.effects.slice(1) });
     expect(secondClaim.message).toEqual(message("b"));
-    expect(queue.view()).toEqual({ queuedCount: 1 });
+    expect(queue.view()).toEqual({
+      queuedCount: 1,
+      releaseState: {
+        type: "blocked",
+        blockers: [
+          { type: "ordinaryQueued", count: 1 },
+          { type: "pendingStart", phase: "issuing" },
+        ],
+      },
+    });
 
     const afterSecond = queue.settleStart({ type: "definitelyNotAccepted", claim: secondClaim });
     const thirdClaim = startClaim({ ...afterSecond, effects: afterSecond.effects.slice(1) });
     expect(thirdClaim.message).toEqual(message("c"));
-    expect(queue.view()).toEqual({ queuedCount: 0 });
+    expect(queue.view()).toEqual({
+      queuedCount: 0,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "pendingStart", phase: "issuing" }],
+      },
+    });
   });
 
   it("rejects blank and locally owned duplicate messages without changing ownership", () => {
@@ -145,17 +238,41 @@ describe("composer input queue", () => {
       result: { type: "deliveryUnknown" },
       effects: [],
     });
-    expect(queue.view()).toEqual({ queuedCount: 0 });
+    expect(queue.view()).toEqual({
+      queuedCount: 0,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "pendingStart", phase: "deliveryUnknown" }],
+      },
+    });
     expect(submit(queue, "b")).toEqual({
       result: { type: "queued", messageId: "b" },
       effects: [],
     });
-    expect(queue.view()).toEqual({ queuedCount: 1 });
+    expect(queue.view()).toEqual({
+      queuedCount: 1,
+      releaseState: {
+        type: "blocked",
+        blockers: [
+          { type: "ordinaryQueued", count: 1 },
+          { type: "pendingStart", phase: "deliveryUnknown" },
+        ],
+      },
+    });
     expect(queue.settleStart(unknown)).toEqual({
       result: { type: "idempotentReplay", subject: "startSettlement" },
       effects: [],
     });
-    expect(queue.view()).toEqual({ queuedCount: 1 });
+    expect(queue.view()).toEqual({
+      queuedCount: 1,
+      releaseState: {
+        type: "blocked",
+        blockers: [
+          { type: "ordinaryQueued", count: 1 },
+          { type: "pendingStart", phase: "deliveryUnknown" },
+        ],
+      },
+    });
     expect(submit(queue, "a")).toEqual({
       result: { type: "duplicateIdentity", messageId: "a" },
       effects: [],
@@ -308,7 +425,13 @@ describe("composer input queue", () => {
       type: "ownershipMismatch",
       subject: "runtimeCommit",
     });
-    expect(queue.view()).toEqual({ queuedCount: 1 });
+    expect(queue.view()).toEqual({
+      queuedCount: 1,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "ordinaryQueued", count: 1 }],
+      },
+    });
     const completed = queue.observe({
       type: "turnCompleted",
       turnId: "turn-a",
@@ -316,7 +439,13 @@ describe("composer input queue", () => {
       commitId: "terminal-a",
     });
     expect(startClaim(completed).message).toEqual(message("b"));
-    expect(queue.view()).toEqual({ queuedCount: 0 });
+    expect(queue.view()).toEqual({
+      queuedCount: 0,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "pendingStart", phase: "issuing" }],
+      },
+    });
 
     const terminalQueue = createComposerInputQueue();
     const terminalClaim = startClaim(submit(terminalQueue, "a"));
@@ -470,7 +599,13 @@ describe("composer input queue", () => {
     const queue = createComposerInputQueue({ activeTurnId: "turn-a" });
     submit(queue, "b");
     submit(queue, "c");
-    expect(queue.view()).toEqual({ queuedCount: 2 });
+    expect(queue.view()).toEqual({
+      queuedCount: 2,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "ordinaryQueued", count: 2 }],
+      },
+    });
     const interrupted = {
       type: "turnCompleted",
       turnId: "turn-a",
@@ -487,7 +622,7 @@ describe("composer input queue", () => {
         },
       ],
     });
-    expect(queue.view()).toEqual({ queuedCount: 0 });
+    expect(queue.view()).toEqual({ queuedCount: 0, releaseState: { type: "safe" } });
     expect(queue.observe(interrupted)).toEqual({
       result: { type: "idempotentReplay", subject: "runtimeObservation" },
       effects: [],
@@ -549,7 +684,13 @@ describe("composer input queue", () => {
       queue.observe(committedMessage(first, "turn-a", "message-a")),
       queue.settleStart({ type: "accepted", claim: first, turnId: "turn-a" }),
     );
-    expect(queue.view()).toEqual({ queuedCount: 2 });
+    expect(queue.view()).toEqual({
+      queuedCount: 2,
+      releaseState: {
+        type: "blocked",
+        blockers: [{ type: "ordinaryQueued", count: 2 }],
+      },
+    });
     const failed = queue.observe({
       type: "turnCompleted",
       turnId: "turn-a",
@@ -558,7 +699,16 @@ describe("composer input queue", () => {
     });
     transitions.push(failed);
     const second = startClaim(failed);
-    expect(queue.view()).toEqual({ queuedCount: 1 });
+    expect(queue.view()).toEqual({
+      queuedCount: 1,
+      releaseState: {
+        type: "blocked",
+        blockers: [
+          { type: "ordinaryQueued", count: 1 },
+          { type: "pendingStart", phase: "issuing" },
+        ],
+      },
+    });
     transitions.push(
       queue.settleStart({ type: "accepted", claim: second, turnId: "turn-b" }),
       queue.observe({ type: "turnStarted", turnId: "turn-b", commitId: "start-b" }),

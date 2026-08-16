@@ -1,5 +1,6 @@
 import type { PayloadAction } from "@reduxjs/toolkit";
 import { createAppSlice } from "@/app/createAppSlice";
+import { liveThreadReplacementCommitted } from "@/features/projectionCoordination/liveThreadReplacement";
 
 export type GuiThreadAttachStatus = "none" | "attached" | "mismatch";
 
@@ -35,6 +36,14 @@ export const threadIdentitySlice = createAppSlice({
       }
     }),
   }),
+  extraReducers: (builder) => {
+    builder.addCase(liveThreadReplacementCommitted, (state, action) => {
+      const threadId = action.payload.response.snapshot.thread.id;
+      state.launchThreadId = threadId;
+      state.attachedThreadId = threadId;
+      state.attachStatus = "attached";
+    });
+  },
   selectors: {
     selectThreadIdentityState: (threadIdentity) => threadIdentity,
     selectCanAdvanceThreadIdentity: (threadIdentity) => threadIdentity.attachStatus === "attached",

@@ -17,6 +17,10 @@ export type RequestResponse<M extends ClientRequestDefinition["method"]> =
 export const APP_SERVER_REQUEST_METHODS = [
   "initialize",
   "thread/projection/attach",
+  "thread/projection/detach",
+  "thread/list",
+  "thread/read",
+  "thread/resume",
   "turn/start",
   "turn/steer",
   "turn/interrupt",

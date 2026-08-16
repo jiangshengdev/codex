@@ -5,6 +5,7 @@ import {
   createComposerInputQueue,
   type ComposerInputQueue,
   type ComposerInputQueueEffect,
+  type ComposerInputQueueReleaseBlocker,
   type ComposerInputQueueTransition,
   type RecoveryBatch,
   type StartClaim,
@@ -20,12 +21,46 @@ export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
 
 export type ComposerInputQueueSubmitResult =
   | Readonly<{ type: "accepted" }>
-  | Readonly<{ type: "rejected"; reason: "disposed" | "recoveryPending" | "invalidInput" }>;
+  | Readonly<{
+      type: "rejected";
+      reason: "disposed" | "recoveryPending" | "releaseReserved" | "invalidInput";
+    }>;
+
+export type ComposerInputQueueCoordinatorReleaseBlocker =
+  | ComposerInputQueueReleaseBlocker
+  | Readonly<{ type: "recoveryPending"; count: number }>
+  | Readonly<{ type: "recovering" }>
+  | Readonly<{ type: "releaseReserved" }>
+  | Readonly<{ type: "disposed" }>;
+
+export type ComposerInputQueueCoordinatorReleaseReadiness =
+  | Readonly<{ type: "safe" }>
+  | Readonly<{
+      type: "blocked";
+      blockers: readonly ComposerInputQueueCoordinatorReleaseBlocker[];
+    }>;
+
+export type ComposerInputQueueCoordinatorReleaseReservation = Readonly<{
+  release(): void;
+}>;
+
+export type ComposerInputQueueCoordinatorReserveReleaseResult =
+  | Readonly<{
+      type: "reserved";
+      reservation: ComposerInputQueueCoordinatorReleaseReservation;
+    }>
+  | Readonly<{
+      type: "blocked";
+      blockers: readonly ComposerInputQueueCoordinatorReleaseBlocker[];
+    }>;
 
 export type ComposerInputQueueCoordinator = Readonly<{
+  ownerThreadId: string;
   submit(text: string): ComposerInputQueueSubmitResult;
   recover(): boolean;
   observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
+  getReleaseReadiness(): ComposerInputQueueCoordinatorReleaseReadiness;
+  reserveRelease(): ComposerInputQueueCoordinatorReserveReleaseResult;
   getSnapshot(): ComposerInputQueueCoordinatorSnapshot;
   subscribe(listener: () => void): () => void;
   dispose(): void;
@@ -49,6 +84,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private deferredEffects: readonly ComposerInputQueueEffect[] = [];
   private snapshot: ComposerInputQueueCoordinatorSnapshot;
   private generation = 0;
+  private releaseReservation: object | null = null;
   private disposed = false;
   private isRecovering = false;
 
@@ -59,8 +95,15 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.snapshot = { queuedCount: 0, recoveryCount: 0, isRecovering: false };
   }
 
+  get ownerThreadId(): string {
+    return this.threadId;
+  }
+
   submit(text: string): ComposerInputQueueSubmitResult {
     if (this.disposed) return { type: "rejected", reason: "disposed" };
+    if (this.releaseReservation != null) {
+      return { type: "rejected", reason: "releaseReserved" };
+    }
     if (this.recovery != null) return { type: "rejected", reason: "recoveryPending" };
     nextMessageSequence += 1;
     const transition = this.queue.submit({
@@ -75,7 +118,14 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
 
   recover(): boolean {
-    if (this.disposed || this.recovery == null || this.isRecovering) return false;
+    if (
+      this.disposed ||
+      this.releaseReservation != null ||
+      this.recovery == null ||
+      this.isRecovering
+    ) {
+      return false;
+    }
     this.isRecovering = true;
     this.publishSnapshot();
     const batch = this.recovery;
@@ -104,6 +154,45 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   getSnapshot = (): ComposerInputQueueCoordinatorSnapshot => this.snapshot;
 
+  getReleaseReadiness = (): ComposerInputQueueCoordinatorReleaseReadiness => {
+    if (this.disposed) {
+      return { type: "blocked", blockers: [{ type: "disposed" }] };
+    }
+    const queueState = this.queue.view().releaseState;
+    const blockers: ComposerInputQueueCoordinatorReleaseBlocker[] =
+      queueState.type === "blocked" ? [...queueState.blockers] : [];
+    if (this.recovery != null) {
+      blockers.push({ type: "recoveryPending", count: this.recovery.messages.length });
+    }
+    if (this.isRecovering) {
+      blockers.push({ type: "recovering" });
+    }
+    if (this.releaseReservation != null) {
+      blockers.push({ type: "releaseReserved" });
+    }
+    return blockers.length === 0 ? { type: "safe" } : { type: "blocked", blockers };
+  };
+
+  reserveRelease = (): ComposerInputQueueCoordinatorReserveReleaseResult => {
+    const readiness = this.getReleaseReadiness();
+    if (readiness.type === "blocked") {
+      return readiness;
+    }
+
+    const reservation = {};
+    this.releaseReservation = reservation;
+    return {
+      type: "reserved",
+      reservation: {
+        release: () => {
+          if (this.releaseReservation === reservation) {
+            this.releaseReservation = null;
+          }
+        },
+      },
+    };
+  };
+
   subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return noop;
     this.listeners.add(listener);
@@ -117,6 +206,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.disposed = true;
     this.generation += 1;
     this.listeners.clear();
+    this.releaseReservation = null;
     this.recovery = null;
     this.deferredEffects = [];
   }

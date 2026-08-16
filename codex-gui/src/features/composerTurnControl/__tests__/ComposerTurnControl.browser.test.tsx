@@ -70,10 +70,21 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
   let snapshot = initial;
   const listeners = new Set<() => void>();
   const recover = vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(true);
+  const submit = vi
+    .fn<ComposerInputQueueCoordinator["submit"]>()
+    .mockReturnValue({ type: "accepted" });
   const controller = {
-    submit: vi.fn<ComposerInputQueueCoordinator["submit"]>(),
+    ownerThreadId: threadId,
+    submit,
     recover,
     observeAcceptedEvent: vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>(),
+    getReleaseReadiness: vi
+      .fn<ComposerInputQueueCoordinator["getReleaseReadiness"]>()
+      .mockReturnValue({ type: "safe" }),
+    reserveRelease: vi.fn<ComposerInputQueueCoordinator["reserveRelease"]>().mockReturnValue({
+      type: "reserved",
+      reservation: { release: () => undefined },
+    }),
     getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -85,6 +96,7 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
   return {
     controller,
     recover,
+    submit,
     publish(next: ComposerInputQueueCoordinatorSnapshot): void {
       snapshot = next;
       for (const listener of listeners) listener();
@@ -225,6 +237,37 @@ test("submits a non-empty draft through the queue controller and clears it when 
 
   expectStartTurnCalledOnceWithText(startTurn, "Hello Codex");
   await expect.element(screen.getByPlaceholder("Message Codex")).toHaveValue("");
+});
+
+test("requires the queue controller owner to match the Redux current thread before sending", async () => {
+  const harness = createQueueControllerHarness({
+    queuedCount: 0,
+    recoveryCount: 0,
+    isRecovering: false,
+  });
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  const composer = screen.getByPlaceholder("Message Codex");
+  const send = screen.getByRole("button", { name: "Send", exact: true });
+
+  screen.store.dispatch(
+    threadRuntimeAttached({
+      ...attachResponse,
+      snapshot: {
+        ...attachResponse.snapshot,
+        thread: { ...attachResponse.snapshot.thread, id: "different-current-thread" },
+      },
+    }),
+  );
+  await composer.fill("Identity-gated draft");
+  await expect.element(send).toBeDisabled();
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
+  expect(harness.submit).not.toHaveBeenCalled();
+
+  screen.store.dispatch(threadRuntimeAttached(attachResponse));
+  await expect.element(send).toBeEnabled();
+  await send.click();
+  expect(harness.submit).toHaveBeenCalledExactlyOnceWith("Identity-gated draft");
 });
 
 test("keeps whitespace-only draft from submitting", async () => {

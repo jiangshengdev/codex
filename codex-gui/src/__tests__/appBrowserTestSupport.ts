@@ -30,6 +30,36 @@ export const launchThreadId = attachResponse.snapshot.thread.id;
 let cleanupConnectionCallCount = 0;
 
 export const createGuiHostCommands = (): GuiHostCommands => ({
+  attachThreadProjection: vi
+    .fn<GuiHostCommands["attachThreadProjection"]>()
+    .mockResolvedValue(attachResponse),
+  listThreads: vi.fn<GuiHostCommands["listThreads"]>().mockResolvedValue({
+    data: [],
+    nextCursor: null,
+    backwardsCursor: null,
+  }),
+  readThread: vi.fn<GuiHostCommands["readThread"]>().mockImplementation(({ threadId }) =>
+    Promise.resolve({
+      thread: { ...attachResponse.snapshot.thread, id: threadId },
+    }),
+  ),
+  resumeThread: vi.fn<GuiHostCommands["resumeThread"]>().mockImplementation(({ threadId }) =>
+    Promise.resolve({
+      thread: { ...attachResponse.snapshot.thread, id: threadId },
+      model: "gpt-5",
+      modelProvider: "openai",
+      serviceTier: null,
+      cwd: attachResponse.snapshot.thread.cwd,
+      instructionSources: [],
+      approvalPolicy: "on-request",
+      approvalsReviewer: "user",
+      sandbox: { type: "dangerFullAccess" },
+      reasoningEffort: null,
+    }),
+  ),
+  detachThreadProjection: vi
+    .fn<GuiHostCommands["detachThreadProjection"]>()
+    .mockResolvedValue({ status: "detached" }),
   startTurn: vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
     turn: inProgressTurn("turn-started-from-app"),
   }),

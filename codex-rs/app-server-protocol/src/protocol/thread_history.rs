@@ -62,6 +62,8 @@ use codex_protocol::protocol::WebSearchEndEvent;
 #[cfg(test)]
 use codex_protocol::review_format::REVIEW_FALLBACK_MESSAGE;
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::collections::VecDeque;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -594,6 +596,27 @@ impl ThreadHistoryBuilder {
     }
 
     fn handle_item_completed(&mut self, payload: &ItemCompletedEvent) {
+        if let codex_protocol::items::TurnItem::ContextCompaction(compaction) = &payload.item {
+            let should_materialize = if let Some(turn) = self
+                .current_turn
+                .as_mut()
+                .filter(|turn| turn.id == payload.turn_id)
+            {
+                turn.pending_context_compaction_echo_ids
+                    .push_back(compaction.id.clone());
+                turn.canonical_context_compaction_ids
+                    .insert(compaction.id.clone())
+            } else {
+                true
+            };
+            if should_materialize {
+                self.upsert_item_in_turn_id(
+                    &payload.turn_id,
+                    ThreadItem::from(payload.item.clone()),
+                );
+            }
+            return;
+        }
         self.handle_materialized_item_lifecycle(&payload.turn_id, &payload.item);
     }
 
@@ -1131,6 +1154,14 @@ impl ThreadHistoryBuilder {
     }
 
     fn handle_context_compacted(&mut self, _payload: &ContextCompactedEvent) {
+        if self
+            .current_turn
+            .as_mut()
+            .and_then(|turn| turn.pending_context_compaction_echo_ids.pop_front())
+            .is_some()
+        {
+            return;
+        }
         let id = self.next_item_id();
         self.push_item_in_current_turn(ThreadItem::ContextCompaction { id });
     }
@@ -1368,6 +1399,8 @@ impl ThreadHistoryBuilder {
             duration_ms: None,
             opened_explicitly: false,
             saw_compaction: false,
+            canonical_context_compaction_ids: HashSet::new(),
+            pending_context_compaction_echo_ids: VecDeque::new(),
             rollout_start_index: self.current_rollout_index,
         }
     }
@@ -1571,6 +1604,10 @@ struct PendingTurn {
     /// True when this turn includes a persisted `RolloutItem::Compacted`, which
     /// should keep the turn from being dropped even without normal items.
     saw_compaction: bool,
+    /// Canonical compaction identities materialized in this turn.
+    canonical_context_compaction_ids: HashSet<String>,
+    /// Canonical compaction item identities waiting for their deprecated echo.
+    pending_context_compaction_echo_ids: VecDeque<String>,
     /// Index of the rollout item that opened this turn during replay.
     rollout_start_index: usize,
 }
@@ -1632,6 +1669,7 @@ mod tests {
     use codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem as CoreDynamicToolCallOutputContentItem;
     use codex_protocol::items::CommandExecutionItem as CoreCommandExecutionItem;
     use codex_protocol::items::CommandExecutionStatus as CoreCommandExecutionStatus;
+    use codex_protocol::items::ContextCompactionItem as CoreContextCompactionItem;
     use codex_protocol::items::EnteredReviewModeItem as CoreEnteredReviewModeItem;
     use codex_protocol::items::ExitedReviewModeItem as CoreExitedReviewModeItem;
     use codex_protocol::items::HookPromptFragment as CoreHookPromptFragment;
@@ -1661,6 +1699,7 @@ mod tests {
     use codex_protocol::protocol::PatchApplyBeginEvent;
     use codex_protocol::protocol::ReviewTarget;
     use codex_protocol::protocol::ThreadRolledBackEvent;
+    use codex_protocol::protocol::TokenCountEvent;
     use codex_protocol::protocol::TurnAbortReason;
     use codex_protocol::protocol::TurnAbortedEvent;
     use codex_protocol::protocol::TurnCompleteEvent;
@@ -1674,6 +1713,63 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Duration;
     use uuid::Uuid;
+
+    fn turn_started(turn_id: &str) -> EventMsg {
+        EventMsg::TurnStarted(TurnStartedEvent {
+            turn_id: turn_id.to_string(),
+            trace_id: None,
+            started_at: None,
+            model_context_window: None,
+            collaboration_mode_kind: Default::default(),
+        })
+    }
+
+    fn turn_completed(turn_id: &str) -> EventMsg {
+        EventMsg::TurnComplete(TurnCompleteEvent {
+            turn_id: turn_id.to_string(),
+            started_at: None,
+            last_agent_message: None,
+            error: None,
+            completed_at: None,
+            duration_ms: None,
+            time_to_first_token_ms: None,
+        })
+    }
+
+    fn context_compaction_started(turn_id: &str, item_id: &str) -> EventMsg {
+        EventMsg::ItemStarted(ItemStartedEvent {
+            thread_id: ThreadId::new(),
+            turn_id: turn_id.to_string(),
+            item: CoreTurnItem::ContextCompaction(CoreContextCompactionItem {
+                id: item_id.to_string(),
+            }),
+            started_at_ms: 0,
+        })
+    }
+
+    fn context_compaction_completed(turn_id: &str, item_id: &str) -> EventMsg {
+        EventMsg::ItemCompleted(ItemCompletedEvent {
+            thread_id: ThreadId::new(),
+            turn_id: turn_id.to_string(),
+            item: CoreTurnItem::ContextCompaction(CoreContextCompactionItem {
+                id: item_id.to_string(),
+            }),
+            started_at_ms: Some(0),
+            completed_at_ms: 1,
+        })
+    }
+
+    fn context_compacted() -> EventMsg {
+        EventMsg::ContextCompacted(ContextCompactedEvent {})
+    }
+
+    fn build_turns_from_events(events: Vec<EventMsg>) -> Vec<Turn> {
+        let items = events
+            .into_iter()
+            .map(RolloutItem::EventMsg)
+            .collect::<Vec<_>>();
+        build_turns_from_rollout_items(&items)
+    }
 
     #[test]
     fn builds_multiple_turns_with_reasoning_items() {
@@ -2003,6 +2099,186 @@ mod tests {
                     text_elements: Vec::new(),
                 }],
             }
+        );
+    }
+
+    #[test]
+    fn preserves_canonical_context_compaction_completion_identity() {
+        let turns = build_turns_from_events(vec![
+            turn_started("turn-1"),
+            context_compaction_started("turn-1", "compaction-1"),
+            context_compaction_completed("turn-1", "compaction-1"),
+            turn_completed("turn-1"),
+        ]);
+
+        assert_eq!(
+            turns[0].items,
+            vec![ThreadItem::ContextCompaction {
+                id: "compaction-1".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn ignores_context_compaction_started_without_completion() {
+        let turns = build_turns_from_events(vec![
+            turn_started("turn-1"),
+            context_compaction_started("turn-1", "compaction-1"),
+            turn_completed("turn-1"),
+        ]);
+
+        assert_eq!(turns[0].items, Vec::<ThreadItem>::new());
+    }
+
+    #[test]
+    fn consumes_context_compacted_echo_after_intermediate_events() {
+        let mut builder = ThreadHistoryBuilder::new();
+        builder.handle_event(&turn_started("turn-1"));
+        builder.handle_event(&context_compaction_completed("turn-1", "compaction-1"));
+        builder.handle_event(&EventMsg::TokenCount(TokenCountEvent {
+            info: None,
+            rate_limits: None,
+        }));
+        builder.handle_rollout_item(&RolloutItem::Compacted(CompactedItem {
+            message: String::new(),
+            replacement_history: None,
+            window_number: None,
+            first_window_id: None,
+            previous_window_id: None,
+            window_id: None,
+        }));
+        builder.handle_event(&context_compacted());
+        builder.handle_event(&turn_completed("turn-1"));
+
+        assert_eq!(
+            builder.finish()[0].items,
+            vec![ThreadItem::ContextCompaction {
+                id: "compaction-1".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn repeated_canonical_context_compaction_consumes_each_compatibility_echo() {
+        let turns = build_turns_from_events(vec![
+            turn_started("turn-1"),
+            context_compaction_completed("turn-1", "compaction-1"),
+            context_compacted(),
+            context_compaction_completed("turn-1", "compaction-1"),
+            context_compacted(),
+            turn_completed("turn-1"),
+        ]);
+
+        assert_eq!(
+            turns[0].items,
+            vec![ThreadItem::ContextCompaction {
+                id: "compaction-1".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn reconstructs_echo_only_compaction_after_canonical_echo_is_consumed() {
+        let turns = build_turns_from_events(vec![
+            turn_started("turn-1"),
+            context_compaction_completed("turn-1", "compaction-1"),
+            context_compacted(),
+            context_compacted(),
+            turn_completed("turn-1"),
+        ]);
+
+        assert_eq!(
+            turns[0].items,
+            vec![
+                ThreadItem::ContextCompaction {
+                    id: "compaction-1".into(),
+                },
+                ThreadItem::ContextCompaction {
+                    id: "item-1".into(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn reconstructs_synthetic_context_compaction_from_echo_only_history() {
+        let turns = build_turns_from_events(vec![
+            turn_started("turn-1"),
+            context_compacted(),
+            turn_completed("turn-1"),
+        ]);
+
+        assert_eq!(
+            turns[0].items,
+            vec![ThreadItem::ContextCompaction {
+                id: "item-1".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn pairs_consecutive_canonical_context_compactions_with_echoes_in_fifo_order() {
+        let turns = build_turns_from_events(vec![
+            turn_started("turn-1"),
+            context_compaction_completed("turn-1", "compaction-1"),
+            context_compaction_completed("turn-1", "compaction-2"),
+            context_compacted(),
+            context_compacted(),
+            turn_completed("turn-1"),
+        ]);
+
+        assert_eq!(
+            turns[0].items,
+            vec![
+                ThreadItem::ContextCompaction {
+                    id: "compaction-1".into(),
+                },
+                ThreadItem::ContextCompaction {
+                    id: "compaction-2".into(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn clears_pending_context_compaction_echoes_at_turn_boundaries() {
+        let turns = build_turns_from_events(vec![
+            turn_started("turn-1"),
+            context_compaction_completed("turn-1", "compaction-1"),
+            turn_completed("turn-1"),
+            turn_started("turn-2"),
+            context_compacted(),
+            turn_completed("turn-2"),
+        ]);
+
+        assert_eq!(
+            turns,
+            vec![
+                Turn {
+                    id: "turn-1".into(),
+                    items: vec![ThreadItem::ContextCompaction {
+                        id: "compaction-1".into(),
+                    }],
+                    items_view: TurnItemsView::Full,
+                    status: TurnStatus::Completed,
+                    error: None,
+                    started_at: None,
+                    completed_at: None,
+                    duration_ms: None,
+                },
+                Turn {
+                    id: "turn-2".into(),
+                    items: vec![ThreadItem::ContextCompaction {
+                        id: "item-1".into(),
+                    }],
+                    items_view: TurnItemsView::Full,
+                    status: TurnStatus::Completed,
+                    error: None,
+                    started_at: None,
+                    completed_at: None,
+                    duration_ms: None,
+                },
+            ]
         );
     }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
 import {
   attachBaseline,
+  attachReplacement,
   eventItemCompleted,
   eventItemStarted,
   eventReasoningSummaryTextDelta,
@@ -14,6 +15,8 @@ import {
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectCommittedTranscriptScrollCommitKey,
+  selectTranscriptContextPage,
+  selectTranscriptContextPageIds,
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,
   selectTranscriptTurn,
@@ -24,6 +27,7 @@ import {
   agentMessage,
   attachWithTurns,
   baseTurn,
+  contextCompaction,
   itemCompleted,
   itemStarted,
   reasoningItem,
@@ -31,6 +35,37 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
 describe("transcript state reconnect reducer", () => {
+  it("rebuilds context pages from reattach without duplicating compaction boundaries", () => {
+    const store = makeStore();
+    const turnId = "turn-reattach-compaction";
+    const compactionId = "compaction-reattach";
+    const snapshotTurns = [
+      baseTurn(turnId, [
+        agentMessage("agent-before-compaction", "Before", "commentary"),
+        contextCompaction(compactionId),
+        agentMessage("agent-after-compaction", "After", "commentary"),
+      ]),
+    ];
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, snapshotTurns)));
+    const beforeReattachPage = selectTranscriptContextPage(store.getState(), "context-page:2");
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachReplacement, snapshotTurns)));
+
+    expect(selectTranscriptContextPageIds(store.getState())).toStrictEqual([
+      "context-page:1",
+      "context-page:2",
+    ]);
+    expect(selectTranscriptContextPage(store.getState(), "context-page:2")).not.toBe(
+      beforeReattachPage,
+    );
+    expect(selectTranscriptContextPage(store.getState(), "context-page:2")).toStrictEqual({
+      id: "context-page:2",
+      leadingBoundaryId: transcriptEntryIdFor(turnId, compactionId),
+      turnFragmentIds: [JSON.stringify(["context-page:2", turnId, 0])],
+    });
+  });
+
   it("preserves completed reasoning and clears streaming reasoning on manual reconnect", () => {
     const store = makeStore();
     const attachWithChat = attachWithTurns(attachBaseline, [

@@ -7,6 +7,7 @@ import type {
   TurnSteerParams,
   TurnSteerResponse,
 } from "@codex-protocol/v2";
+import type { RequestParams, RequestResponse } from "../appServerProtocol";
 import { isGuiHostCommandError } from "../guiHostClient";
 import {
   recordStatusLabels,
@@ -29,7 +30,100 @@ const turnSteerParams = (threadId: string): TurnSteerParams => ({
   input: [{ type: "text", text: "Guide", text_elements: [] }],
 });
 
+const threadResumeResponse = (threadId: string): RequestResponse<"thread/resume"> => ({
+  thread: { ...attachBaseline.snapshot.thread, id: threadId },
+  model: "gpt-5",
+  modelProvider: "openai",
+  serviceTier: null,
+  cwd: attachBaseline.snapshot.thread.cwd,
+  instructionSources: [],
+  approvalPolicy: "on-request",
+  approvalsReviewer: "user",
+  sandbox: { type: "dangerFullAccess" },
+  reasoningEffort: null,
+});
+
 describe("guiHostClient commands", () => {
+  it("sends history requests through the ready command API", async () => {
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+    });
+
+    const listParams: RequestParams<"thread/list"> = {
+      cwd: attachBaseline.snapshot.thread.cwd,
+      archived: false,
+    };
+    const listResponse: RequestResponse<"thread/list"> = {
+      data: [attachBaseline.snapshot.thread],
+      nextCursor: "next-page",
+      backwardsCursor: null,
+    };
+    const listPromise = commands.listThreads(listParams);
+    const listRequest = readLatestRpcRequest(socket, "thread/list");
+    expect(listRequest).toEqual({
+      jsonrpc: "2.0",
+      id: listRequest.id,
+      method: "thread/list",
+      params: listParams,
+    });
+    sendJsonRpcResult(socket, listRequest.id, listResponse);
+    await expect(listPromise).resolves.toEqual(listResponse);
+
+    const readParams: RequestParams<"thread/read"> = { threadId, includeTurns: true };
+    const readResponse: RequestResponse<"thread/read"> = {
+      thread: attachBaseline.snapshot.thread,
+    };
+    const readPromise = commands.readThread(readParams);
+    const readRequest = readLatestRpcRequest(socket, "thread/read");
+    expect(readRequest).toEqual({
+      jsonrpc: "2.0",
+      id: readRequest.id,
+      method: "thread/read",
+      params: readParams,
+    });
+    sendJsonRpcResult(socket, readRequest.id, readResponse);
+    await expect(readPromise).resolves.toEqual(readResponse);
+
+    const resumeParams: RequestParams<"thread/resume"> = { threadId };
+    const resumeResponse = threadResumeResponse(threadId);
+    const resumePromise = commands.resumeThread(resumeParams);
+    const resumeRequest = readLatestRpcRequest(socket, "thread/resume");
+    expect(resumeRequest).toEqual({
+      jsonrpc: "2.0",
+      id: resumeRequest.id,
+      method: "thread/resume",
+      params: resumeParams,
+    });
+    sendJsonRpcResult(socket, resumeRequest.id, resumeResponse);
+    await expect(resumePromise).resolves.toEqual(resumeResponse);
+
+    const detachParams: RequestParams<"thread/projection/detach"> = { threadId };
+    const detachResponse: RequestResponse<"thread/projection/detach"> = { status: "detached" };
+    const detachPromise = commands.detachThreadProjection(detachParams);
+    const detachRequest = readLatestRpcRequest(socket, "thread/projection/detach");
+    expect(detachRequest).toEqual({
+      jsonrpc: "2.0",
+      id: detachRequest.id,
+      method: "thread/projection/detach",
+      params: detachParams,
+    });
+    sendJsonRpcResult(socket, detachRequest.id, detachResponse);
+    await expect(detachPromise).resolves.toEqual(detachResponse);
+
+    const attachParams: RequestParams<"thread/projection/attach"> = { threadId };
+    const attachResponse: RequestResponse<"thread/projection/attach"> = attachBaseline;
+    const attachPromise = commands.attachThreadProjection(attachParams);
+    const attachRequest = readLatestRpcRequest(socket, "thread/projection/attach");
+    expect(attachRequest).toEqual({
+      jsonrpc: "2.0",
+      id: attachRequest.id,
+      method: "thread/projection/attach",
+      params: attachParams,
+    });
+    sendJsonRpcResult(socket, attachRequest.id, attachResponse);
+    await expect(attachPromise).resolves.toEqual(attachResponse);
+  });
+
   it("sends turn/start through the ready command API", async () => {
     const { commands, socket, threadId } = startConnectionUntilCommandsReady({
       attachResponse: attachBaseline,
@@ -136,6 +230,56 @@ describe("guiHostClient commands", () => {
     expect(statuses.at(-1)).toBe("attached");
   });
 
+  it("propagates thread/list JSON-RPC errors without closing the socket", async () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { commands, socket } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+    const params: RequestParams<"thread/list"> = { cwd: attachBaseline.snapshot.thread.cwd };
+    const promise = commands.listThreads(params);
+    const request = readLatestRpcRequest(socket, "thread/list");
+
+    sendJsonRpcError(socket, request.id, {
+      code: -32000,
+      message: "thread list unavailable",
+    });
+
+    const error: unknown = await promise.catch((failure: unknown) => failure);
+    if (!isGuiHostCommandError(error)) {
+      throw new Error("Expected GuiHostCommandError");
+    }
+    expect(error.source).toBe("rpc");
+    expect(error.message).toContain("thread list unavailable");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("attached");
+  });
+
+  it("rejects a malformed thread/list response and keeps commands available", async () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+      onStatus,
+    });
+    const listPromise = commands.listThreads({ cwd: attachBaseline.snapshot.thread.cwd });
+    const listRequest = readLatestRpcRequest(socket, "thread/list");
+
+    sendJsonRpcResult(socket, listRequest.id, {
+      data: null,
+      nextCursor: null,
+      backwardsCursor: null,
+    });
+
+    await expect(listPromise).rejects.toThrow("thread/list returned malformed result payload");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("attached");
+
+    const detachPromise = commands.detachThreadProjection({ threadId });
+    const detachRequest = readLatestRpcRequest(socket, "thread/projection/detach");
+    sendJsonRpcResult(socket, detachRequest.id, { status: "detached" });
+    await expect(detachPromise).resolves.toEqual({ status: "detached" });
+  });
+
   it("rejects a missing turn/start result without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
     const { commands, socket, threadId } = startConnectionUntilCommandsReady({
@@ -214,6 +358,26 @@ describe("guiHostClient commands", () => {
     await expect(
       commands.interruptTurn({ threadId, turnId: "turn-after-cleanup" }),
     ).rejects.toThrow("GUI host WebSocket is not available");
+    expect(socket.sent).toEqual(sentBeforeCleanup);
+  });
+
+  it("rejects history commands through an unavailable gateway", async () => {
+    const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
+      attachResponse: attachBaseline,
+    });
+    const sentBeforeCleanup = [...socket.sent];
+    cleanup();
+
+    const attempts = [
+      () => commands.attachThreadProjection({ threadId }),
+      () => commands.listThreads({ cwd: attachBaseline.snapshot.thread.cwd }),
+      () => commands.readThread({ threadId, includeTurns: true }),
+      () => commands.resumeThread({ threadId }),
+      () => commands.detachThreadProjection({ threadId }),
+    ];
+    for (const attempt of attempts) {
+      await expect(attempt()).rejects.toThrow("GUI host WebSocket is not available");
+    }
     expect(socket.sent).toEqual(sentBeforeCleanup);
   });
 

@@ -2,7 +2,16 @@ import { describe, expect, expectTypeOf, test } from "vitest";
 
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type {
+  ThreadListParams,
+  ThreadListResponse,
   ThreadProjectionAttachParams,
+  ThreadProjectionAttachResponse,
+  ThreadProjectionDetachParams,
+  ThreadProjectionDetachResponse,
+  ThreadReadParams,
+  ThreadReadResponse,
+  ThreadResumeParams,
+  ThreadResumeResponse,
   TurnSteerParams,
   TurnSteerResponse,
   TurnStartParams,
@@ -17,6 +26,27 @@ import { classifyServerNotification, requestDescriptors } from "@/generated/appS
 import type { RequestParams, RequestResponse } from "../appServerProtocol";
 
 describe("generated GUI Host protocol boundary", () => {
+  test("associates history requests with their generated params and responses", () => {
+    expectTypeOf<
+      RequestParams<"thread/projection/attach">
+    >().toEqualTypeOf<ThreadProjectionAttachParams>();
+    expectTypeOf<
+      RequestResponse<"thread/projection/attach">
+    >().toEqualTypeOf<ThreadProjectionAttachResponse>();
+    expectTypeOf<RequestParams<"thread/list">>().toEqualTypeOf<ThreadListParams>();
+    expectTypeOf<RequestResponse<"thread/list">>().toEqualTypeOf<ThreadListResponse>();
+    expectTypeOf<RequestParams<"thread/read">>().toEqualTypeOf<ThreadReadParams>();
+    expectTypeOf<RequestResponse<"thread/read">>().toEqualTypeOf<ThreadReadResponse>();
+    expectTypeOf<RequestParams<"thread/resume">>().toEqualTypeOf<ThreadResumeParams>();
+    expectTypeOf<RequestResponse<"thread/resume">>().toEqualTypeOf<ThreadResumeResponse>();
+    expectTypeOf<
+      RequestParams<"thread/projection/detach">
+    >().toEqualTypeOf<ThreadProjectionDetachParams>();
+    expectTypeOf<
+      RequestResponse<"thread/projection/detach">
+    >().toEqualTypeOf<ThreadProjectionDetachResponse>();
+  });
+
   test("associates turn/start with its generated params and response", () => {
     const descriptor = requestDescriptors["turn/start"];
     type Method = typeof descriptor.method;

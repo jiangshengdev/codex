@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, type Dispatch, type SetStateAction } from "react";
 import { useAppDispatch } from "@/app/hooks";
+import type { ContinueThread } from "@/features/appShell/AppCapabilities";
 import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
 import {
   createComposerInputQueueCoordinator,
@@ -8,19 +9,25 @@ import {
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
 import { ProjectionApplicationCoordinator } from "@/features/projectionCoordination/projectionApplicationCoordinator";
+import {
+  ThreadSwitchCoordinator,
+  type ActiveThreadOwnerHandle,
+} from "@/features/projectionCoordination/threadSwitchCoordinator";
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
   setCommands: (commands: GuiHostCommands | null) => void;
-  setLaunchParams: (params: BrowserLaunchParams | null) => void;
-  setComposerInputQueueController: (controller: ComposerInputQueueCoordinator | null) => void;
+  setLaunchParams: Dispatch<SetStateAction<BrowserLaunchParams | null>>;
+  setActiveOwner: (activeOwner: ActiveThreadOwnerHandle | null) => void;
+  setContinueThread: Dispatch<SetStateAction<ContinueThread | null>>;
 };
 
 export function GuiHostConnectionBridge({
   setStatus,
   setCommands,
   setLaunchParams,
-  setComposerInputQueueController,
+  setActiveOwner,
+  setContinueThread,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
 
@@ -28,20 +35,65 @@ export function GuiHostConnectionBridge({
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
     let launchThreadId: string | null = null;
-    let initialActiveTurnId: string | null | undefined;
+    let initialAttachResponse:
+      | Parameters<ProjectionApplicationCoordinator["handleProjectionAttached"]>[0]
+      | null = null;
+    let readyCommands: GuiHostCommands | null = null;
     let queueCoordinator: ComposerInputQueueCoordinator | null = null;
-    const coordinator = new ProjectionApplicationCoordinator({
-      dispatch,
-      scheduler: {
-        requestFrame: (callback) => window.requestAnimationFrame(callback),
-        cancelFrame: (frameId) => {
-          window.cancelAnimationFrame(frameId);
-        },
+    let switchCoordinator: ThreadSwitchCoordinator | null = null;
+    const scheduler = {
+      requestFrame: (callback: () => void) => window.requestAnimationFrame(callback),
+      cancelFrame: (frameId: number) => {
+        window.cancelAnimationFrame(frameId);
       },
+    };
+    const initialProjectionOwner = new ProjectionApplicationCoordinator({
+      dispatch,
+      scheduler,
       acceptedEventSink: (payload) => {
         queueCoordinator?.observeAcceptedEvent(payload);
       },
     });
+    const publishActiveOwner = (activeOwner: ActiveThreadOwnerHandle): void => {
+      setActiveOwner(activeOwner);
+      setLaunchParams((params) =>
+        params == null ? null : { ...params, threadId: activeOwner.threadId },
+      );
+    };
+    const initializeActiveOwner = (): void => {
+      if (
+        switchCoordinator != null ||
+        launchThreadId == null ||
+        initialAttachResponse == null ||
+        readyCommands == null
+      ) {
+        return;
+      }
+      queueCoordinator = createComposerInputQueueCoordinator({
+        threadId: launchThreadId,
+        activeTurnId:
+          initialAttachResponse.snapshot.thread.turns
+            .toReversed()
+            .find((turn) => turn.status === "inProgress")?.id ?? null,
+        startTurn: readyCommands.startTurn,
+      });
+      const activeOwner: ActiveThreadOwnerHandle = {
+        threadId: launchThreadId,
+        subscriptionId: initialAttachResponse.subscriptionId,
+        projectionOwner: initialProjectionOwner,
+        queueCoordinator,
+      };
+      const nextSwitchCoordinator = new ThreadSwitchCoordinator({
+        activeOwner,
+        commands: readyCommands,
+        dispatch,
+        publishActiveOwner,
+        scheduler,
+      });
+      switchCoordinator = nextSwitchCoordinator;
+      setActiveOwner(activeOwner);
+      setContinueThread(() => nextSwitchCoordinator.continueThread);
+    };
 
     try {
       cleanupConnection = startGuiHostConnection({
@@ -51,43 +103,33 @@ export function GuiHostConnectionBridge({
         onLaunchParams: (params) => {
           setLaunchParams(params);
           launchThreadId = params.threadId;
-          coordinator.handleLaunchThread(params.threadId);
+          initialProjectionOwner.handleLaunchThread(params.threadId);
         },
         onProjectionAttached: (response) => {
-          coordinator.handleProjectionAttached(response);
-          if (initialActiveTurnId === undefined && response.snapshot.thread.id === launchThreadId) {
-            initialActiveTurnId =
-              response.snapshot.thread.turns
-                .toReversed()
-                .find((turn) => turn.status === "inProgress")?.id ?? null;
+          initialProjectionOwner.handleProjectionAttached(response);
+          if (initialAttachResponse == null && response.snapshot.thread.id === launchThreadId) {
+            initialAttachResponse = response;
+            initializeActiveOwner();
           }
         },
         onProjectionEvent: (notification) => {
-          coordinator.handleProjectionEvent(notification);
+          (switchCoordinator ?? initialProjectionOwner).handleProjectionEvent(notification);
         },
         onProjectionDelta: (notification) => {
-          coordinator.handleProjectionDelta(notification);
+          (switchCoordinator ?? initialProjectionOwner).handleProjectionDelta(notification);
         },
         onProjectionClosed: (notification) => {
-          coordinator.handleProjectionClosed(notification);
+          (switchCoordinator ?? initialProjectionOwner).handleProjectionClosed(notification);
         },
         onCommandsReady: (commands) => {
+          readyCommands = commands;
           setCommands(commands);
-          if (
-            queueCoordinator == null &&
-            launchThreadId != null &&
-            initialActiveTurnId !== undefined
-          ) {
-            queueCoordinator = createComposerInputQueueCoordinator({
-              threadId: launchThreadId,
-              activeTurnId: initialActiveTurnId,
-              startTurn: commands.startTurn,
-            });
-            setComposerInputQueueController(queueCoordinator);
-          }
+          initializeActiveOwner();
         },
         onCommandsUnavailable: () => {
+          readyCommands = null;
           setCommands(null);
+          setContinueThread(null);
         },
       });
     } catch (error: unknown) {
@@ -108,12 +150,17 @@ export function GuiHostConnectionBridge({
       isMounted = false;
       setCommands(null);
       setLaunchParams(null);
-      setComposerInputQueueController(null);
-      queueCoordinator?.dispose();
-      coordinator.dispose();
+      setActiveOwner(null);
+      setContinueThread(null);
+      if (switchCoordinator == null) {
+        queueCoordinator?.dispose();
+        initialProjectionOwner.dispose();
+      } else {
+        switchCoordinator.dispose();
+      }
       cleanupConnection?.();
     };
-  }, [dispatch, setCommands, setComposerInputQueueController, setLaunchParams, setStatus]);
+  }, [dispatch, setActiveOwner, setCommands, setContinueThread, setLaunchParams, setStatus]);
 
   return null;
 }
