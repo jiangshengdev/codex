@@ -52,6 +52,8 @@ import {
   attachWithThreadId,
   attachWithTurns,
   baseTurn,
+  deltaForThreadOwner,
+  eventForThreadOwner,
   eventWithEnvelope,
   inProgressTurn,
   itemCompleted,
@@ -1275,10 +1277,14 @@ test("App publishes a completed thread switch atomically across capabilities and
     threadId === launchThreadId ? initialQueue.coordinator : candidateQueue.coordinator,
   );
   const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
-  const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
+  const candidateItem = agentMessage("candidate-switch-item", "");
+  const candidateAttach = attachWithThreadId(
+    attachWithTurns(attachReplacement, [inProgressTurn("candidate-switch-turn")]),
+    candidateThreadId,
+  );
   const commands = createGuiHostCommands();
   vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
-  const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
   const activeThread = screen.getByLabelText("Active thread owner");
   const activeQueue = screen.getByLabelText("Active queue owner");
   const initialOwner = requireThreadSwitchProbeOwner();
@@ -1289,16 +1295,105 @@ test("App publishes a completed thread switch atomically across capabilities and
   await continueButton.click();
   await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(1);
 
+  const oldItem = agentMessage("old-switch-item", "");
+  const oldTurnEvent = turnStarted(
+    eventTurnStarted,
+    "commit-old-switch-turn",
+    inProgressTurn("old-switch-turn"),
+  );
+  const oldItemEvent = eventWithEnvelope(
+    itemStarted(eventItemStarted, "commit-old-switch-item", "old-switch-turn", oldItem),
+    { parentCommitId: oldTurnEvent.commitId },
+  );
+  const oldDelta = agentMessageDelta(
+    eventAgentMessageDelta,
+    "old-switch-turn",
+    oldItem.id,
+    "Old owner stayed live",
+  );
+  const candidateOwner = {
+    threadId: candidateThreadId,
+    subscriptionId: candidateAttach.subscriptionId,
+  };
+  const candidateEvent = eventForThreadOwner(
+    eventWithEnvelope(
+      itemStarted(
+        eventItemStarted,
+        "commit-candidate-switch-item",
+        "candidate-switch-turn",
+        candidateItem,
+      ),
+      { parentCommitId: candidateAttach.snapshot.headCommitId },
+    ),
+    candidateOwner,
+  );
+  const candidateDelta = deltaForThreadOwner(
+    agentMessageDelta(
+      eventAgentMessageDelta,
+      "candidate-switch-turn",
+      candidateItem.id,
+      "Candidate notification replayed",
+    ),
+    candidateOwner,
+  );
+  emitProjectionEvent(options, oldTurnEvent);
+  emitProjectionEvent(options, oldItemEvent);
+  emitProjectionDelta(options, oldDelta);
+  emitProjectionEvent(options, candidateEvent);
+  emitProjectionDelta(options, candidateDelta);
+
+  await expect
+    .poll(() =>
+      selectTranscriptEntry(
+        screen.store.getState(),
+        transcriptEntryIdFor("old-switch-turn", oldItem.id),
+      ),
+    )
+    .toStrictEqual({
+      type: "message",
+      id: oldItem.id,
+      turnId: "old-switch-turn",
+      role: "assistant",
+      rendering: { mode: "streamingMarkdown", source: "Old owner stayed live" },
+      revision: 1,
+    });
   await expect.element(activeThread).toHaveTextContent(launchThreadId);
   expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
+  expect(selectThreadRuntimeEventBuffer(screen.store.getState())).toStrictEqual([
+    { type: "projectionEvent", notification: oldTurnEvent, replay: "live" },
+    { type: "projectionEvent", notification: oldItemEvent, replay: "live" },
+  ]);
+  expect(
+    selectTranscriptEntry(
+      screen.store.getState(),
+      transcriptEntryIdFor("candidate-switch-turn", candidateItem.id),
+    ),
+  ).toBeNull();
   pendingAttach.resolve(candidateAttach);
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({ type: "switched" });
 
   await expect.element(activeThread).toHaveTextContent(candidateThreadId);
   await expect.element(activeQueue).toHaveTextContent(candidateThreadId);
+  await expect
+    .poll(() =>
+      selectTranscriptEntry(
+        screen.store.getState(),
+        transcriptEntryIdFor("candidate-switch-turn", candidateItem.id),
+      ),
+    )
+    .toStrictEqual({
+      type: "message",
+      id: candidateItem.id,
+      turnId: "candidate-switch-turn",
+      role: "assistant",
+      rendering: { mode: "streamingMarkdown", source: "Candidate notification replayed" },
+      revision: 1,
+    });
   await expect.poll(() => threadSwitchProbeActiveOwner?.threadId).toBe(candidateThreadId);
-  expect(requireThreadSwitchProbeOwner().queueCoordinator).toBe(candidateQueue.coordinator);
-  expect(requireThreadSwitchProbeOwner().subscriptionId).toBe(candidateAttach.subscriptionId);
+  const activeCandidateOwner = requireThreadSwitchProbeOwner();
+  const candidateProjectionDispose = vi.spyOn(activeCandidateOwner.projectionOwner, "dispose");
+  expect(activeCandidateOwner.queueCoordinator).toBe(candidateQueue.coordinator);
+  expect(activeCandidateOwner.subscriptionId).toBe(candidateAttach.subscriptionId);
   expect(selectThreadIdentityState(screen.store.getState())).toStrictEqual({
     launchThreadId: candidateThreadId,
     attachedThreadId: candidateThreadId,
@@ -1309,12 +1404,27 @@ test("App publishes a completed thread switch atomically across capabilities and
     state: "active",
   });
   expect(screen.store.getState().transcriptState.threadId).toBe(candidateThreadId);
+  expect(selectThreadRuntimeEventBuffer(screen.store.getState())).toStrictEqual([
+    { type: "projectionEvent", notification: candidateEvent, replay: "live" },
+  ]);
+  expect(candidateQueue.observeAcceptedEvent).toHaveBeenCalledExactlyOnceWith({
+    notification: candidateEvent,
+    replay: "live",
+  });
   expect(initialQueue.dispose).toHaveBeenCalledOnce();
   expect(initialProjectionDispose).toHaveBeenCalledOnce();
   expect(candidateQueue.dispose).not.toHaveBeenCalled();
   expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
     threadId: launchThreadId,
   });
+
+  await screen.unmount();
+
+  expect(initialQueue.dispose).toHaveBeenCalledOnce();
+  expect(initialProjectionDispose).toHaveBeenCalledOnce();
+  expect(candidateQueue.dispose).toHaveBeenCalledOnce();
+  expect(candidateProjectionDispose).toHaveBeenCalledOnce();
+  expect(getCleanupConnectionCallCount()).toBe(1);
 });
 
 test("App keeps the initial owner when its queue blocks a thread switch", async () => {

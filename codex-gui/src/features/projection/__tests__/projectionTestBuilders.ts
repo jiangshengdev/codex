@@ -225,6 +225,28 @@ export const eventWithEnvelope = (
   ...overrides,
 });
 
+type ProjectionNotificationOwner = Pick<
+  ThreadProjectionEventNotification,
+  "threadId" | "subscriptionId"
+>;
+
+const projectionPayloadForThread = <T extends { notification: { threadId: string } }>(
+  payload: T,
+  threadId: string,
+): T => ({
+  ...payload,
+  notification: { ...payload.notification, threadId },
+});
+
+export const eventForThreadOwner = (
+  event: ThreadProjectionEventNotification,
+  owner: ProjectionNotificationOwner,
+): ThreadProjectionEventNotification => ({
+  ...event,
+  ...owner,
+  event: projectionPayloadForThread(event.event, owner.threadId),
+});
+
 type DeltaEnvelopeOverrides = {
   threadId?: ThreadProjectionDeltaNotification["threadId"];
   subscriptionId?: ThreadProjectionDeltaNotification["subscriptionId"];
@@ -236,6 +258,15 @@ export const deltaWithEnvelope = (
 ): ThreadProjectionDeltaNotification => ({
   ...delta,
   ...overrides,
+});
+
+export const deltaForThreadOwner = (
+  delta: ThreadProjectionDeltaNotification,
+  owner: ProjectionNotificationOwner,
+): ThreadProjectionDeltaNotification => ({
+  ...delta,
+  ...owner,
+  delta: projectionPayloadForThread(delta.delta, owner.threadId),
 });
 
 type ClosedEnvelopeOverrides = {
