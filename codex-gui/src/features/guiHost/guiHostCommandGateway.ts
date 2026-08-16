@@ -27,6 +27,17 @@ export function isGuiHostCommandError(error: unknown): error is GuiHostCommandEr
 }
 
 export type GuiHostCommands = {
+  attachThreadProjection: (
+    params: RequestParams<"thread/projection/attach">,
+  ) => Promise<RequestResponse<"thread/projection/attach">>;
+  listThreads: (params: RequestParams<"thread/list">) => Promise<RequestResponse<"thread/list">>;
+  readThread: (params: RequestParams<"thread/read">) => Promise<RequestResponse<"thread/read">>;
+  resumeThread: (
+    params: RequestParams<"thread/resume">,
+  ) => Promise<RequestResponse<"thread/resume">>;
+  detachThreadProjection: (
+    params: RequestParams<"thread/projection/detach">,
+  ) => Promise<RequestResponse<"thread/projection/detach">>;
   startTurn: (params: RequestParams<"turn/start">) => Promise<RequestResponse<"turn/start">>;
   steerTurn: (params: RequestParams<"turn/steer">) => Promise<RequestResponse<"turn/steer">>;
   interruptTurn: (
@@ -44,6 +55,13 @@ export class GuiHostCommandGateway {
   constructor(requests: AppServerRequestSender) {
     this.requests = requests;
     this.commands = {
+      attachThreadProjection: (params) =>
+        this.request(requestDescriptors["thread/projection/attach"], params),
+      listThreads: (params) => this.request(requestDescriptors["thread/list"], params),
+      readThread: (params) => this.request(requestDescriptors["thread/read"], params),
+      resumeThread: (params) => this.request(requestDescriptors["thread/resume"], params),
+      detachThreadProjection: (params) =>
+        this.request(requestDescriptors["thread/projection/detach"], params),
       startTurn: (params) => this.request(requestDescriptors["turn/start"], params),
       steerTurn: (params) => this.request(requestDescriptors["turn/steer"], params),
       interruptTurn: (params) => this.request(requestDescriptors["turn/interrupt"], params),

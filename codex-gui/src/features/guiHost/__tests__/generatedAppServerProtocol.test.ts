@@ -12,6 +12,22 @@ import {
   validateV2ThreadProjectionEventNotification,
 } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
+import type { RequestResponse } from "../appServerProtocol";
+
+const historyThread = attachBaseline.snapshot.thread;
+
+const threadResumeResponse = {
+  thread: historyThread,
+  model: "gpt-5",
+  modelProvider: "openai",
+  serviceTier: null,
+  cwd: historyThread.cwd,
+  instructionSources: [],
+  approvalPolicy: "on-request",
+  approvalsReviewer: "user",
+  sandbox: { type: "dangerFullAccess" },
+  reasoningEffort: null,
+} satisfies RequestResponse<"thread/resume">;
 
 describe("generated app-server protocol", () => {
   it.each([
@@ -82,6 +98,37 @@ describe("generated app-server protocol", () => {
     expect(requestDescriptors["turn/steer"].validateResponse({})).toBe(false);
     expect(requestDescriptors["turn/steer"].validateResponse({ turnId: null })).toBe(false);
   });
+
+  it.each([
+    [
+      "thread/list",
+      {
+        data: [historyThread],
+        nextCursor: "next-page",
+        backwardsCursor: null,
+      } satisfies RequestResponse<"thread/list">,
+      { data: null, nextCursor: null, backwardsCursor: null },
+    ],
+    [
+      "thread/read",
+      { thread: historyThread } satisfies RequestResponse<"thread/read">,
+      { thread: null },
+    ],
+    ["thread/resume", threadResumeResponse, { ...threadResumeResponse, thread: null }],
+    [
+      "thread/projection/detach",
+      { status: "detached" } satisfies RequestResponse<"thread/projection/detach">,
+      { status: "unknown" },
+    ],
+  ] as const)(
+    "validates %s responses with the generated descriptor",
+    (method, response, malformed) => {
+      const descriptor = requestDescriptors[method];
+
+      expect(descriptor.validateResponse(response)).toBe(true);
+      expect(descriptor.validateResponse(malformed)).toBe(false);
+    },
+  );
 
   it.each([
     ["event", validateV2ThreadProjectionEventNotification, eventTurnStarted],

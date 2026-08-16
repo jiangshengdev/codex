@@ -2,6 +2,9 @@
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type { ProtocolValidator, RequestResponse } from "../../features/guiHost/appServerProtocol";
 export declare const validateInitializeResponse: ProtocolValidator<RequestResponse<"initialize">>;
+export declare const validateV2ThreadListResponse: ProtocolValidator<
+  RequestResponse<"thread/list">
+>;
 export declare const validateV2ThreadProjectionAttachResponse: ProtocolValidator<
   RequestResponse<"thread/projection/attach">
 >;
@@ -21,6 +24,9 @@ export declare const validateV2ThreadProjectionDeltaNotification: ProtocolValida
     }
   >["params"]
 >;
+export declare const validateV2ThreadProjectionDetachResponse: ProtocolValidator<
+  RequestResponse<"thread/projection/detach">
+>;
 export declare const validateV2ThreadProjectionEventNotification: ProtocolValidator<
   Extract<
     ServerNotification,
@@ -28,6 +34,12 @@ export declare const validateV2ThreadProjectionEventNotification: ProtocolValida
       method: "thread/projection/event";
     }
   >["params"]
+>;
+export declare const validateV2ThreadReadResponse: ProtocolValidator<
+  RequestResponse<"thread/read">
+>;
+export declare const validateV2ThreadResumeResponse: ProtocolValidator<
+  RequestResponse<"thread/resume">
 >;
 export declare const validateV2TurnInterruptResponse: ProtocolValidator<
   RequestResponse<"turn/interrupt">
