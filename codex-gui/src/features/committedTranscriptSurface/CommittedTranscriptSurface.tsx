@@ -1,36 +1,30 @@
 import { memo, useId, useState, type ReactNode } from "react";
-import {
-  Alert,
-  Button,
-  Card,
-  Chip,
-  Disclosure,
-  Separator,
-  Tag,
-  TagGroup,
-  Typography,
-} from "@heroui/react";
+import { Alert, Button, Card, Chip, Disclosure, Tag, TagGroup, Typography } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useAppSelector } from "@/app/hooks";
-import type { RootState } from "@/app/store";
 import { selectThreadRuntimeThreadId } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
-  selectTranscriptChunk,
-  selectTranscriptContextPage,
-  selectTranscriptContextPageIds,
-  selectTranscriptEntry,
-  selectTranscriptGlobalStatus,
-  selectTranscriptTurn,
-  selectTranscriptTurnFragment,
   transcriptEntryIdFor,
   type TranscriptEntryId,
   type TranscriptEntryView,
   type TranscriptMessageRendering,
+  type TranscriptState,
   type TranscriptTurn,
 } from "@/features/transcriptState/transcriptStateSlice";
+import {
+  selectTranscriptChunkFromTranscriptState,
+  selectTranscriptEntryFromTranscriptState,
+  selectTranscriptTurnFragmentFromTranscriptState,
+  selectTranscriptTurnFromTranscriptState,
+} from "@/features/transcriptState/transcriptStateSelectors";
+import {
+  CommittedTranscriptSurfaceRenderer,
+  type CommittedTranscriptTurnFragmentRendererProps,
+} from "./CommittedTranscriptSurfaceRenderer";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
-import { TranscriptContextPagination } from "./TranscriptContextPagination";
+import { useTranscriptSelector } from "./TranscriptReadContext";
+import { TranscriptReadProvider } from "./TranscriptReadProvider";
 
 const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering }) => {
   switch (rendering.mode) {
@@ -568,8 +562,8 @@ const areTranscriptEntryArraysEqual = (
 };
 
 const LeadingPromptEntry = ({ entryId }: { entryId: TranscriptEntryId | null }) => {
-  const entry = useAppSelector((state) =>
-    entryId == null ? null : selectTranscriptEntry(state, entryId),
+  const entry = useTranscriptSelector((state) =>
+    entryId == null ? null : selectTranscriptEntryFromTranscriptState(state, entryId),
   );
 
   if (entry == null) {
@@ -580,7 +574,9 @@ const LeadingPromptEntry = ({ entryId }: { entryId: TranscriptEntryId | null }) 
 };
 
 const MiddleTranscriptChunk = memo(({ chunkId }: { chunkId: string }) => {
-  const chunk = useAppSelector((state) => selectTranscriptChunk(state, chunkId));
+  const chunk = useTranscriptSelector((state) =>
+    selectTranscriptChunkFromTranscriptState(state, chunkId),
+  );
 
   if (chunk == null || chunk.entries.length === 0) {
     return null;
@@ -673,10 +669,10 @@ const MiddleTranscriptModule = ({
 };
 
 const FinalAssistantMessages = ({ entryIds }: { entryIds: TranscriptEntryId[] }) => {
-  const entries = useAppSelector(
+  const entries = useTranscriptSelector(
     (state) =>
       entryIds.flatMap((entryId) => {
-        const entry = selectTranscriptEntry(state, entryId);
+        const entry = selectTranscriptEntryFromTranscriptState(state, entryId);
         return entry == null ? [] : [entry];
       }),
     areTranscriptEntryArraysEqual,
@@ -709,48 +705,14 @@ const TurnErrorAlert = ({ error }: { error: NonNullable<TranscriptTurn["error"]>
   </Alert>
 );
 
-const lastTranscriptFragmentIdsByTurnIdCache = new WeakMap<
-  RootState["transcriptState"]["contextPagesById"],
-  Record<string, string>
->();
-
-const selectLastTranscriptFragmentIdsByTurnId = (state: RootState): Record<string, string> => {
-  const contextPagesById = state.transcriptState.contextPagesById;
-  const cached = lastTranscriptFragmentIdsByTurnIdCache.get(contextPagesById);
-  if (cached != null) {
-    return cached;
-  }
-
-  const result: Record<string, string> = {};
-  const pageIds = selectTranscriptContextPageIds(state);
-  for (const pageId of pageIds) {
-    const page = selectTranscriptContextPage(state, pageId);
-    if (page == null) {
-      continue;
-    }
-    for (const fragmentId of page.turnFragmentIds) {
-      const fragment = selectTranscriptTurnFragment(state, fragmentId);
-      if (fragment != null) {
-        result[fragment.turnId] = fragment.id;
-      }
-    }
-  }
-  lastTranscriptFragmentIdsByTurnIdCache.set(contextPagesById, result);
-  return result;
-};
-
 const CommittedTranscriptTurnFragment = memo(
-  ({
-    fragmentId,
-    lastFragmentIdsByTurnId,
-  }: {
-    fragmentId: string;
-    lastFragmentIdsByTurnId: Record<string, string>;
-  }) => {
+  ({ fragmentId, lastFragmentIdsByTurnId }: CommittedTranscriptTurnFragmentRendererProps) => {
     const { t } = useLingui();
-    const fragment = useAppSelector((state) => selectTranscriptTurnFragment(state, fragmentId));
-    const turn = useAppSelector((state) =>
-      fragment == null ? null : selectTranscriptTurn(state, fragment.turnId),
+    const fragment = useTranscriptSelector((state) =>
+      selectTranscriptTurnFragmentFromTranscriptState(state, fragmentId),
+    );
+    const turn = useTranscriptSelector((state) =>
+      fragment == null ? null : selectTranscriptTurnFromTranscriptState(state, fragment.turnId),
     );
 
     if (turn == null || fragment == null) {
@@ -828,119 +790,27 @@ const CommittedTranscriptTurnFragment = memo(
 
 CommittedTranscriptTurnFragment.displayName = "CommittedTranscriptTurnFragment";
 
-const CommittedTranscriptSurfaceForThread = () => {
-  const { t } = useLingui();
-  const pageIds = useAppSelector(selectTranscriptContextPageIds);
-  const globalStatus = useAppSelector(selectTranscriptGlobalStatus);
-  const lastFragmentIdsByTurnId = useAppSelector(selectLastTranscriptFragmentIdsByTurnId);
-  const totalPages = pageIds.length;
-  const [pageSelection, setPageSelection] = useState<{
-    page: number | null;
-    totalPages: number;
-  }>(() => ({ page: null, totalPages }));
-  if (pageSelection.totalPages !== totalPages) {
-    setPageSelection({
-      page: pageSelection.page == null ? null : Math.min(pageSelection.page, totalPages),
-      totalPages,
-    });
-  }
-  const selectedHistoricalPage = pageSelection.page;
-  const currentPageNumber =
-    selectedHistoricalPage == null ? totalPages : Math.min(selectedHistoricalPage, totalPages);
-  const currentPageId = pageIds[currentPageNumber - 1] ?? "";
-  const currentPage = useAppSelector((state) => selectTranscriptContextPage(state, currentPageId));
-  const hasSurfaceContent = useAppSelector((state) => {
-    const page = selectTranscriptContextPage(state, currentPageId);
-    if (page == null) {
-      return false;
-    }
-    if (page.leadingBoundaryId != null) {
-      return true;
-    }
-    return page.turnFragmentIds.some((fragmentId) => {
-      const fragment = selectTranscriptTurnFragment(state, fragmentId);
-      if (fragment == null) {
-        return false;
-      }
-      const turn = selectTranscriptTurn(state, fragment.turnId);
-      return (
-        fragment.leadingPromptEntryId != null ||
-        fragment.middleEntryCount > 0 ||
-        fragment.finalAssistantEntryIds.length > 0 ||
-        (turn?.error != null && lastFragmentIdsByTurnId[fragment.turnId] === fragment.id)
-      );
-    });
-  });
-
-  const handlePageChange = (page: number) => {
-    setPageSelection({ page: page === totalPages ? null : page, totalPages });
-  };
-
-  return (
-    <section
-      aria-label={t({
-        comment: "Accessible name for the region containing committed transcript turns",
-        message: "Committed transcript",
-      })}
-      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4"
-    >
-      {globalStatus.length > 0 ? (
-        <div className="committed-transcript-status-list grid min-w-0 gap-2">
-          {globalStatus.map((status) => (
-            <Alert
-              className="committed-transcript-status"
-              key={status.id}
-              role="status"
-              status="danger"
-            >
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>
-                  <Trans>Connection interrupted. Reconnect required.</Trans>
-                </Alert.Title>
-              </Alert.Content>
-            </Alert>
-          ))}
-        </div>
-      ) : null}
-      {currentPage?.leadingBoundaryId == null ? null : (
-        <div className="committed-transcript-context-boundary grid min-w-0 gap-2">
-          <Separator variant="tertiary" />
-          <Typography color="muted" type="body-sm">
-            <Trans>Context compressed</Trans>
-          </Typography>
-        </div>
-      )}
-      {!hasSurfaceContent ? (
-        <Card className="committed-transcript-empty">
-          <Card.Content>
-            <Typography color="muted" type="body-sm">
-              <Trans>No committed messages yet.</Trans>
-            </Typography>
-          </Card.Content>
-        </Card>
-      ) : (
-        <div className="committed-transcript-turn-list grid min-w-0 gap-6">
-          {currentPage?.turnFragmentIds.map((fragmentId) => (
-            <CommittedTranscriptTurnFragment
-              fragmentId={fragmentId}
-              key={fragmentId}
-              lastFragmentIdsByTurnId={lastFragmentIdsByTurnId}
-            />
-          ))}
-        </div>
-      )}
-      <TranscriptContextPagination
-        onPageChange={handlePageChange}
-        page={currentPageNumber}
-        totalPages={totalPages}
-      />
-    </section>
-  );
-};
-
 export const CommittedTranscriptSurface = () => {
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const surfaceKey = threadId ?? "no-thread";
-  return <CommittedTranscriptSurfaceForThread key={surfaceKey} />;
+  return (
+    <TranscriptReadProvider transcriptState={null}>
+      <CommittedTranscriptSurfaceRenderer
+        key={surfaceKey}
+        turnFragmentRenderer={CommittedTranscriptTurnFragment}
+      />
+    </TranscriptReadProvider>
+  );
 };
+
+export const ReadOnlyCommittedTranscriptSurface = ({
+  surfaceKey,
+  transcriptState,
+}: Readonly<{ surfaceKey: string; transcriptState: TranscriptState }>) => (
+  <TranscriptReadProvider transcriptState={transcriptState}>
+    <CommittedTranscriptSurfaceRenderer
+      key={surfaceKey}
+      turnFragmentRenderer={CommittedTranscriptTurnFragment}
+    />
+  </TranscriptReadProvider>
+);

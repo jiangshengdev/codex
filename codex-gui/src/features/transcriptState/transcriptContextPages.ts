@@ -40,6 +40,18 @@ const currentTurnFragment = (state: TranscriptState, turnId: string): Transcript
   return lastFragment?.turnId === turnId ? lastFragment : createTurnFragment(state, page, turnId);
 };
 
+export const ensureCurrentTranscriptTurnFragment = (
+  state: TranscriptState,
+  turnId: string,
+): TranscriptTurnFragment => {
+  const page = currentContextPage(state);
+  const existingFragment = page.turnFragmentIds
+    .toReversed()
+    .map((fragmentId) => state.turnFragmentsById[fragmentId])
+    .find((fragment) => fragment?.turnId === turnId);
+  return existingFragment ?? createTurnFragment(state, page, turnId);
+};
+
 export const ensureTranscriptEntryFragment = (
   state: TranscriptState,
   turnId: string,

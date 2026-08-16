@@ -21,8 +21,12 @@ import {
   threadRuntimeAttached,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
+import { buildTranscriptStateFromTurns } from "@/features/transcriptState/transcriptStateImplementation";
 import { renderWithProviders } from "@/utils/test-utils";
-import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
+import {
+  CommittedTranscriptSurface,
+  ReadOnlyCommittedTranscriptSurface,
+} from "../CommittedTranscriptSurface";
 
 const boundaryOnlyFailure = {
   message: "The request failed after context compaction",
@@ -77,6 +81,61 @@ test("navigates attached context pages and unmounts the previous page", async ()
 
   await previous.click();
   await expect.element(firstPage).toHaveAttribute("aria-current", "page");
+});
+
+test("renders an isolated read-only snapshot through the same current-page surface", async () => {
+  const attach = attachedContextPages(3);
+  const { store, ...liveScreen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  store.dispatch(threadRuntimeAttached(attach));
+
+  const liveRegion = liveScreen.getByRole("region", { name: "Committed transcript" });
+  await expect.element(liveScreen.getByText("Message on context page 3")).toBeVisible();
+  const liveText = liveRegion.element().textContent;
+  await liveScreen.unmount();
+
+  const transcriptState = buildTranscriptStateFromTurns(attach.snapshot.thread.turns);
+  const readOnlyScreen = await renderWithProviders(
+    <ReadOnlyCommittedTranscriptSurface
+      surfaceKey={attach.snapshot.thread.id}
+      transcriptState={transcriptState}
+    />,
+    { store },
+  );
+  const readOnlyRegion = readOnlyScreen.getByRole("region", { name: "Committed transcript" });
+  const readOnlyPagination = readOnlyScreen.getByRole("navigation", {
+    name: "Transcript context pages",
+  });
+
+  await expect.element(readOnlyRegion).toHaveTextContent(liveText);
+  await expect.element(readOnlyScreen.getByText("Message on context page 3")).toBeVisible();
+  await expect
+    .element(readOnlyScreen.getByText("Message on context page 1"))
+    .not.toBeInTheDocument();
+
+  store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: contextCompactionCompleted(
+        eventItemCompleted,
+        "commit-read-only-live-ingress",
+        "turn-page-3",
+        "compaction-read-only-live-ingress",
+      ),
+      replay: "live",
+    }),
+  );
+
+  await expect
+    .element(readOnlyPagination.getByRole("button", { name: "Context page 3" }))
+    .toHaveAttribute("aria-current", "page");
+  await expect
+    .element(readOnlyPagination.getByRole("button", { name: "Context page 4" }))
+    .not.toBeInTheDocument();
+
+  await readOnlyPagination.getByRole("button", { name: "Context page 1" }).click();
+  await expect.element(readOnlyScreen.getByText("Message on context page 1")).toBeVisible();
+  await expect
+    .element(readOnlyScreen.getByText("Message on context page 3"))
+    .not.toBeInTheDocument();
 });
 
 test("keeps a selected historical page while live compactions extend the followed tail", async () => {

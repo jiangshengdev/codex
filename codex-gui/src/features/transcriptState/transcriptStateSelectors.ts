@@ -8,11 +8,34 @@ import type {
   TranscriptContextPage,
   TranscriptEntryId,
   TranscriptEntryView,
+  TranscriptGlobalStatus,
   TranscriptState,
   TranscriptStoredEntry,
   TranscriptSubAgentActivityView,
+  TranscriptTurn,
   TranscriptTurnFragment,
 } from "./transcriptStateModel";
+
+export const selectCommittedTranscriptScrollCommitKeyFromTranscriptState = (
+  transcriptState: TranscriptState,
+): string | null => transcriptState.committedScrollCommitKey;
+
+export const selectTranscriptLiveScrollPulseFromTranscriptState = (
+  transcriptState: TranscriptState,
+): number => transcriptState.liveScrollPulse;
+
+export const selectTranscriptTurnIdsFromTranscriptState = (
+  transcriptState: TranscriptState,
+): string[] => transcriptState.turnIds;
+
+export const selectTranscriptTurnFromTranscriptState = (
+  transcriptState: TranscriptState,
+  turnId: string,
+): TranscriptTurn | null => transcriptState.turnsById[turnId] ?? null;
+
+export const selectTranscriptContextPageIdsFromTranscriptState = (
+  transcriptState: TranscriptState,
+): string[] => transcriptState.contextPageIds;
 
 export const transcriptContextPageTopology = (
   transcriptState: TranscriptState,
@@ -23,6 +46,41 @@ export const transcriptTurnFragmentTopology = (
   transcriptState: TranscriptState,
   fragmentId: string,
 ): TranscriptTurnFragment | null => transcriptState.turnFragmentsById[fragmentId] ?? null;
+
+export const selectTranscriptGlobalStatusFromTranscriptState = (
+  transcriptState: TranscriptState,
+): TranscriptGlobalStatus[] => transcriptState.globalStatus;
+
+const lastTranscriptFragmentIdsByTurnIdCache = new WeakMap<
+  TranscriptState["contextPagesById"],
+  Record<string, string>
+>();
+
+export const selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState = (
+  transcriptState: TranscriptState,
+): Record<string, string> => {
+  const cached = lastTranscriptFragmentIdsByTurnIdCache.get(transcriptState.contextPagesById);
+  if (cached != null) {
+    return cached;
+  }
+
+  const result: Record<string, string> = {};
+  for (const pageId of transcriptState.contextPageIds) {
+    const page = transcriptContextPageTopology(transcriptState, pageId);
+    if (page == null) {
+      continue;
+    }
+    for (const fragmentId of page.turnFragmentIds) {
+      const fragment = transcriptTurnFragmentTopology(transcriptState, fragmentId);
+      if (fragment != null) {
+        result[fragment.turnId] = fragment.id;
+      }
+    }
+  }
+
+  lastTranscriptFragmentIdsByTurnIdCache.set(transcriptState.contextPagesById, result);
+  return result;
+};
 
 type TranscriptEntryViewCacheEntry = {
   revision: number;
@@ -283,6 +341,8 @@ export const transcriptEntryView = (
   return view;
 };
 
+export const selectTranscriptEntryFromTranscriptState = transcriptEntryView;
+
 export const transcriptChunkView = (
   transcriptState: TranscriptState,
   chunkId: string,
@@ -310,3 +370,7 @@ export const transcriptChunkView = (
   transcriptChunkViewCache.set(chunk, { revision: chunk.revision, view });
   return view;
 };
+
+export const selectTranscriptChunkFromTranscriptState = transcriptChunkView;
+export const selectTranscriptContextPageFromTranscriptState = transcriptContextPageTopology;
+export const selectTranscriptTurnFragmentFromTranscriptState = transcriptTurnFragmentTopology;

@@ -1,4 +1,9 @@
-import type { ThreadItem, ThreadProjectionDeltaNotification, Turn } from "@codex-protocol/v2";
+import type {
+  Thread,
+  ThreadItem,
+  ThreadProjectionDeltaNotification,
+  Turn,
+} from "@codex-protocol/v2";
 import {
   projectCompletedTranscriptItem,
   projectStartedTranscriptItem,
@@ -27,6 +32,7 @@ import {
   appendFinalEntryToTranscriptFragment,
   appendLeadingEntryToTranscriptFragment,
   appendTranscriptContextBoundary,
+  ensureCurrentTranscriptTurnFragment,
   ensureTranscriptEntryFragment,
   forgetTranscriptEntryFragment,
   removeChunkFromTranscriptFragment,
@@ -161,6 +167,7 @@ export const upsertTranscriptTurn = (state: TranscriptState, turn: Turn): void =
     Reflect.deleteProperty(transcriptTurn, "error");
   } else {
     transcriptTurn.error = { ...turn.error };
+    ensureCurrentTranscriptTurnFragment(state, turn.id);
   }
   const originalFirstItem = turn.items[0];
   if (originalFirstItem != null) {
@@ -717,17 +724,8 @@ export const applyCompletedTranscriptItem = (
   projection satisfies never;
 };
 
-export const rebuildTranscriptFromSnapshot = (
-  state: TranscriptState,
-  threadId: string,
-  subscriptionId: string,
-  headCommitId: string | null,
-  turns: Turn[],
-): void => {
+export const buildTranscriptStateFromTurns = (turns: Thread["turns"]): TranscriptState => {
   const nextState = createEmptyTranscriptState();
-  nextState.threadId = threadId;
-  nextState.subscriptionId = subscriptionId;
-  nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
 
   for (const turn of turns) {
     upsertTranscriptTurn(nextState, turn);
@@ -749,5 +747,19 @@ export const rebuildTranscriptFromSnapshot = (
     }
   }
 
+  return nextState;
+};
+
+export const rebuildTranscriptFromSnapshot = (
+  state: TranscriptState,
+  threadId: string,
+  subscriptionId: string,
+  headCommitId: string | null,
+  turns: Thread["turns"],
+): void => {
+  const nextState = buildTranscriptStateFromTurns(turns);
+  nextState.threadId = threadId;
+  nextState.subscriptionId = subscriptionId;
+  nextState.committedScrollCommitKey = `attach:${threadId}:${subscriptionId}:${headCommitId ?? "none"}`;
   resetTranscriptState(state, nextState);
 };

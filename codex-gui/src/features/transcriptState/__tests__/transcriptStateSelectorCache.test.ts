@@ -23,6 +23,13 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 import {
+  selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState,
+  selectTranscriptChunkFromTranscriptState,
+  selectTranscriptContextPageFromTranscriptState,
+  selectTranscriptEntryFromTranscriptState,
+  selectTranscriptTurnFragmentFromTranscriptState,
+} from "../transcriptStateSelectors";
+import {
   agentMessageDelta,
   agentMessage,
   attachWithTurns,
@@ -59,6 +66,21 @@ describe("transcript state selector cache", () => {
     const beforeFragment = selectTranscriptTurnFragment(store.getState(), fragmentId ?? "");
     const entryId = transcriptEntryIdFor(turnId, activityId);
     const beforeEntry = selectTranscriptEntry(store.getState(), entryId);
+    const transcriptState = store.getState().transcriptState;
+    const lastFragmentIdsByTurnId =
+      selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState(transcriptState);
+
+    expect(lastFragmentIdsByTurnId).toStrictEqual({ [turnId]: fragmentId });
+    expect(selectTranscriptContextPageFromTranscriptState(transcriptState, "context-page:2")).toBe(
+      beforePage,
+    );
+    expect(selectTranscriptTurnFragmentFromTranscriptState(transcriptState, fragmentId ?? "")).toBe(
+      beforeFragment,
+    );
+    expect(selectTranscriptEntryFromTranscriptState(transcriptState, entryId)).toBe(beforeEntry);
+    expect(selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState(transcriptState)).toBe(
+      lastFragmentIdsByTurnId,
+    );
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -94,9 +116,14 @@ describe("transcript state selector cache", () => {
     const entryId = transcriptEntryIdFor("turn-cached", "agent-cached");
     const firstChunk = selectTranscriptChunk(store.getState(), "turn-cached:chunk:0");
     const firstEntry = selectTranscriptEntry(store.getState(), entryId);
+    const transcriptState = store.getState().transcriptState;
 
     expect(firstChunk).not.toBeNull();
     expect(firstEntry).not.toBeNull();
+    expect(selectTranscriptChunkFromTranscriptState(transcriptState, "turn-cached:chunk:0")).toBe(
+      firstChunk,
+    );
+    expect(selectTranscriptEntryFromTranscriptState(transcriptState, entryId)).toBe(firstEntry);
     expect(selectTranscriptChunk(store.getState(), "turn-cached:chunk:0")).toBe(firstChunk);
     expect(selectTranscriptEntry(store.getState(), entryId)).toBe(firstEntry);
 

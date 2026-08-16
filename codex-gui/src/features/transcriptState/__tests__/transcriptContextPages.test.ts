@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   agentMessage,
   contextCompaction,
+  failedTurn,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import { applyCompletedTranscriptItem } from "../transcriptStateImplementation";
+import {
+  applyCompletedTranscriptItem,
+  upsertTranscriptTurn,
+} from "../transcriptStateImplementation";
 import { createEmptyTranscriptState, transcriptEntryIdFor } from "../transcriptStateModel";
 
 describe("transcript context pages", () => {
@@ -18,6 +22,78 @@ describe("transcript context pages", () => {
         turnFragmentIds: [],
       },
     });
+  });
+
+  it("keeps an error-only turn on one fragment of the current context page", () => {
+    const state = createEmptyTranscriptState();
+    const turnId = "turn-error-only";
+    const error = {
+      message: "Failed without transcript items",
+      codexErrorInfo: null,
+      additionalDetails: null,
+    } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+    const failed = failedTurn(turnId, error);
+    const firstFragmentId = JSON.stringify(["context-page:1", turnId, 0]);
+
+    upsertTranscriptTurn(state, failed);
+    upsertTranscriptTurn(state, failed);
+
+    expect({
+      contextPageIds: state.contextPageIds,
+      contextPagesById: state.contextPagesById,
+      turnFragmentsById: state.turnFragmentsById,
+    }).toStrictEqual({
+      contextPageIds: ["context-page:1"],
+      contextPagesById: {
+        "context-page:1": {
+          id: "context-page:1",
+          leadingBoundaryId: null,
+          turnFragmentIds: [firstFragmentId],
+        },
+      },
+      turnFragmentsById: {
+        [firstFragmentId]: {
+          id: firstFragmentId,
+          turnId,
+          leadingPromptEntryId: null,
+          middleChunkIds: [],
+          middleEntryCount: 0,
+          finalAssistantEntryIds: [],
+        },
+      },
+    });
+
+    applyCompletedTranscriptItem(
+      state,
+      turnId,
+      contextCompaction("compaction-before-error-replay"),
+      "commit-compaction-before-error-replay",
+    );
+    const boundaryFragmentId = JSON.stringify(["context-page:2", turnId, 0]);
+    const boundaryFragment = state.turnFragmentsById[boundaryFragmentId];
+
+    upsertTranscriptTurn(state, failed);
+    upsertTranscriptTurn(state, failed);
+
+    expect({
+      currentPage: state.contextPagesById["context-page:2"],
+      currentFragment: state.turnFragmentsById[boundaryFragmentId],
+    }).toStrictEqual({
+      currentPage: {
+        id: "context-page:2",
+        leadingBoundaryId: transcriptEntryIdFor(turnId, "compaction-before-error-replay"),
+        turnFragmentIds: [boundaryFragmentId],
+      },
+      currentFragment: {
+        id: boundaryFragmentId,
+        turnId,
+        leadingPromptEntryId: null,
+        middleChunkIds: [],
+        middleEntryCount: 0,
+        finalAssistantEntryIds: [],
+      },
+    });
+    expect(state.turnFragmentsById[boundaryFragmentId]).toBe(boundaryFragment);
   });
 
   it("splits one turn across pages, forces a new chunk, and keeps entry bodies authoritative", () => {
