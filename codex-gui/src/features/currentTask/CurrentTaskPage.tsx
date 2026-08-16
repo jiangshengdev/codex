@@ -13,7 +13,7 @@ function isMacAppleWebKitRuntime(): boolean {
 }
 
 export function CurrentTaskPage() {
-  const { commands, composerInputQueueController, launchParams, status } = useAppCapabilities();
+  const { activeOwner, commands, launchParams, status } = useAppCapabilities();
   const transcriptBottomRef = useCommittedTranscriptStickyBottom();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
 
@@ -32,7 +32,7 @@ export function CurrentTaskPage() {
       />
       <ComposerTurnControl
         commands={commands}
-        composerInputQueueController={composerInputQueueController}
+        composerInputQueueController={activeOwner?.queueCoordinator ?? null}
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={status}
         launchParams={launchParams}

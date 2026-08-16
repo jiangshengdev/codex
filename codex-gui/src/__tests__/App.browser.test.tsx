@@ -6,7 +6,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   attachProjection,
   attachResponse,
@@ -25,6 +25,7 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import RootApp from "@/App";
+import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -58,6 +59,7 @@ import {
   turnCompleted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/threadSwitchCoordinator";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectTranscriptEntry,
@@ -82,7 +84,38 @@ vi.mock("@/features/composerInputQueue/composerInputQueueCoordinator", { spy: tr
 const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
-function App() {
+const candidateThreadId = "00000000-0000-0000-0000-000000000002";
+let threadSwitchProbeActiveOwner: ActiveThreadOwnerHandle | null = null;
+let threadSwitchProbePromise: ReturnType<
+  NonNullable<ReturnType<typeof useAppCapabilities>["continueThread"]>
+> | null = null;
+
+function ThreadSwitchCapabilityProbe() {
+  const { activeOwner, continueThread } = useAppCapabilities();
+  useEffect(() => {
+    threadSwitchProbeActiveOwner = activeOwner;
+  }, [activeOwner]);
+
+  return (
+    <section aria-label="Thread switch capability probe">
+      <button
+        disabled={continueThread == null}
+        onClick={() => {
+          threadSwitchProbePromise = continueThread?.(candidateThreadId) ?? null;
+        }}
+        type="button"
+      >
+        Continue candidate thread
+      </button>
+      <output aria-label="Active thread owner">{activeOwner?.threadId ?? "none"}</output>
+      <output aria-label="Active queue owner">
+        {activeOwner?.queueCoordinator.ownerThreadId ?? "none"}
+      </output>
+    </section>
+  );
+}
+
+function App({ initialEntry = "/" }: Readonly<{ initialEntry?: string }>) {
   const [router] = useState(() => {
     const rootRoute = createRootRoute({ component: RootApp });
     const indexRoute = createRoute({
@@ -90,15 +123,88 @@ function App() {
       path: "/",
       component: CurrentTaskPage,
     });
+    const threadSwitchProbeRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: "/__test/thread-switch",
+      component: ThreadSwitchCapabilityProbe,
+    });
 
     return createRouter({
-      history: createMemoryHistory({ initialEntries: ["/"] }),
-      routeTree: rootRoute.addChildren([indexRoute]),
+      history: createMemoryHistory({ initialEntries: [initialEntry] }),
+      routeTree: rootRoute.addChildren([indexRoute, threadSwitchProbeRoute]),
     });
   });
 
   return <RouterProvider router={router} />;
 }
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => (resolve = settle));
+  return { promise, resolve };
+};
+
+const createQueueCoordinatorMock = (
+  threadId: string,
+  releaseReadiness: ReturnType<ComposerInputQueueCoordinator["getReleaseReadiness"]> = {
+    type: "safe",
+  },
+) => {
+  const reservationRelease = vi.fn<() => void>();
+  const observeAcceptedEvent = vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>();
+  const dispose = vi.fn<ComposerInputQueueCoordinator["dispose"]>();
+  const coordinator = {
+    ownerThreadId: threadId,
+    submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
+    recover: vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(false),
+    observeAcceptedEvent,
+    getReleaseReadiness: vi
+      .fn<ComposerInputQueueCoordinator["getReleaseReadiness"]>()
+      .mockReturnValue(releaseReadiness),
+    reserveRelease: vi
+      .fn<ComposerInputQueueCoordinator["reserveRelease"]>()
+      .mockImplementation(() =>
+        releaseReadiness.type === "blocked"
+          ? releaseReadiness
+          : { type: "reserved", reservation: { release: reservationRelease } },
+      ),
+    getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
+      queuedCount: 0,
+      recoveryCount: 0,
+      isRecovering: false,
+    }),
+    subscribe: vi
+      .fn<ComposerInputQueueCoordinator["subscribe"]>()
+      .mockReturnValue(vi.fn<() => void>()),
+    dispose,
+  } satisfies ComposerInputQueueCoordinator;
+  return { coordinator, dispose, observeAcceptedEvent, reservationRelease };
+};
+
+const requireThreadSwitchProbeOwner = (): ActiveThreadOwnerHandle => {
+  if (threadSwitchProbeActiveOwner == null) {
+    throw new Error("thread switch probe must expose an active owner");
+  }
+  return threadSwitchProbeActiveOwner;
+};
+
+const requireThreadSwitchProbePromise = () => {
+  if (threadSwitchProbePromise == null) {
+    throw new Error("thread switch probe must start a switch");
+  }
+  return threadSwitchProbePromise;
+};
+
+const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
+  const screen = await renderWithProviders(<App initialEntry="/__test/thread-switch" />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  attachProjection(options);
+  markCommandsReady(options, commands);
+  const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
+  await expect.element(continueButton).toBeEnabled();
+  await expect.poll(() => threadSwitchProbeActiveOwner?.threadId).toBe(launchThreadId);
+  return { continueButton, options, screen };
+};
 
 const startTurnParamsAt = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
@@ -145,6 +251,8 @@ beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
+  threadSwitchProbeActiveOwner = null;
+  threadSwitchProbePromise = null;
 });
 
 const longTranscriptText = (label: string): string =>
@@ -1115,23 +1223,8 @@ test("App owns one queue coordinator for the matching attached launch thread unt
   const options = getHostOptions(startGuiHostConnectionMock);
   const commands = createGuiHostCommands();
   const createQueueCoordinator = vi.mocked(createComposerInputQueueCoordinator);
-  const observeAcceptedEvent = vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>();
-  const dispose = vi.fn<ComposerInputQueueCoordinator["dispose"]>();
-  const queueCoordinator = {
-    submit: vi.fn<ComposerInputQueueCoordinator["submit"]>(),
-    recover: vi.fn<ComposerInputQueueCoordinator["recover"]>(),
-    observeAcceptedEvent,
-    getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
-      queuedCount: 0,
-      recoveryCount: 0,
-      isRecovering: false,
-    }),
-    subscribe: vi
-      .fn<ComposerInputQueueCoordinator["subscribe"]>()
-      .mockReturnValue(vi.fn<() => void>()),
-    dispose,
-  } satisfies ComposerInputQueueCoordinator;
-  createQueueCoordinator.mockReturnValue(queueCoordinator);
+  const queue = createQueueCoordinatorMock(launchThreadId);
+  createQueueCoordinator.mockReturnValue(queue.coordinator);
   const mismatchedAttach = attachWithThreadId(attachResponse, "thread-mismatch");
 
   attachProjection(options, mismatchedAttach);
@@ -1150,8 +1243,8 @@ test("App owns one queue coordinator for the matching attached launch thread unt
   });
   emitProjectionEvent(options, eventTurnStarted);
 
-  expect(observeAcceptedEvent).toHaveBeenCalledOnce();
-  expect(observeAcceptedEvent).toHaveBeenCalledWith({
+  expect(queue.observeAcceptedEvent).toHaveBeenCalledOnce();
+  expect(queue.observeAcceptedEvent).toHaveBeenCalledWith({
     notification: eventTurnStarted,
     replay: "live",
   });
@@ -1160,19 +1253,162 @@ test("App owns one queue coordinator for the matching attached launch thread unt
   markCommandsUnavailable(options);
 
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
-  expect(dispose).not.toHaveBeenCalled();
+  expect(queue.dispose).not.toHaveBeenCalled();
 
   await screen.unmount();
 
-  expect(dispose).toHaveBeenCalledOnce();
+  expect(queue.dispose).toHaveBeenCalledOnce();
   expect(getCleanupConnectionCallCount()).toBe(1);
 
   emitProjectionEvent(options, eventTurnStarted);
   attachProjection(options, attachResponse);
   markCommandsReady(options, commands);
 
-  expect(observeAcceptedEvent).toHaveBeenCalledOnce();
+  expect(queue.observeAcceptedEvent).toHaveBeenCalledOnce();
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
+});
+
+test("App publishes a completed thread switch atomically across capabilities and Redux", async () => {
+  const initialQueue = createQueueCoordinatorMock(launchThreadId);
+  const candidateQueue = createQueueCoordinatorMock(candidateThreadId);
+  vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
+    threadId === launchThreadId ? initialQueue.coordinator : candidateQueue.coordinator,
+  );
+  const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+  const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
+  const commands = createGuiHostCommands();
+  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
+  const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  const activeThread = screen.getByLabelText("Active thread owner");
+  const activeQueue = screen.getByLabelText("Active queue owner");
+  const initialOwner = requireThreadSwitchProbeOwner();
+  const initialProjectionDispose = vi.spyOn(initialOwner.projectionOwner, "dispose");
+
+  await expect.element(activeThread).toHaveTextContent(launchThreadId);
+  await expect.element(activeQueue).toHaveTextContent(launchThreadId);
+  await continueButton.click();
+  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(1);
+
+  await expect.element(activeThread).toHaveTextContent(launchThreadId);
+  expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
+  pendingAttach.resolve(candidateAttach);
+  await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({ type: "switched" });
+
+  await expect.element(activeThread).toHaveTextContent(candidateThreadId);
+  await expect.element(activeQueue).toHaveTextContent(candidateThreadId);
+  await expect.poll(() => threadSwitchProbeActiveOwner?.threadId).toBe(candidateThreadId);
+  expect(requireThreadSwitchProbeOwner().queueCoordinator).toBe(candidateQueue.coordinator);
+  expect(requireThreadSwitchProbeOwner().subscriptionId).toBe(candidateAttach.subscriptionId);
+  expect(selectThreadIdentityState(screen.store.getState())).toStrictEqual({
+    launchThreadId: candidateThreadId,
+    attachedThreadId: candidateThreadId,
+    attachStatus: "attached",
+  });
+  expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(candidateThreadId);
+  expect(selectThreadRuntimeSubscription(screen.store.getState())).toStrictEqual({
+    state: "active",
+  });
+  expect(screen.store.getState().transcriptState.threadId).toBe(candidateThreadId);
+  expect(initialQueue.dispose).toHaveBeenCalledOnce();
+  expect(initialProjectionDispose).toHaveBeenCalledOnce();
+  expect(candidateQueue.dispose).not.toHaveBeenCalled();
+  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
+});
+
+test("App keeps the initial owner when its queue blocks a thread switch", async () => {
+  const initialQueue = createQueueCoordinatorMock(launchThreadId, {
+    type: "blocked",
+    blockers: [{ type: "ordinaryQueued", count: 1 }],
+  });
+  vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
+  const commands = createGuiHostCommands();
+  const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  const initialOwner = requireThreadSwitchProbeOwner();
+
+  await continueButton.click();
+  await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
+    type: "blocked",
+    reason: { type: "queueReleaseBlocked" },
+  });
+
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+  expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
+  await expect
+    .element(screen.getByLabelText("Active thread owner"))
+    .toHaveTextContent(launchThreadId);
+  expect(initialQueue.dispose).not.toHaveBeenCalled();
+  expect(createComposerInputQueueCoordinator).toHaveBeenCalledOnce();
+});
+
+test("App keeps the initial owner when attaching the switch candidate fails", async () => {
+  const initialQueue = createQueueCoordinatorMock(launchThreadId);
+  vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
+  const error = new Error("candidate attach failed");
+  const commands = createGuiHostCommands();
+  vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
+  const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  const initialOwner = requireThreadSwitchProbeOwner();
+
+  await continueButton.click();
+  await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
+    type: "failed",
+    phase: "attach",
+    error,
+  });
+
+  expect(commands.resumeThread).toHaveBeenCalledOnce();
+  expect(commands.attachThreadProjection).toHaveBeenCalledOnce();
+  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
+  expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
+  await expect
+    .element(screen.getByLabelText("Active thread owner"))
+    .toHaveTextContent(launchThreadId);
+  expect(initialQueue.reservationRelease).toHaveBeenCalledOnce();
+  expect(initialQueue.dispose).not.toHaveBeenCalled();
+});
+
+test("App cleans up once on unmount and ignores a late switch candidate completion", async () => {
+  const initialQueue = createQueueCoordinatorMock(launchThreadId);
+  vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
+  const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+  const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
+  const commands = createGuiHostCommands();
+  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
+  const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  const initialOwner = requireThreadSwitchProbeOwner();
+  const initialProjectionDispose = vi.spyOn(initialOwner.projectionOwner, "dispose");
+
+  await continueButton.click();
+  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(1);
+  const switching = requireThreadSwitchProbePromise();
+  await screen.unmount();
+
+  expect(initialQueue.dispose).toHaveBeenCalledOnce();
+  expect(initialProjectionDispose).toHaveBeenCalledOnce();
+  expect(getCleanupConnectionCallCount()).toBe(1);
+  pendingAttach.resolve(candidateAttach);
+  await expect(switching).resolves.toMatchObject({
+    type: "blocked",
+    reason: { type: "disposed" },
+  });
+
+  expect(createComposerInputQueueCoordinator).toHaveBeenCalledOnce();
+  expect(initialQueue.dispose).toHaveBeenCalledOnce();
+  expect(initialProjectionDispose).toHaveBeenCalledOnce();
+  expect(getCleanupConnectionCallCount()).toBe(1);
+  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: candidateThreadId,
+  });
+  expect(selectThreadIdentityState(screen.store.getState())).toStrictEqual({
+    launchThreadId,
+    attachedThreadId: launchThreadId,
+    attachStatus: "attached",
+  });
+  expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(launchThreadId);
+  expect(screen.store.getState().transcriptState.threadId).toBe(launchThreadId);
 });
 
 test("App cancels pending projection delta frame dispatch when unmounted", async () => {

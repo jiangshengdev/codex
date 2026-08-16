@@ -45,8 +45,9 @@ const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
 
 const renderHistory = async (listThreads: GuiHostCommands["listThreads"]) => {
   const capabilities = {
+    activeOwner: null,
     commands: { ...createGuiHostCommands(), listThreads },
-    composerInputQueueController: null,
+    continueThread: null,
     launchParams: null,
     status: { label: "attached" } as const,
   };
