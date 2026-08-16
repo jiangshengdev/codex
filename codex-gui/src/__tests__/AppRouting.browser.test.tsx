@@ -1,8 +1,13 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import {
+  attachProjection,
+  attachResponse,
+  createGuiHostCommands,
   getCleanupConnectionCallCount,
+  getHostOptions,
   launchThreadId,
+  markCommandsReady,
   resetAppBrowserTestSupport,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
@@ -26,8 +31,19 @@ beforeEach(() => {
 });
 
 test("root App keeps one connection across current, history, and detail routes and cleans up on unmount", async () => {
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   const router = createAppRouter(createMemoryHistory({ initialEntries: ["/"] }));
   const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createGuiHostCommands();
+  const listThreads = vi.mocked(commands.listThreads);
+  const firstPageParams = {
+    archived: false,
+    cwd: attachResponse.snapshot.thread.cwd,
+    limit: 25,
+    sortDirection: "desc" as const,
+    sortKey: "recency_at" as const,
+  };
 
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
@@ -35,6 +51,10 @@ test("root App keeps one connection across current, history, and detail routes a
   expect(router.state.location.pathname).toBe("/");
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
+
+  attachProjection(options);
+  markCommandsReady(options, commands);
+  scrollTo.mockClear();
 
   await screen.getByRole("button", { name: "Menu" }).click();
   await screen
@@ -44,6 +64,11 @@ test("root App keeps one connection across current, history, and detail routes a
 
   await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
   await expect.element(screen.getByRole("main")).toBeInTheDocument();
+  await expect.poll(() => listThreads.mock.calls.length).toBe(1);
+  await expect.poll(() => scrollTo.mock.calls.length).toBeGreaterThan(0);
+  expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 0 });
+  expect(listThreads).toHaveBeenNthCalledWith(1, firstPageParams);
+  expect(listThreads.mock.calls[0]?.[0]).not.toHaveProperty("cursor");
   expect(router.state.location.pathname).toBe("/history");
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
@@ -55,6 +80,19 @@ test("root App keeps one connection across current, history, and detail routes a
 
   await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
   expect(router.state.location.pathname).toBe(`/history/${launchThreadId}`);
+  expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
+  expect(getCleanupConnectionCallCount()).toBe(0);
+
+  scrollTo.mockClear();
+  await router.navigate({ to: "/history" });
+
+  await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+  await expect.poll(() => listThreads.mock.calls.length).toBe(2);
+  await expect.poll(() => scrollTo.mock.calls.length).toBeGreaterThan(0);
+  expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 0 });
+  expect(listThreads).toHaveBeenNthCalledWith(2, firstPageParams);
+  expect(listThreads.mock.calls[1]?.[0]).not.toHaveProperty("cursor");
+  expect(router.state.location.pathname).toBe("/history");
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
@@ -72,4 +110,5 @@ test("root App keeps one connection across current, history, and detail routes a
   await screen.unmount();
 
   expect(getCleanupConnectionCallCount()).toBe(1);
+  scrollTo.mockRestore();
 });

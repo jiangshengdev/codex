@@ -7,6 +7,7 @@ import {
 import { NotFoundPage } from "./NotFoundPage";
 import App from "./App";
 import { CurrentTaskPage } from "./features/currentTask/CurrentTaskPage";
+import { ThreadHistoryListPage } from "./features/threadHistory/ThreadHistoryListPage";
 
 function historyRoutePlaceholder() {
   return <main className="min-h-0 w-full flex-1" />;
@@ -26,7 +27,7 @@ const indexRoute = createRoute({
 const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/history",
-  component: historyRoutePlaceholder,
+  component: ThreadHistoryListPage,
 });
 
 const historyDetailRoute = createRoute({
