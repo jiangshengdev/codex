@@ -1,5 +1,6 @@
 import { Alert, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
+import { useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { useAppCapabilities } from "./AppCapabilities";
@@ -35,7 +36,9 @@ function AppShellTopNotices({ children }: { children: ReactNode }) {
 
 export function AppShell({ children }: AppShellProps) {
   const { status } = useAppCapabilities();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const hasTopNotice = status.label === "error";
+  const hasFixedBottomAction = pathname.startsWith("/history/");
 
   return (
     <div className="flex min-h-svh w-full flex-col bg-background text-foreground">
@@ -48,6 +51,9 @@ export function AppShell({ children }: AppShellProps) {
         </AppShellTopNotices>
       ) : null}
       {children}
+      {hasFixedBottomAction ? (
+        <div aria-hidden="true" className="h-24 shrink-0" data-app-shell-bottom-action-space="" />
+      ) : null}
     </div>
   );
 }

@@ -7,11 +7,8 @@ import {
 import { NotFoundPage } from "./NotFoundPage";
 import App from "./App";
 import { CurrentTaskPage } from "./features/currentTask/CurrentTaskPage";
+import { ThreadHistoryDetailPage } from "./features/threadHistory/ThreadHistoryDetailPage";
 import { ThreadHistoryListPage } from "./features/threadHistory/ThreadHistoryListPage";
-
-function historyRoutePlaceholder() {
-  return <main className="min-h-0 w-full flex-1" />;
-}
 
 const rootRoute = createRootRoute({
   component: App,
@@ -33,7 +30,7 @@ const historyRoute = createRoute({
 const historyDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/history/$threadId",
-  component: historyRoutePlaceholder,
+  component: ThreadHistoryDetailPage,
 });
 
 const routeTree = rootRoute.addChildren([indexRoute, historyRoute, historyDetailRoute]);
