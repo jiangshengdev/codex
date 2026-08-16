@@ -1,4 +1,6 @@
 import type { AppDispatch } from "@/app/store";
+import { liveThreadReplacementCommitted } from "@/features/projectionCoordination/liveThreadReplacement";
+import type { LiveThreadReplacementRecord } from "@/features/projectionCoordination/liveThreadReplacement";
 import {
   ProjectionIngressAdapter,
   type ProjectionIngressOutcome,
@@ -42,6 +44,7 @@ export class ProjectionApplicationCoordinator {
     | ((payload: Readonly<ThreadRuntimeProjectionEventPayload>) => void)
     | undefined;
   private launchThreadId: string | null = null;
+  private subscriptionId: string | null = null;
   private projectionIngress: ProjectionIngressAdapter | null = null;
   private snapshotReplayIndex: SnapshotReplayIndex | null = null;
   private pendingDeltaNotifications: ThreadProjectionDeltaNotification[] = [];
@@ -54,12 +57,21 @@ export class ProjectionApplicationCoordinator {
     this.acceptedEventSink = acceptedEventSink;
   }
 
+  get ownerThreadId(): string | null {
+    return this.launchThreadId;
+  }
+
+  get ownerSubscriptionId(): string | null {
+    return this.subscriptionId;
+  }
+
   handleLaunchThread(threadId: string): void {
     if (this.disposed) {
       return;
     }
 
     this.launchThreadId = threadId;
+    this.subscriptionId = null;
     this.projectionIngress = new ProjectionIngressAdapter(threadId);
     this.snapshotReplayIndex = null;
     this.dispatch(launchThreadIdRecorded(threadId));
@@ -79,12 +91,33 @@ export class ProjectionApplicationCoordinator {
 
     const outcome = this.projectionIngress.handleAttach(response);
     if (outcome.type === "attachAccepted") {
+      this.subscriptionId = outcome.response.subscriptionId;
       this.snapshotReplayIndex = snapshotReplayIndexFromTurns(
         outcome.response.snapshot.thread.turns,
       );
     }
 
     this.dispatchProjectionOutcome(outcome);
+  }
+
+  commitLiveThreadReplacement(record: LiveThreadReplacementRecord): boolean {
+    if (this.disposed || this.launchThreadId != null || this.projectionIngress != null) {
+      return false;
+    }
+
+    const threadId = record.response.snapshot.thread.id;
+    const projectionIngress = new ProjectionIngressAdapter(threadId);
+    const outcome = projectionIngress.handleAttach(record.response);
+    if (outcome.type !== "attachAccepted") {
+      return false;
+    }
+
+    this.launchThreadId = threadId;
+    this.subscriptionId = record.response.subscriptionId;
+    this.projectionIngress = projectionIngress;
+    this.snapshotReplayIndex = record.snapshotReplayIndex;
+    this.dispatch(liveThreadReplacementCommitted(record));
+    return true;
   }
 
   handleProjectionEvent(notification: ThreadProjectionEventNotification): void {
