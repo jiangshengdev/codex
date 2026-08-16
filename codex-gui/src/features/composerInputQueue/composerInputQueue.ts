@@ -75,8 +75,22 @@ export type ComposerInputQueueTransition = Readonly<{
   effects: readonly ComposerInputQueueEffect[];
 }>;
 
+export type ComposerInputQueuePendingStartPhase =
+  | "issuing"
+  | "acceptedAwaitingRuntime"
+  | "deliveryUnknown";
+
+export type ComposerInputQueueReleaseBlocker =
+  | Readonly<{ type: "ordinaryQueued"; count: number }>
+  | Readonly<{ type: "pendingStart"; phase: ComposerInputQueuePendingStartPhase }>;
+
+export type ComposerInputQueueReleaseState =
+  | Readonly<{ type: "safe" }>
+  | Readonly<{ type: "blocked"; blockers: readonly ComposerInputQueueReleaseBlocker[] }>;
+
 export type ComposerInputQueueView = Readonly<{
   queuedCount: number;
+  releaseState: ComposerInputQueueReleaseState;
 }>;
 
 export type StartSettlement =
@@ -171,7 +185,26 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     this.activeTurnId = activeTurnId;
   }
 
-  public view = (): ComposerInputQueueView => ({ queuedCount: this.ordinary.length });
+  public view = (): ComposerInputQueueView => {
+    const queuedCount = this.ordinary.length;
+    const blockers: ComposerInputQueueReleaseBlocker[] = [];
+    if (queuedCount > 0) {
+      blockers.push({ type: "ordinaryQueued", count: queuedCount });
+    }
+    if (this.pendingStart != null) {
+      blockers.push({
+        type: "pendingStart",
+        phase:
+          this.pendingStart.phase === "acceptedAwaitingStart"
+            ? "acceptedAwaitingRuntime"
+            : this.pendingStart.phase,
+      });
+    }
+    return {
+      queuedCount,
+      releaseState: blockers.length === 0 ? { type: "safe" } : { type: "blocked", blockers },
+    };
+  };
 
   private issueStart(message: ComposerQueueMessage): ComposerInputQueueEffect {
     nextClientUserMessageSequence += 1;
