@@ -129,7 +129,7 @@ function ThreadHistoryDetailContent({
         <div>
           <Button
             onPress={() => {
-              void navigate({ to: "/history" });
+              void navigate({ to: "/history", search: true });
             }}
             variant="secondary"
           >
@@ -302,7 +302,7 @@ function ContinueTaskAction({
             <Button
               className="mt-3"
               onPress={() => {
-                void navigate({ to: "/" });
+                void navigate({ to: "/", search: true });
               }}
               variant="secondary"
             >

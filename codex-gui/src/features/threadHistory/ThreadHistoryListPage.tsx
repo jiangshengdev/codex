@@ -1,19 +1,13 @@
 import { Alert, Button, Card, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { useAppSelector } from "@/app/hooks";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import type { Thread } from "@codex-protocol/v2";
-import {
-  initialThreadHistoryListState,
-  ThreadHistoryListOwner,
-  type ThreadHistoryListState,
-} from "./threadHistoryListOwner";
-
-const noop = () => undefined;
+import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHistoryListOwner";
 
 export function ThreadHistoryListPage() {
   const { commands } = useAppCapabilities();
@@ -29,7 +23,7 @@ export function ThreadHistoryListPage() {
       {commands != null && cwd != null ? (
         <ThreadHistoryListOwnerBound commands={commands} cwd={cwd} />
       ) : (
-        <HistoryListContent loadMore={noop} retry={noop} state={initialThreadHistoryListState} />
+        <HistoryError />
       )}
     </main>
   );
@@ -45,12 +39,37 @@ function ThreadHistoryListOwnerBound({ commands, cwd }: ThreadHistoryListOwnerBo
     () => new ThreadHistoryListOwner({ cwd, listThreads: commands.listThreads }),
     [commands.listThreads, cwd],
   );
+  const pendingDisposal = useRef<{
+    owner: ThreadHistoryListOwner;
+    cancel: () => void;
+  } | null>(null);
   const state = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
 
   useEffect(() => {
+    if (pendingDisposal.current?.owner === owner) {
+      pendingDisposal.current.cancel();
+      pendingDisposal.current = null;
+    }
+
     owner.start();
     return () => {
-      owner.dispose();
+      let cancelled = false;
+      const disposal = {
+        owner,
+        cancel: () => {
+          cancelled = true;
+        },
+      };
+      pendingDisposal.current = disposal;
+      queueMicrotask(() => {
+        if (cancelled) {
+          return;
+        }
+        if (pendingDisposal.current === disposal) {
+          pendingDisposal.current = null;
+        }
+        owner.dispose();
+      });
     };
   }, [owner]);
 
@@ -128,6 +147,7 @@ function ThreadHistoryCard({ thread }: { thread: Thread }) {
             void navigate({
               to: "/history/$threadId",
               params: { threadId: thread.id },
+              search: true,
             });
           }}
         >
@@ -157,7 +177,11 @@ const renderHistoryMessage = (message: ReactNode) => (
   <p className="text-sm text-muted">{message}</p>
 );
 
-function HistoryError({ error, retry }: { error: unknown; retry: () => boolean | undefined }) {
+type HistoryErrorProps =
+  | { error: unknown; retry: () => boolean | undefined }
+  | { error?: never; retry?: never };
+
+function HistoryError(props: HistoryErrorProps) {
   return (
     <Alert role="alert" status="danger">
       <Alert.Indicator />
@@ -165,12 +189,16 @@ function HistoryError({ error, retry }: { error: unknown; retry: () => boolean |
         <Alert.Title>
           <Trans>Unable to load history</Trans>
         </Alert.Title>
-        <Alert.Description>
-          {error instanceof Error ? error.message : String(error)}
-        </Alert.Description>
-        <Button className="mt-3" onPress={retry} variant="tertiary">
-          <Trans>Retry</Trans>
-        </Button>
+        {"error" in props ? (
+          <Alert.Description>
+            {props.error instanceof Error ? props.error.message : String(props.error)}
+          </Alert.Description>
+        ) : null}
+        {props.retry == null ? null : (
+          <Button className="mt-3" onPress={props.retry} variant="tertiary">
+            <Trans>Retry</Trans>
+          </Button>
+        )}
       </Alert.Content>
     </Alert>
   );

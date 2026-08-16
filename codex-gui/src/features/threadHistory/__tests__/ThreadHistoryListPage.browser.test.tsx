@@ -7,6 +7,8 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
+import { THREAD_QUERY_KEY } from "@codex-gui-host-contract";
+import { StrictMode } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
@@ -43,10 +45,25 @@ const response = (data: Thread[], nextCursor: string | null): ThreadListResponse
 
 const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
 
-const renderHistory = async (listThreads: GuiHostCommands["listThreads"]) => {
+type RenderHistoryOptions = {
+  attachRuntime?: boolean;
+  commandsAvailable?: boolean;
+  initialEntry?: string;
+  strictMode?: boolean;
+};
+
+const renderHistory = async (
+  listThreads: GuiHostCommands["listThreads"],
+  {
+    attachRuntime = true,
+    commandsAvailable = true,
+    initialEntry = "/history",
+    strictMode = false,
+  }: RenderHistoryOptions = {},
+) => {
   const capabilities = {
     activeOwner: null,
-    commands: { ...createGuiHostCommands(), listThreads },
+    commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
     continueThread: null,
     launchParams: null,
     status: { label: "attached" } as const,
@@ -68,13 +85,50 @@ const renderHistory = async (listThreads: GuiHostCommands["listThreads"]) => {
     component: HistoryDetailPlaceholder,
   });
   const router = createRouter({
-    history: createMemoryHistory({ initialEntries: ["/history"] }),
+    history: createMemoryHistory({ initialEntries: [initialEntry] }),
     routeTree: rootRoute.addChildren([historyRoute, detailRoute]),
   });
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
-  screen.store.dispatch(threadRuntimeAttached(attachResponse));
+  const app = <RouterProvider router={router} />;
+  const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
+  if (attachRuntime) {
+    screen.store.dispatch(threadRuntimeAttached(attachResponse));
+  }
   return { router, screen };
 };
+
+test("settles the initial history request and renders its result under StrictMode", async () => {
+  const listThreads = vi
+    .fn<GuiHostCommands["listThreads"]>()
+    .mockResolvedValue(response([thread("strict", { name: "Strict mode task" })], null));
+  const { screen } = await renderHistory(listThreads, { strictMode: true });
+
+  await expect.element(screen.getByRole("article", { name: "Strict mode task" })).toBeVisible();
+  await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
+  expect(listThreads).toHaveBeenCalledExactlyOnceWith({
+    archived: false,
+    cwd: attachResponse.snapshot.thread.cwd,
+    limit: 25,
+    sortDirection: "desc",
+    sortKey: "recency_at",
+  });
+});
+
+test.each([
+  { attachRuntime: true, commandsAvailable: false },
+  { attachRuntime: false, commandsAvailable: true },
+])(
+  "shows an unavailable error instead of loading when a dependency is missing",
+  async (options) => {
+    const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+    const { screen } = await renderHistory(listThreads, options);
+
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText("Unable to load history")).toBeVisible();
+    await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(listThreads).not.toHaveBeenCalled();
+  },
+);
 
 test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and View navigation", async () => {
   const activitySeconds = 1_725_000_000;
@@ -102,7 +156,10 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   const listThreads = vi
     .fn<GuiHostCommands["listThreads"]>()
     .mockResolvedValue(response(threads, null));
-  const { router, screen } = await renderHistory(listThreads);
+  const launchThreadId = "launch-thread";
+  const { router, screen } = await renderHistory(listThreads, {
+    initialEntry: `/history?${THREAD_QUERY_KEY}=${launchThreadId}`,
+  });
 
   const namedCard = screen.getByRole("article", { name: "Named task" });
   const previewCard = screen.getByRole("article", { name: "Preview title" });
@@ -124,6 +181,7 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   await namedCard.getByRole("button", { name: "View" }).click();
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history/named");
+  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
 });
 
 test("shows the complete initial error and retries into the empty state", async () => {

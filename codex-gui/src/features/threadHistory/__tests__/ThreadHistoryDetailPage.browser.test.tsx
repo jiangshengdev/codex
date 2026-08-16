@@ -204,6 +204,19 @@ test("shows a terminal connection error without an invalid Retry before commands
   await expect.element(screen.getByText("Loading task history…")).not.toBeInTheDocument();
 });
 
+test("returns to the history list without dropping the launch thread query", async () => {
+  const launchThreadId = "live-thread";
+  const { router, screen } = await renderDetail({
+    initialEntries: [`/history/${detailThreadId}?${THREAD_QUERY_KEY}=${launchThreadId}`],
+  });
+
+  await screen.getByRole("button", { name: "Back to history" }).click();
+
+  await expect.element(screen.getByRole("main", { name: "History list" })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe("/history");
+  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+});
+
 test("retains a loaded read-only snapshot when commands later become unavailable", async () => {
   const commands = {
     ...createGuiHostCommands(),
@@ -306,7 +319,12 @@ test("reports a synchronous queue block without flashing pending and links the a
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const { router, screen } = await renderDetail({ commands, continueThread });
+  const launchThreadId = "live-thread";
+  const { router, screen } = await renderDetail({
+    commands,
+    continueThread,
+    initialEntries: [`/history/${detailThreadId}?${THREAD_QUERY_KEY}=${launchThreadId}`],
+  });
   const action = screen.getByRole("button", { name: "Continue this task" });
 
   await expect.element(action).toBeEnabled();
@@ -324,6 +342,7 @@ test("reports a synchronous queue block without flashing pending and links the a
   await alert.getByRole("button", { name: "Return to current task" }).click();
   await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/");
+  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
 });
 
 test("keeps one continuation in flight while the primary action is pending", async () => {

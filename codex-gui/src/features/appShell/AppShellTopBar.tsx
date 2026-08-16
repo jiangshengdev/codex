@@ -20,7 +20,7 @@ export function AppShellTopBar() {
 
   const navigateTo = (to: "/" | "/history"): void => {
     setIsDrawerOpen(false);
-    void navigate({ to });
+    void navigate({ to, search: true });
   };
 
   return (
