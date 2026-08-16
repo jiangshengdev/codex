@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   collabAgentState,
   collabAgentToolCall,
+  contextCompaction,
   reasoningItem,
   reasoningSummaryPartAddedDelta,
   reasoningSummaryTextDelta,
@@ -66,6 +67,18 @@ const startedCollabPresentation = (item: ReturnType<typeof collabAgentToolCall>)
 };
 
 describe("transcript item policy", () => {
+  it("uses only completed context compaction as a transcript boundary", () => {
+    const item = contextCompaction("compaction-1");
+
+    expect(projectStartedTranscriptItem(item, "turn-compaction")).toStrictEqual({
+      kind: "ignore",
+    });
+    expect(projectCompletedTranscriptItem(item, "turn-compaction")).toStrictEqual({
+      kind: "contextBoundary",
+      item,
+    });
+  });
+
   it("projects reasoning item lifecycle without exposing raw content", () => {
     const started = reasoningItem("reasoning-started", [], ["raw started reasoning"]);
     expect(projectStartedTranscriptItem(started, "turn-reasoning")).toStrictEqual({

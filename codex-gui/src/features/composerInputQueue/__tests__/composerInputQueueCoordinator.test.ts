@@ -37,6 +37,91 @@ const live = (notification: typeof eventItemStarted) => ({
 });
 const flush = (): Promise<void> => Promise.resolve();
 describe("ComposerInputQueueCoordinator", () => {
+  it("reserves a safe release, blocks queue operations until release, and rejects disposal", () => {
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-active",
+      startTurn: vi.fn<StartTurn>(),
+    });
+    const reserved = coordinator.reserveRelease();
+
+    if (reserved.type !== "reserved") throw new Error("expected a release reservation");
+    expect({ type: reserved.type, release: typeof reserved.reservation.release }).toEqual({
+      type: "reserved",
+      release: "function",
+    });
+    expect({
+      readiness: coordinator.getReleaseReadiness(),
+      submit: coordinator.submit("blocked"),
+      recover: coordinator.recover(),
+      reserveAgain: coordinator.reserveRelease(),
+    }).toEqual({
+      readiness: { type: "blocked", blockers: [{ type: "releaseReserved" }] },
+      submit: { type: "rejected", reason: "releaseReserved" },
+      recover: false,
+      reserveAgain: { type: "blocked", blockers: [{ type: "releaseReserved" }] },
+    });
+
+    reserved.reservation.release();
+    expect({
+      readiness: coordinator.getReleaseReadiness(),
+      submit: coordinator.submit("accepted after release"),
+    }).toEqual({ readiness: { type: "safe" }, submit: { type: "accepted" } });
+
+    coordinator.dispose();
+    expect(coordinator.reserveRelease()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "disposed" }],
+    });
+  });
+
+  it("exposes its owner and combines queue release readiness without treating an active turn as blocked", async () => {
+    const active = createCoordinator({
+      threadId: "thread-active",
+      activeTurnId: "turn-active",
+      startTurn: vi.fn<StartTurn>(),
+    });
+    expect(active.ownerThreadId).toBe("thread-active");
+    expect(active.getReleaseReadiness()).toEqual({ type: "safe" });
+    active.submit("ordinary");
+    expect(active.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+    });
+
+    const request = deferredStart();
+    const startTurn = vi.fn<StartTurn>(() => request.promise);
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      startTurn,
+    });
+    coordinator.submit("pending");
+    expect(coordinator.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "pendingStart", phase: "issuing" }],
+    });
+    request.resolve({ turn: baseTurn("turn-1") });
+    await flush();
+    expect(coordinator.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "pendingStart", phase: "acceptedAwaitingRuntime" }],
+    });
+
+    const clientId = startTurn.mock.calls[0]?.[0].clientUserMessageId;
+    coordinator.observeAcceptedEvent(
+      live(
+        itemStarted(
+          eventItemStarted,
+          "commit-pending",
+          "turn-1",
+          committedUserMessage(clientId ?? "missing-client-id"),
+        ),
+      ),
+    );
+    expect(coordinator.getReleaseReadiness()).toEqual({ type: "safe" });
+  });
+
   it.each(["completed", "failed"] as const)(
     "starts, observes projection before settlement, and drains a %s turn",
     async (status) => {
@@ -104,6 +189,13 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     await flush();
     expect(startTurn).toHaveBeenCalledTimes(1);
+    expect(coordinator.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "ordinaryQueued", count: 1 },
+        { type: "pendingStart", phase: "deliveryUnknown" },
+      ],
+    });
 
     const definiteRequests: Deferred[] = [];
     const definiteStart = vi.fn<StartTurn>(() => {
@@ -127,6 +219,13 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     await flush();
     expect(definite.getSnapshot().recoveryCount).toBe(1);
+    expect(definite.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "pendingStart", phase: "issuing" },
+        { type: "recoveryPending", count: 1 },
+      ],
+    });
     expect(definite.submit("blocked")).toEqual({ type: "rejected", reason: "recoveryPending" });
     expect(definiteStart).toHaveBeenCalledTimes(1);
     expect(definite.recover()).toBe(true);
@@ -152,7 +251,11 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     const initial = coordinator.getSnapshot();
     const snapshots: unknown[] = [];
-    coordinator.subscribe(() => snapshots.push(coordinator.getSnapshot()));
+    const releaseReadiness: unknown[] = [];
+    coordinator.subscribe(() => {
+      snapshots.push(coordinator.getSnapshot());
+      releaseReadiness.push(coordinator.getReleaseReadiness());
+    });
     coordinator.observeAcceptedEvent({
       notification: eventWithEnvelope(eventItemStarted, { threadId: "thread-1" }),
       replay: "snapshotDuplicate",
@@ -180,18 +283,25 @@ describe("ComposerInputQueueCoordinator", () => {
       { type: "text", text: "two", text_elements: [] },
     ]);
     expect(snapshots).toContainEqual({ queuedCount: 0, recoveryCount: 2, isRecovering: true });
+    expect(releaseReadiness).toContainEqual({
+      type: "blocked",
+      blockers: [{ type: "recoveryPending", count: 2 }, { type: "recovering" }],
+    });
   });
 
   it("ignores mismatched events and settlements after disposal", async () => {
     const request = deferredStart();
     const startTurn = vi.fn<StartTurn>(() => request.promise);
     const coordinator = createCoordinator({ threadId: "thread-1", activeTurnId: null, startTurn });
+    const listener = vi.fn<() => void>();
+    coordinator.subscribe(listener);
     coordinator.submit("first");
     coordinator.observeAcceptedEvent({
       notification: { ...eventItemStarted, threadId: "thread-2" },
       replay: "live",
     });
     coordinator.dispose();
+    const readinessAtDisposal = coordinator.getReleaseReadiness();
     const queued = createCoordinator({ threadId: "thread-1", activeTurnId: "active", startTurn });
     queued.submit("queued");
     queued.dispose();
@@ -202,6 +312,8 @@ describe("ComposerInputQueueCoordinator", () => {
     request.resolve({ turn: baseTurn("turn-1") });
     await flush();
     expect(coordinator.submit("late")).toEqual({ type: "rejected", reason: "disposed" });
+    expect(coordinator.getReleaseReadiness()).toEqual(readinessAtDisposal);
+    expect(listener).not.toHaveBeenCalled();
     expect(startTurn).toHaveBeenCalledTimes(1);
   });
 });

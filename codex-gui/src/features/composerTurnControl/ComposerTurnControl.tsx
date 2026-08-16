@@ -72,9 +72,13 @@ export function ComposerTurnControl({
       threadId,
       subscriptionState,
     });
+  const controllerMatchesCurrentThread =
+    composerInputQueueController != null &&
+    threadId != null &&
+    composerInputQueueController.ownerThreadId === threadId;
   const sendEnabled = canSend({
     connectionUsable,
-    controllerReady: composerInputQueueController != null,
+    controllerReady: controllerMatchesCurrentThread,
     draft,
     isSending,
     recoveryCount: queueSnapshot.recoveryCount,

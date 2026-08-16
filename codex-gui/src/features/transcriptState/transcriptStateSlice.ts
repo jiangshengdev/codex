@@ -1,4 +1,5 @@
 import { createAppSlice } from "@/app/createAppSlice";
+import { liveThreadReplacementCommitted } from "@/features/projectionCoordination/liveThreadReplacement";
 import {
   threadRuntimeAttached,
   threadRuntimeDeltasAccepted,
@@ -8,13 +9,21 @@ import {
 import { reduceTranscriptInput } from "./transcriptProjection";
 import {
   initialTranscriptState,
+  resetTranscriptState,
   type TranscriptChunkView,
+  type TranscriptContextPage,
   type TranscriptEntryId,
   type TranscriptEntryView,
   type TranscriptGlobalStatus,
   type TranscriptTurn,
+  type TranscriptTurnFragment,
 } from "./transcriptStateModel";
-import { transcriptChunkView, transcriptEntryView } from "./transcriptStateSelectors";
+import {
+  transcriptChunkView,
+  transcriptContextPageTopology,
+  transcriptEntryView,
+  transcriptTurnFragmentTopology,
+} from "./transcriptStateSelectors";
 
 export {
   MAX_APPLIED_EVENT_ID_WINDOW_LENGTH,
@@ -24,6 +33,7 @@ export {
 export type {
   TranscriptChunk,
   TranscriptChunkView,
+  TranscriptContextPage,
   TranscriptEntryId,
   TranscriptEntryView,
   TranscriptGlobalStatus,
@@ -32,6 +42,7 @@ export type {
   TranscriptState,
   TranscriptStatusView,
   TranscriptTurn,
+  TranscriptTurnFragment,
 } from "./transcriptStateModel";
 
 export const transcriptStateSlice = createAppSlice({
@@ -45,6 +56,13 @@ export const transcriptStateSlice = createAppSlice({
     selectTranscriptTurnIds: (transcriptState): string[] => transcriptState.turnIds,
     selectTranscriptTurn: (transcriptState, turnId: string): TranscriptTurn | null =>
       transcriptState.turnsById[turnId] ?? null,
+    selectTranscriptContextPageIds: (transcriptState): string[] => transcriptState.contextPageIds,
+    selectTranscriptContextPage: (transcriptState, pageId: string): TranscriptContextPage | null =>
+      transcriptContextPageTopology(transcriptState, pageId),
+    selectTranscriptTurnFragment: (
+      transcriptState,
+      fragmentId: string,
+    ): TranscriptTurnFragment | null => transcriptTurnFragmentTopology(transcriptState, fragmentId),
     selectTranscriptChunk: (transcriptState, chunkId: string): TranscriptChunkView | null =>
       transcriptChunkView(transcriptState, chunkId),
     selectTranscriptEntry: (
@@ -56,6 +74,9 @@ export const transcriptStateSlice = createAppSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(liveThreadReplacementCommitted, (state, action) => {
+        resetTranscriptState(state, action.payload.transcriptState);
+      })
       .addCase(threadRuntimeAttached, (state, action) => {
         reduceTranscriptInput(state, action);
       })
@@ -76,6 +97,9 @@ export const {
   selectTranscriptLiveScrollPulse,
   selectTranscriptTurnIds,
   selectTranscriptTurn,
+  selectTranscriptContextPageIds,
+  selectTranscriptContextPage,
+  selectTranscriptTurnFragment,
   selectTranscriptChunk,
   selectTranscriptEntry,
   selectTranscriptGlobalStatus,

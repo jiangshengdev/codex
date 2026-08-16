@@ -15,6 +15,7 @@ import {
   baseTurn,
   collabAgentState,
   collabAgentToolCall,
+  failedTurn,
   inProgressTurn,
   itemCompleted,
   itemStarted,
@@ -796,6 +797,67 @@ describe("transcript state committed projection reducer", () => {
       middleEntryCount: 0,
       finalAssistantEntryIds: [],
     });
+  });
+
+  it("stores, deduplicates, and clears a live failed turn error without adding entries", () => {
+    const store = makeStore();
+    const turnId = "turn-live-failed-error";
+    const error = {
+      message:
+        "unexpected status 403 Forbidden: token quota is not enough\n(request id: request-live), url: https://shapi.vip/v1/responses",
+      codexErrorInfo: "usageLimitExceeded",
+      additionalDetails: null,
+    } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+    const failedNotification = turnCompleted(
+      eventTurnCompleted,
+      "commit-live-failed-error",
+      failedTurn(turnId, error),
+    );
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    store.dispatch(
+      threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+    );
+    store.dispatch(
+      threadRuntimeEventBuffered({ notification: failedNotification, replay: "live" }),
+    );
+
+    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual([turnId]);
+    expect(selectTranscriptTurn(store.getState(), turnId)).toStrictEqual({
+      id: turnId,
+      status: "failed",
+      error,
+      originalFirstItemId: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(store.getState().transcriptState.entriesById).toStrictEqual({});
+    expect(store.getState().transcriptState.chunksById).toStrictEqual({});
+
+    store.dispatch(
+      threadRuntimeEventBuffered({
+        notification: turnCompleted(
+          eventTurnCompleted,
+          "commit-live-error-cleared",
+          baseTurn(turnId),
+        ),
+        replay: "live",
+      }),
+    );
+
+    const completedTurn = selectTranscriptTurn(store.getState(), turnId);
+    expect(completedTurn).toStrictEqual({
+      id: turnId,
+      status: "completed",
+      originalFirstItemId: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(completedTurn).not.toHaveProperty("error");
   });
 
   it("filters empty text and non-chat live item completions", () => {

@@ -18,6 +18,8 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadCompactStartResponse;
 use codex_app_server_protocol::ThreadItem;
+use codex_app_server_protocol::ThreadProjectionAttachParams;
+use codex_app_server_protocol::ThreadProjectionAttachResponse;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
 use codex_app_server_protocol::TokenUsageBreakdown;
@@ -310,6 +312,70 @@ async fn thread_compact_start_triggers_compaction_and_returns_empty_response() -
             }),
         }
     );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn compact_attach_snapshot_preserves_context_compaction_id() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let server = responses::start_mock_server().await;
+    let sse = responses::sse(vec![
+        responses::ev_assistant_message("m1", "MANUAL_COMPACT_SUMMARY"),
+        responses::ev_completed_with_tokens("r1", /*total_tokens*/ 200),
+    ]);
+    let response_mock = responses::mount_sse_once(&server, sse).await;
+
+    let codex_home = TempDir::new()?;
+    compaction_config(&server.uri(), AUTO_COMPACT_LIMIT).write(codex_home.path())?;
+
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+
+    let thread_id = start_thread(&mut mcp).await?;
+    let compact_request_id = mcp
+        .send_thread_compact_start_request(ThreadCompactStartParams {
+            thread_id: thread_id.clone(),
+        })
+        .await?;
+    let _: ThreadCompactStartResponse =
+        timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(compact_request_id)).await??;
+
+    let completed = wait_for_context_compaction_completed(&mut mcp).await?;
+    let completed_turn_id = completed.turn_id;
+    let ThreadItem::ContextCompaction {
+        id: completed_item_id,
+    } = completed.item
+    else {
+        unreachable!("completed item should be context compaction");
+    };
+
+    let attach_request_id = mcp
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams { thread_id })
+        .await?;
+    let attach: ThreadProjectionAttachResponse =
+        timeout(DEFAULT_READ_TIMEOUT, mcp.read_response(attach_request_id)).await??;
+
+    let snapshot_compactions = attach
+        .snapshot
+        .thread
+        .turns
+        .iter()
+        .flat_map(|turn| {
+            turn.items.iter().filter_map(|item| match item {
+                ThreadItem::ContextCompaction { id } => Some((turn.id.clone(), id.clone())),
+                _ => None,
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        snapshot_compactions,
+        vec![(completed_turn_id, completed_item_id)]
+    );
+    response_mock.single_request();
 
     Ok(())
 }

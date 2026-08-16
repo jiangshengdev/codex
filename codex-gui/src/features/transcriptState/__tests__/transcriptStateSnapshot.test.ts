@@ -11,6 +11,7 @@ import {
   selectTranscriptTurnIds,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
+import { buildTranscriptStateFromTurns } from "../transcriptStateImplementation";
 import {
   agentMessage,
   audioInput,
@@ -18,6 +19,7 @@ import {
   baseTurn,
   collabAgentState,
   collabAgentToolCall,
+  failedTurn,
   imageInput,
   localAudioInput,
   planItem,
@@ -35,6 +37,102 @@ describe("transcript state snapshot reducer", () => {
     expect(selectTranscriptTurnIds(store.getState())).toStrictEqual([]);
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBeNull();
+  });
+
+  it("builds an isolated transcript state before live attach metadata is applied", () => {
+    const turnId = "turn-isolated-snapshot";
+    const userEntryId = transcriptEntryIdFor(turnId, "user-isolated-snapshot");
+    const agentEntryId = transcriptEntryIdFor(turnId, "agent-isolated-snapshot");
+    const fragmentId = JSON.stringify(["context-page:1", turnId, 0]);
+    const turns = [
+      baseTurn(turnId, [
+        userMessage("user-isolated-snapshot", [textInput("Question")]),
+        agentMessage("agent-isolated-snapshot", "Answer"),
+      ]),
+    ];
+
+    const transcriptState = buildTranscriptStateFromTurns(turns);
+
+    expect(transcriptState).toStrictEqual({
+      threadId: null,
+      subscriptionId: null,
+      committedScrollCommitKey: null,
+      liveScrollPulse: 0,
+      turnIds: [turnId],
+      turnsById: {
+        [turnId]: {
+          id: turnId,
+          status: "completed",
+          originalFirstItemId: "user-isolated-snapshot",
+          leadingPromptEntryId: userEntryId,
+          middleChunkIds: [],
+          middleEntryCount: 0,
+          finalAssistantEntryIds: [agentEntryId],
+        },
+      },
+      chunksById: {},
+      entriesById: {
+        [userEntryId]: {
+          type: "message",
+          id: "user-isolated-snapshot",
+          turnId,
+          role: "user",
+          source: "Question",
+          sourceKind: "plainText",
+          phase: null,
+          revision: 0,
+        },
+        [agentEntryId]: {
+          type: "message",
+          id: "agent-isolated-snapshot",
+          turnId,
+          role: "assistant",
+          source: "Answer",
+          sourceKind: "markdown",
+          phase: "final_answer",
+          revision: 0,
+        },
+      },
+      entryChunkById: {},
+      contextPageIds: ["context-page:1"],
+      contextPagesById: {
+        "context-page:1": {
+          id: "context-page:1",
+          leadingBoundaryId: null,
+          turnFragmentIds: [fragmentId],
+        },
+      },
+      turnFragmentsById: {
+        [fragmentId]: {
+          id: fragmentId,
+          turnId,
+          leadingPromptEntryId: userEntryId,
+          middleChunkIds: [],
+          middleEntryCount: 0,
+          finalAssistantEntryIds: [agentEntryId],
+        },
+      },
+      entryFragmentById: {
+        [userEntryId]: fragmentId,
+        [agentEntryId]: fragmentId,
+      },
+      chunkFragmentById: {},
+      contextBoundaryIdsById: {},
+      globalStatus: [],
+      appliedEventIdsById: {},
+      appliedEventOrder: [],
+    });
+
+    const attach = attachWithTurns(attachBaseline, turns);
+    const store = makeStore();
+    store.dispatch(threadRuntimeAttached(attach));
+
+    expect(store.getState().transcriptState).toStrictEqual({
+      ...transcriptState,
+      threadId: attach.snapshot.thread.id,
+      subscriptionId: attach.subscriptionId,
+      committedScrollCommitKey: `attach:${attach.snapshot.thread.id}:${attach.subscriptionId}:${attach.snapshot.headCommitId ?? "none"}`,
+    });
   });
 
   it("rebuilds committed transcript chunks from an accepted attach snapshot", () => {
@@ -115,6 +213,58 @@ describe("transcript state snapshot reducer", () => {
       ],
     });
     expect(selectTranscriptGlobalStatus(store.getState())).toStrictEqual([]);
+  });
+
+  it("restores the complete failed turn error without adding a transcript entry", () => {
+    const error = {
+      message:
+        "unexpected status 403 Forbidden: token quota is not enough\n(request id: request-snapshot), url: https://shapi.vip/v1/responses",
+      codexErrorInfo: { responseTooManyFailedAttempts: { httpStatusCode: 403 } },
+      additionalDetails: "provider quota exhausted",
+    } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
+    const turn = failedTurn("turn-failed-snapshot", error);
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [turn])));
+
+    const transcriptTurn = selectTranscriptTurn(store.getState(), turn.id);
+    expect(transcriptTurn).toStrictEqual({
+      id: turn.id,
+      status: "failed",
+      error,
+      originalFirstItemId: null,
+      leadingPromptEntryId: null,
+      middleChunkIds: [],
+      middleEntryCount: 0,
+      finalAssistantEntryIds: [],
+    });
+    expect(store.getState().transcriptState.entriesById).toStrictEqual({});
+    expect(store.getState().transcriptState.chunksById).toStrictEqual({});
+    const fragmentId = JSON.stringify(["context-page:1", turn.id, 0]);
+    expect({
+      contextPageIds: store.getState().transcriptState.contextPageIds,
+      contextPagesById: store.getState().transcriptState.contextPagesById,
+      turnFragmentsById: store.getState().transcriptState.turnFragmentsById,
+    }).toStrictEqual({
+      contextPageIds: ["context-page:1"],
+      contextPagesById: {
+        "context-page:1": {
+          id: "context-page:1",
+          leadingBoundaryId: null,
+          turnFragmentIds: [fragmentId],
+        },
+      },
+      turnFragmentsById: {
+        [fragmentId]: {
+          id: fragmentId,
+          turnId: turn.id,
+          leadingPromptEntryId: null,
+          middleChunkIds: [],
+          middleEntryCount: 0,
+          finalAssistantEntryIds: [],
+        },
+      },
+    });
   });
 
   it("classifies leading prompt, middle entries, and final answers from snapshot entries", () => {

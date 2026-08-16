@@ -12,6 +12,8 @@ import {
   baseTurn,
   collabAgentState,
   collabAgentToolCall,
+  contextCompaction,
+  contextCompactionCompleted,
   itemCompleted,
   itemStarted,
   reasoningItem,
@@ -25,12 +27,42 @@ import {
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
+  selectTranscriptContextPage,
+  selectTranscriptContextPageIds,
   selectTranscriptEntry,
   selectTranscriptTurn,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
 describe("transcript state replay and event dedup", () => {
+  it("keeps a snapshot compaction boundary idempotent across duplicate completed replay", () => {
+    const store = makeStore();
+    const turnId = "turn-compaction-snapshot-duplicate";
+    const itemId = "compaction-snapshot-duplicate";
+    const snapshotTurn = baseTurn(turnId, [contextCompaction(itemId)]);
+
+    store.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [snapshotTurn])));
+    const attachKey = selectCommittedTranscriptScrollCommitKey(store.getState());
+    const beforePage = selectTranscriptContextPage(store.getState(), "context-page:2");
+    const replay = contextCompactionCompleted(
+      eventItemCompleted,
+      "commit-compaction-snapshot-duplicate",
+      turnId,
+      itemId,
+    );
+
+    for (const notification of [replay, replay]) {
+      store.dispatch(threadRuntimeEventBuffered({ notification, replay: "snapshotDuplicate" }));
+    }
+
+    expect(selectTranscriptContextPageIds(store.getState())).toStrictEqual([
+      "context-page:1",
+      "context-page:2",
+    ]);
+    expect(selectTranscriptContextPage(store.getState(), "context-page:2")).toBe(beforePage);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(attachKey);
+  });
+
   it("ignores snapshot duplicate reasoning without changing transcript or scroll key", () => {
     const store = makeStore();
     const snapshotTurn = baseTurn("turn-snapshot-duplicate", [

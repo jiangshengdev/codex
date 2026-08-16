@@ -3,6 +3,10 @@ import type { ProtocolValidator, RequestResponse } from "../../features/guiHost/
 import {
   validateInitializeResponse,
   validateV2ThreadProjectionAttachResponse,
+  validateV2ThreadProjectionDetachResponse,
+  validateV2ThreadListResponse,
+  validateV2ThreadReadResponse,
+  validateV2ThreadResumeResponse,
   validateV2TurnStartResponse,
   validateV2TurnSteerResponse,
   validateV2TurnInterruptResponse,
@@ -19,6 +23,30 @@ export const requestDescriptors = {
     paramsSchema: "v2/ThreadProjectionAttachParams",
     responseSchema: "v2/ThreadProjectionAttachResponse",
     validateResponse: validateV2ThreadProjectionAttachResponse,
+  },
+  "thread/projection/detach": {
+    method: "thread/projection/detach",
+    paramsSchema: "v2/ThreadProjectionDetachParams",
+    responseSchema: "v2/ThreadProjectionDetachResponse",
+    validateResponse: validateV2ThreadProjectionDetachResponse,
+  },
+  "thread/list": {
+    method: "thread/list",
+    paramsSchema: "v2/ThreadListParams",
+    responseSchema: "v2/ThreadListResponse",
+    validateResponse: validateV2ThreadListResponse,
+  },
+  "thread/read": {
+    method: "thread/read",
+    paramsSchema: "v2/ThreadReadParams",
+    responseSchema: "v2/ThreadReadResponse",
+    validateResponse: validateV2ThreadReadResponse,
+  },
+  "thread/resume": {
+    method: "thread/resume",
+    paramsSchema: "v2/ThreadResumeParams",
+    responseSchema: "v2/ThreadResumeResponse",
+    validateResponse: validateV2ThreadResumeResponse,
   },
   "turn/start": {
     method: "turn/start",
@@ -42,6 +70,10 @@ export const requestDescriptors = {
   [M in
     | "initialize"
     | "thread/projection/attach"
+    | "thread/projection/detach"
+    | "thread/list"
+    | "thread/read"
+    | "thread/resume"
     | "turn/start"
     | "turn/steer"
     | "turn/interrupt"]: {

@@ -1,5 +1,5 @@
 import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
-import type { ThreadItem, TurnStatus } from "@codex-protocol/v2";
+import type { ThreadItem, Turn } from "@codex-protocol/v2";
 
 export const TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT = 100;
 export const MAX_APPLIED_EVENT_ID_WINDOW_LENGTH = 500;
@@ -15,12 +15,30 @@ export const transcriptEntryIdFor = (turnId: string, itemId: string): Transcript
 
 export type TranscriptTurn = {
   id: string;
-  status: TurnStatus;
+  status: Turn["status"];
+  error?: NonNullable<Turn["error"]>;
   originalFirstItemId: string | null;
   leadingPromptEntryId: TranscriptEntryId | null;
   middleChunkIds: string[];
   middleEntryCount: number;
   finalAssistantEntryIds: TranscriptEntryId[];
+};
+
+export type TranscriptContextBoundaryItem = Extract<ThreadItem, { type: "contextCompaction" }>;
+
+export type TranscriptTurnFragment = {
+  id: string;
+  turnId: string;
+  leadingPromptEntryId: TranscriptEntryId | null;
+  middleChunkIds: string[];
+  middleEntryCount: number;
+  finalAssistantEntryIds: TranscriptEntryId[];
+};
+
+export type TranscriptContextPage = {
+  id: string;
+  leadingBoundaryId: TranscriptEntryId | null;
+  turnFragmentIds: string[];
 };
 
 export type TranscriptChunk = {
@@ -302,25 +320,44 @@ export type TranscriptState = {
   chunksById: Record<string, TranscriptChunk>;
   entriesById: Record<TranscriptEntryId, TranscriptStoredEntry>;
   entryChunkById: Record<TranscriptEntryId, string>;
+  contextPageIds: string[];
+  contextPagesById: Record<string, TranscriptContextPage>;
+  turnFragmentsById: Record<string, TranscriptTurnFragment>;
+  entryFragmentById: Record<TranscriptEntryId, string>;
+  chunkFragmentById: Record<string, string>;
+  contextBoundaryIdsById: Record<TranscriptEntryId, true>;
   globalStatus: TranscriptGlobalStatus[];
   appliedEventIdsById: Record<string, true>;
   appliedEventOrder: string[];
 };
 
-export const createEmptyTranscriptState = (): TranscriptState => ({
-  threadId: null,
-  subscriptionId: null,
-  committedScrollCommitKey: null,
-  liveScrollPulse: 0,
-  turnIds: [],
-  turnsById: {},
-  chunksById: {},
-  entriesById: {},
-  entryChunkById: {},
-  globalStatus: [],
-  appliedEventIdsById: {},
-  appliedEventOrder: [],
-});
+export const createEmptyTranscriptState = (): TranscriptState => {
+  const firstPage: TranscriptContextPage = {
+    id: "context-page:1",
+    leadingBoundaryId: null,
+    turnFragmentIds: [],
+  };
+  return {
+    threadId: null,
+    subscriptionId: null,
+    committedScrollCommitKey: null,
+    liveScrollPulse: 0,
+    turnIds: [],
+    turnsById: {},
+    chunksById: {},
+    entriesById: {},
+    entryChunkById: {},
+    contextPageIds: [firstPage.id],
+    contextPagesById: { [firstPage.id]: firstPage },
+    turnFragmentsById: {},
+    entryFragmentById: {},
+    chunkFragmentById: {},
+    contextBoundaryIdsById: {},
+    globalStatus: [],
+    appliedEventIdsById: {},
+    appliedEventOrder: [],
+  };
+};
 
 export const initialTranscriptState = createEmptyTranscriptState();
 
