@@ -20,6 +20,10 @@ Go back home
 调整到列表页面
 ```
 
+验证顺序修订日期：2026-08-17
+
+验证顺序修订原因：行为在 Task 5 才存在
+
 计划日期：2026-08-17
 
 对应设计：
@@ -279,9 +283,9 @@ git commit -m 'feat(gui): define canonical task launch URL'
 - Router 原子切换为 `/task/$threadId`、`/history`、`/history/$threadId`；不保留 `/` index route。
 - 任何非空 query，尤其旧 `threadId` query，在建立连接或发业务请求前进入 invalid URL 页面；不删除后
   继续，不 redirect。
-- NotFound 页保留 `Go back home` 操作，但目标改为规范 `/history`；进入列表后若 authorization session 没有
-  active recovery，仍按既定规则 fail closed 显示历史列表上下文不可用，不猜测 cwd，也不把旧 URL
-  重定向为新 URL。
+- NotFound 页保留 `Go back home` 操作，但目标改为规范 `/history`；本任务只保证用户显式操作进入该规范
+  路径，不用 mock 伪造尚未接入 App/Bridge 的历史列表上下文行为。authorization session 有 token 但没有
+  active recovery 时的 fail-closed 行为归 Task 5 实现与验证。
 - 用 browser authorization session 取代 `{threadId, token}` launch params：保存 host token 与可选
   active thread recovery id，作用域保持 `sessionStorage`/当前 tab。
 - fragment token 优先并覆盖旧 session；显式 fragment 启动先把 active recovery 置空，保证历史详情
@@ -295,7 +299,7 @@ git commit -m 'feat(gui): define canonical task launch URL'
 - authorization session unit 覆盖 fragment 首次消费、同 tab token/recovery 恢复、新 fragment 清 recovery、
   storage failure 与 fragment 清理顺序。
 - NotFound Browser test 覆盖旧 URL不自动导航、不发 commands，并覆盖用户显式点击 `Go back home` 后进入
-  `/history`；缺少 active recovery 时显示上下文不可用，且不猜测 cwd、不重定向旧 URL。
+  规范 `/history`；本任务不通过 mock 断言尚未存在的 App/Bridge 历史列表启动行为。
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/browserLaunch/__tests__
@@ -304,7 +308,8 @@ git commit -m 'feat(gui): define canonical task launch URL'
 
 ### 提交
 
-本次 Task 2 范围与行为修订必须先形成独立文档提交，不得与 Task 2 的前端行为修改混合。
+本次 Task 2 范围与行为修订及验证顺序修订必须先形成独立文档提交，不得与 Task 2 或 Task 5 的前端行为
+修改混合。
 
 只暂存 router、browserLaunch 模块、生成 TypeScript fixture 的消费调整和对应测试，提交：
 
@@ -395,6 +400,8 @@ git commit -m 'feat(gui): coordinate route-based startup'
   收敛为 `/task/<权威 id>`。
 - `/history` 无恢复上下文时用 Lingui `Trans`/`t` 显示明确错误，不扩大到所有 cwd；运行
   `messages:extract` 更新 catalog，再补 `zh-CN` 翻译，禁止手写未提取的 message id。
+- authorization session 有 token 但没有 active recovery 时，必须通过真实 App/Bridge 行为显示历史列表
+  上下文不可用，零 `thread/list`、不猜测 cwd、不重定向；不得用页面 mock 伪造该结果。
 - `/history/<id>` 在纯只读模式下即使 active owner 为 null 也保留 commands 给 detail owner，且不渲染
   Composer。
 - Back/Forward 只改变 route surface；connection coordinator 与 live owner 不因普通页面切换重建。
@@ -408,7 +415,9 @@ git commit -m 'feat(gui): coordinate route-based startup'
 ```
 
 覆盖 task attach、history list 有/无恢复、detail 后台/纯只读、一次 connection、旧 URL零请求、错误可访问
-名称和中文 catalog。只暂存 App/Bridge/capabilities、页面最小接线、catalog 与对应 tests，提交：
+名称和中文 catalog。其中“有 token、无 active recovery”必须由 App/Bridge Browser test 断言上下文不可用、
+零 `thread/list`、不猜测 cwd且不重定向，不得由 NotFound/page mock 代替。只暂存
+App/Bridge/capabilities、页面最小接线、catalog 与对应 tests，提交：
 
 ```bash
 git commit -m 'feat(gui): start from canonical routes'
@@ -578,6 +587,7 @@ git log --oneline -9
 
 - 设计和计划文档、8 个实现任务分别形成独立本地提交；
 - 本次计划范围修订形成独立本地提交，不与 Task 1 的 Rust 行为修改混合；
+- 本次验证顺序修订形成独立文档提交，不与 Task 2 或 Task 5 的行为修改混合；
 - Rust/TypeScript browser contract 不再存在 `THREAD_QUERY_KEY` 或旧 URL builder；
 - current/list/detail 规范 URL分别为 1/0/1 个 UUID，所有 legacy query URL明确失败；
 - initialize 后 commands 可用，但纯只读详情零自动 attach/resume/Composer；
