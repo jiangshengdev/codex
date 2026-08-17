@@ -6,6 +6,10 @@
 
 确认原文：开始进行
 
+范围修订日期：2026-08-17
+
+范围修订确认原文：确认扩大计划范围
+
 计划日期：2026-08-17
 
 对应设计：
@@ -93,9 +97,14 @@ session bootstrap record
 - `codex-rs/gui-host/src/host.rs`
 - `codex-rs/gui-host/src/assets.rs`（仅当 index/static seam 必须下沉）
 - `codex-rs/gui-host/tests/browser_contract_fixtures.rs`
+- `codex-rs/gui-host/tests/dev_proxy.rs`（只更新依赖旧 query URL 的 origin helper）
+- `codex-rs/gui-host/tests/prod_serves_hashed_asset.rs`（只更新依赖旧 query URL 的 origin helper）
 - `codex-rs/gui-host/schema/**`（只由生成命令更新）
 - `codex-rs/app-server/src/gui_launch_service.rs`（只更新受新 URL contract 影响的断言）
 - `codex-rs/app-server/src/gui_launch_service_tests.rs`（只更新受新 URL contract 影响的断言）
+- `codex-rs/app-server/src/gui_host.rs`（只更新 URL origin helper 与旧 URL 断言）
+- `codex-rs/app-server/src/in_process.rs`（只更新受新 URL contract 影响的断言）
+- `codex-rs/app-server-client/src/gui.rs`（只更新锁定旧 URL 的测试 fixture 与断言）
 - `codex-rs/app-server-client/src/lib.rs`（只更新受新 URL contract 影响的断言）
 
 ### Codex GUI 生产代码
@@ -225,13 +234,20 @@ just write-gui-host-browser-contract
 just test -p codex-gui-host launch_url_uses_current_task_path_and_fragment_token
 just test -p codex-gui-host launch_urls_use_advertised_hosts_in_order
 just test -p codex-gui-host browser_contract_fixtures_match_generated
+just test -p codex-gui-host proxy_preserves_method_path_query_and_end_to_end_request_headers
+just test -p codex-gui-host prod_serves_hashed_asset_from_package_root
 just test -p codex-app-server launch_service_returns_urls_for_thread
 just test -p codex-app-server app_server_gui_launch_service_returns_tool_urls
+just test -p codex-app-server launch_url_reuses_same_host_for_manager_lifetime
+just test -p codex-app-server in_process_launch_gui_for_thread_uses_app_server_service
+just test -p codex-app-server-client gui_launch_urls_expose_entries
 just test -p codex-app-server-client in_process_launch_gui_for_thread_returns_loopback_url_entry
+just test -p codex-app-server-client in_process_launch_gui_uses_app_server_service
+just test -p codex-app-server-client in_process_launch_gui_reuses_same_host_for_multiple_threads
 ```
 
-只有实际受旧 URL 断言影响的后三个 filter 才运行；若 live test 名不同，先用 `rg` 核对后替换为当前精确
-名称，不扩大到 crate。
+只有实际受旧 URL 断言或 origin helper 影响的 filter 才运行；若 live test 名不同，先用 `rg` 核对后替换为
+当前精确名称，不扩大到 crate。
 
 ### 提交
 
@@ -544,6 +560,7 @@ git log --oneline -9
 只有以下条件全部成立，实施才完成：
 
 - 设计和计划文档、8 个实现任务分别形成独立本地提交；
+- 本次计划范围修订形成独立本地提交，不与 Task 1 的 Rust 行为修改混合；
 - Rust/TypeScript browser contract 不再存在 `THREAD_QUERY_KEY` 或旧 URL builder；
 - current/list/detail 规范 URL分别为 1/0/1 个 UUID，所有 legacy query URL明确失败；
 - initialize 后 commands 可用，但纯只读详情零自动 attach/resume/Composer；
