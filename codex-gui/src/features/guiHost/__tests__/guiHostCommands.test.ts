@@ -43,11 +43,11 @@ const threadResumeResponse = (threadId: string): RequestResponse<"thread/resume"
   reasoningEffort: null,
 });
 
+const threadId = attachBaseline.snapshot.thread.id;
+
 describe("guiHostClient commands", () => {
   it("sends history requests through the ready command API", async () => {
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-    });
+    const { commands, socket } = startConnectionUntilCommandsReady({});
 
     const listParams: RequestParams<"thread/list"> = {
       cwd: attachBaseline.snapshot.thread.cwd,
@@ -125,9 +125,7 @@ describe("guiHostClient commands", () => {
   });
 
   it("sends turn/start through the ready command API", async () => {
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-    });
+    const { commands, socket } = startConnectionUntilCommandsReady({});
     const params = turnStartParams(threadId);
     const response: TurnStartResponse = {
       turn: inProgressTurn("turn-started-by-command"),
@@ -149,9 +147,7 @@ describe("guiHostClient commands", () => {
   });
 
   it("sends turn/interrupt through the ready command API", async () => {
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-    });
+    const { commands, socket } = startConnectionUntilCommandsReady({});
 
     const params = { threadId, turnId: "turn-active" };
     const promise = commands.interruptTurn(params);
@@ -171,9 +167,7 @@ describe("guiHostClient commands", () => {
   });
 
   it("sends turn/steer through the ready command API", async () => {
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-    });
+    const { commands, socket } = startConnectionUntilCommandsReady({});
     const params = turnSteerParams(threadId);
     const response: TurnSteerResponse = { turnId: params.expectedTurnId };
     const promise = commands.steerTurn(params);
@@ -193,8 +187,7 @@ describe("guiHostClient commands", () => {
 
   it("rejects command JSON-RPC errors without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
+    const { commands, socket } = startConnectionUntilCommandsReady({
       onStatus,
     });
 
@@ -227,13 +220,12 @@ describe("guiHostClient commands", () => {
     expect(error.cause).toBeInstanceOf(Error);
     expect(error.message).toBe(error.cause.message);
     expect(socket.closed).toEqual([]);
-    expect(statuses.at(-1)).toBe("attached");
+    expect(statuses.at(-1)).toBe("initialized");
   });
 
   it("propagates thread/list JSON-RPC errors without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
     const { commands, socket } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
       onStatus,
     });
     const params: RequestParams<"thread/list"> = { cwd: attachBaseline.snapshot.thread.cwd };
@@ -252,13 +244,12 @@ describe("guiHostClient commands", () => {
     expect(error.source).toBe("rpc");
     expect(error.message).toContain("thread list unavailable");
     expect(socket.closed).toEqual([]);
-    expect(statuses.at(-1)).toBe("attached");
+    expect(statuses.at(-1)).toBe("initialized");
   });
 
   it("rejects a malformed thread/list response and keeps commands available", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
+    const { commands, socket } = startConnectionUntilCommandsReady({
       onStatus,
     });
     const listPromise = commands.listThreads({ cwd: attachBaseline.snapshot.thread.cwd });
@@ -272,7 +263,7 @@ describe("guiHostClient commands", () => {
 
     await expect(listPromise).rejects.toThrow("thread/list returned malformed result payload");
     expect(socket.closed).toEqual([]);
-    expect(statuses.at(-1)).toBe("attached");
+    expect(statuses.at(-1)).toBe("initialized");
 
     const detachPromise = commands.detachThreadProjection({ threadId });
     const detachRequest = readLatestRpcRequest(socket, "thread/projection/detach");
@@ -282,8 +273,7 @@ describe("guiHostClient commands", () => {
 
   it("rejects a missing turn/start result without closing the socket", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
+    const { commands, socket } = startConnectionUntilCommandsReady({
       onStatus,
     });
 
@@ -296,13 +286,12 @@ describe("guiHostClient commands", () => {
 
     await expect(promise).rejects.toThrow("turn/start returned no result payload");
     expect(socket.closed).toEqual([]);
-    expect(statuses.at(-1)).toBe("attached");
+    expect(statuses.at(-1)).toBe("initialized");
   });
 
   it("rejects a malformed turn/start result and keeps commands available", async () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
-    const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
+    const { commands, socket } = startConnectionUntilCommandsReady({
       onStatus,
     });
 
@@ -313,7 +302,7 @@ describe("guiHostClient commands", () => {
 
     await expect(startPromise).rejects.toThrow("turn/start returned malformed result payload");
     expect(socket.closed).toEqual([]);
-    expect(statuses.at(-1)).toBe("attached");
+    expect(statuses.at(-1)).toBe("initialized");
 
     const interruptPromise = commands.interruptTurn({ threadId, turnId: "turn-active" });
     const interruptRequest = readLatestRpcRequest(socket, "turn/interrupt");
@@ -321,13 +310,12 @@ describe("guiHostClient commands", () => {
 
     await expect(interruptPromise).resolves.toEqual({});
     expect(socket.closed).toEqual([]);
-    expect(statuses.at(-1)).toBe("attached");
+    expect(statuses.at(-1)).toBe("initialized");
   });
 
   it("rejects pending command requests during cleanup", async () => {
     const calls: string[] = [];
-    const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
+    const { cleanup, commands, socket } = startConnectionUntilCommandsReady({
       onCommandsUnavailable: () => {
         calls.push("commands-unavailable");
       },
@@ -348,9 +336,7 @@ describe("guiHostClient commands", () => {
   });
 
   it("invalidates the ready command API during cleanup", async () => {
-    const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-    });
+    const { cleanup, commands, socket } = startConnectionUntilCommandsReady({});
     const sentBeforeCleanup = [...socket.sent];
 
     cleanup();
@@ -362,9 +348,7 @@ describe("guiHostClient commands", () => {
   });
 
   it("rejects history commands through an unavailable gateway", async () => {
-    const { cleanup, commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
-    });
+    const { cleanup, commands, socket } = startConnectionUntilCommandsReady({});
     const sentBeforeCleanup = [...socket.sent];
     cleanup();
 
@@ -392,8 +376,7 @@ describe("guiHostClient commands", () => {
     "rejects pending command requests and marks commands unavailable on %s",
     async (_, closeSocket) => {
       const commandsUnavailable = vi.fn<() => void>();
-      const { commands, socket, threadId } = startConnectionUntilCommandsReady({
-        attachResponse: attachBaseline,
+      const { commands, socket } = startConnectionUntilCommandsReady({
         onCommandsUnavailable: commandsUnavailable,
       });
 
@@ -408,8 +391,7 @@ describe("guiHostClient commands", () => {
 
   it("closes the socket and marks commands unavailable on terminal projection protocol errors", async () => {
     const commandsUnavailable = vi.fn<() => void>();
-    const { attachResponse, commands, socket, threadId } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
+    const { commands, socket } = startConnectionUntilCommandsReady({
       onCommandsUnavailable: commandsUnavailable,
     });
 
@@ -421,7 +403,7 @@ describe("guiHostClient commands", () => {
         method: "thread/projection/event",
         params: {
           threadId,
-          subscriptionId: attachResponse.subscriptionId,
+          subscriptionId: attachBaseline.subscriptionId,
           commitId: "c1",
           parentCommitId: null,
           event: { type: "turnStarted" },
