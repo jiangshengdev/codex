@@ -862,7 +862,7 @@ mod tests {
                     GuiLaunchUrlKind::Local,
                     "Local",
                     format!(
-                        "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://127.0.0.1:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -870,7 +870,7 @@ mod tests {
                     GuiLaunchUrlKind::Lan,
                     "LAN",
                     format!(
-                        "http://192.168.3.165:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://192.168.3.165:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -878,7 +878,7 @@ mod tests {
                     GuiLaunchUrlKind::Vpn,
                     "VPN",
                     format!(
-                        "http://100.88.28.119:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://100.88.28.119:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -907,7 +907,7 @@ mod tests {
                 GuiLaunchUrlKind::Local,
                 "Local",
                 format!(
-                    "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                    "http://127.0.0.1:{port}/task/thread%20abc%2F%23#token={}",
                     handle.launch_token().as_str()
                 ),
             )]
@@ -917,7 +917,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn launch_url_fallback_preserves_thread_id_when_entries_are_empty() {
+    async fn launch_url_fallback_preserves_thread_path_when_entries_are_empty() {
         let (shutdown_tx, _shutdown_rx) = tokio::sync::oneshot::channel();
         let handle = super::GuiHostHandle {
             local_addr: std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 1234)),
@@ -930,7 +930,7 @@ mod tests {
 
         let url = handle.launch_url_for_thread("thread abc/#");
 
-        assert!(url.contains("threadId=thread%20abc%2F%23"));
+        assert!(url.contains("/task/thread%20abc%2F%23#token="));
         handle.shutdown().await;
     }
 

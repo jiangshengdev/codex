@@ -159,9 +159,5 @@ async fn prod_serves_built_codex_gui_dist_from_package_root_env() {
 }
 
 fn local_origin(handle: &codex_gui_host::GuiHostHandle) -> String {
-    let url = handle.launch_url_for_thread("test-thread");
-    match url.split("/?").next() {
-        Some(origin) => origin.to_string(),
-        None => panic!("launch URL should include query"),
-    }
+    format!("http://127.0.0.1:{}", handle.local_addr().port())
 }

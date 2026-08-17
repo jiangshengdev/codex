@@ -166,18 +166,12 @@ mod tests {
             .launch_urls_for_thread(thread_b)
             .await
             .expect("second launch URLs should reuse host");
-        let origin_a = urls_a.entries[0]
-            .url
-            .as_str()
-            .split("/?")
-            .next()
-            .expect("URL should contain query");
-        let origin_b = urls_b.entries[0]
-            .url
-            .as_str()
-            .split("/?")
-            .next()
-            .expect("URL should contain query");
+        let origin_a = url::Url::parse(&urls_a.entries[0].url)
+            .expect("first launch URL should parse")
+            .origin();
+        let origin_b = url::Url::parse(&urls_b.entries[0].url)
+            .expect("second launch URL should parse")
+            .origin();
         assert_eq!(origin_a, origin_b);
         assert_eq!(
             urls_a.entries[0].kind,
@@ -187,13 +181,13 @@ mod tests {
             urls_a.entries[0]
                 .url
                 .as_str()
-                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
+                .contains("/task/00000000-0000-0000-0000-0000000000a1#token=")
         );
         assert!(
             urls_b.entries[0]
                 .url
                 .as_str()
-                .contains("threadId=00000000-0000-0000-0000-0000000000b2")
+                .contains("/task/00000000-0000-0000-0000-0000000000b2#token=")
         );
         manager.shutdown().await;
         client

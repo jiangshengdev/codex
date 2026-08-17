@@ -162,14 +162,14 @@ mod tests {
             entries: vec![GuiLaunchUrlEntry::new(
                 GuiLaunchUrlKind::Local,
                 "Local",
-                "http://127.0.0.1:1234/?threadId=t#token=x",
+                "http://127.0.0.1:1234/task/t#token=x",
             )],
         };
 
         assert_eq!(urls.entries[0].label, "Local");
         assert_eq!(
             urls.entries[0].url,
-            "http://127.0.0.1:1234/?threadId=t#token=x"
+            "http://127.0.0.1:1234/task/t#token=x"
         );
     }
 

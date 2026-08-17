@@ -256,7 +256,7 @@ mod tests {
 
         let config = DevAssetProxyConfig { vite_origin };
         let request = Request::builder()
-            .uri("/?threadId=test")
+            .uri("/task/test")
             .body(Body::empty())
             .expect("request should build");
         let response = super::proxy_vite(config, request).await;

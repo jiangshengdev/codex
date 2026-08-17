@@ -46,7 +46,7 @@ async fn app_server_gui_launch_service_returns_tool_urls() {
     assert!(
         urls.entries[0]
             .url
-            .contains("threadId=00000000-0000-0000-0000-0000000000a7")
+            .contains("/task/00000000-0000-0000-0000-0000000000a7#token=")
     );
     service.shutdown().await;
 }

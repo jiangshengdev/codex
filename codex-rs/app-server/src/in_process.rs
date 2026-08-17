@@ -1071,7 +1071,7 @@ pub(crate) mod tests {
         assert!(
             urls.entries[0]
                 .url
-                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
+                .contains("/task/00000000-0000-0000-0000-0000000000a1#token=")
         );
         client
             .shutdown()
