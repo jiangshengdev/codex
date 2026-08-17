@@ -24,6 +24,10 @@ Go back home
 
 验证顺序修订原因：行为在 Task 5 才存在
 
+Task 3 范围修订日期：2026-08-17
+
+Task 3 范围修订确认原文：确认扩大 Task 3 范围
+
 计划日期：2026-08-17
 
 对应设计：
@@ -155,6 +159,9 @@ session bootstrap record
 - `codex-gui/src/features/guiHost/__tests__/guiHostHandshake.test.ts`
 - `codex-gui/src/features/guiHost/__tests__/guiHostCommands.test.ts`
 - `codex-gui/src/features/guiHost/__tests__/guiHostCommandGateway.test.ts`
+- `codex-gui/src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts`（仅在删除
+  `onProjectionAttached` 与旧 test support 后，同步验证 terminal protocol errors、commands
+  invalidation 和 pending rejection）
 - `codex-gui/src/features/guiHost/__tests__/guiHostClientTestSupport.ts`
 - `codex-gui/src/features/appShell/__tests__/AppShellTopBar.browser.test.tsx`
 - `codex-gui/src/features/threadHistory/__tests__/**`
@@ -334,15 +341,19 @@ git commit -m 'feat(gui): parse canonical route targets'
 ### 测试
 
 ```bash
-/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/guiHost/__tests__/guiHostHandshakeController.test.ts src/features/guiHost/__tests__/guiHostHandshake.test.ts src/features/guiHost/__tests__/guiHostCommands.test.ts src/features/guiHost/__tests__/guiHostCommandGateway.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/guiHost/__tests__/guiHostHandshakeController.test.ts src/features/guiHost/__tests__/guiHostHandshake.test.ts src/features/guiHost/__tests__/guiHostCommands.test.ts src/features/guiHost/__tests__/guiHostCommandGateway.test.ts src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts
 ```
 
 覆盖严格 RPC 顺序、initialize 后 read/attach 可用、零自动 attach、initialize 前与 terminal failure 后不可用、
-cleanup 拒绝 pending commands。
+cleanup 拒绝 pending commands；`guiHostProtocolErrors.test.ts` 在删除 `onProjectionAttached` 与旧 test
+support 后继续同步验证 terminal protocol errors、commands invalidation 和 pending rejection。
 
 ### 提交
 
-只暂存 handshake/client/gateway seam、test support 与对应 unit tests，提交：
+本次 Task 3 范围修订必须先形成独立文档提交，不得与 Task 3 的前端行为修改混合。
+
+只暂存 handshake/client/gateway seam、test support 与对应 unit tests（包括上述限定范围内的
+`guiHostProtocolErrors.test.ts`），提交：
 
 ```bash
 git commit -m 'refactor(gui): separate commands from live attach'
@@ -543,7 +554,7 @@ git commit -m 'feat(gui): serve canonical SPA routes'
 ### GUI focused tests
 
 ```bash
-/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/browserLaunch/__tests__ src/features/guiHost/__tests__/guiHostHandshakeController.test.ts src/features/guiHost/__tests__/guiHostHandshake.test.ts src/features/guiHost/__tests__/guiHostCommands.test.ts src/features/guiHost/__tests__/guiHostCommandGateway.test.ts src/features/qrAccess/__tests__/qrAccessUrl.test.ts src/features/threadHistory/__tests__/threadHistoryDetailOwner.test.ts src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts src/features/appShell/__tests__/routeConnectionStartupCoordinator.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/browserLaunch/__tests__ src/features/guiHost/__tests__/guiHostHandshakeController.test.ts src/features/guiHost/__tests__/guiHostHandshake.test.ts src/features/guiHost/__tests__/guiHostCommands.test.ts src/features/guiHost/__tests__/guiHostCommandGateway.test.ts src/features/guiHost/__tests__/guiHostProtocolErrors.test.ts src/features/qrAccess/__tests__/qrAccessUrl.test.ts src/features/threadHistory/__tests__/threadHistoryDetailOwner.test.ts src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts src/features/appShell/__tests__/routeConnectionStartupCoordinator.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:parallel -- src/__tests__/App.browser.test.tsx src/__tests__/AppRouting.browser.test.tsx src/__tests__/NotFoundPage.browser.test.tsx src/features/appShell/__tests__/AppShellTopBar.browser.test.tsx src/features/qrAccess/__tests__/QrAccessPopover.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryListPage.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryDetailPage.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:e2e -- e2e/app.spec.ts
 ```
@@ -575,7 +586,7 @@ just test -p codex-app-server-client in_process_launch_gui_for_thread_returns_lo
 just fmt
 git diff --check
 git status --short
-git log --oneline -9
+git log --oneline -13
 ```
 
 检查 `just fmt` 实际 diff；若触及计划外文件，停止并报告，不自动纳入提交。计划内格式化修正归入引入该
@@ -588,6 +599,7 @@ git log --oneline -9
 - 设计和计划文档、8 个实现任务分别形成独立本地提交；
 - 本次计划范围修订形成独立本地提交，不与 Task 1 的 Rust 行为修改混合；
 - 本次验证顺序修订形成独立文档提交，不与 Task 2 或 Task 5 的行为修改混合；
+- 本次 Task 3 范围修订形成独立文档提交，不与 Task 3 的前端行为修改混合；
 - Rust/TypeScript browser contract 不再存在 `THREAD_QUERY_KEY` 或旧 URL builder；
 - current/list/detail 规范 URL分别为 1/0/1 个 UUID，所有 legacy query URL明确失败；
 - initialize 后 commands 可用，但纯只读详情零自动 attach/resume/Composer；
