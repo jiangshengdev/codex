@@ -1,6 +1,7 @@
 use super::thread_processor::ThreadReadViewError;
 use super::thread_processor::preview_from_rollout_items;
 use super::thread_processor::reconstruct_thread_turns_for_turns_list;
+use super::thread_processor::thread_read_history_load_error;
 use super::thread_processor::thread_read_view_error;
 use super::*;
 use crate::thread_projection::ProjectionDetachResult;
@@ -234,30 +235,56 @@ impl ThreadRequestProcessor {
             .thread_watch_manager
             .loaded_status_for_thread(&thread.id)
             .await;
-        let history_items = match self.load_thread_turns_list_history(thread_id).await {
-            Ok(items) => items,
-            Err(ThreadReadViewError::InvalidRequest(message))
-                if message
-                    == format!(
-                        "thread {thread_id} is not materialized yet; thread/turns/list is unavailable before first user message"
-                    ) =>
-            {
-                Vec::new()
-            }
-            Err(err) => return Err(err),
-        };
         let thread_status = resolve_thread_status(loaded_status.clone(), has_live_in_progress_turn);
 
-        // The thread store only exposes current metadata, so reconcile the
-        // visible preview from the same persisted history used for turns.
-        thread.preview = preview_from_rollout_items(&history_items);
+        match thread.history_mode {
+            codex_app_server_protocol::ThreadHistoryMode::Legacy => {
+                let history_items = match self.load_thread_turns_list_history(thread_id).await {
+                    Ok(items) => items,
+                    Err(ThreadReadViewError::InvalidRequest(message))
+                        if message
+                            == format!(
+                                "thread {thread_id} is not materialized yet; thread/turns/list is unavailable before first user message"
+                            ) =>
+                    {
+                        Vec::new()
+                    }
+                    Err(err) => return Err(err),
+                };
 
-        thread.turns = reconstruct_thread_turns_for_turns_list(
-            &history_items,
-            loaded_status,
-            has_live_running_thread,
-            active_turn,
-        );
+                // The thread store only exposes current metadata, so reconcile the
+                // visible preview from the same persisted history used for turns.
+                thread.preview = preview_from_rollout_items(&history_items);
+
+                thread.turns = reconstruct_thread_turns_for_turns_list(
+                    &history_items,
+                    loaded_status,
+                    has_live_running_thread,
+                    active_turn,
+                );
+            }
+            codex_app_server_protocol::ThreadHistoryMode::Paginated => {
+                let mut turns = if self
+                    .read_stored_thread_for_read(thread_id, /*include_history*/ false)
+                    .await?
+                    .is_some()
+                {
+                    self.thread_store
+                        .persist_thread(thread_id)
+                        .await
+                        .map_err(|err| thread_read_history_load_error(thread_id, err))?;
+                    self.paginated_thread_full_turns(thread_id)
+                        .await
+                        .map_err(ThreadReadViewError::JsonRpc)?
+                } else {
+                    Vec::new()
+                };
+                if let Some(active_turn) = active_turn {
+                    merge_turn_history_with_active_turn(&mut turns, active_turn);
+                }
+                thread.turns = turns;
+            }
+        }
         thread.status = thread_status;
         Ok(ThreadProjectionSnapshot {
             thread,
