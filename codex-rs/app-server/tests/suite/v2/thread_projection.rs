@@ -12,6 +12,7 @@ use app_test_support::write_mock_responses_config_toml;
 use codex_app_server_protocol::JSONRPCNotification;
 use codex_app_server_protocol::JSONRPCResponse;
 use codex_app_server_protocol::RequestId;
+use codex_app_server_protocol::ThreadHistoryMode;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadProjectionAttachParams;
 use codex_app_server_protocol::ThreadProjectionAttachResponse;
@@ -24,8 +25,11 @@ use codex_app_server_protocol::ThreadProjectionEvent;
 use codex_app_server_protocol::ThreadProjectionEventNotification;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
+use codex_app_server_protocol::TurnCompletedNotification;
+use codex_app_server_protocol::TurnItemsView;
 use codex_app_server_protocol::TurnStartParams;
 use codex_app_server_protocol::TurnStartResponse;
+use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::UserInput;
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
@@ -99,6 +103,180 @@ async fn thread_projection_attach_returns_snapshot_and_detach_status() -> Result
     .await??;
     let detach: ThreadProjectionDetachResponse = to_response(detach_response)?;
     assert_eq!(ThreadProjectionDetachStatus::Detached, detach.status);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn thread_projection_attach_returns_empty_paginated_live_thread() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = create_mock_responses_server_sequence_unchecked(Vec::new()).await;
+    write_mock_responses_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        &BTreeMap::new(),
+        /*auto_compact_limit*/ 1024,
+        /*requires_openai_auth*/ None,
+        "mock_provider",
+        "compact",
+    )?;
+
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
+    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
+
+    let start_id = mcp
+        .send_thread_start_request(ThreadStartParams {
+            model: Some("mock-model".to_string()),
+            history_mode: Some(ThreadHistoryMode::Paginated),
+            ..Default::default()
+        })
+        .await?;
+    let ThreadStartResponse { thread, .. } = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(start_id)),
+        )
+        .await??,
+    )?;
+    let rollout_path = thread.path.clone().expect("thread path");
+    assert!(
+        !rollout_path.exists(),
+        "fresh paginated thread rollout should not be materialized yet"
+    );
+
+    let attach_id = mcp
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attach: ThreadProjectionAttachResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(attach_id)),
+        )
+        .await??,
+    )?;
+
+    assert!(
+        !rollout_path.exists(),
+        "projection attach should not materialize a paginated thread rollout"
+    );
+    assert_eq!(thread.id, attach.snapshot.thread.id);
+    assert_eq!(
+        ThreadHistoryMode::Paginated,
+        attach.snapshot.thread.history_mode
+    );
+    assert!(attach.snapshot.thread.turns.is_empty());
+    assert!(attach.snapshot.thread.preview.is_empty());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn thread_projection_attach_returns_paginated_thread_history() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let server = create_mock_responses_server_sequence_unchecked(vec![
+        create_final_assistant_message_sse_response("paginated done")?,
+    ])
+    .await;
+    write_mock_responses_config_toml(
+        codex_home.path(),
+        &server.uri(),
+        &BTreeMap::new(),
+        /*auto_compact_limit*/ 1024,
+        /*requires_openai_auth*/ None,
+        "mock_provider",
+        "compact",
+    )?;
+
+    let mut mcp = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build()
+        .await?;
+    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
+
+    let start_id = mcp
+        .send_thread_start_request(ThreadStartParams {
+            model: Some("mock-model".to_string()),
+            history_mode: Some(ThreadHistoryMode::Paginated),
+            ..Default::default()
+        })
+        .await?;
+    let ThreadStartResponse { thread, .. } = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(start_id)),
+        )
+        .await??,
+    )?;
+    assert_eq!(ThreadHistoryMode::Paginated, thread.history_mode);
+
+    let turn_id = mcp
+        .send_turn_start_request(TurnStartParams {
+            thread_id: thread.id.clone(),
+            input: vec![UserInput::Text {
+                text: "paginated prompt".to_string(),
+                text_elements: Vec::new(),
+            }],
+            model: Some("mock-model".to_string()),
+            ..Default::default()
+        })
+        .await?;
+    let _turn_response: TurnStartResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(turn_id)),
+        )
+        .await??,
+    )?;
+    let completed: TurnCompletedNotification = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_notification("turn/completed"),
+    )
+    .await??;
+    assert_eq!(TurnStatus::Completed, completed.turn.status);
+
+    let attach_id = mcp
+        .send_thread_projection_attach_request(ThreadProjectionAttachParams {
+            thread_id: thread.id.clone(),
+        })
+        .await?;
+    let attach: ThreadProjectionAttachResponse = to_response(
+        timeout(
+            DEFAULT_READ_TIMEOUT,
+            mcp.read_stream_until_response_message(RequestId::Integer(attach_id)),
+        )
+        .await??,
+    )?;
+
+    assert_eq!(thread.id, attach.snapshot.thread.id);
+    assert_eq!(
+        ThreadHistoryMode::Paginated,
+        attach.snapshot.thread.history_mode
+    );
+    assert_eq!("paginated prompt", attach.snapshot.thread.preview);
+    let [snapshot_turn] = attach.snapshot.thread.turns.as_slice() else {
+        anyhow::bail!(
+            "expected one materialized paginated turn, got {:?}",
+            attach.snapshot.thread.turns
+        );
+    };
+    assert_eq!(completed.turn.id, snapshot_turn.id);
+    assert_eq!(TurnStatus::Completed, snapshot_turn.status);
+    assert_eq!(TurnItemsView::Full, snapshot_turn.items_view);
+    assert!(matches!(
+        snapshot_turn.items.as_slice(),
+        [
+            ThreadItem::UserMessage { content, .. },
+            ThreadItem::AgentMessage { text, .. },
+        ] if content == &vec![UserInput::Text {
+            text: "paginated prompt".to_string(),
+            text_elements: Vec::new(),
+        }] && text == "paginated done"
+    ));
     Ok(())
 }
 
