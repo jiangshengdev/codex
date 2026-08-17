@@ -2407,7 +2407,7 @@ impl ThreadRequestProcessor {
         Ok(Some(thread))
     }
 
-    async fn read_stored_thread_for_read(
+    pub(super) async fn read_stored_thread_for_read(
         &self,
         thread_id: ThreadId,
         include_history: bool,
@@ -2765,7 +2765,7 @@ impl ThreadRequestProcessor {
 
     // Older clients expect full `thread.turns` from resume and `thread/read(includeTurns=true)`.
     // Keep this slow compatibility path until all clients page history directly.
-    async fn paginated_thread_full_turns(
+    pub(super) async fn paginated_thread_full_turns(
         &self,
         thread_id: ThreadId,
     ) -> Result<Vec<Turn>, JSONRPCErrorError> {
@@ -5040,7 +5040,7 @@ fn thread_turns_list_history_load_error(
     }
 }
 
-fn thread_read_history_load_error(
+pub(super) fn thread_read_history_load_error(
     thread_id: ThreadId,
     err: ThreadStoreError,
 ) -> ThreadReadViewError {
