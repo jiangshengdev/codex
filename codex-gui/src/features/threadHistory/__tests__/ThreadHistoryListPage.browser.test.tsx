@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -42,6 +43,43 @@ const response = (data: Thread[], nextCursor: string | null): ThreadListResponse
   nextCursor,
   backwardsCursor: null,
 });
+
+const historyCards = (container: HTMLElement): HTMLElement[] =>
+  Array.from(container.querySelectorAll<HTMLElement>('[role="article"]'));
+
+const historyGrid = (card: HTMLElement): HTMLElement => {
+  const grid = card.parentElement;
+  if (!(grid instanceof HTMLElement)) {
+    throw new Error("history card must be rendered inside the history grid");
+  }
+  return grid;
+};
+
+const firstRowColumnCount = (cards: readonly HTMLElement[]): number => {
+  const firstTop = cards[0]?.getBoundingClientRect().top;
+  if (firstTop == null) {
+    return 0;
+  }
+  return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - firstTop) <= 1).length;
+};
+
+const hasAlignedFirstRow = (cards: readonly HTMLElement[], columns: number): boolean => {
+  const firstRow = cards.slice(0, columns);
+  const heights = firstRow.map((card) => card.getBoundingClientRect().height);
+  const footerTops = firstRow.map(
+    (card) =>
+      card.querySelector<HTMLElement>('[data-slot="card-footer"]')?.getBoundingClientRect().top ??
+      -1,
+  );
+  return (
+    Math.max(...heights) - Math.min(...heights) <= 1 &&
+    footerTops.every((top) => top >= 0) &&
+    Math.max(...footerTops) - Math.min(...footerTops) <= 1
+  );
+};
+
+const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
+  element.scrollWidth <= element.clientWidth + 1;
 
 const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
 
@@ -182,6 +220,173 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history/named");
   expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+});
+
+test("lays out history cards in one, two, and three real columns with aligned rows", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  try {
+    await page.viewport(390, 900);
+    const threads = [
+      thread("short", { name: "Short task", preview: "Short summary" }),
+      thread("long", {
+        name: "A history task with a substantially longer title that occupies more room",
+        preview:
+          "A longer summary makes this card exercise the row-stretching behavior of the responsive grid.",
+      }),
+      thread("title-only", { name: "Title only task", preview: "" }),
+      thread("fourth", { name: "Fourth task", preview: "Fourth summary" }),
+      thread("fifth", { name: "Fifth task", preview: "Fifth summary" }),
+      thread("sixth", { name: "Sixth task", preview: "Sixth summary" }),
+    ];
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValue(response(threads, null));
+    const { screen } = await renderHistory(listThreads);
+    await expect.element(screen.getByRole("article", { name: "Short task" })).toBeVisible();
+
+    const cards = historyCards(screen.container);
+    expect(cards).toHaveLength(6);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(1);
+
+    await page.viewport(900, 900);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(2);
+    await expect.poll(() => hasAlignedFirstRow(cards, 2)).toBe(true);
+
+    await page.viewport(1440, 900);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
+    await expect.poll(() => hasAlignedFirstRow(cards, 3)).toBe(true);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("clamps complete long text without horizontal overflow and hides only exact trimmed duplicates", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  try {
+    await page.viewport(390, 900);
+    const longUrl = `https://example.test/${"deeply-nested-route/".repeat(30)}`;
+    const markdownSummary = `[$debug-responsive-gui](/Users/example/SKILL.md) ${"很长的中文摘要".repeat(40)}`;
+    const unbrokenTitle = `unbroken-${"x".repeat(320)}`;
+    const unbrokenSummary = `token-${"y".repeat(480)}`;
+    const threads = [
+      thread("url", { name: longUrl, preview: markdownSummary }),
+      thread("unbroken", { name: unbrokenTitle, preview: unbrokenSummary }),
+      thread("duplicate", { name: "  Repeated task  ", preview: "Repeated task" }),
+      thread("similar", {
+        name: "Responsive history",
+        preview: "Responsive history for mobile and desktop",
+      }),
+    ];
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValue(response(threads, null));
+    const { screen } = await renderHistory(listThreads);
+
+    const urlCard = screen.getByRole("article", { name: longUrl });
+    const unbrokenCard = screen.getByRole("article", { name: unbrokenTitle });
+    await expect.element(urlCard).toHaveAccessibleName(longUrl);
+    await expect.element(unbrokenCard).toHaveAccessibleName(unbrokenTitle);
+    await expect.element(urlCard.getByText(markdownSummary, { exact: true })).toBeInTheDocument();
+    await expect
+      .element(unbrokenCard.getByText(unbrokenSummary, { exact: true }))
+      .toBeInTheDocument();
+
+    const cards = historyCards(screen.container);
+    const firstCard = cards[0];
+    if (firstCard == null) {
+      throw new Error("history grid must render at least one card");
+    }
+    const grid = historyGrid(firstCard);
+    await expect
+      .poll(() =>
+        [document.documentElement, document.body, grid, ...cards].every(fitsWithinOwnWidth),
+      )
+      .toBe(true);
+
+    for (const card of [urlCard.element(), unbrokenCard.element()]) {
+      const title = card.querySelector<HTMLElement>("[id^='thread-history-title-']");
+      const summary = card.querySelector<HTMLElement>("p");
+      if (title == null || summary == null) {
+        throw new Error("long history cards must render a title and summary");
+      }
+      expect(getComputedStyle(title).webkitLineClamp).toBe("2");
+      expect(getComputedStyle(summary).webkitLineClamp).toBe("3");
+      expect(getComputedStyle(title).overflow).toBe("hidden");
+      expect(getComputedStyle(summary).overflow).toBe("hidden");
+    }
+
+    const duplicateCard = screen.getByRole("article", { name: "Repeated task" }).element();
+    expect(duplicateCard.querySelector("p")).toBeNull();
+    const similarCard = screen.getByRole("article", { name: "Responsive history" });
+    await expect
+      .element(similarCard.getByText("Responsive history for mobile and desktop", { exact: true }))
+      .toBeInTheDocument();
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("keeps load-more and append errors on their own full-grid rows", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  try {
+    await page.viewport(1440, 900);
+    const append = deferred<ThreadListResponse>();
+    const rawFailure = new Error("complete grid append failure");
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("grid-first", { name: "Grid first" }),
+            thread("grid-second", { name: "Grid second" }),
+            thread("grid-third", { name: "Grid third" }),
+          ],
+          "cursor-grid",
+        ),
+      )
+      .mockReturnValueOnce(append.promise);
+    const { screen } = await renderHistory(listThreads);
+    const loadMore = screen.getByRole("button", { name: "Load more" });
+    await expect.element(loadMore).toBeVisible();
+
+    const cards = historyCards(screen.container);
+    const firstCard = cards[0];
+    if (firstCard == null) {
+      throw new Error("history grid must render at least one card");
+    }
+    const grid = historyGrid(firstCard);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
+    await expect
+      .poll(() => {
+        const gridRect = grid.getBoundingClientRect();
+        const buttonRect = loadMore.element().getBoundingClientRect();
+        const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
+        return (
+          Math.abs(buttonRect.left + buttonRect.width / 2 - (gridRect.left + gridRect.width / 2)) <=
+            1 && buttonRect.top >= cardBottom
+        );
+      })
+      .toBe(true);
+
+    await loadMore.click();
+    append.reject(rawFailure);
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+    await expect
+      .poll(() => {
+        const gridRect = grid.getBoundingClientRect();
+        const alertRect = alert.element().getBoundingClientRect();
+        const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
+        return (
+          Math.abs(alertRect.left - gridRect.left) <= 1 &&
+          Math.abs(alertRect.right - gridRect.right) <= 1 &&
+          alertRect.top >= cardBottom
+        );
+      })
+      .toBe(true);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("shows the complete initial error and retries into the empty state", async () => {

@@ -19,7 +19,7 @@ export function ThreadHistoryListPage() {
   }, []);
 
   return (
-    <main className="mx-auto grid min-h-0 w-full max-w-3xl flex-1 content-start gap-4 px-4 py-6">
+    <main className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 content-start gap-4 px-4 py-6">
       {commands != null && cwd != null ? (
         <ThreadHistoryListOwnerBound commands={commands} cwd={cwd} />
       ) : (
@@ -96,14 +96,18 @@ function HistoryListContent({ state, loadMore, retry }: HistoryListContentProps)
   }
 
   return (
-    <section className="grid gap-4">
+    <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {state.threads.map((thread) => (
         <ThreadHistoryCard key={thread.id} thread={thread} />
       ))}
-      {state.type === "appendError" ? <HistoryError error={state.error} retry={retry} /> : null}
+      {state.type === "appendError" ? (
+        <div className="col-span-full">
+          <HistoryError error={state.error} retry={retry} />
+        </div>
+      ) : null}
       {state.type === "appendLoading" || (state.type === "ready" && state.nextCursor != null) ? (
         <Button
-          className="justify-self-center"
+          className="col-span-full justify-self-center"
           isPending={state.type === "appendLoading"}
           onPress={loadMore}
           variant="secondary"
@@ -121,7 +125,7 @@ function ThreadHistoryCard({ thread }: { thread: Thread }) {
   const name = thread.name?.trim() ?? "";
   const preview = thread.preview.trim();
   const title = name || preview || t`Untitled task`;
-  const summary = name && preview ? preview : null;
+  const summary = name !== "" && preview !== "" && name !== preview ? preview : null;
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(i18n.locale, { dateStyle: "medium", timeStyle: "short" }),
     [i18n.locale],
@@ -131,16 +135,30 @@ function ThreadHistoryCard({ thread }: { thread: Thread }) {
   );
 
   return (
-    <Card aria-labelledby={`thread-history-title-${thread.id}`} role="article" variant="default">
-      <Card.Header>
-        <Card.Title id={`thread-history-title-${thread.id}`}>{title}</Card.Title>
-        {summary == null ? null : <Card.Description>{summary}</Card.Description>}
+    <Card
+      aria-labelledby={`thread-history-title-${thread.id}`}
+      className="h-full min-w-0"
+      role="article"
+      variant="default"
+    >
+      <Card.Header className="min-w-0">
+        <Card.Title
+          className="line-clamp-2 min-w-0 [overflow-wrap:anywhere]"
+          id={`thread-history-title-${thread.id}`}
+        >
+          {title}
+        </Card.Title>
+        {summary == null ? null : (
+          <Card.Description className="line-clamp-3 min-w-0 [overflow-wrap:anywhere]">
+            {summary}
+          </Card.Description>
+        )}
       </Card.Header>
-      <Card.Content className="flex flex-wrap items-center justify-between gap-2">
+      <Card.Content className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted">{activityTime}</span>
         <ThreadStatusChip status={thread.status} />
       </Card.Content>
-      <Card.Footer className="justify-end">
+      <Card.Footer className="mt-auto justify-end">
         <Button
           variant="secondary"
           onPress={() => {
