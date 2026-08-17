@@ -10,6 +10,16 @@
 
 范围修订确认原文：确认扩大计划范围
 
+Task 2 范围与行为修订日期：2026-08-17
+
+Task 2 范围与行为修订确认原文：
+
+```text
+Go back home
+
+调整到列表页面
+```
+
 计划日期：2026-08-17
 
 对应设计：
@@ -111,6 +121,7 @@ session bootstrap record
 
 - `codex-gui/src/router.tsx`
 - `codex-gui/src/App.tsx`
+- `codex-gui/src/NotFoundPage.tsx`
 - `codex-gui/src/features/browserLaunch/**`
 - `codex-gui/src/features/guiHost/guiHostClient.ts`
 - `codex-gui/src/features/guiHost/guiHostHandshakeController.ts`
@@ -268,6 +279,9 @@ git commit -m 'feat(gui): define canonical task launch URL'
 - Router 原子切换为 `/task/$threadId`、`/history`、`/history/$threadId`；不保留 `/` index route。
 - 任何非空 query，尤其旧 `threadId` query，在建立连接或发业务请求前进入 invalid URL 页面；不删除后
   继续，不 redirect。
+- NotFound 页保留 `Go back home` 操作，但目标改为规范 `/history`；进入列表后若 authorization session 没有
+  active recovery，仍按既定规则 fail closed 显示历史列表上下文不可用，不猜测 cwd，也不把旧 URL
+  重定向为新 URL。
 - 用 browser authorization session 取代 `{threadId, token}` launch params：保存 host token 与可选
   active thread recovery id，作用域保持 `sessionStorage`/当前 tab。
 - fragment token 优先并覆盖旧 session；显式 fragment 启动先把 active recovery 置空，保证历史详情
@@ -280,7 +294,8 @@ git commit -m 'feat(gui): define canonical task launch URL'
 - route target unit 覆盖三种规范 pathname、缺 UUID、额外 segment、旧 `/` 和所有非空 query。
 - authorization session unit 覆盖 fragment 首次消费、同 tab token/recovery 恢复、新 fragment 清 recovery、
   storage failure 与 fragment 清理顺序。
-- NotFound Browser test 覆盖旧 URL不导航、不发 commands。
+- NotFound Browser test 覆盖旧 URL不自动导航、不发 commands，并覆盖用户显式点击 `Go back home` 后进入
+  `/history`；缺少 active recovery 时显示上下文不可用，且不猜测 cwd、不重定向旧 URL。
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/browserLaunch/__tests__
@@ -288,6 +303,8 @@ git commit -m 'feat(gui): define canonical task launch URL'
 ```
 
 ### 提交
+
+本次 Task 2 范围与行为修订必须先形成独立文档提交，不得与 Task 2 的前端行为修改混合。
 
 只暂存 router、browserLaunch 模块、生成 TypeScript fixture 的消费调整和对应测试，提交：
 
