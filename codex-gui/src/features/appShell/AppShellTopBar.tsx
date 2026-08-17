@@ -13,6 +13,7 @@ export function AppShellTopBar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const runtime = useAppSelector(selectThreadRuntimeRecord);
   const isCurrentTask = pathname === "/";
+  const isHistoryList = pathname === "/history";
   const currentTaskTitle = [runtime?.thread.name, runtime?.thread.preview].find(
     (candidate) => candidate != null && candidate.length > 0,
   );
@@ -25,7 +26,9 @@ export function AppShellTopBar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-separator bg-surface text-foreground">
-      <div className="mx-auto flex h-full w-full max-w-3xl items-center gap-3 px-4">
+      <div
+        className={`mx-auto flex h-full w-full items-center gap-3 px-4 ${isHistoryList ? "max-w-6xl" : "max-w-3xl"}`}
+      >
         <Button
           variant="secondary"
           onPress={() => {

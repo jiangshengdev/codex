@@ -1,4 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { THREAD_QUERY_KEY, TOKEN_FRAGMENT_KEY } from "@codex-gui-host-contract";
 import {
@@ -40,6 +41,11 @@ const createHistoryCommands = () => {
     backwardsCursor: null,
   });
   return commands;
+};
+
+const expectHorizontalAlignment = (first: DOMRect, second: DOMRect): void => {
+  expect(Math.abs(first.left - second.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(first.right - second.right)).toBeLessThanOrEqual(1);
 };
 
 beforeEach(() => {
@@ -146,6 +152,81 @@ test("history cards open details and preserve one connection across browser back
 
   expect(getCleanupConnectionCallCount()).toBe(1);
   scrollTo.mockRestore();
+});
+
+test("aligns the wider history list with the top bar without widening current or detail routes", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  let unmount: (() => Promise<void>) | null = null;
+
+  try {
+    await page.viewport(1440, 900);
+    const router = createAppRouter(
+      createMemoryHistory({ initialEntries: [`/?${THREAD_QUERY_KEY}=${launchThreadId}`] }),
+    );
+    const screen = await renderWithProviders(<RouterProvider router={router} />);
+    unmount = screen.unmount;
+    const options = getHostOptions(startGuiHostConnectionMock);
+    const commands = createHistoryCommands();
+    const readThread = vi.mocked(commands.readThread);
+
+    attachProjection(options);
+    markCommandsReady(options, commands);
+
+    const alignedRouteBounds = (routeContent: Element): DOMRect => {
+      const bannerContent = screen.getByRole("banner").element().firstElementChild;
+      if (!(bannerContent instanceof HTMLElement) || !(routeContent instanceof HTMLElement)) {
+        throw new Error("Expected the app shell banner content and route content elements");
+      }
+
+      const bannerBounds = bannerContent.getBoundingClientRect();
+      const routeContentBounds = routeContent.getBoundingClientRect();
+      expectHorizontalAlignment(bannerBounds, routeContentBounds);
+      return routeContentBounds;
+    };
+
+    await expect
+      .element(screen.getByRole("region", { name: "Committed transcript" }))
+      .toBeVisible();
+    const currentContent = screen.getByRole("main").element().firstElementChild;
+    if (currentContent == null) {
+      throw new Error("Expected the current task route content element");
+    }
+    const currentBounds = alignedRouteBounds(currentContent);
+
+    await screen.getByRole("button", { name: "Menu" }).click();
+    await screen
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("button", { name: "History" })
+      .click();
+
+    const historyCard = screen.getByRole("article", { name: "Projection fixture" });
+    await expect.element(historyCard).toBeVisible();
+    const historyBounds = alignedRouteBounds(screen.getByRole("main").element());
+    expect(historyBounds.width).toBeGreaterThan(currentBounds.width);
+    expect(router.state.location.pathname).toBe("/history");
+    expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+
+    await historyCard.getByRole("button", { name: "View" }).click();
+
+    await expect
+      .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
+      .toBeVisible();
+    const detailBounds = alignedRouteBounds(screen.getByRole("main").element());
+    expectHorizontalAlignment(currentBounds, detailBounds);
+    expect(Math.abs(currentBounds.width - detailBounds.width)).toBeLessThanOrEqual(1);
+    expect(historyBounds.width).toBeGreaterThan(detailBounds.width);
+    expect(readThread).toHaveBeenCalledWith({
+      threadId: historyThreadId,
+      includeTurns: true,
+    });
+    expect(router.state.location.pathname).toBe(`/history/${historyThreadId}`);
+    expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+    expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
+    expect(getCleanupConnectionCallCount()).toBe(0);
+  } finally {
+    await unmount?.();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("successful continuation replaces detail with the authoritative current-thread URL", async () => {
