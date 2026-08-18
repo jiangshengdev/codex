@@ -119,7 +119,7 @@ async fn thread_projection_attach_includes_token_usage_baseline() -> Result<()> 
         "response-1",
         "message-1",
         "done",
-        120,
+        /*total_tokens*/ 120,
     )])
     .await;
     write_mock_responses_config_toml(
@@ -185,9 +185,14 @@ async fn thread_projection_token_usage_event_advances_commit_chain() -> Result<(
                 "request_user_input",
                 &request_user_input_arguments,
             ),
-            responses::ev_completed_with_tokens("response-1", 120),
+            responses::ev_completed_with_tokens("response-1", /*total_tokens*/ 120),
         ]),
-        token_usage_sse_response("response-2", "message-2", "second done", 80),
+        token_usage_sse_response(
+            "response-2",
+            "message-2",
+            "second done",
+            /*total_tokens*/ 80,
+        ),
     ])
     .await;
     write_mock_responses_config_toml(
