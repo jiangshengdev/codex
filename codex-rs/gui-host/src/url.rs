@@ -76,11 +76,7 @@ pub fn launch_url_for_thread(
         .map_or_else(
             || {
                 let port = addr.port();
-                launch_url_for_origin(
-                    &format!("http://127.0.0.1:{port}"),
-                    &thread_id,
-                    token,
-                )
+                launch_url_for_origin(&format!("http://127.0.0.1:{port}"), &thread_id, token)
             },
             |entry| entry.url,
         )
@@ -113,9 +109,7 @@ pub fn launch_urls_for_thread(
 fn launch_url_for_origin(origin: &str, thread_id: &str, token: &LaunchToken) -> String {
     let thread_id = urlencoding::encode(thread_id);
     let token = urlencoding::encode(token.as_str());
-    format!(
-        "{origin}/{CURRENT_TASK_PATH_SEGMENT}/{thread_id}#{TOKEN_FRAGMENT_KEY}={token}"
-    )
+    format!("{origin}/{CURRENT_TASK_PATH_SEGMENT}/{thread_id}#{TOKEN_FRAGMENT_KEY}={token}")
 }
 
 fn host_for_url(host: &str) -> String {
