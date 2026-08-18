@@ -10,6 +10,8 @@ import {
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
+import { formatTaskDocumentTitle } from "@/features/documentTitle/documentTitle";
+import { HistoryDetailDocumentTitleFactPublisher } from "@/features/documentTitle/DocumentTitleOwner";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import type { ThreadSwitchBlockedReason } from "@/features/projectionCoordination/threadSwitchCoordinator";
@@ -178,6 +180,16 @@ function ThreadHistoryDetailContent({
 
   return (
     <>
+      {state.type === "ready" ? (
+        <HistoryDetailDocumentTitleFactPublisher
+          threadId={state.thread.id}
+          title={formatTaskDocumentTitle({
+            name: state.thread.name,
+            preview: state.thread.preview,
+            fallback: t`Untitled task`,
+          })}
+        />
+      ) : null}
       <header className="grid gap-3">
         <div>
           <Button

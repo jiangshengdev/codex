@@ -34,6 +34,16 @@ const startGuiHostConnectionMock =
 const historyThreadId = "00000000-0000-0000-0000-000000000002";
 const historyThread = attachWithThreadId(attachResponse, historyThreadId).snapshot.thread;
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, reject, resolve };
+};
+
 const createHistoryCommands = () => {
   const commands = createGuiHostCommands();
   vi.mocked(commands.listThreads).mockResolvedValue({
@@ -74,6 +84,8 @@ test("history cards open details and preserve one connection across browser back
   const commands = createHistoryCommands();
   const listThreads = vi.mocked(commands.listThreads);
   const readThread = vi.mocked(commands.readThread);
+  const detailRead = deferred<Awaited<ReturnType<typeof commands.readThread>>>();
+  readThread.mockReturnValueOnce(detailRead.promise);
   const firstPageParams = {
     archived: false,
     cwd: attachResponse.snapshot.thread.cwd,
@@ -124,14 +136,19 @@ test("history cards open details and preserve one connection across browser back
   await expect.element(historyCard).toBeVisible();
   await historyCard.getByRole("button", { name: "View" }).click();
 
-  await expect
-    .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
-    .toBeVisible();
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
   await expect.poll(() => document.title).toBe("History detail · Codex");
   expect(readThread).toHaveBeenNthCalledWith(1, {
     threadId: historyThreadId,
     includeTurns: true,
   });
+
+  detailRead.resolve({ thread: historyThread });
+
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
+    .toBeVisible();
+  await expect.poll(() => document.title).toBe("Projection fixture · Codex");
   expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
   await screen.getByRole("button", { name: "Scan with phone" }).click();
   const qrDialog = screen.getByRole("dialog", { name: "Scan with phone" });
@@ -160,11 +177,10 @@ test("history cards open details and preserve one connection across browser back
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
+  readThread.mockRejectedValueOnce(new Error("history read failed"));
   router.history.forward();
 
-  await expect
-    .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
-    .toBeVisible();
+  await expect.element(screen.getByRole("alert")).toHaveTextContent("history read failed");
   await expect.poll(() => document.title).toBe("History detail · Codex");
   expect(readThread).toHaveBeenNthCalledWith(2, {
     threadId: historyThreadId,
@@ -289,6 +305,31 @@ test("history list with token-only authorization fails closed without attaching 
     .not.toBeInTheDocument();
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
+});
+
+test("history detail uses the localized fallback when its task has no name or preview", async () => {
+  seedBrowserAuthorizationSession({ token: "detail-secret" });
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/history/${historyThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createHistoryCommands();
+  vi.mocked(commands.readThread).mockResolvedValueOnce({
+    thread: { ...historyThread, name: "", preview: "" },
+  });
+
+  initializeHost(options, commands);
+
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "Untitled task" }))
+    .toBeVisible();
+  await expect.poll(() => document.title).toBe("Untitled task · Codex");
+  expect(commands.readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: historyThreadId,
+    includeTurns: true,
+  });
+  expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
 });
 
 test("pure read-only history detail reads the route thread without attaching", async () => {
