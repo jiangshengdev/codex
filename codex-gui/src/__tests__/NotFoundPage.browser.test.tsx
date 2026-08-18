@@ -24,7 +24,7 @@ vi.mock("@/App", async () => {
         () =>
           guiHostClientMock.startGuiHostConnection({
             location: new URL(window.location.href),
-            replaceState: window.history.replaceState.bind(window.history),
+            token: "test-authorization-token",
           }),
         [],
       );
@@ -68,7 +68,9 @@ test.each([
   const router = createAppRouter(createMemoryHistory({ initialEntries: [initialEntry] }));
   const screen = await renderWithProviders(<RouterProvider router={router} />);
 
-  await expect.element(screen.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "Page not found" }))
+    .toBeVisible();
   expect(guiHostClientMock.startGuiHostConnection).not.toHaveBeenCalled();
 
   const originalUrl = new URL(initialEntry, "https://codex.test");
