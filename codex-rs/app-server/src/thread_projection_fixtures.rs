@@ -23,6 +23,9 @@ use codex_app_server_protocol::ThreadProjectionEvent;
 use codex_app_server_protocol::ThreadProjectionEventNotification;
 use codex_app_server_protocol::ThreadProjectionSnapshot;
 use codex_app_server_protocol::ThreadStatus;
+use codex_app_server_protocol::ThreadTokenUsage;
+use codex_app_server_protocol::ThreadTokenUsageUpdatedNotification;
+use codex_app_server_protocol::TokenUsageBreakdown;
 use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnCompletedNotification;
 use codex_app_server_protocol::TurnItemsView;
@@ -50,6 +53,7 @@ const GENERATED_FIXTURE_NAMES: &[&str] = &[
     "event-reasoning-summary-text-delta.json",
     "event-reasoning-text-delta.json",
     "event-subscription-replacement.json",
+    "event-token-usage-updated.json",
     "event-turn-completed.json",
     "event-turn-started.json",
 ];
@@ -133,6 +137,10 @@ pub(crate) fn generate_fixture_files() -> Result<BTreeMap<&'static str, String>>
         serialize_fixture(&event_reasoning_item_completed()?)?,
     );
     files.insert(
+        "event-token-usage-updated.json",
+        serialize_fixture(&event_token_usage_updated()?)?,
+    );
+    files.insert(
         "event-turn-completed.json",
         serialize_fixture(&event_turn_completed()?)?,
     );
@@ -163,6 +171,7 @@ fn attach_baseline() -> Result<ThreadProjectionAttachResponse> {
                 )],
             )?,
             head_commit_id: None,
+            token_usage: Some(fixture_token_usage()),
         },
     })
 }
@@ -181,6 +190,7 @@ fn attach_replacement() -> Result<ThreadProjectionAttachResponse> {
                 )],
             )?,
             head_commit_id: Some(REPLACEMENT_HEAD_COMMIT_ID.to_string()),
+            token_usage: None,
         },
     })
 }
@@ -432,11 +442,26 @@ fn event_reasoning_item_completed() -> Result<ThreadProjectionEventNotification>
     )
 }
 
+fn event_token_usage_updated() -> Result<ThreadProjectionEventNotification> {
+    projection_event(
+        SUBSCRIPTION_ID,
+        "commit-token-usage-updated",
+        Some("commit-reasoning-item-completed"),
+        ThreadProjectionEvent::TokenUsageUpdated {
+            notification: ThreadTokenUsageUpdatedNotification {
+                thread_id: THREAD_ID.to_string(),
+                turn_id: "turn-in-progress".to_string(),
+                token_usage: fixture_token_usage(),
+            },
+        },
+    )
+}
+
 fn event_turn_completed() -> Result<ThreadProjectionEventNotification> {
     projection_event(
         SUBSCRIPTION_ID,
         "commit-turn-completed",
-        Some("commit-reasoning-item-completed"),
+        Some("commit-token-usage-updated"),
         ThreadProjectionEvent::TurnCompleted {
             notification: TurnCompletedNotification {
                 thread_id: THREAD_ID.to_string(),
@@ -458,6 +483,28 @@ fn event_subscription_replacement() -> Result<ThreadProjectionEventNotification>
             },
         },
     )
+}
+
+fn fixture_token_usage() -> ThreadTokenUsage {
+    ThreadTokenUsage {
+        total: TokenUsageBreakdown {
+            total_tokens: 200,
+            input_tokens: 150,
+            cached_input_tokens: 25,
+            cache_write_input_tokens: 0,
+            output_tokens: 50,
+            reasoning_output_tokens: 10,
+        },
+        last: TokenUsageBreakdown {
+            total_tokens: 120,
+            input_tokens: 90,
+            cached_input_tokens: 20,
+            cache_write_input_tokens: 0,
+            output_tokens: 30,
+            reasoning_output_tokens: 5,
+        },
+        model_context_window: Some(258_400),
+    }
 }
 
 fn projection_event(

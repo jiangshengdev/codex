@@ -20554,6 +20554,26 @@
             ],
             "title": "ItemCompletedThreadProjectionEvent",
             "type": "object"
+          },
+          {
+            "properties": {
+              "notification": {
+                "$ref": "#/definitions/v2/ThreadTokenUsageUpdatedNotification"
+              },
+              "type": {
+                "enum": [
+                  "tokenUsageUpdated"
+                ],
+                "title": "TokenUsageUpdatedThreadProjectionEventType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "notification",
+              "type"
+            ],
+            "title": "TokenUsageUpdatedThreadProjectionEvent",
+            "type": "object"
           }
         ]
       },
@@ -20598,6 +20618,16 @@
           },
           "thread": {
             "$ref": "#/definitions/v2/Thread"
+          },
+          "tokenUsage": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadTokenUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -21844,7 +21874,6 @@
         "type": "object"
       },
       "ThreadTokenUsageUpdatedNotification": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
           "threadId": {
             "type": "string"
@@ -21861,7 +21890,6 @@
           "tokenUsage",
           "turnId"
         ],
-        "title": "ThreadTokenUsageUpdatedNotification",
         "type": "object"
       },
       "ThreadUnarchiveParams": {

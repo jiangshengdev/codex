@@ -5,6 +5,8 @@ use super::ReasoningSummaryPartAddedNotification;
 use super::ReasoningSummaryTextDeltaNotification;
 use super::ReasoningTextDeltaNotification;
 use super::Thread;
+use super::ThreadTokenUsage;
+use super::ThreadTokenUsageUpdatedNotification;
 use super::TurnCompletedNotification;
 use super::TurnStartedNotification;
 use crate::JsonSchema;
@@ -33,6 +35,7 @@ pub struct ThreadProjectionAttachResponse {
 pub struct ThreadProjectionSnapshot {
     pub thread: Thread,
     pub head_commit_id: Option<String>,
+    pub token_usage: Option<ThreadTokenUsage>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
@@ -109,6 +112,9 @@ pub enum ThreadProjectionEvent {
     },
     ItemCompleted {
         notification: ItemCompletedNotification,
+    },
+    TokenUsageUpdated {
+        notification: ThreadTokenUsageUpdatedNotification,
     },
 }
 
@@ -245,6 +251,85 @@ mod tests {
                                 "startedAt": null,
                                 "completedAt": null,
                                 "durationMs": null
+                            }
+                        }
+                    }
+                }
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_thread_projection_token_usage_event_notification() -> Result<()> {
+        let notification: ServerNotification = serde_json::from_value(json!({
+            "method": "thread/projection/event",
+            "params": {
+                "threadId": "thr_123",
+                "subscriptionId": "sub_123",
+                "commitId": "commit_2",
+                "parentCommitId": "commit_1",
+                "event": {
+                    "type": "tokenUsageUpdated",
+                    "notification": {
+                        "threadId": "thr_123",
+                        "turnId": "turn_123",
+                        "tokenUsage": {
+                            "total": {
+                                "totalTokens": 200,
+                                "inputTokens": 150,
+                                "cachedInputTokens": 25,
+                                "cacheWriteInputTokens": 0,
+                                "outputTokens": 50,
+                                "reasoningOutputTokens": 10
+                            },
+                            "last": {
+                                "totalTokens": 120,
+                                "inputTokens": 90,
+                                "cachedInputTokens": 20,
+                                "cacheWriteInputTokens": 0,
+                                "outputTokens": 30,
+                                "reasoningOutputTokens": 5
+                            },
+                            "modelContextWindow": 258400
+                        }
+                    }
+                }
+            }
+        }))?;
+
+        assert_eq!(
+            serde_json::to_value(&notification)?,
+            json!({
+                "method": "thread/projection/event",
+                "params": {
+                    "threadId": "thr_123",
+                    "subscriptionId": "sub_123",
+                    "commitId": "commit_2",
+                    "parentCommitId": "commit_1",
+                    "event": {
+                        "type": "tokenUsageUpdated",
+                        "notification": {
+                            "threadId": "thr_123",
+                            "turnId": "turn_123",
+                            "tokenUsage": {
+                                "total": {
+                                    "totalTokens": 200,
+                                    "inputTokens": 150,
+                                    "cachedInputTokens": 25,
+                                    "cacheWriteInputTokens": 0,
+                                    "outputTokens": 50,
+                                    "reasoningOutputTokens": 10
+                                },
+                                "last": {
+                                    "totalTokens": 120,
+                                    "inputTokens": 90,
+                                    "cachedInputTokens": 20,
+                                    "cacheWriteInputTokens": 0,
+                                    "outputTokens": 30,
+                                    "reasoningOutputTokens": 5
+                                },
+                                "modelContextWindow": 258400
                             }
                         }
                     }
