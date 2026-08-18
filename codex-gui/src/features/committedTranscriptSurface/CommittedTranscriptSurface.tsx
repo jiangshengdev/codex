@@ -1,5 +1,5 @@
 import { memo, useId, useState, type ReactNode } from "react";
-import { Alert, Button, Card, Chip, Disclosure, Tag, TagGroup, Typography } from "@heroui/react";
+import { Alert, Button, Card, Chip, Disclosure, Typography } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { useAppSelector } from "@/app/hooks";
 import { selectThreadRuntimeThreadId } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -23,6 +23,11 @@ import {
 } from "./CommittedTranscriptSurfaceRenderer";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
+import {
+  presentSubAgentActivityGroup,
+  type SubAgentActivityGroupPresentation,
+  type SubAgentActivityPresentationInput,
+} from "./subAgentActivityPresentation";
 import { useTranscriptSelector } from "./TranscriptReadContext";
 import { TranscriptReadProvider } from "./TranscriptReadProvider";
 
@@ -95,22 +100,11 @@ type TranscriptActivityEntryView = Extract<
 
 type TranscriptActivityCopy = TranscriptActivityEntryView["title"];
 
-type TranscriptTextActivityCopy = Exclude<
-  TranscriptActivityCopy,
-  { kind: "agentStarted" | "agentInteracted" | "agentInterrupted" }
->;
+type TranscriptCollabAgentEntryView = Extract<TranscriptActivityEntryView, { type: "collabAgent" }>;
 
-const AgentPathTag = ({ agentPath }: { agentPath: string }) => (
-  <TagGroup aria-label={agentPath} selectionMode="none" size="sm" variant="default">
-    <TagGroup.List>
-      <Tag id={agentPath} textValue={agentPath}>
-        {agentPath}
-      </Tag>
-    </TagGroup.List>
-  </TagGroup>
-);
+type TranscriptTextActivityCopy = TranscriptCollabAgentEntryView["title"];
 
-const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }) => {
+const ActivityEntryRenderer = ({ entry }: { entry: TranscriptCollabAgentEntryView }) => {
   const { t } = useLingui();
 
   const agentStateText = (
@@ -310,38 +304,7 @@ const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }
     return exhaustiveCopy;
   };
 
-  const renderCopy = (copy: TranscriptActivityCopy): ReactNode => {
-    switch (copy.kind) {
-      case "agentStarted": {
-        const agentPath = copy.agentPath;
-        return (
-          <Trans comment="Activity showing the raw path of a sub-agent that started">
-            Started <AgentPathTag agentPath={agentPath} />
-          </Trans>
-        );
-      }
-      case "agentInteracted": {
-        const agentPath = copy.agentPath;
-        return (
-          <Trans comment="Activity showing the raw path of a sub-agent that was contacted">
-            Interacted with <AgentPathTag agentPath={agentPath} />
-          </Trans>
-        );
-      }
-      case "agentInterrupted": {
-        const agentPath = copy.agentPath;
-        return (
-          <Trans comment="Activity showing the raw path of a sub-agent that was interrupted">
-            Interrupted <AgentPathTag agentPath={agentPath} />
-          </Trans>
-        );
-      }
-      default:
-        return copyText(copy);
-    }
-  };
-
-  const title = renderCopy(entry.title);
+  const title = copyText(entry.title);
   const details = entry.details.map((detail, index): RenderedActivityDetail => {
     if (detail.kind === "raw") {
       return {
@@ -352,11 +315,8 @@ const ActivityEntryRenderer = ({ entry }: { entry: TranscriptActivityEntryView }
 
     const copy = detail.copy;
     return {
-      key:
-        "agentPath" in copy
-          ? `${String(index)}:copy:${copy.kind}:${copy.agentPath}`
-          : `${String(index)}:copy:${copy.kind}`,
-      content: renderCopy(copy),
+      key: `${String(index)}:copy:${copy.kind}`,
+      content: copyText(copy),
     };
   });
   return <ActivityEntryRow details={details} title={title} />;
@@ -373,6 +333,137 @@ type TranscriptSingletonEntryGroup = {
 };
 
 type TranscriptEntryRenderGroup = TranscriptActivityEntryGroup | TranscriptSingletonEntryGroup;
+
+type TranscriptSubAgentActivityEntryView = Extract<
+  TranscriptActivityEntryView,
+  { type: "subAgentActivity" }
+>;
+
+type TranscriptActivityRow =
+  | {
+      type: "collabAgent";
+      entry: Extract<TranscriptActivityEntryView, { type: "collabAgent" }>;
+    }
+  | {
+      type: "subAgentActivity";
+      kind: SubAgentActivityPresentationInput["title"]["kind"];
+      identityKey: string;
+      presentation: SubAgentActivityGroupPresentation;
+    };
+
+const subAgentActivityPresentationInput = (
+  entry: TranscriptSubAgentActivityEntryView,
+): SubAgentActivityPresentationInput => ({
+  id: entry.id,
+  turnId: entry.turnId,
+  title: entry.title,
+});
+
+const groupActivityEntries = (
+  entries: TranscriptActivityEntryGroup["entries"],
+): TranscriptActivityRow[] => {
+  const rows: TranscriptActivityRow[] = [];
+  let pendingSubAgentActivities: SubAgentActivityPresentationInput[] = [];
+
+  const flushSubAgentActivities = () => {
+    const firstActivity = pendingSubAgentActivities[0];
+    if (firstActivity == null) {
+      return;
+    }
+
+    const presentation = presentSubAgentActivityGroup(pendingSubAgentActivities);
+    const firstItem = presentation.items[0];
+    if (firstItem == null) {
+      throw new Error("Expected sub-agent activity presentation to contain an item");
+    }
+    rows.push({
+      type: "subAgentActivity",
+      kind: firstActivity.title.kind,
+      identityKey: firstItem.identityKey,
+      presentation,
+    });
+    pendingSubAgentActivities = [];
+  };
+
+  for (const entry of entries) {
+    if (entry.type === "collabAgent") {
+      flushSubAgentActivities();
+      rows.push({ type: "collabAgent", entry });
+      continue;
+    }
+
+    const activity = subAgentActivityPresentationInput(entry);
+    if (
+      pendingSubAgentActivities.length > 0 &&
+      pendingSubAgentActivities[0]?.title.kind !== activity.title.kind
+    ) {
+      flushSubAgentActivities();
+    }
+    pendingSubAgentActivities.push(activity);
+  }
+
+  flushSubAgentActivities();
+  return rows;
+};
+
+const SubAgentActivityChips = ({
+  presentation,
+}: {
+  presentation: SubAgentActivityGroupPresentation;
+}) => (
+  <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+    {presentation.items.map((item) => (
+      <Chip color="default" key={item.identityKey} size="sm" variant="secondary">
+        <Chip.Label className="block max-w-48 overflow-hidden text-ellipsis whitespace-nowrap">
+          {item.label}
+        </Chip.Label>
+      </Chip>
+    ))}
+  </span>
+);
+
+const SubAgentOmittedCount = ({ omittedCount }: { omittedCount: number }) =>
+  omittedCount === 0 ? null : (
+    <Plural value={omittedCount} one="and # more sub-agent" other="and # more sub-agents" />
+  );
+
+const SubAgentActivityRow = ({
+  kind,
+  presentation,
+}: {
+  kind: Extract<TranscriptActivityRow, { type: "subAgentActivity" }>["kind"];
+  presentation: SubAgentActivityGroupPresentation;
+}) => {
+  let title: ReactNode;
+  switch (kind) {
+    case "agentStarted":
+      title = (
+        <Trans comment="Activity showing sub-agents that started and any omitted count">
+          Started <SubAgentActivityChips presentation={presentation} />{" "}
+          <SubAgentOmittedCount omittedCount={presentation.omittedCount} />
+        </Trans>
+      );
+      break;
+    case "agentInteracted":
+      title = (
+        <Trans comment="Activity showing sub-agents that were contacted and any omitted count">
+          Interacted with <SubAgentActivityChips presentation={presentation} />{" "}
+          <SubAgentOmittedCount omittedCount={presentation.omittedCount} />
+        </Trans>
+      );
+      break;
+    case "agentInterrupted":
+      title = (
+        <Trans comment="Activity showing sub-agents that were interrupted and any omitted count">
+          Interrupted <SubAgentActivityChips presentation={presentation} />{" "}
+          <SubAgentOmittedCount omittedCount={presentation.omittedCount} />
+        </Trans>
+      );
+      break;
+  }
+
+  return <ActivityEntryRow details={[]} title={title} />;
+};
 
 const groupTranscriptEntries = (
   entries: readonly TranscriptEntryView[],
@@ -413,15 +504,29 @@ const groupTranscriptEntries = (
   return groups;
 };
 
-const ActivityEntryGroup = ({ entries }: { entries: TranscriptActivityEntryGroup["entries"] }) => (
-  <Card className="committed-transcript-activity-group min-w-0" variant="default">
-    <Card.Content className="grid min-w-0 gap-2">
-      {entries.map((entry) => (
-        <ActivityEntryRenderer entry={entry} key={transcriptEntryIdFor(entry.turnId, entry.id)} />
-      ))}
-    </Card.Content>
-  </Card>
-);
+const ActivityEntryGroup = ({ entries }: { entries: TranscriptActivityEntryGroup["entries"] }) => {
+  const rows = groupActivityEntries(entries);
+  return (
+    <Card className="committed-transcript-activity-group min-w-0" variant="default">
+      <Card.Content className="grid min-w-0 gap-2">
+        {rows.map((row) =>
+          row.type === "collabAgent" ? (
+            <ActivityEntryRenderer
+              entry={row.entry}
+              key={transcriptEntryIdFor(row.entry.turnId, row.entry.id)}
+            />
+          ) : (
+            <SubAgentActivityRow
+              key={row.identityKey}
+              kind={row.kind}
+              presentation={row.presentation}
+            />
+          ),
+        )}
+      </Card.Content>
+    </Card>
+  );
+};
 
 const StatusEntryRenderer = ({
   status,
@@ -538,8 +643,15 @@ const TranscriptEntryRenderer = ({ entry }: { entry: TranscriptEntryView }) => {
       return <StatusEntryRenderer status={entry.status} />;
     case "collabAgent":
       return <ActivityEntryRenderer entry={entry} />;
-    case "subAgentActivity":
-      return <ActivityEntryRenderer entry={entry} />;
+    case "subAgentActivity": {
+      const activity = subAgentActivityPresentationInput(entry);
+      return (
+        <SubAgentActivityRow
+          kind={activity.title.kind}
+          presentation={presentSubAgentActivityGroup([activity])}
+        />
+      );
+    }
   }
 
   const exhaustiveEntry: never = entry;

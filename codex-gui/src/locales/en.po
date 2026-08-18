@@ -13,7 +13,7 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:305
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:299
 msgid "... and {count} more"
 msgstr "... and {count} more"
 
@@ -28,16 +28,20 @@ msgid "{0, plural, one {# message queued} other {# messages queued}}"
 msgstr "{0, plural, one {# message queued} other {# messages queued}}"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:647
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:759
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
+
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:427
+msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
+msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:50
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
 #. Activity detail showing a raw collaborating-agent thread ID followed by its translated status
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:200
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:194
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
@@ -54,7 +58,7 @@ msgid "Active"
 msgstr "Active"
 
 #. Status shown when creation of a collaborating agent fails
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:232
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:226
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
@@ -67,7 +71,7 @@ msgid "Back to history"
 msgstr "Back to history"
 
 #. Collaboration activity showing the raw receiver value of the closed agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:286
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:280
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
@@ -78,13 +82,13 @@ msgstr "Committed transcript"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:143
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:736
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:137
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:848
 msgid "Completed"
 msgstr "Completed"
 
 #. Status of a collaborating agent followed by its raw completion-message preview
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:147
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:141
 msgid "Completed - {messagePreview}"
 msgstr "Completed - {messagePreview}"
 
@@ -132,36 +136,36 @@ msgid "Current task"
 msgstr "Current task"
 
 #. Status of a collaborating agent that failed
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:164
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:158
 msgid "Error"
 msgstr "Error"
 
 #. Status of a collaborating agent followed by its raw error-message preview
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:168
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:162
 msgid "Error - {messagePreview}"
 msgstr "Error - {messagePreview}"
 
 #. Status of a collaborating agent that failed without an error preview
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:157
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:151
 msgid "Error - Agent errored"
 msgstr "Error - Agent errored"
 
 #. Status shown when resuming a collaborating agent fails
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:294
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:288
 msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:746
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:858
 msgid "Failed"
 msgstr "Failed"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:441
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:546
 msgid "Failed."
 msgstr "Failed."
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:283
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:277
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
@@ -187,29 +191,49 @@ msgid "Idle"
 msgstr "Idle"
 
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:751
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:863
 msgid "In progress"
 msgstr "In progress"
 
+#. Activity showing sub-agents that were contacted and any omitted count
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:453
+#~ msgid "Interacted with {agents} {omitted}"
+#~ msgstr "Interacted with {agents} {omitted}"
+
 #. Activity showing the raw path of a sub-agent that was contacted
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:326
-msgid "Interacted with <0/>"
-msgstr "Interacted with <0/>"
+#~ msgid "Interacted with <0/>"
+#~ msgstr "Interacted with <0/>"
+
+#. Activity showing sub-agents that were contacted and any omitted count
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:449
+msgid "Interacted with <0/> <1/>"
+msgstr "Interacted with <0/> <1/>"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:134
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:741
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:128
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:853
 msgid "Interrupted"
 msgstr "Interrupted"
 
+#. Activity showing sub-agents that were interrupted and any omitted count
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:460
+#~ msgid "Interrupted {agents} {omitted}"
+#~ msgstr "Interrupted {agents} {omitted}"
+
 #. Activity showing the raw path of a sub-agent that was interrupted
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:334
-msgid "Interrupted <0/>"
-msgstr "Interrupted <0/>"
+#~ msgid "Interrupted <0/>"
+#~ msgstr "Interrupted <0/>"
+
+#. Activity showing sub-agents that were interrupted and any omitted count
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:457
+msgid "Interrupted <0/> <1/>"
+msgstr "Interrupted <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:435
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:540
 msgid "Interrupted."
 msgstr "Interrupted."
 
@@ -255,7 +279,7 @@ msgid "Next context page"
 msgstr "Next context page"
 
 #. Status shown when waiting finishes before any collaborating agent completes
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:299
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:293
 msgid "No agents completed yet"
 msgstr "No agents completed yet"
 
@@ -268,7 +292,7 @@ msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
 #. Status indicating that a collaborating agent could not be found
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:183
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:177
 msgid "Not found"
 msgstr "Not found"
 
@@ -285,7 +309,7 @@ msgid "Page not found"
 msgstr "Page not found"
 
 #. Status of a collaborating agent before initialization finishes
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:122
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:116
 msgid "Pending init"
 msgstr "Pending init"
 
@@ -310,17 +334,17 @@ msgstr "QR code for current GUI URL"
 msgid "Read-only history"
 msgstr "Read-only history"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:699
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:811
 msgid "Request failed"
 msgstr "Request failed"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:277
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:271
 msgid "Resumed {receiver}"
 msgstr "Resumed {receiver}"
 
 #. Collaboration activity resuming the agent identified by the raw receiver value
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:211
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:205
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
@@ -334,7 +358,7 @@ msgid "Return to current task"
 msgstr "Return to current task"
 
 #. Status of a collaborating agent that is currently working
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:128
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:122
 msgid "Running"
 msgstr "Running"
 
@@ -348,12 +372,12 @@ msgid "Send"
 msgstr "Send"
 
 #. Collaboration activity showing the raw receiver value of the agent that received input
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:269
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:263
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
 #. Status of a collaborating agent that has shut down
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:177
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:171
 msgid "Shutdown"
 msgstr "Shutdown"
 
@@ -363,25 +387,35 @@ msgstr "Sorry, we couldn’t find the page you’re looking for."
 
 #. Collaboration activity showing the raw receiver value of a newly created agent
 #. Collaboration activity showing the raw receiver value of a newly created agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:240
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:256
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:234
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:250
 msgid "Spawned {receiver}"
 msgstr "Spawned {receiver}"
 
 #. Collaboration activity showing raw receiver, model, and reasoning-effort values for a newly created agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:249
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:243
 msgid "Spawned {receiver} ({model} {reasoningEffort})"
 msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 
 #. Collaboration activity showing raw receiver and reasoning-effort values for a newly created agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:261
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:255
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
+#. Activity showing sub-agents that started and any omitted count
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:446
+#~ msgid "Started {agents} {omitted}"
+#~ msgstr "Started {agents} {omitted}"
+
 #. Activity showing the raw path of a sub-agent that started
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:318
-msgid "Started <0/>"
-msgstr "Started <0/>"
+#~ msgid "Started <0/>"
+#~ msgstr "Started <0/>"
+
+#. Activity showing sub-agents that started and any omitted count
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:441
+msgid "Started <0/> <1/>"
+msgstr "Started <0/> <1/>"
 
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:254
 msgid "Stop"
@@ -417,7 +451,7 @@ msgid "Transcript context pages"
 msgstr "Transcript context pages"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:762
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:874
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
@@ -455,14 +489,14 @@ msgid "View"
 msgstr "View"
 
 #. Collaboration activity waiting for the agent identified by the raw receiver value
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:222
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:216
 msgid "Waiting for {receiver}"
 msgstr "Waiting for {receiver}"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:229
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:223
 msgid "Waiting for {receiverCount} agents"
 msgstr "Waiting for {receiverCount} agents"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:219
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:213
 msgid "Waiting for agents"
 msgstr "Waiting for agents"
