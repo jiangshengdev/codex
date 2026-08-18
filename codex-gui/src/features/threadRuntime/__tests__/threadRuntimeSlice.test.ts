@@ -6,6 +6,7 @@ import {
   eventAgentMessageDelta,
   eventItemCompleted,
   eventItemStarted,
+  eventTokenUsageUpdated,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
@@ -17,6 +18,7 @@ import {
   eventWithEnvelope,
   itemCompleted,
   itemStarted,
+  tokenUsageUpdated,
   turnCompleted,
   turnStarted,
   turnWithId,
@@ -32,6 +34,7 @@ import {
   selectThreadRuntimeSubscription,
   selectThreadRuntimeSubscriptionState,
   selectThreadRuntimeThreadId,
+  selectThreadRuntimeTokenUsage,
   snapshotReplayIndexFromTurns,
   threadRuntimeAttached,
   threadRuntimeDeltasAccepted,
@@ -66,6 +69,7 @@ describe("thread runtime reducer", () => {
     expect(selectThreadRuntimeSubscriptionState(store.getState())).toBeNull();
     expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
     expect(selectThreadRuntimeLatestLiveTurnCompletion(store.getState())).toBeNull();
+    expect(selectThreadRuntimeTokenUsage(store.getState())).toBeNull();
   });
 
   it("returns a stable empty event buffer when no runtime exists", () => {
@@ -83,6 +87,7 @@ describe("thread runtime reducer", () => {
       sessionId: attachBaseline.snapshot.thread.sessionId,
       thread: threadMetadata,
       snapshotTurns,
+      tokenUsage: attachBaseline.snapshot.tokenUsage,
       eventBuffer: [],
       activeTurnId: null,
       latestLiveTurnCompletion: null,
@@ -96,6 +101,61 @@ describe("thread runtime reducer", () => {
     expect(selectThreadRuntimeThreadId(runtimeRoot(state))).toBe(attachBaseline.snapshot.thread.id);
     expect(selectThreadRuntimeSubscriptionState(runtimeRoot(state))).toBe("active");
     expect(selectThreadRuntimeEventBuffer(runtimeRoot(state))).toStrictEqual([]);
+    expect(selectThreadRuntimeTokenUsage(runtimeRoot(state))).toBe(
+      attachBaseline.snapshot.tokenUsage,
+    );
+  });
+
+  it("stores absolute token usage from live events and buffers each accepted event", () => {
+    if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
+      throw new Error("fixture must contain a tokenUsageUpdated projection event");
+    }
+    const attached = reduce(undefined, threadRuntimeAttached(attachBaseline));
+    const replay = replayForProjectionEvent(
+      snapshotReplayIndexFromTurns(attachBaseline.snapshot.thread.turns),
+      eventTokenUsageUpdated,
+    );
+    const sameValue = reduce(
+      attached,
+      threadRuntimeEventBuffered({
+        notification: eventTokenUsageUpdated,
+        replay,
+      }),
+    );
+    const nextTokenUsage = {
+      ...eventTokenUsageUpdated.event.notification.tokenUsage,
+      total: {
+        ...eventTokenUsageUpdated.event.notification.tokenUsage.total,
+        totalTokens: 280,
+      },
+      last: {
+        ...eventTokenUsageUpdated.event.notification.tokenUsage.last,
+        totalTokens: 80,
+      },
+    };
+    const nextEvent = eventWithEnvelope(tokenUsageUpdated(eventTokenUsageUpdated, nextTokenUsage), {
+      commitId: "commit-token-usage-updated-2",
+      parentCommitId: eventTokenUsageUpdated.commitId,
+    });
+    const overwritten = reduce(
+      sameValue,
+      threadRuntimeEventBuffered({ notification: nextEvent, replay: "live" }),
+    );
+
+    expect(replay).toBe("live");
+    expect(selectThreadRuntimeTokenUsage(runtimeRoot(sameValue))).toBe(
+      eventTokenUsageUpdated.event.notification.tokenUsage,
+    );
+    expect(selectThreadRuntimeTokenUsage(runtimeRoot(overwritten))).toBe(nextTokenUsage);
+    expect(overwritten.current?.activeTurnId).toBeNull();
+    expect(overwritten.current?.eventBuffer).toStrictEqual([
+      {
+        type: "projectionEvent",
+        notification: eventTokenUsageUpdated,
+        replay: "live",
+      },
+      { type: "projectionEvent", notification: nextEvent, replay: "live" },
+    ]);
   });
 
   it("derives the active turn from snapshot turns", () => {
@@ -558,6 +618,8 @@ describe("thread runtime reducer", () => {
     expect(state.current?.thread.name).toBe("Replacement projection fixture");
     expect(state.current?.snapshotTurns).toStrictEqual(attachReplacement.snapshot.thread.turns);
     expect(state.current?.eventBuffer).toStrictEqual([]);
+    expect(state.current?.tokenUsage).toBeNull();
+    expect(selectThreadRuntimeTokenUsage(runtimeRoot(state))).toBeNull();
     expect(state.current?.latestLiveTurnCompletion).toBeNull();
     expect(state.current?.subscription).toStrictEqual({ state: "active" });
   });

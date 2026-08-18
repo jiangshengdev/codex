@@ -12,6 +12,7 @@ import {
   eventReasoningSummaryTextDelta,
   eventReasoningTextDelta,
   eventSubscriptionReplacement,
+  eventTokenUsageUpdated,
   eventTurnCompleted,
   eventTurnStarted,
 } from "./projectionFixtures";
@@ -131,7 +132,8 @@ describe("Rust-generated projection fixtures", () => {
     expect(eventItemCompleted.parentCommitId).toBe(eventItemStarted.commitId);
     expect(eventReasoningItemStarted.parentCommitId).toBe(eventItemCompleted.commitId);
     expect(eventReasoningItemCompleted.parentCommitId).toBe(eventReasoningItemStarted.commitId);
-    expect(eventTurnCompleted.parentCommitId).toBe(eventReasoningItemCompleted.commitId);
+    expect(eventTokenUsageUpdated.parentCommitId).toBe(eventReasoningItemCompleted.commitId);
+    expect(eventTurnCompleted.parentCommitId).toBe(eventTokenUsageUpdated.commitId);
   });
 
   it("keeps the replacement subscription chain separate", () => {
