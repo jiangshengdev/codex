@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useAppSelector } from "@/app/hooks";
-import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type {
   ComposerInputQueueCoordinator,
   ComposerInputQueueCoordinatorSnapshot,
@@ -32,19 +32,21 @@ import {
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
+  authorizationToken: string | null;
   commands: GuiHostCommands | null;
   composerInputQueueController?: ComposerInputQueueCoordinator | null;
   guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
-  launchParams: BrowserLaunchParams | null;
+  routeTarget: GuiRouteTarget;
 };
 
 export function ComposerTurnControl({
+  authorizationToken,
   commands,
   composerInputQueueController = null,
   guardCompositionEndEnter,
   guiHostStatus,
-  launchParams,
+  routeTarget,
 }: ComposerTurnControlProps) {
   const { t } = useLingui();
   const [draft, setDraft] = useState("");
@@ -234,7 +236,7 @@ export function ComposerTurnControl({
           </div>
         ) : null}
         <div className="flex items-center justify-between gap-2">
-          <QrAccessPopover launchParams={launchParams} />
+          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <div className="flex items-center gap-2">
             <Button
               isDisabled={!stopEnabled}

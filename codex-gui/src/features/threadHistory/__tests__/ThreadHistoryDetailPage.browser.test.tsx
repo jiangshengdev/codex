@@ -82,6 +82,8 @@ const createCapabilitiesStore = (initial: AppCapabilities): CapabilitiesStore =>
 };
 
 type RenderDetailOptions = Readonly<{
+  activeOwner?: ActiveThreadOwnerHandle | null;
+  authorizationToken?: string | null;
   commands?: GuiHostCommands | null;
   continueThread?: ContinueThread | null;
   initialEntries?: string[];
@@ -90,6 +92,8 @@ type RenderDetailOptions = Readonly<{
 }>;
 
 const renderDetail = async ({
+  activeOwner: suppliedActiveOwner = null,
+  authorizationToken = "retained-secret",
   commands: suppliedCommands,
   continueThread: suppliedContinueThread,
   initialEntries = [`/history/${detailThreadId}`],
@@ -104,15 +108,15 @@ const renderDetail = async ({
           .mockResolvedValue({ type: "current", activeOwner: activeOwner(detailThreadId) })
       : suppliedContinueThread;
   const initialCapabilities: AppCapabilities = {
-    activeOwner: null,
-    authorizationToken: "retained-secret",
+    activeOwner: suppliedActiveOwner,
+    authorizationToken,
     commands,
     continueThread,
     routeTarget: { type: "historyDetail", threadId: detailThreadId },
     startupOutcome: {
       type: "ready",
       target: { type: "historyDetail", threadId: detailThreadId },
-      activeOwner: null,
+      activeOwner: suppliedActiveOwner,
       cleanupFailure: null,
       postCommitFailure: null,
     },
@@ -344,9 +348,11 @@ test("renders isolated context pages without Composer and keeps the transcript e
   expect(commands.interruptTurn).not.toHaveBeenCalled();
 
   const action = screen.getByRole("button", { name: "Continue this task" });
+  const qrAction = screen.getByRole("button", { name: "Scan with phone" });
   const actionBar = action.element().closest("aside");
   const bottomSpace = screen.container.querySelector("[data-app-shell-bottom-action-space]");
   expect(action.element().classList.contains("button--primary")).toBe(true);
+  expect(qrAction.element().closest("aside")).toBe(actionBar);
   expect(actionBar?.classList.contains("fixed")).toBe(true);
   expect(bottomSpace).not.toBeNull();
   window.scrollTo(0, document.documentElement.scrollHeight);
@@ -393,7 +399,66 @@ test("reports a synchronous queue block without flashing pending and links the a
   await expect.element(action).not.toHaveAttribute("data-pending");
   await expect.element(action).toHaveAccessibleDescription(reason);
   expect(continueThread).toHaveBeenCalledExactlyOnceWith(detailThreadId);
-  await expect.element(alert.getByRole("button", { name: "Return to current task" })).toBeVisible();
+  const returnAction = alert.getByRole("button", { name: "Return to current task" });
+  await expect.element(returnAction).toBeVisible();
+  await expect.element(returnAction).toBeDisabled();
+});
+
+test("returns a blocked continuation to the canonical active task instead of the viewed detail", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    type: "blocked",
+    reason: { type: "busy" },
+    cleanupFailure: null,
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({
+    activeOwner: activeOwner(activeThreadId),
+    commands,
+    continueThread,
+  });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+  const returnAction = screen.getByRole("button", { name: "Return to current task" });
+  await expect.element(returnAction).toBeEnabled();
+  await returnAction.click();
+
+  await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`/task/${activeThreadId}`);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+});
+
+test("builds QR access for the visible detail instead of a different active owner", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({
+    activeOwner: activeOwner(activeThreadId),
+    authorizationToken: "retained-secret",
+    commands,
+  });
+
+  await screen.getByRole("button", { name: "Scan with phone" }).click();
+
+  const dialog = screen.getByRole("dialog", { name: "Scan with phone" });
+  await expect
+    .element(
+      dialog.getByText(`${window.location.origin}/history/${detailThreadId}#token=retained-secret`),
+    )
+    .toBeVisible();
+  await expect
+    .element(dialog.getByText(new RegExp(`/task/${activeThreadId}`)))
+    .not.toBeInTheDocument();
 });
 
 test("keeps one continuation in flight while the primary action is pending", async () => {

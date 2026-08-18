@@ -209,8 +209,9 @@ test("shows the non-retryable dependency error when commands are unavailable", a
 
 test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and View navigation", async () => {
   const activitySeconds = 1_725_000_000;
+  const namedThreadId = "00000000-0000-0000-0000-000000000091";
   const threads = [
-    thread("named", {
+    thread(namedThreadId, {
       name: "Named task",
       preview: "Named summary",
       recencyAt: activitySeconds,
@@ -251,11 +252,20 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
     screen.getByText(label).element().closest(".chip")?.classList.contains("chip--danger"),
   );
   expect(statusDangerByLabel).toStrictEqual([false, false, false, true]);
+  await expect
+    .element(screen.getByRole("button", { name: "Scan with phone" }))
+    .not.toBeInTheDocument();
 
   await namedCard.getByRole("button", { name: "View" }).click();
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
-  expect(router.state.location.pathname).toBe("/history/named");
+  expect(router.state.location.pathname).toBe(`/history/${namedThreadId}`);
+  expect(
+    router.state.location.pathname.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    ),
+  ).toStrictEqual([namedThreadId]);
   expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
 });
 
 test("lays out history cards in one, two, and three real columns with aligned rows", async () => {

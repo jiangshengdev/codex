@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { useAppSelector } from "@/app/hooks";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
+import { HISTORY_DETAIL_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import type { Thread } from "@codex-protocol/v2";
@@ -185,9 +186,8 @@ function ThreadHistoryCard({ thread }: { thread: Thread }) {
           variant="secondary"
           onPress={() => {
             void navigate({
-              to: "/history/$threadId",
+              to: HISTORY_DETAIL_ROUTE_PATH,
               params: { threadId: thread.id },
-              search: true,
             });
           }}
         >

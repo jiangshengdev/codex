@@ -48,6 +48,16 @@ const expectHorizontalAlignment = (first: DOMRect, second: DOMRect): void => {
   expect(Math.abs(first.right - second.right)).toBeLessThanOrEqual(1);
 };
 
+const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+const expectCanonicalRoute = (href: string, pathname: string, expectedUuidCount: number): void => {
+  const url = new URL(href, "https://codex.test");
+  expect(url.pathname).toBe(pathname);
+  expect(url.search).toBe("");
+  expect(url.hash).toBe("");
+  expect(url.pathname.match(uuidPattern)?.length ?? 0).toBe(expectedUuidCount);
+};
+
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
 });
@@ -74,7 +84,7 @@ test("history cards open details and preserve one connection across browser back
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
     .toBeVisible();
-  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  expectCanonicalRoute(router.state.location.href, `/task/${launchThreadId}`, 1);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
@@ -96,7 +106,10 @@ test("history cards open details and preserve one connection across browser back
   expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 0 });
   expect(listThreads).toHaveBeenNthCalledWith(1, firstPageParams);
   expect(listThreads.mock.calls[0]?.[0]).not.toHaveProperty("cursor");
-  expect(router.state.location.pathname).toBe("/history");
+  expectCanonicalRoute(router.state.location.href, "/history", 0);
+  await expect
+    .element(screen.getByRole("button", { name: "Scan with phone" }))
+    .not.toBeInTheDocument();
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
@@ -111,7 +124,17 @@ test("history cards open details and preserve one connection across browser back
     threadId: historyThreadId,
     includeTurns: true,
   });
-  expect(router.state.location.pathname).toBe(`/history/${historyThreadId}`);
+  expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
+  await screen.getByRole("button", { name: "Scan with phone" }).click();
+  const qrDialog = screen.getByRole("dialog", { name: "Scan with phone" });
+  await expect
+    .element(
+      qrDialog.getByText(`${window.location.origin}/history/${historyThreadId}#token=task-secret`),
+    )
+    .toBeVisible();
+  await expect
+    .element(qrDialog.getByText(new RegExp(`/task/${launchThreadId}`)))
+    .not.toBeInTheDocument();
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
@@ -124,7 +147,7 @@ test("history cards open details and preserve one connection across browser back
   expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 0 });
   expect(listThreads).toHaveBeenNthCalledWith(2, firstPageParams);
   expect(listThreads.mock.calls[1]?.[0]).not.toHaveProperty("cursor");
-  expect(router.state.location.pathname).toBe("/history");
+  expectCanonicalRoute(router.state.location.href, "/history", 0);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
@@ -137,7 +160,7 @@ test("history cards open details and preserve one connection across browser back
     threadId: historyThreadId,
     includeTurns: true,
   });
-  expect(router.state.location.pathname).toBe(`/history/${historyThreadId}`);
+  expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
@@ -148,7 +171,7 @@ test("history cards open details and preserve one connection across browser back
     .click();
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
-  expect(router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  expectCanonicalRoute(router.state.location.href, `/task/${launchThreadId}`, 1);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 
@@ -197,6 +220,7 @@ test("aligns the wider history list with the top bar without widening current or
       throw new Error("Expected the current task route content element");
     }
     const currentBounds = alignedRouteBounds(currentContent);
+    expectCanonicalRoute(router.state.location.href, `/task/${launchThreadId}`, 1);
 
     await screen.getByRole("button", { name: "Menu" }).click();
     await screen
@@ -208,8 +232,7 @@ test("aligns the wider history list with the top bar without widening current or
     await expect.element(historyCard).toBeVisible();
     const historyBounds = alignedRouteBounds(screen.getByRole("main").element());
     expect(historyBounds.width).toBeGreaterThan(currentBounds.width);
-    expect(router.state.location.pathname).toBe("/history");
-    expect(router.state.location.search).toEqual({});
+    expectCanonicalRoute(router.state.location.href, "/history", 0);
 
     await historyCard.getByRole("button", { name: "View" }).click();
 
@@ -224,8 +247,7 @@ test("aligns the wider history list with the top bar without widening current or
       threadId: historyThreadId,
       includeTurns: true,
     });
-    expect(router.state.location.pathname).toBe(`/history/${historyThreadId}`);
-    expect(router.state.location.search).toEqual({});
+    expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
     expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
     expect(getCleanupConnectionCallCount()).toBe(0);
   } finally {
@@ -250,7 +272,10 @@ test("history list with token-only authorization fails closed without attaching 
     .toHaveTextContent("Open an active task in this browser tab before viewing its history.");
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
   expect(commands.listThreads).not.toHaveBeenCalled();
-  expect(router.state.location.pathname).toBe("/history");
+  expectCanonicalRoute(router.state.location.href, "/history", 0);
+  await expect
+    .element(screen.getByRole("button", { name: "Scan with phone" }))
+    .not.toBeInTheDocument();
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 });
@@ -275,7 +300,12 @@ test("pure read-only history detail reads the route thread without attaching", a
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
   expect(commands.resumeThread).not.toHaveBeenCalled();
   await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
-  expect(router.state.location.pathname).toBe(`/history/${historyThreadId}`);
+  await screen.getByRole("button", { name: "Menu" }).click();
+  const currentTaskAction = screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "Current task" });
+  await expect.element(currentTaskAction).toBeDisabled();
+  expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 });
@@ -303,6 +333,7 @@ test("pure read-only history detail activates its first task and replaces the ro
     await expect
       .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
       .toBeVisible();
+    expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
     const continueButton = screen.getByRole("button", { name: "Continue this task", exact: true });
     await expect.element(continueButton).toBeEnabled();
     expect(commands.resumeThread).not.toHaveBeenCalled();
@@ -320,10 +351,7 @@ test("pure read-only history detail activates its first task and replaces the ro
       expect.any(String),
       JSON.stringify({ token: "detail-secret", activeThreadId: historyThreadId }),
     );
-    const routedUrl = new URL(router.state.location.href, "https://codex.test");
-    expect(routedUrl.pathname).toBe(`/task/${historyThreadId}`);
-    expect(routedUrl.search).toBe("");
-    expect(routedUrl.hash).toBe("");
+    expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
     expect(router.history.length).toBe(initialHistoryLength);
   } finally {
     storageSetItem.mockRestore();
@@ -352,6 +380,7 @@ test("pure read-only history detail preserves its route when first activation fa
     await expect
       .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
       .toBeVisible();
+    expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
     const continueButton = screen.getByRole("button", { name: "Continue this task", exact: true });
     await expect.element(continueButton).toBeEnabled();
     expect(commands.resumeThread).not.toHaveBeenCalled();
@@ -366,7 +395,7 @@ test("pure read-only history detail preserves its route when first activation fa
     expect(commands.attachThreadProjection).not.toHaveBeenCalled();
     expect(storageSetItem).not.toHaveBeenCalled();
     await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
-    expect(router.state.location.pathname).toBe(`/history/${historyThreadId}`);
+    expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
     expect(router.history.length).toBe(initialHistoryLength);
   } finally {
     storageSetItem.mockRestore();

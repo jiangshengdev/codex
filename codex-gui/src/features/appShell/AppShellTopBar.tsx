@@ -1,27 +1,46 @@
 import { Button, Drawer } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { History, House, Menu } from "lucide-react";
 import { useState } from "react";
 import { useAppSelector } from "@/app/hooks";
+import {
+  CURRENT_TASK_ROUTE_PATH,
+  HISTORY_LIST_ROUTE_PATH,
+} from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
+import { useAppCapabilities } from "./AppCapabilities";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const { activeOwner, routeTarget } = useAppCapabilities();
   const runtime = useAppSelector(selectThreadRuntimeRecord);
-  const isCurrentTask = pathname === "/";
-  const isHistoryList = pathname === "/history";
-  const currentTaskTitle = [runtime?.thread.name, runtime?.thread.preview].find(
-    (candidate) => candidate != null && candidate.length > 0,
-  );
+  const isCurrentTask = routeTarget.type === "currentTask";
+  const isHistoryList = routeTarget.type === "historyList";
+  const currentTaskTitle =
+    isCurrentTask && runtime?.threadId === routeTarget.threadId
+      ? [runtime.thread.name, runtime.thread.preview].find(
+          (candidate) => candidate != null && candidate.length > 0,
+        )
+      : undefined;
   const title = isCurrentTask ? (currentTaskTitle ?? t`Current task`) : t`History`;
 
-  const navigateTo = (to: "/" | "/history"): void => {
+  const navigateToCurrentTask = (): void => {
+    if (activeOwner == null) {
+      return;
+    }
     setIsDrawerOpen(false);
-    void navigate({ to, search: true });
+    void navigate({
+      to: CURRENT_TASK_ROUTE_PATH,
+      params: { threadId: activeOwner.threadId },
+    });
+  };
+
+  const navigateToHistory = (): void => {
+    setIsDrawerOpen(false);
+    void navigate({ to: HISTORY_LIST_ROUTE_PATH });
   };
 
   return (
@@ -55,21 +74,18 @@ export function AppShellTopBar() {
                 <Button
                   aria-current={isCurrentTask ? "page" : undefined}
                   className="justify-start"
+                  isDisabled={activeOwner == null}
                   variant={isCurrentTask ? "secondary" : "tertiary"}
-                  onPress={() => {
-                    navigateTo("/");
-                  }}
+                  onPress={navigateToCurrentTask}
                 >
                   <House aria-hidden="true" className="size-5" />
                   <Trans>Current task</Trans>
                 </Button>
                 <Button
-                  aria-current={pathname.startsWith("/history") ? "page" : undefined}
+                  aria-current={!isCurrentTask ? "page" : undefined}
                   className="justify-start"
-                  variant={pathname.startsWith("/history") ? "secondary" : "tertiary"}
-                  onPress={() => {
-                    navigateTo("/history");
-                  }}
+                  variant={!isCurrentTask ? "secondary" : "tertiary"}
+                  onPress={navigateToHistory}
                 >
                   <History aria-hidden="true" className="size-5" />
                   <Trans>History</Trans>

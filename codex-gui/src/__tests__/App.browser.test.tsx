@@ -5,6 +5,7 @@ import {
   createRoute,
   createRouter,
   RouterProvider,
+  type RouteComponent,
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
@@ -28,7 +29,12 @@ import {
 } from "./appBrowserTestSupport";
 import RootApp from "@/App";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
-import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
+import {
+  CURRENT_TASK_ROUTE_PATH,
+  HISTORY_DETAIL_ROUTE_PATH,
+  HISTORY_LIST_ROUTE_PATH,
+  type GuiRouteTarget,
+} from "@/features/browserLaunch/guiRouteTarget";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -123,41 +129,41 @@ function ThreadSwitchCapabilityProbe() {
 }
 
 function App({
-  initialEntry = "/",
+  currentTaskComponent = CurrentTaskPage,
+  initialEntry = CURRENT_TASK_ROUTE_PATH.replace("$threadId", launchThreadId),
   routeTarget = { type: "currentTask", threadId: launchThreadId },
-}: Readonly<{ initialEntry?: string; routeTarget?: GuiRouteTarget }>) {
+}: Readonly<{
+  currentTaskComponent?: RouteComponent;
+  initialEntry?: string;
+  routeTarget?: GuiRouteTarget;
+}>) {
   const [router] = useState(() => {
-    const rootRoute = createRootRoute({
+    const rootRoute = createRootRoute();
+    const appRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      id: "app",
       component: () => <RootApp routeTarget={routeTarget} />,
     });
-    const indexRoute = createRoute({
-      getParentRoute: () => rootRoute,
-      path: "/",
-      component: CurrentTaskPage,
-    });
-    const threadSwitchProbeRoute = createRoute({
-      getParentRoute: () => rootRoute,
-      path: "/__test/thread-switch",
-      component: ThreadSwitchCapabilityProbe,
+    const currentTaskRoute = createRoute({
+      getParentRoute: () => appRoute,
+      path: CURRENT_TASK_ROUTE_PATH,
+      component: currentTaskComponent,
     });
     const historyListRoute = createRoute({
-      getParentRoute: () => rootRoute,
-      path: "/history",
+      getParentRoute: () => appRoute,
+      path: HISTORY_LIST_ROUTE_PATH,
       component: ThreadHistoryListPage,
     });
     const historyDetailRoute = createRoute({
-      getParentRoute: () => rootRoute,
-      path: "/history/$threadId",
+      getParentRoute: () => appRoute,
+      path: HISTORY_DETAIL_ROUTE_PATH,
       component: ThreadHistoryDetailPage,
     });
 
     return createRouter({
       history: createMemoryHistory({ initialEntries: [initialEntry] }),
       routeTree: rootRoute.addChildren([
-        indexRoute,
-        threadSwitchProbeRoute,
-        historyListRoute,
-        historyDetailRoute,
+        appRoute.addChildren([currentTaskRoute, historyListRoute, historyDetailRoute]),
       ]),
     });
   });
@@ -223,7 +229,9 @@ const requireThreadSwitchProbePromise = () => {
 };
 
 const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
-  const screen = await renderWithProviders(<App initialEntry="/__test/thread-switch" />);
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
+  );
   const options = getHostOptions(startGuiHostConnectionMock);
   queueAttachProjectionResponse(commands);
   initializeHost(options, commands);
@@ -768,6 +776,9 @@ test("App replays startup notifications against the accepted attach baseline", a
     turnStarted(eventSubscriptionReplacement, "commit-old-baseline-only", oldOnlyTurn),
     { parentCommitId: replacementAttach.snapshot.headCommitId },
   );
+  const snapshotDuplicateEvent = eventWithEnvelope(eventSubscriptionReplacement, {
+    parentCommitId: oldOnlyEvent.commitId,
+  });
   const options = getHostOptions(startGuiHostConnectionMock);
   const commands = createGuiHostCommands();
   const pendingAttach = queueDeferredAttachProjection(commands);
@@ -775,7 +786,7 @@ test("App replays startup notifications against the accepted attach baseline", a
   initializeHost(options, commands);
   await expect.poll(pendingAttach.getState).toBe("pending");
   emitProjectionEvent(options, oldOnlyEvent);
-  emitProjectionEvent(options, eventSubscriptionReplacement);
+  emitProjectionEvent(options, snapshotDuplicateEvent);
   pendingAttach.resolve(replacementAttach);
 
   await expect
@@ -787,7 +798,7 @@ test("App replays startup notifications against the accepted attach baseline", a
       { type: "projectionEvent", notification: oldOnlyEvent, replay: "live" },
       {
         type: "projectionEvent",
-        notification: eventSubscriptionReplacement,
+        notification: snapshotDuplicateEvent,
         replay: "snapshotDuplicate",
       },
     ]);
@@ -796,7 +807,9 @@ test("App replays startup notifications against the accepted attach baseline", a
 test("App does not publish a late startup owner after commands become unavailable", async () => {
   const commands = createGuiHostCommands();
   const pendingAttach = queueDeferredAttachProjection(commands);
-  const screen = await renderWithProviders(<App initialEntry="/__test/thread-switch" />);
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
+  );
   const options = getHostOptions(startGuiHostConnectionMock);
   const activeThread = screen.getByLabelText("Active thread owner");
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
@@ -937,21 +950,13 @@ test("App shows a QR access popover before the Stop button", async () => {
 
   await qrButton.click();
 
-  const expectedUrl = `${window.location.origin}/?threadId=${launchThreadId}#token=secret`;
+  const expectedUrl = new URL(`/task/${launchThreadId}#token=secret`, window.location.origin);
   await expect.element(screen.getByRole("dialog", { name: "Scan with phone" })).toBeVisible();
   await expect.element(screen.getByLabelText("QR code for current GUI URL")).toBeVisible();
-  await expect.element(screen.getByText(expectedUrl)).toBeVisible();
-});
-
-test("App disables QR access when launch params are unavailable", async () => {
-  startGuiHostConnectionMock.mockImplementation((options) => {
-    options.onStatus?.({ label: "connecting" });
-    return () => undefined;
-  });
-
-  const screen = await renderWithProviders(<App />);
-
-  await expect.element(screen.getByRole("button", { name: "Scan with phone" })).toBeDisabled();
+  await expect.element(screen.getByText(expectedUrl.toString())).toBeVisible();
+  expect(expectedUrl.pathname).toBe(`/task/${launchThreadId}`);
+  expect(expectedUrl.search).toBe("");
+  expect(expectedUrl.hash).toBe("#token=secret");
 });
 
 test("App renders committed transcript messages from an attached projection", async () => {
@@ -1211,6 +1216,9 @@ test("App stops forwarding runtime events after backpressure requires manual rec
   emitProjectionClosed(options, projectionClosed);
   emitProjectionEvent(options, projectionEvent);
 
+  await expect
+    .poll(() => selectThreadRuntimeSubscription(store.getState())?.state)
+    .toBe("manualReconnectRequired");
   const runtime = selectThreadRuntimeRecord(store.getState());
   expect(runtime?.threadId).toBe(launchThreadId);
   expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
@@ -1234,11 +1242,16 @@ test("App disables composer after projection backpressure requires reconnect", a
 test("App disables composer when host commands become unavailable", async () => {
   const commandHandle = createGuiHostCommands();
   const { options, screen } = await renderReadyApp(commandHandle);
+  const composer = screen.getByRole("region", { name: "Message composer" });
+  const input = screen.getByPlaceholder("Message Codex");
+  const qrButton = screen.getByRole("button", { name: "Scan with phone" });
 
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(input).toBeEnabled();
   options.onCommandsUnavailable?.();
 
-  await expectAppComposerDisabled(screen);
+  await expect.element(composer).not.toBeInTheDocument();
+  await expect.element(input).not.toBeInTheDocument();
+  await expect.element(qrButton).not.toBeInTheDocument();
 });
 
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
@@ -1249,6 +1262,9 @@ test("App records manual reconnect when a projection event breaks the baseline",
   initializeAppWithProjection(options);
   emitProjectionEvent(options, projectionEvent);
 
+  await expect
+    .poll(() => selectThreadRuntimeSubscription(store.getState())?.state)
+    .toBe("manualReconnectRequired");
   expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
     state: "manualReconnectRequired",
     reason: "commitChainMismatch",
@@ -1318,8 +1334,8 @@ test("App publishes a completed thread switch atomically across capabilities and
     candidateThreadId,
   );
   const commands = createGuiHostCommands();
-  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
+  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const activeThread = screen.getByLabelText("Active thread owner");
   const activeQueue = screen.getByLabelText("Active queue owner");
   const initialOwner = requireThreadSwitchProbeOwner();
@@ -1328,7 +1344,10 @@ test("App publishes a completed thread switch atomically across capabilities and
   await expect.element(activeThread).toHaveTextContent(launchThreadId);
   await expect.element(activeQueue).toHaveTextContent(launchThreadId);
   await continueButton.click();
-  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(1);
+  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(2);
+  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
+    threadId: candidateThreadId,
+  });
 
   const oldItem = agentMessage("old-switch-item", "");
   const oldTurnEvent = turnStarted(
@@ -1479,7 +1498,9 @@ test("App keeps the initial owner when its queue blocks a thread switch", async 
   });
 
   expect(commands.resumeThread).not.toHaveBeenCalled();
-  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
   expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
   await expect
     .element(screen.getByLabelText("Active thread owner"))
@@ -1493,8 +1514,8 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
   vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
   const error = new Error("candidate attach failed");
   const commands = createGuiHostCommands();
-  vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
   const initialOwner = requireThreadSwitchProbeOwner();
 
   await continueButton.click();
@@ -1505,7 +1526,10 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
   });
 
   expect(commands.resumeThread).toHaveBeenCalledOnce();
-  expect(commands.attachThreadProjection).toHaveBeenCalledOnce();
+  expect(commands.attachThreadProjection).toHaveBeenCalledTimes(2);
+  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
+    threadId: candidateThreadId,
+  });
   expect(commands.detachThreadProjection).not.toHaveBeenCalled();
   expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
   await expect
@@ -1521,13 +1545,16 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
   const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
   const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
   const commands = createGuiHostCommands();
-  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const initialOwner = requireThreadSwitchProbeOwner();
   const initialProjectionDispose = vi.spyOn(initialOwner.projectionOwner, "dispose");
 
   await continueButton.click();
-  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(1);
+  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(2);
+  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
+    threadId: candidateThreadId,
+  });
   const switching = requireThreadSwitchProbePromise();
   await screen.unmount();
 
@@ -1581,11 +1608,14 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
       agentMessageDelta(eventAgentMessageDelta, "turn-raf-cleanup", "agent-raf-cleanup", "Lost"),
     );
 
+    const entryId = transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup");
+    await expect
+      .poll(() => store.getState().transcriptState.entriesById[entryId])
+      .toMatchObject({ type: "live", status: "started" });
     await screen.unmount();
     vi.advanceTimersToNextFrame();
 
     expect(getCleanupConnectionCallCount()).toBe(1);
-    const entryId = transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup");
     expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
       type: "live",
       id: "agent-raf-cleanup",
