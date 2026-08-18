@@ -26,7 +26,7 @@ import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
-const attachedStatus: GuiHostStatus = { label: "attached" };
+const initializedStatus: GuiHostStatus = { label: "initialized" };
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
 
@@ -120,11 +120,12 @@ async function renderAttached(
     <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
+        authorizationToken={null}
         commands={commandHandle}
         composerInputQueueController={controller}
         guardCompositionEndEnter={guardCompositionEndEnter}
-        guiHostStatus={attachedStatus}
-        launchParams={null}
+        guiHostStatus={initializedStatus}
+        routeTarget={{ type: "currentTask", threadId }}
       />
     </>,
     { locale },
@@ -173,11 +174,12 @@ test("disables controls before attach", async () => {
     <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
+        authorizationToken={null}
         commands={createGuiHostCommands()}
         composerInputQueueController={null}
         guardCompositionEndEnter={false}
         guiHostStatus={{ label: "connecting" }}
-        launchParams={null}
+        routeTarget={{ type: "currentTask", threadId }}
       />
     </>,
   );

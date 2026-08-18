@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import {
   recordStatusLabels,
   recordStatusSummaries,
@@ -16,7 +15,6 @@ describe("guiHostClient protocol errors", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
 
     const { cleanup, socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -44,7 +42,6 @@ describe("guiHostClient protocol errors", () => {
   it("ignores a valid success response with a non-numeric id", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -78,7 +75,6 @@ describe("guiHostClient protocol errors", () => {
   it("treats a valid error response with a non-numeric id as terminal", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -121,7 +117,6 @@ describe("guiHostClient protocol errors", () => {
   it("ignores an unmatched numeric JSON-RPC error response", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -143,11 +138,10 @@ describe("guiHostClient protocol errors", () => {
     expect(socket.closed).toEqual([]);
   });
 
-  it("surfaces JSON-RPC errors on initialize/attach instead of advancing", () => {
+  it("surfaces JSON-RPC errors on initialize instead of advancing", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
 
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -166,7 +160,6 @@ describe("guiHostClient protocol errors", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
 
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -186,7 +179,6 @@ describe("guiHostClient protocol errors", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
 
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -199,7 +191,6 @@ describe("guiHostClient protocol errors", () => {
   it("orders protocol error status before making commands unavailable", () => {
     const calls: string[] = [];
     const { socket } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
       onCommandsUnavailable: () => {
         calls.push("commands-unavailable");
       },
@@ -214,10 +205,28 @@ describe("guiHostClient protocol errors", () => {
     expect(calls).toEqual(["status:error", "commands-unavailable"]);
   });
 
+  it("invalidates commands and rejects pending requests after a terminal protocol error", async () => {
+    const commandsUnavailable: string[] = [];
+    const { commands, socket } = startConnectionUntilCommandsReady({
+      onCommandsUnavailable: () => {
+        commandsUnavailable.push("unavailable");
+      },
+    });
+    const pending = commands.readThread({ threadId: "thread-1", includeTurns: true });
+
+    socket.onmessage?.({ data: "{" });
+
+    await expect(pending).rejects.toThrow("GUI host WebSocket is not available");
+    await expect(
+      commands.attachThreadProjection({ threadId: "thread-1" }),
+    ).rejects.toThrow("GUI host WebSocket is not available");
+    expect(commandsUnavailable).toEqual(["unavailable"]);
+    expect(socket.closed).toEqual([{ code: 1000, reason: "invalid message" }]);
+  });
+
   it("orders command unavailability before socket error status", () => {
     const calls: string[] = [];
     const { socket } = startConnectionUntilCommandsReady({
-      attachResponse: attachBaseline,
       onCommandsUnavailable: () => {
         calls.push("commands-unavailable");
       },
@@ -235,7 +244,6 @@ describe("guiHostClient protocol errors", () => {
   it("preserves both error callbacks when socket error is followed by abnormal close", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -249,7 +257,6 @@ describe("guiHostClient protocol errors", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
 
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
 
@@ -270,13 +277,9 @@ describe("guiHostClient protocol errors", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const callbacks: string[] = [];
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
       onCommandsReady: () => {
         callbacks.push("commands-ready");
-      },
-      onProjectionAttached: () => {
-        callbacks.push("projection-attached");
       },
       onProjectionClosed: () => {
         callbacks.push("projection-closed");
@@ -307,11 +310,7 @@ describe("guiHostClient protocol errors", () => {
       const { summaries: statuses, onStatus } = recordStatusSummaries();
       const projectionCallbacks: string[] = [];
       const { socket } = startGuiHostConnectionWithSocket({
-        attachResponse: attachBaseline,
         onStatus,
-        onProjectionAttached: () => {
-          projectionCallbacks.push("attached");
-        },
         onProjectionClosed: () => {
           projectionCallbacks.push("closed");
         },
@@ -340,11 +339,7 @@ describe("guiHostClient protocol errors", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const projectionCallbacks: string[] = [];
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
-      onProjectionAttached: () => {
-        projectionCallbacks.push("attached");
-      },
       onProjectionClosed: () => {
         projectionCallbacks.push("closed");
       },
@@ -376,7 +371,6 @@ describe("guiHostClient protocol errors", () => {
     const { labels: statuses, onStatus } = recordStatusLabels();
 
     const { socket } = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onStatus,
     });
     socket.onopen?.();

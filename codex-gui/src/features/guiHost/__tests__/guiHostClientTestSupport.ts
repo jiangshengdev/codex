@@ -1,6 +1,5 @@
 import { expect, vi } from "vitest";
 import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
-import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
 import {
   startGuiHostConnection,
   type GuiHostCommands,
@@ -11,18 +10,6 @@ type StatusSummary = {
   label: string;
   message?: string;
 };
-
-export class MemoryStorage {
-  private readonly values = new Map<string, string>();
-
-  getItem(key: string): string | null {
-    return this.values.get(key) ?? null;
-  }
-
-  setItem(key: string, value: string): void {
-    this.values.set(key, value);
-  }
-}
 
 type SocketCloseEvent = {
   code: number;
@@ -140,28 +127,16 @@ export function sendInitializeResult(socket: RecordingWebSocket): void {
   sendJsonRpcResult(socket, request.id, response);
 }
 
-export function sendAttachResult(
-  socket: RecordingWebSocket,
-  attachResponse: ThreadProjectionAttachResponse,
-): void {
-  const request = readLatestRpcRequest(socket, "thread/projection/attach");
-  sendJsonRpcResult(socket, request.id, attachResponse);
-}
-
 export function startGuiHostConnectionWithSocket({
-  attachResponse,
   onCommandsReady,
   onCommandsUnavailable,
-  onProjectionAttached,
   onProjectionClosed,
   onProjectionDelta,
   onProjectionEvent,
   onStatus,
 }: {
-  attachResponse: ThreadProjectionAttachResponse;
   onCommandsReady?: StartGuiHostConnectionOptions["onCommandsReady"];
   onCommandsUnavailable?: StartGuiHostConnectionOptions["onCommandsUnavailable"];
-  onProjectionAttached?: StartGuiHostConnectionOptions["onProjectionAttached"];
   onProjectionClosed?: StartGuiHostConnectionOptions["onProjectionClosed"];
   onProjectionDelta?: StartGuiHostConnectionOptions["onProjectionDelta"];
   onProjectionEvent?: StartGuiHostConnectionOptions["onProjectionEvent"];
@@ -169,46 +144,37 @@ export function startGuiHostConnectionWithSocket({
 }): {
   cleanup: () => void;
   socket: RecordingWebSocket;
-  threadId: string;
 } {
   const socket = new RecordingWebSocket();
-  const threadId = attachResponse.snapshot.thread.id;
 
   const cleanup = startGuiHostConnection({
-    location: new URL(`http://127.0.0.1:4567/?threadId=${threadId}#token=secret`),
-    replaceState: vi.fn<History["replaceState"]>(),
-    tokenStorage: new MemoryStorage(),
+    location: new URL("http://127.0.0.1:4567"),
+    token: "secret",
     createWebSocket: () => socket as unknown as WebSocket,
     onCommandsReady,
     onCommandsUnavailable,
-    onProjectionAttached,
     onProjectionClosed,
     onProjectionDelta,
     onProjectionEvent,
     onStatus,
   });
 
-  return { cleanup, socket, threadId };
+  return { cleanup, socket };
 }
 
 export function startConnectionUntilCommandsReady({
-  attachResponse,
   onCommandsUnavailable,
   onStatus,
 }: {
-  attachResponse: ThreadProjectionAttachResponse;
   onCommandsUnavailable?: () => void;
   onStatus?: Parameters<typeof startGuiHostConnection>[0]["onStatus"];
 }): {
-  attachResponse: ThreadProjectionAttachResponse;
   cleanup: () => void;
   commands: GuiHostCommands;
   socket: RecordingWebSocket;
-  threadId: string;
 } {
   const commandsReady = vi.fn<(commands: GuiHostCommands) => void>();
-  const { cleanup, socket, threadId } = startGuiHostConnectionWithSocket({
-    attachResponse,
+  const { cleanup, socket } = startGuiHostConnectionWithSocket({
     onCommandsReady: commandsReady,
     onCommandsUnavailable,
     onStatus,
@@ -217,7 +183,6 @@ export function startConnectionUntilCommandsReady({
   socket.onopen?.();
   sendAuthenticateResult(socket);
   sendInitializeResult(socket);
-  sendAttachResult(socket, attachResponse);
 
   expect(commandsReady).toHaveBeenCalledTimes(1);
   const commands = commandsReady.mock.calls[0]?.[0];
@@ -225,7 +190,7 @@ export function startConnectionUntilCommandsReady({
     throw new Error("Expected commands to be ready");
   }
 
-  return { attachResponse, cleanup, commands, socket, threadId };
+  return { cleanup, commands, socket };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

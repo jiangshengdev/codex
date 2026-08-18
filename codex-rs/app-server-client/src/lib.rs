@@ -1368,7 +1368,7 @@ mod tests {
             urls.entries[0]
                 .url
                 .as_str()
-                .contains("threadId=00000000-0000-0000-0000-000000000505")
+                .contains("/task/00000000-0000-0000-0000-000000000505#token=")
         );
         assert!(urls.entries[0].url.as_str().contains("#token="));
 
@@ -1389,7 +1389,7 @@ mod tests {
         assert!(
             urls.entries[0]
                 .url
-                .contains("threadId=00000000-0000-0000-0000-0000000000a1")
+                .contains("/task/00000000-0000-0000-0000-0000000000a1#token=")
         );
         client.shutdown().await.expect("shutdown should complete");
     }
@@ -1410,31 +1410,25 @@ mod tests {
             .launch_gui_for_thread(thread_b)
             .await
             .expect("second GUI launch URLs should be created");
-        let origin_a = urls_a.entries[0]
-            .url
-            .as_str()
-            .split("/?")
-            .next()
-            .expect("URL should contain query");
-        let origin_b = urls_b.entries[0]
-            .url
-            .as_str()
-            .split("/?")
-            .next()
-            .expect("URL should contain query");
+        let origin_a = url::Url::parse(&urls_a.entries[0].url)
+            .expect("first launch URL should parse")
+            .origin();
+        let origin_b = url::Url::parse(&urls_b.entries[0].url)
+            .expect("second launch URL should parse")
+            .origin();
 
         assert_eq!(origin_a, origin_b);
         assert!(
             urls_a.entries[0]
                 .url
                 .as_str()
-                .contains("threadId=00000000-0000-0000-0000-0000000005a1")
+                .contains("/task/00000000-0000-0000-0000-0000000005a1#token=")
         );
         assert!(
             urls_b.entries[0]
                 .url
                 .as_str()
-                .contains("threadId=00000000-0000-0000-0000-0000000005b2")
+                .contains("/task/00000000-0000-0000-0000-0000000005b2#token=")
         );
 
         client.shutdown().await.expect("shutdown should complete");

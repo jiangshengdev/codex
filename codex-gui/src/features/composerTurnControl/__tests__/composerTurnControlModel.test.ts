@@ -8,8 +8,8 @@ import {
   isConnectionUsable,
 } from "../composerTurnControlModel";
 
-const attachedStatus: GuiHostStatus = {
-  label: "attached",
+const initializedStatus: GuiHostStatus = {
+  label: "initialized",
 };
 
 describe("composerTurnControlModel", () => {
@@ -17,7 +17,7 @@ describe("composerTurnControlModel", () => {
     expect(
       isConnectionUsable({
         canAdvanceThreadIdentity: true,
-        guiHostStatus: attachedStatus,
+        guiHostStatus: initializedStatus,
         threadId: "thread-1",
         subscriptionState: "active",
       }),
@@ -26,7 +26,7 @@ describe("composerTurnControlModel", () => {
     expect(
       isConnectionUsable({
         canAdvanceThreadIdentity: false,
-        guiHostStatus: attachedStatus,
+        guiHostStatus: initializedStatus,
         threadId: "thread-1",
         subscriptionState: "active",
       }),
@@ -35,7 +35,7 @@ describe("composerTurnControlModel", () => {
     expect(
       isConnectionUsable({
         canAdvanceThreadIdentity: true,
-        guiHostStatus: attachedStatus,
+        guiHostStatus: initializedStatus,
         threadId: null,
         subscriptionState: "active",
       }),
@@ -44,7 +44,7 @@ describe("composerTurnControlModel", () => {
     expect(
       isConnectionUsable({
         canAdvanceThreadIdentity: true,
-        guiHostStatus: attachedStatus,
+        guiHostStatus: initializedStatus,
         threadId: "thread-1",
         subscriptionState: "manualReconnectRequired",
       }),

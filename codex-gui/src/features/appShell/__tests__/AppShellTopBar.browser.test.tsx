@@ -6,8 +6,15 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { THREAD_QUERY_KEY } from "@codex-gui-host-contract";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
+import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
+import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
+import {
+  CURRENT_TASK_ROUTE_PATH,
+  HISTORY_LIST_ROUTE_PATH,
+  type GuiRouteTarget,
+} from "@/features/browserLaunch/guiRouteTarget";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { AppShellTopBar } from "../AppShellTopBar";
@@ -16,31 +23,82 @@ function RoutePlaceholder() {
   return null;
 }
 
-const createTopBarRouter = (initialEntry = "/") => {
-  const rootRoute = createRootRoute({ component: AppShellTopBar });
-  const indexRoute = createRoute({
+const currentThreadId = attachResponse.snapshot.thread.id;
+const otherThreadId = "00000000-0000-0000-0000-000000000099";
+
+const activeOwner = (threadId: string): ActiveThreadOwnerHandle => ({
+  threadId,
+  subscriptionId: `subscription-${threadId}`,
+  projectionOwner: null as never,
+  queueCoordinator: null as never,
+});
+
+const capabilities = ({
+  owner = activeOwner(currentThreadId),
+  routeTarget,
+}: Readonly<{
+  owner?: ActiveThreadOwnerHandle | null;
+  routeTarget: GuiRouteTarget;
+}>): AppCapabilities => ({
+  activeOwner: owner,
+  authorizationToken: null,
+  commands: null,
+  continueThread: null,
+  routeTarget,
+  startupOutcome: null,
+  status: { label: "initialized" },
+});
+
+const renderTopBar = async ({
+  initialEntry,
+  owner,
+  routeTarget,
+}: Readonly<{
+  initialEntry: string;
+  owner?: ActiveThreadOwnerHandle | null;
+  routeTarget: GuiRouteTarget;
+}>) => {
+  const rootRoute = createRootRoute({
+    component: () => (
+      <AppCapabilitiesProvider capabilities={capabilities({ owner, routeTarget })}>
+        <AppShellTopBar />
+      </AppCapabilitiesProvider>
+    ),
+  });
+  const currentTaskRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/",
+    path: CURRENT_TASK_ROUTE_PATH,
     component: RoutePlaceholder,
   });
   const historyRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/history",
+    path: HISTORY_LIST_ROUTE_PATH,
     component: RoutePlaceholder,
   });
 
-  return createRouter({
+  const router = createRouter({
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
-    routeTree: rootRoute.addChildren([indexRoute, historyRoute]),
+    routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute]),
   });
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  return { router, screen };
 };
 
-const runtimeAttach = ({ name, preview }: { name: string | null; preview: string }) => ({
+const runtimeAttach = ({
+  name,
+  preview,
+  threadId = currentThreadId,
+}: {
+  name: string | null;
+  preview: string;
+  threadId?: string;
+}) => ({
   ...attachResponse,
   snapshot: {
     ...attachResponse.snapshot,
     thread: {
       ...attachResponse.snapshot.thread,
+      id: threadId,
       name,
       preview,
     },
@@ -48,8 +106,10 @@ const runtimeAttach = ({ name, preview }: { name: string | null; preview: string
 });
 
 test("top bar is a banner and derives the current task title from name, preview, and fallback", async () => {
-  const router = createTopBarRouter();
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const { screen } = await renderTopBar({
+    initialEntry: `/task/${currentThreadId}`,
+    routeTarget: { type: "currentTask", threadId: currentThreadId },
+  });
 
   await expect.element(screen.getByRole("banner")).toBeVisible();
   await expect
@@ -68,6 +128,15 @@ test("top bar is a banner and derives the current task title from name, preview,
     .element(screen.getByRole("heading", { level: 1, name: "Preview task" }))
     .toBeVisible();
 
+  screen.store.dispatch(
+    threadRuntimeAttached(
+      runtimeAttach({ name: "Stale task", preview: "Stale preview", threadId: otherThreadId }),
+    ),
+  );
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
+    .toBeVisible();
+
   screen.store.dispatch(threadRuntimeAttached(runtimeAttach({ name: null, preview: "" })));
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
@@ -75,8 +144,10 @@ test("top bar is a banner and derives the current task title from name, preview,
 });
 
 test("Drawer exposes named navigation and Escape closes it with focus returned to the trigger", async () => {
-  const router = createTopBarRouter();
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const { screen } = await renderTopBar({
+    initialEntry: `/task/${currentThreadId}`,
+    routeTarget: { type: "currentTask", threadId: currentThreadId },
+  });
   const trigger = screen.getByRole("button", { name: "Menu" });
 
   await trigger.click();
@@ -95,20 +166,31 @@ test("Drawer exposes named navigation and Escape closes it with focus returned t
   await expect.element(trigger).toHaveFocus();
 });
 
-test("navigation preserves the launch thread query between the current task and history", async () => {
-  const launchThreadId = "launch-thread";
-  const router = createTopBarRouter(`/?${THREAD_QUERY_KEY}=${launchThreadId}`);
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
+test("History navigation uses the canonical list URL and closes the Drawer", async () => {
+  const { router, screen } = await renderTopBar({
+    initialEntry: `/task/${currentThreadId}`,
+    routeTarget: { type: "currentTask", threadId: currentThreadId },
+  });
 
   await screen.getByRole("button", { name: "Menu" }).click();
+  const dialog = screen.getByRole("dialog", { name: "Navigation" });
   await screen
     .getByRole("navigation", { name: "Main navigation" })
     .getByRole("button", { name: "History" })
     .click();
 
-  await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
   expect(router.state.location.pathname).toBe("/history");
-  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+  await expect.element(dialog).not.toBeInTheDocument();
+});
+
+test("Current task navigation uses the active owner", async () => {
+  const { router, screen } = await renderTopBar({
+    initialEntry: "/history",
+    owner: activeOwner(currentThreadId),
+    routeTarget: { type: "historyList" },
+  });
 
   await screen.getByRole("button", { name: "Menu" }).click();
   await screen
@@ -116,9 +198,27 @@ test("navigation preserves the launch thread query between the current task and 
     .getByRole("button", { name: "Current task" })
     .click();
 
-  await expect
-    .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
-    .toBeVisible();
-  expect(router.state.location.pathname).toBe("/");
-  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+  expect(router.state.location.pathname).toBe(`/task/${currentThreadId}`);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+});
+
+test("Current task navigation is disabled when no active owner exists", async () => {
+  const { router, screen } = await renderTopBar({
+    initialEntry: "/history",
+    owner: null,
+    routeTarget: { type: "historyList" },
+  });
+
+  screen.store.dispatch(
+    threadRuntimeAttached(runtimeAttach({ name: "Stale task", preview: "Stale preview" })),
+  );
+  await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+  await screen.getByRole("button", { name: "Menu" }).click();
+  const currentTaskButton = screen
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: "Current task" });
+
+  await expect.element(currentTaskButton).toBeDisabled();
+  expect(router.state.location.pathname).toBe("/history");
 });

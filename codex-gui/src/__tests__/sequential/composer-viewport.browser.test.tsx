@@ -14,17 +14,18 @@ import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSli
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 
-const attachedStatus: GuiHostStatus = { label: "attached" };
+const initializedStatus: GuiHostStatus = { label: "initialized" };
 
 async function renderAttached(commandHandle: GuiHostCommands | null = createGuiHostCommands()) {
   const result = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
       <ComposerTurnControl
+        authorizationToken={null}
         commands={commandHandle}
         guardCompositionEndEnter={false}
-        guiHostStatus={attachedStatus}
-        launchParams={null}
+        guiHostStatus={initializedStatus}
+        routeTarget={{ type: "currentTask", threadId: launchThreadId }}
       />
     </>,
   );
