@@ -18,12 +18,12 @@ msgid "... and {count} more"
 msgstr "... and {count} more"
 
 #. placeholder {0}: queueSnapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:216
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:218
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
 #. placeholder {0}: queueSnapshot.queuedCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:206
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:208
 msgid "{0, plural, one {# message queued} other {# messages queued}}"
 msgstr "{0, plural, one {# message queued} other {# messages queued}}"
 
@@ -37,7 +37,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:203
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:205
 msgid "Active"
 msgstr "Active"
 
@@ -46,11 +46,11 @@ msgstr "Active"
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:359
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:431
 msgid "Another task switch is already in progress."
 msgstr "Another task switch is already in progress."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:136
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:189
 msgid "Back to history"
 msgstr "Back to history"
 
@@ -93,16 +93,16 @@ msgstr "Context compressed"
 msgid "Context page {item}"
 msgstr "Context page {item}"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:230
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:232
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:342
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
 msgid "Continue this task"
 msgstr "Continue this task"
 
-#: src/features/appShell/AppShellTopBar.tsx:20
-#: src/features/appShell/AppShellTopBar.tsx:64
+#: src/features/appShell/AppShellTopBar.tsx:28
+#: src/features/appShell/AppShellTopBar.tsx:82
 msgid "Current task"
 msgstr "Current task"
 
@@ -144,20 +144,20 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/appShell/AppShellTopBar.tsx:20
-#: src/features/appShell/AppShellTopBar.tsx:75
+#: src/features/appShell/AppShellTopBar.tsx:28
+#: src/features/appShell/AppShellTopBar.tsx:91
 msgid "History"
 msgstr "History"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:43
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:45
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:124
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:177
 msgid "History detail"
 msgstr "History detail"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:202
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:204
 msgid "Idle"
 msgstr "Idle"
 
@@ -198,31 +198,31 @@ msgstr "Interrupted <0/>"
 msgid "Interrupted."
 msgstr "Interrupted."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:135
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:138
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:110
 msgid "Loading history…"
 msgstr "Loading history…"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:150
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:203
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/appShell/AppShellTopBar.tsx:54
+#: src/features/appShell/AppShellTopBar.tsx:73
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:39
+#: src/features/appShell/AppShellTopBar.tsx:58
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:198
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:200
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:181
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:183
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -230,7 +230,7 @@ msgstr "Message composer"
 #~ msgid "Message failed to send"
 #~ msgstr "Message failed to send"
 
-#: src/features/appShell/AppShellTopBar.tsx:50
+#: src/features/appShell/AppShellTopBar.tsx:69
 msgid "Navigation"
 msgstr "Navigation"
 
@@ -252,7 +252,7 @@ msgstr "No agents completed yet"
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:115
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:118
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
@@ -261,11 +261,11 @@ msgstr "No history for the current working directory."
 msgid "Not found"
 msgstr "Not found"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:201
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:203
 msgid "Not loaded"
 msgstr "Not loaded"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:45
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
@@ -287,15 +287,15 @@ msgstr "Previous"
 msgid "Previous context page"
 msgstr "Previous context page"
 
-#: src/features/qrAccess/QrAccessPopover.tsx:51
+#: src/features/qrAccess/QrAccessPopover.tsx:46
 msgid "QR access is unavailable until the GUI launch token is ready."
 msgstr "QR access is unavailable until the GUI launch token is ready."
 
-#: src/features/qrAccess/QrAccessPopover.tsx:57
+#: src/features/qrAccess/QrAccessPopover.tsx:52
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:144
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:197
 msgid "Read-only history"
 msgstr "Read-only history"
 
@@ -313,12 +313,12 @@ msgstr "Resumed {receiver}"
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:195
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:237
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:251
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:239
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:309
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:380
 msgid "Return to current task"
 msgstr "Return to current task"
 
@@ -327,12 +327,12 @@ msgstr "Return to current task"
 msgid "Running"
 msgstr "Running"
 
-#: src/features/qrAccess/QrAccessPopover.tsx:37
-#: src/features/qrAccess/QrAccessPopover.tsx:47
+#: src/features/qrAccess/QrAccessPopover.tsx:32
+#: src/features/qrAccess/QrAccessPopover.tsx:42
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:255
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
 msgid "Send"
 msgstr "Send"
 
@@ -377,31 +377,31 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/>"
 msgstr "Started <0/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:246
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:248
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:137
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:139
 msgid "Stop failed"
 msgstr "Stop failed"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:204
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:206
 msgid "System error"
 msgstr "System error"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:354
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:426
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:361
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:433
 msgid "The task connection is no longer available."
 msgstr "The task connection is no longer available."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:51
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:58
 msgid "The task connection was closed."
 msgstr "The task connection was closed."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:156
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -415,19 +415,19 @@ msgstr "Transcript context pages"
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:319
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:390
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:228
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:230
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:190
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:246
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
-#: src/features/currentTask/CurrentTaskPage.tsx:27
+#: src/features/currentTask/CurrentTaskPage.tsx:28
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
@@ -435,16 +435,16 @@ msgstr "Unable to load the current task"
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:297
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:362
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:124
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:147
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:177
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:150
 msgid "Untitled task"
 msgstr "Untitled task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:194
 msgid "View"
 msgstr "View"
 
