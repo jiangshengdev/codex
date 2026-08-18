@@ -49,6 +49,23 @@ pub async fn serve_prod_index(config: ProdAssetConfig) -> Response {
     }
 }
 
+pub async fn serve_prod_thread_index(config: ProdAssetConfig, thread_id: String) -> Response {
+    if !is_canonical_thread_id(&thread_id) {
+        return with_security_headers(StatusCode::NOT_FOUND.into_response());
+    }
+
+    serve_prod_index(config).await
+}
+
+fn is_canonical_thread_id(thread_id: &str) -> bool {
+    let bytes = thread_id.as_bytes();
+    bytes.len() == 36
+        && bytes.iter().enumerate().all(|(index, byte)| match index {
+            8 | 13 | 18 | 23 => *byte == b'-',
+            _ => byte.is_ascii_hexdigit(),
+        })
+}
+
 pub async fn proxy_vite(config: DevAssetProxyConfig, request: Request<Body>) -> Response {
     let (parts, _body) = request.into_parts();
     let path_and_query = parts

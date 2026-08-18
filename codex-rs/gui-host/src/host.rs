@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
+use axum::extract::Path;
 use axum::extract::State;
 use axum::http::Request;
 use axum::http::StatusCode;
@@ -22,6 +23,8 @@ use crate::GuiHostMode;
 use crate::GuiLaunchUrls;
 use crate::LaunchToken;
 use crate::assets;
+use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
+use crate::browser_contract::HISTORY_PATH_SEGMENT;
 use crate::browser_contract::WEBSOCKET_PATH;
 use crate::launch_url_for_thread;
 use crate::launch_urls_for_thread;
@@ -137,12 +140,39 @@ where
         GuiHostMode::Prod(config) => {
             assets::prod_dist_dir(config)?;
             let root_config = config.clone();
+            let current_task_config = config.clone();
+            let history_config = config.clone();
+            let history_thread_config = config.clone();
+            let current_task_path = format!("/{CURRENT_TASK_PATH_SEGMENT}/{{thread_id}}");
+            let history_path = format!("/{HISTORY_PATH_SEGMENT}");
+            let history_thread_path = format!("/{HISTORY_PATH_SEGMENT}/{{thread_id}}");
             Ok(Router::new()
                 .route(
                     "/",
                     get(move || {
                         let config = root_config.clone();
                         async move { assets::serve_prod_index(config).await }
+                    }),
+                )
+                .route(
+                    &current_task_path,
+                    get(move |Path(thread_id): Path<String>| {
+                        let config = current_task_config.clone();
+                        async move { assets::serve_prod_thread_index(config, thread_id).await }
+                    }),
+                )
+                .route(
+                    &history_path,
+                    get(move || {
+                        let config = history_config.clone();
+                        async move { assets::serve_prod_index(config).await }
+                    }),
+                )
+                .route(
+                    &history_thread_path,
+                    get(move |Path(thread_id): Path<String>| {
+                        let config = history_thread_config.clone();
+                        async move { assets::serve_prod_thread_index(config, thread_id).await }
                     }),
                 )
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
