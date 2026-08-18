@@ -47,6 +47,15 @@ function rpcParams(request: RpcRequest): Record<string, unknown> {
   return {};
 }
 
+function findRpcRequest(requests: readonly RpcRequest[], method: string): RpcRequest {
+  const request = requests.find((candidate) => candidate.method === method);
+  if (request == null) {
+    throw new Error(`${method} request must be recorded`);
+  }
+
+  return request;
+}
+
 const attachResponse: ThreadProjectionAttachResponse = attachWithTurns(
   {
     ...attachBaseline,
@@ -264,10 +273,7 @@ test("sends plain text through turn/start", async ({ page }) => {
     .poll(() => sentRequests.find((request) => request.method === "turn/start"))
     .toBeTruthy();
 
-  const turnStart = sentRequests.find((request) => request.method === "turn/start");
-  if (turnStart == null) {
-    throw new Error("turn/start request must be recorded");
-  }
+  const turnStart = findRpcRequest(sentRequests, "turn/start");
   const params = rpcParams(turnStart);
   const clientUserMessageId = params.clientUserMessageId;
   expect(typeof clientUserMessageId).toBe("string");
