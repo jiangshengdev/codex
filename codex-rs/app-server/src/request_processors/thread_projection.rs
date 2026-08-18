@@ -217,6 +217,10 @@ impl ThreadRequestProcessor {
             .read_thread_view(thread_id, /*include_turns*/ false)
             .await?;
         let loaded_thread = self.thread_manager.get_thread(thread_id).await.ok();
+        let token_usage = match loaded_thread.as_ref() {
+            Some(thread) => thread.token_usage_info().await.map(Into::into),
+            None => None,
+        };
         let has_live_running_thread = match loaded_thread.as_ref() {
             Some(thread) => matches!(thread.agent_status().await, AgentStatus::Running),
             None => false,
@@ -289,6 +293,7 @@ impl ThreadRequestProcessor {
         Ok(ThreadProjectionSnapshot {
             thread,
             head_commit_id: cut.head_commit_id,
+            token_usage,
         })
     }
 

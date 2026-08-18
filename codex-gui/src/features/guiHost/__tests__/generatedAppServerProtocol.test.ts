@@ -3,6 +3,7 @@ import {
   attachBaseline,
   closedBackpressure,
   eventAgentMessageDelta,
+  eventTokenUsageUpdated,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import { requestDescriptors } from "@/generated/appServerProtocol";
@@ -132,6 +133,7 @@ describe("generated app-server protocol", () => {
 
   it.each([
     ["event", validateV2ThreadProjectionEventNotification, eventTurnStarted],
+    ["token usage event", validateV2ThreadProjectionEventNotification, eventTokenUsageUpdated],
     ["delta", validateV2ThreadProjectionDeltaNotification, eventAgentMessageDelta],
     ["closed", validateV2ThreadProjectionClosedNotification, closedBackpressure],
   ])("validates legal projection %s params", (_, validate, params) => {
@@ -144,5 +146,27 @@ describe("generated app-server protocol", () => {
     ["closed", validateV2ThreadProjectionClosedNotification],
   ])("rejects projection %s params with missing required fields", (_, validate) => {
     expect(validate({})).toBe(false);
+  });
+
+  it("rejects a token usage event with a malformed nested payload", () => {
+    if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
+      throw new Error("fixture must contain a tokenUsageUpdated projection event");
+    }
+
+    expect(
+      validateV2ThreadProjectionEventNotification({
+        ...eventTokenUsageUpdated,
+        event: {
+          ...eventTokenUsageUpdated.event,
+          notification: {
+            ...eventTokenUsageUpdated.event.notification,
+            tokenUsage: {
+              ...eventTokenUsageUpdated.event.notification.tokenUsage,
+              last: null,
+            },
+          },
+        },
+      }),
+    ).toBe(false);
   });
 });

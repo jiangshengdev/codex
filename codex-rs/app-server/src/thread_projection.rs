@@ -503,6 +503,11 @@ fn projection_event_from_notification(
                 notification: notification.clone(),
             })
         }
+        ServerNotification::ThreadTokenUsageUpdated(notification) => {
+            Some(ThreadProjectionEvent::TokenUsageUpdated {
+                notification: notification.clone(),
+            })
+        }
         _ => None,
     }
 }
@@ -545,6 +550,9 @@ mod tests {
     use codex_app_server_protocol::ThreadArchivedNotification;
     use codex_app_server_protocol::ThreadProjectionDelta;
     use codex_app_server_protocol::ThreadProjectionEvent;
+    use codex_app_server_protocol::ThreadTokenUsage;
+    use codex_app_server_protocol::ThreadTokenUsageUpdatedNotification;
+    use codex_app_server_protocol::TokenUsageBreakdown;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnItemsView;
     use codex_app_server_protocol::TurnStartedNotification;
@@ -1237,6 +1245,82 @@ mod tests {
         assert_eq!(
             cut.head_commit_id,
             Some(deliveries[0].event_notification().commit_id.clone())
+        );
+    }
+
+    #[tokio::test]
+    async fn token_usage_snapshot_ahead_event_preserves_commit_chain() {
+        let manager = ThreadProjectionManager::new();
+        let thread_id = ThreadId::new();
+        let connection_id = ConnectionId(1);
+        let generation = manager.capture_current_generation(thread_id).await;
+
+        let existing_event = manager
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-1"))
+            .await;
+        assert_eq!(Vec::<ProjectionDelivery>::new(), existing_event);
+        let cut = manager
+            .capture_snapshot_cut_if_generation_matches(thread_id, generation)
+            .await
+            .expect("generation should still match");
+        assert!(cut.head_commit_id.is_some());
+
+        let snapshot_token_usage = ThreadTokenUsage {
+            total: TokenUsageBreakdown {
+                total_tokens: 120,
+                input_tokens: 100,
+                cached_input_tokens: 20,
+                cache_write_input_tokens: 0,
+                output_tokens: 20,
+                reasoning_output_tokens: 5,
+            },
+            last: TokenUsageBreakdown {
+                total_tokens: 120,
+                input_tokens: 100,
+                cached_input_tokens: 20,
+                cache_write_input_tokens: 0,
+                output_tokens: 20,
+                reasoning_output_tokens: 5,
+            },
+            model_context_window: Some(200_000),
+        };
+        let attach = manager
+            .attach_if_generation_matches(thread_id, connection_id, generation)
+            .await;
+        let ProjectionAttachAttempt::Attached(attach) = attach else {
+            panic!("current generation should attach");
+        };
+        assert_eq!(cut.head_commit_id, attach.head_commit_id);
+
+        let usage_deliveries = manager
+            .project_notification(
+                thread_id,
+                &ServerNotification::ThreadTokenUsageUpdated(ThreadTokenUsageUpdatedNotification {
+                    thread_id: thread_id.to_string(),
+                    turn_id: "turn-1".to_string(),
+                    token_usage: snapshot_token_usage.clone(),
+                }),
+            )
+            .await;
+        let [usage_delivery] = usage_deliveries.as_slice() else {
+            panic!("token usage update should produce one projection delivery");
+        };
+        let usage_event = usage_delivery.event_notification();
+        assert_eq!(cut.head_commit_id, usage_event.parent_commit_id);
+        let ThreadProjectionEvent::TokenUsageUpdated { notification } = &usage_event.event else {
+            panic!("expected token usage projection event");
+        };
+        assert_eq!(snapshot_token_usage, notification.token_usage);
+
+        let next_deliveries = manager
+            .project_notification(thread_id, &turn_started_notification(thread_id, "turn-2"))
+            .await;
+        let [next_delivery] = next_deliveries.as_slice() else {
+            panic!("next structural event should produce one projection delivery");
+        };
+        assert_eq!(
+            Some(usage_event.commit_id.clone()),
+            next_delivery.event_notification().parent_commit_id
         );
     }
 

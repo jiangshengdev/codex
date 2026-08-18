@@ -5051,6 +5051,26 @@
           ],
           "title": "ItemCompletedThreadProjectionEvent",
           "type": "object"
+        },
+        {
+          "properties": {
+            "notification": {
+              "$ref": "#/definitions/ThreadTokenUsageUpdatedNotification"
+            },
+            "type": {
+              "enum": [
+                "tokenUsageUpdated"
+              ],
+              "title": "TokenUsageUpdatedThreadProjectionEventType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "notification",
+            "type"
+          ],
+          "title": "TokenUsageUpdatedThreadProjectionEvent",
+          "type": "object"
         }
       ]
     },

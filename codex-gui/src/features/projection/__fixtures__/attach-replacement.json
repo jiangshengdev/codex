@@ -48,6 +48,7 @@
         }
       ]
     },
-    "headCommitId": "commit-replacement-head"
+    "headCommitId": "commit-replacement-head",
+    "tokenUsage": null
   }
 }

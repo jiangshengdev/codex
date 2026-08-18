@@ -6,6 +6,7 @@ import {
   eventItemStarted,
   eventReasoningItemStarted,
   eventReasoningSummaryTextDelta,
+  eventTokenUsageUpdated,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
@@ -30,6 +31,7 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
+  selectThreadRuntimeActiveTurnId,
   threadRuntimeAttached,
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
@@ -45,6 +47,23 @@ import {
 } from "../transcriptStateSlice";
 
 describe("transcript state committed projection reducer", () => {
+  it("ignores token usage updates before transcript dedupe and scroll commits", () => {
+    const store = makeStore();
+
+    store.dispatch(threadRuntimeAttached(attachBaseline));
+    const transcriptBefore = store.getState().transcriptState;
+    const activeTurnIdBefore = selectThreadRuntimeActiveTurnId(store.getState());
+    const scrollCommitKeyBefore = selectCommittedTranscriptScrollCommitKey(store.getState());
+
+    store.dispatch(
+      threadRuntimeEventBuffered({ notification: eventTokenUsageUpdated, replay: "live" }),
+    );
+
+    expect(store.getState().transcriptState).toBe(transcriptBefore);
+    expect(selectThreadRuntimeActiveTurnId(store.getState())).toBe(activeTurnIdBefore);
+    expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(scrollCommitKeyBefore);
+  });
+
   it("preserves assistant message phase in stored live completions while projecting views", () => {
     const store = makeStore();
 
@@ -137,7 +156,11 @@ describe("transcript state committed projection reducer", () => {
         type: "subAgentActivity",
         id: activity.id,
         turnId,
-        title: { kind: "agentStarted", agentPath: "agents/implementer" },
+        title: {
+          kind: "agentStarted",
+          agentThreadId: "agent-thread-id",
+          agentPath: "agents/implementer",
+        },
         details: [],
         revision: 0,
       },

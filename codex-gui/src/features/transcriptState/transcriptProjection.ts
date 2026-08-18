@@ -44,6 +44,10 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
         return;
       }
 
+      if (notification.event.type === "tokenUsageUpdated") {
+        return;
+      }
+
       if (hasAppliedTranscriptEvent(state, notification.commitId)) {
         return;
       }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   eventItemCompleted,
   eventItemStarted,
+  eventTokenUsageUpdated,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
@@ -63,5 +64,9 @@ describe("runtimeObservationFromAcceptedProjectionEvent", () => {
     });
     expect(adapt({ notification: eventItemCompleted, replay: "live" })).toBeNull();
     expect(adapt({ notification: eventItemStarted, replay: "live" })).toBeNull();
+  });
+
+  it("does not expose token usage updates to the queue owner", () => {
+    expect(adapt({ notification: eventTokenUsageUpdated, replay: "live" })).toBeNull();
   });
 });

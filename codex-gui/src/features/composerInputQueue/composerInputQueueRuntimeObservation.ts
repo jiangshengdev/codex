@@ -23,6 +23,7 @@ export function runtimeObservationFromAcceptedProjectionEvent(
         : null;
     }
     case "itemCompleted":
+    case "tokenUsageUpdated":
       return null;
   }
   event satisfies never;

@@ -174,9 +174,9 @@ test("uses reasoning as an activity-group boundary without changing event order"
   dispatchEvent(store, itemCompleted(eventItemCompleted, "commit-after-reasoning", turnId, after));
 
   const turn = screen.getByRole("article", { name: `Turn ${turnId}` });
-  const beforeArticle = turn.getByRole("article", { name: "Started agents/before" });
+  const beforeArticle = turn.getByRole("article", { name: "Started Before" });
   const status = turn.getByRole("status");
-  const afterArticle = turn.getByRole("article", { name: "Interrupted agents/after" });
+  const afterArticle = turn.getByRole("article", { name: "Interrupted After" });
   await expect.element(beforeArticle).toBeVisible();
   await expect.element(status).toHaveTextContent("Reasoning boundary");
   await expect.element(afterArticle).toBeVisible();

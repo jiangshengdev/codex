@@ -247,6 +247,31 @@ export const eventForThreadOwner = (
   event: projectionPayloadForThread(event.event, owner.threadId),
 });
 
+type TokenUsageUpdatedEvent = Extract<
+  ThreadProjectionEventNotification["event"],
+  { type: "tokenUsageUpdated" }
+>;
+
+export const tokenUsageUpdated = (
+  eventTokenUsageUpdated: ThreadProjectionEventNotification,
+  tokenUsage: TokenUsageUpdatedEvent["notification"]["tokenUsage"],
+): ThreadProjectionEventNotification => {
+  if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
+    throw new Error("fixture must contain a tokenUsageUpdated projection event");
+  }
+
+  return {
+    ...eventTokenUsageUpdated,
+    event: {
+      ...eventTokenUsageUpdated.event,
+      notification: {
+        ...eventTokenUsageUpdated.event.notification,
+        tokenUsage,
+      },
+    },
+  };
+};
+
 type DeltaEnvelopeOverrides = {
   threadId?: ThreadProjectionDeltaNotification["threadId"];
   subscriptionId?: ThreadProjectionDeltaNotification["subscriptionId"];
