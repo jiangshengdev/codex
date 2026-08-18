@@ -32,7 +32,7 @@ msgstr "{0, plural, one {# message queued} other {# messages queued}}"
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:51
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:50
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -41,11 +41,11 @@ msgstr "{percentageLabel} used"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:53
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:46
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:45
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
@@ -106,7 +106,7 @@ msgid "Context page {item}"
 msgstr "Context page {item}"
 
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:24
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:41
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:40
 msgid "Context usage"
 msgstr "Context usage"
 

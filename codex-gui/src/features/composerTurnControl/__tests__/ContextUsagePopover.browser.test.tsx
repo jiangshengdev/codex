@@ -28,7 +28,8 @@ describe("ContextUsagePopover", () => {
     });
 
     await expect.element(trigger).toBeVisible();
-    await expect.element(trigger).toHaveTextContent("149k");
+    expect(trigger.element().textContent).toBe("");
+    expect(trigger.element().textContent).not.toMatch(/149k|58%/);
     await trigger.click();
 
     const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
@@ -61,18 +62,20 @@ describe("ContextUsagePopover", () => {
 
   it("renders unknown capacity as indeterminate without inventing zero percent", async () => {
     const usage = {
-      usedTokens: 149_000,
+      usedTokens: 32_000,
       modelContextWindow: null,
       percentage: null,
-      usedTokensCompact: "149k",
+      usedTokensCompact: "32k",
       modelContextWindowCompact: null,
     } satisfies ContextUsageModel;
     const screen = await renderWithProviders(<ContextUsagePopover usage={usage} />);
     const trigger = screen.getByRole("button", {
-      name: "Context usage details, 149k tokens used, context window capacity unknown",
+      name: "Context usage details, 32k tokens used, context window capacity unknown",
       exact: true,
     });
     await expect.element(trigger).toBeVisible();
+    expect(trigger.element().textContent).toBe("");
+    expect(trigger.element().textContent).not.toMatch(/32k|—%/);
     const progressCircle = progressCircleFor(trigger.element());
 
     expect(progressCircle.hasAttribute("aria-valuenow")).toBe(false);
@@ -81,7 +84,7 @@ describe("ContextUsagePopover", () => {
     const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
     await expect
       .element(
-        dialog.getByText("149k tokens used; context window capacity unknown", { exact: true }),
+        dialog.getByText("32k tokens used; context window capacity unknown", { exact: true }),
       )
       .toBeVisible();
     expect(dialog.element().textContent).not.toContain("0%");
@@ -101,6 +104,8 @@ describe("ContextUsagePopover", () => {
       exact: true,
     });
 
+    expect(trigger.element().textContent).toBe("");
+    expect(trigger.element().textContent).not.toMatch(/300k|100%/);
     await trigger.click();
 
     const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
@@ -120,6 +125,8 @@ describe("ContextUsagePopover", () => {
     });
 
     await expect.element(trigger).toBeVisible();
+    expect(trigger.element().textContent).toBe("");
+    expect(trigger.element().textContent).not.toMatch(/149k|58%/);
     await trigger.click();
 
     const dialog = screen.getByRole("dialog", { name: "上下文用量", exact: true });
@@ -142,6 +149,8 @@ describe("ContextUsagePopover", () => {
       exact: true,
     });
     await expect.element(trigger).toBeVisible();
+    expect(trigger.element().textContent).toBe("");
+    expect(trigger.element().textContent).not.toMatch(/255k|99%/);
     const progressCircle = progressCircleFor(trigger.element());
     const hiddenPresentation = progressCircle.closest('[aria-hidden="true"]');
     if (hiddenPresentation == null) {

@@ -32,7 +32,7 @@ msgstr "{0, plural, one {已排队 # 条} other {已排队 # 条}}"
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更新 · # 项}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:51
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:50
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} 已用"
 
@@ -41,11 +41,11 @@ msgstr "{percentageLabel} 已用"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}：{agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:53
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:46
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:45
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
@@ -106,7 +106,7 @@ msgid "Context page {item}"
 msgstr "上下文第 {item} 页"
 
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:24
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:41
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:40
 msgid "Context usage"
 msgstr "上下文用量"
 

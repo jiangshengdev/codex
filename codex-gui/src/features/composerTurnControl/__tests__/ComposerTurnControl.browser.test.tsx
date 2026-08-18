@@ -199,6 +199,8 @@ test("shows attached context usage and opens its details", async () => {
   });
 
   await expect.element(contextUsageButton).toBeVisible();
+  expect(contextUsageButton.element().textContent).toBe("");
+  expect(contextUsageButton.element().textContent).not.toMatch(/120|0%/);
   await contextUsageButton.click();
 
   const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
@@ -233,6 +235,8 @@ test("updates context usage from live runtime events", async () => {
     exact: true,
   });
   await expect.element(contextUsageButton).toBeVisible();
+  expect(contextUsageButton.element().textContent).toBe("");
+  expect(contextUsageButton.element().textContent).not.toMatch(/149k|58%/);
   await contextUsageButton.click();
 
   const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
@@ -293,7 +297,7 @@ test("renders a white composer panel with a primary textarea and actions", async
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
-  expect(actions).toEqual(["120", "Stop", "Send"]);
+  expect(actions).toEqual(["Stop", "Send"]);
 });
 
 test("submits a non-empty draft through the queue controller and clears it when accepted", async () => {

@@ -18,7 +18,7 @@ export function ContextUsagePopover({ usage }: ContextUsagePopoverProps) {
 
   return (
     <Popover>
-      <Button aria-label={accessibleLabel} size="sm" variant="tertiary">
+      <Button aria-label={accessibleLabel} isIconOnly size="sm" variant="ghost">
         <span aria-hidden="true">
           <ProgressCircle
             aria-label={t`Context usage`}
@@ -33,14 +33,13 @@ export function ContextUsagePopover({ usage }: ContextUsagePopoverProps) {
             </ProgressCircle.Track>
           </ProgressCircle>
         </span>
-        <span>{usedTokensLabel}</span>
       </Button>
       <Popover.Content placement="top">
         <Popover.Dialog>
           <Popover.Heading>
             <Trans>Context usage</Trans>
           </Popover.Heading>
-          <div className="grid gap-1">
+          <div className="mt-2 grid gap-1 text-sm text-muted">
             {percentageLabel == null || contextWindowLabel == null ? (
               <p>
                 <Trans>{usedTokensLabel} tokens used; context window capacity unknown</Trans>
