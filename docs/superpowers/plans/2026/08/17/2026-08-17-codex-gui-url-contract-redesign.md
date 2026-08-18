@@ -472,6 +472,18 @@ git commit -m 'fix(gui): activate tasks from read-only history'
 
 ## Task 7：原子切换导航与 route-aware 二维码
 
+### 2026-08-18 范围扩大
+
+Task 7 额外纳入以下 3 个直接依赖测试文件：
+
+- `codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
+- `codex-gui/src/__tests__/sequential/composer-viewport.browser.test.tsx`
+- `codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
+
+范围扩大原因：三者仍使用已删除的 GUI Host status `attached`；后两个文件还必须随 Task 7 从旧
+`launchParams` prop 直接迁移到 `routeTarget` + `authorizationToken`。本次只迁移对应 fixture 与 prop，
+不扩大 Composer queue/control 产品语义，也不新增或保留兼容字段。
+
 ### 修改
 
 - Topbar 当前任务导航从 active owner 构造 `/task/<id>`；纯只读外部会话没有 active owner 时，该导航项
@@ -488,8 +500,9 @@ git commit -m 'fix(gui): activate tasks from read-only history'
 ### 测试
 
 ```bash
-/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/qrAccess/__tests__/qrAccessUrl.test.ts
-/opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:parallel -- src/features/qrAccess/__tests__/QrAccessPopover.browser.test.tsx src/features/appShell/__tests__/AppShellTopBar.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryListPage.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryDetailPage.browser.test.tsx src/__tests__/AppRouting.browser.test.tsx src/__tests__/App.browser.test.tsx
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/qrAccess/__tests__/qrAccessUrl.test.ts src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:parallel -- src/features/qrAccess/__tests__/QrAccessPopover.browser.test.tsx src/features/appShell/__tests__/AppShellTopBar.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryListPage.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryDetailPage.browser.test.tsx src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx src/__tests__/AppRouting.browser.test.tsx src/__tests__/App.browser.test.tsx
+/opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:sequential -- src/__tests__/sequential/composer-viewport.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
 ```
 
