@@ -1,3 +1,5 @@
+use anyhow::Context;
+use anyhow::Result;
 use codex_gui_host::AuthenticatedGuiConnection;
 use codex_gui_host::GuiBackend;
 use codex_gui_host::GuiHost;
@@ -74,8 +76,8 @@ async fn prod_serves_hashed_asset_from_package_root() {
 }
 
 #[tokio::test]
-async fn prod_known_spa_routes_serve_index() {
-    let (package_root, handle) = start_test_prod_host().await;
+async fn prod_known_spa_routes_serve_index() -> Result<()> {
+    let (package_root, handle) = start_test_prod_host().await?;
 
     for path in [
         format!("/task/{THREAD_ID}"),
@@ -85,16 +87,17 @@ async fn prod_known_spa_routes_serve_index() {
         let response = reqwest::get(format!("{}{path}", local_origin(&handle)))
             .await
             .expect("SPA route request should succeed");
-        assert_index_response(response).await;
+        assert_index_response(response).await?;
     }
 
     handle.shutdown().await;
     drop(package_root);
+    Ok(())
 }
 
 #[tokio::test]
-async fn prod_unknown_asset_returns_not_found() {
-    let (package_root, handle) = start_test_prod_host().await;
+async fn prod_unknown_asset_returns_not_found() -> Result<()> {
+    let (package_root, handle) = start_test_prod_host().await?;
     let origin = local_origin(&handle);
 
     let asset_response = reqwest::get(format!("{origin}/assets/index-abc123.js"))
@@ -133,24 +136,25 @@ async fn prod_unknown_asset_returns_not_found() {
 
     handle.shutdown().await;
     drop(package_root);
+    Ok(())
 }
 
-async fn start_test_prod_host() -> (tempfile::TempDir, codex_gui_host::GuiHostHandle) {
-    let package_root = tempfile::tempdir().expect("tempdir should be created");
+async fn start_test_prod_host() -> Result<(tempfile::TempDir, codex_gui_host::GuiHostHandle)> {
+    let package_root = tempfile::tempdir().context("tempdir should be created")?;
     let dist_dir = package_root.path().join("dist");
     let assets_dir = dist_dir.join("assets");
     tokio::fs::create_dir_all(&assets_dir)
         .await
-        .expect("assets dir should be created");
+        .context("assets dir should be created")?;
     tokio::fs::write(dist_dir.join("index.html"), INDEX_HTML)
         .await
-        .expect("index should be written");
+        .context("index should be written")?;
     tokio::fs::write(
         assets_dir.join("index-abc123.js"),
         "console.log('prod hashed asset');\n",
     )
     .await
-    .expect("hashed asset should be written");
+    .context("hashed asset should be written")?;
 
     let handle = GuiHost::start(
         GuiHostConfig {
@@ -161,41 +165,42 @@ async fn start_test_prod_host() -> (tempfile::TempDir, codex_gui_host::GuiHostHa
         NoopBackend,
     )
     .await
-    .expect("host should start");
+    .context("host should start")?;
 
-    (package_root, handle)
+    Ok((package_root, handle))
 }
 
-async fn assert_index_response(response: reqwest::Response) {
+async fn assert_index_response(response: reqwest::Response) -> Result<()> {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         response
             .headers()
             .get("content-type")
-            .expect("content-type header should be present"),
+            .context("content-type header should be present")?,
         "text/html; charset=utf-8"
     );
     assert_eq!(
         response
             .headers()
             .get("x-frame-options")
-            .expect("x-frame-options header should be present"),
+            .context("x-frame-options header should be present")?,
         "DENY"
     );
     assert_eq!(
         response
             .headers()
             .get("content-security-policy")
-            .expect("content-security-policy header should be present"),
+            .context("content-security-policy header should be present")?,
         "frame-ancestors 'none'"
     );
     assert_eq!(
         response
             .text()
             .await
-            .expect("index body should be readable"),
+            .context("index body should be readable")?,
         INDEX_HTML
     );
+    Ok(())
 }
 
 fn first_module_script_src(html: &str) -> Option<String> {

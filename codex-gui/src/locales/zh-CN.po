@@ -167,11 +167,6 @@ msgid "In progress"
 msgstr "进行中"
 
 #. Activity showing the raw path of a sub-agent that was contacted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:183
-#~ msgid "Interacted with `{agentPath}`"
-#~ msgstr "已与 `{agentPath}` 交互"
-
-#. Activity showing the raw path of a sub-agent that was contacted
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:326
 msgid "Interacted with <0/>"
 msgstr "已与<0/>交互"
@@ -182,11 +177,6 @@ msgstr "已与<0/>交互"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:741
 msgid "Interrupted"
 msgstr "已中断"
-
-#. Activity showing the raw path of a sub-agent that was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:190
-#~ msgid "Interrupted `{agentPath}`"
-#~ msgstr "已中断 `{agentPath}`"
 
 #. Activity showing the raw path of a sub-agent that was interrupted
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:334
@@ -225,10 +215,6 @@ msgstr "向 Codex 发送消息"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:183
 msgid "Message composer"
 msgstr "消息输入区"
-
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:85
-#~ msgid "Message failed to send"
-#~ msgstr "消息发送失败"
 
 #: src/features/appShell/AppShellTopBar.tsx:69
 msgid "Navigation"
@@ -366,11 +352,6 @@ msgstr "已启动 {receiver}（{model} {reasoningEffort}）"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:261
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "已启动 {receiver}（{reasoningEffort}）"
-
-#. Activity showing the raw path of a sub-agent that started
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:176
-#~ msgid "Started `{agentPath}`"
-#~ msgstr "已启动 `{agentPath}`"
 
 #. Activity showing the raw path of a sub-agent that started
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:318

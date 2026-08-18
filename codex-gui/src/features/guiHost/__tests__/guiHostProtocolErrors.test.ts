@@ -217,9 +217,9 @@ describe("guiHostClient protocol errors", () => {
     socket.onmessage?.({ data: "{" });
 
     await expect(pending).rejects.toThrow("GUI host WebSocket is not available");
-    await expect(
-      commands.attachThreadProjection({ threadId: "thread-1" }),
-    ).rejects.toThrow("GUI host WebSocket is not available");
+    await expect(commands.attachThreadProjection({ threadId: "thread-1" })).rejects.toThrow(
+      "GUI host WebSocket is not available",
+    );
     expect(commandsUnavailable).toEqual(["unavailable"]);
     expect(socket.closed).toEqual([{ code: 1000, reason: "invalid message" }]);
   });
