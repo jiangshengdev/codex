@@ -18,12 +18,12 @@ msgid "... and {count} more"
 msgstr "…另有 {count} 项"
 
 #. placeholder {0}: queueSnapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:218
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:223
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
 
 #. placeholder {0}: queueSnapshot.queuedCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:208
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:213
 msgid "{0, plural, one {# message queued} other {# messages queued}}"
 msgstr "{0, plural, one {已排队 # 条} other {已排队 # 条}}"
 
@@ -32,10 +32,22 @@ msgstr "{0, plural, one {已排队 # 条} other {已排队 # 条}}"
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更新 · # 项}}"
 
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:51
+msgid "{percentageLabel} used"
+msgstr "{percentageLabel} 已用"
+
 #. Activity detail showing a raw collaborating-agent thread ID followed by its translated status
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:200
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}：{agentState}"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
+msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
+msgstr "已用 {usedTokensLabel} tokens，共 {contextWindowLabel}"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:46
+msgid "{usedTokensLabel} tokens used; context window capacity unknown"
+msgstr "已用 {usedTokensLabel} tokens；上下文窗口容量未知"
 
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:205
 msgid "Active"
@@ -93,7 +105,20 @@ msgstr "上下文已压缩"
 msgid "Context page {item}"
 msgstr "上下文第 {item} 页"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:232
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:24
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:41
+msgid "Context usage"
+msgstr "上下文用量"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:17
+msgid "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
+msgstr "上下文用量详情，已用 {percentageLabel}，{usedTokensLabel} / {contextWindowLabel}"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:16
+msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
+msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗口容量未知"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:237
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -208,11 +233,11 @@ msgstr "主导航"
 msgid "Menu"
 msgstr "菜单"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:200
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:183
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
 msgid "Message composer"
 msgstr "消息输入区"
 
@@ -318,7 +343,7 @@ msgstr "运行中"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:263
 msgid "Send"
 msgstr "发送"
 
@@ -358,11 +383,11 @@ msgstr "已启动 {receiver}（{reasoningEffort}）"
 msgid "Started <0/>"
 msgstr "已启动<0/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:248
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:254
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:139
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:144
 msgid "Stop failed"
 msgstr "停止失败"
 

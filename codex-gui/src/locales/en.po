@@ -18,12 +18,12 @@ msgid "... and {count} more"
 msgstr "... and {count} more"
 
 #. placeholder {0}: queueSnapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:218
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:223
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
 #. placeholder {0}: queueSnapshot.queuedCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:208
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:213
 msgid "{0, plural, one {# message queued} other {# messages queued}}"
 msgstr "{0, plural, one {# message queued} other {# messages queued}}"
 
@@ -32,10 +32,22 @@ msgstr "{0, plural, one {# message queued} other {# messages queued}}"
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:51
+msgid "{percentageLabel} used"
+msgstr "{percentageLabel} used"
+
 #. Activity detail showing a raw collaborating-agent thread ID followed by its translated status
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:200
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
+msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
+msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:46
+msgid "{usedTokensLabel} tokens used; context window capacity unknown"
+msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:205
 msgid "Active"
@@ -93,7 +105,20 @@ msgstr "Context compressed"
 msgid "Context page {item}"
 msgstr "Context page {item}"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:232
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:24
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:41
+msgid "Context usage"
+msgstr "Context usage"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:17
+msgid "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
+msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:16
+msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
+msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:237
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -208,11 +233,11 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:200
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:183
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -318,7 +343,7 @@ msgstr "Running"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:257
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:263
 msgid "Send"
 msgstr "Send"
 
@@ -358,11 +383,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/>"
 msgstr "Started <0/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:248
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:254
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:139
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:144
 msgid "Stop failed"
 msgstr "Stop failed"
 

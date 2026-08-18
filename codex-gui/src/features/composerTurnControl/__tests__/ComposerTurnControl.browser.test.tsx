@@ -11,8 +11,11 @@ import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostC
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import {
   attachBaseline,
+  attachReplacement,
+  eventTokenUsageUpdated,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
+import { tokenUsageUpdated } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
@@ -185,6 +188,71 @@ test("disables controls before attach", async () => {
   );
 
   await expectComposerDisabled(screen);
+  expect(screen.container.querySelector('[aria-label^="Context usage details"]')).toBeNull();
+});
+
+test("shows attached context usage and opens its details", async () => {
+  const screen = await renderAttached();
+  const contextUsageButton = screen.getByRole("button", {
+    name: "Context usage details, 0% used, 120 of 258k tokens",
+    exact: true,
+  });
+
+  await expect.element(contextUsageButton).toBeVisible();
+  await contextUsageButton.click();
+
+  const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+  await expect.element(dialog).toBeVisible();
+  await expect.element(dialog.getByText("0% used", { exact: true })).toBeVisible();
+  await expect.element(dialog.getByText("120 tokens used of 258k", { exact: true })).toBeVisible();
+});
+
+test("updates context usage from live runtime events", async () => {
+  if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
+    throw new Error("fixture must contain a tokenUsageUpdated projection event");
+  }
+  const screen = await renderAttached();
+  const nextTokenUsage = {
+    ...eventTokenUsageUpdated.event.notification.tokenUsage,
+    last: {
+      ...eventTokenUsageUpdated.event.notification.tokenUsage.last,
+      totalTokens: 149_000,
+    },
+    modelContextWindow: 258_000,
+  };
+
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({
+      notification: tokenUsageUpdated(eventTokenUsageUpdated, nextTokenUsage),
+      replay: "live",
+    }),
+  );
+
+  const contextUsageButton = screen.getByRole("button", {
+    name: "Context usage details, 58% used, 149k of 258k tokens",
+    exact: true,
+  });
+  await expect.element(contextUsageButton).toBeVisible();
+  await contextUsageButton.click();
+
+  const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
+  await expect.element(dialog.getByText("58% used", { exact: true })).toBeVisible();
+  await expect.element(dialog.getByText("149k tokens used of 258k", { exact: true })).toBeVisible();
+});
+
+test("clears context usage when a replacement attach has no usage", async () => {
+  const screen = await renderAttached();
+  const contextUsageButton = screen.getByRole("button", {
+    name: "Context usage details, 0% used, 120 of 258k tokens",
+    exact: true,
+  });
+  await expect.element(contextUsageButton).toBeVisible();
+
+  screen.store.dispatch(threadRuntimeAttached(attachReplacement));
+
+  await expect
+    .poll(() => screen.container.querySelector('[aria-label^="Context usage details"]'))
+    .toBeNull();
 });
 
 test("renders a white composer panel with a primary textarea and actions", async () => {
@@ -225,7 +293,7 @@ test("renders a white composer panel with a primary textarea and actions", async
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
-  expect(actions).toEqual(["Stop", "Send"]);
+  expect(actions).toEqual(["120", "Stop", "Send"]);
 });
 
 test("submits a non-empty draft through the queue controller and clears it when accepted", async () => {

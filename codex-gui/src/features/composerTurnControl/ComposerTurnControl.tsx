@@ -21,7 +21,9 @@ import {
   selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeSubscriptionState,
   selectThreadRuntimeThreadId,
+  selectThreadRuntimeTokenUsage,
 } from "@/features/threadRuntime/threadRuntimeSlice";
+import { ContextUsagePopover } from "./ContextUsagePopover";
 import {
   canRecoverComposerQueue,
   canSend,
@@ -29,6 +31,7 @@ import {
   errorDescription,
   isConnectionUsable,
 } from "./composerTurnControlModel";
+import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
@@ -61,6 +64,8 @@ export function ComposerTurnControl({
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
   const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
+  const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
+  const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
   const queueSnapshot = useSyncExternalStore(
     composerInputQueueController?.subscribe ?? subscribeUnavailableQueue,
     composerInputQueueController?.getSnapshot ?? getUnavailableQueueSnapshot,
@@ -238,6 +243,7 @@ export function ComposerTurnControl({
         <div className="flex items-center justify-between gap-2">
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <div className="flex items-center gap-2">
+            {contextUsage == null ? null : <ContextUsagePopover usage={contextUsage} />}
             <Button
               isDisabled={!stopEnabled}
               onPress={() => {
