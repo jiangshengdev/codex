@@ -14,10 +14,7 @@ export class BrowserAuthorizationSession {
   private readonly storage: AuthorizationSessionStorage;
   private snapshot: BrowserAuthorizationSessionSnapshot;
 
-  constructor(
-    storage: AuthorizationSessionStorage,
-    snapshot: BrowserAuthorizationSessionSnapshot,
-  ) {
+  constructor(storage: AuthorizationSessionStorage, snapshot: BrowserAuthorizationSessionSnapshot) {
     this.storage = storage;
     this.snapshot = snapshot;
   }
@@ -70,11 +67,7 @@ export function consumeBrowserAuthorizationSession({
 
 function readSessionStorage(): AuthorizationSessionStorage {
   try {
-    const storage = globalThis.sessionStorage;
-    if (storage == null) {
-      throw new Error("sessionStorage is unavailable");
-    }
-    return storage;
+    return globalThis.sessionStorage;
   } catch (error: unknown) {
     throw new Error("Browser authorization session storage is unavailable", { cause: error });
   }
@@ -123,7 +116,7 @@ function parseStoredSession(value: unknown): BrowserAuthorizationSessionSnapshot
   return {
     token: record.token,
     activeThreadId: hasActiveThreadId ? (record.activeThreadId as string) : null,
-  } as BrowserAuthorizationSessionSnapshot;
+  };
 }
 
 function readHistoryState(): unknown {

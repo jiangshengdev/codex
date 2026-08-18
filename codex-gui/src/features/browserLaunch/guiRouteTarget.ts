@@ -1,8 +1,5 @@
-import type { MakeRouteMatchUnion, RegisteredRouter } from "@tanstack/react-router";
-import {
-  CURRENT_TASK_PATH_SEGMENT,
-  HISTORY_PATH_SEGMENT,
-} from "@codex-gui-host-contract";
+import type { MakeRouteMatchUnion } from "@tanstack/react-router";
+import { CURRENT_TASK_PATH_SEGMENT, HISTORY_PATH_SEGMENT } from "@codex-gui-host-contract";
 
 export const CURRENT_TASK_ROUTE_PATH = `/${CURRENT_TASK_PATH_SEGMENT}/$threadId` as const;
 export const HISTORY_LIST_ROUTE_PATH = `/${HISTORY_PATH_SEGMENT}` as const;
@@ -15,11 +12,9 @@ export type GuiRouteTarget =
   | Readonly<{ type: "historyList" }>
   | Readonly<{ type: "historyDetail"; threadId: string }>;
 
-type GuiRouteMatch = MakeRouteMatchUnion<RegisteredRouter>;
+type GuiRouteMatch = MakeRouteMatchUnion;
 
-export function selectGuiRouteTarget(
-  matches: ReadonlyArray<GuiRouteMatch>,
-): GuiRouteTarget | null {
+export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRouteTarget | null {
   if (
     matches.some(
       (match) =>

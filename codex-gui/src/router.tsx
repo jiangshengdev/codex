@@ -3,24 +3,20 @@ import {
   createRoute,
   createRouter,
   notFound,
-  SearchParamError,
-  type ErrorComponentProps,
   type RouterHistory,
-  useMatches,
 } from "@tanstack/react-router";
 import { NotFoundPage } from "./NotFoundPage";
-import App from "./App";
 import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_DETAIL_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
   isValidThreadId,
-  selectGuiRouteTarget,
   validateEmptyRouteSearch,
 } from "./features/browserLaunch/guiRouteTarget";
 import { CurrentTaskPage } from "./features/currentTask/CurrentTaskPage";
 import { ThreadHistoryDetailPage } from "./features/threadHistory/ThreadHistoryDetailPage";
 import { ThreadHistoryListPage } from "./features/threadHistory/ThreadHistoryListPage";
+import { AppRouteBoundary, RootRouteError } from "./routerComponents";
 
 const rootRoute = createRootRoute({
   errorComponent: RootRouteError,
@@ -28,24 +24,12 @@ const rootRoute = createRootRoute({
   validateSearch: validateEmptyRouteSearch,
 });
 
-function RootRouteError({ error }: ErrorComponentProps) {
-  if (error instanceof SearchParamError) {
-    return <NotFoundPage />;
-  }
-  throw error;
-}
-
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "app",
   component: AppRouteBoundary,
   notFoundComponent: NotFoundPage,
 });
-
-function AppRouteBoundary() {
-  const target = useMatches({ select: selectGuiRouteTarget });
-  return target == null ? <NotFoundPage /> : <App routeTarget={target} />;
-}
 
 const currentTaskRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -69,7 +53,7 @@ const historyDetailRoute = createRoute({
 
 function parseThreadIdParams(params: Readonly<{ threadId: string }>): { threadId: string } {
   if (!isValidThreadId(params.threadId)) {
-    throw notFound({ routeId: rootRoute.id });
+    return notFound({ routeId: rootRoute.id, throw: true }) as never;
   }
   return { threadId: params.threadId };
 }

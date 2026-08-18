@@ -178,7 +178,11 @@ describe("consumeBrowserAuthorizationSession", () => {
     const committed = { snapshot: session.getSnapshot(), stored: storage.onlyStoredRecord() };
     session.clearActiveThread();
 
-    expect({ committed, cleared: session.getSnapshot(), stored: storage.onlyStoredRecord() }).toEqual({
+    expect({
+      committed,
+      cleared: session.getSnapshot(),
+      stored: storage.onlyStoredRecord(),
+    }).toEqual({
       committed: {
         snapshot: { token: "secret", activeThreadId: secondThreadId },
         stored: { token: "secret", activeThreadId: secondThreadId },
@@ -192,10 +196,22 @@ describe("consumeBrowserAuthorizationSession", () => {
     [null, "Missing launch token fragment"],
     ["not-json", "Stored browser authorization session is malformed"],
     [JSON.stringify({ token: "" }), "Stored browser authorization session is malformed"],
-    [JSON.stringify({ token: "secret", activeThreadId: "" }), "Stored browser authorization session is malformed"],
-    [JSON.stringify({ token: "secret", activeThreadId: null }), "Stored browser authorization session is malformed"],
-    [JSON.stringify({ token: "secret", activeThreadId: "not-a-uuid" }), "Stored browser authorization session is malformed"],
-    [JSON.stringify({ token: "secret", extra: true }), "Stored browser authorization session is malformed"],
+    [
+      JSON.stringify({ token: "secret", activeThreadId: "" }),
+      "Stored browser authorization session is malformed",
+    ],
+    [
+      JSON.stringify({ token: "secret", activeThreadId: null }),
+      "Stored browser authorization session is malformed",
+    ],
+    [
+      JSON.stringify({ token: "secret", activeThreadId: "not-a-uuid" }),
+      "Stored browser authorization session is malformed",
+    ],
+    [
+      JSON.stringify({ token: "secret", extra: true }),
+      "Stored browser authorization session is malformed",
+    ],
   ])("fails closed for invalid stored record %s", (stored, message) => {
     const storage = {
       getItem: vi.fn<() => string | null>(() => stored),
@@ -283,9 +299,9 @@ describe("consumeBrowserAuthorizationSession", () => {
     });
     failWrites = true;
 
-    expect(() => session.commitActiveThread(secondThreadId)).toThrow(
-      new Error("Unable to write browser authorization session"),
-    );
+    expect(() => {
+      session.commitActiveThread(secondThreadId);
+    }).toThrow(new Error("Unable to write browser authorization session"));
     expect(session.getSnapshot()).toEqual({ token: "secret", activeThreadId: null });
   });
 
@@ -298,9 +314,9 @@ describe("consumeBrowserAuthorizationSession", () => {
     });
     storage.operations.length = 0;
 
-    expect(() => session.commitActiveThread("not-a-uuid")).toThrow(
-      new Error("Active thread ID must be a UUID"),
-    );
+    expect(() => {
+      session.commitActiveThread("not-a-uuid");
+    }).toThrow(new Error("Active thread ID must be a UUID"));
     expect({ operations: storage.operations, snapshot: session.getSnapshot() }).toEqual({
       operations: [],
       snapshot: { token: "secret", activeThreadId: null },
@@ -308,10 +324,7 @@ describe("consumeBrowserAuthorizationSession", () => {
   });
 });
 
-function restoreGlobalProperty(
-  key: "history",
-  descriptor: PropertyDescriptor | undefined,
-): void {
+function restoreGlobalProperty(key: "history", descriptor: PropertyDescriptor | undefined): void {
   if (descriptor == null) {
     Reflect.deleteProperty(globalThis, key);
   } else {
