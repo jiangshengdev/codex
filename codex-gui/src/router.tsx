@@ -44,7 +44,7 @@ const appRoute = createRoute({
 
 function AppRouteBoundary() {
   const target = useMatches({ select: selectGuiRouteTarget });
-  return target == null ? <NotFoundPage /> : <App />;
+  return target == null ? <NotFoundPage /> : <App routeTarget={target} />;
 }
 
 const currentTaskRoute = createRoute({

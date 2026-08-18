@@ -37,7 +37,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:145
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:203
 msgid "Active"
 msgstr "Active"
 
@@ -80,7 +80,7 @@ msgstr "Completed - {messagePreview}"
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
 
-#: src/NotFoundPage.tsx:34
+#: src/NotFoundPage.tsx:35
 msgid "Contact support"
 msgstr "Contact support"
 
@@ -101,8 +101,8 @@ msgstr "Continue sending"
 msgid "Continue this task"
 msgstr "Continue this task"
 
-#: src/features/appShell/AppShellTopBar.tsx:19
-#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:20
+#: src/features/appShell/AppShellTopBar.tsx:64
 msgid "Current task"
 msgstr "Current task"
 
@@ -140,20 +140,24 @@ msgstr "Failed."
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
-#: src/NotFoundPage.tsx:31
+#: src/NotFoundPage.tsx:32
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/appShell/AppShellTopBar.tsx:19
-#: src/features/appShell/AppShellTopBar.tsx:72
+#: src/features/appShell/AppShellTopBar.tsx:20
+#: src/features/appShell/AppShellTopBar.tsx:75
 msgid "History"
 msgstr "History"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:43
+msgid "History context unavailable"
+msgstr "History context unavailable"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:124
 msgid "History detail"
 msgstr "History detail"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:144
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:202
 msgid "Idle"
 msgstr "Idle"
 
@@ -194,11 +198,11 @@ msgstr "Interrupted <0/>"
 msgid "Interrupted."
 msgstr "Interrupted."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:92
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:135
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:68
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
 msgid "Loading history…"
 msgstr "Loading history…"
 
@@ -206,11 +210,11 @@ msgstr "Loading history…"
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
-#: src/features/appShell/AppShellTopBar.tsx:51
+#: src/features/appShell/AppShellTopBar.tsx:54
 msgid "Main navigation"
 msgstr "Main navigation"
 
-#: src/features/appShell/AppShellTopBar.tsx:36
+#: src/features/appShell/AppShellTopBar.tsx:39
 msgid "Menu"
 msgstr "Menu"
 
@@ -226,7 +230,7 @@ msgstr "Message composer"
 #~ msgid "Message failed to send"
 #~ msgstr "Message failed to send"
 
-#: src/features/appShell/AppShellTopBar.tsx:47
+#: src/features/appShell/AppShellTopBar.tsx:50
 msgid "Navigation"
 msgstr "Navigation"
 
@@ -248,7 +252,7 @@ msgstr "No agents completed yet"
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:76
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:115
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
@@ -257,11 +261,15 @@ msgstr "No history for the current working directory."
 msgid "Not found"
 msgstr "Not found"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:143
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:201
 msgid "Not loaded"
 msgstr "Not loaded"
 
-#: src/NotFoundPage.tsx:19
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:45
+msgid "Open an active task in this browser tab before viewing its history."
+msgstr "Open an active task in this browser tab before viewing its history."
+
+#: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "Page not found"
 
@@ -306,7 +314,7 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:195
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:172
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:237
 msgid "Retry"
 msgstr "Retry"
 
@@ -338,7 +346,7 @@ msgstr "Sent input to {receiver}"
 msgid "Shutdown"
 msgstr "Shutdown"
 
-#: src/NotFoundPage.tsx:27
+#: src/NotFoundPage.tsx:28
 msgid "Sorry, we couldn’t find the page you’re looking for."
 msgstr "Sorry, we couldn’t find the page you’re looking for."
 
@@ -377,7 +385,7 @@ msgstr "Stop"
 msgid "Stop failed"
 msgstr "Stop failed"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:146
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:204
 msgid "System error"
 msgstr "System error"
 
@@ -411,13 +419,17 @@ msgstr "Turn {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:166
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:228
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:190
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:27
+msgid "Unable to load the current task"
+msgstr "Unable to load the current task"
 
 #: src/features/appShell/AppShell.tsx:21
 msgid "Unable to start Codex GUI"
@@ -428,11 +440,11 @@ msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:124
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:104
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:147
 msgid "Untitled task"
 msgstr "Untitled task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:134
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
 msgid "View"
 msgstr "View"
 

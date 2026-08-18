@@ -8,11 +8,12 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { THREAD_QUERY_KEY } from "@codex-gui-host-contract";
 import { StrictMode } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type { Thread, ThreadListResponse } from "@codex-protocol/v2";
@@ -84,27 +85,51 @@ const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
 const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
 
 type RenderHistoryOptions = {
-  attachRuntime?: boolean;
   commandsAvailable?: boolean;
+  historyContextAvailable?: boolean;
   initialEntry?: string;
   strictMode?: boolean;
 };
 
+const activeOwner = (): ActiveThreadOwnerHandle => ({
+  threadId: attachResponse.snapshot.thread.id,
+  subscriptionId: attachResponse.subscriptionId,
+  projectionOwner: null as never,
+  queueCoordinator: null as never,
+});
+
 const renderHistory = async (
   listThreads: GuiHostCommands["listThreads"],
   {
-    attachRuntime = true,
     commandsAvailable = true,
+    historyContextAvailable = true,
     initialEntry = "/history",
     strictMode = false,
   }: RenderHistoryOptions = {},
 ) => {
-  const capabilities = {
-    activeOwner: null,
+  const owner = historyContextAvailable ? activeOwner() : null;
+  const target = { type: "historyList" } as const;
+  const capabilities: AppCapabilities = {
+    activeOwner: owner,
+    authorizationToken: null,
     commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
     continueThread: null,
-    launchParams: null,
-    status: { label: "attached" } as const,
+    routeTarget: target,
+    startupOutcome: historyContextAvailable
+      ? {
+          type: "ready",
+          target,
+          activeOwner: owner,
+          cleanupFailure: null,
+          postCommitFailure: null,
+        }
+      : {
+          type: "historyContextUnavailable",
+          target,
+          activeOwner: null,
+          cleanupFailure: null,
+        },
+    status: { label: "initialized" },
   };
   const Root = () => (
     <AppCapabilitiesProvider capabilities={capabilities}>
@@ -128,7 +153,7 @@ const renderHistory = async (
   });
   const app = <RouterProvider router={router} />;
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
-  if (attachRuntime) {
+  if (historyContextAvailable) {
     screen.store.dispatch(threadRuntimeAttached(attachResponse));
   }
   return { router, screen };
@@ -151,22 +176,36 @@ test("settles the initial history request and renders its result under StrictMod
   });
 });
 
-test.each([
-  { attachRuntime: true, commandsAvailable: false },
-  { attachRuntime: false, commandsAvailable: true },
-])(
-  "shows an unavailable error instead of loading when a dependency is missing",
-  async (options) => {
-    const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
-    const { screen } = await renderHistory(listThreads, options);
+test("fails closed with the complete context error when active recovery is unavailable", async () => {
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+  const { screen } = await renderHistory(listThreads, { historyContextAvailable: false });
 
-    const alert = screen.getByRole("alert");
-    await expect.element(alert.getByText("Unable to load history")).toBeVisible();
-    await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
-    await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
-    expect(listThreads).not.toHaveBeenCalled();
-  },
-);
+  const alert = screen.getByRole("alert");
+  await expect
+    .element(alert.getByText("History context unavailable", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(
+      alert.getByText("Open an active task in this browser tab before viewing its history.", {
+        exact: true,
+      }),
+    )
+    .toBeVisible();
+  await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  expect(listThreads).not.toHaveBeenCalled();
+});
+
+test("shows the non-retryable dependency error when commands are unavailable", async () => {
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+  const { screen } = await renderHistory(listThreads, { commandsAvailable: false });
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to load history", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  expect(listThreads).not.toHaveBeenCalled();
+});
 
 test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and View navigation", async () => {
   const activitySeconds = 1_725_000_000;
@@ -194,10 +233,7 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   const listThreads = vi
     .fn<GuiHostCommands["listThreads"]>()
     .mockResolvedValue(response(threads, null));
-  const launchThreadId = "launch-thread";
-  const { router, screen } = await renderHistory(listThreads, {
-    initialEntry: `/history?${THREAD_QUERY_KEY}=${launchThreadId}`,
-  });
+  const { router, screen } = await renderHistory(listThreads);
 
   const namedCard = screen.getByRole("article", { name: "Named task" });
   const previewCard = screen.getByRole("article", { name: "Preview title" });
@@ -219,7 +255,7 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   await namedCard.getByRole("button", { name: "View" }).click();
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history/named");
-  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+  expect(router.state.location.search).toEqual({});
 });
 
 test("lays out history cards in one, two, and three real columns with aligned rows", async () => {

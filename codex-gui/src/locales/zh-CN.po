@@ -37,7 +37,7 @@ msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更�
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}：{agentState}"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:145
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:203
 msgid "Active"
 msgstr "活动中"
 
@@ -80,7 +80,7 @@ msgstr "已完成：{messagePreview}"
 msgid "Connection interrupted. Reconnect required."
 msgstr "连接已中断，需要重新连接。"
 
-#: src/NotFoundPage.tsx:34
+#: src/NotFoundPage.tsx:35
 msgid "Contact support"
 msgstr "联系支持"
 
@@ -101,8 +101,8 @@ msgstr "继续发送"
 msgid "Continue this task"
 msgstr "继续此任务"
 
-#: src/features/appShell/AppShellTopBar.tsx:19
-#: src/features/appShell/AppShellTopBar.tsx:61
+#: src/features/appShell/AppShellTopBar.tsx:20
+#: src/features/appShell/AppShellTopBar.tsx:64
 msgid "Current task"
 msgstr "当前任务"
 
@@ -140,20 +140,24 @@ msgstr "失败。"
 msgid "Finished waiting"
 msgstr "等待结束"
 
-#: src/NotFoundPage.tsx:31
+#: src/NotFoundPage.tsx:32
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/appShell/AppShellTopBar.tsx:19
-#: src/features/appShell/AppShellTopBar.tsx:72
+#: src/features/appShell/AppShellTopBar.tsx:20
+#: src/features/appShell/AppShellTopBar.tsx:75
 msgid "History"
 msgstr "历史记录"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:43
+msgid "History context unavailable"
+msgstr "历史记录上下文不可用"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:124
 msgid "History detail"
 msgstr "历史详情"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:144
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:202
 msgid "Idle"
 msgstr "空闲"
 
@@ -194,11 +198,11 @@ msgstr "已中断<0/>"
 msgid "Interrupted."
 msgstr "已中断。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:92
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:135
 msgid "Load more"
 msgstr "加载更多"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:68
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
@@ -206,11 +210,11 @@ msgstr "正在加载历史记录…"
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
-#: src/features/appShell/AppShellTopBar.tsx:51
+#: src/features/appShell/AppShellTopBar.tsx:54
 msgid "Main navigation"
 msgstr "主导航"
 
-#: src/features/appShell/AppShellTopBar.tsx:36
+#: src/features/appShell/AppShellTopBar.tsx:39
 msgid "Menu"
 msgstr "菜单"
 
@@ -226,7 +230,7 @@ msgstr "消息输入区"
 #~ msgid "Message failed to send"
 #~ msgstr "消息发送失败"
 
-#: src/features/appShell/AppShellTopBar.tsx:47
+#: src/features/appShell/AppShellTopBar.tsx:50
 msgid "Navigation"
 msgstr "导航"
 
@@ -248,7 +252,7 @@ msgstr "尚无智能体完成任务"
 msgid "No committed messages yet."
 msgstr "暂无已提交的消息。"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:76
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:115
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
@@ -257,11 +261,15 @@ msgstr "当前工作目录没有历史记录。"
 msgid "Not found"
 msgstr "未找到"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:143
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:201
 msgid "Not loaded"
 msgstr "未加载"
 
-#: src/NotFoundPage.tsx:19
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:45
+msgid "Open an active task in this browser tab before viewing its history."
+msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
+
+#: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "找不到页面"
 
@@ -306,7 +314,7 @@ msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:195
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:172
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:237
 msgid "Retry"
 msgstr "重试"
 
@@ -338,7 +346,7 @@ msgstr "已向 {receiver} 发送输入"
 msgid "Shutdown"
 msgstr "已关闭"
 
-#: src/NotFoundPage.tsx:27
+#: src/NotFoundPage.tsx:28
 msgid "Sorry, we couldn’t find the page you’re looking for."
 msgstr "抱歉，找不到您要访问的页面。"
 
@@ -377,7 +385,7 @@ msgstr "停止"
 msgid "Stop failed"
 msgstr "停止失败"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:146
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:204
 msgid "System error"
 msgstr "系统错误"
 
@@ -411,13 +419,17 @@ msgstr "轮次 {resolvedTurnId}"
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:166
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:228
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:190
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
+
+#: src/features/currentTask/CurrentTaskPage.tsx:27
+msgid "Unable to load the current task"
+msgstr "无法加载当前任务"
 
 #: src/features/appShell/AppShell.tsx:21
 msgid "Unable to start Codex GUI"
@@ -428,11 +440,11 @@ msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:124
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:104
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:147
 msgid "Untitled task"
 msgstr "未命名任务"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:134
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:192
 msgid "View"
 msgstr "查看"
 

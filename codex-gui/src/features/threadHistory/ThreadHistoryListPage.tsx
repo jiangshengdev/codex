@@ -10,9 +10,13 @@ import type { Thread } from "@codex-protocol/v2";
 import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHistoryListOwner";
 
 export function ThreadHistoryListPage() {
-  const { commands } = useAppCapabilities();
+  const { activeOwner, commands, startupOutcome } = useAppCapabilities();
   const runtime = useAppSelector(selectThreadRuntimeRecord);
-  const cwd = runtime?.thread.cwd ?? null;
+  const cwd =
+    activeOwner != null && runtime?.thread.id === activeOwner.threadId ? runtime.thread.cwd : null;
+  const historyContextUnavailable =
+    startupOutcome?.type === "historyContextUnavailable" ||
+    (startupOutcome?.type === "ready" && startupOutcome.activeOwner == null);
 
   useEffect(() => {
     window.scrollTo({ left: 0, top: 0 });
@@ -20,12 +24,30 @@ export function ThreadHistoryListPage() {
 
   return (
     <main className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 content-start gap-4 px-4 py-6">
-      {commands != null && cwd != null ? (
+      {historyContextUnavailable ? (
+        <HistoryContextUnavailable />
+      ) : commands != null && cwd != null ? (
         <ThreadHistoryListOwnerBound commands={commands} cwd={cwd} />
       ) : (
         <HistoryError />
       )}
     </main>
+  );
+}
+
+function HistoryContextUnavailable() {
+  return (
+    <Alert role="alert" status="danger">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>
+          <Trans>History context unavailable</Trans>
+        </Alert.Title>
+        <Alert.Description>
+          <Trans>Open an active task in this browser tab before viewing its history.</Trans>
+        </Alert.Description>
+      </Alert.Content>
+    </Alert>
   );
 }
 
