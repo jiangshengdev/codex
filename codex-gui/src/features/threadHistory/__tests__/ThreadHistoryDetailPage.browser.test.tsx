@@ -7,12 +7,12 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { useSyncExternalStore } from "react";
-import { THREAD_QUERY_KEY } from "@codex-gui-host-contract";
+import { StrictMode, useSyncExternalStore } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import type { AppCapabilities, ContinueThread } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import { AppShell } from "@/features/appShell/AppShell";
+import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
   attachWithTurns,
@@ -21,7 +21,7 @@ import {
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/threadSwitchCoordinator";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ThreadHistoryDetailPage } from "../ThreadHistoryDetailPage";
 
@@ -82,17 +82,23 @@ const createCapabilitiesStore = (initial: AppCapabilities): CapabilitiesStore =>
 };
 
 type RenderDetailOptions = Readonly<{
+  activeOwner?: ActiveThreadOwnerHandle | null;
+  authorizationToken?: string | null;
   commands?: GuiHostCommands | null;
   continueThread?: ContinueThread | null;
   initialEntries?: string[];
   status?: AppCapabilities["status"];
+  strictMode?: boolean;
 }>;
 
 const renderDetail = async ({
+  activeOwner: suppliedActiveOwner = null,
+  authorizationToken = "retained-secret",
   commands: suppliedCommands,
   continueThread: suppliedContinueThread,
   initialEntries = [`/history/${detailThreadId}`],
-  status = { label: "attached" },
+  status = { label: "initialized" },
+  strictMode = false,
 }: RenderDetailOptions = {}) => {
   const commands = suppliedCommands === undefined ? createGuiHostCommands() : suppliedCommands;
   const continueThread =
@@ -102,10 +108,18 @@ const renderDetail = async ({
           .mockResolvedValue({ type: "current", activeOwner: activeOwner(detailThreadId) })
       : suppliedContinueThread;
   const initialCapabilities: AppCapabilities = {
-    activeOwner: null,
+    activeOwner: suppliedActiveOwner,
+    authorizationToken,
     commands,
     continueThread,
-    launchParams: { threadId: "live-thread", token: "retained-secret" },
+    routeTarget: { type: "historyDetail", threadId: detailThreadId },
+    startupOutcome: {
+      type: "ready",
+      target: { type: "historyDetail", threadId: detailThreadId },
+      activeOwner: suppliedActiveOwner,
+      cleanupFailure: null,
+      postCommitFailure: null,
+    },
     status,
   };
   const capabilitiesStore = createCapabilitiesStore(initialCapabilities);
@@ -127,18 +141,23 @@ const renderDetail = async ({
   const HistoryList = () => <main aria-label="History list" />;
   const Origin = () => <main aria-label="Origin" />;
   const rootRoute = createRootRoute({ component: Root });
-  const currentTaskRoute = createRoute({
+  const appRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/",
+    id: "app",
+    component: Outlet,
+  });
+  const currentTaskRoute = createRoute({
+    getParentRoute: () => appRoute,
+    path: CURRENT_TASK_ROUTE_PATH,
     component: CurrentTask,
   });
   const historyRoute = createRoute({
-    getParentRoute: () => rootRoute,
+    getParentRoute: () => appRoute,
     path: "/history",
     component: HistoryList,
   });
   const detailRoute = createRoute({
-    getParentRoute: () => rootRoute,
+    getParentRoute: () => appRoute,
     path: "/history/$threadId",
     component: ThreadHistoryDetailPage,
   });
@@ -149,9 +168,13 @@ const renderDetail = async ({
   });
   const router = createRouter({
     history: createMemoryHistory({ initialEntries }),
-    routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute, detailRoute, originRoute]),
+    routeTree: rootRoute.addChildren([
+      appRoute.addChildren([currentTaskRoute, historyRoute, detailRoute]),
+      originRoute,
+    ]),
   });
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const app = <RouterProvider router={router} />;
+  const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
   return {
     capabilitiesStore,
     commands,
@@ -191,6 +214,49 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
 });
 
+test("settles a deferred read into ready after StrictMode effect replay", async () => {
+  const read = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+  const readThread = vi.fn<GuiHostCommands["readThread"]>().mockReturnValue(read.promise);
+  const commands = { ...createGuiHostCommands(), readThread };
+  const { screen } = await renderDetail({ commands, strictMode: true });
+
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
+  expect(readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+
+  read.resolve({ thread: emptyHistoryThread() });
+
+  await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+  await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+});
+
+test("settles a deferred read into error after StrictMode effect replay", async () => {
+  const read = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+  const readThread = vi.fn<GuiHostCommands["readThread"]>().mockReturnValue(read.promise);
+  const commands = { ...createGuiHostCommands(), readThread };
+  const { screen } = await renderDetail({ commands, strictMode: true });
+
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Loading task history…");
+  expect(readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+
+  const failure = new Error("strict replay read failure");
+  read.reject(failure);
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
+  await expect.element(alert.getByText(failure.message, { exact: true })).toBeVisible();
+  await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
+  expect(commands.resumeThread).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+});
+
 test("shows a terminal connection error without an invalid Retry before commands exist", async () => {
   const { screen } = await renderDetail({
     commands: null,
@@ -204,17 +270,15 @@ test("shows a terminal connection error without an invalid Retry before commands
   await expect.element(screen.getByText("Loading task history…")).not.toBeInTheDocument();
 });
 
-test("returns to the history list without dropping the launch thread query", async () => {
-  const launchThreadId = "live-thread";
-  const { router, screen } = await renderDetail({
-    initialEntries: [`/history/${detailThreadId}?${THREAD_QUERY_KEY}=${launchThreadId}`],
-  });
+test("returns to the canonical history list without search or fragment", async () => {
+  const { router, screen } = await renderDetail();
 
   await screen.getByRole("button", { name: "Back to history" }).click();
 
   await expect.element(screen.getByRole("main", { name: "History list" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/history");
-  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
 });
 
 test("retains a loaded read-only snapshot when commands later become unavailable", async () => {
@@ -284,9 +348,11 @@ test("renders isolated context pages without Composer and keeps the transcript e
   expect(commands.interruptTurn).not.toHaveBeenCalled();
 
   const action = screen.getByRole("button", { name: "Continue this task" });
+  const qrAction = screen.getByRole("button", { name: "Scan with phone" });
   const actionBar = action.element().closest("aside");
   const bottomSpace = screen.container.querySelector("[data-app-shell-bottom-action-space]");
   expect(action.element().classList.contains("button--primary")).toBe(true);
+  expect(qrAction.element().closest("aside")).toBe(actionBar);
   expect(actionBar?.classList.contains("fixed")).toBe(true);
   expect(bottomSpace).not.toBeNull();
   window.scrollTo(0, document.documentElement.scrollHeight);
@@ -319,12 +385,7 @@ test("reports a synchronous queue block without flashing pending and links the a
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const launchThreadId = "live-thread";
-  const { router, screen } = await renderDetail({
-    commands,
-    continueThread,
-    initialEntries: [`/history/${detailThreadId}?${THREAD_QUERY_KEY}=${launchThreadId}`],
-  });
+  const { screen } = await renderDetail({ commands, continueThread });
   const action = screen.getByRole("button", { name: "Continue this task" });
 
   await expect.element(action).toBeEnabled();
@@ -338,11 +399,66 @@ test("reports a synchronous queue block without flashing pending and links the a
   await expect.element(action).not.toHaveAttribute("data-pending");
   await expect.element(action).toHaveAccessibleDescription(reason);
   expect(continueThread).toHaveBeenCalledExactlyOnceWith(detailThreadId);
+  const returnAction = alert.getByRole("button", { name: "Return to current task" });
+  await expect.element(returnAction).toBeVisible();
+  await expect.element(returnAction).toBeDisabled();
+});
 
-  await alert.getByRole("button", { name: "Return to current task" }).click();
+test("returns a blocked continuation to the canonical active task instead of the viewed detail", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    type: "blocked",
+    reason: { type: "busy" },
+    cleanupFailure: null,
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({
+    activeOwner: activeOwner(activeThreadId),
+    commands,
+    continueThread,
+  });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+  const returnAction = screen.getByRole("button", { name: "Return to current task" });
+  await expect.element(returnAction).toBeEnabled();
+  await returnAction.click();
+
   await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
-  expect(router.state.location.pathname).toBe("/");
-  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+  expect(router.state.location.pathname).toBe(`/task/${activeThreadId}`);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+});
+
+test("builds QR access for the visible detail instead of a different active owner", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({
+    activeOwner: activeOwner(activeThreadId),
+    authorizationToken: "retained-secret",
+    commands,
+  });
+
+  await screen.getByRole("button", { name: "Scan with phone" }).click();
+
+  const dialog = screen.getByRole("dialog", { name: "Scan with phone" });
+  await expect
+    .element(
+      dialog.getByText(`${window.location.origin}/history/${detailThreadId}#token=retained-secret`),
+    )
+    .toBeVisible();
+  await expect
+    .element(dialog.getByText(new RegExp(`/task/${activeThreadId}`)))
+    .not.toBeInTheDocument();
 });
 
 test("keeps one continuation in flight while the primary action is pending", async () => {
@@ -413,9 +529,12 @@ test.each(["resume", "attach"] as const)(
 );
 
 test.each(["current", "switched"] as const)(
-  "replaces history with the authoritative thread query after a %s outcome without exposing the token",
+  "replaces history with the canonical authoritative task path after a %s outcome",
   async (outcomeType) => {
-    const authoritativeThreadId = `authoritative-${outcomeType}`;
+    const authoritativeThreadId =
+      outcomeType === "current"
+        ? "00000000-0000-0000-0000-000000000089"
+        : "00000000-0000-0000-0000-000000000090";
     const owner = activeOwner(authoritativeThreadId);
     const outcome: Awaited<ReturnType<ContinueThread>> =
       outcomeType === "current"
@@ -428,29 +547,30 @@ test.each(["current", "switched"] as const)(
         .fn<GuiHostCommands["readThread"]>()
         .mockResolvedValue({ thread: emptyHistoryThread() }),
     };
-    const detailUrl = `/history/${detailThreadId}?legacy=1#token=must-not-return`;
+    const detailUrl = `/history/${detailThreadId}`;
     const { router, screen } = await renderDetail({
       commands,
       continueThread,
       initialEntries: ["/origin", detailUrl],
     });
+    const historyLength = router.history.length;
 
     await screen.getByRole("button", { name: "Continue this task" }).click();
 
     await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/");
-    const routedUrl = new URL(router.state.location.href, window.location.origin);
-    expect(Array.from(routedUrl.searchParams.keys())).toStrictEqual([THREAD_QUERY_KEY]);
-    expect(routedUrl.searchParams.get(THREAD_QUERY_KEY)).toBe(authoritativeThreadId);
+    expect(router.state.location.pathname).toBe(`/task/${authoritativeThreadId}`);
+    expect(router.state.location.search).toEqual({});
     expect(router.state.location.hash).toBe("");
-    expect(router.state.location.href).not.toContain("token");
+    expect(router.history.length).toBe(historyLength);
 
     router.history.back();
     await expect.element(screen.getByRole("main", { name: "Origin" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/origin");
     router.history.forward();
     await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/");
+    expect(router.state.location.pathname).toBe(`/task/${authoritativeThreadId}`);
+    expect(router.state.location.search).toEqual({});
+    expect(router.state.location.hash).toBe("");
   },
 );
 

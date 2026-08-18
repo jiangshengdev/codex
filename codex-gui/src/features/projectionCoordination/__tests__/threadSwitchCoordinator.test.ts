@@ -41,7 +41,7 @@ const deferred = <T>() => {
   return { promise, resolve };
 };
 
-const createHarness = () => {
+const createHarness = ({ initialActiveOwner = true } = {}) => {
   const store = makeStore();
   const actions: UnknownAction[] = [];
   let dispatchReentry: ((action: UnknownAction) => void) | undefined;
@@ -89,12 +89,14 @@ const createHarness = () => {
   const publishActiveOwner =
     vi.fn<ConstructorParameters<typeof ThreadSwitchCoordinator>[0]["publishActiveOwner"]>();
   const coordinator = new ThreadSwitchCoordinator({
-    activeOwner: {
-      threadId: oldThreadId,
-      subscriptionId: attachBaseline.subscriptionId,
-      projectionOwner,
-      queueCoordinator,
-    },
+    activeOwner: initialActiveOwner
+      ? {
+          threadId: oldThreadId,
+          subscriptionId: attachBaseline.subscriptionId,
+          projectionOwner,
+          queueCoordinator,
+        }
+      : null,
     commands,
     dispatch,
     publishActiveOwner,
@@ -120,6 +122,98 @@ const createHarness = () => {
 };
 
 describe("ThreadSwitchCoordinator", () => {
+  it("publishes the first owner through the shared switch transaction", async () => {
+    const h = createHarness({ initialActiveOwner: false });
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toMatchObject({
+      type: "switched",
+      activeOwner: { threadId: candidateThreadId },
+      cleanupFailure: null,
+    });
+
+    expect(h.commands.resumeThread).toHaveBeenCalledExactlyOnceWith({
+      threadId: candidateThreadId,
+    });
+    expect(h.commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: candidateThreadId,
+    });
+    expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(1);
+    expect(h.publishActiveOwner).toHaveBeenCalledOnce();
+    expect(h.coordinator.getActiveOwner()?.threadId).toBe(candidateThreadId);
+    expect(h.reserveRelease).not.toHaveBeenCalled();
+    expect(h.queueDispose).not.toHaveBeenCalled();
+    expect(h.projectionDispose).not.toHaveBeenCalled();
+    expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
+  });
+
+  it.each(["resume", "attach"] as const)(
+    "keeps the first owner absent after a %s failure",
+    async (phase) => {
+      const h = createHarness({ initialActiveOwner: false });
+      const error = new Error(`${phase} failed`);
+      if (phase === "resume") vi.mocked(h.commands.resumeThread).mockRejectedValueOnce(error);
+      else vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(error);
+
+      await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+        type: "failed",
+        phase,
+        error,
+        cleanupFailure: null,
+      });
+      expect(h.coordinator.getActiveOwner()).toBeNull();
+      expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(0);
+      expect(h.publishActiveOwner).not.toHaveBeenCalled();
+      expect(h.reserveRelease).not.toHaveBeenCalled();
+      expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
+    },
+  );
+
+  it("replays notifications buffered while preparing the first owner", async () => {
+    const h = createHarness({ initialActiveOwner: false });
+    const attach = attachWithThreadId(attachReplacement, candidateThreadId);
+    const pending = deferred<AttachResponse>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
+    const switching = h.coordinator.continueThread(candidateThreadId);
+    await Promise.resolve();
+    const candidateEvent = eventWithEnvelope(eventSubscriptionReplacement, {
+      threadId: candidateThreadId,
+      subscriptionId: attach.subscriptionId,
+    });
+
+    h.coordinator.handleProjectionEvent(eventTurnStarted);
+    h.coordinator.handleProjectionEvent(candidateEvent);
+    expect(h.actions).toHaveLength(0);
+    pending.resolve(attach);
+
+    await expect(switching).resolves.toMatchObject({ type: "switched" });
+    expect(
+      h.actions
+        .filter((action) => action.type === threadRuntimeEventBuffered.type)
+        .map(
+          (action) =>
+            (action as ReturnType<typeof threadRuntimeEventBuffered>).payload.notification.threadId,
+        ),
+    ).toEqual([candidateThreadId]);
+  });
+
+  it("disposes safely before the first owner exists", async () => {
+    const h = createHarness({ initialActiveOwner: false });
+
+    expect(() => {
+      h.coordinator.handleProjectionEvent(eventTurnStarted);
+      h.coordinator.dispose();
+      h.coordinator.dispose();
+    }).not.toThrow();
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "blocked",
+      reason: { type: "disposed" },
+      cleanupFailure: null,
+    });
+    expect(h.queueDispose).not.toHaveBeenCalled();
+    expect(h.projectionDispose).not.toHaveBeenCalled();
+    expect(h.commands.resumeThread).not.toHaveBeenCalled();
+  });
+
   it("returns the current owner without reserving or issuing commands", async () => {
     const h = createHarness();
     const outcome = await h.coordinator.continueThread(oldThreadId);
@@ -162,7 +256,7 @@ describe("ThreadSwitchCoordinator", () => {
     expect(h.commands.resumeThread).not.toHaveBeenCalled();
     expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
     expect(h.commands.detachThreadProjection).not.toHaveBeenCalled();
-    expect(h.coordinator.getActiveOwner().threadId).toBe(oldThreadId);
+    expect(h.coordinator.getActiveOwner()?.threadId).toBe(oldThreadId);
   });
 
   it.each(["resume", "attach"] as const)("keeps the old owner on %s failure", async (phase) => {
@@ -176,7 +270,7 @@ describe("ThreadSwitchCoordinator", () => {
       phase,
       error,
     });
-    expect(h.coordinator.getActiveOwner().threadId).toBe(oldThreadId);
+    expect(h.coordinator.getActiveOwner()?.threadId).toBe(oldThreadId);
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(0);
     expect(h.reservationRelease).toHaveBeenCalledOnce();
     expect(h.queueDispose).not.toHaveBeenCalled();
@@ -381,7 +475,7 @@ describe("ThreadSwitchCoordinator", () => {
         error,
       },
     });
-    expect(h.coordinator.getActiveOwner().threadId).toBe(candidateThreadId);
+    expect(h.coordinator.getActiveOwner()?.threadId).toBe(candidateThreadId);
   });
 
   it.each(["dispatch", "publish"] as const)("survives %s reentrant disposal", async (source) => {
@@ -449,7 +543,7 @@ describe("ThreadSwitchCoordinator", () => {
         type: "switched",
         cleanupFailure: { phase: "application", operation, error },
       });
-      expect(h.coordinator.getActiveOwner().threadId).toBe(candidateThreadId);
+      expect(h.coordinator.getActiveOwner()?.threadId).toBe(candidateThreadId);
       expect(h.queueDispose).toHaveBeenCalledOnce();
       expect(h.projectionDispose).toHaveBeenCalledOnce();
       await expect(

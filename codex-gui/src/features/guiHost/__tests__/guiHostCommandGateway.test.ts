@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
   isGuiHostCommandError,
@@ -12,7 +11,6 @@ import {
   RecordingWebSocket,
   readLatestRpcRequest,
   readRpcRequest,
-  sendAttachResult,
   sendAuthenticateResult,
   sendInitializeResult,
   startGuiHostConnectionWithSocket,
@@ -224,48 +222,33 @@ describe("GuiHostCommandGateway", () => {
 });
 
 describe("GuiHostCommandGateway facade integration", () => {
-  it.each(["projection", "attached status"] as const)(
-    "does not publish commands when %s callback cleans up",
-    (cleanupAt) => {
-      const calls: string[] = [];
-      let cleanup = (): void => undefined;
-      const connection = startGuiHostConnectionWithSocket({
-        attachResponse: attachBaseline,
-        onProjectionAttached: () => {
-          calls.push("projection-attached");
-          if (cleanupAt === "projection") {
-            cleanup();
-          }
-        },
-        onStatus: (status) => {
-          calls.push(`status:${status.label}`);
-          if (cleanupAt === "attached status" && status.label === "attached") {
-            cleanup();
-          }
-        },
-        onCommandsReady: () => {
-          calls.push("commands-ready");
-        },
-        onCommandsUnavailable: () => {
-          calls.push("commands-unavailable");
-        },
-      });
-      cleanup = connection.cleanup;
+  it("does not publish commands when the initialized status callback cleans up", () => {
+    const calls: string[] = [];
+    let cleanup = (): void => undefined;
+    const connection = startGuiHostConnectionWithSocket({
+      onStatus: (status) => {
+        calls.push(`status:${status.label}`);
+        if (status.label === "initialized") {
+          cleanup();
+        }
+      },
+      onCommandsReady: () => {
+        calls.push("commands-ready");
+      },
+      onCommandsUnavailable: () => {
+        calls.push("commands-unavailable");
+      },
+    });
+    cleanup = connection.cleanup;
 
-      connection.socket.onopen?.();
-      sendAuthenticateResult(connection.socket);
-      sendInitializeResult(connection.socket);
-      calls.length = 0;
-      sendAttachResult(connection.socket, attachBaseline);
+    connection.socket.onopen?.();
+    sendAuthenticateResult(connection.socket);
+    calls.length = 0;
+    sendInitializeResult(connection.socket);
 
-      expect(calls).toEqual(
-        cleanupAt === "projection"
-          ? ["projection-attached"]
-          : ["projection-attached", "status:attached"],
-      );
-      expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(3);
-    },
-  );
+    expect(calls).toEqual(["status:initialized"]);
+    expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(2);
+  });
 
   it("invalidates once when onCommandsReady cleans up and reuses the old handle", async () => {
     const calls: string[] = [];
@@ -273,7 +256,6 @@ describe("GuiHostCommandGateway facade integration", () => {
     let commandPromise: Promise<unknown> | undefined;
     let commands: GuiHostCommands | undefined;
     const connection = startGuiHostConnectionWithSocket({
-      attachResponse: attachBaseline,
       onCommandsReady: (readyCommands) => {
         calls.push("commands-ready");
         commands = readyCommands;
@@ -293,11 +275,10 @@ describe("GuiHostCommandGateway facade integration", () => {
     connection.socket.onopen?.();
     sendAuthenticateResult(connection.socket);
     sendInitializeResult(connection.socket);
-    sendAttachResult(connection.socket, attachBaseline);
 
     expect(calls).toEqual(["commands-ready", "commands-unavailable"]);
     expect(commands).toBeDefined();
     await expect(commandPromise).rejects.toThrow("GUI host WebSocket is not available");
-    expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(3);
+    expect(connection.socket.sent.map(readRpcRequest)).toHaveLength(2);
   });
 });

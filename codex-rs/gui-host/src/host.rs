@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
+use axum::extract::Path;
 use axum::extract::State;
 use axum::http::Request;
 use axum::http::StatusCode;
@@ -22,6 +23,8 @@ use crate::GuiHostMode;
 use crate::GuiLaunchUrls;
 use crate::LaunchToken;
 use crate::assets;
+use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
+use crate::browser_contract::HISTORY_PATH_SEGMENT;
 use crate::browser_contract::WEBSOCKET_PATH;
 use crate::launch_url_for_thread;
 use crate::launch_urls_for_thread;
@@ -137,12 +140,39 @@ where
         GuiHostMode::Prod(config) => {
             assets::prod_dist_dir(config)?;
             let root_config = config.clone();
+            let current_task_config = config.clone();
+            let history_config = config.clone();
+            let history_thread_config = config.clone();
+            let current_task_path = format!("/{CURRENT_TASK_PATH_SEGMENT}/{{thread_id}}");
+            let history_path = format!("/{HISTORY_PATH_SEGMENT}");
+            let history_thread_path = format!("/{HISTORY_PATH_SEGMENT}/{{thread_id}}");
             Ok(Router::new()
                 .route(
                     "/",
                     get(move || {
                         let config = root_config.clone();
                         async move { assets::serve_prod_index(config).await }
+                    }),
+                )
+                .route(
+                    &current_task_path,
+                    get(move |Path(thread_id): Path<String>| {
+                        let config = current_task_config.clone();
+                        async move { assets::serve_prod_thread_index(config, thread_id).await }
+                    }),
+                )
+                .route(
+                    &history_path,
+                    get(move || {
+                        let config = history_config.clone();
+                        async move { assets::serve_prod_index(config).await }
+                    }),
+                )
+                .route(
+                    &history_thread_path,
+                    get(move |Path(thread_id): Path<String>| {
+                        let config = history_thread_config.clone();
+                        async move { assets::serve_prod_thread_index(config, thread_id).await }
                     }),
                 )
                 .route(WEBSOCKET_PATH, get(crate::ws::ws_handler::<B>))
@@ -862,7 +892,7 @@ mod tests {
                     GuiLaunchUrlKind::Local,
                     "Local",
                     format!(
-                        "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://127.0.0.1:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -870,7 +900,7 @@ mod tests {
                     GuiLaunchUrlKind::Lan,
                     "LAN",
                     format!(
-                        "http://192.168.3.165:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://192.168.3.165:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -878,7 +908,7 @@ mod tests {
                     GuiLaunchUrlKind::Vpn,
                     "VPN",
                     format!(
-                        "http://100.88.28.119:{port}/?threadId=thread%20abc%2F%23#token={}",
+                        "http://100.88.28.119:{port}/task/thread%20abc%2F%23#token={}",
                         handle.launch_token().as_str()
                     ),
                 ),
@@ -907,7 +937,7 @@ mod tests {
                 GuiLaunchUrlKind::Local,
                 "Local",
                 format!(
-                    "http://127.0.0.1:{port}/?threadId=thread%20abc%2F%23#token={}",
+                    "http://127.0.0.1:{port}/task/thread%20abc%2F%23#token={}",
                     handle.launch_token().as_str()
                 ),
             )]
@@ -917,7 +947,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn launch_url_fallback_preserves_thread_id_when_entries_are_empty() {
+    async fn launch_url_fallback_preserves_thread_path_when_entries_are_empty() {
         let (shutdown_tx, _shutdown_rx) = tokio::sync::oneshot::channel();
         let handle = super::GuiHostHandle {
             local_addr: std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 1234)),
@@ -930,7 +960,7 @@ mod tests {
 
         let url = handle.launch_url_for_thread("thread abc/#");
 
-        assert!(url.contains("threadId=thread%20abc%2F%23"));
+        assert!(url.contains("/task/thread%20abc%2F%23#token="));
         handle.shutdown().await;
     }
 

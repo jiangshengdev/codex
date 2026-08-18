@@ -3,30 +3,25 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo } from "react";
-import type { BrowserLaunchParams } from "@/features/browserLaunch/browserLaunchParams";
+import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import { buildQrAccessUrl } from "./qrAccessUrl";
 
 export type QrAccessPopoverProps = {
-  launchParams: BrowserLaunchParams | null;
+  authorizationToken: string | null;
   origin?: string;
+  routeTarget: GuiRouteTarget;
 };
 
 export function QrAccessPopover({
-  launchParams,
+  authorizationToken,
   origin = window.location.origin,
+  routeTarget,
 }: QrAccessPopoverProps) {
   const { t } = useLingui();
-  const qrUrl = useMemo(() => {
-    if (launchParams == null) {
-      return null;
-    }
-
-    return buildQrAccessUrl({
-      origin,
-      threadId: launchParams.threadId,
-      token: launchParams.token,
-    });
-  }, [launchParams, origin]);
+  const qrUrl = useMemo(
+    () => buildQrAccessUrl({ authorizationToken, origin, routeTarget }),
+    [authorizationToken, origin, routeTarget],
+  );
 
   const isDisabled = qrUrl == null;
 

@@ -15,9 +15,10 @@ use serde_json::Value;
 use ts_rs::TS;
 
 use crate::browser_contract::AUTHENTICATE_METHOD;
+use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
 use crate::browser_contract::GuiAuthenticateParams;
 use crate::browser_contract::GuiAuthenticateResult;
-use crate::browser_contract::THREAD_QUERY_KEY;
+use crate::browser_contract::HISTORY_PATH_SEGMENT;
 use crate::browser_contract::TOKEN_FRAGMENT_KEY;
 use crate::browser_contract::WEBSOCKET_PATH;
 
@@ -229,7 +230,8 @@ fn unique_sibling_path(destination: &Path, role: &str) -> Result<PathBuf> {
 
 fn generate_typescript_contract() -> Result<String> {
     let constants = [
-        ("THREAD_QUERY_KEY", THREAD_QUERY_KEY),
+        ("CURRENT_TASK_PATH_SEGMENT", CURRENT_TASK_PATH_SEGMENT),
+        ("HISTORY_PATH_SEGMENT", HISTORY_PATH_SEGMENT),
         ("TOKEN_FRAGMENT_KEY", TOKEN_FRAGMENT_KEY),
         ("WEBSOCKET_PATH", WEBSOCKET_PATH),
         ("AUTHENTICATE_METHOD", AUTHENTICATE_METHOD),

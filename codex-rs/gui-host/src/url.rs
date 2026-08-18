@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use crate::LaunchToken;
-use crate::browser_contract::THREAD_QUERY_KEY;
+use crate::browser_contract::CURRENT_TASK_PATH_SEGMENT;
 use crate::browser_contract::TOKEN_FRAGMENT_KEY;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,11 +76,7 @@ pub fn launch_url_for_thread(
         .map_or_else(
             || {
                 let port = addr.port();
-                let thread_id = urlencoding::encode(&thread_id);
-                format!(
-                    "http://127.0.0.1:{port}/?{THREAD_QUERY_KEY}={thread_id}#{TOKEN_FRAGMENT_KEY}={}",
-                    token.as_str()
-                )
+                launch_url_for_origin(&format!("http://127.0.0.1:{port}"), &thread_id, token)
             },
             |entry| entry.url,
         )
@@ -93,22 +89,27 @@ pub fn launch_urls_for_thread(
     token: &LaunchToken,
 ) -> GuiLaunchUrls {
     let thread_id = thread_id.to_string();
-    let thread_id = urlencoding::encode(&thread_id);
     let entries = hosts
         .iter()
         .map(|host| {
             GuiLaunchUrlEntry::new(
                 host.kind,
                 host.label.clone(),
-                format!(
-                    "http://{}:{port}/?{THREAD_QUERY_KEY}={thread_id}#{TOKEN_FRAGMENT_KEY}={}",
-                    host_for_url(&host.host),
-                    token.as_str()
+                launch_url_for_origin(
+                    &format!("http://{}:{port}", host_for_url(&host.host)),
+                    &thread_id,
+                    token,
                 ),
             )
         })
         .collect();
     GuiLaunchUrls { entries }
+}
+
+fn launch_url_for_origin(origin: &str, thread_id: &str, token: &LaunchToken) -> String {
+    let thread_id = urlencoding::encode(thread_id);
+    let token = urlencoding::encode(token.as_str());
+    format!("{origin}/{CURRENT_TASK_PATH_SEGMENT}/{thread_id}#{TOKEN_FRAGMENT_KEY}={token}")
 }
 
 fn host_for_url(host: &str) -> String {
@@ -127,13 +128,13 @@ mod tests {
     use crate::LaunchToken;
 
     #[test]
-    fn launch_url_uses_thread_query_and_fragment_token() {
+    fn launch_url_uses_current_task_path_and_fragment_token() {
         let addr: SocketAddr = "127.0.0.1:3456".parse().expect("addr should parse");
-        let token = LaunchToken::from_test_value("test-token");
+        let token = LaunchToken::from_test_value("test token/#");
 
         assert_eq!(
             launch_url_for_thread(addr, "thread abc/#", &token),
-            "http://127.0.0.1:3456/?threadId=thread%20abc%2F%23#token=test-token"
+            "http://127.0.0.1:3456/task/thread%20abc%2F%23#token=test%20token%2F%23"
         );
     }
 
@@ -154,17 +155,17 @@ mod tests {
                 GuiLaunchUrlEntry::new(
                     GuiLaunchUrlKind::Local,
                     "Local",
-                    "http://127.0.0.1:4567/?threadId=thread%20abc%2F%23#token=test-token",
+                    "http://127.0.0.1:4567/task/thread%20abc%2F%23#token=test-token",
                 ),
                 GuiLaunchUrlEntry::new(
                     GuiLaunchUrlKind::Lan,
                     "LAN",
-                    "http://192.168.3.165:4567/?threadId=thread%20abc%2F%23#token=test-token",
+                    "http://192.168.3.165:4567/task/thread%20abc%2F%23#token=test-token",
                 ),
                 GuiLaunchUrlEntry::new(
                     GuiLaunchUrlKind::Vpn,
                     "VPN",
-                    "http://100.88.28.119:4567/?threadId=thread%20abc%2F%23#token=test-token",
+                    "http://100.88.28.119:4567/task/thread%20abc%2F%23#token=test-token",
                 ),
             ]
         );

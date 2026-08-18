@@ -2,12 +2,18 @@ import { Alert, Button, Typography } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { THREAD_QUERY_KEY } from "@codex-gui-host-contract";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
 import type { ContinueThread } from "@/features/appShell/AppCapabilities";
+import {
+  CURRENT_TASK_ROUTE_PATH,
+  HISTORY_LIST_ROUTE_PATH,
+  type GuiRouteTarget,
+} from "@/features/browserLaunch/guiRouteTarget";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import type { ThreadSwitchBlockedReason } from "@/features/projectionCoordination/threadSwitchCoordinator";
+import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import type { Thread } from "@codex-protocol/v2";
 import {
   initialThreadHistoryDetailState,
@@ -20,9 +26,10 @@ type RetainedThreadHistoryDetailCapability = Readonly<{
 }>;
 
 export function ThreadHistoryDetailPage() {
-  const { threadId } = useParams({ from: "/history/$threadId" });
+  const { threadId } = useParams({ from: "/app/history/$threadId" });
   const { t } = useLingui();
-  const { commands, continueThread, status } = useAppCapabilities();
+  const { activeOwner, authorizationToken, commands, continueThread, routeTarget, status } =
+    useAppCapabilities();
   const [retainedCapability, setRetainedCapability] =
     useState<RetainedThreadHistoryDetailCapability | null>(() =>
       commands == null ? null : { readThread: commands.readThread },
@@ -55,15 +62,21 @@ export function ThreadHistoryDetailPage() {
     <main className="mx-auto grid min-h-0 w-full max-w-3xl flex-1 content-start gap-6 px-4 py-6">
       {retainedCapability == null ? (
         <ThreadHistoryDetailContent
+          activeOwner={activeOwner}
+          authorizationToken={authorizationToken}
           continueThread={continueThread}
           retry={null}
+          routeTarget={routeTarget}
           state={unavailableState}
           threadId={threadId}
         />
       ) : (
         <ThreadHistoryDetailOwnerBound
+          activeOwner={activeOwner}
+          authorizationToken={authorizationToken}
           continueThread={continueThread}
           readThread={retainedCapability.readThread}
+          routeTarget={routeTarget}
           threadId={threadId}
         />
       )}
@@ -72,33 +85,67 @@ export function ThreadHistoryDetailPage() {
 }
 
 type ThreadHistoryDetailOwnerBoundProps = Readonly<{
+  activeOwner: ActiveThreadOwnerHandle | null;
+  authorizationToken: string | null;
   continueThread: ContinueThread | null;
   readThread: GuiHostCommands["readThread"];
+  routeTarget: GuiRouteTarget;
   threadId: string;
 }>;
 
 function ThreadHistoryDetailOwnerBound({
+  activeOwner,
+  authorizationToken,
   continueThread,
   readThread,
+  routeTarget,
   threadId,
 }: ThreadHistoryDetailOwnerBoundProps) {
   const owner = useMemo(
     () => new ThreadHistoryDetailOwner({ threadId, readThread }),
     [readThread, threadId],
   );
+  const pendingDisposal = useRef<{
+    owner: ThreadHistoryDetailOwner;
+    cancel: () => void;
+  } | null>(null);
   const state = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
 
   useEffect(() => {
+    if (pendingDisposal.current?.owner === owner) {
+      pendingDisposal.current.cancel();
+      pendingDisposal.current = null;
+    }
+
     owner.start();
     return () => {
-      owner.dispose();
+      let cancelled = false;
+      const disposal = {
+        owner,
+        cancel: () => {
+          cancelled = true;
+        },
+      };
+      pendingDisposal.current = disposal;
+      queueMicrotask(() => {
+        if (cancelled) {
+          return;
+        }
+        if (pendingDisposal.current === disposal) {
+          pendingDisposal.current = null;
+        }
+        owner.dispose();
+      });
     };
   }, [owner]);
 
   return (
     <ThreadHistoryDetailContent
+      activeOwner={activeOwner}
+      authorizationToken={authorizationToken}
       continueThread={continueThread}
       retry={owner.retry}
+      routeTarget={routeTarget}
       state={state}
       threadId={threadId}
     />
@@ -106,15 +153,21 @@ function ThreadHistoryDetailOwnerBound({
 }
 
 type ThreadHistoryDetailContentProps = Readonly<{
+  activeOwner: ActiveThreadOwnerHandle | null;
+  authorizationToken: string | null;
   continueThread: ContinueThread | null;
   retry: (() => boolean | undefined) | null;
+  routeTarget: GuiRouteTarget;
   state: ThreadHistoryDetailState;
   threadId: string;
 }>;
 
 function ThreadHistoryDetailContent({
+  activeOwner,
+  authorizationToken,
   continueThread,
   retry,
+  routeTarget,
   state,
   threadId,
 }: ThreadHistoryDetailContentProps) {
@@ -129,7 +182,7 @@ function ThreadHistoryDetailContent({
         <div>
           <Button
             onPress={() => {
-              void navigate({ to: "/history", search: true });
+              void navigate({ to: HISTORY_LIST_ROUTE_PATH });
             }}
             variant="secondary"
           >
@@ -164,8 +217,11 @@ function ThreadHistoryDetailContent({
       ) : null}
       {state.type === "ready" ? (
         <ContinueTaskAction
+          activeOwner={activeOwner}
+          authorizationToken={authorizationToken}
           continueThread={continueThread}
           key={state.thread.id}
+          routeTarget={routeTarget}
           threadId={threadId}
         />
       ) : null}
@@ -207,9 +263,18 @@ type ContinueTaskState =
   | Readonly<{ type: "failed"; error: unknown; cleanupError?: unknown }>;
 
 function ContinueTaskAction({
+  activeOwner,
+  authorizationToken,
   continueThread,
+  routeTarget,
   threadId,
-}: Readonly<{ continueThread: ContinueThread | null; threadId: string }>) {
+}: Readonly<{
+  activeOwner: ActiveThreadOwnerHandle | null;
+  authorizationToken: string | null;
+  continueThread: ContinueThread | null;
+  routeTarget: GuiRouteTarget;
+  threadId: string;
+}>) {
   const navigate = useNavigate();
   const blockedDescriptionId = useId();
   const mountedRef = useRef(true);
@@ -226,9 +291,9 @@ function ContinueTaskAction({
 
   const navigateToCurrentTask = (activeThreadId: string): void => {
     void navigate({
-      to: "/",
+      to: CURRENT_TASK_ROUTE_PATH,
+      params: { threadId: activeThreadId },
       replace: true,
-      search: { [THREAD_QUERY_KEY]: activeThreadId },
     });
   };
 
@@ -301,8 +366,14 @@ function ContinueTaskAction({
             </Alert.Description>
             <Button
               className="mt-3"
+              isDisabled={activeOwner == null}
               onPress={() => {
-                void navigate({ to: "/", search: true });
+                if (activeOwner != null) {
+                  void navigate({
+                    to: CURRENT_TASK_ROUTE_PATH,
+                    params: { threadId: activeOwner.threadId },
+                  });
+                }
               }}
               variant="secondary"
             >
@@ -328,10 +399,11 @@ function ContinueTaskAction({
         </Alert>
       ) : null}
       <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur">
-        <div className="mx-auto w-full max-w-3xl">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-2">
+          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <Button
             aria-describedby={state.type === "blocked" ? blockedDescriptionId : undefined}
-            className="w-full"
+            className="flex-1"
             isDisabled={continueThread == null}
             isPending={state.type === "pending"}
             onPress={() => {

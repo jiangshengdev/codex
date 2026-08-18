@@ -1,6 +1,7 @@
 import { Button, Link, Typography } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
+import { HISTORY_LIST_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 
 export function NotFoundPage() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export function NotFoundPage() {
           <Trans>Sorry, we couldn’t find the page you’re looking for.</Trans>
         </Typography.Paragraph>
         <div className="mt-10 flex items-center justify-center gap-x-6">
-          <Button size="lg" onPress={() => void navigate({ to: "/" })}>
+          <Button size="lg" onPress={() => void navigate({ to: HISTORY_LIST_ROUTE_PATH })}>
             <Trans>Go back home</Trans>
           </Button>
           <Link href="mailto:jiangshengdev@outlook.com" className="text-sm font-semibold">

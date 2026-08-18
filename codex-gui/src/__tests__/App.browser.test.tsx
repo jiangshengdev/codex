@@ -5,10 +5,10 @@ import {
   createRoute,
   createRouter,
   RouterProvider,
+  type RouteComponent,
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
-  attachProjection,
   attachResponse,
   attachWithCommittedMessages,
   createGuiHostCommands,
@@ -16,16 +16,25 @@ import {
   emitProjectionDelta,
   emitProjectionEvent,
   getCleanupConnectionCallCount,
+  getConnectionStartCount,
   getHostOptions,
+  initializeHost,
   launchThreadId,
-  markCommandsReady,
   markCommandsUnavailable,
-  markHostAttached,
+  queueAttachProjectionResponse,
+  queueDeferredAttachProjection,
   resetAppBrowserTestSupport,
+  seedBrowserAuthorizationSession,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import RootApp from "@/App";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
+import {
+  CURRENT_TASK_ROUTE_PATH,
+  HISTORY_DETAIL_ROUTE_PATH,
+  HISTORY_LIST_ROUTE_PATH,
+  type GuiRouteTarget,
+} from "@/features/browserLaunch/guiRouteTarget";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -35,6 +44,8 @@ import type {
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
+import { ThreadHistoryDetailPage } from "@/features/threadHistory/ThreadHistoryDetailPage";
+import { ThreadHistoryListPage } from "@/features/threadHistory/ThreadHistoryListPage";
 import {
   attachReplacement,
   closedBackpressure,
@@ -61,7 +72,7 @@ import {
   turnCompleted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/threadSwitchCoordinator";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectTranscriptEntry,
@@ -117,23 +128,43 @@ function ThreadSwitchCapabilityProbe() {
   );
 }
 
-function App({ initialEntry = "/" }: Readonly<{ initialEntry?: string }>) {
+function App({
+  currentTaskComponent = CurrentTaskPage,
+  initialEntry = CURRENT_TASK_ROUTE_PATH.replace("$threadId", launchThreadId),
+  routeTarget = { type: "currentTask", threadId: launchThreadId },
+}: Readonly<{
+  currentTaskComponent?: RouteComponent;
+  initialEntry?: string;
+  routeTarget?: GuiRouteTarget;
+}>) {
   const [router] = useState(() => {
-    const rootRoute = createRootRoute({ component: RootApp });
-    const indexRoute = createRoute({
+    const rootRoute = createRootRoute();
+    const appRoute = createRoute({
       getParentRoute: () => rootRoute,
-      path: "/",
-      component: CurrentTaskPage,
+      id: "app",
+      component: () => <RootApp routeTarget={routeTarget} />,
     });
-    const threadSwitchProbeRoute = createRoute({
-      getParentRoute: () => rootRoute,
-      path: "/__test/thread-switch",
-      component: ThreadSwitchCapabilityProbe,
+    const currentTaskRoute = createRoute({
+      getParentRoute: () => appRoute,
+      path: CURRENT_TASK_ROUTE_PATH,
+      component: currentTaskComponent,
+    });
+    const historyListRoute = createRoute({
+      getParentRoute: () => appRoute,
+      path: HISTORY_LIST_ROUTE_PATH,
+      component: ThreadHistoryListPage,
+    });
+    const historyDetailRoute = createRoute({
+      getParentRoute: () => appRoute,
+      path: HISTORY_DETAIL_ROUTE_PATH,
+      component: ThreadHistoryDetailPage,
     });
 
     return createRouter({
       history: createMemoryHistory({ initialEntries: [initialEntry] }),
-      routeTree: rootRoute.addChildren([indexRoute, threadSwitchProbeRoute]),
+      routeTree: rootRoute.addChildren([
+        appRoute.addChildren([currentTaskRoute, historyListRoute, historyDetailRoute]),
+      ]),
     });
   });
 
@@ -198,10 +229,12 @@ const requireThreadSwitchProbePromise = () => {
 };
 
 const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
-  const screen = await renderWithProviders(<App initialEntry="/__test/thread-switch" />);
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
+  );
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
-  markCommandsReady(options, commands);
+  queueAttachProjectionResponse(commands);
+  initializeHost(options, commands);
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
   await expect.element(continueButton).toBeEnabled();
   await expect.poll(() => threadSwitchProbeActiveOwner?.threadId).toBe(launchThreadId);
@@ -251,6 +284,7 @@ const expectStartTurnSecondCallWithText = (
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
+  window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
   threadSwitchProbeActiveOwner = null;
@@ -318,11 +352,21 @@ const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
-  attachProjection(options);
-  markHostAttached(options);
-  markCommandsReady(options, commandHandle);
+  queueAttachProjectionResponse(commandHandle);
+  initializeHost(options, commandHandle);
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
 
   return { commandHandle, options, screen };
+};
+
+const initializeAppWithProjection = (
+  options: StartGuiHostConnectionOptions,
+  response = attachResponse,
+  commands = createGuiHostCommands(),
+): GuiHostCommands => {
+  queueAttachProjectionResponse(commands, response);
+  initializeHost(options, commands);
+  return commands;
 };
 
 const renderActiveApp = async () => {
@@ -337,9 +381,9 @@ const renderActiveApp = async () => {
   const options = getHostOptions(startGuiHostConnectionMock);
   const activeTurn = inProgressTurn("turn-active-queue");
 
-  attachProjection(options, attachWithTurns(attachResponse, [activeTurn]));
-  markHostAttached(options);
-  markCommandsReady(options, commandHandle);
+  queueAttachProjectionResponse(commandHandle, attachWithTurns(attachResponse, [activeTurn]));
+  initializeHost(options, commandHandle);
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
 
   return { activeTurn, options, screen, startTurn };
 };
@@ -362,12 +406,12 @@ afterEach(() => {
 });
 
 test("App renders the committed transcript shell without visible host debug details", async () => {
-  const screen = await renderWithProviders(<App />);
+  const { screen } = await renderReadyApp();
   const topNotices = screen.container.querySelector("[data-app-shell-top-notices]");
 
   await expect
     .element(screen.getByRole("main"))
-    .toHaveAttribute("data-gui-host-status", "connecting");
+    .toHaveAttribute("data-gui-host-status", "initialized");
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
@@ -376,7 +420,7 @@ test("App renders the committed transcript shell without visible host debug deta
 });
 
 test("App renders composer in the shell without visible host debug details", async () => {
-  const screen = await renderWithProviders(<App />);
+  const { screen } = await renderReadyApp();
   const main = screen.getByRole("main").element();
   const transcriptBottomSentinel = screen.container.querySelector(
     ".committed-transcript-bottom-sentinel",
@@ -385,7 +429,7 @@ test("App renders composer in the shell without visible host debug details", asy
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
   expect(main.classList.contains("pb-44")).toBe(false);
   expect(main.classList.contains("px-4")).toBe(false);
@@ -406,7 +450,7 @@ test("App renders composer in the shell without visible host debug details", asy
 });
 
 test("App keeps the transcript surface flush with the shell padding", async () => {
-  const screen = await renderWithProviders(<App />);
+  const { screen } = await renderReadyApp();
   const transcript = screen.container.querySelector('[aria-label="Committed transcript"]');
   const surface = transcript?.parentElement;
 
@@ -422,14 +466,18 @@ test("App keeps host lifecycle status stable while projection events update runt
   const screen = await renderWithProviders(<App />);
   const { store } = screen;
   const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createGuiHostCommands();
 
-  attachProjection(options);
-  markHostAttached(options);
+  queueAttachProjectionResponse(commands);
+  initializeHost(options, commands);
+  await expect
+    .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+    .toBe(launchThreadId);
   emitProjectionEvent(options, eventTurnStarted);
 
   await expect
     .element(screen.getByRole("main"))
-    .toHaveAttribute("data-gui-host-status", "attached");
+    .toHaveAttribute("data-gui-host-status", "initialized");
   expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
     { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
   ]);
@@ -464,7 +512,7 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   expect(topNotices.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+  await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
 });
 
 test("App localizes the GUI host startup error title without translating its details", async () => {
@@ -478,6 +526,28 @@ test("App localizes the GUI host startup error title without translating its det
   await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
 });
 
+test("App fails closed on history when the authorization session has no active task", async () => {
+  window.history.replaceState({}, "", "/history");
+  seedBrowserAuthorizationSession({ token: "history-secret" });
+  const commands = createGuiHostCommands();
+  const screen = await renderWithProviders(
+    <App initialEntry="/history" routeTarget={{ type: "historyList" }} />,
+  );
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  initializeHost(options, commands);
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert).toHaveTextContent("History context unavailable");
+  await expect
+    .element(alert)
+    .toHaveTextContent("Open an active task in this browser tab before viewing its history.");
+  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+  expect(commands.listThreads).not.toHaveBeenCalled();
+  expect(getConnectionStartCount(startGuiHostConnectionMock)).toBe(1);
+  expect(window.location.pathname).toBe("/history");
+});
+
 test("App dispatches accepted host projection payloads into thread runtime", async () => {
   const { store } = await renderWithProviders(<App />);
   const projectionEvent = eventTurnStarted;
@@ -487,7 +557,10 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
   }
 
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
+  const commands = createGuiHostCommands();
+  queueAttachProjectionResponse(commands);
+  initializeHost(options, commands);
+  await expect.poll(() => selectThreadRuntimeRecord(store.getState())?.threadId).toBe(threadId);
   emitProjectionEvent(options, projectionEvent);
 
   expect(selectThreadIdentityState(store.getState())).toStrictEqual({
@@ -516,8 +589,13 @@ test("App batches accepted projection deltas until the next animation frame", as
     const { store } = screen;
     const options = getHostOptions(startGuiHostConnectionMock);
     const initialItem = agentMessage("agent-raf-batch", "");
+    const commands = createGuiHostCommands();
 
-    attachProjection(options, attachWithTurns(attachResponse, []));
+    queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, []));
+    initializeHost(options, commands);
+    await expect
+      .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+      .toBe(launchThreadId);
     const turnStartedEvent = turnStarted(
       eventTurnStarted,
       "commit-raf-batch-turn",
@@ -587,8 +665,13 @@ test("App flushes pending projection deltas before structural projection events"
     const { store } = await renderWithProviders(<App />);
     const options = getHostOptions(startGuiHostConnectionMock);
     const initialItem = agentMessage("agent-raf-flush-event", "");
+    const commands = createGuiHostCommands();
 
-    attachProjection(options, attachWithTurns(attachResponse, []));
+    queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, []));
+    initializeHost(options, commands);
+    await expect
+      .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+      .toBe(launchThreadId);
     const turnStartedEvent = turnStarted(
       eventTurnStarted,
       "commit-raf-flush-event-turn",
@@ -665,7 +748,12 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
   );
 
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options, snapshotAheadWithOldHead);
+  const commands = createGuiHostCommands();
+  queueAttachProjectionResponse(commands, snapshotAheadWithOldHead);
+  initializeHost(options, commands);
+  await expect
+    .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
+    .toBe(launchThreadId);
   emitProjectionEvent(options, eventTurnStarted);
 
   const runtime = selectThreadRuntimeRecord(store.getState());
@@ -675,7 +763,7 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
   ]);
 });
 
-test("App replaces the replay baseline after an accepted replacement attach", async () => {
+test("App replays startup notifications against the accepted attach baseline", async () => {
   const { store } = await renderWithProviders(<App />);
   if (eventSubscriptionReplacement.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
@@ -683,73 +771,58 @@ test("App replaces the replay baseline after an accepted replacement attach", as
 
   const oldOnlyTurn = inProgressTurn("old-baseline-only");
   const replacementTurn = eventSubscriptionReplacement.event.notification.turn;
-  const oldAttach = attachWithTurns(attachResponse, [oldOnlyTurn]);
   const replacementAttach = attachWithTurns(attachReplacement, [replacementTurn]);
   const oldOnlyEvent = eventWithEnvelope(
     turnStarted(eventSubscriptionReplacement, "commit-old-baseline-only", oldOnlyTurn),
     { parentCommitId: replacementAttach.snapshot.headCommitId },
   );
+  const snapshotDuplicateEvent = eventWithEnvelope(eventSubscriptionReplacement, {
+    parentCommitId: oldOnlyEvent.commitId,
+  });
   const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createGuiHostCommands();
+  const pendingAttach = queueDeferredAttachProjection(commands);
 
-  attachProjection(options, oldAttach);
-  attachProjection(options, replacementAttach);
+  initializeHost(options, commands);
+  await expect.poll(pendingAttach.getState).toBe("pending");
   emitProjectionEvent(options, oldOnlyEvent);
+  emitProjectionEvent(options, snapshotDuplicateEvent);
+  pendingAttach.resolve(replacementAttach);
 
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: oldOnlyEvent, replay: "live" },
-  ]);
-
-  attachProjection(options, replacementAttach);
-  emitProjectionEvent(options, eventSubscriptionReplacement);
-
-  expect(selectThreadRuntimeRecord(store.getState())?.snapshotTurns).toStrictEqual([
-    replacementTurn,
-  ]);
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    {
-      type: "projectionEvent",
-      notification: eventSubscriptionReplacement,
-      replay: "snapshotDuplicate",
-    },
-  ]);
+  await expect
+    .poll(() => selectThreadRuntimeRecord(store.getState())?.snapshotTurns)
+    .toStrictEqual([replacementTurn]);
+  await expect
+    .poll(() => selectThreadRuntimeEventBuffer(store.getState()))
+    .toStrictEqual([
+      { type: "projectionEvent", notification: oldOnlyEvent, replay: "live" },
+      {
+        type: "projectionEvent",
+        notification: snapshotDuplicateEvent,
+        replay: "snapshotDuplicate",
+      },
+    ]);
 });
 
-test("App classifies from the new snapshot after new launch params and attach", async () => {
-  const { store } = await renderWithProviders(<App />);
-  if (eventSubscriptionReplacement.event.type !== "turnStarted") {
-    throw new Error("fixture must contain a turnStarted projection event");
-  }
-
-  const oldOnlyTurn = inProgressTurn("old-launch-baseline-only");
-  const replacementTurn = eventSubscriptionReplacement.event.notification.turn;
-  const oldAttach = attachWithTurns(attachResponse, [oldOnlyTurn]);
-  const replacementAttach = attachWithTurns(attachReplacement, [replacementTurn]);
-  const oldOnlyEvent = eventWithEnvelope(
-    turnStarted(eventSubscriptionReplacement, "commit-old-launch-baseline", oldOnlyTurn),
-    { parentCommitId: replacementAttach.snapshot.headCommitId },
+test("App does not publish a late startup owner after commands become unavailable", async () => {
+  const commands = createGuiHostCommands();
+  const pendingAttach = queueDeferredAttachProjection(commands);
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
   );
   const options = getHostOptions(startGuiHostConnectionMock);
+  const activeThread = screen.getByLabelText("Active thread owner");
+  const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
 
-  attachProjection(options, oldAttach);
-  options.onLaunchParams?.({ threadId: launchThreadId, token: "replacement-secret" });
-  attachProjection(options, replacementAttach);
-  emitProjectionEvent(options, oldOnlyEvent);
+  initializeHost(options, commands);
+  await expect.poll(pendingAttach.getState).toBe("pending");
+  markCommandsUnavailable(options);
+  pendingAttach.resolve();
 
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: oldOnlyEvent, replay: "live" },
-  ]);
-
-  options.onLaunchParams?.({ threadId: launchThreadId, token: "replacement-secret-2" });
-  attachProjection(options, replacementAttach);
-  emitProjectionEvent(options, eventSubscriptionReplacement);
-
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    {
-      type: "projectionEvent",
-      notification: eventSubscriptionReplacement,
-      replay: "snapshotDuplicate",
-    },
-  ]);
+  await expect.element(activeThread).toHaveTextContent("none");
+  await expect.element(continueButton).toBeDisabled();
+  await expect.poll(() => threadSwitchProbeActiveOwner).toBeNull();
+  expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
 
 test("App passes ready commands to composer and sends plain text", async () => {
@@ -877,28 +950,20 @@ test("App shows a QR access popover before the Stop button", async () => {
 
   await qrButton.click();
 
-  const expectedUrl = `${window.location.origin}/?threadId=${launchThreadId}#token=secret`;
+  const expectedUrl = new URL(`/task/${launchThreadId}#token=secret`, window.location.origin);
   await expect.element(screen.getByRole("dialog", { name: "Scan with phone" })).toBeVisible();
   await expect.element(screen.getByLabelText("QR code for current GUI URL")).toBeVisible();
-  await expect.element(screen.getByText(expectedUrl)).toBeVisible();
-});
-
-test("App disables QR access when launch params are unavailable", async () => {
-  startGuiHostConnectionMock.mockImplementation((options) => {
-    options.onStatus?.({ label: "connecting" });
-    return () => undefined;
-  });
-
-  const screen = await renderWithProviders(<App />);
-
-  await expect.element(screen.getByRole("button", { name: "Scan with phone" })).toBeDisabled();
+  await expect.element(screen.getByText(expectedUrl.toString())).toBeVisible();
+  expect(expectedUrl.pathname).toBe(`/task/${launchThreadId}`);
+  expect(expectedUrl.search).toBe("");
+  expect(expectedUrl.hash).toBe("#token=secret");
 });
 
 test("App renders committed transcript messages from an attached projection", async () => {
   const screen = await renderWithProviders(<App />);
 
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options, attachWithCommittedMessages());
+  initializeAppWithProjection(options, attachWithCommittedMessages());
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByText("Hello from App")).toBeVisible();
@@ -910,7 +975,7 @@ test("App keeps the document pinned to the bottom after attaching a long transcr
   const options = getHostOptions(startGuiHostConnectionMock);
 
   scrollToDocumentBottom();
-  attachProjection(
+  initializeAppWithProjection(
     options,
     attachWithTurns(attachResponse, [
       baseTurn("turn-scroll-attach", [
@@ -927,7 +992,7 @@ test("App keeps the document pinned to the bottom after a live committed message
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
-  attachProjection(
+  initializeAppWithProjection(
     options,
     attachWithTurns(attachResponse, [
       baseTurn("turn-scroll-live", [
@@ -964,7 +1029,7 @@ test("App does not force the document to the bottom after a live message when th
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
-  attachProjection(
+  initializeAppWithProjection(
     options,
     attachWithTurns(attachResponse, [
       baseTurn("turn-scroll-away", [
@@ -1008,7 +1073,7 @@ test("App keeps the document pinned to the bottom after a live assistant delta",
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
-  attachProjection(
+  initializeAppWithProjection(
     options,
     attachWithTurns(attachResponse, [
       baseTurn("turn-scroll-live-delta-history", [
@@ -1068,7 +1133,7 @@ test("App does not force the document to the bottom after a live assistant delta
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
-  attachProjection(
+  initializeAppWithProjection(
     options,
     attachWithTurns(attachResponse, [
       baseTurn("turn-scroll-live-delta-away-history", [
@@ -1123,37 +1188,22 @@ test("App does not force the document to the bottom after a live assistant delta
   await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeDelta + 4);
 });
 
-test("App keeps the accepted replay baseline after a mismatched attach", async () => {
-  const { store } = await renderWithProviders(<App />);
-  if (eventTurnStarted.event.type !== "turnStarted") {
-    throw new Error("fixture must contain a turnStarted projection event");
-  }
-
+test("App rejects a startup attach that returns a different thread identity", async () => {
+  const screen = await renderWithProviders(<App />);
+  const { store } = screen;
   const mismatchedThreadId = "00000000-0000-0000-0000-000000000999";
-  const validAttach = attachWithTurns(attachResponse, [eventTurnStarted.event.notification.turn]);
-  const validAttachWithOldHead = attachWithHeadCommitId(
-    validAttach,
-    eventTurnStarted.parentCommitId,
-  );
   const mismatchedAttach = attachWithThreadId(attachResponse, mismatchedThreadId);
-
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options, validAttachWithOldHead);
-  const runtimeBeforeMismatch = selectThreadRuntimeRecord(store.getState());
-  attachProjection(options, mismatchedAttach);
+  const commands = createGuiHostCommands();
 
-  expect(selectThreadIdentityState(store.getState())).toStrictEqual({
-    launchThreadId,
-    attachedThreadId: mismatchedThreadId,
-    attachStatus: "mismatch",
-  });
-  expect(selectThreadRuntimeRecord(store.getState())).toStrictEqual(runtimeBeforeMismatch);
+  queueAttachProjectionResponse(commands, mismatchedAttach);
+  initializeHost(options, commands);
 
-  emitProjectionEvent(options, eventTurnStarted);
-
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: eventTurnStarted, replay: "snapshotDuplicate" },
-  ]);
+  await expect
+    .element(screen.getByRole("alert"))
+    .toHaveTextContent("thread/projection/attach returned a different thread identity");
+  expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
+  expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
 
 test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
@@ -1162,10 +1212,13 @@ test("App stops forwarding runtime events after backpressure requires manual rec
   const projectionClosed = closedBackpressure;
 
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
+  initializeAppWithProjection(options);
   emitProjectionClosed(options, projectionClosed);
   emitProjectionEvent(options, projectionEvent);
 
+  await expect
+    .poll(() => selectThreadRuntimeSubscription(store.getState())?.state)
+    .toBe("manualReconnectRequired");
   const runtime = selectThreadRuntimeRecord(store.getState());
   expect(runtime?.threadId).toBe(launchThreadId);
   expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
@@ -1189,11 +1242,16 @@ test("App disables composer after projection backpressure requires reconnect", a
 test("App disables composer when host commands become unavailable", async () => {
   const commandHandle = createGuiHostCommands();
   const { options, screen } = await renderReadyApp(commandHandle);
+  const composer = screen.getByRole("region", { name: "Message composer" });
+  const input = screen.getByPlaceholder("Message Codex");
+  const qrButton = screen.getByRole("button", { name: "Scan with phone" });
 
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(input).toBeEnabled();
   options.onCommandsUnavailable?.();
 
-  await expectAppComposerDisabled(screen);
+  await expect.element(composer).not.toBeInTheDocument();
+  await expect.element(input).not.toBeInTheDocument();
+  await expect.element(qrButton).not.toBeInTheDocument();
 });
 
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
@@ -1201,9 +1259,12 @@ test("App records manual reconnect when a projection event breaks the baseline",
   const projectionEvent = eventItemStarted;
 
   const options = getHostOptions(startGuiHostConnectionMock);
-  attachProjection(options);
+  initializeAppWithProjection(options);
   emitProjectionEvent(options, projectionEvent);
 
+  await expect
+    .poll(() => selectThreadRuntimeSubscription(store.getState())?.state)
+    .toBe("manualReconnectRequired");
   expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
     state: "manualReconnectRequired",
     reason: "commitChainMismatch",
@@ -1227,17 +1288,10 @@ test("App owns one queue coordinator for the matching attached launch thread unt
   const createQueueCoordinator = vi.mocked(createComposerInputQueueCoordinator);
   const queue = createQueueCoordinatorMock(launchThreadId);
   createQueueCoordinator.mockReturnValue(queue.coordinator);
-  const mismatchedAttach = attachWithThreadId(attachResponse, "thread-mismatch");
+  queueAttachProjectionResponse(commands);
+  initializeHost(options, commands);
 
-  attachProjection(options, mismatchedAttach);
-  markCommandsReady(options, commands);
-
-  expect(createQueueCoordinator).not.toHaveBeenCalled();
-
-  attachProjection(options, attachResponse);
-  markCommandsReady(options, commands);
-
-  expect(createQueueCoordinator).toHaveBeenCalledOnce();
+  await expect.poll(() => createQueueCoordinator.mock.calls.length).toBe(1);
   expect(createQueueCoordinator).toHaveBeenCalledWith({
     threadId: launchThreadId,
     activeTurnId: null,
@@ -1251,11 +1305,10 @@ test("App owns one queue coordinator for the matching attached launch thread unt
     replay: "live",
   });
 
-  attachProjection(options, mismatchedAttach);
   markCommandsUnavailable(options);
 
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
-  expect(queue.dispose).not.toHaveBeenCalled();
+  expect(queue.dispose).toHaveBeenCalledOnce();
 
   await screen.unmount();
 
@@ -1263,8 +1316,6 @@ test("App owns one queue coordinator for the matching attached launch thread unt
   expect(getCleanupConnectionCallCount()).toBe(1);
 
   emitProjectionEvent(options, eventTurnStarted);
-  attachProjection(options, attachResponse);
-  markCommandsReady(options, commands);
 
   expect(queue.observeAcceptedEvent).toHaveBeenCalledOnce();
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
@@ -1283,8 +1334,8 @@ test("App publishes a completed thread switch atomically across capabilities and
     candidateThreadId,
   );
   const commands = createGuiHostCommands();
-  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
+  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const activeThread = screen.getByLabelText("Active thread owner");
   const activeQueue = screen.getByLabelText("Active queue owner");
   const initialOwner = requireThreadSwitchProbeOwner();
@@ -1293,7 +1344,10 @@ test("App publishes a completed thread switch atomically across capabilities and
   await expect.element(activeThread).toHaveTextContent(launchThreadId);
   await expect.element(activeQueue).toHaveTextContent(launchThreadId);
   await continueButton.click();
-  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(1);
+  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(2);
+  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
+    threadId: candidateThreadId,
+  });
 
   const oldItem = agentMessage("old-switch-item", "");
   const oldTurnEvent = turnStarted(
@@ -1444,7 +1498,9 @@ test("App keeps the initial owner when its queue blocks a thread switch", async 
   });
 
   expect(commands.resumeThread).not.toHaveBeenCalled();
-  expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
   expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
   await expect
     .element(screen.getByLabelText("Active thread owner"))
@@ -1458,8 +1514,8 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
   vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
   const error = new Error("candidate attach failed");
   const commands = createGuiHostCommands();
-  vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
   const initialOwner = requireThreadSwitchProbeOwner();
 
   await continueButton.click();
@@ -1470,7 +1526,10 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
   });
 
   expect(commands.resumeThread).toHaveBeenCalledOnce();
-  expect(commands.attachThreadProjection).toHaveBeenCalledOnce();
+  expect(commands.attachThreadProjection).toHaveBeenCalledTimes(2);
+  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
+    threadId: candidateThreadId,
+  });
   expect(commands.detachThreadProjection).not.toHaveBeenCalled();
   expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
   await expect
@@ -1486,13 +1545,16 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
   const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
   const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
   const commands = createGuiHostCommands();
-  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
   const initialOwner = requireThreadSwitchProbeOwner();
   const initialProjectionDispose = vi.spyOn(initialOwner.projectionOwner, "dispose");
 
   await continueButton.click();
-  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(1);
+  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(2);
+  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
+    threadId: candidateThreadId,
+  });
   const switching = requireThreadSwitchProbePromise();
   await screen.unmount();
 
@@ -1529,7 +1591,7 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
     const options = getHostOptions(startGuiHostConnectionMock);
     const initialItem = agentMessage("agent-raf-cleanup", "");
 
-    attachProjection(options, attachWithTurns(attachResponse, []));
+    initializeAppWithProjection(options, attachWithTurns(attachResponse, []));
     const turnStartedEvent = turnStarted(
       eventTurnStarted,
       "commit-raf-cleanup-turn",
@@ -1546,11 +1608,14 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
       agentMessageDelta(eventAgentMessageDelta, "turn-raf-cleanup", "agent-raf-cleanup", "Lost"),
     );
 
+    const entryId = transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup");
+    await expect
+      .poll(() => store.getState().transcriptState.entriesById[entryId])
+      .toMatchObject({ type: "live", status: "started" });
     await screen.unmount();
     vi.advanceTimersToNextFrame();
 
     expect(getCleanupConnectionCallCount()).toBe(1);
-    const entryId = transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup");
     expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
       type: "live",
       id: "agent-raf-cleanup",

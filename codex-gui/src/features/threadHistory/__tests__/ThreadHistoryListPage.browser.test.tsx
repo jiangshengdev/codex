@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vitest";
+import { page } from "vitest/browser";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -7,11 +8,12 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { THREAD_QUERY_KEY } from "@codex-gui-host-contract";
 import { StrictMode } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type { Thread, ThreadListResponse } from "@codex-protocol/v2";
@@ -43,30 +45,91 @@ const response = (data: Thread[], nextCursor: string | null): ThreadListResponse
   backwardsCursor: null,
 });
 
+const historyCards = (container: HTMLElement): HTMLElement[] =>
+  Array.from(container.querySelectorAll<HTMLElement>('[role="article"]'));
+
+const historyGrid = (card: HTMLElement): HTMLElement => {
+  const grid = card.parentElement;
+  if (!(grid instanceof HTMLElement)) {
+    throw new Error("history card must be rendered inside the history grid");
+  }
+  return grid;
+};
+
+const firstRowColumnCount = (cards: readonly HTMLElement[]): number => {
+  const firstTop = cards[0]?.getBoundingClientRect().top;
+  if (firstTop == null) {
+    return 0;
+  }
+  return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - firstTop) <= 1).length;
+};
+
+const hasAlignedFirstRow = (cards: readonly HTMLElement[], columns: number): boolean => {
+  const firstRow = cards.slice(0, columns);
+  const heights = firstRow.map((card) => card.getBoundingClientRect().height);
+  const footerTops = firstRow.map(
+    (card) =>
+      card.querySelector<HTMLElement>('[data-slot="card-footer"]')?.getBoundingClientRect().top ??
+      -1,
+  );
+  return (
+    Math.max(...heights) - Math.min(...heights) <= 1 &&
+    footerTops.every((top) => top >= 0) &&
+    Math.max(...footerTops) - Math.min(...footerTops) <= 1
+  );
+};
+
+const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
+  element.scrollWidth <= element.clientWidth + 1;
+
 const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
 
 type RenderHistoryOptions = {
-  attachRuntime?: boolean;
   commandsAvailable?: boolean;
+  historyContextAvailable?: boolean;
   initialEntry?: string;
   strictMode?: boolean;
 };
 
+const activeOwner = (): ActiveThreadOwnerHandle => ({
+  threadId: attachResponse.snapshot.thread.id,
+  subscriptionId: attachResponse.subscriptionId,
+  projectionOwner: null as never,
+  queueCoordinator: null as never,
+});
+
 const renderHistory = async (
   listThreads: GuiHostCommands["listThreads"],
   {
-    attachRuntime = true,
     commandsAvailable = true,
+    historyContextAvailable = true,
     initialEntry = "/history",
     strictMode = false,
   }: RenderHistoryOptions = {},
 ) => {
-  const capabilities = {
-    activeOwner: null,
+  const owner = historyContextAvailable ? activeOwner() : null;
+  const target = { type: "historyList" } as const;
+  const capabilities: AppCapabilities = {
+    activeOwner: owner,
+    authorizationToken: null,
     commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
     continueThread: null,
-    launchParams: null,
-    status: { label: "attached" } as const,
+    routeTarget: target,
+    startupOutcome: historyContextAvailable
+      ? {
+          type: "ready",
+          target,
+          activeOwner: owner,
+          cleanupFailure: null,
+          postCommitFailure: null,
+        }
+      : {
+          type: "historyContextUnavailable",
+          target,
+          activeOwner: null,
+          cleanupFailure: null,
+        },
+    status: { label: "initialized" },
   };
   const Root = () => (
     <AppCapabilitiesProvider capabilities={capabilities}>
@@ -90,7 +153,7 @@ const renderHistory = async (
   });
   const app = <RouterProvider router={router} />;
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
-  if (attachRuntime) {
+  if (historyContextAvailable) {
     screen.store.dispatch(threadRuntimeAttached(attachResponse));
   }
   return { router, screen };
@@ -113,27 +176,42 @@ test("settles the initial history request and renders its result under StrictMod
   });
 });
 
-test.each([
-  { attachRuntime: true, commandsAvailable: false },
-  { attachRuntime: false, commandsAvailable: true },
-])(
-  "shows an unavailable error instead of loading when a dependency is missing",
-  async (options) => {
-    const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
-    const { screen } = await renderHistory(listThreads, options);
+test("fails closed with the complete context error when active recovery is unavailable", async () => {
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+  const { screen } = await renderHistory(listThreads, { historyContextAvailable: false });
 
-    const alert = screen.getByRole("alert");
-    await expect.element(alert.getByText("Unable to load history")).toBeVisible();
-    await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
-    await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
-    expect(listThreads).not.toHaveBeenCalled();
-  },
-);
+  const alert = screen.getByRole("alert");
+  await expect
+    .element(alert.getByText("History context unavailable", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(
+      alert.getByText("Open an active task in this browser tab before viewing its history.", {
+        exact: true,
+      }),
+    )
+    .toBeVisible();
+  await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  expect(listThreads).not.toHaveBeenCalled();
+});
+
+test("shows the non-retryable dependency error when commands are unavailable", async () => {
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+  const { screen } = await renderHistory(listThreads, { commandsAvailable: false });
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to load history", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  expect(listThreads).not.toHaveBeenCalled();
+});
 
 test("renders generated Thread cards with title fallbacks, nonduplicated summaries, status colors, time, and View navigation", async () => {
   const activitySeconds = 1_725_000_000;
+  const namedThreadId = "00000000-0000-0000-0000-000000000091";
   const threads = [
-    thread("named", {
+    thread(namedThreadId, {
       name: "Named task",
       preview: "Named summary",
       recencyAt: activitySeconds,
@@ -156,10 +234,7 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
   const listThreads = vi
     .fn<GuiHostCommands["listThreads"]>()
     .mockResolvedValue(response(threads, null));
-  const launchThreadId = "launch-thread";
-  const { router, screen } = await renderHistory(listThreads, {
-    initialEntry: `/history?${THREAD_QUERY_KEY}=${launchThreadId}`,
-  });
+  const { router, screen } = await renderHistory(listThreads);
 
   const namedCard = screen.getByRole("article", { name: "Named task" });
   const previewCard = screen.getByRole("article", { name: "Preview title" });
@@ -177,11 +252,187 @@ test("renders generated Thread cards with title fallbacks, nonduplicated summari
     screen.getByText(label).element().closest(".chip")?.classList.contains("chip--danger"),
   );
   expect(statusDangerByLabel).toStrictEqual([false, false, false, true]);
+  await expect
+    .element(screen.getByRole("button", { name: "Scan with phone" }))
+    .not.toBeInTheDocument();
 
   await namedCard.getByRole("button", { name: "View" }).click();
   await expect.element(screen.getByRole("main", { name: "History detail" })).toBeInTheDocument();
-  expect(router.state.location.pathname).toBe("/history/named");
-  expect(router.state.location.search).toEqual({ [THREAD_QUERY_KEY]: launchThreadId });
+  expect(router.state.location.pathname).toBe(`/history/${namedThreadId}`);
+  expect(
+    router.state.location.pathname.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    ),
+  ).toStrictEqual([namedThreadId]);
+  expect(router.state.location.search).toEqual({});
+  expect(router.state.location.hash).toBe("");
+});
+
+test("lays out history cards in one, two, and three real columns with aligned rows", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  try {
+    await page.viewport(390, 900);
+    const threads = [
+      thread("short", { name: "Short task", preview: "Short summary" }),
+      thread("long", {
+        name: "A history task with a substantially longer title that occupies more room",
+        preview:
+          "A longer summary makes this card exercise the row-stretching behavior of the responsive grid.",
+      }),
+      thread("title-only", { name: "Title only task", preview: "" }),
+      thread("fourth", { name: "Fourth task", preview: "Fourth summary" }),
+      thread("fifth", { name: "Fifth task", preview: "Fifth summary" }),
+      thread("sixth", { name: "Sixth task", preview: "Sixth summary" }),
+    ];
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValue(response(threads, null));
+    const { screen } = await renderHistory(listThreads);
+    await expect.element(screen.getByRole("article", { name: "Short task" })).toBeVisible();
+
+    const cards = historyCards(screen.container);
+    expect(cards).toHaveLength(6);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(1);
+
+    await page.viewport(900, 900);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(2);
+    await expect.poll(() => hasAlignedFirstRow(cards, 2)).toBe(true);
+
+    await page.viewport(1440, 900);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
+    await expect.poll(() => hasAlignedFirstRow(cards, 3)).toBe(true);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("clamps complete long text without horizontal overflow and hides only exact trimmed duplicates", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  try {
+    await page.viewport(390, 900);
+    const longUrl = `https://example.test/${"deeply-nested-route/".repeat(30)}`;
+    const markdownSummary = `[$debug-responsive-gui](/Users/example/SKILL.md) ${"很长的中文摘要".repeat(40)}`;
+    const unbrokenTitle = `unbroken-${"x".repeat(320)}`;
+    const unbrokenSummary = `token-${"y".repeat(480)}`;
+    const threads = [
+      thread("url", { name: longUrl, preview: markdownSummary }),
+      thread("unbroken", { name: unbrokenTitle, preview: unbrokenSummary }),
+      thread("duplicate", { name: "  Repeated task  ", preview: "Repeated task" }),
+      thread("similar", {
+        name: "Responsive history",
+        preview: "Responsive history for mobile and desktop",
+      }),
+    ];
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValue(response(threads, null));
+    const { screen } = await renderHistory(listThreads);
+
+    const urlCard = screen.getByRole("article", { name: longUrl });
+    const unbrokenCard = screen.getByRole("article", { name: unbrokenTitle });
+    await expect.element(urlCard).toHaveAccessibleName(longUrl);
+    await expect.element(unbrokenCard).toHaveAccessibleName(unbrokenTitle);
+    await expect.element(urlCard.getByText(markdownSummary, { exact: true })).toBeInTheDocument();
+    await expect
+      .element(unbrokenCard.getByText(unbrokenSummary, { exact: true }))
+      .toBeInTheDocument();
+
+    const cards = historyCards(screen.container);
+    const firstCard = cards[0];
+    if (firstCard == null) {
+      throw new Error("history grid must render at least one card");
+    }
+    const grid = historyGrid(firstCard);
+    await expect
+      .poll(() =>
+        [document.documentElement, document.body, grid, ...cards].every(fitsWithinOwnWidth),
+      )
+      .toBe(true);
+
+    for (const card of [urlCard.element(), unbrokenCard.element()]) {
+      const title = card.querySelector<HTMLElement>("[id^='thread-history-title-']");
+      const summary = card.querySelector<HTMLElement>("p");
+      if (title == null || summary == null) {
+        throw new Error("long history cards must render a title and summary");
+      }
+      expect(getComputedStyle(title).webkitLineClamp).toBe("2");
+      expect(getComputedStyle(summary).webkitLineClamp).toBe("3");
+      expect(getComputedStyle(title).overflow).toBe("hidden");
+      expect(getComputedStyle(summary).overflow).toBe("hidden");
+    }
+
+    const duplicateCard = screen.getByRole("article", { name: "Repeated task" }).element();
+    expect(duplicateCard.querySelector("p")).toBeNull();
+    const similarCard = screen.getByRole("article", { name: "Responsive history" });
+    await expect
+      .element(similarCard.getByText("Responsive history for mobile and desktop", { exact: true }))
+      .toBeInTheDocument();
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("keeps load-more and append errors on their own full-grid rows", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  try {
+    await page.viewport(1440, 900);
+    const append = deferred<ThreadListResponse>();
+    const rawFailure = new Error("complete grid append failure");
+    const listThreads = vi
+      .fn<GuiHostCommands["listThreads"]>()
+      .mockResolvedValueOnce(
+        response(
+          [
+            thread("grid-first", { name: "Grid first" }),
+            thread("grid-second", { name: "Grid second" }),
+            thread("grid-third", { name: "Grid third" }),
+          ],
+          "cursor-grid",
+        ),
+      )
+      .mockReturnValueOnce(append.promise);
+    const { screen } = await renderHistory(listThreads);
+    const loadMore = screen.getByRole("button", { name: "Load more" });
+    await expect.element(loadMore).toBeVisible();
+
+    const cards = historyCards(screen.container);
+    const firstCard = cards[0];
+    if (firstCard == null) {
+      throw new Error("history grid must render at least one card");
+    }
+    const grid = historyGrid(firstCard);
+    await expect.poll(() => firstRowColumnCount(cards)).toBe(3);
+    await expect
+      .poll(() => {
+        const gridRect = grid.getBoundingClientRect();
+        const buttonRect = loadMore.element().getBoundingClientRect();
+        const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
+        return (
+          Math.abs(buttonRect.left + buttonRect.width / 2 - (gridRect.left + gridRect.width / 2)) <=
+            1 && buttonRect.top >= cardBottom
+        );
+      })
+      .toBe(true);
+
+    await loadMore.click();
+    append.reject(rawFailure);
+    const alert = screen.getByRole("alert");
+    await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+    await expect
+      .poll(() => {
+        const gridRect = grid.getBoundingClientRect();
+        const alertRect = alert.element().getBoundingClientRect();
+        const cardBottom = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
+        return (
+          Math.abs(alertRect.left - gridRect.left) <= 1 &&
+          Math.abs(alertRect.right - gridRect.right) <= 1 &&
+          alertRect.top >= cardBottom
+        );
+      })
+      .toBe(true);
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("shows the complete initial error and retries into the empty state", async () => {

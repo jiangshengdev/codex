@@ -191,21 +191,22 @@ async function routeGuiHostWebSocket(
   return sentRequests;
 }
 
-test("records a launch-param error without rendering host debug UI", async ({ page }) => {
+test("renders not found for the legacy root path without starting the GUI host", async ({
+  page,
+}) => {
   await page.goto("/");
 
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "error");
-  await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
-  await expect(page.getByText("No committed messages yet.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Committed transcript" })).toHaveCount(0);
   await expect(page.getByText("GUI host")).toHaveCount(0);
 });
 
 test("authenticates, attaches, records attach state, and clears token", async ({ page }) => {
   const sentRequests = await routeGuiHostWebSocket(page);
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
 
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "attached");
+  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "initialized");
   await expect(page.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect(page.getByText("No committed messages yet.")).toBeVisible();
   await expect(page.getByText("GUI host")).toHaveCount(0);
@@ -222,7 +223,7 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
     emitActiveTurnEvent: false,
   });
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
 
   await expect(page.getByRole("article", { name: `Turn ${mobileStressTurnId}` })).toBeVisible();
   await expect(page.getByRole("region", { name: "Message composer" })).toBeVisible();
@@ -253,8 +254,8 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
 test("sends plain text through turn/start", async ({ page }) => {
   const sentRequests = await routeGuiHostWebSocket(page, { emitActiveTurnEvent: false });
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "attached");
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
+  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "initialized");
 
   await page.getByPlaceholder("Message Codex").fill("Hello from e2e");
   await page.getByRole("button", { name: "Send" }).click();
@@ -264,9 +265,15 @@ test("sends plain text through turn/start", async ({ page }) => {
     .toBeTruthy();
 
   const turnStart = sentRequests.find((request) => request.method === "turn/start");
-  expect(turnStart?.params).toEqual({
+  if (turnStart == null) {
+    throw new Error("turn/start request must be recorded");
+  }
+  const params = rpcParams(turnStart);
+  const clientUserMessageId = params.clientUserMessageId;
+  expect(typeof clientUserMessageId).toBe("string");
+  expect(params).toEqual({
     threadId,
-    clientUserMessageId: null,
+    clientUserMessageId,
     input: [{ type: "text", text: "Hello from e2e", text_elements: [] }],
   });
   await expect(page.getByPlaceholder("Message Codex")).toHaveValue("");
@@ -275,8 +282,8 @@ test("sends plain text through turn/start", async ({ page }) => {
 test("interrupts active turn through turn/interrupt", async ({ page }) => {
   const sentRequests = await routeGuiHostWebSocket(page);
 
-  await page.goto(`/?threadId=${threadId}#token=e2e-secret-token`);
-  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "attached");
+  await page.goto(`/task/${threadId}#token=e2e-secret-token`);
+  await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "initialized");
 
   await expect(page.getByRole("button", { name: "Stop" })).toBeEnabled();
   await page.getByRole("button", { name: "Stop" }).click();
