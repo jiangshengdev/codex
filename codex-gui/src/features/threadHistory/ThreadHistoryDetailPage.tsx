@@ -2,9 +2,9 @@ import { Alert, Button, Typography } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { THREAD_QUERY_KEY } from "@codex-gui-host-contract";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
 import type { ContinueThread } from "@/features/appShell/AppCapabilities";
+import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import type { ThreadSwitchBlockedReason } from "@/features/projectionCoordination/threadSwitchCoordinator";
@@ -20,7 +20,7 @@ type RetainedThreadHistoryDetailCapability = Readonly<{
 }>;
 
 export function ThreadHistoryDetailPage() {
-  const { threadId } = useParams({ from: "/history/$threadId" });
+  const { threadId } = useParams({ from: "/app/history/$threadId" });
   const { t } = useLingui();
   const { commands, continueThread, status } = useAppCapabilities();
   const [retainedCapability, setRetainedCapability] =
@@ -86,12 +86,37 @@ function ThreadHistoryDetailOwnerBound({
     () => new ThreadHistoryDetailOwner({ threadId, readThread }),
     [readThread, threadId],
   );
+  const pendingDisposal = useRef<{
+    owner: ThreadHistoryDetailOwner;
+    cancel: () => void;
+  } | null>(null);
   const state = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
 
   useEffect(() => {
+    if (pendingDisposal.current?.owner === owner) {
+      pendingDisposal.current.cancel();
+      pendingDisposal.current = null;
+    }
+
     owner.start();
     return () => {
-      owner.dispose();
+      let cancelled = false;
+      const disposal = {
+        owner,
+        cancel: () => {
+          cancelled = true;
+        },
+      };
+      pendingDisposal.current = disposal;
+      queueMicrotask(() => {
+        if (cancelled) {
+          return;
+        }
+        if (pendingDisposal.current === disposal) {
+          pendingDisposal.current = null;
+        }
+        owner.dispose();
+      });
     };
   }, [owner]);
 
@@ -226,9 +251,9 @@ function ContinueTaskAction({
 
   const navigateToCurrentTask = (activeThreadId: string): void => {
     void navigate({
-      to: "/",
+      to: CURRENT_TASK_ROUTE_PATH,
+      params: { threadId: activeThreadId },
       replace: true,
-      search: { [THREAD_QUERY_KEY]: activeThreadId },
     });
   };
 

@@ -131,7 +131,7 @@ export function GuiHostConnectionBridge({
               return;
             }
             setStartupOutcome(outcome);
-            if (outcome.type !== "ready" || outcome.activeOwner == null) {
+            if (outcome.type !== "ready") {
               if (outcome.type === "failed") {
                 setStatus({ label: "error", message: startupFailureText(outcome) });
               }
@@ -144,11 +144,13 @@ export function GuiHostConnectionBridge({
               publishActiveOwner,
               scheduler,
             });
-            startupOwnsActiveOwner = false;
             startupCoordinator = null;
             switchCoordinator = nextSwitchCoordinator;
             notificationCoordinator = nextSwitchCoordinator;
-            setActiveOwner(outcome.activeOwner);
+            if (outcome.activeOwner != null) {
+              startupOwnsActiveOwner = false;
+              setActiveOwner(outcome.activeOwner);
+            }
             setContinueThread(() => nextSwitchCoordinator.continueThread);
             if (outcome.postCommitFailure != null) {
               setStatus({

@@ -279,3 +279,96 @@ test("pure read-only history detail reads the route thread without attaching", a
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
 });
+
+test("pure read-only history detail activates its first task and replaces the route", async () => {
+  window.history.replaceState({}, "", `/history/${historyThreadId}`);
+  seedBrowserAuthorizationSession({ token: "detail-secret" });
+  const storageSetItem = vi.spyOn(Storage.prototype, "setItem");
+  storageSetItem.mockClear();
+
+  try {
+    const router = createAppRouter(
+      createMemoryHistory({ initialEntries: [`/history/${historyThreadId}`] }),
+    );
+    const initialHistoryLength = router.history.length;
+    const screen = await renderWithProviders(<RouterProvider router={router} />);
+    const options = getHostOptions(startGuiHostConnectionMock);
+    const commands = createHistoryCommands();
+    const candidateAttach = attachWithThreadId(attachResponse, historyThreadId);
+    vi.mocked(commands.readThread).mockResolvedValueOnce({ thread: historyThread });
+    queueAttachProjectionResponse(commands, candidateAttach);
+
+    initializeHost(options, commands);
+
+    await expect
+      .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
+      .toBeVisible();
+    const continueButton = screen.getByRole("button", { name: "Continue this task", exact: true });
+    await expect.element(continueButton).toBeEnabled();
+    expect(commands.resumeThread).not.toHaveBeenCalled();
+    expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+
+    await continueButton.click();
+
+    await expect.element(screen.getByPlaceholder("Message Codex")).toBeVisible();
+    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
+    expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: historyThreadId,
+    });
+    expect(commands.detachThreadProjection).not.toHaveBeenCalled();
+    expect(storageSetItem).toHaveBeenCalledExactlyOnceWith(
+      expect.any(String),
+      JSON.stringify({ token: "detail-secret", activeThreadId: historyThreadId }),
+    );
+    const routedUrl = new URL(router.state.location.href, "https://codex.test");
+    expect(routedUrl.pathname).toBe(`/task/${historyThreadId}`);
+    expect(routedUrl.search).toBe("");
+    expect(routedUrl.hash).toBe("");
+    expect(router.history.length).toBe(initialHistoryLength);
+  } finally {
+    storageSetItem.mockRestore();
+  }
+});
+
+test("pure read-only history detail preserves its route when first activation fails", async () => {
+  window.history.replaceState({}, "", `/history/${historyThreadId}`);
+  seedBrowserAuthorizationSession({ token: "detail-secret" });
+  const storageSetItem = vi.spyOn(Storage.prototype, "setItem");
+  storageSetItem.mockClear();
+
+  try {
+    const router = createAppRouter(
+      createMemoryHistory({ initialEntries: [`/history/${historyThreadId}`] }),
+    );
+    const initialHistoryLength = router.history.length;
+    const screen = await renderWithProviders(<RouterProvider router={router} />);
+    const options = getHostOptions(startGuiHostConnectionMock);
+    const commands = createHistoryCommands();
+    vi.mocked(commands.readThread).mockResolvedValueOnce({ thread: historyThread });
+    vi.mocked(commands.resumeThread).mockRejectedValueOnce(new Error("resume failed"));
+
+    initializeHost(options, commands);
+
+    await expect
+      .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
+      .toBeVisible();
+    const continueButton = screen.getByRole("button", { name: "Continue this task", exact: true });
+    await expect.element(continueButton).toBeEnabled();
+    expect(commands.resumeThread).not.toHaveBeenCalled();
+    expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+
+    await continueButton.click();
+
+    const alert = screen.getByRole("alert");
+    await expect.element(alert).toHaveTextContent("Unable to continue this task");
+    await expect.element(alert).toHaveTextContent("resume failed");
+    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
+    expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+    expect(storageSetItem).not.toHaveBeenCalled();
+    await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`/history/${historyThreadId}`);
+    expect(router.history.length).toBe(initialHistoryLength);
+  } finally {
+    storageSetItem.mockRestore();
+  }
+});
