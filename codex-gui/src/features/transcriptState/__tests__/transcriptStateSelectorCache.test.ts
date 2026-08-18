@@ -558,7 +558,11 @@ describe("transcript state selector cache", () => {
       type: "subAgentActivity",
       id: targetActivity.id,
       turnId,
-      title: { kind: "agentInteracted", agentPath: "agents/cache-0" },
+      title: {
+        kind: "agentInteracted",
+        agentThreadId: "agent-thread-id",
+        agentPath: "agents/cache-0",
+      },
       details: [],
       revision: 1,
     });

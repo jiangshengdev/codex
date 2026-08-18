@@ -156,7 +156,11 @@ describe("transcript state committed projection reducer", () => {
         type: "subAgentActivity",
         id: activity.id,
         turnId,
-        title: { kind: "agentStarted", agentPath: "agents/implementer" },
+        title: {
+          kind: "agentStarted",
+          agentThreadId: "agent-thread-id",
+          agentPath: "agents/implementer",
+        },
         details: [],
         revision: 0,
       },

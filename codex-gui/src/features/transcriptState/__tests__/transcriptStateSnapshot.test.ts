@@ -331,7 +331,7 @@ describe("transcript state snapshot reducer", () => {
     });
   });
 
-  it("keeps completed sub-agent activities in snapshot middle order", () => {
+  it("keeps same-path sub-agent identities in snapshot middle order", () => {
     const store = makeStore();
 
     store.dispatch(
@@ -339,12 +339,18 @@ describe("transcript state snapshot reducer", () => {
         attachWithTurns(attachBaseline, [
           baseTurn("turn-sub-agent-activity-snapshot", [
             userMessage("user-sub-agent-activity-snapshot", [textInput("Initial prompt")]),
-            subAgentActivity("activity-sub-agent-started-snapshot", "started", "agents/researcher"),
+            subAgentActivity(
+              "activity-sub-agent-started-snapshot",
+              "started",
+              "agents/shared_task",
+              { agentThreadId: "agent-thread-researcher" },
+            ),
             agentMessage("agent-sub-agent-commentary-snapshot", "Still working", "commentary"),
             subAgentActivity(
               "activity-sub-agent-interacted-snapshot",
               "interacted",
-              "agents/reviewer",
+              "agents/shared_task",
+              { agentThreadId: "agent-thread-reviewer" },
             ),
             agentMessage("agent-sub-agent-final-snapshot", "Final answer", "final_answer"),
           ]),
@@ -375,7 +381,11 @@ describe("transcript state snapshot reducer", () => {
         type: "subAgentActivity",
         id: "activity-sub-agent-started-snapshot",
         turnId: "turn-sub-agent-activity-snapshot",
-        title: { kind: "agentStarted", agentPath: "agents/researcher" },
+        title: {
+          kind: "agentStarted",
+          agentThreadId: "agent-thread-researcher",
+          agentPath: "agents/shared_task",
+        },
         details: [],
         revision: 0,
       },
@@ -391,7 +401,11 @@ describe("transcript state snapshot reducer", () => {
         type: "subAgentActivity",
         id: "activity-sub-agent-interacted-snapshot",
         turnId: "turn-sub-agent-activity-snapshot",
-        title: { kind: "agentInteracted", agentPath: "agents/reviewer" },
+        title: {
+          kind: "agentInteracted",
+          agentThreadId: "agent-thread-reviewer",
+          agentPath: "agents/shared_task",
+        },
         details: [],
         revision: 0,
       },

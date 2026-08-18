@@ -128,6 +128,7 @@ export type TranscriptSubAgentActivityStoredEntry = {
   id: string;
   turnId: string;
   activityKind: TranscriptSubAgentActivityItem["kind"];
+  agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
   agentPath: TranscriptSubAgentActivityItem["agentPath"];
   revision: number;
 };
@@ -225,14 +226,17 @@ export type TranscriptReasoningView =
 export type TranscriptActivityCopy =
   | {
       kind: "agentStarted";
+      agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
       agentPath: TranscriptSubAgentActivityItem["agentPath"];
     }
   | {
       kind: "agentInteracted";
+      agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
       agentPath: TranscriptSubAgentActivityItem["agentPath"];
     }
   | {
       kind: "agentInterrupted";
+      agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
       agentPath: TranscriptSubAgentActivityItem["agentPath"];
     }
   | {
