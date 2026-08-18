@@ -167,11 +167,6 @@ msgid "In progress"
 msgstr "In progress"
 
 #. Activity showing the raw path of a sub-agent that was contacted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:183
-#~ msgid "Interacted with `{agentPath}`"
-#~ msgstr "Interacted with `{agentPath}`"
-
-#. Activity showing the raw path of a sub-agent that was contacted
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:326
 msgid "Interacted with <0/>"
 msgstr "Interacted with <0/>"
@@ -182,11 +177,6 @@ msgstr "Interacted with <0/>"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:741
 msgid "Interrupted"
 msgstr "Interrupted"
-
-#. Activity showing the raw path of a sub-agent that was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:190
-#~ msgid "Interrupted `{agentPath}`"
-#~ msgstr "Interrupted `{agentPath}`"
 
 #. Activity showing the raw path of a sub-agent that was interrupted
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:334
@@ -225,10 +215,6 @@ msgstr "Message Codex"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:183
 msgid "Message composer"
 msgstr "Message composer"
-
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:85
-#~ msgid "Message failed to send"
-#~ msgstr "Message failed to send"
 
 #: src/features/appShell/AppShellTopBar.tsx:69
 msgid "Navigation"
@@ -366,11 +352,6 @@ msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:261
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
-
-#. Activity showing the raw path of a sub-agent that started
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:176
-#~ msgid "Started `{agentPath}`"
-#~ msgstr "Started `{agentPath}`"
 
 #. Activity showing the raw path of a sub-agent that started
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:318
