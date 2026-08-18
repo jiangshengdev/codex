@@ -33,13 +33,18 @@ fn generated_fixture_set_excludes_stale_historical_files() -> Result<()> {
 fn generated_fixtures_match_current_projection_shape() -> Result<()> {
     let fixtures = generate_fixture_files()?;
     let attach: Value = serde_json::from_str(&fixtures["attach-baseline.json"])?;
+    let replacement: Value = serde_json::from_str(&fixtures["attach-replacement.json"])?;
     let event: Value = serde_json::from_str(&fixtures["event-turn-started.json"])?;
+    let token_usage_event: Value =
+        serde_json::from_str(&fixtures["event-token-usage-updated.json"])?;
     let closed: Value = serde_json::from_str(&fixtures["closed-backpressure.json"])?;
 
     assert!(attach.get("subscriptionId").is_some());
     assert!(attach.get("snapshot").is_some());
     assert!(attach["snapshot"].get("thread").is_some());
     assert!(attach["snapshot"].get("headCommitId").is_some());
+    assert!(attach["snapshot"]["tokenUsage"].is_object());
+    assert_eq!(replacement["snapshot"]["tokenUsage"], Value::Null);
     assert_eq!(attach["snapshot"]["thread"]["parentThreadId"], Value::Null);
     assert_eq!(attach["snapshot"]["thread"]["status"]["type"], "idle");
 
@@ -48,6 +53,7 @@ fn generated_fixtures_match_current_projection_shape() -> Result<()> {
     assert_eq!(event["commitId"], "commit-turn-started");
     assert_eq!(event["parentCommitId"], Value::Null);
     assert_eq!(event["event"]["type"], "turnStarted");
+    assert_eq!(token_usage_event["event"]["type"], "tokenUsageUpdated");
 
     assert_eq!(closed["threadId"], THREAD_ID);
     assert_eq!(closed["subscriptionId"], SUBSCRIPTION_ID);
@@ -110,6 +116,7 @@ fn generated_fixtures_round_trip_through_protocol_types() -> Result<()> {
         "event-item-completed.json",
         "event-reasoning-item-started.json",
         "event-reasoning-item-completed.json",
+        "event-token-usage-updated.json",
         "event-turn-completed.json",
         "event-subscription-replacement.json",
     ] {
@@ -206,6 +213,8 @@ fn generated_commit_chain_is_contiguous() -> Result<()> {
         serde_json::from_str(&fixtures["event-reasoning-item-started.json"])?;
     let reasoning_item_completed: ThreadProjectionEventNotification =
         serde_json::from_str(&fixtures["event-reasoning-item-completed.json"])?;
+    let token_usage_updated: ThreadProjectionEventNotification =
+        serde_json::from_str(&fixtures["event-token-usage-updated.json"])?;
     let turn_completed: ThreadProjectionEventNotification =
         serde_json::from_str(&fixtures["event-turn-completed.json"])?;
     let replacement: ThreadProjectionEventNotification =
@@ -226,8 +235,12 @@ fn generated_commit_chain_is_contiguous() -> Result<()> {
         Some(reasoning_item_started.commit_id)
     );
     assert_eq!(
-        turn_completed.parent_commit_id,
+        token_usage_updated.parent_commit_id,
         Some(reasoning_item_completed.commit_id)
+    );
+    assert_eq!(
+        turn_completed.parent_commit_id,
+        Some(token_usage_updated.commit_id)
     );
     assert_eq!(
         replacement.parent_commit_id,

@@ -189,9 +189,9 @@ Example with notification opt-out:
 - `thread/archive` — move a thread’s rollout file into the archived directory and attempt to move any spawned descendant thread rollout files; returns `{}` on success and emits `thread/archived` for each archived thread.
 - `thread/delete` — hard-delete an active or archived thread and any spawned descendant threads; returns `{}` on success and emits `thread/deleted` for each deleted thread.
 - `thread/unsubscribe` — unsubscribe this connection from thread turn/item events. If this was the last subscriber, the server keeps the thread loaded and unloads it only after it has had no subscribers and no thread activity for 30 minutes, runs `SessionEnd` hooks, then emits `thread/closed`.
-- `thread/projection/attach` — subscribe this connection to GUI projection events for a loaded thread. The response returns a `subscriptionId` and `snapshot` containing the current `thread` plus `headCommitId`.
+- `thread/projection/attach` — subscribe this connection to GUI projection events for a loaded thread. The response returns a `subscriptionId` and `snapshot` containing the current `thread`, `headCommitId`, and an absolute `tokenUsage` baseline. `tokenUsage` is `null` until usage is available.
 - `thread/projection/detach` — remove this connection's projection subscription for a thread. The response `status` is `detached`, `notSubscribed`, or `notLoaded`.
-- `thread/projection/event` — notification emitted to projection subscribers. Each event has `threadId`, `subscriptionId`, `commitId`, `parentCommitId`, and wraps one of `turn/started`, `turn/completed`, `item/started`, or `item/completed`.
+- `thread/projection/event` — notification emitted to projection subscribers. Each event has `threadId`, `subscriptionId`, `commitId`, `parentCommitId`, and wraps one of `turn/started`, `turn/completed`, `item/started`, `item/completed`, or `thread/tokenUsage/updated`. The projection event type for the last case is `tokenUsageUpdated`; its payload is an absolute usage value and advances `headCommitId` like every other structural event.
 - `thread/projection/delta` — notification emitted to projection subscribers for transient stream progress on the same `subscriptionId` that does not advance `headCommitId`. Supported delta types are `agentMessage`, `reasoningSummaryText`, `reasoningSummaryPartAdded`, and `reasoningText`; their `notification` payloads have the same shapes as the matching item delta notifications. `thread/projection/event` carries `commitId` and `parentCommitId`; `thread/projection/delta` does not include commit fields. Delta content is not final, and the later `item/completed` event is authoritative.
 - `thread/projection/closed` — notification emitted when the server terminates a projection subscription. Currently `reason` is `backpressure`, which means the per-thread projection fanout queue filled and the client must call `thread/projection/attach` again to get a fresh snapshot baseline.
 - `thread/name/set` — set or update a thread’s user-facing name for either a loaded thread or a persisted rollout; returns `{}` on success and emits `thread/name/updated` to initialized, opted-in clients. Thread names are not required to be unique; name lookups resolve to the most recently updated thread.
@@ -538,11 +538,11 @@ Later, after the idle unload timeout:
 
 ### Example: Attach to a thread projection
 
-Use `thread/projection/attach` to receive a GUI projection stream for a loaded thread. The response includes a `subscriptionId` and a snapshot with the current `thread` and `headCommitId`. Projection subscribers receive two live notification classes. `thread/projection/event` carries structural events with `commitId` and `parentCommitId`; clients use those events to advance `headCommitId`. `thread/projection/delta` carries transient progress for the same `subscriptionId` and does not include commit fields. Supported delta types are `agentMessage`, `reasoningSummaryText`, `reasoningSummaryPartAdded`, and `reasoningText`. Clients should ignore stale `subscriptionId` deltas and use the final `item/completed` event as the authoritative item and content state. For assistant messages, `item/completed` also carries `phase`; clients should not infer final-answer or commentary state from delta.
+Use `thread/projection/attach` to receive a GUI projection stream for a loaded thread. The response includes a `subscriptionId` and a snapshot with the current `thread`, `headCommitId`, and `tokenUsage`. The usage baseline is the latest absolute thread usage, or `null` when the thread has no usage yet. Projection subscribers receive two live notification classes. `thread/projection/event` carries structural events with `commitId` and `parentCommitId`; clients use those events to advance `headCommitId`. Its `tokenUsageUpdated` event wraps the same absolute usage payload as `thread/tokenUsage/updated`, so clients replace their usage baseline instead of accumulating it. `thread/projection/delta` carries transient progress for the same `subscriptionId` and does not include commit fields. Supported delta types are `agentMessage`, `reasoningSummaryText`, `reasoningSummaryPartAdded`, and `reasoningText`. Clients should ignore stale `subscriptionId` deltas and use the final `item/completed` event as the authoritative item and content state. For assistant messages, `item/completed` also carries `phase`; clients should not infer final-answer or commentary state from delta.
 
 Normal thread subscriptions and projection subscriptions are independent. `thread/unsubscribe` does not detach a projection subscription, and `thread/projection/detach` does not unsubscribe normal turn/item notifications.
 
-Projection commits form a per-thread chain shared by all projection subscribers for that thread. The first event delivered after attach has `parentCommitId` equal to the attach response's `snapshot.headCommitId`; later events advance with `commitId` / `parentCommitId`. Repeating attach for the same connection and thread releases the old `subscriptionId` and returns a new subscription from the current thread head.
+Projection commits form a per-thread chain shared by all projection subscribers for that thread. The first event delivered after attach has `parentCommitId` equal to the attach response's `snapshot.headCommitId`; later events, including `tokenUsageUpdated`, advance with `commitId` / `parentCommitId`. Repeating attach for the same connection and thread releases the old `subscriptionId` and returns a new subscription from the current thread head. The new snapshot carries the latest absolute `tokenUsage` baseline, including usage already delivered by an earlier subscription, so clients can replace local projection state and continue from the returned head without replaying old commits.
 
 `thread/projection/detach` is not a transport drain barrier. After a `detached` response, the server stops generating new projection deliveries for that connection/subscription, but events already materialized on the outbound path can still arrive. Connection drop implicitly removes all projection subscriptions for that connection; reconnecting clients must attach again.
 
@@ -554,21 +554,43 @@ If a projection subscriber falls behind far enough to fill the server-side fanou
     "subscriptionId": "sub_123",
     "snapshot": {
       "thread": { "id": "thr_123", "status": { "type": "idle" }, "turns": [] },
-      "headCommitId": null
+      "headCommitId": "commit_4",
+      "tokenUsage": null
     }
 } }
 { "method": "thread/projection/event", "params": {
     "threadId": "thr_123",
     "subscriptionId": "sub_123",
-    "commitId": "commit_1",
-    "parentCommitId": null,
+    "commitId": "commit_5",
+    "parentCommitId": "commit_4",
     "event": {
-      "type": "turnStarted",
-      "notification": { "threadId": "thr_123", "turn": { "...": "..." } }
+      "type": "tokenUsageUpdated",
+      "notification": {
+        "threadId": "thr_123",
+        "turnId": "turn_1",
+        "tokenUsage": {
+          "total": { "totalTokens": 120, "inputTokens": 120, "cachedInputTokens": 0, "cacheWriteInputTokens": 0, "outputTokens": 0, "reasoningOutputTokens": 0 },
+          "last": { "totalTokens": 120, "inputTokens": 120, "cachedInputTokens": 0, "cacheWriteInputTokens": 0, "outputTokens": 0, "reasoningOutputTokens": 0 },
+          "modelContextWindow": 200000
+        }
+      }
     }
 } }
-{ "method": "thread/projection/detach", "id": 24, "params": { "threadId": "thr_123" } }
-{ "id": 24, "result": { "status": "detached" } }
+{ "method": "thread/projection/attach", "id": 24, "params": { "threadId": "thr_123" } }
+{ "id": 24, "result": {
+    "subscriptionId": "sub_456",
+    "snapshot": {
+      "thread": { "id": "thr_123", "status": { "type": "idle" }, "turns": [{ "id": "turn_1", "...": "..." }] },
+      "headCommitId": "commit_5",
+      "tokenUsage": {
+        "total": { "totalTokens": 120, "inputTokens": 120, "cachedInputTokens": 0, "cacheWriteInputTokens": 0, "outputTokens": 0, "reasoningOutputTokens": 0 },
+        "last": { "totalTokens": 120, "inputTokens": 120, "cachedInputTokens": 0, "cacheWriteInputTokens": 0, "outputTokens": 0, "reasoningOutputTokens": 0 },
+        "modelContextWindow": 200000
+      }
+    }
+} }
+{ "method": "thread/projection/detach", "id": 25, "params": { "threadId": "thr_123" } }
+{ "id": 25, "result": { "status": "detached" } }
 ```
 
 ### Example: Read a thread

@@ -161,9 +161,30 @@ describe("transcript item policy", () => {
   });
 
   it.each([
-    ["started", { kind: "agentStarted", agentPath: "agents/planner" }],
-    ["interacted", { kind: "agentInteracted", agentPath: "agents/planner" }],
-    ["interrupted", { kind: "agentInterrupted", agentPath: "agents/planner" }],
+    [
+      "started",
+      {
+        kind: "agentStarted",
+        agentThreadId: "agent-thread-started",
+        agentPath: "agents/planner",
+      },
+    ],
+    [
+      "interacted",
+      {
+        kind: "agentInteracted",
+        agentThreadId: "agent-thread-interacted",
+        agentPath: "agents/planner",
+      },
+    ],
+    [
+      "interrupted",
+      {
+        kind: "agentInterrupted",
+        agentThreadId: "agent-thread-interrupted",
+        agentPath: "agents/planner",
+      },
+    ],
   ] as const)("projects completed sub-agent %s activity", (kind, title) => {
     const turnId = `turn-${kind}`;
     const item = subAgentActivity(`activity-${kind}`, kind, "agents/planner", {
@@ -183,10 +204,10 @@ describe("transcript item policy", () => {
       id: item.id,
       turnId,
       activityKind: kind,
+      agentThreadId: `agent-thread-${kind}`,
       agentPath: "agents/planner",
       revision: 0,
     });
-    expect(projection.entry).not.toHaveProperty("agentThreadId");
 
     const state = createEmptyTranscriptState();
     const entryId = transcriptEntryIdFor(turnId, item.id);
@@ -201,7 +222,6 @@ describe("transcript item policy", () => {
       details: [],
       revision: 0,
     });
-    expect(view).not.toHaveProperty("agentThreadId");
   });
 
   it.each([

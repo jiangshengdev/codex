@@ -7,6 +7,7 @@ import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
+  ThreadTokenUsage,
   Turn,
 } from "@codex-protocol/v2";
 
@@ -48,6 +49,7 @@ export type ThreadRuntimeRecord = {
   sessionId: string;
   thread: Omit<Thread, "turns">;
   snapshotTurns: Turn[];
+  tokenUsage: ThreadTokenUsage | null;
   eventBuffer: ThreadRuntimeBufferedEvent[];
   activeTurnId: string | null;
   latestLiveTurnCompletion: ThreadRuntimeLiveTurnCompletion | null;
@@ -83,6 +85,7 @@ const threadRuntimeRecordFromAttach = (
     sessionId: thread.sessionId,
     thread,
     snapshotTurns,
+    tokenUsage: response.snapshot.tokenUsage,
     eventBuffer: [],
     activeTurnId: activeTurnIdFromSnapshot(snapshotTurns),
     latestLiveTurnCompletion: null,
@@ -122,6 +125,8 @@ export const replayForProjectionEvent = (
       return index.itemIdsById[notification.event.notification.item.id] === true
         ? "snapshotDuplicate"
         : "live";
+    case "tokenUsageUpdated":
+      return "live";
   }
   notification.event satisfies never;
 };
@@ -183,6 +188,9 @@ export const threadRuntimeSlice = createAppSlice({
           case "itemStarted":
           case "itemCompleted":
             return;
+          case "tokenUsageUpdated":
+            runtime.tokenUsage = notification.event.notification.tokenUsage;
+            return;
         }
         notification.event satisfies never;
       },
@@ -212,6 +220,8 @@ export const threadRuntimeSlice = createAppSlice({
     selectThreadRuntimeActiveTurnId: (threadRuntime) => threadRuntime.current?.activeTurnId ?? null,
     selectThreadRuntimeLatestLiveTurnCompletion: (threadRuntime) =>
       threadRuntime.current?.latestLiveTurnCompletion ?? null,
+    selectThreadRuntimeTokenUsage: (threadRuntime): ThreadTokenUsage | null =>
+      threadRuntime.current?.tokenUsage ?? null,
     selectThreadRuntimeSubscription: (threadRuntime) => threadRuntime.current?.subscription ?? null,
     selectThreadRuntimeThreadId: (threadRuntime) => threadRuntime.current?.threadId ?? null,
     selectThreadRuntimeSubscriptionState: (threadRuntime) =>
@@ -236,6 +246,7 @@ export const {
   selectThreadRuntimeSubscription,
   selectThreadRuntimeSubscriptionState,
   selectThreadRuntimeThreadId,
+  selectThreadRuntimeTokenUsage,
 } = threadRuntimeSlice.selectors;
 
 export default threadRuntimeSlice;

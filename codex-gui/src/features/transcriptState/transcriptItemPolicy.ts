@@ -356,6 +356,7 @@ export const projectCompletedTranscriptItem = (
           id: item.id,
           turnId,
           activityKind: item.kind,
+          agentThreadId: item.agentThreadId,
           agentPath: item.agentPath,
           revision: 0,
         },

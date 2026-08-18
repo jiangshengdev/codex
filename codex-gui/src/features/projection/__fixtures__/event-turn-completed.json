@@ -2,7 +2,7 @@
   "threadId": "00000000-0000-0000-0000-000000000001",
   "subscriptionId": "projection-fixture-subscription",
   "commitId": "commit-turn-completed",
-  "parentCommitId": "commit-reasoning-item-completed",
+  "parentCommitId": "commit-token-usage-updated",
   "event": {
     "type": "turnCompleted",
     "notification": {

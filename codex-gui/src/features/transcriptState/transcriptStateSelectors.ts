@@ -280,13 +280,25 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
       let title: TranscriptSubAgentActivityView["title"];
       switch (entry.activityKind) {
         case "started":
-          title = { kind: "agentStarted", agentPath: entry.agentPath };
+          title = {
+            kind: "agentStarted",
+            agentThreadId: entry.agentThreadId,
+            agentPath: entry.agentPath,
+          };
           break;
         case "interacted":
-          title = { kind: "agentInteracted", agentPath: entry.agentPath };
+          title = {
+            kind: "agentInteracted",
+            agentThreadId: entry.agentThreadId,
+            agentPath: entry.agentPath,
+          };
           break;
         case "interrupted":
-          title = { kind: "agentInterrupted", agentPath: entry.agentPath };
+          title = {
+            kind: "agentInterrupted",
+            agentThreadId: entry.agentThreadId,
+            agentPath: entry.agentPath,
+          };
           break;
         default: {
           const exhaustiveActivityKind: never = entry.activityKind;

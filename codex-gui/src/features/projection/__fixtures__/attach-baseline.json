@@ -48,6 +48,25 @@
         }
       ]
     },
-    "headCommitId": null
+    "headCommitId": null,
+    "tokenUsage": {
+      "total": {
+        "totalTokens": 200,
+        "inputTokens": 150,
+        "cachedInputTokens": 25,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 50,
+        "reasoningOutputTokens": 10
+      },
+      "last": {
+        "totalTokens": 120,
+        "inputTokens": 90,
+        "cachedInputTokens": 20,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 30,
+        "reasoningOutputTokens": 5
+      },
+      "modelContextWindow": 258400
+    }
   }
 }

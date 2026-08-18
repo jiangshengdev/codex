@@ -18,6 +18,7 @@ import {
   attachWithTurns,
   baseTurn,
   contextCompaction,
+  subAgentActivity,
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -302,6 +303,67 @@ test("retains a loaded read-only snapshot when commands later become unavailable
   await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
   await expect.element(screen.getByText("The task connection was closed.")).not.toBeInTheDocument();
   await expect.element(screen.getByRole("button", { name: "Continue this task" })).toBeDisabled();
+});
+
+test("renders formatted and aggregated sub-agent activity from a read-only snapshot", async () => {
+  const paths = [
+    "/root/plan_frontend_bootstrap",
+    "/root/plan_routes_query",
+    "/root/plan_rust_host",
+    "/root/omitted_worker",
+  ] as const;
+  const thread = historyThread([
+    baseTurn("history-sub-agent-activity", [
+      userMessage("history-sub-agent-user", [textInput("Inspect delegated work")]),
+      ...paths.map((agentPath, index) =>
+        subAgentActivity(`history-sub-agent-${String(index)}`, "started", agentPath, {
+          agentThreadId: `history-sub-agent-thread-${String(index)}`,
+        }),
+      ),
+    ]),
+  ]);
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi.fn<GuiHostCommands["readThread"]>().mockResolvedValue({ thread }),
+  };
+  const { screen } = await renderDetail({ commands });
+
+  const turn = screen.getByRole("article", { name: "Turn history-sub-agent-activity" });
+  const startedActivities = turn.getByRole("article", { name: /^Started / });
+  expect(startedActivities.elements()).toHaveLength(1);
+  const activity = startedActivities.nth(0);
+  await expect
+    .element(activity)
+    .toHaveAccessibleName(
+      "Started Plan frontend bootstrap Plan routes query Plan rust host and 1 more sub-agent",
+    );
+
+  const firstLabel = activity.getByText("Plan frontend bootstrap", { exact: true });
+  const secondLabel = activity.getByText("Plan routes query", { exact: true });
+  const thirdLabel = activity.getByText("Plan rust host", { exact: true });
+  for (const content of [firstLabel, secondLabel, thirdLabel]) {
+    await expect.element(content).toBeVisible();
+  }
+  expect(
+    firstLabel.element().compareDocumentPosition(secondLabel.element()) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+  expect(
+    secondLabel.element().compareDocumentPosition(thirdLabel.element()) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+
+  await expect
+    .element(activity.getByText("Omitted worker", { exact: true }))
+    .not.toBeInTheDocument();
+  for (const agentPath of paths) {
+    await expect.element(activity.getByText(agentPath, { exact: true })).not.toBeInTheDocument();
+  }
+  expect(
+    activity
+      .element()
+      .querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+  ).toHaveLength(0);
 });
 
 test("renders isolated context pages without Composer and keeps the transcript end above the fixed primary action", async () => {

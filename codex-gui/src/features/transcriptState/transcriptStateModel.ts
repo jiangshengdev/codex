@@ -128,6 +128,7 @@ export type TranscriptSubAgentActivityStoredEntry = {
   id: string;
   turnId: string;
   activityKind: TranscriptSubAgentActivityItem["kind"];
+  agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
   agentPath: TranscriptSubAgentActivityItem["agentPath"];
   revision: number;
 };
@@ -225,14 +226,17 @@ export type TranscriptReasoningView =
 export type TranscriptActivityCopy =
   | {
       kind: "agentStarted";
+      agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
       agentPath: TranscriptSubAgentActivityItem["agentPath"];
     }
   | {
       kind: "agentInteracted";
+      agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
       agentPath: TranscriptSubAgentActivityItem["agentPath"];
     }
   | {
       kind: "agentInterrupted";
+      agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
       agentPath: TranscriptSubAgentActivityItem["agentPath"];
     }
   | {
@@ -274,16 +278,28 @@ export type TranscriptActivityCopy =
   | { kind: "noAgentsCompletedYet" }
   | { kind: "omitted"; count: number };
 
-export type TranscriptActivityDetail =
+export type TranscriptSubAgentActivityCopy = Extract<
+  TranscriptActivityCopy,
+  { agentPath: unknown }
+>;
+
+export type TranscriptCollabAgentActivityCopy = Exclude<
+  TranscriptActivityCopy,
+  TranscriptSubAgentActivityCopy
+>;
+
+export type TranscriptCollabAgentActivityDetail =
   | { kind: "raw"; text: string }
-  | { kind: "copy"; copy: TranscriptActivityCopy };
+  | { kind: "copy"; copy: TranscriptCollabAgentActivityCopy };
+
+export type TranscriptActivityDetail = TranscriptCollabAgentActivityDetail;
 
 export type TranscriptCollabAgentView = {
   type: "collabAgent";
   id: string;
   turnId: string;
-  title: TranscriptActivityCopy;
-  details: readonly TranscriptActivityDetail[];
+  title: TranscriptCollabAgentActivityCopy;
+  details: readonly TranscriptCollabAgentActivityDetail[];
   revision: number;
 };
 
@@ -291,7 +307,7 @@ export type TranscriptSubAgentActivityView = {
   type: "subAgentActivity";
   id: string;
   turnId: string;
-  title: TranscriptActivityCopy;
+  title: TranscriptSubAgentActivityCopy;
   details: readonly [];
   revision: number;
 };
