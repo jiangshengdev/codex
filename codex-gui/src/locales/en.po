@@ -132,6 +132,7 @@ msgstr "Continue this task"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:82
+#: src/features/documentTitle/DocumentTitleOwner.tsx:45
 msgid "Current task"
 msgstr "Current task"
 
@@ -175,6 +176,7 @@ msgstr "Go back home"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:91
+#: src/features/documentTitle/DocumentTitleOwner.tsx:46
 msgid "History"
 msgstr "History"
 
@@ -182,6 +184,7 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
+#: src/features/documentTitle/DocumentTitleOwner.tsx:47
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:177
 msgid "History detail"
 msgstr "History detail"
@@ -284,6 +287,7 @@ msgstr "Not loaded"
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
+#: src/features/documentTitle/DocumentTitleOwner.tsx:48
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "Page not found"

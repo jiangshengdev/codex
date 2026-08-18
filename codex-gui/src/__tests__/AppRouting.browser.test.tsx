@@ -16,6 +16,7 @@ import {
 } from "./appBrowserTestSupport";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
+import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
 
@@ -84,15 +85,20 @@ test("history cards open details and preserve one connection across browser back
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
     .toBeVisible();
+  await expect.poll(() => document.title).toBe("Current task · Codex");
   expectCanonicalRoute(router.state.location.href, `/task/${launchThreadId}`, 1);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
+
+  screen.store.dispatch(threadRuntimeAttached(attachWithThreadId(attachResponse, historyThreadId)));
+  await expect.poll(() => document.title).toBe("Current task · Codex");
 
   queueAttachProjectionResponse(commands);
   initializeHost(options, commands);
   scrollTo.mockClear();
 
   await expect.poll(() => getAttachProjectionThreadIds(commands)).toEqual([launchThreadId]);
+  await expect.poll(() => document.title).toBe("Projection fixture · Codex");
   await screen.getByRole("button", { name: "Menu" }).click();
   await screen
     .getByRole("navigation", { name: "Main navigation" })
@@ -100,6 +106,7 @@ test("history cards open details and preserve one connection across browser back
     .click();
 
   await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+  await expect.poll(() => document.title).toBe("History · Codex");
   await expect.element(screen.getByRole("main")).toBeInTheDocument();
   await expect.poll(() => listThreads.mock.calls.length).toBe(1);
   await expect.poll(() => scrollTo.mock.calls.length).toBeGreaterThan(0);
@@ -120,6 +127,7 @@ test("history cards open details and preserve one connection across browser back
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
     .toBeVisible();
+  await expect.poll(() => document.title).toBe("History detail · Codex");
   expect(readThread).toHaveBeenNthCalledWith(1, {
     threadId: historyThreadId,
     includeTurns: true,
@@ -142,6 +150,7 @@ test("history cards open details and preserve one connection across browser back
   router.history.back();
 
   await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
+  await expect.poll(() => document.title).toBe("History · Codex");
   await expect.poll(() => listThreads.mock.calls.length).toBe(2);
   await expect.poll(() => scrollTo.mock.calls.length).toBeGreaterThan(0);
   expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 0 });
@@ -156,6 +165,7 @@ test("history cards open details and preserve one connection across browser back
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
     .toBeVisible();
+  await expect.poll(() => document.title).toBe("History detail · Codex");
   expect(readThread).toHaveBeenNthCalledWith(2, {
     threadId: historyThreadId,
     includeTurns: true,
@@ -171,6 +181,7 @@ test("history cards open details and preserve one connection across browser back
     .click();
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
+  await expect.poll(() => document.title).toBe("Projection fixture · Codex");
   expectCanonicalRoute(router.state.location.href, `/task/${launchThreadId}`, 1);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);

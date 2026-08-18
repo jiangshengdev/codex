@@ -14,6 +14,7 @@ import {
   validateEmptyRouteSearch,
 } from "./features/browserLaunch/guiRouteTarget";
 import { CurrentTaskPage } from "./features/currentTask/CurrentTaskPage";
+import { DocumentTitleOwner } from "./features/documentTitle/DocumentTitleOwner";
 import { ThreadHistoryDetailPage } from "./features/threadHistory/ThreadHistoryDetailPage";
 import { ThreadHistoryListPage } from "./features/threadHistory/ThreadHistoryListPage";
 import { AppRouteBoundary, RootRouteError } from "./routerComponents";
@@ -63,7 +64,9 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 export function createAppRouter(history?: RouterHistory) {
-  return history == null ? createRouter({ routeTree }) : createRouter({ history, routeTree });
+  return history == null
+    ? createRouter({ routeTree, InnerWrap: DocumentTitleOwner })
+    : createRouter({ history, routeTree, InnerWrap: DocumentTitleOwner });
 }
 
 export const router = createAppRouter();
