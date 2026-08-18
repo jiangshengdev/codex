@@ -278,16 +278,28 @@ export type TranscriptActivityCopy =
   | { kind: "noAgentsCompletedYet" }
   | { kind: "omitted"; count: number };
 
-export type TranscriptActivityDetail =
+export type TranscriptSubAgentActivityCopy = Extract<
+  TranscriptActivityCopy,
+  { agentPath: unknown }
+>;
+
+export type TranscriptCollabAgentActivityCopy = Exclude<
+  TranscriptActivityCopy,
+  TranscriptSubAgentActivityCopy
+>;
+
+export type TranscriptCollabAgentActivityDetail =
   | { kind: "raw"; text: string }
-  | { kind: "copy"; copy: TranscriptActivityCopy };
+  | { kind: "copy"; copy: TranscriptCollabAgentActivityCopy };
+
+export type TranscriptActivityDetail = TranscriptCollabAgentActivityDetail;
 
 export type TranscriptCollabAgentView = {
   type: "collabAgent";
   id: string;
   turnId: string;
-  title: TranscriptActivityCopy;
-  details: readonly TranscriptActivityDetail[];
+  title: TranscriptCollabAgentActivityCopy;
+  details: readonly TranscriptCollabAgentActivityDetail[];
   revision: number;
 };
 
@@ -295,7 +307,7 @@ export type TranscriptSubAgentActivityView = {
   type: "subAgentActivity";
   id: string;
   turnId: string;
-  title: TranscriptActivityCopy;
+  title: TranscriptSubAgentActivityCopy;
   details: readonly [];
   revision: number;
 };
