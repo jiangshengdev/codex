@@ -7,11 +7,12 @@ import {
   RouterProvider,
   type RouteComponent,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   attachResponse,
   attachWithCommittedMessages,
   createGuiHostCommands,
+  emitSkillsChanged,
   emitProjectionClosed,
   emitProjectionDelta,
   emitProjectionEvent,
@@ -25,6 +26,7 @@ import {
   queueDeferredAttachProjection,
   resetAppBrowserTestSupport,
   seedBrowserAuthorizationSession,
+  skillsListResponse,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import RootApp from "@/App";
@@ -73,6 +75,7 @@ import {
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
+import type { SkillMetadata, SkillsListResponse } from "@codex-protocol/v2";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectTranscriptEntry,
@@ -103,8 +106,20 @@ let threadSwitchProbePromise: ReturnType<
   NonNullable<ReturnType<typeof useAppCapabilities>["continueThread"]>
 > | null = null;
 
+const emptySkillCatalogSnapshot = {
+  type: "initialLoading",
+  candidates: [],
+  partialErrorCount: 0,
+} as const;
+const getEmptySkillCatalogSnapshot = () => emptySkillCatalogSnapshot;
+const subscribeToEmptySkillCatalog = () => () => undefined;
+
 function ThreadSwitchCapabilityProbe() {
   const { activeOwner, continueThread } = useAppCapabilities();
+  const skillCatalogSnapshot = useSyncExternalStore(
+    activeOwner?.skillCatalog.subscribe ?? subscribeToEmptySkillCatalog,
+    activeOwner?.skillCatalog.getSnapshot ?? getEmptySkillCatalogSnapshot,
+  );
   useEffect(() => {
     threadSwitchProbeActiveOwner = activeOwner;
   }, [activeOwner]);
@@ -123,6 +138,12 @@ function ThreadSwitchCapabilityProbe() {
       <output aria-label="Active thread owner">{activeOwner?.threadId ?? "none"}</output>
       <output aria-label="Active queue owner">
         {activeOwner?.queueCoordinator.ownerThreadId ?? "none"}
+      </output>
+      <output aria-label="Active skill catalog status">
+        {activeOwner == null ? "none" : skillCatalogSnapshot.type}
+      </output>
+      <output aria-label="Active skill catalog">
+        {skillCatalogSnapshot.candidates.map(({ name }) => name).join(",") || "none"}
       </output>
     </section>
   );
@@ -176,6 +197,14 @@ const deferred = <T,>() => {
   const promise = new Promise<T>((settle) => (resolve = settle));
   return { promise, resolve };
 };
+
+const catalogSkill = (name: string, cwd: string, enabled = true): SkillMetadata => ({
+  name,
+  description: `${name} description`,
+  path: `${cwd}/skills/${name}/SKILL.md`,
+  scope: "repo",
+  enabled,
+});
 
 const createQueueCoordinatorMock = (
   threadId: string,
@@ -481,6 +510,89 @@ test("App keeps host lifecycle status stable while projection events update runt
   expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
     { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
   ]);
+});
+
+test("App exposes the current cwd enabled skill catalog and refreshes it after invalidation", async () => {
+  const commands = createGuiHostCommands();
+  const cwd = attachResponse.snapshot.thread.cwd;
+  vi.mocked(commands.listSkills)
+    .mockResolvedValueOnce({
+      data: [
+        {
+          cwd: "/workspace/other",
+          skills: [catalogSkill("other-cwd", "/workspace/other")],
+          errors: [],
+        },
+        {
+          cwd,
+          skills: [
+            catalogSkill("enabled-current", cwd),
+            catalogSkill("disabled-current", cwd, false),
+          ],
+          errors: [],
+        },
+      ],
+    })
+    .mockResolvedValueOnce(skillsListResponse(cwd, [catalogSkill("refreshed-current", cwd)]));
+  const { options, screen } = await renderThreadSwitchProbe(commands);
+  const catalogStatus = screen.getByLabelText("Active skill catalog status");
+  const catalog = screen.getByLabelText("Active skill catalog", { exact: true });
+
+  await expect.element(catalogStatus).toHaveTextContent("ready");
+  await expect.element(catalog).toHaveTextContent(/^enabled-current$/);
+  expect(commands.listSkills).toHaveBeenCalledExactlyOnceWith({
+    cwds: [cwd],
+    forceReload: false,
+  });
+
+  emitSkillsChanged(options);
+
+  await expect.element(catalog).toHaveTextContent(/^refreshed-current$/);
+  expect(commands.listSkills).toHaveBeenCalledTimes(2);
+});
+
+test("App isolates a replacement owner from the previous catalog settlement and drops unavailable targets", async () => {
+  const commands = createGuiHostCommands();
+  const currentCwd = attachResponse.snapshot.thread.cwd;
+  const candidateCwd = "/workspace/candidate";
+  const staleRefresh = deferred<SkillsListResponse>();
+  vi.mocked(commands.listSkills)
+    .mockResolvedValueOnce(skillsListResponse(currentCwd, [catalogSkill("current", currentCwd)]))
+    .mockReturnValueOnce(staleRefresh.promise)
+    .mockResolvedValueOnce(
+      skillsListResponse(candidateCwd, [catalogSkill("candidate", candidateCwd)]),
+    );
+  const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
+  const activeThread = screen.getByLabelText("Active thread owner");
+  const catalogStatus = screen.getByLabelText("Active skill catalog status");
+  const catalog = screen.getByLabelText("Active skill catalog", { exact: true });
+
+  await expect.element(catalog).toHaveTextContent(/^current$/);
+  emitSkillsChanged(options);
+  await expect.poll(() => vi.mocked(commands.listSkills).mock.calls.length).toBe(2);
+  await expect.element(catalogStatus).toHaveTextContent("refreshing");
+
+  const candidateAttachBase = attachWithThreadId(attachResponse, candidateThreadId);
+  queueAttachProjectionResponse(commands, {
+    ...candidateAttachBase,
+    snapshot: {
+      ...candidateAttachBase.snapshot,
+      thread: { ...candidateAttachBase.snapshot.thread, cwd: candidateCwd },
+    },
+  });
+  await continueButton.click();
+
+  await expect.element(activeThread).toHaveTextContent(candidateThreadId);
+  await expect.element(catalog).toHaveTextContent(/^candidate$/);
+  staleRefresh.resolve(skillsListResponse(currentCwd, [catalogSkill("stale", currentCwd)]));
+  await Promise.resolve();
+  await expect.element(catalog).toHaveTextContent(/^candidate$/);
+
+  markCommandsUnavailable(options);
+  await expect.element(activeThread).toHaveTextContent("none");
+  await expect.element(catalogStatus).toHaveTextContent("none");
+  emitSkillsChanged(options);
+  expect(commands.listSkills).toHaveBeenCalledTimes(3);
 });
 
 test("App displays GUI host startup errors in the sticky top notices region", async () => {

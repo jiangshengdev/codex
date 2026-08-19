@@ -43,6 +43,7 @@ export function GuiHostConnectionBridge({
       | RouteConnectionStartupCoordinator
       | ThreadSwitchCoordinator
       | null = null;
+    let currentActiveOwner: ActiveThreadOwnerHandle | null = null;
     let startupOwnsActiveOwner = true;
     let startupGeneration = 0;
     const scheduler = {
@@ -69,8 +70,12 @@ export function GuiHostConnectionBridge({
       };
     }
     setAuthorizationToken(authorizationSession.getSnapshot().token);
-    const publishActiveOwner = (activeOwner: ActiveThreadOwnerHandle): void => {
+    const setCurrentActiveOwner = (activeOwner: ActiveThreadOwnerHandle | null): void => {
+      currentActiveOwner = activeOwner;
       setActiveOwner(activeOwner);
+    };
+    const publishActiveOwner = (activeOwner: ActiveThreadOwnerHandle): void => {
+      setCurrentActiveOwner(activeOwner);
       authorizationSession.commitActiveThread(activeOwner.threadId);
     };
     const disposeOwnerCoordinator = (): void => {
@@ -89,10 +94,11 @@ export function GuiHostConnectionBridge({
     };
     const invalidateCommandsAndOwner = (): void => {
       startupGeneration += 1;
+      currentActiveOwner = null;
       disposeOwnerCoordinator();
       setCommands(null);
       setStartupOutcome(null);
-      setActiveOwner(null);
+      setCurrentActiveOwner(null);
       setContinueThread(null);
     };
 
@@ -109,6 +115,9 @@ export function GuiHostConnectionBridge({
         },
         onProjectionClosed: (notification) => {
           notificationCoordinator?.handleProjectionClosed(notification);
+        },
+        onSkillsChanged: () => {
+          currentActiveOwner?.skillCatalog.invalidate();
         },
         onCommandsReady: (commands) => {
           setCommands(commands);
@@ -149,7 +158,7 @@ export function GuiHostConnectionBridge({
             notificationCoordinator = nextSwitchCoordinator;
             if (outcome.activeOwner != null) {
               startupOwnsActiveOwner = false;
-              setActiveOwner(outcome.activeOwner);
+              setCurrentActiveOwner(outcome.activeOwner);
             }
             setContinueThread(() => nextSwitchCoordinator.continueThread);
             if (outcome.postCommitFailure != null) {

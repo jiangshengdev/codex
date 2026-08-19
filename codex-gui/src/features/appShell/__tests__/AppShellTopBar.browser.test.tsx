@@ -15,6 +15,7 @@ import {
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { AppShellTopBar } from "../AppShellTopBar";
@@ -25,12 +26,25 @@ function RoutePlaceholder() {
 
 const currentThreadId = attachResponse.snapshot.thread.id;
 const otherThreadId = "00000000-0000-0000-0000-000000000099";
+const emptySkillCatalogState: SkillCatalogState = {
+  type: "ready",
+  candidates: [],
+  partialErrorCount: 0,
+};
+const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
+  getSnapshot: () => emptySkillCatalogState,
+  subscribe: () => () => undefined,
+  invalidate: () => false,
+  retry: () => false,
+};
 
 const activeOwner = (threadId: string): ActiveThreadOwnerHandle => ({
   threadId,
   subscriptionId: `subscription-${threadId}`,
   projectionOwner: null as never,
   queueCoordinator: null as never,
+  skillCatalog,
+  dispose: () => undefined,
 });
 
 const capabilities = ({
