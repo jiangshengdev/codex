@@ -23,6 +23,7 @@ export type TransportRequestFailure = {
   source: "rpc" | "missingResult" | "malformedResult" | "send" | "unavailable";
   delivery: TransportRequestDelivery;
   error: Error;
+  rpcError?: JsonRpcErrorResponse["error"];
 };
 
 export type TransportRequestDelivery = "definitelyNotAccepted" | "deliveryUnknown";
@@ -258,13 +259,14 @@ export class GuiHostTransportSession implements AppServerRequestSender, Authenti
           );
         },
         settleRpcError: (rpcError) => {
-          fail(
-            createFailure(
-              "rpc",
-              "definitelyNotAccepted",
+          fail({
+            source: "rpc",
+            delivery: "definitelyNotAccepted",
+            error: new Error(
               `JSON-RPC error (id=${String(id)}, code=${String(rpcError.code)}): ${rpcError.message}`.trim(),
             ),
-          );
+            rpcError,
+          });
         },
         settleUnavailable: (error) => {
           fail({ source: "unavailable", delivery: "deliveryUnknown", error });
