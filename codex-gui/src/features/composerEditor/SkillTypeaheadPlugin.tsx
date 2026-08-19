@@ -26,6 +26,7 @@ import { querySkills, type SkillQueryResult } from "./skillQuery";
 export type SkillTypeaheadPluginProps = Readonly<{
   isComposingRef: RefObject<boolean>;
   onRetry: (() => void) | undefined;
+  portalParent: HTMLElement;
   skillCatalog: SkillCatalogState;
 }>;
 
@@ -34,6 +35,7 @@ const SKILL_TRIGGER = /(^|\s|\()(\$([^\s$]{0,75}))$/u;
 export function SkillTypeaheadPlugin({
   isComposingRef,
   onRetry,
+  portalParent,
   skillCatalog,
 }: SkillTypeaheadPluginProps) {
   const [editor] = useLexicalComposerContext();
@@ -147,6 +149,7 @@ export function SkillTypeaheadPlugin({
 
   return (
     <LexicalTypeaheadMenuPlugin<SkillMenuOption>
+      anchorClassName="composer-skill-menu-anchor pointer-events-none relative! top-auto! left-auto! h-fit! w-full! max-h-[var(--composer-skill-menu-max-height)]"
       ignoreEntityBoundary={false}
       menuRenderFn={menuRenderFn}
       onClose={onClose}
@@ -154,6 +157,7 @@ export function SkillTypeaheadPlugin({
       onQueryChange={onQueryChange}
       onSelectOption={onSelectOption}
       options={options}
+      parent={portalParent}
       preselectFirstItem
       triggerFn={triggerFn}
     />
@@ -193,7 +197,7 @@ function SkillMenu({
 
   return createPortal(
     <Surface
-      className="w-80 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-separator shadow-lg"
+      className="pointer-events-auto flex w-full max-h-[var(--composer-skill-menu-max-height)] flex-col overflow-hidden rounded-xl border border-separator shadow-lg"
       variant="secondary"
     >
       <SkillCatalogStatus onRetry={onRetry} skillCatalog={skillCatalog} />
@@ -202,7 +206,7 @@ function SkillMenu({
           <Trans>No matching skills</Trans>
         </p>
       ) : null}
-      <ul className="max-h-72 overflow-y-auto p-1" role="presentation">
+      <ul className="min-h-0 flex-1 overflow-y-auto p-1" role="presentation">
         {options.map((option, index) => {
           const isSelected = selectedIndex === index;
           const { candidate, displayName, hasDuplicateDisplayName, sourceLabel } = option.result;

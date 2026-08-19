@@ -1,4 +1,4 @@
-import { createRef, type RefObject } from "react";
+import { createRef, useState, type CSSProperties, type RefObject } from "react";
 import { expect, test, vi } from "vitest";
 import { $getSelection, $isRangeSelection } from "lexical";
 
@@ -11,6 +11,7 @@ import type {
 import {
   ComposerEditor,
   type ComposerEditorController,
+  type ComposerEditorProps,
   type ComposerEditorSnapshot,
 } from "../ComposerEditor";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
@@ -307,7 +308,7 @@ test("shows invalid token text only when a complete ready catalog confirms its p
   );
   const controllerRef = createRef<ComposerEditorController>();
   const renderForCatalog = (skillCatalog: SkillCatalogState) => (
-    <ComposerEditor
+    <ComposerEditorFixture
       ariaLabel="Message"
       controllerRef={controllerRef}
       disabled={false}
@@ -379,7 +380,7 @@ async function renderEditor(
     partialErrorCount: 0,
   };
   const screen = await renderWithProviders(
-    <ComposerEditor
+    <ComposerEditorFixture
       ariaLabel="Message"
       controllerRef={controllerRef}
       disabled={false}
@@ -392,6 +393,21 @@ async function renderEditor(
   await expect.poll(() => controllerRef.current).not.toBeNull();
   return { controllerRef, screen };
 }
+
+function ComposerEditorFixture(props: Omit<ComposerEditorProps, "skillMenuParent">) {
+  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
+
+  return (
+    <div className="w-96 max-w-full">
+      <div ref={setSkillMenuParent} style={fixtureSkillMenuParentStyle} />
+      <ComposerEditor {...props} skillMenuParent={skillMenuParent} />
+    </div>
+  );
+}
+
+const fixtureSkillMenuParentStyle = {
+  "--composer-skill-menu-max-height": "18rem",
+} as CSSProperties;
 
 function catalog(
   type: SkillCatalogState["type"],

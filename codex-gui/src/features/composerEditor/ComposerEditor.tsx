@@ -44,6 +44,7 @@ export type ComposerEditorProps = Readonly<{
   onSubmit: (snapshot: ComposerEditorSnapshot) => void;
   placeholder: string;
   skillCatalog: SkillCatalogState;
+  skillMenuParent: HTMLElement | null;
   skillValidity?: Readonly<{
     invalidPaths: ReadonlySet<string>;
     statusText: string;
@@ -60,6 +61,7 @@ export function ComposerEditor({
   onSubmit,
   placeholder,
   skillCatalog,
+  skillMenuParent,
   skillValidity,
 }: ComposerEditorProps) {
   const activeControllerRef = useRef<ComposerEditorController | null>(null);
@@ -151,11 +153,14 @@ export function ComposerEditor({
       />
       <EditablePlugin disabled={disabled} />
       <SkillValidityPlugin skillValidity={skillValidity} />
-      <SkillTypeaheadPlugin
-        isComposingRef={isComposingRef}
-        onRetry={onRetrySkillCatalog}
-        skillCatalog={skillCatalog}
-      />
+      {skillMenuParent == null ? null : (
+        <SkillTypeaheadPlugin
+          isComposingRef={isComposingRef}
+          onRetry={onRetrySkillCatalog}
+          portalParent={skillMenuParent}
+          skillCatalog={skillCatalog}
+        />
+      )}
       <ComposerClipboardPlugin />
     </LexicalComposer>
   );

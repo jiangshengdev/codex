@@ -35,6 +35,7 @@ import {
   isConnectionUsable,
 } from "./composerTurnControlModel";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
+import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
@@ -64,6 +65,7 @@ export function ComposerTurnControl({
   const isSubmittingRef = useRef(false);
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
+  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
@@ -204,6 +206,7 @@ export function ComposerTurnControl({
         data-focus-visible={composerFocusVisible}
         variant="default"
       >
+        <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
           ariaLabel={t`Message Codex`}
           disabled={!connectionUsable}
@@ -213,6 +216,7 @@ export function ComposerTurnControl({
           onSubmit={submit}
           placeholder={t`Message Codex`}
           skillCatalog={skillCatalog}
+          skillMenuParent={skillMenuParent}
           skillValidity={skillValidity}
         />
         {queueSnapshot.queuedCount > 0 || queueSnapshot.recoveryCount > 0 ? (
