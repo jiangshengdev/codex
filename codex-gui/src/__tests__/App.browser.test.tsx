@@ -493,9 +493,16 @@ test("App keeps the skill menu anchored above the composer across responsive vie
     vi.mocked(commands.listSkills).mockResolvedValue(
       skillsListResponse(
         cwd,
-        Array.from({ length: 25 }, (_, index) =>
-          catalogSkill(`responsive-skill-${String(index).padStart(2, "0")}`, cwd),
-        ),
+        Array.from({ length: 25 }, (_, index) => {
+          const candidate = catalogSkill(`responsive-skill-${String(index).padStart(2, "0")}`, cwd);
+          return index === 19
+            ? {
+                ...candidate,
+                description: "A long responsive skill description with useful detail. ".repeat(12),
+                path: `${cwd}/skills/${"long-path-token".repeat(24)}/SKILL.md`,
+              }
+            : candidate;
+        }),
       ),
     );
     const { screen } = await renderReadyApp(commands);
@@ -517,6 +524,7 @@ test("App keeps the skill menu anchored above the composer across responsive vie
       height: scroller.scrollHeight,
       width: scroller.scrollWidth,
     };
+    const baselineDocumentScrollTop = scroller.scrollTop;
     const baselineComposerBottom = composerShell.getBoundingClientRect().bottom;
 
     await editor.fill("$");
@@ -566,6 +574,74 @@ test("App keeps the skill menu anchored above the composer across responsive vie
         menuLeftAligned: true,
         menuRespectsGap: true,
         menuRespectsHeightCap: true,
+      });
+
+    const scrollRegion = screen.container.querySelector("[data-skill-menu-scroll-region]");
+    if (!(scrollRegion instanceof HTMLElement)) {
+      throw new Error("skill menu scroll region must render");
+    }
+    expect(listbox.element().contains(scrollRegion)).toBe(true);
+
+    await screen.user.keyboard("{ArrowDown}".repeat(19));
+    await expect
+      .poll(() => {
+        const activeOption = listbox
+          .element()
+          .querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+        if (activeOption == null) {
+          return null;
+        }
+        const activeBounds = activeOption.getBoundingClientRect();
+        const scrollBounds = scrollRegion.getBoundingClientRect();
+        const menuBounds = listbox.element().getBoundingClientRect();
+        const panelBounds = composerPanel.getBoundingClientRect();
+        const composerBottom = composerShell.getBoundingClientRect().bottom;
+        const currentScroller = documentScroller();
+        const visualViewport = window.visualViewport;
+        const viewportTop = visualViewport?.offsetTop ?? 0;
+        const viewportHeight = visualViewport?.height ?? window.innerHeight;
+        const menuGap = panelBounds.top - menuBounds.bottom;
+        const availableHeight = Math.max(0, panelBounds.top - viewportTop - 8);
+        const maximumHeight = Math.min(viewportHeight * 0.4, 360, availableHeight);
+
+        return {
+          activeIsLastResult: activeOption.id === "typeahead-item-19",
+          activeVisibleInScrollRegion:
+            activeBounds.top >= scrollBounds.top - 1 &&
+            activeBounds.bottom <= scrollBounds.bottom + 1,
+          composerBottomAligned: Math.abs(composerBottom - window.innerHeight) <= 1,
+          composerBottomStable: Math.abs(composerBottom - baselineComposerBottom) <= 1,
+          documentHeightStable: currentScroller.scrollHeight <= baselineDocumentSize.height + 1,
+          documentScrollTopStable:
+            Math.abs(currentScroller.scrollTop - baselineDocumentScrollTop) <= 1,
+          documentWidthStable: currentScroller.scrollWidth <= baselineDocumentSize.width + 1,
+          documentWithoutHorizontalOverflow:
+            currentScroller.scrollWidth <= currentScroller.clientWidth + 1,
+          menuFullyVisible:
+            menuBounds.top >= viewportTop - 1 &&
+            menuBounds.bottom <= viewportTop + viewportHeight + 1,
+          menuHasPanelWidth: Math.abs(menuBounds.width - panelBounds.width) <= 1,
+          menuLeftAligned: Math.abs(menuBounds.left - panelBounds.left) <= 1,
+          menuRespectsGap: Math.abs(menuGap - 8) <= 1,
+          menuRespectsHeightCap: menuBounds.height <= maximumHeight + 1,
+          scrollRegionAdvanced: scrollRegion.scrollTop > 0,
+        };
+      })
+      .toEqual({
+        activeIsLastResult: true,
+        activeVisibleInScrollRegion: true,
+        composerBottomAligned: true,
+        composerBottomStable: true,
+        documentHeightStable: true,
+        documentScrollTopStable: true,
+        documentWidthStable: true,
+        documentWithoutHorizontalOverflow: true,
+        menuFullyVisible: true,
+        menuHasPanelWidth: true,
+        menuLeftAligned: true,
+        menuRespectsGap: true,
+        menuRespectsHeightCap: true,
+        scrollRegionAdvanced: true,
       });
 
     await activeFixture.unmount();
