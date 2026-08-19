@@ -1,4 +1,10 @@
-import type { Turn, TurnStartParams, TurnStartResponse } from "@codex-protocol/v2";
+import type {
+  Turn,
+  TurnStartParams,
+  TurnStartResponse,
+  TurnSteerParams,
+  TurnSteerResponse,
+} from "@codex-protocol/v2";
 import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
 import {
@@ -8,18 +14,28 @@ import {
   type ComposerInputQueueTransition,
   type StartClaim,
   type StartSettlement,
+  type SteerSettlement,
 } from "./composerInputQueue";
 import type {
   ComposerInputQueueReleaseBlocker,
+  ComposerPendingSteerView,
   ComposerQueueMessage,
+  ComposerQueuedSteerView,
+  ComposerRejectedSteerView,
   RecoveryBatch,
 } from "./composerInputQueueContracts";
+import type { SteerClaim } from "./composerSteerQueueState";
 import { runtimeObservationFromAcceptedProjectionEvent } from "./composerInputQueueRuntimeObservation";
 
 export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
   queuedCount: number;
   recoveryCount: number;
+  recovery: Readonly<{ reason: RecoveryBatch["reason"]; count: number }> | null;
   isRecovering: boolean;
+  pendingSteers: readonly ComposerPendingSteerView[];
+  queuedSteers: readonly ComposerQueuedSteerView[];
+  rejectedSteers: readonly ComposerRejectedSteerView[];
+  hasUnknownSteer: boolean;
 }>;
 
 export type ComposerInputQueueSubmitResult =
@@ -60,6 +76,8 @@ export type ComposerInputQueueCoordinatorReserveReleaseResult =
 export type ComposerInputQueueCoordinator = Readonly<{
   ownerThreadId: string;
   submit(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult;
+  submitSteer(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult;
+  promoteOrdinaryFrontToSteer(): boolean;
   recover(): boolean;
   observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
   getReleaseReadiness(): ComposerInputQueueCoordinatorReleaseReadiness;
@@ -73,15 +91,55 @@ export type CreateComposerInputQueueCoordinatorInput = Readonly<{
   threadId: string;
   activeTurnId: Turn["id"] | null;
   startTurn(params: TurnStartParams): Promise<TurnStartResponse>;
+  steerTurn(params: TurnSteerParams): Promise<TurnSteerResponse>;
 }>;
 
 let nextMessageSequence = 0;
 const noop = (): void => undefined;
 
+function recoveryCount(batch: RecoveryBatch | null): number {
+  if (batch == null) return 0;
+  switch (batch.reason) {
+    case "interrupted":
+    case "startDefinitelyNotAccepted":
+      return batch.messages.length;
+    case "steerDefinitelyNotAccepted":
+      return batch.transfer.intents.length;
+  }
+}
+
+function copySteerInputItem(
+  item: SteerClaim["intent"]["input"][number],
+): TurnSteerParams["input"][number] {
+  switch (item.type) {
+    case "text":
+      return {
+        ...item,
+        text_elements: item.text_elements.map((element) => structuredClone(element)),
+      };
+    case "image":
+    case "localImage":
+    case "audio":
+    case "localAudio":
+    case "skill":
+    case "mention":
+      return { ...item };
+    default: {
+      const exhaustiveItem: never = item;
+      return exhaustiveItem;
+    }
+  }
+}
+
+function copySteerInput(input: SteerClaim["intent"]["input"]): TurnSteerParams["input"] {
+  return input.map(copySteerInputItem);
+}
+
 class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator {
   private readonly queue: ComposerInputQueue;
   private readonly threadId: string;
   private readonly startTurn: CreateComposerInputQueueCoordinatorInput["startTurn"];
+  private readonly steerTurn: CreateComposerInputQueueCoordinatorInput["steerTurn"];
   private readonly listeners = new Set<() => void>();
   private recovery: RecoveryBatch | null = null;
   private deferredEffects: readonly ComposerInputQueueEffect[] = [];
@@ -94,8 +152,21 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   constructor(input: CreateComposerInputQueueCoordinatorInput) {
     this.threadId = input.threadId;
     this.startTurn = input.startTurn;
-    this.queue = createComposerInputQueue({ activeTurnId: input.activeTurnId });
-    this.snapshot = { queuedCount: 0, recoveryCount: 0, isRecovering: false };
+    this.steerTurn = input.steerTurn;
+    this.queue = createComposerInputQueue({
+      threadId: input.threadId,
+      activeTurnId: input.activeTurnId,
+    });
+    this.snapshot = {
+      queuedCount: 0,
+      recoveryCount: 0,
+      recovery: null,
+      isRecovering: false,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
+    };
   }
 
   get ownerThreadId(): string {
@@ -120,6 +191,36 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     return { type: "accepted" };
   }
 
+  submitSteer(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult {
+    if (this.disposed) return { type: "rejected", reason: "disposed" };
+    if (this.releaseReservation != null) {
+      return { type: "rejected", reason: "releaseReserved" };
+    }
+    if (this.recovery != null) return { type: "rejected", reason: "recoveryPending" };
+    nextMessageSequence += 1;
+    const transition = this.queue.submitSteer({
+      id: `composer-message-${String(nextMessageSequence)}`,
+      input,
+    });
+    if (transition.result.type === "invalidInput") {
+      return { type: "rejected", reason: "invalidInput" };
+    }
+    this.consumeTransition(transition);
+    return { type: "accepted" };
+  }
+
+  promoteOrdinaryFrontToSteer(): boolean {
+    if (this.disposed || this.releaseReservation != null || this.recovery != null) {
+      return false;
+    }
+    const transition = this.queue.promoteOrdinaryFrontToSteer();
+    if (transition.result.type === "noOp") {
+      return false;
+    }
+    this.consumeTransition(transition);
+    return true;
+  }
+
   recover(): boolean {
     if (
       this.disposed ||
@@ -133,12 +234,25 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.publishSnapshot();
     const batch = this.recovery;
     const recoveryEffects: ComposerInputQueueEffect[] = [];
-    for (const message of batch.messages) {
-      const transition = this.queue.submit(message);
-      if (transition.effects.some((effect) => effect.type === "recover")) {
-        throw new Error("Composer input queue produced a second recovery batch");
+    switch (batch.reason) {
+      case "interrupted":
+      case "startDefinitelyNotAccepted":
+        for (const message of batch.messages) {
+          const transition = this.queue.submit(message);
+          if (transition.effects.some((effect) => effect.type === "recover")) {
+            throw new Error("Composer input queue produced a second recovery batch");
+          }
+          recoveryEffects.push(...transition.effects);
+        }
+        break;
+      case "steerDefinitelyNotAccepted": {
+        const transition = this.queue.restoreSteerRecovery(batch.transfer);
+        if (transition.effects.some((effect) => effect.type === "recover")) {
+          throw new Error("Composer input queue produced a second recovery batch");
+        }
+        recoveryEffects.push(...transition.effects);
+        break;
       }
-      recoveryEffects.push(...transition.effects);
     }
     this.recovery = null;
     this.isRecovering = false;
@@ -165,7 +279,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     const blockers: ComposerInputQueueCoordinatorReleaseBlocker[] =
       queueState.type === "blocked" ? [...queueState.blockers] : [];
     if (this.recovery != null) {
-      blockers.push({ type: "recoveryPending", count: this.recovery.messages.length });
+      blockers.push({ type: "recoveryPending", count: recoveryCount(this.recovery) });
     }
     if (this.isRecovering) {
       blockers.push({ type: "recovering" });
@@ -221,15 +335,21 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   private runEffects(effects: readonly ComposerInputQueueEffect[]): void {
     for (const [index, effect] of effects.entries()) {
-      if (effect.type === "recover") {
-        if (this.recovery != null) {
-          throw new Error("Composer input queue produced a second recovery batch");
-        }
-        this.recovery = effect.batch;
-        this.deferredEffects = effects.slice(index + 1);
-        return;
+      switch (effect.type) {
+        case "recover":
+          if (this.recovery != null) {
+            throw new Error("Composer input queue produced a second recovery batch");
+          }
+          this.recovery = effect.batch;
+          this.deferredEffects = effects.slice(index + 1);
+          return;
+        case "performStart":
+          this.performStart(effect.claim);
+          break;
+        case "performSteer":
+          this.performSteer(effect.claim);
+          break;
       }
-      this.performStart(effect.claim);
     }
   }
 
@@ -260,20 +380,49 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.consumeTransition(this.queue.settleStart(settlement));
   }
 
+  private performSteer(claim: SteerClaim): void {
+    const generation = this.generation;
+    this.steerTurn({
+      threadId: claim.intent.threadId,
+      expectedTurnId: claim.intent.expectedTurnId,
+      clientUserMessageId: claim.intent.clientUserMessageId,
+      input: copySteerInput(claim.intent.input),
+    }).then(
+      ({ turnId }) => {
+        this.settleSteer(generation, { type: "accepted", claim, turnId });
+      },
+      (error: unknown) => {
+        const type =
+          isGuiHostCommandError(error) && error.activeTurnNotSteerable
+            ? "activeTurnNotSteerable"
+            : isGuiHostCommandError(error) && error.delivery === "definitelyNotAccepted"
+              ? "definitelyNotAccepted"
+              : "deliveryUnknown";
+        this.settleSteer(generation, { type, claim });
+      },
+    );
+  }
+
+  private settleSteer(generation: number, settlement: SteerSettlement): void {
+    if (this.disposed || generation !== this.generation) return;
+    this.consumeTransition(this.queue.settleSteer(settlement));
+  }
+
   private publishSnapshot(): void {
     if (this.disposed) return;
-    const next = {
-      queuedCount: this.queue.view().queuedCount,
-      recoveryCount: this.recovery?.messages.length ?? 0,
+    const queueView = this.queue.view();
+    const count = recoveryCount(this.recovery);
+    const next: ComposerInputQueueCoordinatorSnapshot = {
+      queuedCount: queueView.queuedCount,
+      recoveryCount: count,
+      recovery: this.recovery == null ? null : { reason: this.recovery.reason, count },
       isRecovering: this.isRecovering,
+      pendingSteers: queueView.pendingSteers,
+      queuedSteers: queueView.queuedSteers,
+      rejectedSteers: queueView.rejectedSteers,
+      hasUnknownSteer: queueView.hasUnknownSteer,
     };
-    if (
-      next.queuedCount === this.snapshot.queuedCount &&
-      next.recoveryCount === this.snapshot.recoveryCount &&
-      next.isRecovering === this.snapshot.isRecovering
-    ) {
-      return;
-    }
+    if (JSON.stringify(next) === JSON.stringify(this.snapshot)) return;
     this.snapshot = next;
     for (const listener of this.listeners) listener();
   }

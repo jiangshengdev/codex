@@ -18,7 +18,7 @@ import type {
 
 type RouteConnectionStartupCommands = Pick<
   GuiHostCommands,
-  "attachThreadProjection" | "detachThreadProjection" | "listSkills" | "startTurn"
+  "attachThreadProjection" | "detachThreadProjection" | "listSkills" | "startTurn" | "steerTurn"
 >;
 
 export type RouteConnectionStartupCleanupFailure = Readonly<{

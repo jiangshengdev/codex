@@ -28,7 +28,7 @@ export type ActiveThreadOwnerHandle = Readonly<{
   dispose(): void;
 }>;
 
-type ActiveThreadOwnerCommands = Pick<GuiHostCommands, "listSkills" | "startTurn">;
+type ActiveThreadOwnerCommands = Pick<GuiHostCommands, "listSkills" | "startTurn" | "steerTurn">;
 
 export type PreparedActiveThreadOwner = Readonly<{
   activeOwner: ActiveThreadOwnerHandle;
@@ -104,6 +104,7 @@ export function prepareActiveThreadOwner({
           .toReversed()
           .find((turn) => turn.status === "inProgress")?.id ?? null,
       startTurn: commands.startTurn,
+      steerTurn: commands.steerTurn,
     });
     skillCatalog = new SkillCatalogOwner({
       cwd: attachResponse.snapshot.thread.cwd,

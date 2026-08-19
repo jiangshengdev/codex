@@ -218,6 +218,12 @@ const createQueueCoordinatorMock = (
   const coordinator = {
     ownerThreadId: threadId,
     submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
+    submitSteer: vi
+      .fn<ComposerInputQueueCoordinator["submitSteer"]>()
+      .mockReturnValue({ type: "accepted" }),
+    promoteOrdinaryFrontToSteer: vi
+      .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
+      .mockReturnValue(false),
     recover: vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(false),
     observeAcceptedEvent,
     getReleaseReadiness: vi
@@ -233,7 +239,12 @@ const createQueueCoordinatorMock = (
     getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
       queuedCount: 0,
       recoveryCount: 0,
+      recovery: null,
       isRecovering: false,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
     }),
     subscribe: vi
       .fn<ComposerInputQueueCoordinator["subscribe"]>()
@@ -1411,6 +1422,7 @@ test("App owns one queue coordinator for the matching attached launch thread unt
     threadId: launchThreadId,
     activeTurnId: null,
     startTurn: commands.startTurn,
+    steerTurn: commands.steerTurn,
   });
   emitProjectionEvent(options, eventTurnStarted);
 

@@ -277,7 +277,12 @@ export function ComposerTurnControl({
 const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {
   queuedCount: 0,
   recoveryCount: 0,
+  recovery: null,
   isRecovering: false,
+  pendingSteers: [],
+  queuedSteers: [],
+  rejectedSteers: [],
+  hasUnknownSteer: false,
 };
 const subscribeUnavailableQueue = (): (() => void) => () => undefined;
 const getUnavailableQueueSnapshot = (): ComposerInputQueueCoordinatorSnapshot =>

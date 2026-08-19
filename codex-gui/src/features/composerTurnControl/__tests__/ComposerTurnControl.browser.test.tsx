@@ -89,6 +89,12 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
   const controller = {
     ownerThreadId: threadId,
     submit,
+    submitSteer: vi
+      .fn<ComposerInputQueueCoordinator["submitSteer"]>()
+      .mockReturnValue({ type: "accepted" }),
+    promoteOrdinaryFrontToSteer: vi
+      .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
+      .mockReturnValue(false),
     recover,
     observeAcceptedEvent: vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>(),
     getReleaseReadiness: vi
@@ -151,6 +157,7 @@ async function renderAttached(
         threadId,
         activeTurnId: null,
         startTurn: commandHandle.startTurn,
+        steerTurn: commandHandle.steerTurn,
       }),
   skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"] = createSkillCatalogHarness()
     .controller,
@@ -365,7 +372,12 @@ test("requires the queue controller owner to match the Redux current thread befo
   const harness = createQueueControllerHarness({
     queuedCount: 0,
     recoveryCount: 0,
+    recovery: null,
     isRecovering: false,
+    pendingSteers: [],
+    queuedSteers: [],
+    rejectedSteers: [],
+    hasUnknownSteer: false,
   });
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   const composer = getComposer(screen);
@@ -657,6 +669,7 @@ test("active turn allows queuing and enables Stop", async () => {
     threadId,
     activeTurnId: event.event.notification.turn.id,
     startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
   });
   const screen = await renderAttached(commandHandle, false, "en", controller);
   screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
@@ -744,7 +757,12 @@ test("recovery disables send, keeps the editor editable, and prevents duplicate 
   const initialSnapshot: ComposerInputQueueCoordinatorSnapshot = {
     queuedCount: 0,
     recoveryCount: 2,
+    recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
     isRecovering: false,
+    pendingSteers: [],
+    queuedSteers: [],
+    rejectedSteers: [],
+    hasUnknownSteer: false,
   };
   const harness = createQueueControllerHarness(initialSnapshot);
   harness.recover.mockImplementation(() => {
@@ -772,7 +790,12 @@ test("guards recovery when commands are unavailable", async () => {
   const harness = createQueueControllerHarness({
     queuedCount: 0,
     recoveryCount: 2,
+    recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
     isRecovering: false,
+    pendingSteers: [],
+    queuedSteers: [],
+    rejectedSteers: [],
+    hasUnknownSteer: false,
   });
   const screen = await renderAttached(null, false, "en", harness.controller);
   const composer = getComposer(screen);
@@ -786,7 +809,12 @@ test("guards recovery while manual reconnect is required", async () => {
   const harness = createQueueControllerHarness({
     queuedCount: 0,
     recoveryCount: 2,
+    recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
     isRecovering: false,
+    pendingSteers: [],
+    queuedSteers: [],
+    rejectedSteers: [],
+    hasUnknownSteer: false,
   });
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   screen.store.dispatch(

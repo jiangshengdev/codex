@@ -55,7 +55,12 @@ export type ThreadSwitchCleanupFailure = Readonly<{
 
 type ThreadSwitchCommands = Pick<
   GuiHostCommands,
-  "attachThreadProjection" | "detachThreadProjection" | "listSkills" | "resumeThread" | "startTurn"
+  | "attachThreadProjection"
+  | "detachThreadProjection"
+  | "listSkills"
+  | "resumeThread"
+  | "startTurn"
+  | "steerTurn"
 >;
 
 type ThreadSwitchCoordinatorOptions = Readonly<{
