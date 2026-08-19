@@ -33,3 +33,5 @@ export const APP_SERVER_NOTIFICATION_METHODS = [
   "thread/projection/delta",
   "thread/projection/closed",
 ] as const satisfies readonly ServerNotification["method"][];
+
+export const APP_SERVER_AUXILIARY_SCHEMA_IDS = ["v2/TurnError"] as const;

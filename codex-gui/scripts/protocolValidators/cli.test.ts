@@ -49,7 +49,7 @@ afterEach(async () => {
 });
 
 describe("loadAppServerGenerationInputs", () => {
-  test("assembles Rust notification metadata and both app-server selections", async () => {
+  test("assembles Rust metadata and all app-server selections", async () => {
     const schemaDirectory = path.join("fixture", "app-server-protocol", "schema", "json");
     const protocolInputs = {
       schemaBundle: { definitions: {} },
@@ -64,6 +64,7 @@ describe("loadAppServerGenerationInputs", () => {
         appServerProtocolModule: {
           APP_SERVER_REQUEST_METHODS: ["fixture/request"],
           APP_SERVER_NOTIFICATION_METHODS: ["fixture/notification"],
+          APP_SERVER_AUXILIARY_SCHEMA_IDS: ["v2/FixtureAuxiliary"],
         },
         loadProtocolInputs,
       }),
@@ -71,6 +72,7 @@ describe("loadAppServerGenerationInputs", () => {
       ...protocolInputs,
       selectedRequestMethods: ["fixture/request"],
       selectedNotificationMethods: ["fixture/notification"],
+      selectedAuxiliarySchemaIds: ["v2/FixtureAuxiliary"],
     });
     expect(loadProtocolInputs).toHaveBeenCalledOnce();
     expect(loadProtocolInputs).toHaveBeenCalledWith({
