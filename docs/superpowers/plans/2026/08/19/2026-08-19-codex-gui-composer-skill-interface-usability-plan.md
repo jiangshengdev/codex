@@ -1,6 +1,6 @@
 # Codex GUI Composer 与 Skill 候选界面可用性实施计划
 
-状态：待确认
+状态：已确认
 
 日期：2026-08-19
 
@@ -183,6 +183,7 @@ fix(gui): bound composer editor growth
 - `codex-gui/src/features/composerEditor/SkillTypeaheadPlugin.tsx`
 - `codex-gui/src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx`
 - `codex-gui/src/__tests__/App.browser.test.tsx`
+- `codex-gui/src/__tests__/sequential/composerClipboard.browser.test.tsx`
 
 **实施**
 
@@ -190,7 +191,7 @@ fix(gui): bound composer editor growth
 - layer 根据 visual viewport 顶部与 panel 顶部的真实距离计算可用高度，施加
   `min(40vh, 360px, availableHeight)`；监听 viewport resize/scroll 和 panel 几何变化，但不读取 query、候选或 active index。
 - 建立 `ComposerTurnControl → ComposerEditor → SkillTypeaheadPlugin` 的 portal parent seam。host 尚未挂载时不渲染 typeahead plugin，禁止短暂退回 body portal。
-- 更新独立 `ComposerEditor` Browser fixture，为组件测试创建真实 portal host/parent；生产代码与测试均不得以 body fallback 绕过 host 门禁。
+- 更新独立 `ComposerEditor` Browser fixture，为组件测试创建真实 portal host/parent；`composerClipboard.browser.test.tsx` 中直接渲染 `ComposerEditor` 的 fixture 也必须创建真实 portal host 并传入 `skillMenuParent`。生产代码与测试均不得将该 prop 改为 optional，也不得以 body fallback 绕过 host 门禁。
 - `SkillTypeaheadPlugin` 使用 Lexical 原生 `parent` 与 `anchorClassName`；中和 caret anchor 的 inline `top/left/width/height`，但保留该 anchor 的 `role="listbox"`、`aria-controls` 以及 option DOM 父子关系。
 - 菜单 Surface 改为占满 host 宽度并服从 layer 高度；不得只加 `z-index`、`overflow-hidden` 或修改 editor 高度隐藏问题。
 - 在完整 App fixture 中提供真实 skill catalog，并于 `400×876`、`1440×900` 验证：菜单与 panel 左右边界对齐、菜单位于 panel 上方、整个菜单在 visual viewport 内、打开前后 document scroll width/height 不增长、Composer bottom 不漂移。
@@ -203,12 +204,17 @@ fix(gui): bound composer editor growth
   src/features/composerTurnControl/ComposerTurnControl.tsx \
   src/features/composerEditor/ComposerEditor.tsx \
   src/features/composerEditor/SkillTypeaheadPlugin.tsx \
-  src/__tests__/App.browser.test.tsx --write
+  src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx \
+  src/__tests__/App.browser.test.tsx \
+  src/__tests__/sequential/composerClipboard.browser.test.tsx --write
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run \
   --config=vitest.browser.parallel.config.ts --browser=chromium \
   src/__tests__/App.browser.test.tsx \
   src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx \
   src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run \
+  --config=vitest.browser.sequential.config.ts --browser=chromium \
+  src/__tests__/sequential/composerClipboard.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
 ```
 
@@ -280,7 +286,8 @@ fix(gui): improve skill candidate scanning
   src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx \
   src/__tests__/App.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:sequential -- \
-  src/__tests__/sequential/composer-viewport.browser.test.tsx
+  src/__tests__/sequential/composer-viewport.browser.test.tsx \
+  src/__tests__/sequential/composerClipboard.browser.test.tsx
 ```
 
 ### 可见浏览器验收
@@ -304,4 +311,4 @@ fix(gui): improve skill candidate scanning
 
 ## 计划确认门禁
 
-本文状态为“待确认”。用户明确回复“确认计划”后，才允许先执行任务 0；任务 0 的文档独立提交成功后，才能开始任务 1 的实现。
+本文状态为“已确认”。用户明确回复“确认计划”后，才允许先执行任务 0；任务 0 的文档独立提交成功后，才能开始任务 1 的实现。

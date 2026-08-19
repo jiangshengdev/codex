@@ -189,6 +189,25 @@ const getComposer = (
   name = "Message Codex",
 ) => screen.getByRole("combobox", { name, exact: true });
 
+const getComposerPanel = (screen: Awaited<ReturnType<typeof renderWithProviders>>): HTMLElement => {
+  const composerPanel = screen.container.querySelector(".composer-panel");
+  if (!(composerPanel instanceof HTMLElement)) {
+    throw new Error("composer panel must render");
+  }
+  return composerPanel;
+};
+
+const composerPanelVisualSignature = (composerPanel: HTMLElement) => {
+  const style = window.getComputedStyle(composerPanel);
+  return {
+    backgroundColor: style.backgroundColor,
+    borderColor: style.borderColor,
+    boxShadow: style.boxShadow,
+    cursor: style.cursor,
+    opacity: style.opacity,
+  };
+};
+
 const composerTextWithoutTrailingBrowserPlaceholders = (
   element: Readonly<Pick<Node, "textContent">>,
 ): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
@@ -234,8 +253,24 @@ test("disables controls before attach", async () => {
     </>,
   );
 
+  const composerPanel = getComposerPanel(screen);
+  const disabledVisualSignature = composerPanelVisualSignature(composerPanel);
+
+  await expect.element(composerPanel).toHaveAttribute("aria-disabled", "true");
+  await expect.element(composerPanel).toHaveAttribute("data-disabled", "true");
   await expectComposerDisabled(screen);
   expect(screen.container.querySelector('[aria-label^="Context usage details"]')).toBeNull();
+
+  screen.store.dispatch(launchThreadIdRecorded(threadId));
+  screen.store.dispatch(attachedThreadIdObserved(threadId));
+  screen.store.dispatch(threadRuntimeAttached(attachResponse));
+
+  await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
+  await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
+  await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "true");
+  await expect
+    .poll(() => composerPanelVisualSignature(composerPanel))
+    .not.toEqual(disabledVisualSignature);
 });
 
 test("shows attached context usage and opens its details", async () => {
@@ -312,10 +347,7 @@ test("renders the Lexical composer panel and actions", async () => {
   if (!(composerShell instanceof HTMLElement)) {
     throw new Error("composer shell must render");
   }
-  const composerPanel = composerShell.firstElementChild;
-  if (!(composerPanel instanceof HTMLElement)) {
-    throw new Error("composer panel must render");
-  }
+  const composerPanel = getComposerPanel(screen);
   const editorRoot = getComposer(screen).element();
   const actions = Array.from(composerPanel.querySelectorAll("button"))
     .map((button) => button.textContent.trim())
@@ -325,9 +357,6 @@ test("renders the Lexical composer panel and actions", async () => {
   expect(composerPanel.classList.contains("pb-5")).toBe(false);
   expect(composerPanel.classList.contains("p-3")).toBe(false);
   expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerPanel.classList.contains("rounded-[20px]")).toBe(true);
-  expect(composerPanel.classList.contains("shadow-md")).toBe(true);
-  expect(composerPanel.classList.contains("shadow-lg")).toBe(false);
   expect(composerShell.classList.contains("composer-shell")).toBe(true);
   expect(composerShell.classList.contains("sticky")).toBe(true);
   expect(composerShell.classList.contains("bottom-0")).toBe(true);
@@ -337,12 +366,48 @@ test("renders the Lexical composer panel and actions", async () => {
   expect(composerShell.classList.contains("pb-0")).toBe(false);
   expect(composerShell.classList.contains("pb-3")).toBe(true);
   expect(composerShell.classList.contains("py-3")).toBe(false);
-  expect(editorRoot.classList.contains("bg-transparent")).toBe(true);
+  await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
+  await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
   await expect.element(editorRoot).toHaveAttribute("contenteditable", "true");
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
   expect(actions).toEqual(["Stop", "Send"]);
+});
+
+test("distinguishes hover, pointer focus, and keyboard focus-visible field states", async () => {
+  const screen = await renderAttached();
+  const composerPanel = getComposerPanel(screen);
+  const composer = getComposer(screen);
+
+  await userEvent.unhover(document.body);
+  const restingVisualSignature = composerPanelVisualSignature(composerPanel);
+
+  await userEvent.hover(composerPanel);
+  await expect
+    .poll(() => composerPanelVisualSignature(composerPanel))
+    .not.toEqual(restingVisualSignature);
+  const hoverVisualSignature = composerPanelVisualSignature(composerPanel);
+
+  await userEvent.click(composer);
+  await expect.element(composer).toHaveFocus();
+  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
+  await expect
+    .poll(() => composerPanelVisualSignature(composerPanel))
+    .not.toEqual(hoverVisualSignature);
+  const pointerFocusVisualSignature = composerPanelVisualSignature(composerPanel);
+
+  await userEvent.keyboard("x");
+  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
+
+  await userEvent.tab();
+  await expect.element(composer).not.toHaveFocus();
+  await userEvent.tab({ shift: true });
+  await expect.element(composer).toHaveFocus();
+  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "true");
+  await expect
+    .poll(() => composerPanelVisualSignature(composerPanel))
+    .not.toEqual(pointerFocusVisualSignature);
 });
 
 test("submits a non-empty draft through the queue controller and clears it when accepted", async () => {

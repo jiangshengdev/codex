@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
+import { page } from "vitest/browser";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -479,6 +480,181 @@ test("App renders composer in the shell without visible host debug details", asy
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).not.toBe(0);
   expectElementBottomAlignedWithViewport(composerShell);
+});
+
+test("App keeps the skill menu anchored above the composer across responsive viewports", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const activeFixture: { unmount: (() => Promise<void>) | null } = { unmount: null };
+
+  const assertResponsiveMenuGeometry = async (width: number, height: number): Promise<void> => {
+    await page.viewport(width, height);
+    const commands = createGuiHostCommands();
+    const cwd = attachResponse.snapshot.thread.cwd;
+    vi.mocked(commands.listSkills).mockResolvedValue(
+      skillsListResponse(
+        cwd,
+        Array.from({ length: 25 }, (_, index) => {
+          const candidate = catalogSkill(`responsive-skill-${String(index).padStart(2, "0")}`, cwd);
+          return index === 19
+            ? {
+                ...candidate,
+                description: "A long responsive skill description with useful detail. ".repeat(12),
+                path: `${cwd}/skills/${"long-path-token".repeat(24)}/SKILL.md`,
+              }
+            : candidate;
+        }),
+      ),
+    );
+    const { screen } = await renderReadyApp(commands);
+    activeFixture.unmount = screen.unmount;
+    const editor = getAppComposer(screen);
+    const composerShell = screen.getByRole("region", { name: "Message composer" }).element();
+    const composerPanel = composerShell.querySelector(".composer-panel");
+    if (!(composerPanel instanceof HTMLElement)) {
+      throw new Error("composer panel must render");
+    }
+    await expect.element(editor).toHaveAttribute("aria-expanded", "false");
+    scrollToDocumentTop();
+    await expect
+      .poll(() => Math.abs(composerShell.getBoundingClientRect().bottom - window.innerHeight))
+      .toBeLessThanOrEqual(1);
+
+    const scroller = documentScroller();
+    const baselineDocumentSize = {
+      height: scroller.scrollHeight,
+      width: scroller.scrollWidth,
+    };
+    const baselineDocumentScrollTop = scroller.scrollTop;
+    const baselineComposerBottom = composerShell.getBoundingClientRect().bottom;
+
+    await editor.fill("$");
+    const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+    await expect.poll(() => listbox.getByRole("option").length).toBe(20);
+    expect(composerPanel.contains(listbox.element())).toBe(true);
+
+    await expect
+      .poll(() => {
+        const menuBounds = listbox.element().getBoundingClientRect();
+        const panelBounds = composerPanel.getBoundingClientRect();
+        const composerBottom = composerShell.getBoundingClientRect().bottom;
+        const visualViewport = window.visualViewport;
+        const viewportTop = visualViewport?.offsetTop ?? 0;
+        const viewportHeight = visualViewport?.height ?? window.innerHeight;
+        const viewportBottom = viewportTop + viewportHeight;
+        const menuGap = panelBounds.top - menuBounds.bottom;
+        const availableHeight = Math.max(0, panelBounds.top - viewportTop - 8);
+        const maximumHeight = Math.min(viewportHeight * 0.4, 360, availableHeight);
+        const currentScroller = documentScroller();
+
+        return {
+          composerBottomAligned: Math.abs(composerBottom - window.innerHeight) <= 1,
+          composerBottomStable: Math.abs(composerBottom - baselineComposerBottom) <= 1,
+          documentHeightStable: currentScroller.scrollHeight <= baselineDocumentSize.height + 1,
+          documentWidthStable: currentScroller.scrollWidth <= baselineDocumentSize.width + 1,
+          documentWithoutHorizontalOverflow:
+            currentScroller.scrollWidth <= currentScroller.clientWidth + 1,
+          menuFullyVisible:
+            menuBounds.top >= viewportTop - 1 && menuBounds.bottom <= viewportBottom + 1,
+          menuHasPanelWidth: Math.abs(menuBounds.width - panelBounds.width) <= 1,
+          menuIsNotCaretSized: menuBounds.height > 40 && menuBounds.width > 100,
+          menuLeftAligned: Math.abs(menuBounds.left - panelBounds.left) <= 1,
+          menuRespectsGap: Math.abs(menuGap - 8) <= 1,
+          menuRespectsHeightCap: menuBounds.height <= maximumHeight + 1,
+        };
+      })
+      .toEqual({
+        composerBottomAligned: true,
+        composerBottomStable: true,
+        documentHeightStable: true,
+        documentWidthStable: true,
+        documentWithoutHorizontalOverflow: true,
+        menuFullyVisible: true,
+        menuHasPanelWidth: true,
+        menuIsNotCaretSized: true,
+        menuLeftAligned: true,
+        menuRespectsGap: true,
+        menuRespectsHeightCap: true,
+      });
+
+    const scrollRegion = screen.container.querySelector("[data-skill-menu-scroll-region]");
+    if (!(scrollRegion instanceof HTMLElement)) {
+      throw new Error("skill menu scroll region must render");
+    }
+    expect(listbox.element().contains(scrollRegion)).toBe(true);
+
+    await screen.user.keyboard("{ArrowDown}".repeat(19));
+    await expect
+      .poll(() => {
+        const activeOption = listbox
+          .element()
+          .querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+        if (activeOption == null) {
+          return null;
+        }
+        const activeBounds = activeOption.getBoundingClientRect();
+        const scrollBounds = scrollRegion.getBoundingClientRect();
+        const menuBounds = listbox.element().getBoundingClientRect();
+        const panelBounds = composerPanel.getBoundingClientRect();
+        const composerBottom = composerShell.getBoundingClientRect().bottom;
+        const currentScroller = documentScroller();
+        const visualViewport = window.visualViewport;
+        const viewportTop = visualViewport?.offsetTop ?? 0;
+        const viewportHeight = visualViewport?.height ?? window.innerHeight;
+        const menuGap = panelBounds.top - menuBounds.bottom;
+        const availableHeight = Math.max(0, panelBounds.top - viewportTop - 8);
+        const maximumHeight = Math.min(viewportHeight * 0.4, 360, availableHeight);
+
+        return {
+          activeIsLastResult: activeOption.id === "typeahead-item-19",
+          activeVisibleInScrollRegion:
+            activeBounds.top >= scrollBounds.top - 1 &&
+            activeBounds.bottom <= scrollBounds.bottom + 1,
+          composerBottomAligned: Math.abs(composerBottom - window.innerHeight) <= 1,
+          composerBottomStable: Math.abs(composerBottom - baselineComposerBottom) <= 1,
+          documentHeightStable: currentScroller.scrollHeight <= baselineDocumentSize.height + 1,
+          documentScrollTopStable:
+            Math.abs(currentScroller.scrollTop - baselineDocumentScrollTop) <= 1,
+          documentWidthStable: currentScroller.scrollWidth <= baselineDocumentSize.width + 1,
+          documentWithoutHorizontalOverflow:
+            currentScroller.scrollWidth <= currentScroller.clientWidth + 1,
+          menuFullyVisible:
+            menuBounds.top >= viewportTop - 1 &&
+            menuBounds.bottom <= viewportTop + viewportHeight + 1,
+          menuHasPanelWidth: Math.abs(menuBounds.width - panelBounds.width) <= 1,
+          menuLeftAligned: Math.abs(menuBounds.left - panelBounds.left) <= 1,
+          menuRespectsGap: Math.abs(menuGap - 8) <= 1,
+          menuRespectsHeightCap: menuBounds.height <= maximumHeight + 1,
+          scrollRegionAdvanced: scrollRegion.scrollTop > 0,
+        };
+      })
+      .toEqual({
+        activeIsLastResult: true,
+        activeVisibleInScrollRegion: true,
+        composerBottomAligned: true,
+        composerBottomStable: true,
+        documentHeightStable: true,
+        documentScrollTopStable: true,
+        documentWidthStable: true,
+        documentWithoutHorizontalOverflow: true,
+        menuFullyVisible: true,
+        menuHasPanelWidth: true,
+        menuLeftAligned: true,
+        menuRespectsGap: true,
+        menuRespectsHeightCap: true,
+        scrollRegionAdvanced: true,
+      });
+
+    await activeFixture.unmount();
+    activeFixture.unmount = null;
+  };
+
+  try {
+    await assertResponsiveMenuGeometry(400, 876);
+    await assertResponsiveMenuGeometry(1440, 900);
+  } finally {
+    await activeFixture.unmount?.();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("App keeps the transcript surface flush with the shell padding", async () => {
