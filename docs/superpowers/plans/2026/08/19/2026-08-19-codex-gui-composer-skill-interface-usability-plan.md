@@ -1,6 +1,6 @@
 # Codex GUI Composer 与 Skill 候选界面可用性实施计划
 
-状态：待确认
+状态：已确认
 
 日期：2026-08-19
 
@@ -203,6 +203,7 @@ fix(gui): bound composer editor growth
   src/features/composerTurnControl/ComposerTurnControl.tsx \
   src/features/composerEditor/ComposerEditor.tsx \
   src/features/composerEditor/SkillTypeaheadPlugin.tsx \
+  src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx \
   src/__tests__/App.browser.test.tsx --write
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run \
   --config=vitest.browser.parallel.config.ts --browser=chromium \
@@ -304,4 +305,4 @@ fix(gui): improve skill candidate scanning
 
 ## 计划确认门禁
 
-本文状态为“待确认”。用户明确回复“确认计划”后，才允许先执行任务 0；任务 0 的文档独立提交成功后，才能开始任务 1 的实现。
+本文状态为“已确认”。用户明确回复“确认计划”后，才允许先执行任务 0；任务 0 的文档独立提交成功后，才能开始任务 1 的实现。
