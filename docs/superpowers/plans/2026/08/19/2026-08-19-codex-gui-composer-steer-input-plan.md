@@ -15,32 +15,34 @@
 
 ## 预执行审计结论与当前基线
 
-- 当前 `HEAD` 为 `1b87ed961`。任务 1–10 已完成：任务 8 为 `665aa0720`，任务 9 为
-  `8cf929d6c`，任务 10 为 `1b87ed961`。
-- 原任务 11 的首次实现尝试未完成，当前工作树恰有 16 个 dirty 源码文件，均属于该失败尝试；
-  本次只修改本计划文档，不修改、格式化、验证、暂存或提交这些源码。
-- 当前失败 diff 共 1257 changed lines：核心行为 565、机械同步 17、测试 675。该规模同时超过
-  复杂逻辑 500 行与整体 800 行的审查边界，不能继续作为一个任务实施，也不能以现有 dirty
-  diff 直接进入修正或提交。
-- 已确认设计保持不变。本次重新确认只把原任务 11 拆成 state capabilities、queue
-  arbitration、coordinator + wiring 三个独立源码任务，并顺延后续任务；不改变产品语义、wire、
-  数据或安全边界。失败尝试保持未修复，用户重新确认计划前禁止源码修正。
-- 任务 12、13、14 的修改清单恰好覆盖现有 16 个 dirty 源码且互不重叠：任务 12 为 2 个文件、
-  约 126 changed lines；任务 13 为 4 个文件、约 641 changed lines，其中生产代码约 336 行；
-  任务 14 为剩余 10 个 wiring/测试文件、约 490 changed lines。只读 regression 文件不计入修改
-  清单或 handwritten 文件数组。
-- 预执行反向审计已核对排除项、文件清单、提交边界、权威契约、生命周期、UI 语义、
-  generator 链和验证命令。审计发现的 `TurnError` schema/type 差异、command owner 间接消费者、
-  中间提交 type-check、generated formatting、response identity、same-target rejection、最终验证
-  命令等未知均已在任务 4–18 中闭合；实施中出现新的范围或语义变化时仍须停止并重新确认。
+- 基线提交 `08a29d94d` 时工作树 clean，任务 1–14 已完成；当前仅本计划文档 dirty。本轮不
+  修改、格式化、验证、暂存或提交源码。
+- 最新完成基线为：任务 11 `aa5d343e0`、任务 12 `8769b8b51`、任务 13 `4e510f039`、
+  任务 14 `08a29d94d`。已提交代码作为后续纯重构与 interrupt 实现的唯一基线，不重做或
+  修改任务 1–14 的行为。
+- 原任务 15 计划存在两个已确认缺陷：其一，`App.browser.test.tsx` 对 non-local interrupted 的
+  现有预期与目标语义相反，不能当作机械同步；其二，当前 `composerInputQueue.ts` 为 480 LoC、
+  `composerInputQueueCoordinator.ts` 为 435 LoC，原估算没有为 interrupt 行为留出足够边界。
+  直接执行原任务 15 会高概率突破 500 LoC，且会把反向测试语义混入机械 wiring。
+- 因此先以两个行为不变的纯重构任务收敛公共 payload copy 和 queue projection，再把 interrupt
+  拆成隔离 state、queue/coordinator recovery、owner/UI/App wiring 三个任务。任务 16 后预计
+  `composerInputQueue.ts` 为 458–460 LoC、`composerInputQueueCoordinator.ts` 为 409–412 LoC、
+  `composerSteerQueueState.ts` 为 456–458 LoC；任务 17 后 queue 预计为 413–420 LoC。interrupt
+  完成后三个生产模块仍必须各自小于 500 LoC。
+- 每个源码任务都以实际 `git diff --numstat` 和目标生产模块 `wc -l` 作为硬门禁：总 changed
+  lines 必须小于 800，复杂生产逻辑必须小于 500；任一任务达到或超过上限，立即停止，不继续
+  修改、验证、stage 或 commit，并重新拆分计划等待确认。估算不是完成证据。
+- 已确认设计与产品语义保持不变。本次计划修订不改变 ordinary/steer FIFO、权威 commit、
+  rejected-first、delivery unknown 或 local/non-local interrupt 语义；只修正任务边界、测试归属、
+  容量预算和验证顺序。
+- 两次独立反向审计均已 PASS，owner、范围、预算与验证命令已闭合。
 
 ## 当前代码证据
 
-- `composerInputQueue.ts` 已拥有 structured `TurnStartParams["input"]`、ordinary FIFO、
-  start claim、recovery 与 terminal drain，但没有 steer、pending 或 rejected 容器；当前
-  normal terminal 会直接 drain ordinary，不能外挂一个独立 steer observer。
-- `composerInputQueueCoordinator.ts` 已统一拥有 async generation、effect 执行、runtime
-  observation、release reservation 与 snapshot，但只注入 `startTurn`。
+- `composerInputQueue.ts` 已接通 ordinary、steer、pending、rejected、recovery 与 rejected-first
+  仲裁，当前为 480 LoC；尚无 interrupt state 或 local/non-local interrupt recovery。
+- `composerInputQueueCoordinator.ts` 已注入 `startTurn` 与 `steerTurn`、执行 steer effects 并暴露
+  bounded snapshot，当前为 435 LoC；尚无 `performInterrupt` 或 stop claim。
 - `composerInputQueueRuntimeObservation.ts` 已把 live `turnStarted`、带 `clientId` 的 user
   message commit 和 `turnCompleted` 转为顺序 observation；不需要新增 projection 事件。
 - `guiHostCommandGateway.ts`、GUI Host allowlist 与生成 descriptor 已支持 `turn/steer`；
@@ -52,9 +54,8 @@
   `rpcError`；任务 5（`b8e7762c8`）已经让 `GuiHostCommandError` 暴露 optional readonly
   `rpcError` 与经过 generated validator 证明的 readonly `activeTurnNotSteerable` frontend fact。
   后续 coordinator 可直接消费该结构化事实，禁止重复解析或重建 error contract。
-- `activeThreadOwner.ts` 只向 queue coordinator 注入 `startTurn`；
-  `ComposerTurnControl.tsx` 仍直接调用 `commands.interruptTurn`，请求前没有本地 stop
-  owner。
+- `activeThreadOwner.ts` 已向 queue coordinator 注入 `steerTurn`；`ComposerTurnControl.tsx` 仍直接
+  调用 `commands.interruptTurn`，请求前没有本地 stop owner。
 - `ComposerEditor.tsx` 的两条 Enter 路径共享单一 `onSubmit`，尚不能区分普通 Enter 与
   平台主修饰键 Enter，也不能在空草稿时发出“提升 ordinary 队首”的 intent。
 - Skill 输入补全已经落地：queue payload 是 canonical structured input，
@@ -63,8 +64,10 @@
 
 ## 跨任务硬约束
 
-- `ComposerInputQueueCoordinator` 是 ordinary、steer、pending、rejected、start/recovery
-  与 local user-stop claim 的唯一 owner；React、Redux、active owner 不复制可重发 payload。
+- `ComposerInputQueueCoordinator` 是唯一 `composerInterruptState` 实例 owner，并独占 local
+  user-stop claim 的 issue、settle、terminal fact reorder、stop blocker 与 bounded snapshot；
+  queue facade 只接收已分类的 local/non-local terminal disposition 并迁移既有 FIFO。React、
+  Redux、active owner 与 queue 都不得复制 interrupt claim 或可重发 payload。
 - ordinary 与 steer 各自只允许尾入头出。空草稿提升必须原子移动 ordinary 队首到 steer
   队尾；禁止提升队尾、pending start 或 recovery item。
 - ordinary 与 steer 复用同一个 immutable structured payload owner。rejected 合并通过按序
@@ -88,9 +91,9 @@
 - pending/rejected/unknown 是持久状态投影，不用一次性 toast 代替；preview 最多 160 个
   grapheme，超限显示前 157 个加 `...`，使用 `Intl.Segmenter` 且穷尽处理 `UserInput`，不得暴露
   path、URL、client ID 或 transport identity。
-- 本地 stop claim 必须在发出 interrupt 前建立，并绑定 thread、turn、generation 与请求
-  identity；只有匹配的 `interrupted` terminal 可消费一次。无匹配 claim 的 interrupted
-  terminal 按非本地异常中断恢复。
+- coordinator 必须在发出 interrupt RPC 前建立本地 stop claim，并绑定 thread、turn、generation
+  与请求 identity；只有匹配的 `interrupted` terminal 可消费一次。无匹配 claim 的 interrupted
+  terminal 被 coordinator 分类为 non-local 后交给 queue 恢复。
 - 不修改 app-server、TUI、Rust schema、wire shape 或 committed transcript；GUI generated
   artifacts 只允许由现有 generator 更新，pending preview 始终位于 transcript 外。
 
@@ -102,6 +105,9 @@
   分成微阶段。
 - 每个任务只暂存本任务文件，检查 staged diff，并创建一个独立本地提交；对已有提交的
   修正另建提交，禁止 amend。
+- 每个源码任务在编辑完成后、格式化后和提交前都必须记录实际
+  `git diff --numstat <task-files>` 与目标生产模块 `wc -l`；总 changed lines 必须小于 800，
+  复杂生产逻辑必须小于 500，任一硬门禁失败都立即停止并重新拆分、确认。
 - 任务 6 和任务 10 是纯结构提取，禁止混入行为变化；其余行为提交禁止顺手进行 import、声明、函数、
   组件或分支重排。工具产生的无关重排应撤出；确有必要时另立纯重排任务并重新确认计划。
 - 普通源码无更高层原生工具可表达时才使用 patch。Lingui catalog 只通过现有
@@ -127,14 +133,19 @@
 8. `docs(gui): revise steer integration module plan`（已完成：`665aa0720`）
 9. `feat(gui): add bounded composer input previews`（已完成：`8cf929d6c`）
 10. `refactor(gui): extract composer start queue state`（已完成：`1b87ed961`）
-11. `docs(gui): revise steer change-size plan`
-12. `feat(gui): add composer steer state capabilities`
-13. `feat(gui): arbitrate composer steer queues`
-14. `feat(gui): coordinate composer steer delivery`
-15. `feat(gui): coordinate composer interrupt ownership`
-16. `feat(gui): distinguish composer guide shortcuts`
-17. `feat(gui): add composer guide controls`
-18. `test(gui): verify composer guide integration`
+11. `docs(gui): split steer integration for review`（已完成：`aa5d343e0`）
+12. `feat(gui): extend composer steer state capabilities`（已完成：`8769b8b51`）
+13. `feat(gui): arbitrate composer steer queues`（已完成：`4e510f039`）
+14. `feat(gui): wire composer steer delivery`（已完成：`08a29d94d`）
+15. `docs(gui): revise composer interrupt plan`
+16. `refactor(gui): centralize composer input payload copying`
+17. `refactor(gui): extract composer queue projection`
+18. `feat(gui): model isolated composer interrupt state`
+19. `feat(gui): coordinate composer interrupt recovery`
+20. `feat(gui): wire composer interrupt ownership`
+21. `feat(gui): distinguish composer guide shortcuts`
+22. `feat(gui): add composer guide controls`
+23. `test(gui): verify composer guide integration`
 
 ## 任务 1：记录已确认设计与实施计划
 
@@ -448,6 +459,10 @@ git diff --check -- docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-compo
 
 ## 任务 11：确认 steer change-size 计划修订
 
+**状态**
+
+- 已完成：`aa5d343e0`
+
 **文件**
 
 - 修改：`docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-composer-steer-input-plan.md`
@@ -466,6 +481,10 @@ git diff --check -- docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-compo
 ```
 
 ## 任务 12：补齐 steer state capabilities
+
+**状态**
+
+- 已完成：`8769b8b51`
 
 **文件**
 
@@ -495,6 +514,10 @@ git diff --check -- docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-compo
 ```
 
 ## 任务 13：实现 queue arbitration
+
+**状态**
+
+- 已完成：`4e510f039`
 
 **文件**
 
@@ -531,6 +554,10 @@ git diff --check -- docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-compo
 ```
 
 ## 任务 14：接通 coordinator 与 wiring
+
+**状态**
+
+- 已完成：`08a29d94d`
 
 **文件**
 
@@ -576,17 +603,160 @@ git diff --check -- docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-compo
 wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerSteerQueueState.ts
 ```
 
-## 任务 15：协调 interrupt ownership 与恢复
+## 任务 15：确认本次计划修订
+
+**状态**
+
+- 已确认，待提交
+
+**文件**
+
+- 修改：`docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-composer-steer-input-plan.md`
+
+**实施**
+
+- 记录提交时 clean 的 `08a29d94d` 基线、当前仅计划文档 dirty、任务 11–14 的完成提交、原任务
+  15 的两个缺陷，以及任务 16–20 的新拆分、容量预算和硬门禁。
+- 提交本次已确认的计划修订。
+- 只提交本计划文档；设计文档和任务 1–14 保持不变，不修改或夹带源码。
+
+**验证**
+
+```bash
+git diff --check -- docs/superpowers/plans/2026/08/19/2026-08-19-codex-gui-composer-steer-input-plan.md
+```
+
+## 任务 16：集中 composer input payload 复制
+
+**文件**
+
+- 新建：`codex-gui/src/features/composerInputQueue/composerInputPayload.ts`
+- 修改：`codex-gui/src/features/composerInputQueue/composerSteerQueueState.ts`
+- 修改：`codex-gui/src/features/composerInputQueue/composerInputQueue.ts`
+- 修改：`codex-gui/src/features/composerInputQueue/composerInputQueueCoordinator.ts`
+
+**实施**
+
+- 这是纯重构，不改变 payload 内容、identity、FIFO、effect、RPC 参数或 snapshot。新 module
+  约小于 50 LoC，以 generated `TurnSteerParams["input"]` 为权威类型，接收其 `DeepReadonly`
+  形状并穷尽无损复制全部 7 个 generated `UserInput` variant 及其嵌套数组。
+- 删除 queue 与 coordinator 中两份 payload copy；steer state、queue 和 coordinator 只调用同一
+  helper。禁止 assertion、`unknown`、手写 DTO mirror、兼容层或双路径。
+- 现有 steer state、queue、coordinator tests 必须不改即通过，并运行 package type-check。
+- 本任务保守预算为 100–180 changed lines；格式化后记录实际 `git diff --numstat` 与四个生产
+  文件 `wc -l`。总 changed lines 必须小于 800；纯重构后预期 queue 为 458–460 LoC、
+  coordinator 为 409–412 LoC、steer state 为 456–458 LoC。
+
+**验证**
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerInputQueue/__tests__/composerSteerQueueState.test.ts src/features/composerInputQueue/__tests__/composerInputQueue.test.ts src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+git diff --numstat -- src/features/composerInputQueue/composerInputPayload.ts src/features/composerInputQueue/composerSteerQueueState.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerInputQueueCoordinator.ts
+wc -l src/features/composerInputQueue/composerInputPayload.ts src/features/composerInputQueue/composerSteerQueueState.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerInputQueueCoordinator.ts
+```
+
+## 任务 17：提取 queue projection
+
+**文件**
+
+- 新建：`codex-gui/src/features/composerInputQueue/composerInputQueueProjection.ts`
+- 修改：`codex-gui/src/features/composerInputQueue/composerInputQueue.ts`
+
+**实施**
+
+- 这是纯重构。新 module 约小于 100 LoC，以纯函数构造 queue view、release blockers 与 bounded
+  preview；不保存 state、不拥有 payload/FIFO、不执行 drain，也不改变 preview 内容或排序。
+- queue facade 继续是唯一仲裁 owner，只把当前只读 facts 传给 projection helper。禁止把 mutable
+  state、capability、effect 或 recovery owner 移入 projection module。
+- 现有 queue tests 必须不改即通过，并运行 package type-check。任务 16–17 完成后预计 queue
+  为 413–420 LoC、coordinator 为 409–412 LoC、steer state 为 456–458 LoC。
+- 本任务保守预算为 100–180 changed lines；格式化后记录实际 `git diff --numstat` 与相关生产
+  文件 `wc -l`。总 changed lines 必须小于 800，所有生产模块必须小于 500 LoC。
+
+**验证**
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerInputQueue/__tests__/composerInputQueue.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+git diff --numstat -- src/features/composerInputQueue/composerInputQueueProjection.ts src/features/composerInputQueue/composerInputQueue.ts
+wc -l src/features/composerInputQueue/composerInputQueueProjection.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerInputQueueCoordinator.ts src/features/composerInputQueue/composerSteerQueueState.ts
+```
+
+## 任务 18：建立隔离的 interrupt state
+
+**文件**
+
+- 新建：`codex-gui/src/features/composerInputQueue/composerInterruptState.ts`
+- 新建测试：`codex-gui/src/features/composerInputQueue/__tests__/composerInterruptState.test.ts`
+
+**实施**
+
+- 只定义 isolated opaque claim state，绑定 thread、turn、generation 与 request identity；phase
+  穷尽表达 `issuing | accepted | unknown`，capability 只能由本 state 构造并一次性消费。产品中的
+  唯一实例后续只能由 `ComposerInputQueueCoordinator` 持有。
+- state 只拥有 claim 与 interrupt/terminal facts 的 reorder，独立处理
+  terminal-before-settlement、late settlement、identity mismatch 和 exactly-once consumption；
+  匹配事实只返回分类 outcome，不迁移 queue payload。
+- accepted 与 unknown settlement 保留同一匹配 claim，`definitelyNotAccepted` 只清除匹配 claim。
+  本 module 不拥有 ordinary/steer/rejected payload、recovery、RPC、coordinator generation
+  lifecycle、stop blocker/snapshot 或 UI，也不导入 start state。
+- 测试直接覆盖 reorder、重复 settlement、foreign/stale identity、accepted、unknown 与 definite
+  rejection。本任务保守预算为 250–400 changed lines；格式化后记录实际 `git diff --numstat` 与
+  production `wc -l`，总 changed lines 小于 800，复杂 production logic 小于 500。
+
+**验证**
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerInputQueue/__tests__/composerInterruptState.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+git diff --numstat -- src/features/composerInputQueue/composerInterruptState.ts src/features/composerInputQueue/__tests__/composerInterruptState.test.ts
+wc -l src/features/composerInputQueue/composerInterruptState.ts
+```
+
+## 任务 19：接通 queue/coordinator interrupt recovery
 
 **文件**
 
 - 修改：`codex-gui/src/features/composerInputQueue/composerInputQueueContracts.ts`
 - 修改：`codex-gui/src/features/composerInputQueue/composerInputQueue.ts`
-- 修改：`codex-gui/src/features/composerInputQueue/composerSteerQueueState.ts`
 - 修改：`codex-gui/src/features/composerInputQueue/composerInputQueueCoordinator.ts`
 - 修改测试：`codex-gui/src/features/composerInputQueue/__tests__/composerInputQueue.test.ts`
-- 修改测试：`codex-gui/src/features/composerInputQueue/__tests__/composerSteerQueueState.test.ts`
 - 修改测试：`codex-gui/src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts`
+
+**实施**
+
+- coordinator 创建并唯一持有任务 18 的 `composerInterruptState` 实例，负责 issue/settle、
+  generation/dispose、terminal interception 和 fact reorder。`performInterrupt` 是 coordinator
+  内部 RPC 步骤/API，不是 queue effect；queue 不导入或复制 interrupt claim。
+- accepted 与 unknown 保留同一匹配 claim，`definitelyNotAccepted` 只清除匹配 claim。coordinator
+  snapshot 只暴露 bounded stop/recovery facts，不暴露 claim、request identity 或 queue payload；
+  stop blocker 也只属于 coordinator，因此本任务不修改 projection module。
+- coordinator 把 intercepted terminal 分类为 `local | nonLocal` disposition 后交给 queue。queue
+  只按该 disposition 做跨队列迁移：local interrupted 把 pending/unsent/rejected/ordinary 形成
+  显式 classified recovery 且不自动 start；用户明确继续时保持 rejected/steer 优先于 ordinary；
+  non-local interrupted 自动走 rejected-first 恢复。
+- terminal-before-settlement、late settlement 和 dispose 由 coordinator 持有的 interrupt state
+  收敛；旧 generation settlement 无效，不改绑 thread，也不丢失 payload owner。
+- `composerStartQueueState.ts` 与 `composerSteerQueueState.ts` 在本任务只读；禁止兼容层、双写或把
+  interrupt transition 塞入这两个 module。中间提交允许因任务 20 尚未完成 wiring 而不通过
+  package type-check，但定向 unit 必须通过。
+- 本任务保守预算为 500–700 changed lines；格式化后记录实际 `git diff --numstat` 与
+  queue/coordinator/interrupt state `wc -l`。总 changed lines 小于 800，复杂 production logic
+  小于 500，queue 与 coordinator 各自小于 500。
+
+**验证**
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerInputQueue/__tests__/composerInterruptState.test.ts src/features/composerInputQueue/__tests__/composerInputQueue.test.ts src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts
+git diff --numstat -- src/features/composerInputQueue/composerInputQueueContracts.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerInputQueueCoordinator.ts src/features/composerInputQueue/__tests__/composerInputQueue.test.ts src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts
+wc -l src/features/composerInputQueue/composerInterruptState.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerInputQueueCoordinator.ts src/features/composerInputQueue/composerSteerQueueState.ts
+```
+
+## 任务 20：接通 interrupt owner、UI 与 App
+
+**文件**
+
 - 修改：`codex-gui/src/features/projectionCoordination/activeThreadOwner.ts`
 - 修改测试：`codex-gui/src/features/projectionCoordination/__tests__/activeThreadOwner.test.ts`
 - 修改：`codex-gui/src/features/projectionCoordination/threadSwitchCoordinator.ts`
@@ -596,41 +766,37 @@ wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/co
 - 修改：`codex-gui/src/features/composerTurnControl/composerTurnControlModel.ts`
 - 修改测试：`codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
 - 修改测试：`codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
-- 按 interface 机械同步测试：`codex-gui/src/__tests__/App.browser.test.tsx`
+- 修改测试：`codex-gui/src/__tests__/App.browser.test.tsx`
 
 **实施**
 
-- 新增 `performInterrupt` effect；active owner 注入 `interruptTurn`，route startup/thread switch
-  command contracts 同步扩展。coordinator 在调用 RPC 前同步建立绑定 thread、turn、generation
-  与本地 request capability 的一次性 stop claim。
-- interrupt owner、local-stop claim、分类 recovery 与 terminal 跨队列仲裁只属于
-  `composerInputQueue.ts` facade 和 coordinator；禁止把这些状态或 transition 放入
-  `composerStartQueueState.ts`，该 start module 保持任务 10 的窄边界。
-- accepted 与 delivery unknown 保留同一 claim；definitely-not-accepted 只清除匹配 claim。
-  terminal observation 必须先完成请求 settlement/claim 分类，再迁移消息；只有匹配
-  `interrupted` terminal 可消费 claim 一次。其他 terminal 清理过期 claim但不能冒充 user stop。
-- 本地 Stop 后 pending/unsent/rejected/ordinary 进入显式分类恢复且不自动 start；用户明确继续后
-  rejected/steer intent 优先于 ordinary。没有匹配 local claim 的 interrupted terminal 按
-  non-local interruption 自动走 rejected-first 恢复。
-- `ComposerTurnControl` Stop 改为 queue coordinator API，禁止直接调用
-  `commands.interruptTurn`。调用前必须同时通过 current thread/controller identity 匹配和
-  `canStop` gate；请求失败只显示真实 failure，不清除消息 owner。
-- snapshot/release blocker 加入 stop claim 与分类 recovery；generation、dispose、thread switch
-  使旧 settlement 失效但不把旧消息改绑到新 thread。
-- `routeConnectionStartupCoordinator.test.ts` 保持只读 regression；验证命令继续运行该文件，
-  但不得为 interrupt wiring 修改它或将它加入 handwritten 文件数组。
-- 任务完成时 `composerStartQueueState.ts`、`composerInputQueue.ts` 与
-  `composerSteerQueueState.ts` 仍必须各自小于 500 LoC；interrupt 集成不得重新膨胀任一模块。
+- active owner 注入 `interruptTurn`，thread switch 与 route startup contract 同步；
+  `ComposerTurnControl` Stop 只能调用 queue coordinator API，禁止继续直接调用
+  `commands.interruptTurn`。调用前同时匹配 current thread/controller identity 与 `canStop`。
+- model/UI 显示真实 pending/failure/recovery 状态；请求失败不清除消息 owner。Stop command 的
+  identity 和可用性由 coordinator snapshot 权威决定；snapshot 不暴露 claim 或 payload，React、
+  active owner 与 command wiring 都不保存第二份 claim。唯一 interrupt state 实例仍只在
+  coordinator。
+- `App.browser.test.tsx` 不是机械同步：分别覆盖 local Stop 不自动恢复、明确继续按类别恢复，
+  以及 non-local interrupted 自动 rejected-first。原 non-local 相反预期必须按目标语义修正。
+- `routeConnectionStartupCoordinator.test.ts` 保持只读 regression；若需要修改，说明 route contract
+  边界判断错误，必须停止。完整 unit、Browser 与 package type-check 在本任务闭合任务 19 的
+  中间 wiring。
+- 本任务保守预算为 350–600 changed lines；格式化后记录实际 `git diff --numstat` 与 interrupt
+  相关生产模块 `wc -l`。总 changed lines 小于 800，复杂 production logic 小于 500，最终
+  queue、coordinator、steer state 均小于 500。
 
 **验证**
 
 ```bash
-/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerInputQueue/__tests__/composerInputQueue.test.ts src/features/composerInputQueue/__tests__/composerSteerQueueState.test.ts src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts src/features/projectionCoordination/__tests__/activeThreadOwner.test.ts src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts src/features/appShell/__tests__/routeConnectionStartupCoordinator.test.ts src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerInputQueue/__tests__/composerInterruptState.test.ts src/features/composerInputQueue/__tests__/composerInputQueue.test.ts src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts src/features/projectionCoordination/__tests__/activeThreadOwner.test.ts src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts src/features/appShell/__tests__/routeConnectionStartupCoordinator.test.ts src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.parallel.config.ts src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx src/__tests__/App.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+git diff --numstat -- src/features/projectionCoordination/activeThreadOwner.ts src/features/projectionCoordination/__tests__/activeThreadOwner.test.ts src/features/projectionCoordination/threadSwitchCoordinator.ts src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts src/features/appShell/routeConnectionStartupCoordinator.ts src/features/composerTurnControl/ComposerTurnControl.tsx src/features/composerTurnControl/composerTurnControlModel.ts src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts src/__tests__/App.browser.test.tsx
+wc -l src/features/composerInputQueue/composerInterruptState.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerInputQueueCoordinator.ts src/features/composerInputQueue/composerSteerQueueState.ts
 ```
 
-## 任务 16：区分普通提交与平台引导快捷键
+## 任务 21：区分普通提交与平台引导快捷键
 
 **文件**
 
@@ -655,9 +821,11 @@ wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/co
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.parallel.config.ts src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+git diff --numstat -- src/features/composerEditor/ComposerEditor.tsx src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx
+wc -l src/features/composerEditor/ComposerEditor.tsx
 ```
 
-## 任务 17：实现引导按钮、待处理区域与本地化
+## 任务 22：实现引导按钮、待处理区域与本地化
 
 **文件**
 
@@ -671,7 +839,8 @@ wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/co
 
 **实施**
 
-- 从任务 14 的 bounded coordinator projection 渲染，不在 React 保存第二份 queue/payload。
+- 从任务 17 提取后仍由 coordinator 暴露的 bounded projection 渲染，不在 React 保存第二份
+  queue/payload。
   active turn 中加入 HeroUI v3 `Button variant="secondary"` 的可见文字`引导`，使用 `onPress`、
   `isDisabled`、必要时 `isPending`；idle 时隐藏，空草稿时禁用。
 - 快捷键提示使用 HeroUI `Tooltip` 直接包裹 `Button` child，不使用不存在的
@@ -686,7 +855,7 @@ wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/co
 - 普通/guide submit 对同一个 EditorState snapshot 只编译一次 canonical structured input；
   非空 guide 直接 steer，空 snapshot 的 guide intent 只提升 ordinary 队首。owner 接受后只
   `clearIfSame` 对应旧草稿，不清除异步期间的新编辑。
-- Stop ownership 已在任务 15 完成，本任务不得再修改 Stop command 路径。
+- Stop ownership 已在任务 20 完成，本任务不得再修改 Stop command 路径。
 - JSX 使用英文 source 的 Lingui `Trans`/`Plural`，ARIA、tooltip 与非 JSX 状态使用
   `useLingui`；先运行
   `messages:extract`，再补 `zh-CN` 翻译；不运行 clean extraction。
@@ -700,9 +869,11 @@ wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/co
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.parallel.config.ts src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+git diff --numstat -- src/features/composerTurnControl/ComposerTurnControl.tsx src/features/composerTurnControl/composerTurnControlModel.ts src/features/composerTurnControl/ComposerPendingInputRegion.tsx src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts src/locales/en.po src/locales/zh-CN.po
+wc -l src/features/composerTurnControl/ComposerTurnControl.tsx src/features/composerTurnControl/composerTurnControlModel.ts src/features/composerTurnControl/ComposerPendingInputRegion.tsx
 ```
 
-## 任务 18：验证完整 Composer 到 projection 纵向路径
+## 任务 23：验证完整 Composer 到 projection 纵向路径
 
 **文件**
 
@@ -738,6 +909,7 @@ wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/co
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.parallel.config.ts src/__tests__/App.browser.test.tsx src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx src/features/appShell/__tests__/AppShellTopBar.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryDetailPage.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryListPage.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.sequential.config.ts src/__tests__/sequential/composer-viewport.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
+git diff --numstat -- src/__tests__/App.browser.test.tsx src/__tests__/appBrowserTestSupport.ts src/features/projection/__tests__/projectionTestBuilders.ts src/__tests__/sequential/composer-viewport.browser.test.tsx
 ```
 
 ## 最终验证与完成门禁
@@ -763,13 +935,17 @@ steer_handwritten_files=(
   src/features/guiHost/__tests__/guiHostCommands.test.ts
   src/features/guiHost/__tests__/guiHostClientTestSupport.ts
   src/features/composerInputQueue/composerInputQueueContracts.ts
+  src/features/composerInputQueue/composerInputPayload.ts
   src/features/composerInputQueue/composerInputQueue.ts
+  src/features/composerInputQueue/composerInputQueueProjection.ts
   src/features/composerInputQueue/composerStartQueueState.ts
   src/features/composerInputQueue/composerSteerQueueState.ts
+  src/features/composerInputQueue/composerInterruptState.ts
   src/features/composerInputQueue/composerInputPreview.ts
   src/features/composerInputQueue/composerInputQueueCoordinator.ts
   src/features/composerInputQueue/__tests__/composerInputQueue.test.ts
   src/features/composerInputQueue/__tests__/composerSteerQueueState.test.ts
+  src/features/composerInputQueue/__tests__/composerInterruptState.test.ts
   src/features/composerInputQueue/__tests__/composerInputPreview.test.ts
   src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts
   src/features/projectionCoordination/activeThreadOwner.ts
@@ -792,19 +968,21 @@ steer_handwritten_files=(
 /opt/homebrew/bin/fnm exec --using-file pnpm exec oxfmt --check "${steer_handwritten_files[@]}"
 /opt/homebrew/bin/fnm exec --using-file pnpm exec oxlint "${steer_handwritten_files[@]}"
 /opt/homebrew/bin/fnm exec --using-file pnpm exec eslint --cache "${steer_handwritten_files[@]}"
-/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run scripts/protocolValidators/cli.test.ts scripts/protocolValidators/core.test.ts src/features/guiHost/__tests__/guiHostTransportSession.test.ts src/features/guiHost/__tests__/guiHostCommandGateway.test.ts src/features/guiHost/__tests__/guiHostCommands.test.ts src/features/composerInputQueue/__tests__/composerInputPreview.test.ts src/features/composerInputQueue/__tests__/composerInputQueue.test.ts src/features/composerInputQueue/__tests__/composerSteerQueueState.test.ts src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts src/features/composerInputQueue/__tests__/composerInputQueueRuntimeObservation.test.ts src/features/projectionCoordination/__tests__/activeThreadOwner.test.ts src/features/projectionCoordination/__tests__/projectionApplicationCoordinator.test.ts src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts src/features/appShell/__tests__/routeConnectionStartupCoordinator.test.ts src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run scripts/protocolValidators/cli.test.ts scripts/protocolValidators/core.test.ts src/features/guiHost/__tests__/guiHostTransportSession.test.ts src/features/guiHost/__tests__/guiHostCommandGateway.test.ts src/features/guiHost/__tests__/guiHostCommands.test.ts src/features/composerInputQueue/__tests__/composerInputPreview.test.ts src/features/composerInputQueue/__tests__/composerInterruptState.test.ts src/features/composerInputQueue/__tests__/composerInputQueue.test.ts src/features/composerInputQueue/__tests__/composerSteerQueueState.test.ts src/features/composerInputQueue/__tests__/composerInputQueueCoordinator.test.ts src/features/composerInputQueue/__tests__/composerInputQueueRuntimeObservation.test.ts src/features/projectionCoordination/__tests__/activeThreadOwner.test.ts src/features/projectionCoordination/__tests__/projectionApplicationCoordinator.test.ts src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts src/features/appShell/__tests__/routeConnectionStartupCoordinator.test.ts src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.parallel.config.ts src/__tests__/App.browser.test.tsx src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx src/features/appShell/__tests__/AppShellTopBar.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryDetailPage.browser.test.tsx src/features/threadHistory/__tests__/ThreadHistoryListPage.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.sequential.config.ts src/__tests__/sequential/composer-viewport.browser.test.tsx
 /opt/homebrew/bin/fnm exec --using-file pnpm run protocol:check-validators
 /opt/homebrew/bin/fnm exec --using-file pnpm run messages:extract
 git diff --exit-code -- src/locales/en.po src/locales/zh-CN.po
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
-wc -l src/features/composerInputQueue/composerStartQueueState.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerSteerQueueState.ts
+wc -l src/features/composerInputQueue/composerInputPayload.ts src/features/composerInputQueue/composerInputQueueProjection.ts src/features/composerInputQueue/composerInterruptState.ts src/features/composerInputQueue/composerStartQueueState.ts src/features/composerInputQueue/composerInputQueue.ts src/features/composerInputQueue/composerInputQueueCoordinator.ts src/features/composerInputQueue/composerSteerQueueState.ts
 ```
 
 完成必须同时证明：ordinary 与 steer 双 FIFO 不变；pending 只由权威 commit 释放；明确拒绝
-按序优先转成唯一新 turn；unknown 不重发；本地 stop 不自动重启；从 GUI 按钮/快捷键到
-权威 transcript 的完整路径可达。计划外文件、app-server API、Rust schema/wire、generator
-范围、权威 validator 类型、数据语义或安全边界如需变化，必须停止实施、更新计划并等待重新确认。
-最终 `wc -l` 中上述三个生产模块任一达到或超过 500 行，都不满足完成门禁，必须继续按已确认
-模块边界收敛，不能以测试通过代替行数约束。
+按序优先转成唯一新 turn；unknown 不重发；唯一 interrupt state 实例只由 coordinator 持有；
+本地 stop 不自动重启；从 GUI 按钮/快捷键到权威 transcript 的完整路径可达。计划外文件、
+app-server API、Rust schema/wire、generator 范围、权威 validator 类型、数据语义或安全边界如需
+变化，必须停止实施、更新计划并等待重新确认。
+最终 `wc -l` 中 queue、coordinator、steer state 或任一复杂生产模块达到或超过 500 行，都不
+满足完成门禁；任一任务的实际 `git diff --numstat` 总 changed lines 达到或超过 800 也不满足
+门禁。必须停止并重新拆分、确认，不能以测试通过或预估值代替实际规模证据。
