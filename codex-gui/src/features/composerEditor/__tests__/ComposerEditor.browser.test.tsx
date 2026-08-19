@@ -39,6 +39,52 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
   expect(getController(controllerRef).getRootElement()).toBe(editor.element());
 });
 
+test("aligns its placeholder and bounds multiline growth to its own scroll area", async () => {
+  const { screen } = await renderEditor([]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+  const editorElement = editor.element();
+  const placeholder = screen.getByText("Message Codex", { exact: true });
+  const placeholderCharacterRect = firstTextCharacterRect(placeholder.element());
+  const emptyHeight = editorElement.getBoundingClientRect().height;
+
+  const emptyStyle = getComputedStyle(editorElement);
+  const lineHeight = Number.parseFloat(emptyStyle.lineHeight);
+  expect(emptyHeight).toBeGreaterThanOrEqual(lineHeight * 3);
+
+  await editor.fill("M");
+  const firstCharacterRect = firstTextCharacterRect(editorElement);
+  expect(Math.abs(firstCharacterRect.left - placeholderCharacterRect.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(firstCharacterRect.top - placeholderCharacterRect.top)).toBeLessThanOrEqual(1);
+
+  await editor.fill("one\ntwo\nthree\nfour");
+  await expect
+    .poll(() => editorElement.getBoundingClientRect().height)
+    .toBeGreaterThan(emptyHeight);
+  const fourLineHeight = editorElement.getBoundingClientRect().height;
+
+  await editor.fill(Array.from({ length: 20 }, (_, index) => `line ${String(index)}`).join("\n"));
+  await expect
+    .poll(() => editorElement.getBoundingClientRect().height)
+    .toBeGreaterThan(fourLineHeight);
+  const cappedHeight = editorElement.getBoundingClientRect().height;
+  const cappedStyle = getComputedStyle(editorElement);
+  const eightLineBoxHeight =
+    Number.parseFloat(cappedStyle.lineHeight) * 8 +
+    Number.parseFloat(cappedStyle.paddingTop) +
+    Number.parseFloat(cappedStyle.paddingBottom);
+  await expect.poll(() => editorElement.scrollHeight > editorElement.clientHeight).toBe(true);
+  expect(cappedHeight).toBeGreaterThanOrEqual(fourLineHeight);
+  expect(cappedHeight).toBeLessThanOrEqual(
+    Math.min(eightLineBoxHeight, window.innerHeight * 0.3) + 1,
+  );
+  expect(cappedStyle.overflowY).toBe("auto");
+  editorElement.scrollTop = editorElement.scrollHeight;
+  expect(editorElement.scrollTop).toBeGreaterThan(0);
+
+  await editor.fill("unbroken".repeat(200));
+  await expect.poll(() => editorElement.scrollWidth <= editorElement.clientWidth + 1).toBe(true);
+});
+
 test("filters by canonical and display names but never by description", async () => {
   const { screen } = await renderEditor([
     skill("canonical-match", "/canonical", "Friendly"),
@@ -418,6 +464,19 @@ function setCollapsedCaret(root: Element, expectedText: string, offset: number):
   selection.removeAllRanges();
   selection.addRange(range);
   root.ownerDocument.dispatchEvent(new Event("selectionchange"));
+}
+
+function firstTextCharacterRect(root: Element): DOMRect {
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNode = walker.nextNode();
+  if (!(textNode instanceof Text) || textNode.length === 0) {
+    throw new Error("element must contain a non-empty Text node");
+  }
+
+  const range = root.ownerDocument.createRange();
+  range.setStart(textNode, 0);
+  range.setEnd(textNode, 1);
+  return range.getBoundingClientRect();
 }
 
 function dispatchHistoryShortcut(element: Element, command: "undo" | "redo"): void {
