@@ -241,17 +241,25 @@ describe("guiHostClient commands", () => {
       params,
     });
 
-    sendJsonRpcError(socket, request.id, {
+    const rpcError = {
       code: -32000,
-      message: "active turn already running",
-    });
+      message: "cannot steer a review turn",
+      data: {
+        message: "cannot steer a review turn",
+        codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+        additionalDetails: null,
+      },
+    };
+    sendJsonRpcError(socket, request.id, rpcError);
 
     const error: unknown = await promise.catch((failure: unknown) => failure);
     if (!isGuiHostCommandError(error)) {
       throw new Error("Expected GuiHostCommandError");
     }
     expect(error.source).toBe("rpc");
-    expect(error.message).toContain("active turn already running");
+    expect(error.message).toContain("cannot steer a review turn");
+    expect(error.rpcError).toEqual(rpcError);
+    expect(error.activeTurnNotSteerable).toBe(true);
     if (!(error.cause instanceof Error)) {
       throw new Error("Expected GuiHostCommandError cause");
     }
