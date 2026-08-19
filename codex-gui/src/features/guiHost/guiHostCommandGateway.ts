@@ -30,6 +30,7 @@ export type GuiHostCommands = {
   attachThreadProjection: (
     params: RequestParams<"thread/projection/attach">,
   ) => Promise<RequestResponse<"thread/projection/attach">>;
+  listSkills: (params: RequestParams<"skills/list">) => Promise<RequestResponse<"skills/list">>;
   listThreads: (params: RequestParams<"thread/list">) => Promise<RequestResponse<"thread/list">>;
   readThread: (params: RequestParams<"thread/read">) => Promise<RequestResponse<"thread/read">>;
   resumeThread: (
@@ -57,6 +58,7 @@ export class GuiHostCommandGateway {
     this.commands = {
       attachThreadProjection: (params) =>
         this.request(requestDescriptors["thread/projection/attach"], params),
+      listSkills: (params) => this.request(requestDescriptors["skills/list"], params),
       listThreads: (params) => this.request(requestDescriptors["thread/list"], params),
       readThread: (params) => this.request(requestDescriptors["thread/read"], params),
       resumeThread: (params) => this.request(requestDescriptors["thread/resume"], params),
