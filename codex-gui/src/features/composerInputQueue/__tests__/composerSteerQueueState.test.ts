@@ -5,8 +5,10 @@ import {
   createComposerSteerQueue,
   type ComposerSteerQueue,
   type EnqueueSteerInput,
+  type RejectedSteerTransfer,
   type SteerClaim,
   type SteerIntent,
+  type SteerRecoveryTransfer,
 } from "../composerSteerQueueState";
 
 const steerInput = (messageId: string, expectedTurnId = "turn-a"): EnqueueSteerInput => ({
@@ -63,6 +65,17 @@ function assertSteerInputIsDeepReadonly(input: SteerIntent["input"]): void {
 }
 
 void assertSteerInputIsDeepReadonly;
+
+function assertTransferCapabilitiesCannotBeForged(): void {
+  // @ts-expect-error rejected transfers require the state-private capability brand
+  const rejected: RejectedSteerTransfer = { entries: [] };
+  // @ts-expect-error recovery transfers require the state-private capability brand
+  const recovery: SteerRecoveryTransfer = { intents: [] };
+  void rejected;
+  void recovery;
+}
+
+void assertTransferCapabilitiesCannotBeForged;
 
 describe("composer steer queue state", () => {
   it("moves each entry through the steer, pending, and rejected FIFOs exactly once", () => {
@@ -274,14 +287,179 @@ describe("composer steer queue state", () => {
     enqueue(queue, "a");
     const claim = issue(queue);
 
-    expect(queue.transition({ type: "definitelyNotAccepted", claim })).toEqual({
-      type: "recoveryRequired",
-      intent: claim.intent,
-    });
+    const result = queue.transition({ type: "definitelyNotAccepted", claim });
+    expect(result.type).toBe("recoveryRequired");
+    if (result.type !== "recoveryRequired") throw new Error("expected explicit recovery");
+    expect(result.transfer.intents).toEqual([claim.intent]);
     expect(queue.state()).toEqual({
       steerQueue: [],
       pendingSteers: [],
       rejectedSteersQueue: [],
+    });
+  });
+
+  it("leaves state unchanged when rejected take is repeatedly empty", () => {
+    const queue = createComposerSteerQueue();
+    const initialState = queue.state();
+
+    expect(queue.transition({ type: "takeRejected" })).toEqual({ type: "empty" });
+    expect(queue.transition({ type: "takeRejected" })).toEqual({ type: "empty" });
+    expect(queue.state()).toEqual(initialState);
+  });
+
+  it("atomically takes rejected entries and restores them at the front in original order", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "a");
+    enqueue(queue, "b");
+    const first = issue(queue);
+    expect(queue.transition({ type: "activeTurnNotSteerable", claim: first })).toMatchObject({
+      type: "rejected",
+      messageIds: ["a", "b"],
+    });
+    const taken = queue.transition({ type: "takeRejected" });
+    expect(taken.type).toBe("rejectedTaken");
+    if (taken.type !== "rejectedTaken") throw new Error("expected rejected entries");
+    const restoreClone = { ...taken.transfer };
+    const releaseClone = { ...taken.transfer };
+    expect(taken.transfer.entries.map(({ intent }) => intent.messageId)).toEqual(["a", "b"]);
+    expect(queue.state().rejectedSteersQueue).toEqual([]);
+
+    expect(queue.transition({ type: "enqueue", input: steerInput("later", "turn-b") })).toEqual({
+      type: "enqueued",
+      messageId: "later",
+    });
+    const later = issue(queue);
+    expect(queue.transition({ type: "activeTurnNotSteerable", claim: later })).toMatchObject({
+      type: "rejected",
+      messageIds: ["later"],
+    });
+    const laterTaken = queue.transition({ type: "takeRejected" });
+    if (laterTaken.type !== "rejectedTaken") throw new Error("expected later rejected entry");
+    expect(queue.transition({ type: "restoreRejected", transfer: laterTaken.transfer })).toEqual({
+      type: "rejectedRestored",
+      messageIds: ["later"],
+    });
+    const foreign = createComposerSteerQueue();
+    expect(foreign.transition({ type: "restoreRejected", transfer: taken.transfer })).toEqual({
+      type: "ownershipMismatch",
+      subject: "rejectedTransfer",
+    });
+    expect(foreign.state().rejectedSteersQueue).toEqual([]);
+
+    const tamperedRestore = { ...restoreClone, entries: laterTaken.transfer.entries };
+    expect(queue.transition({ type: "restoreRejected", transfer: tamperedRestore })).toEqual({
+      type: "rejectedRestored",
+      messageIds: ["a", "b"],
+    });
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.messageId)).toEqual([
+      "a",
+      "b",
+      "later",
+    ]);
+    expect(queue.transition({ type: "restoreRejected", transfer: taken.transfer })).toEqual({
+      type: "ownershipMismatch",
+      subject: "rejectedTransfer",
+    });
+    expect(queue.transition({ type: "releaseRejected", transfer: releaseClone })).toEqual({
+      type: "ownershipMismatch",
+      subject: "rejectedTransfer",
+    });
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.messageId)).toEqual([
+      "a",
+      "b",
+      "later",
+    ]);
+  });
+
+  it("consumes a rejected release capability once and never restores it afterward", () => {
+    const rejected = createComposerSteerQueue();
+    enqueue(rejected, "released");
+    const rejectedClaim = issue(rejected);
+    rejected.transition({ type: "activeTurnNotSteerable", claim: rejectedClaim });
+    const taken = rejected.transition({ type: "takeRejected" });
+    if (taken.type !== "rejectedTaken") throw new Error("expected rejected entries");
+    const releaseClone = { ...taken.transfer };
+    const restoreClone = { ...taken.transfer };
+    enqueue(rejected, "retained", "turn-b");
+    const retainedClaim = issue(rejected);
+    rejected.transition({ type: "activeTurnNotSteerable", claim: retainedClaim });
+    const retainedTaken = rejected.transition({ type: "takeRejected" });
+    if (retainedTaken.type !== "rejectedTaken") throw new Error("expected retained entry");
+    expect(
+      rejected.transition({ type: "restoreRejected", transfer: retainedTaken.transfer }),
+    ).toEqual({ type: "rejectedRestored", messageIds: ["retained"] });
+    const tamperedRelease = { ...taken.transfer, entries: retainedTaken.transfer.entries };
+    expect(rejected.transition({ type: "releaseRejected", transfer: tamperedRelease })).toEqual({
+      type: "rejectedReleased",
+      messageIds: ["released"],
+    });
+    expect(rejected.transition({ type: "releaseRejected", transfer: releaseClone })).toEqual({
+      type: "ownershipMismatch",
+      subject: "rejectedTransfer",
+    });
+    expect(rejected.transition({ type: "restoreRejected", transfer: restoreClone })).toEqual({
+      type: "ownershipMismatch",
+      subject: "rejectedTransfer",
+    });
+    expect(
+      rejected.transition({ type: "enqueue", input: steerInput("released", "turn-c") }),
+    ).toEqual({
+      type: "enqueued",
+      messageId: "released",
+    });
+    expect(
+      rejected.transition({ type: "enqueue", input: steerInput("retained", "turn-c") }),
+    ).toEqual({
+      type: "duplicateIdentity",
+      messageId: "retained",
+    });
+    expect(rejected.state().rejectedSteersQueue).toMatchObject([
+      { intent: { messageId: "retained" } },
+    ]);
+  });
+
+  it("restores a generic recovery capability only in its owner and only once", () => {
+    const recovery = createComposerSteerQueue();
+    enqueue(recovery, "recovery");
+    const recoveryClaim = issue(recovery);
+    const required = recovery.transition({ type: "definitelyNotAccepted", claim: recoveryClaim });
+    if (required.type !== "recoveryRequired") throw new Error("expected explicit recovery");
+    const recoveryClone = { ...required.transfer };
+    enqueue(recovery, "other");
+    const otherClaim = issue(recovery);
+    const otherRequired = recovery.transition({ type: "definitelyNotAccepted", claim: otherClaim });
+    if (otherRequired.type !== "recoveryRequired") throw new Error("expected other recovery");
+    expect(
+      recovery.transition({ type: "restoreRecovery", transfer: otherRequired.transfer }),
+    ).toEqual({ type: "recoveryRestored", messageIds: ["other"] });
+    const foreign = createComposerSteerQueue();
+    expect(foreign.transition({ type: "restoreRecovery", transfer: required.transfer })).toEqual({
+      type: "ownershipMismatch",
+      subject: "recoveryTransfer",
+    });
+    expect(foreign.state().steerQueue).toEqual([]);
+
+    const tamperedRecovery = { ...recoveryClone, intents: otherRequired.transfer.intents };
+    expect(recovery.transition({ type: "restoreRecovery", transfer: tamperedRecovery })).toEqual({
+      type: "recoveryRestored",
+      messageIds: ["recovery"],
+    });
+    expect(recovery.transition({ type: "restoreRecovery", transfer: required.transfer })).toEqual({
+      type: "ownershipMismatch",
+      subject: "recoveryTransfer",
+    });
+    expect(recovery.state().steerQueue.map(({ messageId }) => messageId)).toEqual([
+      "recovery",
+      "other",
+    ]);
+    const restored = issue(recovery);
+    expect(restored.intent).toBe(required.transfer.intents[0]);
+    expect(restored.intent).toMatchObject({
+      messageId: "recovery",
+      threadId: "thread-a",
+      expectedTurnId: "turn-a",
+      clientUserMessageId: recoveryClaim.intent.clientUserMessageId,
+      source: "direct",
     });
   });
 

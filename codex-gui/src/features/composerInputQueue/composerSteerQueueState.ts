@@ -1,6 +1,8 @@
 import type { TurnSteerParams } from "@codex-protocol/v2";
 
 const steerClaimCapability: unique symbol = Symbol("SteerClaim");
+const rejectedSteerTransferCapability: unique symbol = Symbol("RejectedSteerTransfer");
+const steerRecoveryTransferCapability: unique symbol = Symbol("SteerRecoveryTransfer");
 let nextClientUserMessageSequence = 0;
 
 type ThreadIdentity = TurnSteerParams["threadId"];
@@ -54,6 +56,16 @@ export type RejectedSteer = Readonly<{
   reason: "activeTurnNotSteerable" | "terminal";
 }>;
 
+export type RejectedSteerTransfer = Readonly<{
+  entries: readonly RejectedSteer[];
+  [rejectedSteerTransferCapability]: object;
+}>;
+
+export type SteerRecoveryTransfer = Readonly<{
+  intents: readonly SteerIntent[];
+  [steerRecoveryTransferCapability]: object;
+}>;
+
 export type ComposerSteerQueueState = Readonly<{
   steerQueue: readonly SteerIntent[];
   pendingSteers: readonly PendingSteer[];
@@ -67,6 +79,10 @@ export type ComposerSteerQueueEvent =
   | Readonly<{ type: "deliveryUnknown"; claim: SteerClaim }>
   | Readonly<{ type: "activeTurnNotSteerable"; claim: SteerClaim }>
   | Readonly<{ type: "definitelyNotAccepted"; claim: SteerClaim }>
+  | Readonly<{ type: "takeRejected" }>
+  | Readonly<{ type: "restoreRejected"; transfer: RejectedSteerTransfer }>
+  | Readonly<{ type: "releaseRejected"; transfer: RejectedSteerTransfer }>
+  | Readonly<{ type: "restoreRecovery"; transfer: SteerRecoveryTransfer }>
   | Readonly<{
       type: "committed";
       threadId: ThreadIdentity;
@@ -87,7 +103,11 @@ export type ComposerSteerQueueResult =
       responseTurnId: TurnIdentity;
     }>
   | Readonly<{ type: "rejected"; reason: RejectedSteer["reason"]; messageIds: readonly string[] }>
-  | Readonly<{ type: "recoveryRequired"; intent: SteerIntent }>
+  | Readonly<{ type: "recoveryRequired"; transfer: SteerRecoveryTransfer }>
+  | Readonly<{ type: "rejectedTaken"; transfer: RejectedSteerTransfer }>
+  | Readonly<{ type: "rejectedRestored"; messageIds: readonly string[] }>
+  | Readonly<{ type: "rejectedReleased"; messageIds: readonly string[] }>
+  | Readonly<{ type: "recoveryRestored"; messageIds: readonly string[] }>
   | Readonly<{ type: "committed"; messageId: string }>
   | Readonly<{ type: "terminal"; messageIds: readonly string[] }>
   | Readonly<{ type: "empty" }>
@@ -96,7 +116,10 @@ export type ComposerSteerQueueResult =
       phase: Extract<PendingSteerPhase, "issuing" | "deliveryUnknown" | "responseTurnMismatch">;
     }>
   | Readonly<{ type: "duplicateIdentity"; messageId: string }>
-  | Readonly<{ type: "ownershipMismatch"; subject: "steerClaim" | "committedMessage" }>;
+  | Readonly<{
+      type: "ownershipMismatch";
+      subject: "steerClaim" | "committedMessage" | "rejectedTransfer" | "recoveryTransfer";
+    }>;
 
 export type ComposerSteerQueue = Readonly<{
   state(): ComposerSteerQueueState;
@@ -112,6 +135,8 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
   private readonly pendingSteers: PendingSteer[] = [];
   private readonly rejectedSteersQueue: RejectedSteer[] = [];
   private readonly knownMessageIds = new Set<string>();
+  private readonly outstandingRejectedTransfers = new Map<object, readonly RejectedSteer[]>();
+  private readonly outstandingRecoveryTransfers = new Map<object, readonly SteerIntent[]>();
   private readonly closedTargets = new Map<
     ThreadIdentity,
     Map<TurnIdentity, RejectedSteer["reason"]>
@@ -235,7 +260,16 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     }
     this.pendingSteers.splice(index, 1);
     this.knownMessageIds.delete(recoveredClaim.intent.messageId);
-    return { type: "recoveryRequired", intent: recoveredClaim.intent };
+    const token = {};
+    const intents = [recoveredClaim.intent];
+    this.outstandingRecoveryTransfers.set(token, intents);
+    return {
+      type: "recoveryRequired",
+      transfer: {
+        intents: [...intents],
+        [steerRecoveryTransferCapability]: token,
+      },
+    };
   }
 
   private commit(
@@ -322,6 +356,78 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     return removed;
   }
 
+  private takeRejected(): ComposerSteerQueueResult {
+    if (this.rejectedSteersQueue.length === 0) {
+      return { type: "empty" };
+    }
+
+    const entries = this.rejectedSteersQueue.splice(0);
+    const token = {};
+    this.outstandingRejectedTransfers.set(token, entries);
+    return {
+      type: "rejectedTaken",
+      transfer: {
+        entries: [...entries],
+        [rejectedSteerTransferCapability]: token,
+      },
+    };
+  }
+
+  private consumeRejectedTransfer(
+    transfer: RejectedSteerTransfer,
+  ): readonly RejectedSteer[] | undefined {
+    const token = transfer[rejectedSteerTransferCapability];
+    const entries = this.outstandingRejectedTransfers.get(token);
+    if (entries == null) {
+      return undefined;
+    }
+    this.outstandingRejectedTransfers.delete(token);
+    return entries;
+  }
+
+  private restoreRejected(transfer: RejectedSteerTransfer): ComposerSteerQueueResult {
+    const entries = this.consumeRejectedTransfer(transfer);
+    if (entries == null) {
+      return { type: "ownershipMismatch", subject: "rejectedTransfer" };
+    }
+    this.rejectedSteersQueue.unshift(...entries);
+    return {
+      type: "rejectedRestored",
+      messageIds: entries.map(({ intent }) => intent.messageId),
+    };
+  }
+
+  private releaseRejected(transfer: RejectedSteerTransfer): ComposerSteerQueueResult {
+    const entries = this.consumeRejectedTransfer(transfer);
+    if (entries == null) {
+      return { type: "ownershipMismatch", subject: "rejectedTransfer" };
+    }
+    for (const { intent } of entries) {
+      this.knownMessageIds.delete(intent.messageId);
+    }
+    return {
+      type: "rejectedReleased",
+      messageIds: entries.map(({ intent }) => intent.messageId),
+    };
+  }
+
+  private restoreRecovery(transfer: SteerRecoveryTransfer): ComposerSteerQueueResult {
+    const token = transfer[steerRecoveryTransferCapability];
+    const intents = this.outstandingRecoveryTransfers.get(token);
+    if (intents == null) {
+      return { type: "ownershipMismatch", subject: "recoveryTransfer" };
+    }
+    this.outstandingRecoveryTransfers.delete(token);
+    for (const intent of intents) {
+      this.knownMessageIds.add(intent.messageId);
+    }
+    this.steerQueue.unshift(...intents);
+    return {
+      type: "recoveryRestored",
+      messageIds: intents.map(({ messageId }) => messageId),
+    };
+  }
+
   public transition = (event: ComposerSteerQueueEvent): ComposerSteerQueueResult => {
     switch (event.type) {
       case "enqueue":
@@ -336,6 +442,14 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
         return this.rejectTarget(event.claim);
       case "definitelyNotAccepted":
         return this.requireRecovery(event.claim);
+      case "takeRejected":
+        return this.takeRejected();
+      case "restoreRejected":
+        return this.restoreRejected(event.transfer);
+      case "releaseRejected":
+        return this.releaseRejected(event.transfer);
+      case "restoreRecovery":
+        return this.restoreRecovery(event.transfer);
       case "committed":
         return this.commit(event.threadId, event.turnId, event.clientUserMessageId);
       case "terminal":
