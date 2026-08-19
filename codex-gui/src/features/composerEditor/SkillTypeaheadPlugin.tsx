@@ -216,7 +216,7 @@ function SkillMenu({
               className={`cursor-default rounded-lg px-3 py-2 outline-none ${
                 isSelected ? "bg-accent-soft text-accent-soft-foreground" : "text-foreground"
               }`}
-              id={`typeahead-item-${index}`}
+              id={`typeahead-item-${String(index)}`}
               key={option.key}
               onMouseEnter={() => {
                 setHighlightedIndex(index);
@@ -229,7 +229,9 @@ function SkillMenu({
                 setHighlightedIndex(index);
                 selectOptionAndCleanUp(option);
               }}
-              ref={option.setRefElement}
+              ref={(element) => {
+                option.setRefElement(element);
+              }}
               role="option"
             >
               <div className="flex min-w-0 items-baseline gap-2">

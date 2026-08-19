@@ -3,6 +3,7 @@ import { compileComposerDraft } from "@/features/composerEditor/compileComposerD
 import {
   ComposerEditor,
   type ComposerEditorController,
+  type ComposerEditorProps,
 } from "@/features/composerEditor/ComposerEditor";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { renderWithProviders } from "@/utils/test-utils";
@@ -89,7 +90,7 @@ async function renderEditors() {
         onControllerChange={(controller) => {
           sourceController = controller;
         }}
-        onSubmit={vi.fn()}
+        onSubmit={vi.fn<ComposerEditorProps["onSubmit"]>()}
         placeholder="Source"
         skillCatalog={skillCatalog}
       />
@@ -100,7 +101,7 @@ async function renderEditors() {
         onControllerChange={(controller) => {
           targetController = controller;
         }}
-        onSubmit={vi.fn()}
+        onSubmit={vi.fn<ComposerEditorProps["onSubmit"]>()}
         placeholder="Target"
         skillCatalog={skillCatalog}
       />

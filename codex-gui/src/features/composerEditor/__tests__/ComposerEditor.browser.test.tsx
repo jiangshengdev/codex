@@ -17,7 +17,7 @@ import { compileComposerDraft } from "../compileComposerDraft";
 
 test("opens a capped accessible skill list and keeps editor focus", async () => {
   const candidates = Array.from({ length: 25 }, (_, index) =>
-    skill(`skill-${String(index).padStart(2, "0")}`, `/skills/${index}`),
+    skill(`skill-${String(index).padStart(2, "0")}`, `/skills/${String(index)}`),
   );
   const { controllerRef, screen } = await renderEditor(candidates);
   const editor = screen.getByRole("combobox", { name: "Message" });

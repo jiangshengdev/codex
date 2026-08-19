@@ -66,7 +66,10 @@ export function ComposerEditor({
   const isComposingRef = useRef(false);
   const suppressNextEnterRef = useRef(false);
   const onSubmitRef = useRef(onSubmit);
-  onSubmitRef.current = onSubmit;
+
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  }, [onSubmit]);
 
   const onCompositionStart = (): void => {
     isComposingRef.current = true;

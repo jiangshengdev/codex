@@ -106,7 +106,7 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
     dispose: skillCatalogDispose,
   };
   let activeOwnerDisposed = false;
-  const activeOwnerDispose = vi.fn(() => {
+  const activeOwnerDispose = vi.fn<() => void>(() => {
     if (activeOwnerDisposed) {
       return;
     }

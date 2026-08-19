@@ -1,4 +1,4 @@
-import { $createParagraphNode, $getRoot, createEditor, TextNode } from "lexical";
+import { $createParagraphNode, $getRoot, createEditor } from "lexical";
 import { describe, expect, it } from "vitest";
 
 import { $createSkillNode, SkillNode, type SerializedSkillNode } from "../SkillNode";
@@ -57,8 +57,8 @@ describe("SkillNode", () => {
         $getRoot().append($createParagraphNode().append(node));
 
         expect(node.getTextContent()).not.toContain(skill.path);
-        expect(node.createDOM).toBe(TextNode.prototype.createDOM);
-        expect(node.exportDOM).toBe(TextNode.prototype.exportDOM);
+        expect(Object.hasOwn(SkillNode.prototype, "createDOM")).toBe(false);
+        expect(Object.hasOwn(SkillNode.prototype, "exportDOM")).toBe(false);
       },
       { discrete: true },
     );

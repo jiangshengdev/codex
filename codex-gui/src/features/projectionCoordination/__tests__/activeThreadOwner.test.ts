@@ -62,7 +62,6 @@ describe("activeThreadOwner skill catalog", () => {
       "createComposerInputQueueCoordinator",
     );
     const prepared = prepareOwner(listSkills);
-    const createdQueue = createQueue.mock.results.at(-1)?.value;
 
     expect(listSkills).toHaveBeenCalledExactlyOnceWith({
       cwds: [attachBaseline.snapshot.thread.cwd],
@@ -76,8 +75,7 @@ describe("activeThreadOwner skill catalog", () => {
     expect(typeof prepared.activeOwner.skillCatalog.subscribe).toBe("function");
     expect(typeof prepared.activeOwner.skillCatalog.invalidate).toBe("function");
     expect(typeof prepared.activeOwner.skillCatalog.retry).toBe("function");
-    expect(createdQueue).toBeDefined();
-    expect(prepared.activeOwner.queueCoordinator).toBe(createdQueue);
+    expect(createQueue).toHaveReturnedWith(prepared.activeOwner.queueCoordinator);
 
     prepared.dispose();
     createQueue.mockRestore();
