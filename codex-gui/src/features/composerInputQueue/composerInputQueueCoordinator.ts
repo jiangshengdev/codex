@@ -25,6 +25,7 @@ import type {
   RecoveryBatch,
 } from "./composerInputQueueContracts";
 import type { SteerClaim } from "./composerSteerQueueState";
+import { copyComposerInputPayload } from "./composerInputPayload";
 import { runtimeObservationFromAcceptedProjectionEvent } from "./composerInputQueueRuntimeObservation";
 
 export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
@@ -106,33 +107,6 @@ function recoveryCount(batch: RecoveryBatch | null): number {
     case "steerDefinitelyNotAccepted":
       return batch.transfer.intents.length;
   }
-}
-
-function copySteerInputItem(
-  item: SteerClaim["intent"]["input"][number],
-): TurnSteerParams["input"][number] {
-  switch (item.type) {
-    case "text":
-      return {
-        ...item,
-        text_elements: item.text_elements.map((element) => structuredClone(element)),
-      };
-    case "image":
-    case "localImage":
-    case "audio":
-    case "localAudio":
-    case "skill":
-    case "mention":
-      return { ...item };
-    default: {
-      const exhaustiveItem: never = item;
-      return exhaustiveItem;
-    }
-  }
-}
-
-function copySteerInput(input: SteerClaim["intent"]["input"]): TurnSteerParams["input"] {
-  return input.map(copySteerInputItem);
 }
 
 class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator {
@@ -386,7 +360,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       threadId: claim.intent.threadId,
       expectedTurnId: claim.intent.expectedTurnId,
       clientUserMessageId: claim.intent.clientUserMessageId,
-      input: copySteerInput(claim.intent.input),
+      input: copyComposerInputPayload(claim.intent.input),
     }).then(
       ({ turnId }) => {
         this.settleSteer(generation, { type: "accepted", claim, turnId });

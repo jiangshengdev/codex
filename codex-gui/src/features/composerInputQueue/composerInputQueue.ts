@@ -1,4 +1,4 @@
-import type { Turn, TurnStartParams } from "@codex-protocol/v2";
+import type { Turn } from "@codex-protocol/v2";
 import type {
   ComposerInputQueueReleaseBlocker,
   ComposerInputQueueResult,
@@ -9,6 +9,7 @@ import type {
   RuntimeObservation,
 } from "./composerInputQueueContracts";
 import { projectComposerInputPreview } from "./composerInputPreview";
+import { copyComposerInputPayload } from "./composerInputPayload";
 import {
   ComposerStartQueueState,
   type StartClaim,
@@ -18,7 +19,6 @@ import {
   createComposerSteerQueue,
   type SteerRecoveryTransfer,
   type SteerClaim,
-  type SteerIntent,
 } from "./composerSteerQueueState";
 
 export type {
@@ -79,29 +79,6 @@ function transition(
 function ownMessage(message: ComposerQueueMessage): ComposerQueueMessage {
   return { id: message.id, input: [...message.input] };
 }
-function copySteerInputItem(item: SteerIntent["input"][number]): TurnStartParams["input"][number] {
-  switch (item.type) {
-    case "text":
-      return {
-        ...item,
-        text_elements: item.text_elements.map((element) => structuredClone(element)),
-      };
-    case "image":
-    case "localImage":
-    case "audio":
-    case "localAudio":
-    case "skill":
-    case "mention":
-      return { ...item };
-    default: {
-      const exhaustiveItem: never = item;
-      return exhaustiveItem;
-    }
-  }
-}
-function copySteerInput(input: SteerIntent["input"]): TurnStartParams["input"] {
-  return input.map(copySteerInputItem);
-}
 function hasMeaningfulInput(input: ComposerQueueMessage["input"]): boolean {
   return input.some((item) => item.type !== "text" || item.text.trim() !== "");
 }
@@ -124,16 +101,16 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const steerState = this.steerState.state();
     const pendingSteers = steerState.pendingSteers.map(({ claim, phase }) => ({
       key: claim.intent.messageId,
-      preview: projectComposerInputPreview(copySteerInput(claim.intent.input)),
+      preview: projectComposerInputPreview(copyComposerInputPayload(claim.intent.input)),
       phase,
     }));
     const queuedSteers = steerState.steerQueue.map((intent) => ({
       key: intent.messageId,
-      preview: projectComposerInputPreview(copySteerInput(intent.input)),
+      preview: projectComposerInputPreview(copyComposerInputPayload(intent.input)),
     }));
     const rejectedSteers = steerState.rejectedSteersQueue.map(({ intent, reason }) => ({
       key: intent.messageId,
-      preview: projectComposerInputPreview(copySteerInput(intent.input)),
+      preview: projectComposerInputPreview(copyComposerInputPayload(intent.input)),
       reason,
     }));
     const hasUnknownSteer = pendingSteers.some(
@@ -201,7 +178,9 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       } while (this.knownMessageIds.has(messageId));
       const message: ComposerQueueMessage = {
         id: messageId,
-        input: taken.transfer.entries.flatMap(({ intent }) => copySteerInput(intent.input)),
+        input: taken.transfer.entries.flatMap(({ intent }) =>
+          copyComposerInputPayload(intent.input),
+        ),
       };
       this.knownMessageIds.add(message.id);
       return this.issueStart(message, {

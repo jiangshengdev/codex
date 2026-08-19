@@ -1,4 +1,8 @@
 import type { TurnSteerParams } from "@codex-protocol/v2";
+import {
+  copyComposerInputPayload,
+  type ReadonlyComposerInputPayload,
+} from "./composerInputPayload";
 
 const steerClaimCapability: unique symbol = Symbol("SteerClaim");
 const rejectedSteerTransferCapability: unique symbol = Symbol("RejectedSteerTransfer");
@@ -8,12 +12,6 @@ let nextClientUserMessageSequence = 0;
 type ThreadIdentity = TurnSteerParams["threadId"];
 type TurnIdentity = TurnSteerParams["expectedTurnId"];
 type SteerClientIdentity = NonNullable<TurnSteerParams["clientUserMessageId"]>;
-type DeepReadonly<T> = T extends readonly (infer Item)[]
-  ? readonly DeepReadonly<Item>[]
-  : T extends object
-    ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
-    : T;
-type SteerInput = DeepReadonly<TurnSteerParams["input"]>;
 
 export type SteerSource = "direct" | "ordinaryPromotion";
 
@@ -21,7 +19,7 @@ export type EnqueueSteerInput = Readonly<{
   messageId: string;
   threadId: ThreadIdentity;
   expectedTurnId: TurnIdentity;
-  input: SteerInput;
+  input: ReadonlyComposerInputPayload;
   source: SteerSource;
 }>;
 
@@ -30,7 +28,7 @@ export type SteerIntent = Readonly<{
   threadId: ThreadIdentity;
   expectedTurnId: TurnIdentity;
   clientUserMessageId: SteerClientIdentity;
-  input: SteerInput;
+  input: ReadonlyComposerInputPayload;
   source: SteerSource;
 }>;
 
@@ -126,10 +124,6 @@ export type ComposerSteerQueue = Readonly<{
   transition(event: ComposerSteerQueueEvent): ComposerSteerQueueResult;
 }>;
 
-function ownInput(input: SteerInput): SteerInput {
-  return input.map((item) => structuredClone(item));
-}
-
 class ComposerSteerQueueImpl implements ComposerSteerQueue {
   private readonly steerQueue: SteerIntent[] = [];
   private readonly pendingSteers: PendingSteer[] = [];
@@ -158,7 +152,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       threadId: input.threadId,
       expectedTurnId: input.expectedTurnId,
       clientUserMessageId: `composer-steer-${String(nextClientUserMessageSequence)}`,
-      input: ownInput(input.input),
+      input: copyComposerInputPayload(input.input),
       source: input.source,
     };
     this.knownMessageIds.add(intent.messageId);
