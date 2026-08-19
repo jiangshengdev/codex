@@ -18,12 +18,12 @@ msgid "... and {count} more"
 msgstr "…另有 {count} 项"
 
 #. placeholder {0}: queueSnapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:223
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:228
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
 
 #. placeholder {0}: queueSnapshot.queuedCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:213
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:218
 msgid "{0, plural, one {# message queued} other {# messages queued}}"
 msgstr "{0, plural, one {已排队 # 条} other {已排队 # 条}}"
 
@@ -62,11 +62,11 @@ msgstr "活动中"
 msgid "Agent spawn failed"
 msgstr "启动智能体失败"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:431
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:443
 msgid "Another task switch is already in progress."
 msgstr "另一项任务切换正在进行中。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:189
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:201
 msgid "Back to history"
 msgstr "返回历史记录"
 
@@ -122,17 +122,17 @@ msgstr "上下文用量详情，已用 {percentageLabel}，{usedTokensLabel} / {
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗口容量未知"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:237
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:242
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:426
 msgid "Continue this task"
 msgstr "继续此任务"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:82
-#: src/features/documentTitle/DocumentTitleOwner.tsx:45
+#: src/features/documentTitle/DocumentTitleOwner.tsx:43
 msgid "Current task"
 msgstr "当前任务"
 
@@ -176,7 +176,7 @@ msgstr "返回首页"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:91
-#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "History"
 msgstr "历史记录"
 
@@ -184,8 +184,8 @@ msgstr "历史记录"
 msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:47
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:177
+#: src/features/documentTitle/DocumentTitleOwner.tsx:45
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
 msgid "History detail"
 msgstr "历史详情"
 
@@ -220,6 +220,10 @@ msgstr "已中断 <0/> <1/>"
 msgid "Interrupted."
 msgstr "已中断。"
 
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:106
+msgid "Invalid skill"
+msgstr "无效技能"
+
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:138
 msgid "Load more"
 msgstr "加载更多"
@@ -228,7 +232,11 @@ msgstr "加载更多"
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:203
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:292
+msgid "Loading skills…"
+msgstr "正在加载技能…"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:215
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
@@ -240,11 +248,12 @@ msgstr "主导航"
 msgid "Menu"
 msgstr "菜单"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:204
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:210
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:195
 msgid "Message composer"
 msgstr "消息输入区"
 
@@ -274,6 +283,10 @@ msgstr "暂无已提交的消息。"
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:202
+msgid "No matching skills"
+msgstr "没有匹配的技能"
+
 #. Status indicating that a collaborating agent could not be found
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:177
 msgid "Not found"
@@ -287,7 +300,7 @@ msgstr "未加载"
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:48
+#: src/features/documentTitle/DocumentTitleOwner.tsx:46
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "找不到页面"
@@ -314,9 +327,13 @@ msgstr "GUI 启动令牌尚未就绪，暂时无法通过二维码访问。"
 msgid "QR code for current GUI URL"
 msgstr "当前 GUI URL 的二维码。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:197
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
 msgid "Read-only history"
 msgstr "只读历史记录"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:294
+msgid "Refreshing skills…"
+msgstr "正在刷新技能…"
 
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:811
 msgid "Request failed"
@@ -332,12 +349,13 @@ msgstr "已恢复 {receiver}"
 msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:251
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:282
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:263
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:239
 msgid "Retry"
 msgstr "重试"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:380
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:392
 msgid "Return to current task"
 msgstr "返回当前任务"
 
@@ -351,7 +369,7 @@ msgstr "运行中"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:263
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:268
 msgid "Send"
 msgstr "发送"
 
@@ -360,10 +378,22 @@ msgstr "发送"
 msgid "Sent input to {receiver}"
 msgstr "已向 {receiver} 发送输入"
 
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:298
+msgid "Showing saved skills because refresh failed"
+msgstr "刷新失败，正在显示已保存的技能"
+
 #. Status of a collaborating agent that has shut down
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:171
 msgid "Shutdown"
 msgstr "已关闭"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:296
+msgid "Skills could not be loaded"
+msgstr "无法加载技能"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:301
+msgid "Some skills could not be loaded"
+msgstr "部分技能无法加载"
 
 #: src/NotFoundPage.tsx:28
 msgid "Sorry, we couldn’t find the page you’re looking for."
@@ -391,11 +421,11 @@ msgstr "已启动 {receiver}（{reasoningEffort}）"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:254
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:259
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:144
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:185
 msgid "Stop failed"
 msgstr "停止失败"
 
@@ -403,19 +433,19 @@ msgstr "停止失败"
 msgid "System error"
 msgstr "系统错误"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:426
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:438
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:433
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:445
 msgid "The task connection is no longer available."
 msgstr "任务连接已不可用。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:58
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:60
 msgid "The task connection was closed."
 msgstr "任务连接已关闭。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:221
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -429,7 +459,7 @@ msgstr "上下文分页"
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:390
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:402
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
@@ -437,7 +467,7 @@ msgstr "无法继续此任务"
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:246
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:258
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
@@ -449,11 +479,12 @@ msgstr "无法加载当前任务"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:362
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:374
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:177
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:189
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:150
 msgid "Untitled task"
 msgstr "未命名任务"

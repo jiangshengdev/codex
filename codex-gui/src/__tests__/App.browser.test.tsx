@@ -377,13 +377,16 @@ const expectDocumentScrollStaysAwayFromBottom = async (maxScrollTop: number): Pr
   }
 };
 
+const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
+  screen.getByRole("combobox", { name: "Message Codex", exact: true });
+
 const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   queueAttachProjectionResponse(commandHandle);
   initializeHost(options, commandHandle);
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
 
   return { commandHandle, options, screen };
 };
@@ -412,7 +415,7 @@ const renderActiveApp = async () => {
 
   queueAttachProjectionResponse(commandHandle, attachWithTurns(attachResponse, [activeTurn]));
   initializeHost(options, commandHandle);
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
 
   return { activeTurn, options, screen, startTurn };
 };
@@ -420,8 +423,8 @@ const renderActiveApp = async () => {
 const expectAppComposerDisabled = async (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
 ): Promise<void> => {
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "false");
   for (const control of [
-    screen.getByPlaceholder("Message Codex"),
     screen.getByRole("button", { name: "Send", exact: true }),
     screen.getByRole("button", { name: "Stop" }),
   ]) {
@@ -458,7 +461,7 @@ test("App renders composer in the shell without visible host debug details", asy
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
   expect(main.classList.contains("pb-44")).toBe(false);
   expect(main.classList.contains("px-4")).toBe(false);
@@ -624,7 +627,7 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   expect(topNotices.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
-  await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
+  await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
 });
 
 test("App localizes the GUI host startup error title without translating its details", async () => {
@@ -944,7 +947,7 @@ test("App passes ready commands to composer and sends plain text", async () => {
   const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), startTurn };
   const { screen } = await renderReadyApp(commandHandle);
 
-  await screen.getByPlaceholder("Message Codex").fill("Hello from App composer");
+  await getAppComposer(screen).fill("Hello from App composer");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
   expectStartTurnCalledOnceWithText(startTurn, "Hello from App composer");
@@ -953,7 +956,7 @@ test("App passes ready commands to composer and sends plain text", async () => {
 test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
   const { activeTurn, options, screen, startTurn } = await renderActiveApp();
 
-  await screen.getByPlaceholder("Message Codex").fill("Queued from active turn");
+  await getAppComposer(screen).fill("Queued from active turn");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect.element(screen.getByText("1 message queued")).toBeVisible();
@@ -976,7 +979,7 @@ test("App queues during an active turn and starts exactly once after its live te
 
 test("App does not auto-start interrupted messages and recovers them in FIFO order", async () => {
   const { activeTurn, options, screen, startTurn } = await renderActiveApp();
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getAppComposer(screen);
 
   await composer.fill("First interrupted message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -995,13 +998,13 @@ test("App does not auto-start interrupted messages and recovers them in FIFO ord
   await expect.element(screen.getByText("2 messages have not been sent")).toBeVisible();
   expect(startTurn).not.toHaveBeenCalled();
   await composer.fill("Draft preserved during recovery");
-  await expect.element(composer).toBeEnabled();
+  await expect.element(composer).toHaveAttribute("contenteditable", "true");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
 
   await screen.getByRole("button", { name: "Continue sending" }).click();
 
   expectStartTurnCalledOnceWithText(startTurn, "First interrupted message");
-  await expect.element(composer).toHaveValue("Draft preserved during recovery");
+  await expect.element(composer).toHaveTextContent("Draft preserved during recovery");
 
   const recoveredFirstCompleted = turnCompleted(
     eventTurnCompleted,
@@ -1355,10 +1358,10 @@ test("App disables composer when host commands become unavailable", async () => 
   const commandHandle = createGuiHostCommands();
   const { options, screen } = await renderReadyApp(commandHandle);
   const composer = screen.getByRole("region", { name: "Message composer" });
-  const input = screen.getByPlaceholder("Message Codex");
+  const input = getAppComposer(screen);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
 
-  await expect.element(input).toBeEnabled();
+  await expect.element(input).toHaveAttribute("contenteditable", "true");
   options.onCommandsUnavailable?.();
 
   await expect.element(composer).not.toBeInTheDocument();
@@ -1749,7 +1752,7 @@ test("App does not render optimistic user messages after send", async () => {
   const commandHandle = createGuiHostCommands();
   const { screen } = await renderReadyApp(commandHandle);
 
-  await screen.getByPlaceholder("Message Codex").fill("Not optimistic");
+  await getAppComposer(screen).fill("Not optimistic");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect.element(screen.getByText("Not optimistic")).not.toBeInTheDocument();

@@ -351,7 +351,9 @@ test("pure read-only history detail reads the route thread without attaching", a
   });
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
   expect(commands.resumeThread).not.toHaveBeenCalled();
-  await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .not.toBeInTheDocument();
   await screen.getByRole("button", { name: "Menu" }).click();
   const currentTaskAction = screen
     .getByRole("navigation", { name: "Main navigation" })
@@ -393,7 +395,9 @@ test("pure read-only history detail activates its first task and replaces the ro
 
     await continueButton.click();
 
-    await expect.element(screen.getByPlaceholder("Message Codex")).toBeVisible();
+    await expect
+      .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+      .toBeVisible();
     expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,
@@ -446,7 +450,9 @@ test("pure read-only history detail preserves its route when first activation fa
     expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
     expect(commands.attachThreadProjection).not.toHaveBeenCalled();
     expect(storageSetItem).not.toHaveBeenCalled();
-    await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+      .not.toBeInTheDocument();
     expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
     expect(router.history.length).toBe(initialHistoryLength);
   } finally {

@@ -9,6 +9,7 @@ import {
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import {
   attachBaseline,
   attachReplacement,
@@ -16,6 +17,10 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import { tokenUsageUpdated } from "@/features/projection/__tests__/projectionTestBuilders";
+import type {
+  SkillCatalogCandidate,
+  SkillCatalogState,
+} from "@/features/skillCatalog/skillCatalogOwner";
 import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
@@ -32,6 +37,11 @@ import { ComposerTurnControl } from "../ComposerTurnControl";
 const initializedStatus: GuiHostStatus = { label: "initialized" };
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
+const readyEmptySkillCatalog: SkillCatalogState = {
+  type: "ready",
+  candidates: [],
+  partialErrorCount: 0,
+};
 
 const expectStartTurnCalledOnceWithText = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
@@ -107,6 +117,30 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
   };
 };
 
+const createSkillCatalogHarness = (initial: SkillCatalogState = readyEmptySkillCatalog) => {
+  let snapshot = initial;
+  const listeners = new Set<() => void>();
+  const controller = {
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    invalidate: vi
+      .fn<ActiveThreadOwnerHandle["skillCatalog"]["invalidate"]>()
+      .mockReturnValue(true),
+    retry: vi.fn<ActiveThreadOwnerHandle["skillCatalog"]["retry"]>().mockReturnValue(true),
+  } satisfies ActiveThreadOwnerHandle["skillCatalog"];
+
+  return {
+    controller,
+    publish(next: SkillCatalogState): void {
+      snapshot = next;
+      for (const listener of listeners) listener();
+    },
+  };
+};
+
 async function renderAttached(
   commandHandle: GuiHostCommands | null = createGuiHostCommands(),
   guardCompositionEndEnter = false,
@@ -118,6 +152,8 @@ async function renderAttached(
         activeTurnId: null,
         startTurn: commandHandle.startTurn,
       }),
+  skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"] = createSkillCatalogHarness()
+    .controller,
 ) {
   const result = await renderWithProviders(
     <>
@@ -129,6 +165,7 @@ async function renderAttached(
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={initializedStatus}
         routeTarget={{ type: "currentTask", threadId }}
+        skillCatalogController={skillCatalogController}
       />
     </>,
     { locale },
@@ -142,10 +179,19 @@ async function renderAttached(
 const expectComposerDisabled = async (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
 ): Promise<void> => {
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeDisabled();
+  await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "false");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
+
+const getComposer = (
+  screen: Awaited<ReturnType<typeof renderWithProviders>>,
+  name = "Message Codex",
+) => screen.getByRole("combobox", { name, exact: true });
+
+const composerTextWithoutTrailingBrowserPlaceholders = (
+  element: Readonly<Pick<Node, "textContent">>,
+): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -161,7 +207,7 @@ async function beginPendingStop(draft: string) {
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
   const stopButton = screen.getByRole("button", { name: "Stop" });
 
   await composer.fill(draft);
@@ -183,6 +229,7 @@ test("disables controls before attach", async () => {
         guardCompositionEndEnter={false}
         guiHostStatus={{ label: "connecting" }}
         routeTarget={{ type: "currentTask", threadId }}
+        skillCatalogController={createSkillCatalogHarness().controller}
       />
     </>,
   );
@@ -259,7 +306,7 @@ test("clears context usage when a replacement attach has no usage", async () => 
     .toBeNull();
 });
 
-test("renders a white composer panel with a primary textarea and actions", async () => {
+test("renders the Lexical composer panel and actions", async () => {
   const screen = await renderAttached();
   const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
   if (!(composerShell instanceof HTMLElement)) {
@@ -269,10 +316,7 @@ test("renders a white composer panel with a primary textarea and actions", async
   if (!(composerPanel instanceof HTMLElement)) {
     throw new Error("composer panel must render");
   }
-  const textarea = composerPanel.querySelector('textarea[placeholder="Message Codex"]');
-  if (!(textarea instanceof HTMLTextAreaElement)) {
-    throw new Error("composer textarea must render");
-  }
+  const editorRoot = getComposer(screen).element();
   const actions = Array.from(composerPanel.querySelectorAll("button"))
     .map((button) => button.textContent.trim())
     .filter((label) => label.length > 0);
@@ -293,7 +337,8 @@ test("renders a white composer panel with a primary textarea and actions", async
   expect(composerShell.classList.contains("pb-0")).toBe(false);
   expect(composerShell.classList.contains("pb-3")).toBe(true);
   expect(composerShell.classList.contains("py-3")).toBe(false);
-  expect(textarea.classList.contains("textarea--primary")).toBe(true);
+  expect(editorRoot.classList.contains("bg-transparent")).toBe(true);
+  await expect.element(editorRoot).toHaveAttribute("contenteditable", "true");
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
@@ -305,12 +350,15 @@ test("submits a non-empty draft through the queue controller and clears it when 
   const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle);
 
-  await screen.getByPlaceholder("Message Codex").fill("Hello Codex");
+  const composer = getComposer(screen);
+  await composer.fill("Hello Codex");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
   expectStartTurnCalledOnceWithText(startTurn, "Hello Codex");
-  await expect.element(screen.getByPlaceholder("Message Codex")).toHaveValue("");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("");
 });
 
 test("requires the queue controller owner to match the Redux current thread before sending", async () => {
@@ -320,7 +368,7 @@ test("requires the queue controller owner to match the Redux current thread befo
     isRecovering: false,
   });
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
   const send = screen.getByRole("button", { name: "Send", exact: true });
 
   screen.store.dispatch(
@@ -341,13 +389,90 @@ test("requires the queue controller owner to match the Redux current thread befo
   screen.store.dispatch(threadRuntimeAttached(attachResponse));
   await expect.element(send).toBeEnabled();
   await send.click();
-  expect(harness.submit).toHaveBeenCalledExactlyOnceWith("Identity-gated draft");
+  expect(harness.submit).toHaveBeenCalledExactlyOnceWith([
+    { type: "text", text: "Identity-gated draft", text_elements: [] },
+  ]);
+});
+
+test("marks a skill invalid only when a complete ready catalog confirms its path is unavailable", async () => {
+  const selectedSkill: SkillCatalogCandidate = {
+    name: "canonical-skill",
+    path: "/private/skills/canonical-skill/SKILL.md",
+    description: "Canonical skill description",
+    scope: "repo",
+    interface: {
+      displayName: "Friendly Skill",
+      iconSmallUrl: null,
+      iconLargeUrl: null,
+    },
+  };
+  const readyCatalog: SkillCatalogState = {
+    type: "ready",
+    candidates: [selectedSkill],
+    partialErrorCount: 0,
+  };
+  const invalidCatalog: SkillCatalogState = {
+    type: "ready",
+    candidates: [],
+    partialErrorCount: 0,
+  };
+  const catalogHarness = createSkillCatalogHarness(readyCatalog);
+  const screen = await renderAttached(
+    createGuiHostCommands(),
+    false,
+    "en",
+    undefined,
+    catalogHarness.controller,
+  );
+  const composer = getComposer(screen);
+  const send = screen.getByRole("button", { name: "Send", exact: true });
+
+  await composer.fill("$canonical");
+  await screen.user.keyboard("{Enter}");
+  const token = screen.getByText("$Friendly Skill", { exact: true });
+  await expect.element(send).toBeEnabled();
+
+  catalogHarness.publish(invalidCatalog);
+  await expect.element(token).toHaveAttribute("aria-invalid", "true");
+  await expect.element(token).toHaveAttribute("data-invalid-status", "(Invalid skill)");
+  await expect.element(token).toHaveAttribute("aria-label", "$Friendly Skill, Invalid skill");
+  await expect.element(token).toHaveClass("bg-danger-soft");
+  await expect.element(token).toHaveClass("after:content-[attr(data-invalid-status)]");
+  await expect.element(send).toBeDisabled();
+  await expect.element(token).toHaveTextContent("$Friendly Skill");
+  expect(token.element().outerHTML).not.toContain(selectedSkill.path);
+
+  catalogHarness.publish(readyCatalog);
+  await expect.element(token).not.toHaveAttribute("aria-invalid");
+  await expect.element(token).not.toHaveAttribute("aria-label");
+  await expect.element(token).not.toHaveAttribute("data-invalid-status");
+  await expect.element(token).not.toHaveClass("bg-danger-soft");
+  await expect.element(send).toBeEnabled();
+
+  const unconfirmedCatalogs: SkillCatalogState[] = [
+    { type: "refreshing", candidates: [], partialErrorCount: 0 },
+    { type: "stale", candidates: [], partialErrorCount: 0 },
+    { type: "failed", candidates: [], partialErrorCount: 0 },
+    { type: "ready", candidates: [], partialErrorCount: 1 },
+  ];
+  for (const catalog of unconfirmedCatalogs) {
+    catalogHarness.publish(invalidCatalog);
+    await expect.element(token).toHaveAttribute("aria-invalid", "true");
+    catalogHarness.publish(catalog);
+    await expect.element(token).not.toHaveAttribute("aria-invalid");
+    await expect.element(token).not.toHaveAttribute("aria-label");
+    await expect.element(token).not.toHaveAttribute("data-invalid-status");
+    await expect.element(token).not.toHaveClass("bg-danger-soft");
+    await expect.element(send).toBeEnabled();
+    await expect.element(token).toHaveTextContent("$Friendly Skill");
+    expect(token.element().outerHTML).not.toContain(selectedSkill.path);
+  }
 });
 
 test("keeps whitespace-only draft from submitting", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
 
   await composer.fill("   ");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
@@ -360,28 +485,24 @@ test("keeps whitespace-only draft from submitting", async () => {
 test("uses Enter to send and Shift Enter to insert newline", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
 
   await composer.fill("Line 1");
   await composer.click();
   await screen.user.keyboard("{Shift>}{Enter}{/Shift}");
-  await expect.element(composer).toHaveValue("Line 1\n");
-
-  await composer.fill("Line 1");
-  await composer.click();
   await screen.user.keyboard("{Enter}");
 
-  expect(commandHandle.startTurn).toHaveBeenCalledTimes(1);
+  expectStartTurnCalledOnceWithText(vi.mocked(commandHandle.startTurn), "Line 1\n");
 });
 
 test("keeps composing Enter from sending draft", async () => {
   const commandHandle = createGuiHostCommands();
   const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
 
   await composer.fill("正在输入");
   await composer.click();
-  const eventAllowed = composer.element().dispatchEvent(
+  composer.element().dispatchEvent(
     new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
@@ -390,31 +511,31 @@ test("keeps composing Enter from sending draft", async () => {
     }),
   );
 
-  expect(eventAllowed).toBe(true);
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
-  await expect.element(composer).toHaveValue("正在输入");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("正在输入");
 });
 
 test("sends completed composition Enter immediately when guard is disabled", async () => {
   const commandHandle = createGuiHostCommands();
   const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
-  const textarea = composer.element();
-  if (!(textarea instanceof HTMLTextAreaElement)) {
-    throw new Error("composer textarea must render");
-  }
+  const composer = getComposer(screen);
+  const editorRoot = composer.element();
 
+  await composer.fill("你好呀");
   await composer.click();
-  textarea.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  textarea.value = "你好呀";
-  textarea.dispatchEvent(
+  editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  editorRoot.dispatchEvent(
     new CompositionEvent("compositionend", {
       bubbles: true,
       data: "你好呀",
     }),
   );
-  await expect.element(composer).toHaveValue("你好呀");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("你好呀");
 
   await screen.user.keyboard("{Enter}");
   expectStartTurnCalledOnceWithText(startTurn, "你好呀");
@@ -424,26 +545,27 @@ test("keeps guarded completed composition Enter from sending draft", async () =>
   const commandHandle = createGuiHostCommands();
   const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle, true);
-  const composer = screen.getByPlaceholder("Message Codex");
-  const textarea = composer.element();
-  if (!(textarea instanceof HTMLTextAreaElement)) {
-    throw new Error("composer textarea must render");
-  }
+  const composer = getComposer(screen);
+  const editorRoot = composer.element();
 
+  await composer.fill("你好呀");
   await composer.click();
-  textarea.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  textarea.value = "你好呀";
-  textarea.dispatchEvent(
+  editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  editorRoot.dispatchEvent(
     new CompositionEvent("compositionend", {
       bubbles: true,
       data: "你好呀",
     }),
   );
-  await expect.element(composer).toHaveValue("你好呀");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("你好呀");
 
   await screen.user.keyboard("{Enter}");
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
-  await expect.element(composer).toHaveValue("你好呀");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("你好呀");
 
   await screen.user.keyboard("{Enter}");
   expectStartTurnCalledOnceWithText(startTurn, "你好呀");
@@ -453,31 +575,29 @@ test("clears completed composition suppression on the next non Enter keydown", a
   const commandHandle = createGuiHostCommands();
   const startTurn = vi.mocked(commandHandle.startTurn);
   const screen = await renderAttached(commandHandle, true);
-  const composer = screen.getByPlaceholder("Message Codex");
-  const textarea = composer.element();
-  if (!(textarea instanceof HTMLTextAreaElement)) {
-    throw new Error("composer textarea must render");
-  }
+  const composer = getComposer(screen);
+  const editorRoot = composer.element();
 
+  await composer.fill("你好呀");
   await composer.click();
-  textarea.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  textarea.value = "你好呀";
-  textarea.dispatchEvent(
+  editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  editorRoot.dispatchEvent(
     new CompositionEvent("compositionend", {
       bubbles: true,
       data: "你好呀",
     }),
   );
-  await expect.element(composer).toHaveValue("你好呀");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("你好呀");
 
-  const spaceAllowed = textarea.dispatchEvent(
+  editorRoot.dispatchEvent(
     new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
       key: " ",
     }),
   );
-  expect(spaceAllowed).toBe(true);
 
   await screen.user.keyboard("{Enter}");
 
@@ -490,36 +610,36 @@ test.each([" ", "Enter"])(
     const commandHandle = createGuiHostCommands();
     const startTurn = vi.mocked(commandHandle.startTurn);
     const screen = await renderAttached(commandHandle, true);
-    const composer = screen.getByPlaceholder("Message Codex");
-    const textarea = composer.element();
-    if (!(textarea instanceof HTMLTextAreaElement)) {
-      throw new Error("composer textarea must render");
-    }
+    const composer = getComposer(screen);
+    const editorRoot = composer.element();
 
+    await composer.fill("你好呀");
     await composer.click();
-    textarea.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-    textarea.value = "你好呀";
-    textarea.dispatchEvent(
+    editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    editorRoot.dispatchEvent(
       new CompositionEvent("compositionend", {
         bubbles: true,
         data: "你好呀",
       }),
     );
-    await expect.element(composer).toHaveValue("你好呀");
+    await expect
+      .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+      .toBe("你好呀");
 
-    const keyupAllowed = textarea.dispatchEvent(
+    editorRoot.dispatchEvent(
       new KeyboardEvent("keyup", {
         bubbles: true,
         cancelable: true,
         key,
       }),
     );
-    expect(keyupAllowed).toBe(true);
 
     await screen.user.keyboard("{Enter}");
 
     expect(commandHandle.startTurn).not.toHaveBeenCalled();
-    await expect.element(composer).toHaveValue("你好呀");
+    await expect
+      .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+      .toBe("你好呀");
 
     await screen.user.keyboard("{Enter}");
 
@@ -541,7 +661,7 @@ test("active turn allows queuing and enables Stop", async () => {
   const screen = await renderAttached(commandHandle, false, "en", controller);
   screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
 
-  await screen.getByPlaceholder("Message Codex").fill("Next draft");
+  await getComposer(screen).fill("Next draft");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await expect.element(screen.getByText("1 message queued")).toBeVisible();
@@ -583,12 +703,14 @@ test("definite send failure exposes recovery without restoring the submitted dra
     }),
   );
   const screen = await renderAttached(commandHandle);
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
 
   await composer.fill("Keep this draft");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
-  await expect.element(composer).toHaveValue("");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("");
   await expect.element(screen.getByText("1 message has not been sent")).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Continue sending" })).toBeVisible();
 });
@@ -604,19 +726,21 @@ test("renders Simplified Chinese composer and recovery copy", async () => {
     }),
   );
   const screen = await renderAttached(commandHandle, false, "zh-CN");
-  const composer = screen.getByPlaceholder("向 Codex 发送消息");
+  const composer = getComposer(screen, "向 Codex 发送消息");
 
   await expect.element(screen.getByRole("region", { name: "消息输入区" })).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "停止" })).toBeDisabled();
   await composer.fill("保留这份草稿");
   await screen.getByRole("button", { name: "发送" }).click();
 
-  await expect.element(composer).toHaveValue("");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("");
   await expect.element(screen.getByText("1 条消息尚未发送")).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "继续发送" })).toBeVisible();
 });
 
-test("recovery disables send, keeps the textarea editable, and prevents duplicate recovery", async () => {
+test("recovery disables send, keeps the editor editable, and prevents duplicate recovery", async () => {
   const initialSnapshot: ComposerInputQueueCoordinatorSnapshot = {
     queuedCount: 0,
     recoveryCount: 2,
@@ -628,18 +752,20 @@ test("recovery disables send, keeps the textarea editable, and prevents duplicat
     return true;
   });
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
   const recoverButton = screen.getByRole("button", { name: "Continue sending" });
 
   await composer.fill("Draft while recovering");
-  await expect.element(composer).toBeEnabled();
+  await expect.element(composer).toHaveAttribute("contenteditable", "true");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(recoverButton).toHaveAccessibleDescription("2 messages have not been sent");
   await userEvent.click(recoverButton);
   await expect.element(recoverButton).toBeDisabled();
 
   expect(harness.recover).toHaveBeenCalledExactlyOnceWith();
-  await expect.element(composer).toHaveValue("Draft while recovering");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("Draft while recovering");
 });
 
 test("guards recovery when commands are unavailable", async () => {
@@ -649,10 +775,10 @@ test("guards recovery when commands are unavailable", async () => {
     isRecovering: false,
   });
   const screen = await renderAttached(null, false, "en", harness.controller);
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
   const recoverButton = screen.getByRole("button", { name: "Continue sending" });
 
-  await expect.element(composer).toBeDisabled();
+  await expect.element(composer).toHaveAttribute("contenteditable", "false");
   await expect.element(recoverButton).toBeDisabled();
 });
 
@@ -670,10 +796,10 @@ test("guards recovery while manual reconnect is required", async () => {
       subscriptionId: attachResponse.subscriptionId,
     }),
   );
-  const composer = screen.getByPlaceholder("Message Codex");
+  const composer = getComposer(screen);
   const recoverButton = screen.getByRole("button", { name: "Continue sending" });
 
-  await expect.element(composer).toBeDisabled();
+  await expect.element(composer).toHaveAttribute("contenteditable", "false");
   await expect.element(recoverButton).toBeDisabled();
 });
 
@@ -692,7 +818,9 @@ test("pending stop disables duplicate interruption until success", async () => {
 
   pending.resolve({});
   await expect.element(stopButton).toBeEnabled();
-  await expect.element(composer).toHaveValue("Draft while stopping");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("Draft while stopping");
 });
 
 test("stop failure keeps draft and shows a toast", async () => {
@@ -703,7 +831,9 @@ test("stop failure keeps draft and shows a toast", async () => {
   pending.reject(new Error("interrupt failed"));
 
   await expect.element(stopButton).toBeEnabled();
-  await expect.element(composer).toHaveValue("Draft while stopping");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("Draft while stopping");
   await expect.element(screen.getByText("Stop failed")).toBeVisible();
   await expect.element(screen.getByText("interrupt failed")).toBeVisible();
   expect(interruptTurn).toHaveBeenCalledTimes(1);

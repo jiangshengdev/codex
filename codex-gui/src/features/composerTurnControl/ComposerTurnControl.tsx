@@ -1,20 +1,22 @@
-import { Button, Chip, Surface, TextArea, toast } from "@heroui/react";
+import { Button, Chip, Surface, toast } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
-import {
-  useRef,
-  useId,
-  useState,
-  useSyncExternalStore,
-  type CompositionEvent,
-  type KeyboardEvent,
-} from "react";
+import { $getRoot } from "lexical";
+import { useRef, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
+import {
+  ComposerEditor,
+  type ComposerEditorController,
+  type ComposerEditorSnapshot,
+} from "@/features/composerEditor/ComposerEditor";
+import { $isSkillNode } from "@/features/composerEditor/SkillNode";
+import { compileComposerDraft } from "@/features/composerEditor/compileComposerDraft";
 import type {
   ComposerInputQueueCoordinator,
   ComposerInputQueueCoordinatorSnapshot,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
 import {
@@ -29,6 +31,7 @@ import {
   canSend,
   canStop,
   errorDescription,
+  invalidSelectedSkillPaths,
   isConnectionUsable,
 } from "./composerTurnControlModel";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
@@ -41,6 +44,7 @@ export type ComposerTurnControlProps = {
   guardCompositionEndEnter: boolean;
   guiHostStatus: GuiHostStatus;
   routeTarget: GuiRouteTarget;
+  skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"];
 };
 
 export function ComposerTurnControl({
@@ -50,16 +54,16 @@ export function ComposerTurnControl({
   guardCompositionEndEnter,
   guiHostStatus,
   routeTarget,
+  skillCatalogController,
 }: ComposerTurnControlProps) {
   const { t } = useLingui();
-  const [draft, setDraft] = useState("");
+  const [composerEditorController, setComposerEditorController] =
+    useState<ComposerEditorController | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const isSubmittingRef = useRef(false);
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
-  const isComposingRef = useRef(false);
-  const suppressNextEnterRef = useRef(false);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
@@ -69,6 +73,14 @@ export function ComposerTurnControl({
   const queueSnapshot = useSyncExternalStore(
     composerInputQueueController?.subscribe ?? subscribeUnavailableQueue,
     composerInputQueueController?.getSnapshot ?? getUnavailableQueueSnapshot,
+  );
+  const skillCatalog = useSyncExternalStore(
+    skillCatalogController.subscribe,
+    skillCatalogController.getSnapshot,
+  );
+  const editorSnapshot = useSyncExternalStore<ComposerEditorSnapshot | null>(
+    composerEditorController?.subscribe ?? subscribeUnavailableEditor,
+    composerEditorController?.getSnapshot ?? getUnavailableEditorSnapshot,
   );
 
   const connectionUsable =
@@ -83,12 +95,26 @@ export function ComposerTurnControl({
     composerInputQueueController != null &&
     threadId != null &&
     composerInputQueueController.ownerThreadId === threadId;
+  const invalidSkillPaths = useMemo(
+    () =>
+      invalidSelectedSkillPaths(
+        skillCatalog,
+        editorSnapshot == null ? [] : selectedSkillPaths(editorSnapshot),
+      ),
+    [editorSnapshot, skillCatalog],
+  );
+  const invalidStatusText = t`Invalid skill`;
+  const skillValidity = useMemo(
+    () => ({ invalidPaths: invalidSkillPaths, statusText: invalidStatusText }),
+    [invalidSkillPaths, invalidStatusText],
+  );
   const sendEnabled = canSend({
     connectionUsable,
     controllerReady: controllerMatchesCurrentThread,
-    draft,
+    draftText: editorSnapshot?.textContent ?? "",
     isSending,
     recoveryCount: queueSnapshot.recoveryCount,
+    selectedSkillsValid: invalidSkillPaths.size === 0,
   });
   const stopEnabled = canStop({
     connectionUsable,
@@ -104,17 +130,32 @@ export function ComposerTurnControl({
 
   useRevealComposerOnViewportResize(composerShellRef);
 
-  const submit = (): void => {
-    if (!sendEnabled || composerInputQueueController == null || isSubmittingRef.current) {
+  const submit = (requestedSnapshot?: ComposerEditorSnapshot): void => {
+    const submittedSnapshot = requestedSnapshot ?? composerEditorController?.getSnapshot() ?? null;
+    if (
+      submittedSnapshot == null ||
+      composerEditorController == null ||
+      composerInputQueueController == null ||
+      isSubmittingRef.current ||
+      !canSend({
+        connectionUsable,
+        controllerReady: controllerMatchesCurrentThread,
+        draftText: submittedSnapshot.textContent,
+        isSending,
+        recoveryCount: queueSnapshot.recoveryCount,
+        selectedSkillsValid:
+          invalidSelectedSkillPaths(skillCatalog, selectedSkillPaths(submittedSnapshot)).size === 0,
+      })
+    ) {
       return;
     }
 
-    const submittedDraft = draft;
+    const input = compileComposerDraft(submittedSnapshot.editorState);
     isSubmittingRef.current = true;
     setIsSending(true);
-    const result = composerInputQueueController.submit(submittedDraft);
+    const result = composerInputQueueController.submit(input);
     if (result.type === "accepted") {
-      setDraft((currentDraft) => (currentDraft === submittedDraft ? "" : currentDraft));
+      composerEditorController.clearIfSame(submittedSnapshot.editorState);
     }
     queueMicrotask(() => {
       isSubmittingRef.current = false;
@@ -149,40 +190,6 @@ export function ComposerTurnControl({
     }
   };
 
-  const onCompositionStart = (): void => {
-    isComposingRef.current = true;
-    suppressNextEnterRef.current = false;
-  };
-
-  const onCompositionEnd = (event: CompositionEvent<HTMLTextAreaElement>): void => {
-    const wasComposing = isComposingRef.current;
-    isComposingRef.current = false;
-    if (wasComposing && guardCompositionEndEnter) {
-      suppressNextEnterRef.current = true;
-    }
-    setDraft(event.currentTarget.value);
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key !== "Enter" || event.shiftKey) {
-      suppressNextEnterRef.current = false;
-      return;
-    }
-
-    if (event.nativeEvent.isComposing || isComposingRef.current) {
-      return;
-    }
-
-    if (suppressNextEnterRef.current) {
-      event.preventDefault();
-      suppressNextEnterRef.current = false;
-      return;
-    }
-
-    event.preventDefault();
-    submit();
-  };
-
   return (
     <section
       aria-label={t`Message composer`}
@@ -190,21 +197,19 @@ export function ComposerTurnControl({
       ref={composerShellRef}
     >
       <Surface
-        className="composer-panel mx-auto grid w-full max-w-3xl gap-2 rounded-[20px] p-2 shadow-md"
+        className="composer-panel relative mx-auto grid w-full max-w-3xl gap-2 rounded-[20px] p-2 shadow-md"
         variant="default"
       >
-        <TextArea
+        <ComposerEditor
+          ariaLabel={t`Message Codex`}
           disabled={!connectionUsable}
-          fullWidth
-          onChange={(event) => {
-            setDraft(event.target.value);
-          }}
-          onCompositionEnd={onCompositionEnd}
-          onCompositionStart={onCompositionStart}
-          onKeyDown={onKeyDown}
+          guardCompositionEndEnter={guardCompositionEndEnter}
+          onControllerChange={setComposerEditorController}
+          onRetrySkillCatalog={skillCatalogController.retry}
+          onSubmit={submit}
           placeholder={t`Message Codex`}
-          value={draft}
-          variant="primary"
+          skillCatalog={skillCatalog}
+          skillValidity={skillValidity}
         />
         {queueSnapshot.queuedCount > 0 || queueSnapshot.recoveryCount > 0 ? (
           <div className="flex items-center gap-2">
@@ -277,3 +282,14 @@ const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {
 const subscribeUnavailableQueue = (): (() => void) => () => undefined;
 const getUnavailableQueueSnapshot = (): ComposerInputQueueCoordinatorSnapshot =>
   unavailableQueueSnapshot;
+const subscribeUnavailableEditor = (): (() => void) => () => undefined;
+const getUnavailableEditorSnapshot = (): null => null;
+
+function selectedSkillPaths(snapshot: ComposerEditorSnapshot): string[] {
+  return snapshot.editorState.read(() =>
+    $getRoot()
+      .getAllTextNodes()
+      .filter($isSkillNode)
+      .map((node) => node.getSkill().path),
+  );
+}

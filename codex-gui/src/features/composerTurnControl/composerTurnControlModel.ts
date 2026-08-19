@@ -1,4 +1,5 @@
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type { ThreadRuntimeSubscription } from "@/features/threadRuntime/threadRuntimeSlice";
 
 export type ComposerAvailabilityInput = {
@@ -21,17 +22,39 @@ export function isConnectionUsable(input: ComposerAvailabilityInput): boolean {
 export function canSend(input: {
   connectionUsable: boolean;
   controllerReady: boolean;
-  draft: string;
+  draftText: string;
   isSending: boolean;
   recoveryCount: number;
+  selectedSkillsValid: boolean;
 }): boolean {
   return (
     input.connectionUsable &&
     input.controllerReady &&
-    input.draft.trim().length > 0 &&
+    input.draftText.trim().length > 0 &&
     !input.isSending &&
-    input.recoveryCount === 0
+    input.recoveryCount === 0 &&
+    input.selectedSkillsValid
   );
+}
+
+const noInvalidSkillPaths: ReadonlySet<string> = new Set();
+
+export function invalidSelectedSkillPaths(
+  skillCatalog: SkillCatalogState,
+  selectedSkillPaths: readonly string[],
+): ReadonlySet<string> {
+  if (skillCatalog.type !== "ready" || skillCatalog.partialErrorCount > 0) {
+    return noInvalidSkillPaths;
+  }
+
+  const availablePaths = new Set(skillCatalog.candidates.map((candidate) => candidate.path));
+  const invalidPaths = new Set<string>();
+  for (const path of selectedSkillPaths) {
+    if (!availablePaths.has(path)) {
+      invalidPaths.add(path);
+    }
+  }
+  return invalidPaths.size === 0 ? noInvalidSkillPaths : invalidPaths;
 }
 
 export function canRecoverComposerQueue(input: {

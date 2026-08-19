@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import {
   canRecoverComposerQueue,
   canSend,
   canStop,
   errorDescription,
+  invalidSelectedSkillPaths,
   isConnectionUsable,
 } from "../composerTurnControlModel";
 
 const initializedStatus: GuiHostStatus = {
   label: "initialized",
 };
+
+const skillCandidate = (path: string): SkillCatalogState["candidates"][number] => ({
+  name: path,
+  description: `${path} description`,
+  path,
+  scope: "repo",
+});
 
 describe("composerTurnControlModel", () => {
   it("requires attached identity, active subscription, thread id, and usable host status", () => {
@@ -65,54 +74,70 @@ describe("composerTurnControlModel", () => {
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(true);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "   ",
+        draftText: "   ",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(false);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(true);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: true,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(false);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: false,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(false);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 2,
+        selectedSkillsValid: true,
+      }),
+    ).toBe(false);
+    expect(
+      canSend({
+        connectionUsable: true,
+        controllerReady: true,
+        draftText: "Hello",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: false,
       }),
     ).toBe(false);
 
@@ -126,6 +151,55 @@ describe("composerTurnControlModel", () => {
     expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: true })).toBe(
       false,
     );
+  });
+
+  it("derives invalid selected paths only from a complete ready catalog", () => {
+    const existingPath = "/skills/existing/SKILL.md";
+    const missingPath = "/skills/missing/SKILL.md";
+    const selectedPaths = [existingPath, missingPath];
+    const completeReady: SkillCatalogState = {
+      type: "ready",
+      candidates: [skillCandidate(existingPath)],
+      partialErrorCount: 0,
+    };
+
+    expect([...invalidSelectedSkillPaths(completeReady, selectedPaths)]).toEqual([missingPath]);
+
+    const inconclusiveStates: readonly SkillCatalogState[] = [
+      {
+        type: "ready",
+        candidates: [skillCandidate(existingPath)],
+        partialErrorCount: 1,
+      },
+      { type: "initialLoading", candidates: [], partialErrorCount: 0 },
+      {
+        type: "refreshing",
+        candidates: [skillCandidate(existingPath)],
+        partialErrorCount: 0,
+      },
+      { type: "stale", candidates: [skillCandidate(existingPath)], partialErrorCount: 0 },
+      { type: "failed", candidates: [], partialErrorCount: 0 },
+    ];
+
+    expect(
+      inconclusiveStates.map((state) => ({
+        type: state.type,
+        invalidPaths: [...invalidSelectedSkillPaths(state, selectedPaths)],
+      })),
+    ).toEqual([
+      { type: "ready", invalidPaths: [] },
+      { type: "initialLoading", invalidPaths: [] },
+      { type: "refreshing", invalidPaths: [] },
+      { type: "stale", invalidPaths: [] },
+      { type: "failed", invalidPaths: [] },
+    ]);
+
+    const recoveredReady: SkillCatalogState = {
+      type: "ready",
+      candidates: [skillCandidate(existingPath), skillCandidate(missingPath)],
+      partialErrorCount: 0,
+    };
+    expect([...invalidSelectedSkillPaths(recoveredReady, selectedPaths)]).toEqual([]);
   });
 
   it.each([

@@ -18,12 +18,12 @@ msgid "... and {count} more"
 msgstr "... and {count} more"
 
 #. placeholder {0}: queueSnapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:223
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:228
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
 #. placeholder {0}: queueSnapshot.queuedCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:213
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:218
 msgid "{0, plural, one {# message queued} other {# messages queued}}"
 msgstr "{0, plural, one {# message queued} other {# messages queued}}"
 
@@ -62,11 +62,11 @@ msgstr "Active"
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:431
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:443
 msgid "Another task switch is already in progress."
 msgstr "Another task switch is already in progress."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:189
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:201
 msgid "Back to history"
 msgstr "Back to history"
 
@@ -122,17 +122,17 @@ msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {con
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:237
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:242
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:426
 msgid "Continue this task"
 msgstr "Continue this task"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:82
-#: src/features/documentTitle/DocumentTitleOwner.tsx:45
+#: src/features/documentTitle/DocumentTitleOwner.tsx:43
 msgid "Current task"
 msgstr "Current task"
 
@@ -176,7 +176,7 @@ msgstr "Go back home"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:91
-#: src/features/documentTitle/DocumentTitleOwner.tsx:46
+#: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "History"
 msgstr "History"
 
@@ -184,8 +184,8 @@ msgstr "History"
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:47
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:177
+#: src/features/documentTitle/DocumentTitleOwner.tsx:45
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
 msgid "History detail"
 msgstr "History detail"
 
@@ -220,6 +220,10 @@ msgstr "Interrupted <0/> <1/>"
 msgid "Interrupted."
 msgstr "Interrupted."
 
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:106
+msgid "Invalid skill"
+msgstr "Invalid skill"
+
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:138
 msgid "Load more"
 msgstr "Load more"
@@ -228,7 +232,11 @@ msgstr "Load more"
 msgid "Loading history…"
 msgstr "Loading history…"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:203
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:292
+msgid "Loading skills…"
+msgstr "Loading skills…"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:215
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
@@ -240,11 +248,12 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:205
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:204
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:210
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:188
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:195
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -274,6 +283,10 @@ msgstr "No committed messages yet."
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:202
+msgid "No matching skills"
+msgstr "No matching skills"
+
 #. Status indicating that a collaborating agent could not be found
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:177
 msgid "Not found"
@@ -287,7 +300,7 @@ msgstr "Not loaded"
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
-#: src/features/documentTitle/DocumentTitleOwner.tsx:48
+#: src/features/documentTitle/DocumentTitleOwner.tsx:46
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
 msgstr "Page not found"
@@ -314,9 +327,13 @@ msgstr "QR access is unavailable until the GUI launch token is ready."
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:197
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
 msgid "Read-only history"
 msgstr "Read-only history"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:294
+msgid "Refreshing skills…"
+msgstr "Refreshing skills…"
 
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:811
 msgid "Request failed"
@@ -332,12 +349,13 @@ msgstr "Resumed {receiver}"
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:251
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:282
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:263
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:239
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:380
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:392
 msgid "Return to current task"
 msgstr "Return to current task"
 
@@ -351,7 +369,7 @@ msgstr "Running"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:263
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:268
 msgid "Send"
 msgstr "Send"
 
@@ -360,10 +378,22 @@ msgstr "Send"
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:298
+msgid "Showing saved skills because refresh failed"
+msgstr "Showing saved skills because refresh failed"
+
 #. Status of a collaborating agent that has shut down
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:171
 msgid "Shutdown"
 msgstr "Shutdown"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:296
+msgid "Skills could not be loaded"
+msgstr "Skills could not be loaded"
+
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:301
+msgid "Some skills could not be loaded"
+msgstr "Some skills could not be loaded"
 
 #: src/NotFoundPage.tsx:28
 msgid "Sorry, we couldn’t find the page you’re looking for."
@@ -391,11 +421,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:254
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:259
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:144
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:185
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -403,19 +433,19 @@ msgstr "Stop failed"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:426
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:438
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:433
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:445
 msgid "The task connection is no longer available."
 msgstr "The task connection is no longer available."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:58
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:60
 msgid "The task connection was closed."
 msgstr "The task connection was closed."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:221
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -429,7 +459,7 @@ msgstr "Transcript context pages"
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:390
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:402
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
@@ -437,7 +467,7 @@ msgstr "Unable to continue this task"
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:246
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:258
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -449,11 +479,12 @@ msgstr "Unable to load the current task"
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:362
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:374
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:177
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:189
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:150
 msgid "Untitled task"
 msgstr "Untitled task"

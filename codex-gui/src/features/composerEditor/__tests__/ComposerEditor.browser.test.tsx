@@ -12,6 +12,7 @@ import {
   type ComposerEditorController,
   type ComposerEditorSnapshot,
 } from "../ComposerEditor";
+import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
 import { compileComposerDraft } from "../compileComposerDraft";
 
 test("opens a capped accessible skill list and keeps editor focus", async () => {
@@ -109,6 +110,29 @@ test("uses Tab to choose, Escape to close, and Shift Enter only to add a line br
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("Line\n");
 });
 
+test("submits plain text without letting Enter rewrite the editor snapshot", async () => {
+  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const { controllerRef, screen } = await renderEditor([], { onSubmit });
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("Hello");
+  await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("Hello");
+  const snapshotBeforeSubmit = getController(controllerRef).getSnapshot();
+
+  await screen.user.keyboard("{Enter}");
+
+  expect(onSubmit).toHaveBeenCalledOnce();
+  const submittedSnapshot = onSubmit.mock.calls.at(0)?.at(0);
+  if (submittedSnapshot == null) {
+    throw new Error("plain text submit must provide an editor snapshot");
+  }
+  expect(submittedSnapshot).toBe(snapshotBeforeSubmit);
+  expect(getController(controllerRef).getSnapshot()).toBe(snapshotBeforeSubmit);
+  expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
+    { type: "text", text: "Hello", text_elements: [] },
+  ]);
+});
+
 test("shows authoritative source labels only for duplicate display names", async () => {
   const { screen } = await renderEditor([
     skill("first", "/user", "Shared", "first description", "user"),
@@ -201,10 +225,79 @@ test("consumes only the first Enter immediately following composition end", asyn
 
   await screen.user.keyboard("{Enter}");
   expect(onSubmit).toHaveBeenCalledOnce();
+  const submittedSnapshot = onSubmit.mock.calls.at(0)?.at(0);
+  if (submittedSnapshot == null) {
+    throw new Error("guarded composition submit must provide an editor snapshot");
+  }
+  expect(submittedSnapshot.textContent).toBe("中文");
+  expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
+    { type: "text", text: "中文", text_elements: [] },
+  ]);
 });
 
-// Invalid-token rendering depends on task 9's successful catalog reconciliation. This component
-// stage has no authoritative path-validity input, so this file deliberately does not fake it.
+test("shows invalid token text only when a complete ready catalog confirms its path is unavailable", async () => {
+  const selectedSkill = skill(
+    "canonical-skill",
+    "/private/skills/canonical-skill/SKILL.md",
+    "Friendly Skill",
+  );
+  const controllerRef = createRef<ComposerEditorController>();
+  const renderForCatalog = (skillCatalog: SkillCatalogState) => (
+    <ComposerEditor
+      ariaLabel="Message"
+      controllerRef={controllerRef}
+      disabled={false}
+      guardCompositionEndEnter={false}
+      onSubmit={() => undefined}
+      placeholder="Message Codex"
+      skillCatalog={skillCatalog}
+      skillValidity={{
+        invalidPaths: invalidSelectedSkillPaths(skillCatalog, [selectedSkill.path]),
+        statusText: "Invalid skill",
+      }}
+    />
+  );
+  const readyCatalog = catalog("ready", [selectedSkill]);
+  const invalidCatalog = catalog("ready", []);
+  const screen = await renderWithProviders(renderForCatalog(readyCatalog));
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$canonical");
+  await screen.user.keyboard("{Enter}");
+  const token = screen.getByText("$Friendly Skill", { exact: true });
+
+  await screen.rerender(renderForCatalog(invalidCatalog));
+  await expect.element(token).toHaveAttribute("aria-invalid", "true");
+  await expect.element(token).toHaveAttribute("data-invalid-status", "(Invalid skill)");
+  await expect.element(token).toHaveAttribute("aria-label", "$Friendly Skill, Invalid skill");
+  await expect.element(token).toHaveClass("bg-danger-soft");
+  await expect.element(token).toHaveClass("after:content-[attr(data-invalid-status)]");
+  expect(token.element().textContent).toBe("$Friendly Skill");
+  expect(getController(controllerRef).getSnapshot().textContent).toBe("$Friendly Skill");
+  expect(token.element().outerHTML).not.toContain(selectedSkill.path);
+
+  await screen.rerender(renderForCatalog(readyCatalog));
+  await expect.element(token).not.toHaveAttribute("aria-invalid");
+  await expect.element(token).not.toHaveAttribute("aria-label");
+  await expect.element(token).not.toHaveAttribute("data-invalid-status");
+  await expect.element(token).not.toHaveClass("bg-danger-soft");
+
+  const unconfirmedCatalogs: SkillCatalogState[] = [
+    catalog("refreshing", []),
+    catalog("stale", []),
+    catalog("failed", []),
+    catalog("ready", [], 1),
+  ];
+  for (const skillCatalog of unconfirmedCatalogs) {
+    await screen.rerender(renderForCatalog(invalidCatalog));
+    await expect.element(token).toHaveAttribute("aria-invalid", "true");
+    await screen.rerender(renderForCatalog(skillCatalog));
+    await expect.element(token).not.toHaveAttribute("aria-invalid");
+    await expect.element(token).not.toHaveAttribute("aria-label");
+    await expect.element(token).not.toHaveAttribute("data-invalid-status");
+    await expect.element(token).not.toHaveClass("bg-danger-soft");
+  }
+});
 
 type RenderEditorOptions = Readonly<{
   guardCompositionEndEnter?: boolean;
@@ -234,6 +327,26 @@ async function renderEditor(
   );
   await expect.poll(() => controllerRef.current).not.toBeNull();
   return { controllerRef, screen };
+}
+
+function catalog(
+  type: SkillCatalogState["type"],
+  candidates: readonly SkillCatalogCandidate[],
+  partialErrorCount = 0,
+): SkillCatalogState {
+  const contents = { candidates, partialErrorCount };
+  switch (type) {
+    case "initialLoading":
+      return { type: "initialLoading", ...contents };
+    case "ready":
+      return { type: "ready", ...contents };
+    case "refreshing":
+      return { type: "refreshing", ...contents };
+    case "stale":
+      return { type: "stale", ...contents };
+    case "failed":
+      return { type: "failed", ...contents };
+  }
 }
 
 function skill(

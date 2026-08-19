@@ -10,11 +10,23 @@ import {
   attachedThreadIdObserved,
   launchThreadIdRecorded,
 } from "@/features/threadIdentity/threadIdentitySlice";
+import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 
 const initializedStatus: GuiHostStatus = { label: "initialized" };
+const emptySkillCatalogSnapshot = {
+  type: "ready",
+  candidates: [],
+  partialErrorCount: 0,
+} as const;
+const skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"] = {
+  getSnapshot: () => emptySkillCatalogSnapshot,
+  subscribe: () => () => undefined,
+  invalidate: () => false,
+  retry: () => false,
+};
 
 async function renderAttached(commandHandle: GuiHostCommands | null = createGuiHostCommands()) {
   const result = await renderWithProviders(
@@ -26,6 +38,7 @@ async function renderAttached(commandHandle: GuiHostCommands | null = createGuiH
         guardCompositionEndEnter={false}
         guiHostStatus={initializedStatus}
         routeTarget={{ type: "currentTask", threadId: launchThreadId }}
+        skillCatalogController={skillCatalogController}
       />
     </>,
   );
@@ -113,7 +126,7 @@ test("does not scroll after visual viewport resize when composer is already visi
       toJSON: () => ({}),
     });
 
-    await screen.getByPlaceholder("Message Codex").click();
+    await screen.getByRole("combobox", { name: "Message Codex", exact: true }).click();
     visualViewport.viewport.height = 361;
     expect(visualViewport.dispatchResize()).toBe(true);
     await nextAnimationFrame();
@@ -146,7 +159,7 @@ test("scrolls once after visual viewport resize when composer remains covered", 
       toJSON: () => ({}),
     });
 
-    await screen.getByPlaceholder("Message Codex").click();
+    await screen.getByRole("combobox", { name: "Message Codex", exact: true }).click();
     visualViewport.viewport.height = 361;
     expect(visualViewport.dispatchResize()).toBe(true);
     await nextAnimationFrame();
@@ -184,7 +197,7 @@ test("does not scroll for visual viewport resize after composer blur", async () 
       toJSON: () => ({}),
     });
 
-    const composer = screen.getByPlaceholder("Message Codex");
+    const composer = screen.getByRole("combobox", { name: "Message Codex", exact: true });
     await composer.click();
     composer.element().blur();
     visualViewport.viewport.height = 361;
