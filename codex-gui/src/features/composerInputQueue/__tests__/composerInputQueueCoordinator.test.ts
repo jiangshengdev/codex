@@ -16,6 +16,10 @@ import { createComposerInputQueueCoordinator as createCoordinator } from "../com
 
 type Deferred = ReturnType<typeof deferredStart>;
 type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
+const input = (text: string): TurnStartParams["input"] => [
+  { type: "text", text, text_elements: [] },
+  { type: "skill", name: `skill-${text}`, path: `/example/skills/${text}/SKILL.md` },
+];
 const deferredStart = () => {
   let resolve!: (response: TurnStartResponse) => void;
   let reject!: (error: unknown) => void;
@@ -52,7 +56,7 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     expect({
       readiness: coordinator.getReleaseReadiness(),
-      submit: coordinator.submit("blocked"),
+      submit: coordinator.submit(input("blocked")),
       recover: coordinator.recover(),
       reserveAgain: coordinator.reserveRelease(),
     }).toEqual({
@@ -65,7 +69,7 @@ describe("ComposerInputQueueCoordinator", () => {
     reserved.reservation.release();
     expect({
       readiness: coordinator.getReleaseReadiness(),
-      submit: coordinator.submit("accepted after release"),
+      submit: coordinator.submit(input("accepted after release")),
     }).toEqual({ readiness: { type: "safe" }, submit: { type: "accepted" } });
 
     coordinator.dispose();
@@ -83,7 +87,7 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     expect(active.ownerThreadId).toBe("thread-active");
     expect(active.getReleaseReadiness()).toEqual({ type: "safe" });
-    active.submit("ordinary");
+    active.submit(input("ordinary"));
     expect(active.getReleaseReadiness()).toEqual({
       type: "blocked",
       blockers: [{ type: "ordinaryQueued", count: 1 }],
@@ -96,7 +100,7 @@ describe("ComposerInputQueueCoordinator", () => {
       activeTurnId: null,
       startTurn,
     });
-    coordinator.submit("pending");
+    coordinator.submit(input("pending"));
     expect(coordinator.getReleaseReadiness()).toEqual({
       type: "blocked",
       blockers: [{ type: "pendingStart", phase: "issuing" }],
@@ -136,11 +140,11 @@ describe("ComposerInputQueueCoordinator", () => {
         activeTurnId: null,
         startTurn,
       });
-      expect(coordinator.submit("first")).toEqual({ type: "accepted" });
-      expect(coordinator.submit("second")).toEqual({ type: "accepted" });
+      expect(coordinator.submit(input("first"))).toEqual({ type: "accepted" });
+      expect(coordinator.submit(input("second"))).toEqual({ type: "accepted" });
       expect(startTurn.mock.calls[0]?.[0]).toMatchObject({
         threadId: "thread-1",
-        input: [{ type: "text", text: "first", text_elements: [] }],
+        input: input("first"),
       });
       const clientId = startTurn.mock.calls[0]?.[0].clientUserMessageId;
       coordinator.observeAcceptedEvent(
@@ -164,9 +168,7 @@ describe("ComposerInputQueueCoordinator", () => {
         ),
       );
       expect(startTurn).toHaveBeenCalledTimes(2);
-      expect(startTurn.mock.calls[1]?.[0].input).toEqual([
-        { type: "text", text: "second", text_elements: [] },
-      ]);
+      expect(startTurn.mock.calls[1]?.[0].input).toEqual(input("second"));
     },
   );
 
@@ -178,8 +180,8 @@ describe("ComposerInputQueueCoordinator", () => {
       return request.promise;
     });
     const coordinator = createCoordinator({ threadId: "thread-1", activeTurnId: null, startTurn });
-    coordinator.submit("unknown");
-    coordinator.submit("queued");
+    coordinator.submit(input("unknown"));
+    coordinator.submit(input("queued"));
     requests[0]?.reject(
       new GuiHostCommandError({
         source: "missingResult",
@@ -189,6 +191,7 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     await flush();
     expect(startTurn).toHaveBeenCalledTimes(1);
+    expect(startTurn.mock.calls[0]?.[0].input).toEqual(input("unknown"));
     expect(coordinator.getReleaseReadiness()).toEqual({
       type: "blocked",
       blockers: [
@@ -208,8 +211,8 @@ describe("ComposerInputQueueCoordinator", () => {
       activeTurnId: null,
       startTurn: definiteStart,
     });
-    definite.submit("rejected");
-    definite.submit("deferred");
+    definite.submit(input("rejected"));
+    definite.submit(input("deferred"));
     definiteRequests[0]?.reject(
       new GuiHostCommandError({
         source: "rpc",
@@ -226,18 +229,21 @@ describe("ComposerInputQueueCoordinator", () => {
         { type: "recoveryPending", count: 1 },
       ],
     });
-    expect(definite.submit("blocked")).toEqual({ type: "rejected", reason: "recoveryPending" });
+    expect(definite.submit(input("blocked"))).toEqual({
+      type: "rejected",
+      reason: "recoveryPending",
+    });
     expect(definiteStart).toHaveBeenCalledTimes(1);
     expect(definite.recover()).toBe(true);
     expect(definite.recover()).toBe(false);
     expect(definiteStart).toHaveBeenCalledTimes(2);
-    expect(definiteStart.mock.calls[1]?.[0].input[0]).toMatchObject({ text: "deferred" });
+    expect(definiteStart.mock.calls[1]?.[0].input).toEqual(input("deferred"));
     definiteRequests[1]?.resolve({ turn: baseTurn("turn-deferred") });
     await flush();
     definite.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit-deferred", baseTurn("turn-deferred"))),
     );
-    expect(definiteStart.mock.calls[2]?.[0].input[0]).toMatchObject({ text: "rejected" });
+    expect(definiteStart.mock.calls[2]?.[0].input).toEqual(input("rejected"));
   });
 
   it("recovers interrupted messages in FIFO order and preserves stable snapshots", async () => {
@@ -261,8 +267,8 @@ describe("ComposerInputQueueCoordinator", () => {
       replay: "snapshotDuplicate",
     });
     expect(coordinator.getSnapshot()).toBe(initial);
-    coordinator.submit("one");
-    coordinator.submit("two");
+    coordinator.submit(input("one"));
+    coordinator.submit(input("two"));
     coordinator.observeAcceptedEvent(
       live(
         turnCompleted(eventTurnCompleted, "commit-interrupt", {
@@ -278,9 +284,9 @@ describe("ComposerInputQueueCoordinator", () => {
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit-one", baseTurn("one"))),
     );
-    expect(startTurn.mock.calls.map(([params]) => params.input[0])).toEqual([
-      { type: "text", text: "one", text_elements: [] },
-      { type: "text", text: "two", text_elements: [] },
+    expect(startTurn.mock.calls.map(([params]) => params.input)).toEqual([
+      input("one"),
+      input("two"),
     ]);
     expect(snapshots).toContainEqual({ queuedCount: 0, recoveryCount: 2, isRecovering: true });
     expect(releaseReadiness).toContainEqual({
@@ -295,7 +301,7 @@ describe("ComposerInputQueueCoordinator", () => {
     const coordinator = createCoordinator({ threadId: "thread-1", activeTurnId: null, startTurn });
     const listener = vi.fn<() => void>();
     coordinator.subscribe(listener);
-    coordinator.submit("first");
+    coordinator.submit(input("first"));
     coordinator.observeAcceptedEvent({
       notification: { ...eventItemStarted, threadId: "thread-2" },
       replay: "live",
@@ -303,7 +309,7 @@ describe("ComposerInputQueueCoordinator", () => {
     coordinator.dispose();
     const readinessAtDisposal = coordinator.getReleaseReadiness();
     const queued = createCoordinator({ threadId: "thread-1", activeTurnId: "active", startTurn });
-    queued.submit("queued");
+    queued.submit(input("queued"));
     queued.dispose();
     queued.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit", baseTurn("active"))),
@@ -311,7 +317,7 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(startTurn).toHaveBeenCalledTimes(1);
     request.resolve({ turn: baseTurn("turn-1") });
     await flush();
-    expect(coordinator.submit("late")).toEqual({ type: "rejected", reason: "disposed" });
+    expect(coordinator.submit(input("late"))).toEqual({ type: "rejected", reason: "disposed" });
     expect(coordinator.getReleaseReadiness()).toEqual(readinessAtDisposal);
     expect(listener).not.toHaveBeenCalled();
     expect(startTurn).toHaveBeenCalledTimes(1);

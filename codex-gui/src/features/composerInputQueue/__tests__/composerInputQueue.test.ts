@@ -8,7 +8,13 @@ import {
   type StartClaim,
 } from "../composerInputQueue";
 
-const message = (id: string): ComposerQueueMessage => ({ id, text: `message ${id}` });
+const message = (id: string): ComposerQueueMessage => ({
+  id,
+  input: [
+    { type: "text", text: `message ${id}`, text_elements: [] },
+    { type: "skill", name: `skill-${id}`, path: `/example/skills/${id}/SKILL.md` },
+  ],
+});
 
 function startClaim(transition: ComposerInputQueueTransition): StartClaim {
   const effect = transition.effects[0];
@@ -35,7 +41,8 @@ describe("composer input queue", () => {
     const queue = createComposerInputQueue({ activeTurnId: null });
 
     expect(queue.view()).toEqual({ queuedCount: 0, releaseState: { type: "safe" } });
-    const transition = submit(queue, "a");
+    const submittedMessage = message("a");
+    const transition = queue.submit(submittedMessage);
     const claim = startClaim(transition);
 
     expect(transition).toEqual({
@@ -43,6 +50,8 @@ describe("composer input queue", () => {
       effects: [{ type: "performStart", claim }],
     });
     expect(claim).toMatchObject({ type: "start", message: message("a") });
+    expect(claim.message).not.toBe(submittedMessage);
+    expect(claim.message.input).not.toBe(submittedMessage.input);
     expect(queue.view()).toEqual({
       queuedCount: 0,
       releaseState: {
@@ -178,23 +187,39 @@ describe("composer input queue", () => {
     });
   });
 
-  it("rejects blank and locally owned duplicate messages without changing ownership", () => {
+  it("rejects empty input and whitespace-only text without changing ownership", () => {
     const queue = createComposerInputQueue({ activeTurnId: null });
 
-    expect(queue.submit({ id: "blank", text: " \n\t " })).toEqual({
-      result: { type: "invalidInput", reason: "emptyText" },
+    expect(queue.submit({ id: "empty", input: [] })).toEqual({
+      result: { type: "invalidInput", reason: "emptyInput" },
       effects: [],
     });
-    const claim = startClaim(submit(queue, "a"));
-    expect(submit(queue, "a")).toEqual({
+    expect(
+      queue.submit({
+        id: "blank",
+        input: [{ type: "text", text: " \n\t ", text_elements: [] }],
+      }),
+    ).toEqual({
+      result: { type: "invalidInput", reason: "emptyInput" },
+      effects: [],
+    });
+    const skillOnly = message("skill-only").input[1];
+    if (skillOnly == null) throw new Error("skill-only fixture must exist");
+    expect(queue.submit({ id: "skill-only", input: [skillOnly] }).result).toEqual({
+      type: "claimIssued",
+    });
+
+    const duplicateQueue = createComposerInputQueue({ activeTurnId: null });
+    const claim = startClaim(submit(duplicateQueue, "a"));
+    expect(submit(duplicateQueue, "a")).toEqual({
       result: { type: "duplicateIdentity", messageId: "a" },
       effects: [],
     });
-    expect(queue.settleStart({ type: "accepted", claim, turnId: "turn-a" })).toEqual({
+    expect(duplicateQueue.settleStart({ type: "accepted", claim, turnId: "turn-a" })).toEqual({
       result: { type: "applied", operation: "startAccepted" },
       effects: [],
     });
-    expect(submit(queue, "a")).toEqual({
+    expect(submit(duplicateQueue, "a")).toEqual({
       result: { type: "duplicateIdentity", messageId: "a" },
       effects: [],
     });

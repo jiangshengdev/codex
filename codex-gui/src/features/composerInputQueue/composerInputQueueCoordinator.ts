@@ -7,6 +7,7 @@ import {
   type ComposerInputQueueEffect,
   type ComposerInputQueueReleaseBlocker,
   type ComposerInputQueueTransition,
+  type ComposerQueueMessage,
   type RecoveryBatch,
   type StartClaim,
   type StartSettlement,
@@ -56,7 +57,7 @@ export type ComposerInputQueueCoordinatorReserveReleaseResult =
 
 export type ComposerInputQueueCoordinator = Readonly<{
   ownerThreadId: string;
-  submit(text: string): ComposerInputQueueSubmitResult;
+  submit(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult;
   recover(): boolean;
   observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
   getReleaseReadiness(): ComposerInputQueueCoordinatorReleaseReadiness;
@@ -99,7 +100,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     return this.threadId;
   }
 
-  submit(text: string): ComposerInputQueueSubmitResult {
+  submit(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult {
     if (this.disposed) return { type: "rejected", reason: "disposed" };
     if (this.releaseReservation != null) {
       return { type: "rejected", reason: "releaseReserved" };
@@ -108,7 +109,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     nextMessageSequence += 1;
     const transition = this.queue.submit({
       id: `composer-message-${String(nextMessageSequence)}`,
-      text,
+      input,
     });
     if (transition.result.type === "invalidInput") {
       return { type: "rejected", reason: "invalidInput" };
@@ -235,7 +236,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.startTurn({
       threadId: this.threadId,
       clientUserMessageId: claim.clientUserMessageId,
-      input: [{ type: "text", text: claim.message.text, text_elements: [] }],
+      input: [...claim.message.input],
     }).then(
       ({ turn }) => {
         this.settle(generation, { type: "accepted", claim, turnId: turn.id });

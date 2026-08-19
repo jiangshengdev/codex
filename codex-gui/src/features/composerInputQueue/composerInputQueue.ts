@@ -18,7 +18,7 @@ type ObservedClientIdentity = NonNullable<Extract<ThreadItem, { type: "userMessa
 
 export type ComposerQueueMessage = Readonly<{
   id: string;
-  text: string;
+  input: readonly TurnStartParams["input"][number][];
 }>;
 
 export type StartClaim = Readonly<{
@@ -51,7 +51,7 @@ export type ComposerInputQueueResult =
       reason: RecoveryBatch["reason"];
       messageIds: readonly string[];
     }>
-  | Readonly<{ type: "invalidInput"; reason: "emptyText" }>
+  | Readonly<{ type: "invalidInput"; reason: "emptyInput" }>
   | Readonly<{ type: "duplicateIdentity"; messageId: string }>
   | Readonly<{
       type: "idempotentReplay";
@@ -151,7 +151,11 @@ function transition(
 }
 
 function ownMessage(message: ComposerQueueMessage): ComposerQueueMessage {
-  return { id: message.id, text: message.text };
+  return { id: message.id, input: [...message.input] };
+}
+
+function hasMeaningfulInput(input: ComposerQueueMessage["input"]): boolean {
+  return input.some((item) => item.type !== "text" || item.text.trim() !== "");
 }
 
 function sameObservation(left: RuntimeObservation, right: RuntimeObservation): boolean {
@@ -408,8 +412,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   public submit = (message: ComposerQueueMessage): ComposerInputQueueTransition => {
-    if (message.text.trim() === "") {
-      return transition({ type: "invalidInput", reason: "emptyText" });
+    if (!hasMeaningfulInput(message.input)) {
+      return transition({ type: "invalidInput", reason: "emptyInput" });
     }
     if (this.knownMessageIds.has(message.id)) {
       return transition({ type: "duplicateIdentity", messageId: message.id });

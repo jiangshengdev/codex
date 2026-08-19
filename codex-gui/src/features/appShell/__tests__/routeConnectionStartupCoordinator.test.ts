@@ -1,4 +1,5 @@
 import type { UnknownAction } from "@reduxjs/toolkit";
+import type { TurnStartParams } from "@codex-protocol/v2";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import type { AppDispatch } from "@/app/store";
@@ -31,6 +32,9 @@ const currentThreadId = attachBaseline.snapshot.thread.id;
 const recoveryThreadId = "00000000-0000-0000-0000-000000000002";
 const detailThreadId = "00000000-0000-0000-0000-000000000003";
 type AttachResponse = Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>;
+const input = (text: string): TurnStartParams["input"] => [
+  { type: "text", text, text_elements: [] },
+];
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -279,7 +283,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       activeThreadId: currentThreadId,
     });
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(1);
-    expect(outcome.activeOwner.queueCoordinator.submit("owner remains live")).toEqual({
+    expect(outcome.activeOwner.queueCoordinator.submit(input("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -320,7 +324,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       activeThreadId: recoveryThreadId,
     });
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(1);
-    expect(outcome.activeOwner.queueCoordinator.submit("owner remains live")).toEqual({
+    expect(outcome.activeOwner.queueCoordinator.submit(input("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -377,7 +381,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       token: "secret",
       activeThreadId: recoveryThreadId,
     });
-    expect(outcome.activeOwner.queueCoordinator.submit("owner remains live")).toEqual({
+    expect(outcome.activeOwner.queueCoordinator.submit(input("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -436,7 +440,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       token: "secret",
       activeThreadId: recoveryThreadId,
     });
-    expect(outcome.activeOwner.queueCoordinator.submit("owner remains live")).toEqual({
+    expect(outcome.activeOwner.queueCoordinator.submit(input("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -477,7 +481,7 @@ describe("RouteConnectionStartupCoordinator", () => {
     expect(h.commands.startTurn).not.toHaveBeenCalled();
     const disposedOwner = requireActiveOwner(ownerDuringCommit);
     expect(disposedOwner.queueCoordinator.getSnapshot().recoveryCount).toBe(0);
-    expect(disposedOwner.queueCoordinator.submit("disposed owner")).toEqual({
+    expect(disposedOwner.queueCoordinator.submit(input("disposed owner"))).toEqual({
       type: "rejected",
       reason: "disposed",
     });
@@ -522,7 +526,7 @@ describe("RouteConnectionStartupCoordinator", () => {
     expect(h.commands.startTurn).not.toHaveBeenCalled();
     const disposedOwner = requireActiveOwner(ownerDuringReplay);
     expect(disposedOwner.queueCoordinator.getSnapshot().recoveryCount).toBe(0);
-    expect(disposedOwner.queueCoordinator.submit("disposed owner")).toEqual({
+    expect(disposedOwner.queueCoordinator.submit(input("disposed owner"))).toEqual({
       type: "rejected",
       reason: "disposed",
     });

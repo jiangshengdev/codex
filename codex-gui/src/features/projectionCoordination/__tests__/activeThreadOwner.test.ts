@@ -98,7 +98,11 @@ describe("activeThreadOwner skill catalog", () => {
     pending.resolve(response("stale"));
     await Promise.resolve();
 
-    expect(prepared.activeOwner.queueCoordinator.submit("after dispose")).toEqual({
+    expect(
+      prepared.activeOwner.queueCoordinator.submit([
+        { type: "text", text: "after dispose", text_elements: [] },
+      ]),
+    ).toEqual({
       type: "rejected",
       reason: "disposed",
     });
