@@ -1,5 +1,6 @@
 import { createRef, type RefObject } from "react";
 import { expect, test, vi } from "vitest";
+import { $getSelection, $isRangeSelection } from "lexical";
 
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
@@ -65,8 +66,25 @@ test("replaces a query at a middle caret with canonical skill input without subm
   const editor = screen.getByRole("combobox", { name: "Message" });
 
   await editor.fill("before $canonical after");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("before $canonical after");
   await editor.click();
-  await screen.user.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+  await expect.element(editor).toHaveFocus();
+  setCollapsedCaret(editor.element(), "before $canonical after", 17);
+  await expect
+    .poll(() =>
+      getController(controllerRef)
+        .getSnapshot()
+        .editorState.read(() => {
+          const selection = $getSelection();
+          return $isRangeSelection(selection) && selection.isCollapsed()
+            ? selection.anchor.offset
+            : null;
+        }),
+    )
+    .toBe(17);
+  await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
   await screen.user.keyboard("{Enter}");
 
@@ -370,6 +388,36 @@ function getController(ref: RefObject<ComposerEditorController | null>): Compose
     throw new Error("composer controller must be ready");
   }
   return ref.current;
+}
+
+function setCollapsedCaret(root: Element, expectedText: string, offset: number): void {
+  const textElements = root.querySelectorAll<HTMLElement>('[data-lexical-text="true"]');
+  if (textElements.length !== 1) {
+    throw new Error("composer editor must contain exactly one Lexical text element");
+  }
+
+  const textElement = textElements.item(0);
+  const textNode = textElement.firstChild;
+  if (textElement.childNodes.length !== 1 || !(textNode instanceof Text)) {
+    throw new Error("Lexical text element must contain exactly one Text child");
+  }
+  if (textNode.data !== expectedText) {
+    throw new Error(`expected Lexical text ${expectedText}, received ${textNode.data}`);
+  }
+  if (!Number.isInteger(offset) || offset < 0 || offset > textNode.length) {
+    throw new Error(`caret offset ${String(offset)} is outside the Lexical text`);
+  }
+
+  const selection = root.ownerDocument.getSelection();
+  if (selection == null) {
+    throw new Error("composer editor document must provide a Selection");
+  }
+  const range = root.ownerDocument.createRange();
+  range.setStart(textNode, offset);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  root.ownerDocument.dispatchEvent(new Event("selectionchange"));
 }
 
 function dispatchHistoryShortcut(element: Element, command: "undo" | "redo"): void {
