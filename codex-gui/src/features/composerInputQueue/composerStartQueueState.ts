@@ -5,6 +5,7 @@ import type {
   ComposerQueueMessage,
   RuntimeObservation,
 } from "./composerInputQueueContracts";
+import type { RejectedSteerTransfer } from "./composerSteerQueueState";
 
 const startClaimCapability: unique symbol = Symbol("StartClaim");
 const PENDING_FACT_LIMIT = 4;
@@ -13,11 +14,15 @@ let nextClientUserMessageSequence = 0;
 
 type TurnIdentity = Turn["id"];
 type StartClientIdentity = NonNullable<TurnStartParams["clientUserMessageId"]>;
+type StartClaimProvenance =
+  | Readonly<{ type: "ordinary" }>
+  | Readonly<{ type: "rejectedSteerMerge"; transfer: RejectedSteerTransfer }>;
 
 export type StartClaim = Readonly<{
   type: "start";
   message: ComposerQueueMessage;
   clientUserMessageId: StartClientIdentity;
+  provenance: StartClaimProvenance;
   [startClaimCapability]: true;
 }>;
 
@@ -97,12 +102,13 @@ export class ComposerStartQueueState {
       : this.pendingStart.phase;
   }
 
-  public issue(message: ComposerQueueMessage): StartClaim {
+  public issue(message: ComposerQueueMessage, provenance: StartClaimProvenance): StartClaim {
     nextClientUserMessageSequence += 1;
     const claim: StartClaim = {
       type: "start",
       message,
       clientUserMessageId: `composer-input-queue-${String(nextClientUserMessageSequence)}`,
+      provenance,
       [startClaimCapability]: true as const,
     };
     this.pendingStart = { phase: "issuing", claim };

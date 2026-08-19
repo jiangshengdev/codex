@@ -4,6 +4,12 @@ import type {
   Turn,
   TurnStartParams,
 } from "@codex-protocol/v2";
+import type { ComposerInputPreview } from "./composerInputPreview";
+import type {
+  PendingSteerPhase,
+  RejectedSteer,
+  SteerRecoveryTransfer,
+} from "./composerSteerQueueState";
 
 type TurnIdentity = Turn["id"];
 type CommitIdentity = ThreadProjectionEventNotification["commitId"];
@@ -15,10 +21,15 @@ export type ComposerQueueMessage = Readonly<{
   input: readonly TurnStartParams["input"][number][];
 }>;
 
-export type RecoveryBatch = Readonly<{
-  reason: "interrupted" | "startDefinitelyNotAccepted";
-  messages: readonly ComposerQueueMessage[];
-}>;
+export type RecoveryBatch =
+  | Readonly<{
+      reason: "interrupted" | "startDefinitelyNotAccepted";
+      messages: readonly ComposerQueueMessage[];
+    }>
+  | Readonly<{
+      reason: "steerDefinitelyNotAccepted";
+      transfer: SteerRecoveryTransfer;
+    }>;
 
 export type ComposerInputQueueResult =
   | Readonly<{ type: "claimIssued" }>
@@ -27,7 +38,13 @@ export type ComposerInputQueueResult =
       type: "applied";
       operation:
         | "observationRecorded"
+        | "rejectedSteerStartRestored"
         | "startAccepted"
+        | "steerAccepted"
+        | "steerCommitted"
+        | "steerQueued"
+        | "steerRejected"
+        | "steerRecoveryRestored"
         | "turnCompleted"
         | "turnStarted"
         | "userMessageCommitted";
@@ -40,6 +57,7 @@ export type ComposerInputQueueResult =
     }>
   | Readonly<{ type: "invalidInput"; reason: "emptyInput" }>
   | Readonly<{ type: "duplicateIdentity"; messageId: string }>
+  | Readonly<{ type: "noOp"; reason: "noActiveTurn" | "ordinaryQueueEmpty" }>
   | Readonly<{
       type: "idempotentReplay";
       subject: "runtimeCommit" | "runtimeObservation" | "startSettlement";
@@ -50,7 +68,12 @@ export type ComposerInputQueueResult =
     }>
   | Readonly<{
       type: "ownershipMismatch";
-      subject: "runtimeCommit" | "runtimeTurn" | "startClaim";
+      subject:
+        | "runtimeCommit"
+        | "runtimeTurn"
+        | "startClaim"
+        | "steerClaim"
+        | "steerRecoveryTransfer";
     }>;
 
 export type ComposerInputQueuePendingStartPhase =
@@ -60,14 +83,42 @@ export type ComposerInputQueuePendingStartPhase =
 
 export type ComposerInputQueueReleaseBlocker =
   | Readonly<{ type: "ordinaryQueued"; count: number }>
-  | Readonly<{ type: "pendingStart"; phase: ComposerInputQueuePendingStartPhase }>;
+  | Readonly<{ type: "pendingStart"; phase: ComposerInputQueuePendingStartPhase }>
+  | Readonly<{ type: "steerQueued"; count: number }>
+  | Readonly<{
+      type: "pendingSteers";
+      count: number;
+      hasUnknown: boolean;
+    }>
+  | Readonly<{ type: "rejectedSteers"; count: number }>;
 
 export type ComposerInputQueueReleaseState =
   | Readonly<{ type: "safe" }>
   | Readonly<{ type: "blocked"; blockers: readonly ComposerInputQueueReleaseBlocker[] }>;
 
+export type ComposerPendingSteerView = Readonly<{
+  key: string;
+  preview: ComposerInputPreview;
+  phase: PendingSteerPhase;
+}>;
+
+export type ComposerQueuedSteerView = Readonly<{
+  key: string;
+  preview: ComposerInputPreview;
+}>;
+
+export type ComposerRejectedSteerView = Readonly<{
+  key: string;
+  preview: ComposerInputPreview;
+  reason: RejectedSteer["reason"];
+}>;
+
 export type ComposerInputQueueView = Readonly<{
   queuedCount: number;
+  pendingSteers: readonly ComposerPendingSteerView[];
+  queuedSteers: readonly ComposerQueuedSteerView[];
+  rejectedSteers: readonly ComposerRejectedSteerView[];
+  hasUnknownSteer: boolean;
   releaseState: ComposerInputQueueReleaseState;
 }>;
 
@@ -87,5 +138,6 @@ export type RuntimeObservation =
     }>;
 
 export type CreateComposerInputQueueInput = Readonly<{
+  threadId: string;
   activeTurnId: TurnIdentity | null;
 }>;
