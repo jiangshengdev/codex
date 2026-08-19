@@ -2,6 +2,17 @@
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type { ProtocolValidator, RequestResponse } from "../../features/guiHost/appServerProtocol";
 export declare const validateInitializeResponse: ProtocolValidator<RequestResponse<"initialize">>;
+export declare const validateV2SkillsChangedNotification: ProtocolValidator<
+  Extract<
+    ServerNotification,
+    {
+      method: "skills/changed";
+    }
+  >["params"]
+>;
+export declare const validateV2SkillsListResponse: ProtocolValidator<
+  RequestResponse<"skills/list">
+>;
 export declare const validateV2ThreadListResponse: ProtocolValidator<
   RequestResponse<"thread/list">
 >;
