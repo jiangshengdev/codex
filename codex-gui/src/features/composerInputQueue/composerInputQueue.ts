@@ -1,9 +1,25 @@
+import type { Turn, TurnStartParams } from "@codex-protocol/v2";
 import type {
-  ThreadItem,
-  ThreadProjectionEventNotification,
-  Turn,
-  TurnStartParams,
-} from "@codex-protocol/v2";
+  ComposerInputQueueReleaseBlocker,
+  ComposerInputQueueResult,
+  ComposerInputQueueView,
+  ComposerQueueMessage,
+  CreateComposerInputQueueInput,
+  RecoveryBatch,
+  RuntimeObservation,
+} from "./composerInputQueueContracts";
+
+export type {
+  ComposerInputQueuePendingStartPhase,
+  ComposerInputQueueReleaseBlocker,
+  ComposerInputQueueReleaseState,
+  ComposerInputQueueResult,
+  ComposerInputQueueView,
+  ComposerQueueMessage,
+  CreateComposerInputQueueInput,
+  RecoveryBatch,
+  RuntimeObservation,
+} from "./composerInputQueueContracts";
 
 const startClaimCapability: unique symbol = Symbol("StartClaim");
 const PENDING_FACT_LIMIT = 4;
@@ -11,15 +27,7 @@ const RECENT_FACT_LIMIT = 4;
 let nextClientUserMessageSequence = 0;
 
 type TurnIdentity = Turn["id"];
-type CommitIdentity = ThreadProjectionEventNotification["commitId"];
-type TerminalStatus = Exclude<Turn["status"], "inProgress">;
 type StartClientIdentity = NonNullable<TurnStartParams["clientUserMessageId"]>;
-type ObservedClientIdentity = NonNullable<Extract<ThreadItem, { type: "userMessage" }>["clientId"]>;
-
-export type ComposerQueueMessage = Readonly<{
-  id: string;
-  input: readonly TurnStartParams["input"][number][];
-}>;
 
 export type StartClaim = Readonly<{
   type: "start";
@@ -27,44 +35,6 @@ export type StartClaim = Readonly<{
   clientUserMessageId: StartClientIdentity;
   [startClaimCapability]: true;
 }>;
-
-export type RecoveryBatch = Readonly<{
-  reason: "interrupted" | "startDefinitelyNotAccepted";
-  messages: readonly ComposerQueueMessage[];
-}>;
-
-export type ComposerInputQueueResult =
-  | Readonly<{ type: "claimIssued" }>
-  | Readonly<{ type: "queued"; messageId: string }>
-  | Readonly<{
-      type: "applied";
-      operation:
-        | "observationRecorded"
-        | "startAccepted"
-        | "turnCompleted"
-        | "turnStarted"
-        | "userMessageCommitted";
-    }>
-  | Readonly<{ type: "deliveryUnknown" }>
-  | Readonly<{
-      type: "recoveryProduced";
-      reason: RecoveryBatch["reason"];
-      messageIds: readonly string[];
-    }>
-  | Readonly<{ type: "invalidInput"; reason: "emptyInput" }>
-  | Readonly<{ type: "duplicateIdentity"; messageId: string }>
-  | Readonly<{
-      type: "idempotentReplay";
-      subject: "runtimeCommit" | "runtimeObservation" | "startSettlement";
-    }>
-  | Readonly<{
-      type: "stale";
-      subject: "runtimeCommit" | "runtimeObservation" | "startSettlement";
-    }>
-  | Readonly<{
-      type: "ownershipMismatch";
-      subject: "runtimeCommit" | "runtimeTurn" | "startClaim";
-    }>;
 
 export type ComposerInputQueueEffect =
   | Readonly<{ type: "performStart"; claim: StartClaim }>
@@ -75,53 +45,16 @@ export type ComposerInputQueueTransition = Readonly<{
   effects: readonly ComposerInputQueueEffect[];
 }>;
 
-export type ComposerInputQueuePendingStartPhase =
-  | "issuing"
-  | "acceptedAwaitingRuntime"
-  | "deliveryUnknown";
-
-export type ComposerInputQueueReleaseBlocker =
-  | Readonly<{ type: "ordinaryQueued"; count: number }>
-  | Readonly<{ type: "pendingStart"; phase: ComposerInputQueuePendingStartPhase }>;
-
-export type ComposerInputQueueReleaseState =
-  | Readonly<{ type: "safe" }>
-  | Readonly<{ type: "blocked"; blockers: readonly ComposerInputQueueReleaseBlocker[] }>;
-
-export type ComposerInputQueueView = Readonly<{
-  queuedCount: number;
-  releaseState: ComposerInputQueueReleaseState;
-}>;
-
 export type StartSettlement =
   | Readonly<{ type: "accepted"; claim: StartClaim; turnId: TurnIdentity }>
   | Readonly<{ type: "definitelyNotAccepted"; claim: StartClaim }>
   | Readonly<{ type: "deliveryUnknown"; claim: StartClaim }>;
-
-export type RuntimeObservation =
-  | Readonly<{ type: "turnStarted"; turnId: TurnIdentity; commitId: CommitIdentity }>
-  | Readonly<{
-      type: "userMessageCommitted";
-      clientId: ObservedClientIdentity;
-      turnId: TurnIdentity;
-      commitId: CommitIdentity;
-    }>
-  | Readonly<{
-      type: "turnCompleted";
-      turnId: TurnIdentity;
-      status: TerminalStatus;
-      commitId: CommitIdentity;
-    }>;
 
 export type ComposerInputQueue = Readonly<{
   view(): ComposerInputQueueView;
   submit(message: ComposerQueueMessage): ComposerInputQueueTransition;
   settleStart(settlement: StartSettlement): ComposerInputQueueTransition;
   observe(observation: RuntimeObservation): ComposerInputQueueTransition;
-}>;
-
-export type CreateComposerInputQueueInput = Readonly<{
-  activeTurnId: TurnIdentity | null;
 }>;
 
 type PendingStart =

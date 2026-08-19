@@ -5,13 +5,15 @@ import {
   createComposerInputQueue,
   type ComposerInputQueue,
   type ComposerInputQueueEffect,
-  type ComposerInputQueueReleaseBlocker,
   type ComposerInputQueueTransition,
-  type ComposerQueueMessage,
-  type RecoveryBatch,
   type StartClaim,
   type StartSettlement,
 } from "./composerInputQueue";
+import type {
+  ComposerInputQueueReleaseBlocker,
+  ComposerQueueMessage,
+  RecoveryBatch,
+} from "./composerInputQueueContracts";
 import { runtimeObservationFromAcceptedProjectionEvent } from "./composerInputQueueRuntimeObservation";
 
 export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
