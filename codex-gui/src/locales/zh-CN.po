@@ -232,7 +232,7 @@ msgstr "加载更多"
 msgid "Loading history…"
 msgstr "正在加载历史记录…"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:292
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:372
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
@@ -283,7 +283,7 @@ msgstr "暂无已提交的消息。"
 msgid "No history for the current working directory."
 msgstr "当前工作目录没有历史记录。"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:202
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:229
 msgid "No matching skills"
 msgstr "没有匹配的技能"
 
@@ -331,7 +331,7 @@ msgstr "当前 GUI URL 的二维码。"
 msgid "Read-only history"
 msgstr "只读历史记录"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:294
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:374
 msgid "Refreshing skills…"
 msgstr "正在刷新技能…"
 
@@ -349,7 +349,7 @@ msgstr "已恢复 {receiver}"
 msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:282
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:362
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:263
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:239
 msgid "Retry"
@@ -378,7 +378,7 @@ msgstr "发送"
 msgid "Sent input to {receiver}"
 msgstr "已向 {receiver} 发送输入"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:298
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:378
 msgid "Showing saved skills because refresh failed"
 msgstr "刷新失败，正在显示已保存的技能"
 
@@ -387,11 +387,11 @@ msgstr "刷新失败，正在显示已保存的技能"
 msgid "Shutdown"
 msgstr "已关闭"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:296
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:376
 msgid "Skills could not be loaded"
 msgstr "无法加载技能"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:301
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:381
 msgid "Some skills could not be loaded"
 msgstr "部分技能无法加载"
 

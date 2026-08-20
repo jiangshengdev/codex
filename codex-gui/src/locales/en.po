@@ -232,7 +232,7 @@ msgstr "Load more"
 msgid "Loading history…"
 msgstr "Loading history…"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:292
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:372
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
@@ -283,7 +283,7 @@ msgstr "No committed messages yet."
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:202
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:229
 msgid "No matching skills"
 msgstr "No matching skills"
 
@@ -331,7 +331,7 @@ msgstr "QR code for current GUI URL"
 msgid "Read-only history"
 msgstr "Read-only history"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:294
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:374
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
@@ -349,7 +349,7 @@ msgstr "Resumed {receiver}"
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:282
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:362
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:263
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:239
 msgid "Retry"
@@ -378,7 +378,7 @@ msgstr "Send"
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:298
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:378
 msgid "Showing saved skills because refresh failed"
 msgstr "Showing saved skills because refresh failed"
 
@@ -387,11 +387,11 @@ msgstr "Showing saved skills because refresh failed"
 msgid "Shutdown"
 msgstr "Shutdown"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:296
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:376
 msgid "Skills could not be loaded"
 msgstr "Skills could not be loaded"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:301
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:381
 msgid "Some skills could not be loaded"
 msgstr "Some skills could not be loaded"
 
