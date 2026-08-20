@@ -12,6 +12,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   attachResponse,
   attachWithCommittedMessages,
+  createDeferred,
   createGuiHostCommands,
   emitSkillsChanged,
   emitProjectionClosed,
@@ -73,8 +74,10 @@ import {
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  textInput,
   turnCompleted,
   turnStarted,
+  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import type { SkillMetadata, SkillsListResponse } from "@codex-protocol/v2";
@@ -194,12 +197,6 @@ function App({
   return <RouterProvider router={router} />;
 }
 
-const deferred = <T,>() => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((settle) => (resolve = settle));
-  return { promise, resolve };
-};
-
 const catalogSkill = (name: string, cwd: string, enabled = true): SkillMetadata => ({
   name,
   description: `${name} description`,
@@ -297,6 +294,30 @@ const startTurnParamsAt = (
     throw new Error(`startTurn call ${String(index + 1)} must be recorded`);
   }
   return call[0];
+};
+
+const steerTurnParamsAt = (
+  steerTurn: Mock<GuiHostCommands["steerTurn"]>,
+  index: number,
+): Parameters<GuiHostCommands["steerTurn"]>[0] => {
+  const call = steerTurn.mock.calls.at(index);
+  if (call == null) {
+    throw new Error(`steerTurn call ${String(index + 1)} must be recorded`);
+  }
+  return call[0];
+};
+
+const dispatchGuideShortcut = (element: Element): void => {
+  const isMac = navigator.platform.startsWith("Mac");
+  element.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: !isMac,
+      key: "Enter",
+      metaKey: isMac,
+    }),
+  );
 };
 
 const expectStartTurnCalledOnceWithText = (
@@ -783,7 +804,7 @@ test("App isolates a replacement owner from the previous catalog settlement and 
   const commands = createGuiHostCommands();
   const currentCwd = attachResponse.snapshot.thread.cwd;
   const candidateCwd = "/workspace/candidate";
-  const staleRefresh = deferred<SkillsListResponse>();
+  const staleRefresh = createDeferred<SkillsListResponse>();
   vi.mocked(commands.listSkills)
     .mockResolvedValueOnce(skillsListResponse(currentCwd, [catalogSkill("current", currentCwd)]))
     .mockReturnValueOnce(staleRefresh.promise)
@@ -1165,17 +1186,73 @@ test("App does not publish a late startup owner after commands become unavailabl
   expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
 
-test("App passes ready commands to composer and sends plain text", async () => {
+test("App sends ordinary Enter through start identity and renders only its live commit", async () => {
+  const text = "Ordinary Enter through App";
+  const startedTurn = inProgressTurn("turn-enter-from-app");
   const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: inProgressTurn("turn-started-from-app"),
+    turn: startedTurn,
   });
   const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), startTurn };
-  const { screen } = await renderReadyApp(commandHandle);
+  const { options, screen } = await renderReadyApp(commandHandle);
+  const composer = getAppComposer(screen);
 
-  await getAppComposer(screen).fill("Hello from App composer");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await composer.fill(text);
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
 
-  expectStartTurnCalledOnceWithText(startTurn, "Hello from App composer");
+  await expect.poll(() => startTurn.mock.calls.length).toBe(1);
+  const params = startTurnParamsAt(startTurn, 0);
+  expect(typeof params.clientUserMessageId).toBe("string");
+  expect(startTurn).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+    clientUserMessageId: params.clientUserMessageId,
+    input: [textInput(text)],
+  });
+  await expect.poll(() => composer.element().textContent.trim()).toBe("");
+  await expect.element(screen.getByText(text, { exact: true })).not.toBeInTheDocument();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+
+  const started = eventWithEnvelope(
+    turnStarted(eventTurnStarted, "commit-enter-turn-started", startedTurn),
+    { parentCommitId: attachResponse.snapshot.headCommitId },
+  );
+  const committedUserMessage = userMessage(
+    "user-enter-from-app",
+    [textInput(text)],
+    params.clientUserMessageId,
+  );
+  const startedItem = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-enter-user-message-started",
+      startedTurn.id,
+      committedUserMessage,
+    ),
+    { parentCommitId: started.commitId },
+  );
+  emitProjectionEvent(options, started);
+  emitProjectionEvent(options, startedItem);
+  expect(
+    selectTranscriptEntry(
+      screen.store.getState(),
+      transcriptEntryIdFor(startedTurn.id, committedUserMessage.id),
+    ),
+  ).toBeNull();
+  await expect.element(screen.getByText(text, { exact: true })).not.toBeInTheDocument();
+
+  const completedItem = eventWithEnvelope(
+    itemCompleted(
+      eventItemCompleted,
+      "commit-enter-user-message-completed",
+      startedTurn.id,
+      committedUserMessage,
+    ),
+    { parentCommitId: startedItem.commitId },
+  );
+  emitProjectionEvent(options, completedItem);
+
+  await expect.element(screen.getByText(text, { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
 });
 
 test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
@@ -1201,6 +1278,242 @@ test("App queues during an active turn and starts exactly once after its live te
   await expect.element(screen.getByText("Queued from active turn")).not.toBeInTheDocument();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
+
+test("App guides explicit input ahead of ordinary FIFO and commits accepted identities independently", async () => {
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const explicitSteer = createDeferred<SteerResponse>();
+  const promotedSteer = createDeferred<SteerResponse>();
+  const steerTurn = vi
+    .fn<GuiHostCommands["steerTurn"]>()
+    .mockImplementationOnce(() => explicitSteer.promise)
+    .mockImplementationOnce(() => promotedSteer.promise);
+  const { activeTurn, options, queueCoordinator, screen, startTurn } = await renderActiveApp({
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("Ordinary A");
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
+  await composer.fill("Ordinary B");
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => queueCoordinator.getSnapshot().queuedCount).toBe(2);
+
+  await composer.fill("Explicit steer S");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  const explicitParams = steerTurnParamsAt(steerTurn, 0);
+  expect(explicitParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: explicitParams.clientUserMessageId,
+    input: [textInput("Explicit steer S")],
+  });
+  expect(typeof explicitParams.clientUserMessageId).toBe("string");
+  expect(startTurn).not.toHaveBeenCalled();
+
+  await expect.poll(() => composer.element().textContent.trim()).toBe("");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  expect(queueCoordinator.getSnapshot().queuedSteers).toMatchObject([
+    { preview: { type: "text", text: "Ordinary A" } },
+  ]);
+
+  explicitSteer.resolve({ turnId: activeTurn.id });
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(2);
+  const promotedParams = steerTurnParamsAt(steerTurn, 1);
+  expect(promotedParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: promotedParams.clientUserMessageId,
+    input: [textInput("Ordinary A")],
+  });
+  expect(typeof promotedParams.clientUserMessageId).toBe("string");
+  expect(promotedParams.clientUserMessageId).not.toBe(explicitParams.clientUserMessageId);
+  promotedSteer.resolve({ turnId: activeTurn.id });
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().pendingSteers.map(({ phase }) => phase))
+    .toEqual(["acceptedAwaitingCommit", "acceptedAwaitingCommit"]);
+
+  const committedPromoted = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-promoted-steer",
+      activeTurn.id,
+      userMessage(
+        "user-promoted-steer",
+        [textInput("Ordinary A")],
+        promotedParams.clientUserMessageId,
+      ),
+    ),
+    { parentCommitId: attachResponse.snapshot.headCommitId },
+  );
+  emitProjectionEvent(options, committedPromoted);
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().pendingSteers)
+    .toMatchObject([
+      { phase: "acceptedAwaitingCommit", preview: { type: "text", text: "Explicit steer S" } },
+    ]);
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+
+  const committedExplicit = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-explicit-steer",
+      activeTurn.id,
+      userMessage(
+        "user-explicit-steer",
+        [textInput("Explicit steer S")],
+        explicitParams.clientUserMessageId,
+      ),
+    ),
+    { parentCommitId: committedPromoted.commitId },
+  );
+  emitProjectionEvent(options, committedExplicit);
+  await expect.poll(() => queueCoordinator.getSnapshot().pendingSteers).toEqual([]);
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  expect(startTurn).not.toHaveBeenCalled();
+  await expect.element(screen.getByText("1 message queued", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Ordinary B", { exact: true })).not.toBeInTheDocument();
+});
+
+test("App batch rejects a non-steerable target and restores a failed merged start in order", async () => {
+  type StartResponse = Awaited<ReturnType<GuiHostCommands["startTurn"]>>;
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const startRequest = createDeferred<StartResponse>();
+  const steerRequest = createDeferred<SteerResponse>();
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>(() => startRequest.promise);
+  const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>(() => steerRequest.promise);
+  const { activeTurn, options, queueCoordinator, screen } = await renderActiveApp({
+    startTurn,
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("Ordinary after rejected steers");
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
+  await composer.fill("Rejected steer A");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  await composer.fill("Rejected steer B");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => queueCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+
+  steerRequest.reject(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("active turn is not steerable"),
+      rpcError: {
+        code: -32000,
+        message: "active turn is not steerable",
+        data: {
+          message: "active turn is not steerable",
+          codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+          additionalDetails: null,
+        },
+      },
+    }),
+  );
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview))
+    .toEqual([
+      { type: "text", text: "Rejected steer A" },
+      { type: "text", text: "Rejected steer B" },
+    ]);
+  expect(steerTurn).toHaveBeenCalledOnce();
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+
+  const terminal = eventWithEnvelope(
+    turnCompleted(eventTurnCompleted, "commit-non-steerable-terminal", {
+      ...activeTurn,
+      status: "completed",
+    }),
+    { parentCommitId: attachResponse.snapshot.headCommitId },
+  );
+  emitProjectionEvent(options, terminal);
+  await expect.poll(() => startTurn.mock.calls.length).toBe(1);
+  const mergedParams = startTurnParamsAt(startTurn, 0);
+  expect(mergedParams).toEqual({
+    threadId: launchThreadId,
+    clientUserMessageId: mergedParams.clientUserMessageId,
+    input: [textInput("Rejected steer A"), textInput("Rejected steer B")],
+  });
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+
+  startRequest.reject(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("synthetic merged start rejected"),
+    }),
+  );
+  await expect
+    .poll(() => ({
+      queuedCount: queueCoordinator.getSnapshot().queuedCount,
+      rejectedPreviews: queueCoordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview),
+    }))
+    .toEqual({
+      queuedCount: 1,
+      rejectedPreviews: [
+        { type: "text", text: "Rejected steer A" },
+        { type: "text", text: "Rejected steer B" },
+      ],
+    });
+  expect(startTurn).toHaveBeenCalledOnce();
+  expect(steerTurn).toHaveBeenCalledOnce();
+});
+
+test.each(["response mismatch", "delivery unknown"] as const)(
+  "App keeps a steer %s unknown without sending or retrying its successor",
+  async (settlement) => {
+    type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+    const steerRequest = createDeferred<SteerResponse>();
+    const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>(() => steerRequest.promise);
+    const { queueCoordinator, screen } = await renderActiveApp({ steerTurn });
+    const composer = getAppComposer(screen);
+
+    await composer.fill("Unknown steer first");
+    dispatchGuideShortcut(composer.element());
+    await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+    await composer.fill("Unknown steer successor");
+    dispatchGuideShortcut(composer.element());
+    await expect.poll(() => queueCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+
+    if (settlement === "response mismatch") {
+      steerRequest.resolve({ turnId: "turn-response-mismatch" });
+    } else {
+      steerRequest.reject(
+        new GuiHostCommandError({
+          source: "missingResult",
+          delivery: "deliveryUnknown",
+          error: new Error("steer delivery is unknown"),
+        }),
+      );
+    }
+    const expectedPhase =
+      settlement === "response mismatch" ? "responseTurnMismatch" : "deliveryUnknown";
+    await expect
+      .poll(() => queueCoordinator.getSnapshot())
+      .toMatchObject({
+        pendingSteers: [
+          { phase: expectedPhase, preview: { type: "text", text: "Unknown steer first" } },
+        ],
+        queuedSteers: [{ preview: { type: "text", text: "Unknown steer successor" } }],
+        hasUnknownSteer: true,
+      });
+    await expect.element(screen.getByText("Guide status unknown", { exact: true })).toBeVisible();
+    await steerRequest.promise.catch(() => undefined);
+    await Promise.resolve();
+    expect(steerTurn).toHaveBeenCalledOnce();
+    expect(queueCoordinator.getSnapshot()).toMatchObject({
+      pendingSteers: [{ phase: expectedPhase }],
+      queuedSteers: [{ preview: { type: "text", text: "Unknown steer successor" } }],
+      hasUnknownSteer: true,
+    });
+  },
+);
 
 test("App keeps a local Stop paused until explicit rejected-first and ordinary FIFO recovery", async () => {
   let startedTurnSequence = 0;
@@ -1789,6 +2102,80 @@ test("App closes the host connection when unmounted", async () => {
   expect(getCleanupConnectionCallCount()).toBe(1);
 });
 
+test("App isolates a disposed coordinator late steer settlement from its replacement owner", async () => {
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const oldSteerRequest = createDeferred<SteerResponse>();
+  const oldSteerTurn = vi.fn<GuiHostCommands["steerTurn"]>(() => oldSteerRequest.promise);
+  const {
+    activeTurn,
+    options,
+    queueCoordinator: oldCoordinator,
+    screen,
+  } = await renderActiveApp({ steerTurn: oldSteerTurn });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("Old issuing steer");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => oldSteerTurn.mock.calls.length).toBe(1);
+  await composer.fill("Old queued successor");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => oldCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+
+  markCommandsUnavailable(options);
+  await expect
+    .poll(() => oldCoordinator.getReleaseReadiness())
+    .toEqual({
+      type: "blocked",
+      blockers: [{ type: "disposed" }],
+    });
+
+  const replacementTurn = inProgressTurn("turn-replacement-owner");
+  const replacementStartTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
+    turn: inProgressTurn("turn-replacement-started"),
+  });
+  const replacementSteerTurn = vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
+    turnId: replacementTurn.id,
+  });
+  const replacementCommands: GuiHostCommands = {
+    ...createGuiHostCommands(),
+    startTurn: replacementStartTurn,
+    steerTurn: replacementSteerTurn,
+  };
+  queueAttachProjectionResponse(
+    replacementCommands,
+    attachWithTurns(attachResponse, [replacementTurn]),
+  );
+  initializeHost(options, replacementCommands);
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(2);
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
+  await expect
+    .poll(() => selectThreadRuntimeRecord(screen.store.getState())?.snapshotTurns)
+    .toStrictEqual([replacementTurn]);
+  const replacementResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(1);
+  if (replacementResult?.type !== "return") {
+    throw new Error("replacement App owner must create a queue coordinator");
+  }
+  const replacementCoordinator = replacementResult.value;
+  const replacementSnapshot = replacementCoordinator.getSnapshot();
+  const replacementTranscript = screen.store.getState().transcriptState;
+
+  oldSteerRequest.resolve({ turnId: activeTurn.id });
+  await oldSteerRequest.promise;
+  await Promise.resolve();
+
+  expect(oldSteerTurn).toHaveBeenCalledOnce();
+  expect(replacementSteerTurn).not.toHaveBeenCalled();
+  expect(replacementStartTurn).not.toHaveBeenCalled();
+  expect(replacementCoordinator.getSnapshot()).toBe(replacementSnapshot);
+  expect(screen.store.getState().transcriptState).toBe(replacementTranscript);
+  await expect
+    .element(screen.getByText("Old issuing steer", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Old queued successor", { exact: true }))
+    .not.toBeInTheDocument();
+});
+
 test("App owns one queue coordinator for the matching attached launch thread until cleanup", async () => {
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
@@ -1837,7 +2224,8 @@ test("App publishes a completed thread switch atomically across capabilities and
   vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
     threadId === launchThreadId ? initialQueue.coordinator : candidateQueue.coordinator,
   );
-  const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+  const pendingAttach =
+    createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
   const candidateItem = agentMessage("candidate-switch-item", "");
   const candidateAttach = attachWithThreadId(
     attachWithTurns(attachReplacement, [inProgressTurn("candidate-switch-turn")]),
@@ -2052,7 +2440,8 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
 test("App cleans up once on unmount and ignores a late switch candidate completion", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId);
   vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
-  const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+  const pendingAttach =
+    createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
   const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
