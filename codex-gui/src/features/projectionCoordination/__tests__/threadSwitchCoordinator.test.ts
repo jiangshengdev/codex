@@ -80,6 +80,7 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
     activeTurnId: null,
     startTurn: commands.startTurn,
     steerTurn: commands.steerTurn,
+    interruptTurn: commands.interruptTurn,
   });
   const realReserveRelease = queueCoordinator.reserveRelease;
   const reservationRelease = vi.fn<ComposerInputQueueCoordinatorReleaseReservation["release"]>();

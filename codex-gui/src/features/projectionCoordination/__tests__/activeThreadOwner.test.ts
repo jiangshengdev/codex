@@ -44,6 +44,7 @@ const response = (name: string): SkillsListResponse => ({
 const prepareOwner = (
   listSkills: GuiHostCommands["listSkills"],
   steerTurn = vi.fn<GuiHostCommands["steerTurn"]>(),
+  interruptTurn = vi.fn<GuiHostCommands["interruptTurn"]>(),
 ) =>
   prepareActiveThreadOwner({
     attachResponse: attachBaseline,
@@ -51,6 +52,7 @@ const prepareOwner = (
       listSkills,
       startTurn: vi.fn<GuiHostCommands["startTurn"]>(),
       steerTurn,
+      interruptTurn,
     },
     dispatch,
     scheduler,
@@ -62,11 +64,12 @@ describe("activeThreadOwner skill catalog", () => {
       .fn<GuiHostCommands["listSkills"]>()
       .mockResolvedValue(response("initial"));
     const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>();
+    const interruptTurn = vi.fn<GuiHostCommands["interruptTurn"]>();
     const createQueue = vi.spyOn(
       composerInputQueueCoordinator,
       "createComposerInputQueueCoordinator",
     );
-    const prepared = prepareOwner(listSkills, steerTurn);
+    const prepared = prepareOwner(listSkills, steerTurn, interruptTurn);
 
     expect(listSkills).toHaveBeenCalledExactlyOnceWith({
       cwds: [attachBaseline.snapshot.thread.cwd],
@@ -80,7 +83,7 @@ describe("activeThreadOwner skill catalog", () => {
     expect(typeof prepared.activeOwner.skillCatalog.subscribe).toBe("function");
     expect(typeof prepared.activeOwner.skillCatalog.invalidate).toBe("function");
     expect(typeof prepared.activeOwner.skillCatalog.retry).toBe("function");
-    expect(createQueue).toHaveBeenCalledWith(expect.objectContaining({ steerTurn }));
+    expect(createQueue).toHaveBeenCalledWith(expect.objectContaining({ interruptTurn, steerTurn }));
     expect(createQueue).toHaveReturnedWith(prepared.activeOwner.queueCoordinator);
 
     prepared.dispose();

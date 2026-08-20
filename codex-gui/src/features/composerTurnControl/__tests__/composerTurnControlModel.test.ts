@@ -4,8 +4,7 @@ import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwne
 import {
   canRecoverComposerQueue,
   canSend,
-  canStop,
-  errorDescription,
+  composerStopControlState,
   invalidSelectedSkillPaths,
   isConnectionUsable,
 } from "../composerTurnControlModel";
@@ -69,7 +68,7 @@ describe("composerTurnControlModel", () => {
     ).toBe(false);
   });
 
-  it("derives send and stop availability", () => {
+  it("derives send availability", () => {
     expect(
       canSend({
         connectionUsable: true,
@@ -140,17 +139,91 @@ describe("composerTurnControlModel", () => {
         selectedSkillsValid: false,
       }),
     ).toBe(false);
+  });
 
-    expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: false })).toBe(
-      true,
-    );
-    expect(canStop({ connectionUsable: true, activeTurnId: null, isStopping: false })).toBe(false);
-    expect(canStop({ connectionUsable: false, activeTurnId: "turn-1", isStopping: false })).toBe(
-      false,
-    );
-    expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: true })).toBe(
-      false,
-    );
+  it.each([
+    {
+      caseName: "available",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: null,
+        queueCanStop: true,
+      },
+      expected: { enabled: true, failed: false, pending: false },
+    },
+    {
+      caseName: "connection unavailable",
+      input: {
+        connectionUsable: false,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: null,
+        queueCanStop: true,
+      },
+      expected: { enabled: false, failed: false, pending: false },
+    },
+    {
+      caseName: "controller identity mismatch",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: false,
+        interruptPhase: "issuing",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: false },
+    },
+    {
+      caseName: "queue cannot stop",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: null,
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: false },
+    },
+    {
+      caseName: "issuing",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "issuing",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: true },
+    },
+    {
+      caseName: "accepted",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "accepted",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: true },
+    },
+    {
+      caseName: "delivery unknown",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "unknown",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: true },
+    },
+    {
+      caseName: "definitely not accepted",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "definitelyNotAccepted",
+        queueCanStop: true,
+      },
+      expected: { enabled: true, failed: true, pending: false },
+    },
+  ] as const)("derives stop control state for $caseName", ({ input, expected }) => {
+    expect(composerStopControlState(input)).toEqual(expected);
   });
 
   it("derives invalid selected paths only from a complete ready catalog", () => {
@@ -207,7 +280,7 @@ describe("composerTurnControlModel", () => {
       caseName: "commands unavailable",
       input: {
         connectionUsable: false,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -217,7 +290,7 @@ describe("composerTurnControlModel", () => {
       caseName: "manual reconnect required",
       input: {
         connectionUsable: false,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -227,7 +300,7 @@ describe("composerTurnControlModel", () => {
       caseName: "no recovery batch",
       input: {
         connectionUsable: true,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 0,
         isRecovering: false,
       },
@@ -237,7 +310,7 @@ describe("composerTurnControlModel", () => {
       caseName: "recovery already running",
       input: {
         connectionUsable: true,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: true,
       },
@@ -247,7 +320,7 @@ describe("composerTurnControlModel", () => {
       caseName: "controller unavailable",
       input: {
         connectionUsable: true,
-        hasController: false,
+        controllerReady: false,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -257,7 +330,7 @@ describe("composerTurnControlModel", () => {
       caseName: "recovery available",
       input: {
         connectionUsable: true,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -265,12 +338,5 @@ describe("composerTurnControlModel", () => {
     },
   ])("derives queue recovery availability for $caseName", ({ input, expected }) => {
     expect(canRecoverComposerQueue(input)).toBe(expected);
-  });
-
-  it("extracts human-readable error descriptions", () => {
-    expect(errorDescription(new Error("failed"))).toBe("failed");
-    expect(errorDescription("failed string")).toBe("failed string");
-    expect(errorDescription({ message: "structured" })).toBe("structured");
-    expect(errorDescription({})).toBeUndefined();
   });
 });

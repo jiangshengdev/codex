@@ -57,6 +57,7 @@ type ThreadSwitchCommands = Pick<
   GuiHostCommands,
   | "attachThreadProjection"
   | "detachThreadProjection"
+  | "interruptTurn"
   | "listSkills"
   | "resumeThread"
   | "startTurn"

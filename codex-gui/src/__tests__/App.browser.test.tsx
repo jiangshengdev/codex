@@ -42,6 +42,7 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type {
   GuiHostCommands,
   StartGuiHostConnectionOptions,
@@ -225,6 +226,9 @@ const createQueueCoordinatorMock = (
     promoteOrdinaryFrontToSteer: vi
       .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
       .mockReturnValue(false),
+    interruptActiveTurn: vi
+      .fn<ComposerInputQueueCoordinator["interruptActiveTurn"]>()
+      .mockReturnValue(false),
     recover: vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(false),
     observeAcceptedEvent,
     getReleaseReadiness: vi
@@ -246,6 +250,8 @@ const createQueueCoordinatorMock = (
       queuedSteers: [],
       rejectedSteers: [],
       hasUnknownSteer: false,
+      canStop: false,
+      interrupt: null,
     }),
     subscribe: vi
       .fn<ComposerInputQueueCoordinator["subscribe"]>()
@@ -413,13 +419,31 @@ const initializeAppWithProjection = (
   return commands;
 };
 
-const renderActiveApp = async () => {
-  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: inProgressTurn("turn-started-from-app"),
-  });
+type ActiveAppCommandOverrides = Partial<{
+  interruptTurn: Mock<GuiHostCommands["interruptTurn"]>;
+  startTurn: Mock<GuiHostCommands["startTurn"]>;
+  steerTurn: Mock<GuiHostCommands["steerTurn"]>;
+}>;
+
+const renderActiveApp = async (commandOverrides: ActiveAppCommandOverrides = {}) => {
+  const startTurn =
+    commandOverrides.startTurn ??
+    vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
+      turn: inProgressTurn("turn-started-from-app"),
+    });
+  const steerTurn =
+    commandOverrides.steerTurn ??
+    vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
+      turnId: "turn-steered-from-app",
+    });
+  const interruptTurn =
+    commandOverrides.interruptTurn ??
+    vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({});
   const commandHandle: GuiHostCommands = {
     ...createGuiHostCommands(),
+    interruptTurn,
     startTurn,
+    steerTurn,
   };
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
@@ -428,8 +452,22 @@ const renderActiveApp = async () => {
   queueAttachProjectionResponse(commandHandle, attachWithTurns(attachResponse, [activeTurn]));
   initializeHost(options, commandHandle);
   await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(1);
+  const coordinatorResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(0);
+  if (coordinatorResult?.type !== "return") {
+    throw new Error("active App must create a queue coordinator");
+  }
 
-  return { activeTurn, options, screen, startTurn };
+  return {
+    activeTurn,
+    commandHandle,
+    interruptTurn,
+    options,
+    queueCoordinator: coordinatorResult.value,
+    screen,
+    startTurn,
+    steerTurn,
+  };
 };
 
 const expectAppComposerDisabled = async (
@@ -1164,14 +1202,45 @@ test("App queues during an active turn and starts exactly once after its live te
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
 
-test("App does not auto-start interrupted messages and recovers them in FIFO order", async () => {
-  const { activeTurn, options, screen, startTurn } = await renderActiveApp();
+test("App keeps a local Stop paused until explicit rejected-first and ordinary FIFO recovery", async () => {
+  let startedTurnSequence = 0;
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockImplementation(() => {
+    startedTurnSequence += 1;
+    return Promise.resolve({
+      turn: inProgressTurn(`turn-local-recovery-${String(startedTurnSequence)}`),
+    });
+  });
+  const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>().mockRejectedValue(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("local steer rejected"),
+    }),
+  );
+  const { activeTurn, interruptTurn, options, queueCoordinator, screen } = await renderActiveApp({
+    startTurn,
+    steerTurn,
+  });
   const composer = getAppComposer(screen);
 
-  await composer.fill("First interrupted message");
+  await composer.fill("First ordinary message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await composer.fill("Second interrupted message");
+  await composer.fill("Second ordinary message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Stop" }).click();
+  await expect
+    .poll(() => interruptTurn.mock.calls)
+    .toEqual([[{ threadId: launchThreadId, turnId: activeTurn.id }]]);
+  await expect.poll(() => queueCoordinator.getSnapshot().interrupt).toEqual({ phase: "accepted" });
+  expect(
+    queueCoordinator.submitSteer([{ type: "text", text: "Rejected steer", text_elements: [] }]),
+  ).toEqual({ type: "accepted" });
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().recovery)
+    .toEqual({
+      reason: "steerDefinitelyNotAccepted",
+      count: 1,
+    });
 
   const interrupted = turnCompleted(eventTurnCompleted, "commit-active-interrupted", {
     ...activeTurn,
@@ -1182,7 +1251,7 @@ test("App does not auto-start interrupted messages and recovers them in FIFO ord
     eventWithEnvelope(interrupted, { parentCommitId: attachResponse.snapshot.headCommitId }),
   );
 
-  await expect.element(screen.getByText("2 messages have not been sent")).toBeVisible();
+  await expect.element(screen.getByText("3 messages have not been sent")).toBeVisible();
   expect(startTurn).not.toHaveBeenCalled();
   await composer.fill("Draft preserved during recovery");
   await expect.element(composer).toHaveAttribute("contenteditable", "true");
@@ -1190,26 +1259,163 @@ test("App does not auto-start interrupted messages and recovers them in FIFO ord
 
   await screen.getByRole("button", { name: "Continue sending" }).click();
 
-  expectStartTurnCalledOnceWithText(startTurn, "First interrupted message");
-  await expect.element(composer).toHaveTextContent("Draft preserved during recovery");
-
-  const recoveredFirstCompleted = turnCompleted(
-    eventTurnCompleted,
-    "commit-recovered-first",
-    baseTurn("turn-started-from-app"),
+  expectStartTurnCalledOnceWithText(startTurn, "Rejected steer");
+  const recoveredSteerStarted = turnStarted(
+    eventTurnStarted,
+    "commit-recovered-steer-started",
+    inProgressTurn("turn-local-recovery-1"),
   );
   emitProjectionEvent(
     options,
-    eventWithEnvelope(recoveredFirstCompleted, {
-      parentCommitId: interrupted.commitId,
+    eventWithEnvelope(recoveredSteerStarted, { parentCommitId: interrupted.commitId }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  await expect.element(composer).toHaveTextContent("Draft preserved during recovery");
+
+  const recoveredSteerCompleted = turnCompleted(
+    eventTurnCompleted,
+    "commit-recovered-steer",
+    baseTurn("turn-local-recovery-1"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSteerCompleted, {
+      parentCommitId: recoveredSteerStarted.commitId,
     }),
   );
 
-  expectStartTurnSecondCallWithText(startTurn, "Second interrupted message");
-  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  expectStartTurnSecondCallWithText(startTurn, "First ordinary message");
+  const recoveredFirstOrdinaryStarted = turnStarted(
+    eventTurnStarted,
+    "commit-recovered-first-ordinary-started",
+    inProgressTurn("turn-local-recovery-2"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredFirstOrdinaryStarted, {
+      parentCommitId: recoveredSteerCompleted.commitId,
+    }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  const recoveredFirstOrdinaryCompleted = turnCompleted(
+    eventTurnCompleted,
+    "commit-recovered-first-ordinary",
+    baseTurn("turn-local-recovery-2"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredFirstOrdinaryCompleted, {
+      parentCommitId: recoveredFirstOrdinaryStarted.commitId,
+    }),
+  );
+
+  expect(startTurn).toHaveBeenCalledTimes(3);
+  const thirdParams = startTurnParamsAt(startTurn, 2);
+  expect(startTurn).toHaveBeenNthCalledWith(3, {
+    threadId: launchThreadId,
+    clientUserMessageId: thirdParams.clientUserMessageId,
+    input: [{ type: "text", text: "Second ordinary message", text_elements: [] }],
+  });
+  const recoveredSecondOrdinaryStarted = turnStarted(
+    eventTurnStarted,
+    "commit-recovered-second-ordinary-started",
+    inProgressTurn("turn-local-recovery-3"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSecondOrdinaryStarted, {
+      parentCommitId: recoveredFirstOrdinaryCompleted.commitId,
+    }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  await expect.element(composer).toHaveTextContent("Draft preserved during recovery");
+});
+
+test("App auto-recovers a non-local interruption rejected-first before ordinary FIFO", async () => {
+  let startedTurnSequence = 0;
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockImplementation(() => {
+    startedTurnSequence += 1;
+    return Promise.resolve({
+      turn: inProgressTurn(`turn-non-local-${String(startedTurnSequence)}`),
+    });
+  });
+  const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>().mockRejectedValue(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("non-local steer rejected"),
+    }),
+  );
+  const { activeTurn, interruptTurn, options, queueCoordinator, screen } = await renderActiveApp({
+    startTurn,
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("Ordinary after non-local interruption");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  expect(startTurn).toHaveBeenCalledTimes(2);
-  await expect.element(screen.getByText("1 message queued")).toBeVisible();
+  expect(
+    queueCoordinator.submitSteer([
+      { type: "text", text: "Non-local rejected steer", text_elements: [] },
+    ]),
+  ).toEqual({ type: "accepted" });
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().recovery)
+    .toEqual({
+      reason: "steerDefinitelyNotAccepted",
+      count: 1,
+    });
+
+  const interrupted = turnCompleted(eventTurnCompleted, "commit-non-local-interrupted", {
+    ...activeTurn,
+    status: "interrupted",
+  });
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(interrupted, { parentCommitId: attachResponse.snapshot.headCommitId }),
+  );
+
+  expect(interruptTurn).not.toHaveBeenCalled();
+  expectStartTurnCalledOnceWithText(startTurn, "Non-local rejected steer");
+  const recoveredSteerStarted = turnStarted(
+    eventTurnStarted,
+    "commit-non-local-recovered-steer-started",
+    inProgressTurn("turn-non-local-1"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSteerStarted, { parentCommitId: interrupted.commitId }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  await expect
+    .element(screen.getByRole("button", { name: "Continue sending" }))
+    .not.toBeInTheDocument();
+
+  const recoveredSteerCompleted = turnCompleted(
+    eventTurnCompleted,
+    "commit-non-local-recovered-steer",
+    baseTurn("turn-non-local-1"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSteerCompleted, {
+      parentCommitId: recoveredSteerStarted.commitId,
+    }),
+  );
+
+  expectStartTurnSecondCallWithText(startTurn, "Ordinary after non-local interruption");
+  const recoveredOrdinaryStarted = turnStarted(
+    eventTurnStarted,
+    "commit-non-local-recovered-ordinary-started",
+    inProgressTurn("turn-non-local-2"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredOrdinaryStarted, {
+      parentCommitId: recoveredSteerCompleted.commitId,
+    }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
 });
 
 test("App enables Stop for the current active turn", async () => {
@@ -1599,6 +1805,7 @@ test("App owns one queue coordinator for the matching attached launch thread unt
     activeTurnId: null,
     startTurn: commands.startTurn,
     steerTurn: commands.steerTurn,
+    interruptTurn: commands.interruptTurn,
   });
   emitProjectionEvent(options, eventTurnStarted);
 

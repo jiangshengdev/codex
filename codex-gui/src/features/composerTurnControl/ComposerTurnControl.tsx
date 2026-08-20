@@ -1,4 +1,4 @@
-import { Button, Chip, Surface, toast } from "@heroui/react";
+import { Button, Chip, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { $getRoot } from "lexical";
 import { useEffect, useRef, useId, useMemo, useState, useSyncExternalStore } from "react";
@@ -20,7 +20,6 @@ import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
 import {
-  selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeSubscriptionState,
   selectThreadRuntimeThreadId,
   selectThreadRuntimeTokenUsage,
@@ -29,8 +28,7 @@ import { ContextUsagePopover } from "./ContextUsagePopover";
 import {
   canRecoverComposerQueue,
   canSend,
-  canStop,
-  errorDescription,
+  composerStopControlState,
   invalidSelectedSkillPaths,
   isConnectionUsable,
 } from "./composerTurnControlModel";
@@ -61,7 +59,6 @@ export function ComposerTurnControl({
   const [composerEditorController, setComposerEditorController] =
     useState<ComposerEditorController | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
   const isSubmittingRef = useRef(false);
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
@@ -69,7 +66,6 @@ export function ComposerTurnControl({
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
-  const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
   const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
   const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
@@ -119,14 +115,15 @@ export function ComposerTurnControl({
     recoveryCount: queueSnapshot.recoveryCount,
     selectedSkillsValid: invalidSkillPaths.size === 0,
   });
-  const stopEnabled = canStop({
+  const stopControl = composerStopControlState({
     connectionUsable,
-    activeTurnId,
-    isStopping,
+    controllerMatchesCurrentThread,
+    interruptPhase: queueSnapshot.interrupt?.phase ?? null,
+    queueCanStop: queueSnapshot.canStop,
   });
   const canRecover = canRecoverComposerQueue({
     connectionUsable,
-    hasController: composerInputQueueController != null,
+    controllerReady: controllerMatchesCurrentThread,
     recoveryCount: queueSnapshot.recoveryCount,
     isRecovering: queueSnapshot.isRecovering,
   });
@@ -173,24 +170,11 @@ export function ComposerTurnControl({
     composerInputQueueController?.recover();
   };
 
-  const stop = async (): Promise<void> => {
-    if (!stopEnabled || threadId == null || activeTurnId == null || commands == null) {
+  const stop = (): void => {
+    if (!stopControl.enabled) {
       return;
     }
-
-    setIsStopping(true);
-    try {
-      await commands.interruptTurn({
-        threadId,
-        turnId: activeTurnId,
-      });
-    } catch (error) {
-      toast.danger(t`Stop failed`, {
-        description: errorDescription(error),
-      });
-    } finally {
-      setIsStopping(false);
-    }
+    composerInputQueueController?.interruptActiveTurn();
   };
 
   return (
@@ -257,11 +241,15 @@ export function ComposerTurnControl({
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <div className="flex items-center gap-2">
             {contextUsage == null ? null : <ContextUsagePopover usage={contextUsage} />}
+            {stopControl.failed ? (
+              <span className="text-sm text-danger" role="status">
+                <Trans>Stop failed</Trans>
+              </span>
+            ) : null}
             <Button
-              isDisabled={!stopEnabled}
-              onPress={() => {
-                void stop();
-              }}
+              isDisabled={!stopControl.enabled}
+              isPending={stopControl.pending}
+              onPress={stop}
               variant="danger-soft"
             >
               <Trans>Stop</Trans>
@@ -365,6 +353,8 @@ const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {
   queuedSteers: [],
   rejectedSteers: [],
   hasUnknownSteer: false,
+  canStop: false,
+  interrupt: null,
 };
 const subscribeUnavailableQueue = (): (() => void) => () => undefined;
 const getUnavailableQueueSnapshot = (): ComposerInputQueueCoordinatorSnapshot =>

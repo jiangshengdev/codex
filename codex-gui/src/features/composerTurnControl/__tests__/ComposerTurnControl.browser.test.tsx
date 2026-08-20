@@ -14,9 +14,13 @@ import {
   attachBaseline,
   attachReplacement,
   eventTokenUsageUpdated,
+  eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import { tokenUsageUpdated } from "@/features/projection/__tests__/projectionTestBuilders";
+import {
+  tokenUsageUpdated,
+  turnCompleted,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import type {
   SkillCatalogCandidate,
   SkillCatalogState,
@@ -83,6 +87,9 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
   let snapshot = initial;
   const listeners = new Set<() => void>();
   const recover = vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(true);
+  const interruptActiveTurn = vi
+    .fn<ComposerInputQueueCoordinator["interruptActiveTurn"]>()
+    .mockReturnValue(true);
   const submit = vi
     .fn<ComposerInputQueueCoordinator["submit"]>()
     .mockReturnValue({ type: "accepted" });
@@ -95,6 +102,7 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
     promoteOrdinaryFrontToSteer: vi
       .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
       .mockReturnValue(false),
+    interruptActiveTurn,
     recover,
     observeAcceptedEvent: vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>(),
     getReleaseReadiness: vi
@@ -114,6 +122,7 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
 
   return {
     controller,
+    interruptActiveTurn,
     recover,
     submit,
     publish(next: ComposerInputQueueCoordinatorSnapshot): void {
@@ -158,6 +167,7 @@ async function renderAttached(
         activeTurnId: null,
         startTurn: commandHandle.startTurn,
         steerTurn: commandHandle.steerTurn,
+        interruptTurn: commandHandle.interruptTurn,
       }),
   skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"] = createSkillCatalogHarness()
     .controller,
@@ -224,12 +234,22 @@ afterEach(() => {
 });
 
 async function beginPendingStop(draft: string) {
+  if (eventTurnStarted.event.type !== "turnStarted") {
+    throw new Error("fixture must be turnStarted");
+  }
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["interruptTurn"]>>>();
   const interruptTurn = vi
     .fn<GuiHostCommands["interruptTurn"]>()
     .mockReturnValueOnce(pending.promise);
   const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), interruptTurn };
-  const screen = await renderAttached(commandHandle);
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: eventTurnStarted.event.notification.turn.id,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn,
+  });
+  const screen = await renderAttached(commandHandle, false, "en", controller);
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
@@ -239,7 +259,7 @@ async function beginPendingStop(draft: string) {
   await composer.fill(draft);
   await userEvent.click(stopButton);
 
-  return { composer, interruptTurn, pending, screen, stopButton };
+  return { composer, controller, interruptTurn, pending, screen, stopButton };
 }
 
 test("disables controls before attach", async () => {
@@ -433,7 +453,7 @@ test("submits a non-empty draft through the queue controller and clears it when 
     .toBe("");
 });
 
-test("requires the queue controller owner to match the Redux current thread before sending", async () => {
+test("requires the queue controller owner to match the Redux current thread for operations", async () => {
   const harness = createQueueControllerHarness({
     queuedCount: 0,
     recoveryCount: 0,
@@ -443,10 +463,13 @@ test("requires the queue controller owner to match the Redux current thread befo
     queuedSteers: [],
     rejectedSteers: [],
     hasUnknownSteer: false,
+    canStop: true,
+    interrupt: null,
   });
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   const composer = getComposer(screen);
   const send = screen.getByRole("button", { name: "Send", exact: true });
+  const stop = screen.getByRole("button", { name: "Stop" });
 
   screen.store.dispatch(
     threadRuntimeAttached({
@@ -459,13 +482,19 @@ test("requires the queue controller owner to match the Redux current thread befo
   );
   await composer.fill("Identity-gated draft");
   await expect.element(send).toBeDisabled();
+  await expect.element(stop).toBeDisabled();
   await composer.click();
   await screen.user.keyboard("{Enter}");
   expect(harness.submit).not.toHaveBeenCalled();
+  expect(harness.interruptActiveTurn).not.toHaveBeenCalled();
 
   screen.store.dispatch(threadRuntimeAttached(attachResponse));
   await expect.element(send).toBeEnabled();
+  await expect.element(stop).toBeEnabled();
+  await stop.click();
   await send.click();
+
+  expect(harness.interruptActiveTurn).toHaveBeenCalledExactlyOnceWith();
   expect(harness.submit).toHaveBeenCalledExactlyOnceWith([
     { type: "text", text: "Identity-gated draft", text_elements: [] },
   ]);
@@ -735,6 +764,7 @@ test("active turn allows queuing and enables Stop", async () => {
     activeTurnId: event.event.notification.turn.id,
     startTurn: commandHandle.startTurn,
     steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
   });
   const screen = await renderAttached(commandHandle, false, "en", controller);
   screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
@@ -753,6 +783,19 @@ test("active turn allows queuing and enables Stop", async () => {
     threadId,
     turnId: event.event.notification.turn.id,
   });
+  await expect.poll(() => controller.getSnapshot().interrupt?.phase).toBe("accepted");
+
+  controller.observeAcceptedEvent({
+    notification: turnCompleted(eventTurnCompleted, "commit-local-stop", {
+      ...event.event.notification.turn,
+      status: "interrupted",
+    }),
+    replay: "live",
+  });
+
+  await expect.element(screen.getByText("1 message has not been sent")).toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Continue sending" })).toBeVisible();
+  expect(commandHandle.startTurn).not.toHaveBeenCalled();
 });
 
 test("manual reconnect disables composer operations", async () => {
@@ -828,6 +871,8 @@ test("recovery disables send, keeps the editor editable, and prevents duplicate 
     queuedSteers: [],
     rejectedSteers: [],
     hasUnknownSteer: false,
+    canStop: false,
+    interrupt: null,
   };
   const harness = createQueueControllerHarness(initialSnapshot);
   harness.recover.mockImplementation(() => {
@@ -861,6 +906,8 @@ test("guards recovery when commands are unavailable", async () => {
     queuedSteers: [],
     rejectedSteers: [],
     hasUnknownSteer: false,
+    canStop: false,
+    interrupt: null,
   });
   const screen = await renderAttached(null, false, "en", harness.controller);
   const composer = getComposer(screen);
@@ -880,6 +927,8 @@ test("guards recovery while manual reconnect is required", async () => {
     queuedSteers: [],
     rejectedSteers: [],
     hasUnknownSteer: false,
+    canStop: false,
+    interrupt: null,
   });
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   screen.store.dispatch(
@@ -896,11 +945,12 @@ test("guards recovery while manual reconnect is required", async () => {
   await expect.element(recoverButton).toBeDisabled();
 });
 
-test("pending stop disables duplicate interruption until success", async () => {
-  const { composer, interruptTurn, pending, stopButton } =
+test("accepted stop remains pending until its matching terminal", async () => {
+  const { composer, controller, interruptTurn, pending, stopButton } =
     await beginPendingStop("Draft while stopping");
 
   await expect.element(stopButton).toBeDisabled();
+  await expect.element(stopButton).toHaveAttribute("data-pending", "true");
   if (eventTurnStarted.event.type !== "turnStarted") {
     throw new Error("fixture must be turnStarted");
   }
@@ -910,24 +960,60 @@ test("pending stop disables duplicate interruption until success", async () => {
   });
 
   pending.resolve({});
-  await expect.element(stopButton).toBeEnabled();
+  await expect.poll(() => controller.getSnapshot().interrupt?.phase).toBe("accepted");
+  await expect.element(stopButton).toBeDisabled();
+  await expect.element(stopButton).toHaveAttribute("data-pending", "true");
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("Draft while stopping");
+
+  controller.observeAcceptedEvent({
+    notification: turnCompleted(eventTurnCompleted, "commit-pending-stop", {
+      ...eventTurnStarted.event.notification.turn,
+      status: "interrupted",
+    }),
+    replay: "live",
+  });
+
+  await expect.element(stopButton).toBeDisabled();
+  await expect.element(stopButton).not.toHaveAttribute("data-pending");
 });
 
-test("stop failure keeps draft and shows a toast", async () => {
+test("unknown stop delivery keeps its pending owner and prevents retry", async () => {
   const { composer, interruptTurn, pending, screen, stopButton } =
     await beginPendingStop("Draft while stopping");
 
   await expect.element(stopButton).toBeDisabled();
   pending.reject(new Error("interrupt failed"));
 
-  await expect.element(stopButton).toBeEnabled();
+  await expect.element(stopButton).toBeDisabled();
+  await expect.element(stopButton).toHaveAttribute("data-pending", "true");
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("Draft while stopping");
-  await expect.element(screen.getByText("Stop failed")).toBeVisible();
-  await expect.element(screen.getByText("interrupt failed")).toBeVisible();
+  await expect.element(screen.getByText("Stop failed")).not.toBeInTheDocument();
+  await expect.element(screen.getByText("interrupt failed")).not.toBeInTheDocument();
+  expect(interruptTurn).toHaveBeenCalledTimes(1);
+});
+
+test("definite stop failure keeps the draft, reports failure, and allows retry", async () => {
+  const { composer, interruptTurn, pending, screen, stopButton } =
+    await beginPendingStop("Draft while stopping");
+
+  pending.reject(
+    new GuiHostCommandError({
+      error: new Error("interrupt rejected"),
+      delivery: "definitelyNotAccepted",
+      source: "rpc",
+    }),
+  );
+
+  await expect.element(screen.getByRole("status")).toHaveTextContent("Stop failed");
+  await expect.element(stopButton).toBeEnabled();
+  await expect.element(stopButton).not.toHaveAttribute("data-pending");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("Draft while stopping");
+  await expect.element(screen.getByText("interrupt rejected")).not.toBeInTheDocument();
   expect(interruptTurn).toHaveBeenCalledTimes(1);
 });

@@ -1,4 +1,5 @@
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type { ThreadRuntimeSubscription } from "@/features/threadRuntime/threadRuntimeSlice";
 
@@ -59,37 +60,42 @@ export function invalidSelectedSkillPaths(
 
 export function canRecoverComposerQueue(input: {
   connectionUsable: boolean;
-  hasController: boolean;
+  controllerReady: boolean;
   recoveryCount: number;
   isRecovering: boolean;
 }): boolean {
   return (
-    input.connectionUsable && input.hasController && input.recoveryCount > 0 && !input.isRecovering
+    input.connectionUsable &&
+    input.controllerReady &&
+    input.recoveryCount > 0 &&
+    !input.isRecovering
   );
 }
 
-export function canStop(input: {
-  connectionUsable: boolean;
-  activeTurnId: string | null;
-  isStopping: boolean;
-}): boolean {
-  return input.connectionUsable && input.activeTurnId != null && !input.isStopping;
-}
+type ComposerInterruptPhase = NonNullable<
+  ComposerInputQueueCoordinatorSnapshot["interrupt"]
+>["phase"];
 
-export function errorDescription(error: unknown): string | undefined {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
-  }
-  return undefined;
+type ComposerStopControlState = Readonly<{
+  enabled: boolean;
+  failed: boolean;
+  pending: boolean;
+}>;
+
+export function composerStopControlState(input: {
+  connectionUsable: boolean;
+  controllerMatchesCurrentThread: boolean;
+  interruptPhase: ComposerInterruptPhase | null;
+  queueCanStop: boolean;
+}): ComposerStopControlState {
+  return {
+    enabled: input.connectionUsable && input.controllerMatchesCurrentThread && input.queueCanStop,
+    failed:
+      input.controllerMatchesCurrentThread && input.interruptPhase === "definitelyNotAccepted",
+    pending:
+      input.controllerMatchesCurrentThread &&
+      (input.interruptPhase === "issuing" ||
+        input.interruptPhase === "accepted" ||
+        input.interruptPhase === "unknown"),
+  };
 }
