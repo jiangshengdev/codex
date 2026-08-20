@@ -38,6 +38,32 @@ export function canSend(input: {
   );
 }
 
+export type ComposerGuideControlState = Readonly<{
+  visible: boolean;
+  buttonEnabled: boolean;
+  shortcutEnabled: boolean;
+}>;
+
+export function composerGuideControlState(input: {
+  activeTurnId: string | null;
+  connectionUsable: boolean;
+  controllerMatchesCurrentThread: boolean;
+  draftText: string;
+  isSending: boolean;
+  recoveryCount: number;
+  selectedSkillsValid: boolean;
+}): ComposerGuideControlState {
+  const visible = input.activeTurnId != null && input.controllerMatchesCurrentThread;
+  const operationEnabled =
+    visible && input.connectionUsable && !input.isSending && input.recoveryCount === 0;
+  const hasDraft = input.draftText.trim().length > 0;
+  return {
+    visible,
+    buttonEnabled: operationEnabled && hasDraft && input.selectedSkillsValid,
+    shortcutEnabled: operationEnabled && (!hasDraft || input.selectedSkillsValid),
+  };
+}
+
 const noInvalidSkillPaths: ReadonlySet<string> = new Set();
 
 export function invalidSelectedSkillPaths(

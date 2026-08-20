@@ -17,15 +17,35 @@ msgstr ""
 msgid "... and {count} more"
 msgstr "... and {count} more"
 
-#. placeholder {0}: queueSnapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:228
+#. placeholder {0}: preview.audioCount
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:155
+msgid "{0, plural, one {# audio item} other {# audio items}}"
+msgstr "{0, plural, one {# audio item} other {# audio items}}"
+
+#. placeholder {0}: preview.imageCount
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:151
+msgid "{0, plural, one {# image} other {# images}}"
+msgstr "{0, plural, one {# image} other {# images}}"
+
+#. placeholder {0}: preview.mentionCount
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:163
+msgid "{0, plural, one {# mention} other {# mentions}}"
+msgstr "{0, plural, one {# mention} other {# mentions}}"
+
+#. placeholder {0}: snapshot.recoveryCount
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:101
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
-#. placeholder {0}: queueSnapshot.queuedCount
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:218
+#. placeholder {0}: snapshot.queuedCount
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:88
 msgid "{0, plural, one {# message queued} other {# messages queued}}"
 msgstr "{0, plural, one {# message queued} other {# messages queued}}"
+
+#. placeholder {0}: preview.skillCount
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:159
+msgid "{0, plural, one {# skill} other {# skills}}"
+msgstr "{0, plural, one {# skill} other {# skills}}"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:759
@@ -122,7 +142,7 @@ msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {con
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:242
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:115
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -135,6 +155,10 @@ msgstr "Continue this task"
 #: src/features/documentTitle/DocumentTitleOwner.tsx:43
 msgid "Current task"
 msgstr "Current task"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:68
+msgid "Currently unable to guide; added to queue"
+msgstr "Currently unable to guide; added to queue"
 
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:158
@@ -173,6 +197,18 @@ msgstr "Finished waiting"
 #: src/NotFoundPage.tsx:32
 msgid "Go back home"
 msgstr "Go back home"
+
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:287
+msgid "Guide"
+msgstr "Guide"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:39
+msgid "Guide status unknown"
+msgstr "Guide status unknown"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:31
+msgid "Guiding"
+msgstr "Guiding"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:91
@@ -220,7 +256,7 @@ msgstr "Interrupted <0/> <1/>"
 msgid "Interrupted."
 msgstr "Interrupted."
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:106
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -248,12 +284,12 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:204
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:210
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:243
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:195
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:230
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -309,6 +345,10 @@ msgstr "Page not found"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:116
 msgid "Pending init"
 msgstr "Pending init"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:127
+msgid "Pending messages"
+msgstr "Pending messages"
 
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:68
 msgid "Previous"
@@ -369,7 +409,7 @@ msgstr "Running"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:268
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:299
 msgid "Send"
 msgstr "Send"
 
@@ -421,13 +461,17 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:259
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:275
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:185
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:266
 msgid "Stop failed"
 msgstr "Stop failed"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:169
+msgid "Structured input"
+msgstr "Structured input"
 
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:206
 msgid "System error"
@@ -505,3 +549,7 @@ msgstr "Waiting for {receiverCount} agents"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:213
 msgid "Waiting for agents"
 msgstr "Waiting for agents"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:61
+msgid "Will send first"
+msgstr "Will send first"

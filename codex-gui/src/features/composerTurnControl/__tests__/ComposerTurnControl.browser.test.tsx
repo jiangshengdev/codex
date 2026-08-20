@@ -93,15 +93,17 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
   const submit = vi
     .fn<ComposerInputQueueCoordinator["submit"]>()
     .mockReturnValue({ type: "accepted" });
+  const submitSteer = vi
+    .fn<ComposerInputQueueCoordinator["submitSteer"]>()
+    .mockReturnValue({ type: "accepted" });
+  const promoteOrdinaryFrontToSteer = vi
+    .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
+    .mockReturnValue(false);
   const controller = {
     ownerThreadId: threadId,
     submit,
-    submitSteer: vi
-      .fn<ComposerInputQueueCoordinator["submitSteer"]>()
-      .mockReturnValue({ type: "accepted" }),
-    promoteOrdinaryFrontToSteer: vi
-      .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
-      .mockReturnValue(false),
+    submitSteer,
+    promoteOrdinaryFrontToSteer,
     interruptActiveTurn,
     recover,
     observeAcceptedEvent: vi.fn<ComposerInputQueueCoordinator["observeAcceptedEvent"]>(),
@@ -124,7 +126,9 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
     controller,
     interruptActiveTurn,
     recover,
+    promoteOrdinaryFrontToSteer,
     submit,
+    submitSteer,
     publish(next: ComposerInputQueueCoordinatorSnapshot): void {
       snapshot = next;
       for (const listener of listeners) listener();
@@ -228,6 +232,19 @@ const composerPanelVisualSignature = (composerPanel: HTMLElement) => {
 const composerTextWithoutTrailingBrowserPlaceholders = (
   element: Readonly<Pick<Node, "textContent">>,
 ): string => (element.textContent ?? "").replace(/[ \n\r\u00a0\u200b]+$/u, "");
+
+const dispatchGuideShortcut = (element: Element): void => {
+  const isMac = navigator.platform.startsWith("Mac");
+  element.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: !isMac,
+      key: "Enter",
+      metaKey: isMac,
+    }),
+  );
+};
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -796,6 +813,205 @@ test("active turn allows queuing and enables Stop", async () => {
   await expect.element(screen.getByText("1 message has not been sent")).toBeVisible();
   await expect.element(screen.getByRole("button", { name: "Continue sending" })).toBeVisible();
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
+});
+
+test("shows Guide only for an active turn and submits an accepted draft as steer", async () => {
+  const idleScreen = await renderAttached();
+  await expect
+    .element(idleScreen.getByRole("button", { name: "Guide", exact: true }))
+    .not.toBeInTheDocument();
+  await idleScreen.unmount();
+
+  const harness = createQueueControllerHarness({
+    queuedCount: 0,
+    recoveryCount: 0,
+    recovery: null,
+    isRecovering: false,
+    pendingSteers: [],
+    queuedSteers: [],
+    rejectedSteers: [],
+    hasUnknownSteer: false,
+    canStop: true,
+    interrupt: null,
+  });
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+  const composer = getComposer(screen);
+  const guide = screen.getByRole("button", { name: "Guide", exact: true });
+
+  await expect.element(guide).toBeDisabled();
+  await composer.fill("Guide this turn");
+  await expect.element(guide).toBeEnabled();
+  await userEvent.unhover(document.body);
+  await userEvent.hover(guide);
+  await expect
+    .element(screen.getByRole("tooltip"))
+    .toHaveTextContent(navigator.platform.startsWith("Mac") ? "⌘ Enter" : "Ctrl+Enter");
+  await userEvent.unhover(guide);
+  await guide.click();
+
+  expect(harness.submitSteer).toHaveBeenCalledExactlyOnceWith([
+    { type: "text", text: "Guide this turn", text_elements: [] },
+  ]);
+  expect(harness.submit).not.toHaveBeenCalled();
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("");
+
+  harness.submitSteer.mockReturnValueOnce({ type: "rejected", reason: "recoveryPending" });
+  await composer.fill("Keep the newer draft");
+  await guide.click();
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("Keep the newer draft");
+});
+
+test("routes guide shortcuts by draft presence while ordinary Enter stays ordinary", async () => {
+  const harness = createQueueControllerHarness({
+    queuedCount: 1,
+    recoveryCount: 0,
+    recovery: null,
+    isRecovering: false,
+    pendingSteers: [],
+    queuedSteers: [],
+    rejectedSteers: [],
+    hasUnknownSteer: false,
+    canStop: true,
+    interrupt: null,
+  });
+  harness.promoteOrdinaryFrontToSteer.mockReturnValue(true);
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+  const composer = getComposer(screen);
+
+  await composer.fill("Explicit guide");
+  dispatchGuideShortcut(composer.element());
+  expect(harness.submitSteer).toHaveBeenCalledExactlyOnceWith([
+    { type: "text", text: "Explicit guide", text_elements: [] },
+  ]);
+  expect(harness.promoteOrdinaryFrontToSteer).not.toHaveBeenCalled();
+  expect(harness.submit).not.toHaveBeenCalled();
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("");
+
+  dispatchGuideShortcut(composer.element());
+  expect(harness.promoteOrdinaryFrontToSteer).toHaveBeenCalledExactlyOnceWith();
+  expect(harness.submitSteer).toHaveBeenCalledTimes(1);
+
+  await composer.fill("Ordinary next turn");
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
+  expect(harness.submit).toHaveBeenCalledExactlyOnceWith([
+    { type: "text", text: "Ordinary next turn", text_elements: [] },
+  ]);
+  expect(harness.submitSteer).toHaveBeenCalledTimes(1);
+});
+
+test("renders ordered bounded steer projections and persistent recovery statuses", async () => {
+  const harness = createQueueControllerHarness({
+    queuedCount: 2,
+    recoveryCount: 0,
+    recovery: null,
+    isRecovering: false,
+    pendingSteers: [
+      {
+        key: "pending-private-id",
+        preview: { type: "text", text: "Pending first" },
+        phase: "acceptedAwaitingCommit",
+      },
+      {
+        key: "unknown-private-id",
+        preview: {
+          type: "nonText",
+          imageCount: 2,
+          audioCount: 1,
+          skillCount: 1,
+          mentionCount: 1,
+        },
+        phase: "deliveryUnknown",
+      },
+    ],
+    queuedSteers: [
+      { key: "queued-private-id", preview: { type: "text", text: "Queued after pending" } },
+    ],
+    rejectedSteers: [
+      {
+        key: "rejected-private-id",
+        preview: { type: "text", text: "Rejected first" },
+        reason: "activeTurnNotSteerable",
+      },
+    ],
+    hasUnknownSteer: true,
+    canStop: true,
+    interrupt: null,
+  });
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+  const region = screen.getByRole("region", { name: "Pending messages", exact: true });
+
+  await expect.element(region.getByText("Guiding", { exact: true })).toBeVisible();
+  await expect.element(region.getByText("Will send first", { exact: true })).toBeVisible();
+  await expect.element(region.getByText("2 messages queued", { exact: true })).toBeVisible();
+  await expect
+    .element(region.getByText("Currently unable to guide; added to queue", { exact: true }))
+    .toBeVisible();
+  await expect.element(region.getByText("Guide status unknown", { exact: true })).toBeVisible();
+  await expect.element(region).toHaveTextContent(/2 images.*1 audio item.*1 skill.*1 mention/);
+  const regionText = region.element().textContent;
+  expect(regionText.indexOf("Pending first")).toBeLessThan(
+    regionText.indexOf("Queued after pending"),
+  );
+  expect(regionText.indexOf("Queued after pending")).toBeLessThan(
+    regionText.indexOf("Rejected first"),
+  );
+  expect(regionText).not.toContain("private-id");
+  expect(region.getByRole("button", { name: /retry/i }).query()).toBeNull();
+});
+
+test("renders Simplified Chinese guide and pending-input copy", async () => {
+  const harness = createQueueControllerHarness({
+    queuedCount: 2,
+    recoveryCount: 0,
+    recovery: null,
+    isRecovering: false,
+    pendingSteers: [
+      {
+        key: "pending-zh",
+        preview: { type: "text", text: "先引导这条" },
+        phase: "deliveryUnknown",
+      },
+    ],
+    queuedSteers: [],
+    rejectedSteers: [
+      {
+        key: "rejected-zh",
+        preview: { type: "text", text: "然后优先发送这条" },
+        reason: "activeTurnNotSteerable",
+      },
+    ],
+    hasUnknownSteer: true,
+    canStop: true,
+    interrupt: null,
+  });
+  const screen = await renderAttached(createGuiHostCommands(), false, "zh-CN", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+
+  await expect.element(screen.getByRole("button", { name: "引导", exact: true })).toBeDisabled();
+  const region = screen.getByRole("region", { name: "待处理消息", exact: true });
+  await expect.element(region.getByText("引导中", { exact: true })).toBeVisible();
+  await expect.element(region.getByText("将优先发送", { exact: true })).toBeVisible();
+  await expect.element(region.getByText("已排队 2 条", { exact: true })).toBeVisible();
+  await expect.element(region.getByText("当前无法引导，已加入队列", { exact: true })).toBeVisible();
+  await expect.element(region.getByText("引导状态未知", { exact: true })).toBeVisible();
 });
 
 test("manual reconnect disables composer operations", async () => {

@@ -1,5 +1,5 @@
-import { Button, Chip, Surface } from "@heroui/react";
-import { Plural, Trans, useLingui } from "@lingui/react/macro";
+import { Button, Surface, Tooltip } from "@heroui/react";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { $getRoot } from "lexical";
 import { useEffect, useRef, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { useAppSelector } from "@/app/hooks";
@@ -8,6 +8,7 @@ import {
   ComposerEditor,
   type ComposerEditorController,
   type ComposerEditorSnapshot,
+  type ComposerEditorSubmitIntent,
 } from "@/features/composerEditor/ComposerEditor";
 import { $isSkillNode } from "@/features/composerEditor/SkillNode";
 import { compileComposerDraft } from "@/features/composerEditor/compileComposerDraft";
@@ -21,6 +22,7 @@ import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectThreadRuntimeSubscriptionState,
+  selectThreadRuntimeActiveTurnId,
   selectThreadRuntimeThreadId,
   selectThreadRuntimeTokenUsage,
 } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -28,11 +30,13 @@ import { ContextUsagePopover } from "./ContextUsagePopover";
 import {
   canRecoverComposerQueue,
   canSend,
+  composerGuideControlState,
   composerStopControlState,
   invalidSelectedSkillPaths,
   isConnectionUsable,
 } from "./composerTurnControlModel";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
+import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
@@ -65,6 +69,7 @@ export function ComposerTurnControl({
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
+  const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
   const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
@@ -115,6 +120,16 @@ export function ComposerTurnControl({
     recoveryCount: queueSnapshot.recoveryCount,
     selectedSkillsValid: invalidSkillPaths.size === 0,
   });
+  const guideControl = composerGuideControlState({
+    activeTurnId,
+    connectionUsable,
+    controllerMatchesCurrentThread,
+    draftText: editorSnapshot?.textContent ?? "",
+    isSending,
+    recoveryCount: queueSnapshot.recoveryCount,
+    selectedSkillsValid: invalidSkillPaths.size === 0,
+  });
+  const guideShortcut = guideShortcutForPlatform(navigator.platform);
   const stopControl = composerStopControlState({
     connectionUsable,
     controllerMatchesCurrentThread,
@@ -130,30 +145,63 @@ export function ComposerTurnControl({
 
   useRevealComposerOnViewportResize(composerShellRef);
 
-  const submit = (requestedSnapshot?: ComposerEditorSnapshot): void => {
+  const submit = (
+    requestedSnapshot?: ComposerEditorSnapshot,
+    intent: ComposerEditorSubmitIntent = "ordinary",
+  ): void => {
+    const isSubmitting = isSubmittingRef.current;
     const submittedSnapshot = requestedSnapshot ?? composerEditorController?.getSnapshot() ?? null;
+    const submittedGuideControl = composerGuideControlState({
+      activeTurnId,
+      connectionUsable,
+      controllerMatchesCurrentThread,
+      draftText: submittedSnapshot?.textContent ?? "",
+      isSending: isSubmitting,
+      recoveryCount: queueSnapshot.recoveryCount,
+      selectedSkillsValid:
+        submittedSnapshot == null ||
+        invalidSelectedSkillPaths(skillCatalog, selectedSkillPaths(submittedSnapshot)).size === 0,
+    });
     if (
       submittedSnapshot == null ||
       composerEditorController == null ||
       composerInputQueueController == null ||
-      isSubmittingRef.current ||
-      !canSend({
-        connectionUsable,
-        controllerReady: controllerMatchesCurrentThread,
-        draftText: submittedSnapshot.textContent,
-        isSending,
-        recoveryCount: queueSnapshot.recoveryCount,
-        selectedSkillsValid:
-          invalidSelectedSkillPaths(skillCatalog, selectedSkillPaths(submittedSnapshot)).size === 0,
-      })
+      isSubmitting
     ) {
+      return;
+    }
+
+    if (intent === "guide" && submittedSnapshot.textContent.trim().length === 0) {
+      if (submittedGuideControl.shortcutEnabled) {
+        composerInputQueueController.promoteOrdinaryFrontToSteer();
+      }
+      return;
+    }
+
+    const submissionEnabled =
+      intent === "guide"
+        ? submittedGuideControl.shortcutEnabled
+        : canSend({
+            connectionUsable,
+            controllerReady: controllerMatchesCurrentThread,
+            draftText: submittedSnapshot.textContent,
+            isSending: isSubmitting,
+            recoveryCount: queueSnapshot.recoveryCount,
+            selectedSkillsValid:
+              invalidSelectedSkillPaths(skillCatalog, selectedSkillPaths(submittedSnapshot))
+                .size === 0,
+          });
+    if (!submissionEnabled) {
       return;
     }
 
     const input = compileComposerDraft(submittedSnapshot.editorState);
     isSubmittingRef.current = true;
     setIsSending(true);
-    const result = composerInputQueueController.submit(input);
+    const result =
+      intent === "guide"
+        ? composerInputQueueController.submitSteer(input)
+        : composerInputQueueController.submit(input);
     if (result.type === "accepted") {
       composerEditorController.clearIfSame(submittedSnapshot.editorState);
     }
@@ -203,40 +251,12 @@ export function ComposerTurnControl({
           skillMenuParent={skillMenuParent}
           skillValidity={skillValidity}
         />
-        {queueSnapshot.queuedCount > 0 || queueSnapshot.recoveryCount > 0 ? (
-          <div className="flex items-center gap-2">
-            {queueSnapshot.queuedCount > 0 ? (
-              <Chip size="sm" variant="tertiary">
-                <Plural
-                  value={queueSnapshot.queuedCount}
-                  one="# message queued"
-                  other="# messages queued"
-                />
-              </Chip>
-            ) : null}
-            {queueSnapshot.recoveryCount > 0 ? (
-              <>
-                <span id={recoveryDescriptionId}>
-                  <Plural
-                    value={queueSnapshot.recoveryCount}
-                    one="# message has not been sent"
-                    other="# messages have not been sent"
-                  />
-                </span>
-                <Button
-                  aria-describedby={recoveryDescriptionId}
-                  isDisabled={!canRecover}
-                  isPending={queueSnapshot.isRecovering}
-                  onPress={recover}
-                  size="sm"
-                  variant="secondary"
-                >
-                  <Trans>Continue sending</Trans>
-                </Button>
-              </>
-            ) : null}
-          </div>
-        ) : null}
+        <ComposerPendingInputRegion
+          canRecover={canRecover}
+          onRecover={recover}
+          recoveryDescriptionId={recoveryDescriptionId}
+          snapshot={queueSnapshot}
+        />
         <div className="flex items-center justify-between gap-2">
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <div className="flex items-center gap-2">
@@ -254,6 +274,21 @@ export function ComposerTurnControl({
             >
               <Trans>Stop</Trans>
             </Button>
+            {guideControl.visible ? (
+              <Tooltip delay={0}>
+                <Button
+                  aria-keyshortcuts={guideShortcut.aria}
+                  isDisabled={!guideControl.buttonEnabled}
+                  onPress={() => {
+                    submit(undefined, "guide");
+                  }}
+                  variant="secondary"
+                >
+                  <Trans>Guide</Trans>
+                </Button>
+                <Tooltip.Content>{guideShortcut.visible}</Tooltip.Content>
+              </Tooltip>
+            ) : null}
             <Button
               isDisabled={!sendEnabled}
               onPress={() => {
@@ -268,6 +303,12 @@ export function ComposerTurnControl({
       </Surface>
     </section>
   );
+}
+
+function guideShortcutForPlatform(platform: string): Readonly<{ aria: string; visible: string }> {
+  return platform.startsWith("Mac")
+    ? { aria: "Meta+Enter", visible: "⌘ Enter" }
+    : { aria: "Control+Enter", visible: "Ctrl+Enter" };
 }
 
 function useComposerFocusVisible(composerShellRef: {

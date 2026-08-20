@@ -4,6 +4,7 @@ import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwne
 import {
   canRecoverComposerQueue,
   canSend,
+  composerGuideControlState,
   composerStopControlState,
   invalidSelectedSkillPaths,
   isConnectionUsable,
@@ -139,6 +140,82 @@ describe("composerTurnControlModel", () => {
         selectedSkillsValid: false,
       }),
     ).toBe(false);
+  });
+
+  it.each([
+    {
+      caseName: "idle",
+      input: {
+        activeTurnId: null,
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "Guide this",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+      },
+      expected: { visible: false, buttonEnabled: false, shortcutEnabled: false },
+    },
+    {
+      caseName: "active with an empty draft",
+      input: {
+        activeTurnId: "turn-active",
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "  ",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+      },
+      expected: { visible: true, buttonEnabled: false, shortcutEnabled: true },
+    },
+    {
+      caseName: "active with a non-empty draft",
+      input: {
+        activeTurnId: "turn-active",
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "Guide this",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+      },
+      expected: { visible: true, buttonEnabled: true, shortcutEnabled: true },
+    },
+    ...[
+      {
+        blockedBy: "connection",
+        patch: { connectionUsable: false },
+        visible: true,
+      },
+      {
+        blockedBy: "owner identity",
+        patch: { controllerMatchesCurrentThread: false },
+        visible: false,
+      },
+      { blockedBy: "submission", patch: { isSending: true }, visible: true },
+      { blockedBy: "recovery", patch: { recoveryCount: 1 }, visible: true },
+      {
+        blockedBy: "invalid skills",
+        patch: { selectedSkillsValid: false },
+        visible: true,
+      },
+    ].map(({ blockedBy, patch, visible }) => ({
+      caseName: `active but blocked by ${blockedBy}`,
+      input: {
+        activeTurnId: "turn-active",
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "Guide this",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+        ...patch,
+      },
+      expected: { visible, buttonEnabled: false, shortcutEnabled: false },
+    })),
+  ])("derives guide control state for $caseName", ({ input, expected }) => {
+    expect(composerGuideControlState(input)).toEqual(expected);
   });
 
   it.each([
