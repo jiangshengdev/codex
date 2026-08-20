@@ -1269,6 +1269,7 @@ client_request_definitions! {
 
     GetAccountTokenUsage => "account/usage/read" {
         params: #[ts(optional, as = "Option<GetAccountTokenUsageParamsTypeScript>", inline)] #[serde(default, skip_serializing_if = "Option::is_none")] v2::NullableGetAccountTokenUsageParams,
+        contract_params: nullable(v2::GetAccountTokenUsageParams),
         serialization: None,
         response: v2::GetAccountTokenUsageResponse,
     },

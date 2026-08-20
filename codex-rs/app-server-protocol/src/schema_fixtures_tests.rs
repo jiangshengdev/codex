@@ -186,11 +186,13 @@ fn client_request_definitions_export_method_params_and_response() -> Result<()> 
         .collect::<String>();
 
     for expected in [
+        r#"importtype{GetAccountTokenUsageParams}from"./v2/GetAccountTokenUsageParams";"#,
         r#"{method:"initialize";params:InitializeParams;response:InitializeResponse;}"#,
         r#"{method:"thread/projection/attach";params:ThreadProjectionAttachParams;response:ThreadProjectionAttachResponse;}"#,
         r#"{method:"turn/start";params:TurnStartParams;response:TurnStartResponse;}"#,
         r#"{method:"turn/interrupt";params:TurnInterruptParams;response:TurnInterruptResponse;}"#,
         r#"{method:"config/mcpServer/reload";params:undefined;response:McpServerRefreshResponse;}"#,
+        r#"{method:"account/usage/read";params:GetAccountTokenUsageParams|null;response:GetAccountTokenUsageResponse;}"#,
     ] {
         assert!(
             compact_typescript.contains(expected),
@@ -268,6 +270,11 @@ fn client_request_definitions_export_method_params_and_response() -> Result<()> 
             "method": "config/mcpServer/reload",
             "paramsSchema": null,
             "responseSchema": "v2/McpServerRefreshResponse",
+        }),
+        json!({
+            "method": "account/usage/read",
+            "paramsSchema": "v2/GetAccountTokenUsageParams",
+            "responseSchema": "v2/GetAccountTokenUsageResponse",
         }),
         json!({
             "method": "remoteControl/enable",

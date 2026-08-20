@@ -60,6 +60,7 @@ import type { FuzzyFileSearchResponse } from "./FuzzyFileSearchResponse";
 import type { GetAccountParams } from "./v2/GetAccountParams";
 import type { GetAccountRateLimitsResponse } from "./v2/GetAccountRateLimitsResponse";
 import type { GetAccountResponse } from "./v2/GetAccountResponse";
+import type { GetAccountTokenUsageParams } from "./v2/GetAccountTokenUsageParams";
 import type { GetAccountTokenUsageResponse } from "./v2/GetAccountTokenUsageResponse";
 import type { GetAuthStatusParams } from "./GetAuthStatusParams";
 import type { GetAuthStatusResponse } from "./GetAuthStatusResponse";
