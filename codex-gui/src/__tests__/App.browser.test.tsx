@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
+import { page } from "vitest/browser";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -7,11 +8,13 @@ import {
   RouterProvider,
   type RouteComponent,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   attachResponse,
   attachWithCommittedMessages,
+  createDeferred,
   createGuiHostCommands,
+  emitSkillsChanged,
   emitProjectionClosed,
   emitProjectionDelta,
   emitProjectionEvent,
@@ -25,6 +28,7 @@ import {
   queueDeferredAttachProjection,
   resetAppBrowserTestSupport,
   seedBrowserAuthorizationSession,
+  skillsListResponse,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import RootApp from "@/App";
@@ -39,6 +43,7 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type {
   GuiHostCommands,
   StartGuiHostConnectionOptions,
@@ -69,10 +74,13 @@ import {
   inProgressTurn,
   itemCompleted,
   itemStarted,
+  textInput,
   turnCompleted,
   turnStarted,
+  userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
+import type { SkillMetadata, SkillsListResponse } from "@codex-protocol/v2";
 import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectTranscriptEntry,
@@ -103,8 +111,20 @@ let threadSwitchProbePromise: ReturnType<
   NonNullable<ReturnType<typeof useAppCapabilities>["continueThread"]>
 > | null = null;
 
+const emptySkillCatalogSnapshot = {
+  type: "initialLoading",
+  candidates: [],
+  partialErrorCount: 0,
+} as const;
+const getEmptySkillCatalogSnapshot = () => emptySkillCatalogSnapshot;
+const subscribeToEmptySkillCatalog = () => () => undefined;
+
 function ThreadSwitchCapabilityProbe() {
   const { activeOwner, continueThread } = useAppCapabilities();
+  const skillCatalogSnapshot = useSyncExternalStore(
+    activeOwner?.skillCatalog.subscribe ?? subscribeToEmptySkillCatalog,
+    activeOwner?.skillCatalog.getSnapshot ?? getEmptySkillCatalogSnapshot,
+  );
   useEffect(() => {
     threadSwitchProbeActiveOwner = activeOwner;
   }, [activeOwner]);
@@ -123,6 +143,12 @@ function ThreadSwitchCapabilityProbe() {
       <output aria-label="Active thread owner">{activeOwner?.threadId ?? "none"}</output>
       <output aria-label="Active queue owner">
         {activeOwner?.queueCoordinator.ownerThreadId ?? "none"}
+      </output>
+      <output aria-label="Active skill catalog status">
+        {activeOwner == null ? "none" : skillCatalogSnapshot.type}
+      </output>
+      <output aria-label="Active skill catalog">
+        {skillCatalogSnapshot.candidates.map(({ name }) => name).join(",") || "none"}
       </output>
     </section>
   );
@@ -171,11 +197,13 @@ function App({
   return <RouterProvider router={router} />;
 }
 
-const deferred = <T,>() => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((settle) => (resolve = settle));
-  return { promise, resolve };
-};
+const catalogSkill = (name: string, cwd: string, enabled = true): SkillMetadata => ({
+  name,
+  description: `${name} description`,
+  path: `${cwd}/skills/${name}/SKILL.md`,
+  scope: "repo",
+  enabled,
+});
 
 const createQueueCoordinatorMock = (
   threadId: string,
@@ -189,6 +217,15 @@ const createQueueCoordinatorMock = (
   const coordinator = {
     ownerThreadId: threadId,
     submit: vi.fn<ComposerInputQueueCoordinator["submit"]>().mockReturnValue({ type: "accepted" }),
+    submitSteer: vi
+      .fn<ComposerInputQueueCoordinator["submitSteer"]>()
+      .mockReturnValue({ type: "accepted" }),
+    promoteOrdinaryFrontToSteer: vi
+      .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
+      .mockReturnValue(false),
+    interruptActiveTurn: vi
+      .fn<ComposerInputQueueCoordinator["interruptActiveTurn"]>()
+      .mockReturnValue(false),
     recover: vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(false),
     observeAcceptedEvent,
     getReleaseReadiness: vi
@@ -204,7 +241,14 @@ const createQueueCoordinatorMock = (
     getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
       queuedCount: 0,
       recoveryCount: 0,
+      recovery: null,
       isRecovering: false,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
+      canStop: false,
+      interrupt: null,
     }),
     subscribe: vi
       .fn<ComposerInputQueueCoordinator["subscribe"]>()
@@ -250,6 +294,30 @@ const startTurnParamsAt = (
     throw new Error(`startTurn call ${String(index + 1)} must be recorded`);
   }
   return call[0];
+};
+
+const steerTurnParamsAt = (
+  steerTurn: Mock<GuiHostCommands["steerTurn"]>,
+  index: number,
+): Parameters<GuiHostCommands["steerTurn"]>[0] => {
+  const call = steerTurn.mock.calls.at(index);
+  if (call == null) {
+    throw new Error(`steerTurn call ${String(index + 1)} must be recorded`);
+  }
+  return call[0];
+};
+
+const dispatchGuideShortcut = (element: Element): void => {
+  const isMac = navigator.platform.startsWith("Mac");
+  element.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: !isMac,
+      key: "Enter",
+      metaKey: isMac,
+    }),
+  );
 };
 
 const expectStartTurnCalledOnceWithText = (
@@ -348,13 +416,16 @@ const expectDocumentScrollStaysAwayFromBottom = async (maxScrollTop: number): Pr
   }
 };
 
+const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
+  screen.getByRole("combobox", { name: "Message Codex", exact: true });
+
 const renderReadyApp = async (commandHandle = createGuiHostCommands()) => {
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
 
   queueAttachProjectionResponse(commandHandle);
   initializeHost(options, commandHandle);
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
 
   return { commandHandle, options, screen };
 };
@@ -369,13 +440,31 @@ const initializeAppWithProjection = (
   return commands;
 };
 
-const renderActiveApp = async () => {
-  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: inProgressTurn("turn-started-from-app"),
-  });
+type ActiveAppCommandOverrides = Partial<{
+  interruptTurn: Mock<GuiHostCommands["interruptTurn"]>;
+  startTurn: Mock<GuiHostCommands["startTurn"]>;
+  steerTurn: Mock<GuiHostCommands["steerTurn"]>;
+}>;
+
+const renderActiveApp = async (commandOverrides: ActiveAppCommandOverrides = {}) => {
+  const startTurn =
+    commandOverrides.startTurn ??
+    vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
+      turn: inProgressTurn("turn-started-from-app"),
+    });
+  const steerTurn =
+    commandOverrides.steerTurn ??
+    vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
+      turnId: "turn-steered-from-app",
+    });
+  const interruptTurn =
+    commandOverrides.interruptTurn ??
+    vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({});
   const commandHandle: GuiHostCommands = {
     ...createGuiHostCommands(),
+    interruptTurn,
     startTurn,
+    steerTurn,
   };
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
@@ -383,16 +472,30 @@ const renderActiveApp = async () => {
 
   queueAttachProjectionResponse(commandHandle, attachWithTurns(attachResponse, [activeTurn]));
   initializeHost(options, commandHandle);
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(1);
+  const coordinatorResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(0);
+  if (coordinatorResult?.type !== "return") {
+    throw new Error("active App must create a queue coordinator");
+  }
 
-  return { activeTurn, options, screen, startTurn };
+  return {
+    activeTurn,
+    commandHandle,
+    interruptTurn,
+    options,
+    queueCoordinator: coordinatorResult.value,
+    screen,
+    startTurn,
+    steerTurn,
+  };
 };
 
 const expectAppComposerDisabled = async (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
 ): Promise<void> => {
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "false");
   for (const control of [
-    screen.getByPlaceholder("Message Codex"),
     screen.getByRole("button", { name: "Send", exact: true }),
     screen.getByRole("button", { name: "Stop" }),
   ]) {
@@ -429,7 +532,7 @@ test("App renders composer in the shell without visible host debug details", asy
 
   await expect.element(screen.getByRole("region", { name: "Committed transcript" })).toBeVisible();
   await expect.element(screen.getByRole("region", { name: "Message composer" })).toBeVisible();
-  await expect.element(screen.getByPlaceholder("Message Codex")).toBeEnabled();
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
   await expect.element(screen.getByText("GUI host")).not.toBeInTheDocument();
   expect(main.classList.contains("pb-44")).toBe(false);
   expect(main.classList.contains("px-4")).toBe(false);
@@ -447,6 +550,181 @@ test("App renders composer in the shell without visible host debug details", asy
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).not.toBe(0);
   expectElementBottomAlignedWithViewport(composerShell);
+});
+
+test("App keeps the skill menu anchored above the composer across responsive viewports", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+  const activeFixture: { unmount: (() => Promise<void>) | null } = { unmount: null };
+
+  const assertResponsiveMenuGeometry = async (width: number, height: number): Promise<void> => {
+    await page.viewport(width, height);
+    const commands = createGuiHostCommands();
+    const cwd = attachResponse.snapshot.thread.cwd;
+    vi.mocked(commands.listSkills).mockResolvedValue(
+      skillsListResponse(
+        cwd,
+        Array.from({ length: 25 }, (_, index) => {
+          const candidate = catalogSkill(`responsive-skill-${String(index).padStart(2, "0")}`, cwd);
+          return index === 19
+            ? {
+                ...candidate,
+                description: "A long responsive skill description with useful detail. ".repeat(12),
+                path: `${cwd}/skills/${"long-path-token".repeat(24)}/SKILL.md`,
+              }
+            : candidate;
+        }),
+      ),
+    );
+    const { screen } = await renderReadyApp(commands);
+    activeFixture.unmount = screen.unmount;
+    const editor = getAppComposer(screen);
+    const composerShell = screen.getByRole("region", { name: "Message composer" }).element();
+    const composerPanel = composerShell.querySelector(".composer-panel");
+    if (!(composerPanel instanceof HTMLElement)) {
+      throw new Error("composer panel must render");
+    }
+    await expect.element(editor).toHaveAttribute("aria-expanded", "false");
+    scrollToDocumentTop();
+    await expect
+      .poll(() => Math.abs(composerShell.getBoundingClientRect().bottom - window.innerHeight))
+      .toBeLessThanOrEqual(1);
+
+    const scroller = documentScroller();
+    const baselineDocumentSize = {
+      height: scroller.scrollHeight,
+      width: scroller.scrollWidth,
+    };
+    const baselineDocumentScrollTop = scroller.scrollTop;
+    const baselineComposerBottom = composerShell.getBoundingClientRect().bottom;
+
+    await editor.fill("$");
+    const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+    await expect.poll(() => listbox.getByRole("option").length).toBe(20);
+    expect(composerPanel.contains(listbox.element())).toBe(true);
+
+    await expect
+      .poll(() => {
+        const menuBounds = listbox.element().getBoundingClientRect();
+        const panelBounds = composerPanel.getBoundingClientRect();
+        const composerBottom = composerShell.getBoundingClientRect().bottom;
+        const visualViewport = window.visualViewport;
+        const viewportTop = visualViewport?.offsetTop ?? 0;
+        const viewportHeight = visualViewport?.height ?? window.innerHeight;
+        const viewportBottom = viewportTop + viewportHeight;
+        const menuGap = panelBounds.top - menuBounds.bottom;
+        const availableHeight = Math.max(0, panelBounds.top - viewportTop - 8);
+        const maximumHeight = Math.min(viewportHeight * 0.4, 360, availableHeight);
+        const currentScroller = documentScroller();
+
+        return {
+          composerBottomAligned: Math.abs(composerBottom - window.innerHeight) <= 1,
+          composerBottomStable: Math.abs(composerBottom - baselineComposerBottom) <= 1,
+          documentHeightStable: currentScroller.scrollHeight <= baselineDocumentSize.height + 1,
+          documentWidthStable: currentScroller.scrollWidth <= baselineDocumentSize.width + 1,
+          documentWithoutHorizontalOverflow:
+            currentScroller.scrollWidth <= currentScroller.clientWidth + 1,
+          menuFullyVisible:
+            menuBounds.top >= viewportTop - 1 && menuBounds.bottom <= viewportBottom + 1,
+          menuHasPanelWidth: Math.abs(menuBounds.width - panelBounds.width) <= 1,
+          menuIsNotCaretSized: menuBounds.height > 40 && menuBounds.width > 100,
+          menuLeftAligned: Math.abs(menuBounds.left - panelBounds.left) <= 1,
+          menuRespectsGap: Math.abs(menuGap - 8) <= 1,
+          menuRespectsHeightCap: menuBounds.height <= maximumHeight + 1,
+        };
+      })
+      .toEqual({
+        composerBottomAligned: true,
+        composerBottomStable: true,
+        documentHeightStable: true,
+        documentWidthStable: true,
+        documentWithoutHorizontalOverflow: true,
+        menuFullyVisible: true,
+        menuHasPanelWidth: true,
+        menuIsNotCaretSized: true,
+        menuLeftAligned: true,
+        menuRespectsGap: true,
+        menuRespectsHeightCap: true,
+      });
+
+    const scrollRegion = screen.container.querySelector("[data-skill-menu-scroll-region]");
+    if (!(scrollRegion instanceof HTMLElement)) {
+      throw new Error("skill menu scroll region must render");
+    }
+    expect(listbox.element().contains(scrollRegion)).toBe(true);
+
+    await screen.user.keyboard("{ArrowDown}".repeat(19));
+    await expect
+      .poll(() => {
+        const activeOption = listbox
+          .element()
+          .querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
+        if (activeOption == null) {
+          return null;
+        }
+        const activeBounds = activeOption.getBoundingClientRect();
+        const scrollBounds = scrollRegion.getBoundingClientRect();
+        const menuBounds = listbox.element().getBoundingClientRect();
+        const panelBounds = composerPanel.getBoundingClientRect();
+        const composerBottom = composerShell.getBoundingClientRect().bottom;
+        const currentScroller = documentScroller();
+        const visualViewport = window.visualViewport;
+        const viewportTop = visualViewport?.offsetTop ?? 0;
+        const viewportHeight = visualViewport?.height ?? window.innerHeight;
+        const menuGap = panelBounds.top - menuBounds.bottom;
+        const availableHeight = Math.max(0, panelBounds.top - viewportTop - 8);
+        const maximumHeight = Math.min(viewportHeight * 0.4, 360, availableHeight);
+
+        return {
+          activeIsLastResult: activeOption.id === "typeahead-item-19",
+          activeVisibleInScrollRegion:
+            activeBounds.top >= scrollBounds.top - 1 &&
+            activeBounds.bottom <= scrollBounds.bottom + 1,
+          composerBottomAligned: Math.abs(composerBottom - window.innerHeight) <= 1,
+          composerBottomStable: Math.abs(composerBottom - baselineComposerBottom) <= 1,
+          documentHeightStable: currentScroller.scrollHeight <= baselineDocumentSize.height + 1,
+          documentScrollTopStable:
+            Math.abs(currentScroller.scrollTop - baselineDocumentScrollTop) <= 1,
+          documentWidthStable: currentScroller.scrollWidth <= baselineDocumentSize.width + 1,
+          documentWithoutHorizontalOverflow:
+            currentScroller.scrollWidth <= currentScroller.clientWidth + 1,
+          menuFullyVisible:
+            menuBounds.top >= viewportTop - 1 &&
+            menuBounds.bottom <= viewportTop + viewportHeight + 1,
+          menuHasPanelWidth: Math.abs(menuBounds.width - panelBounds.width) <= 1,
+          menuLeftAligned: Math.abs(menuBounds.left - panelBounds.left) <= 1,
+          menuRespectsGap: Math.abs(menuGap - 8) <= 1,
+          menuRespectsHeightCap: menuBounds.height <= maximumHeight + 1,
+          scrollRegionAdvanced: scrollRegion.scrollTop > 0,
+        };
+      })
+      .toEqual({
+        activeIsLastResult: true,
+        activeVisibleInScrollRegion: true,
+        composerBottomAligned: true,
+        composerBottomStable: true,
+        documentHeightStable: true,
+        documentScrollTopStable: true,
+        documentWidthStable: true,
+        documentWithoutHorizontalOverflow: true,
+        menuFullyVisible: true,
+        menuHasPanelWidth: true,
+        menuLeftAligned: true,
+        menuRespectsGap: true,
+        menuRespectsHeightCap: true,
+        scrollRegionAdvanced: true,
+      });
+
+    await activeFixture.unmount();
+    activeFixture.unmount = null;
+  };
+
+  try {
+    await assertResponsiveMenuGeometry(400, 876);
+    await assertResponsiveMenuGeometry(1440, 900);
+  } finally {
+    await activeFixture.unmount?.();
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("App keeps the transcript surface flush with the shell padding", async () => {
@@ -483,6 +761,89 @@ test("App keeps host lifecycle status stable while projection events update runt
   ]);
 });
 
+test("App exposes the current cwd enabled skill catalog and refreshes it after invalidation", async () => {
+  const commands = createGuiHostCommands();
+  const cwd = attachResponse.snapshot.thread.cwd;
+  vi.mocked(commands.listSkills)
+    .mockResolvedValueOnce({
+      data: [
+        {
+          cwd: "/workspace/other",
+          skills: [catalogSkill("other-cwd", "/workspace/other")],
+          errors: [],
+        },
+        {
+          cwd,
+          skills: [
+            catalogSkill("enabled-current", cwd),
+            catalogSkill("disabled-current", cwd, false),
+          ],
+          errors: [],
+        },
+      ],
+    })
+    .mockResolvedValueOnce(skillsListResponse(cwd, [catalogSkill("refreshed-current", cwd)]));
+  const { options, screen } = await renderThreadSwitchProbe(commands);
+  const catalogStatus = screen.getByLabelText("Active skill catalog status");
+  const catalog = screen.getByLabelText("Active skill catalog", { exact: true });
+
+  await expect.element(catalogStatus).toHaveTextContent("ready");
+  await expect.element(catalog).toHaveTextContent(/^enabled-current$/);
+  expect(commands.listSkills).toHaveBeenCalledExactlyOnceWith({
+    cwds: [cwd],
+    forceReload: false,
+  });
+
+  emitSkillsChanged(options);
+
+  await expect.element(catalog).toHaveTextContent(/^refreshed-current$/);
+  expect(commands.listSkills).toHaveBeenCalledTimes(2);
+});
+
+test("App isolates a replacement owner from the previous catalog settlement and drops unavailable targets", async () => {
+  const commands = createGuiHostCommands();
+  const currentCwd = attachResponse.snapshot.thread.cwd;
+  const candidateCwd = "/workspace/candidate";
+  const staleRefresh = createDeferred<SkillsListResponse>();
+  vi.mocked(commands.listSkills)
+    .mockResolvedValueOnce(skillsListResponse(currentCwd, [catalogSkill("current", currentCwd)]))
+    .mockReturnValueOnce(staleRefresh.promise)
+    .mockResolvedValueOnce(
+      skillsListResponse(candidateCwd, [catalogSkill("candidate", candidateCwd)]),
+    );
+  const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
+  const activeThread = screen.getByLabelText("Active thread owner");
+  const catalogStatus = screen.getByLabelText("Active skill catalog status");
+  const catalog = screen.getByLabelText("Active skill catalog", { exact: true });
+
+  await expect.element(catalog).toHaveTextContent(/^current$/);
+  emitSkillsChanged(options);
+  await expect.poll(() => vi.mocked(commands.listSkills).mock.calls.length).toBe(2);
+  await expect.element(catalogStatus).toHaveTextContent("refreshing");
+
+  const candidateAttachBase = attachWithThreadId(attachResponse, candidateThreadId);
+  queueAttachProjectionResponse(commands, {
+    ...candidateAttachBase,
+    snapshot: {
+      ...candidateAttachBase.snapshot,
+      thread: { ...candidateAttachBase.snapshot.thread, cwd: candidateCwd },
+    },
+  });
+  await continueButton.click();
+
+  await expect.element(activeThread).toHaveTextContent(candidateThreadId);
+  await expect.element(catalog).toHaveTextContent(/^candidate$/);
+  staleRefresh.resolve(skillsListResponse(currentCwd, [catalogSkill("stale", currentCwd)]));
+  await Promise.resolve();
+  await expect.element(catalog).toHaveTextContent(/^candidate$/);
+
+  markCommandsUnavailable(options);
+  await expect.element(activeThread).toHaveTextContent("none");
+  await expect.element(catalogStatus).toHaveTextContent("none");
+  emitSkillsChanged(options);
+  expect(commands.listSkills).toHaveBeenCalledTimes(3);
+});
+
 test("App displays GUI host startup errors in the sticky top notices region", async () => {
   startGuiHostConnectionMock.mockImplementation(() => {
     throw new Error("Missing launch token fragment");
@@ -512,7 +873,7 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   expect(topNotices.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
-  await expect.element(screen.getByPlaceholder("Message Codex")).not.toBeInTheDocument();
+  await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
 });
 
 test("App localizes the GUI host startup error title without translating its details", async () => {
@@ -825,23 +1186,79 @@ test("App does not publish a late startup owner after commands become unavailabl
   expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
 
-test("App passes ready commands to composer and sends plain text", async () => {
+test("App sends ordinary Enter through start identity and renders only its live commit", async () => {
+  const text = "Ordinary Enter through App";
+  const startedTurn = inProgressTurn("turn-enter-from-app");
   const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: inProgressTurn("turn-started-from-app"),
+    turn: startedTurn,
   });
   const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), startTurn };
-  const { screen } = await renderReadyApp(commandHandle);
+  const { options, screen } = await renderReadyApp(commandHandle);
+  const composer = getAppComposer(screen);
 
-  await screen.getByPlaceholder("Message Codex").fill("Hello from App composer");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await composer.fill(text);
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
 
-  expectStartTurnCalledOnceWithText(startTurn, "Hello from App composer");
+  await expect.poll(() => startTurn.mock.calls.length).toBe(1);
+  const params = startTurnParamsAt(startTurn, 0);
+  expect(typeof params.clientUserMessageId).toBe("string");
+  expect(startTurn).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+    clientUserMessageId: params.clientUserMessageId,
+    input: [textInput(text)],
+  });
+  await expect.poll(() => composer.element().textContent.trim()).toBe("");
+  await expect.element(screen.getByText(text, { exact: true })).not.toBeInTheDocument();
+  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
+
+  const started = eventWithEnvelope(
+    turnStarted(eventTurnStarted, "commit-enter-turn-started", startedTurn),
+    { parentCommitId: attachResponse.snapshot.headCommitId },
+  );
+  const committedUserMessage = userMessage(
+    "user-enter-from-app",
+    [textInput(text)],
+    params.clientUserMessageId,
+  );
+  const startedItem = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-enter-user-message-started",
+      startedTurn.id,
+      committedUserMessage,
+    ),
+    { parentCommitId: started.commitId },
+  );
+  emitProjectionEvent(options, started);
+  emitProjectionEvent(options, startedItem);
+  expect(
+    selectTranscriptEntry(
+      screen.store.getState(),
+      transcriptEntryIdFor(startedTurn.id, committedUserMessage.id),
+    ),
+  ).toBeNull();
+  await expect.element(screen.getByText(text, { exact: true })).not.toBeInTheDocument();
+
+  const completedItem = eventWithEnvelope(
+    itemCompleted(
+      eventItemCompleted,
+      "commit-enter-user-message-completed",
+      startedTurn.id,
+      committedUserMessage,
+    ),
+    { parentCommitId: startedItem.commitId },
+  );
+  emitProjectionEvent(options, completedItem);
+
+  await expect.element(screen.getByText(text, { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
 });
 
 test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
   const { activeTurn, options, screen, startTurn } = await renderActiveApp();
 
-  await screen.getByPlaceholder("Message Codex").fill("Queued from active turn");
+  await getAppComposer(screen).fill("Queued from active turn");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect.element(screen.getByText("1 message queued")).toBeVisible();
@@ -862,14 +1279,281 @@ test("App queues during an active turn and starts exactly once after its live te
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
 
-test("App does not auto-start interrupted messages and recovers them in FIFO order", async () => {
-  const { activeTurn, options, screen, startTurn } = await renderActiveApp();
-  const composer = screen.getByPlaceholder("Message Codex");
+test("App guides explicit input ahead of ordinary FIFO and commits accepted identities independently", async () => {
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const explicitSteer = createDeferred<SteerResponse>();
+  const promotedSteer = createDeferred<SteerResponse>();
+  const steerTurn = vi
+    .fn<GuiHostCommands["steerTurn"]>()
+    .mockImplementationOnce(() => explicitSteer.promise)
+    .mockImplementationOnce(() => promotedSteer.promise);
+  const { activeTurn, options, queueCoordinator, screen, startTurn } = await renderActiveApp({
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
 
-  await composer.fill("First interrupted message");
+  await composer.fill("Ordinary A");
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
+  await composer.fill("Ordinary B");
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => queueCoordinator.getSnapshot().queuedCount).toBe(2);
+
+  await composer.fill("Explicit steer S");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  const explicitParams = steerTurnParamsAt(steerTurn, 0);
+  expect(explicitParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: explicitParams.clientUserMessageId,
+    input: [textInput("Explicit steer S")],
+  });
+  expect(typeof explicitParams.clientUserMessageId).toBe("string");
+  expect(startTurn).not.toHaveBeenCalled();
+
+  await expect.poll(() => composer.element().textContent.trim()).toBe("");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  expect(queueCoordinator.getSnapshot().queuedSteers).toMatchObject([
+    { preview: { type: "text", text: "Ordinary A" } },
+  ]);
+
+  explicitSteer.resolve({ turnId: activeTurn.id });
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(2);
+  const promotedParams = steerTurnParamsAt(steerTurn, 1);
+  expect(promotedParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: promotedParams.clientUserMessageId,
+    input: [textInput("Ordinary A")],
+  });
+  expect(typeof promotedParams.clientUserMessageId).toBe("string");
+  expect(promotedParams.clientUserMessageId).not.toBe(explicitParams.clientUserMessageId);
+  promotedSteer.resolve({ turnId: activeTurn.id });
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().pendingSteers.map(({ phase }) => phase))
+    .toEqual(["acceptedAwaitingCommit", "acceptedAwaitingCommit"]);
+
+  const committedPromoted = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-promoted-steer",
+      activeTurn.id,
+      userMessage(
+        "user-promoted-steer",
+        [textInput("Ordinary A")],
+        promotedParams.clientUserMessageId,
+      ),
+    ),
+    { parentCommitId: attachResponse.snapshot.headCommitId },
+  );
+  emitProjectionEvent(options, committedPromoted);
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().pendingSteers)
+    .toMatchObject([
+      { phase: "acceptedAwaitingCommit", preview: { type: "text", text: "Explicit steer S" } },
+    ]);
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+
+  const committedExplicit = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-explicit-steer",
+      activeTurn.id,
+      userMessage(
+        "user-explicit-steer",
+        [textInput("Explicit steer S")],
+        explicitParams.clientUserMessageId,
+      ),
+    ),
+    { parentCommitId: committedPromoted.commitId },
+  );
+  emitProjectionEvent(options, committedExplicit);
+  await expect.poll(() => queueCoordinator.getSnapshot().pendingSteers).toEqual([]);
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  expect(startTurn).not.toHaveBeenCalled();
+  await expect.element(screen.getByText("1 message queued", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Ordinary B", { exact: true })).not.toBeInTheDocument();
+});
+
+test("App batch rejects a non-steerable target and restores a failed merged start in order", async () => {
+  type StartResponse = Awaited<ReturnType<GuiHostCommands["startTurn"]>>;
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const startRequest = createDeferred<StartResponse>();
+  const steerRequest = createDeferred<SteerResponse>();
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>(() => startRequest.promise);
+  const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>(() => steerRequest.promise);
+  const { activeTurn, options, queueCoordinator, screen } = await renderActiveApp({
+    startTurn,
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("Ordinary after rejected steers");
+  await composer.click();
+  await screen.user.keyboard("{Enter}");
+  await composer.fill("Rejected steer A");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  await composer.fill("Rejected steer B");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => queueCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+
+  steerRequest.reject(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("active turn is not steerable"),
+      rpcError: {
+        code: -32000,
+        message: "active turn is not steerable",
+        data: {
+          message: "active turn is not steerable",
+          codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+          additionalDetails: null,
+        },
+      },
+    }),
+  );
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview))
+    .toEqual([
+      { type: "text", text: "Rejected steer A" },
+      { type: "text", text: "Rejected steer B" },
+    ]);
+  expect(steerTurn).toHaveBeenCalledOnce();
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+
+  const terminal = eventWithEnvelope(
+    turnCompleted(eventTurnCompleted, "commit-non-steerable-terminal", {
+      ...activeTurn,
+      status: "completed",
+    }),
+    { parentCommitId: attachResponse.snapshot.headCommitId },
+  );
+  emitProjectionEvent(options, terminal);
+  await expect.poll(() => startTurn.mock.calls.length).toBe(1);
+  const mergedParams = startTurnParamsAt(startTurn, 0);
+  expect(mergedParams).toEqual({
+    threadId: launchThreadId,
+    clientUserMessageId: mergedParams.clientUserMessageId,
+    input: [textInput("Rejected steer A"), textInput("Rejected steer B")],
+  });
+  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+
+  startRequest.reject(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("synthetic merged start rejected"),
+    }),
+  );
+  await expect
+    .poll(() => ({
+      queuedCount: queueCoordinator.getSnapshot().queuedCount,
+      rejectedPreviews: queueCoordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview),
+    }))
+    .toEqual({
+      queuedCount: 1,
+      rejectedPreviews: [
+        { type: "text", text: "Rejected steer A" },
+        { type: "text", text: "Rejected steer B" },
+      ],
+    });
+  expect(startTurn).toHaveBeenCalledOnce();
+  expect(steerTurn).toHaveBeenCalledOnce();
+});
+
+test.each(["response mismatch", "delivery unknown"] as const)(
+  "App keeps a steer %s unknown without sending or retrying its successor",
+  async (settlement) => {
+    type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+    const steerRequest = createDeferred<SteerResponse>();
+    const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>(() => steerRequest.promise);
+    const { queueCoordinator, screen } = await renderActiveApp({ steerTurn });
+    const composer = getAppComposer(screen);
+
+    await composer.fill("Unknown steer first");
+    dispatchGuideShortcut(composer.element());
+    await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+    await composer.fill("Unknown steer successor");
+    dispatchGuideShortcut(composer.element());
+    await expect.poll(() => queueCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+
+    if (settlement === "response mismatch") {
+      steerRequest.resolve({ turnId: "turn-response-mismatch" });
+    } else {
+      steerRequest.reject(
+        new GuiHostCommandError({
+          source: "missingResult",
+          delivery: "deliveryUnknown",
+          error: new Error("steer delivery is unknown"),
+        }),
+      );
+    }
+    const expectedPhase =
+      settlement === "response mismatch" ? "responseTurnMismatch" : "deliveryUnknown";
+    await expect
+      .poll(() => queueCoordinator.getSnapshot())
+      .toMatchObject({
+        pendingSteers: [
+          { phase: expectedPhase, preview: { type: "text", text: "Unknown steer first" } },
+        ],
+        queuedSteers: [{ preview: { type: "text", text: "Unknown steer successor" } }],
+        hasUnknownSteer: true,
+      });
+    await expect.element(screen.getByText("Guide status unknown", { exact: true })).toBeVisible();
+    await steerRequest.promise.catch(() => undefined);
+    await Promise.resolve();
+    expect(steerTurn).toHaveBeenCalledOnce();
+    expect(queueCoordinator.getSnapshot()).toMatchObject({
+      pendingSteers: [{ phase: expectedPhase }],
+      queuedSteers: [{ preview: { type: "text", text: "Unknown steer successor" } }],
+      hasUnknownSteer: true,
+    });
+  },
+);
+
+test("App keeps a local Stop paused until explicit rejected-first and ordinary FIFO recovery", async () => {
+  let startedTurnSequence = 0;
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockImplementation(() => {
+    startedTurnSequence += 1;
+    return Promise.resolve({
+      turn: inProgressTurn(`turn-local-recovery-${String(startedTurnSequence)}`),
+    });
+  });
+  const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>().mockRejectedValue(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("local steer rejected"),
+    }),
+  );
+  const { activeTurn, interruptTurn, options, queueCoordinator, screen } = await renderActiveApp({
+    startTurn,
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("First ordinary message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await composer.fill("Second interrupted message");
+  await composer.fill("Second ordinary message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Stop" }).click();
+  await expect
+    .poll(() => interruptTurn.mock.calls)
+    .toEqual([[{ threadId: launchThreadId, turnId: activeTurn.id }]]);
+  await expect.poll(() => queueCoordinator.getSnapshot().interrupt).toEqual({ phase: "accepted" });
+  expect(
+    queueCoordinator.submitSteer([{ type: "text", text: "Rejected steer", text_elements: [] }]),
+  ).toEqual({ type: "accepted" });
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().recovery)
+    .toEqual({
+      reason: "steerDefinitelyNotAccepted",
+      count: 1,
+    });
 
   const interrupted = turnCompleted(eventTurnCompleted, "commit-active-interrupted", {
     ...activeTurn,
@@ -880,34 +1564,171 @@ test("App does not auto-start interrupted messages and recovers them in FIFO ord
     eventWithEnvelope(interrupted, { parentCommitId: attachResponse.snapshot.headCommitId }),
   );
 
-  await expect.element(screen.getByText("2 messages have not been sent")).toBeVisible();
+  await expect.element(screen.getByText("3 messages have not been sent")).toBeVisible();
   expect(startTurn).not.toHaveBeenCalled();
   await composer.fill("Draft preserved during recovery");
-  await expect.element(composer).toBeEnabled();
+  await expect.element(composer).toHaveAttribute("contenteditable", "true");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
 
   await screen.getByRole("button", { name: "Continue sending" }).click();
 
-  expectStartTurnCalledOnceWithText(startTurn, "First interrupted message");
-  await expect.element(composer).toHaveValue("Draft preserved during recovery");
-
-  const recoveredFirstCompleted = turnCompleted(
-    eventTurnCompleted,
-    "commit-recovered-first",
-    baseTurn("turn-started-from-app"),
+  expectStartTurnCalledOnceWithText(startTurn, "Rejected steer");
+  const recoveredSteerStarted = turnStarted(
+    eventTurnStarted,
+    "commit-recovered-steer-started",
+    inProgressTurn("turn-local-recovery-1"),
   );
   emitProjectionEvent(
     options,
-    eventWithEnvelope(recoveredFirstCompleted, {
-      parentCommitId: interrupted.commitId,
+    eventWithEnvelope(recoveredSteerStarted, { parentCommitId: interrupted.commitId }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  await expect.element(composer).toHaveTextContent("Draft preserved during recovery");
+
+  const recoveredSteerCompleted = turnCompleted(
+    eventTurnCompleted,
+    "commit-recovered-steer",
+    baseTurn("turn-local-recovery-1"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSteerCompleted, {
+      parentCommitId: recoveredSteerStarted.commitId,
     }),
   );
 
-  expectStartTurnSecondCallWithText(startTurn, "Second interrupted message");
-  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
+  expectStartTurnSecondCallWithText(startTurn, "First ordinary message");
+  const recoveredFirstOrdinaryStarted = turnStarted(
+    eventTurnStarted,
+    "commit-recovered-first-ordinary-started",
+    inProgressTurn("turn-local-recovery-2"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredFirstOrdinaryStarted, {
+      parentCommitId: recoveredSteerCompleted.commitId,
+    }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  const recoveredFirstOrdinaryCompleted = turnCompleted(
+    eventTurnCompleted,
+    "commit-recovered-first-ordinary",
+    baseTurn("turn-local-recovery-2"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredFirstOrdinaryCompleted, {
+      parentCommitId: recoveredFirstOrdinaryStarted.commitId,
+    }),
+  );
+
+  expect(startTurn).toHaveBeenCalledTimes(3);
+  const thirdParams = startTurnParamsAt(startTurn, 2);
+  expect(startTurn).toHaveBeenNthCalledWith(3, {
+    threadId: launchThreadId,
+    clientUserMessageId: thirdParams.clientUserMessageId,
+    input: [{ type: "text", text: "Second ordinary message", text_elements: [] }],
+  });
+  const recoveredSecondOrdinaryStarted = turnStarted(
+    eventTurnStarted,
+    "commit-recovered-second-ordinary-started",
+    inProgressTurn("turn-local-recovery-3"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSecondOrdinaryStarted, {
+      parentCommitId: recoveredFirstOrdinaryCompleted.commitId,
+    }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  await expect.element(composer).toHaveTextContent("Draft preserved during recovery");
+});
+
+test("App auto-recovers a non-local interruption rejected-first before ordinary FIFO", async () => {
+  let startedTurnSequence = 0;
+  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockImplementation(() => {
+    startedTurnSequence += 1;
+    return Promise.resolve({
+      turn: inProgressTurn(`turn-non-local-${String(startedTurnSequence)}`),
+    });
+  });
+  const steerTurn = vi.fn<GuiHostCommands["steerTurn"]>().mockRejectedValue(
+    new GuiHostCommandError({
+      source: "rpc",
+      delivery: "definitelyNotAccepted",
+      error: new Error("non-local steer rejected"),
+    }),
+  );
+  const { activeTurn, interruptTurn, options, queueCoordinator, screen } = await renderActiveApp({
+    startTurn,
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("Ordinary after non-local interruption");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  expect(startTurn).toHaveBeenCalledTimes(2);
-  await expect.element(screen.getByText("1 message queued")).toBeVisible();
+  expect(
+    queueCoordinator.submitSteer([
+      { type: "text", text: "Non-local rejected steer", text_elements: [] },
+    ]),
+  ).toEqual({ type: "accepted" });
+  await expect
+    .poll(() => queueCoordinator.getSnapshot().recovery)
+    .toEqual({
+      reason: "steerDefinitelyNotAccepted",
+      count: 1,
+    });
+
+  const interrupted = turnCompleted(eventTurnCompleted, "commit-non-local-interrupted", {
+    ...activeTurn,
+    status: "interrupted",
+  });
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(interrupted, { parentCommitId: attachResponse.snapshot.headCommitId }),
+  );
+
+  expect(interruptTurn).not.toHaveBeenCalled();
+  expectStartTurnCalledOnceWithText(startTurn, "Non-local rejected steer");
+  const recoveredSteerStarted = turnStarted(
+    eventTurnStarted,
+    "commit-non-local-recovered-steer-started",
+    inProgressTurn("turn-non-local-1"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSteerStarted, { parentCommitId: interrupted.commitId }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
+  await expect
+    .element(screen.getByRole("button", { name: "Continue sending" }))
+    .not.toBeInTheDocument();
+
+  const recoveredSteerCompleted = turnCompleted(
+    eventTurnCompleted,
+    "commit-non-local-recovered-steer",
+    baseTurn("turn-non-local-1"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredSteerCompleted, {
+      parentCommitId: recoveredSteerStarted.commitId,
+    }),
+  );
+
+  expectStartTurnSecondCallWithText(startTurn, "Ordinary after non-local interruption");
+  const recoveredOrdinaryStarted = turnStarted(
+    eventTurnStarted,
+    "commit-non-local-recovered-ordinary-started",
+    inProgressTurn("turn-non-local-2"),
+  );
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(recoveredOrdinaryStarted, {
+      parentCommitId: recoveredSteerCompleted.commitId,
+    }),
+  );
+  await expect.poll(() => queueCoordinator.getSnapshot().canStop).toBe(true);
 });
 
 test("App enables Stop for the current active turn", async () => {
@@ -1243,10 +2064,10 @@ test("App disables composer when host commands become unavailable", async () => 
   const commandHandle = createGuiHostCommands();
   const { options, screen } = await renderReadyApp(commandHandle);
   const composer = screen.getByRole("region", { name: "Message composer" });
-  const input = screen.getByPlaceholder("Message Codex");
+  const input = getAppComposer(screen);
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
 
-  await expect.element(input).toBeEnabled();
+  await expect.element(input).toHaveAttribute("contenteditable", "true");
   options.onCommandsUnavailable?.();
 
   await expect.element(composer).not.toBeInTheDocument();
@@ -1281,6 +2102,80 @@ test("App closes the host connection when unmounted", async () => {
   expect(getCleanupConnectionCallCount()).toBe(1);
 });
 
+test("App isolates a disposed coordinator late steer settlement from its replacement owner", async () => {
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const oldSteerRequest = createDeferred<SteerResponse>();
+  const oldSteerTurn = vi.fn<GuiHostCommands["steerTurn"]>(() => oldSteerRequest.promise);
+  const {
+    activeTurn,
+    options,
+    queueCoordinator: oldCoordinator,
+    screen,
+  } = await renderActiveApp({ steerTurn: oldSteerTurn });
+  const composer = getAppComposer(screen);
+
+  await composer.fill("Old issuing steer");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => oldSteerTurn.mock.calls.length).toBe(1);
+  await composer.fill("Old queued successor");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => oldCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+
+  markCommandsUnavailable(options);
+  await expect
+    .poll(() => oldCoordinator.getReleaseReadiness())
+    .toEqual({
+      type: "blocked",
+      blockers: [{ type: "disposed" }],
+    });
+
+  const replacementTurn = inProgressTurn("turn-replacement-owner");
+  const replacementStartTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
+    turn: inProgressTurn("turn-replacement-started"),
+  });
+  const replacementSteerTurn = vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
+    turnId: replacementTurn.id,
+  });
+  const replacementCommands: GuiHostCommands = {
+    ...createGuiHostCommands(),
+    startTurn: replacementStartTurn,
+    steerTurn: replacementSteerTurn,
+  };
+  queueAttachProjectionResponse(
+    replacementCommands,
+    attachWithTurns(attachResponse, [replacementTurn]),
+  );
+  initializeHost(options, replacementCommands);
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(2);
+  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
+  await expect
+    .poll(() => selectThreadRuntimeRecord(screen.store.getState())?.snapshotTurns)
+    .toStrictEqual([replacementTurn]);
+  const replacementResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(1);
+  if (replacementResult?.type !== "return") {
+    throw new Error("replacement App owner must create a queue coordinator");
+  }
+  const replacementCoordinator = replacementResult.value;
+  const replacementSnapshot = replacementCoordinator.getSnapshot();
+  const replacementTranscript = screen.store.getState().transcriptState;
+
+  oldSteerRequest.resolve({ turnId: activeTurn.id });
+  await oldSteerRequest.promise;
+  await Promise.resolve();
+
+  expect(oldSteerTurn).toHaveBeenCalledOnce();
+  expect(replacementSteerTurn).not.toHaveBeenCalled();
+  expect(replacementStartTurn).not.toHaveBeenCalled();
+  expect(replacementCoordinator.getSnapshot()).toBe(replacementSnapshot);
+  expect(screen.store.getState().transcriptState).toBe(replacementTranscript);
+  await expect
+    .element(screen.getByText("Old issuing steer", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Old queued successor", { exact: true }))
+    .not.toBeInTheDocument();
+});
+
 test("App owns one queue coordinator for the matching attached launch thread until cleanup", async () => {
   const screen = await renderWithProviders(<App />);
   const options = getHostOptions(startGuiHostConnectionMock);
@@ -1296,6 +2191,8 @@ test("App owns one queue coordinator for the matching attached launch thread unt
     threadId: launchThreadId,
     activeTurnId: null,
     startTurn: commands.startTurn,
+    steerTurn: commands.steerTurn,
+    interruptTurn: commands.interruptTurn,
   });
   emitProjectionEvent(options, eventTurnStarted);
 
@@ -1327,7 +2224,8 @@ test("App publishes a completed thread switch atomically across capabilities and
   vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
     threadId === launchThreadId ? initialQueue.coordinator : candidateQueue.coordinator,
   );
-  const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+  const pendingAttach =
+    createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
   const candidateItem = agentMessage("candidate-switch-item", "");
   const candidateAttach = attachWithThreadId(
     attachWithTurns(attachReplacement, [inProgressTurn("candidate-switch-turn")]),
@@ -1542,7 +2440,8 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
 test("App cleans up once on unmount and ignores a late switch candidate completion", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId);
   vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
-  const pendingAttach = deferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+  const pendingAttach =
+    createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
   const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
@@ -1637,7 +2536,7 @@ test("App does not render optimistic user messages after send", async () => {
   const commandHandle = createGuiHostCommands();
   const { screen } = await renderReadyApp(commandHandle);
 
-  await screen.getByPlaceholder("Message Codex").fill("Not optimistic");
+  await getAppComposer(screen).fill("Not optimistic");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
   await expect.element(screen.getByText("Not optimistic")).not.toBeInTheDocument();

@@ -9,6 +9,7 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import type {
+  SkillsChangedNotification,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
@@ -320,6 +321,36 @@ describe("guiHostClient handshake", () => {
     expect(statuses.at(-1)).toEqual({ label: "initialized", message: undefined });
   });
 
+  it("forwards skills/changed notifications", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const notifications: SkillsChangedNotification[] = [];
+    const socket = new RecordingWebSocket();
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/task/thread-abc"),
+      token: "secret",
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus,
+      onSkillsChanged: (notification) => {
+        notifications.push(notification);
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "skills/changed",
+        params: {},
+      }),
+    });
+
+    expect(notifications).toEqual([{}]);
+    expect(statuses.at(-1)).toEqual({ label: "initialized", message: undefined });
+    expect(socket.closed).toEqual([]);
+  });
+
   it("ignores a known unconsumed notification without validating its params", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const projectionCallbacks: string[] = [];
@@ -419,6 +450,39 @@ describe("guiHostClient handshake", () => {
     expect(statuses.at(-1)).toEqual({
       label: "error",
       message: "thread/projection/event returned malformed params payload",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
+  });
+
+  it("reports malformed skills/changed payloads without forwarding them", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const notifications: SkillsChangedNotification[] = [];
+    const socket = new RecordingWebSocket();
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/task/thread-abc"),
+      token: "secret",
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus,
+      onSkillsChanged: (notification) => {
+        notifications.push(notification);
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "skills/changed",
+        params: null,
+      }),
+    });
+
+    expect(notifications).toEqual([]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "skills/changed returned malformed params payload",
     });
     expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
   });

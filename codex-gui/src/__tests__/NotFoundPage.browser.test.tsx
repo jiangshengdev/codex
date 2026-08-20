@@ -110,6 +110,7 @@ test.each([
   await expect.element(screen.getByText(labels.description, { exact: true })).toBeVisible();
   await expect.element(screen.getByRole("button", { name: labels.action })).toBeVisible();
   await expect.element(screen.getByText("404", { exact: true })).toBeVisible();
+  await expect.poll(() => document.title).toBe(`${labels.title} · Codex`);
   const supportLink = screen.getByRole("link", { name: labels.support });
   await expect.element(supportLink).toBeVisible();
   expect(supportLink.element().getAttribute("href")?.startsWith("mailto:")).toBe(true);

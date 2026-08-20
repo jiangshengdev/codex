@@ -1,5 +1,6 @@
 import { expect, vi } from "vitest";
 import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
+import type { JSONRPCErrorError } from "@codex-protocol/JSONRPCErrorError";
 import {
   startGuiHostConnection,
   type GuiHostCommands,
@@ -104,7 +105,7 @@ export function sendJsonRpcResult(socket: RecordingWebSocket, id: number, result
 export function sendJsonRpcError(
   socket: RecordingWebSocket,
   id: number,
-  error: { code: number; message: string },
+  error: JSONRPCErrorError,
 ): void {
   socket.onmessage?.({
     data: JSON.stringify({ jsonrpc: "2.0", id, error }),

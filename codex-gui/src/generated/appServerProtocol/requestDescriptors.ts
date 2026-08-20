@@ -2,6 +2,7 @@
 import type { ProtocolValidator, RequestResponse } from "../../features/guiHost/appServerProtocol";
 import {
   validateInitializeResponse,
+  validateV2SkillsListResponse,
   validateV2ThreadProjectionAttachResponse,
   validateV2ThreadProjectionDetachResponse,
   validateV2ThreadListResponse,
@@ -17,6 +18,12 @@ export const requestDescriptors = {
     paramsSchema: "InitializeParams",
     responseSchema: "InitializeResponse",
     validateResponse: validateInitializeResponse,
+  },
+  "skills/list": {
+    method: "skills/list",
+    paramsSchema: "v2/SkillsListParams",
+    responseSchema: "v2/SkillsListResponse",
+    validateResponse: validateV2SkillsListResponse,
   },
   "thread/projection/attach": {
     method: "thread/projection/attach",
@@ -69,6 +76,7 @@ export const requestDescriptors = {
 } satisfies {
   [M in
     | "initialize"
+    | "skills/list"
     | "thread/projection/attach"
     | "thread/projection/detach"
     | "thread/list"

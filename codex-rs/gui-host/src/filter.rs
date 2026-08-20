@@ -2,6 +2,7 @@ pub fn is_allowed_client_request_method(method: &str) -> bool {
     matches!(
         method,
         "initialize"
+            | "skills/list"
             | "thread/projection/attach"
             | "thread/projection/detach"
             | "thread/list"
@@ -21,7 +22,10 @@ pub fn is_allowed_client_notification_method(_method: &str) -> bool {
 pub fn is_allowed_server_notification_method(method: &str) -> bool {
     matches!(
         method,
-        "thread/projection/event" | "thread/projection/delta" | "thread/projection/closed"
+        "skills/changed"
+            | "thread/projection/event"
+            | "thread/projection/delta"
+            | "thread/projection/closed"
     )
 }
 

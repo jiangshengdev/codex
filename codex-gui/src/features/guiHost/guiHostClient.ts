@@ -1,4 +1,5 @@
 import type {
+  SkillsChangedNotification,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
@@ -33,6 +34,7 @@ export type StartGuiHostConnectionOptions = {
   token: string;
   createWebSocket?: (url: string) => WebSocket;
   onStatus?: (status: GuiHostStatus) => void;
+  onSkillsChanged?: (notification: SkillsChangedNotification) => void;
   onProjectionDelta?: (notification: ThreadProjectionDeltaNotification) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
   onProjectionClosed?: (notification: ThreadProjectionClosedNotification) => void;
@@ -47,6 +49,7 @@ export function startGuiHostConnection({
   token,
   createWebSocket = (url) => new WebSocket(url),
   onStatus,
+  onSkillsChanged,
   onProjectionDelta,
   onProjectionEvent,
   onProjectionClosed,
@@ -201,6 +204,9 @@ export function startGuiHostConnection({
       case "selected": {
         const notification = classification.notification;
         switch (notification.method) {
+          case "skills/changed":
+            onSkillsChanged?.(notification.params);
+            return;
           case "thread/projection/event":
             onProjectionEvent?.(notification.params);
             return;

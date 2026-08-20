@@ -8,6 +8,7 @@ import { format } from "oxfmt";
 import {
   generateGuiHostContractTypeScriptArtifacts,
   generateTypeScriptArtifacts,
+  type AuxiliarySchemaMetadata,
   type NotificationDefinitionMetadata,
   type RequestDefinitionMetadata,
   type TypeScriptFormatter,
@@ -27,6 +28,7 @@ type GenerateProtocolArtifactsOptions = {
   notificationDefinitions: readonly JsonObject[];
   selectedRequestMethods: readonly string[];
   selectedNotificationMethods: readonly string[];
+  selectedAuxiliarySchemaIds: readonly string[];
   dependencies?: GeneratorDependencies;
 };
 
@@ -57,6 +59,10 @@ const VALIDATOR_ID_PREFIX = "https://openai.com/codex/gui-validator/";
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
 }
 
 function parseRequestDefinition(value: JsonObject): RequestDefinitionMetadata {
@@ -309,6 +315,33 @@ function selectNotificationDefinitions(
   return { notificationDefinitions: parsedDefinitions, selectedNotificationDefinitions };
 }
 
+function selectAuxiliarySchemas(
+  schemaBundle: JsonObject,
+  selectedAuxiliarySchemaIds: readonly string[],
+): AuxiliarySchemaMetadata[] {
+  return selectedAuxiliarySchemaIds.map((schemaId) => {
+    const schema = getAtPath(schemaBundle, pointerParts(schemaPointer(schemaId)));
+    if (!isObject(schema)) {
+      throw new Error(`Auxiliary schema is missing from the bundle: ${schemaId}`);
+    }
+    const schemaPath = schemaId.split("/");
+    const typeName = schemaPath.at(-1);
+    if (
+      schemaPath.length !== 2 ||
+      schemaPath[0] !== "v2" ||
+      !typeName ||
+      !/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(typeName)
+    ) {
+      throw new Error(`Unsupported auxiliary TypeScript schema: ${schemaId}`);
+    }
+    const required = schema.required ?? [];
+    if (!isStringArray(required)) {
+      throw new Error(`Auxiliary schema required properties must be strings: ${schemaId}`);
+    }
+    return { schemaId, typeName, requiredProperties: required };
+  });
+}
+
 function buildAjvValidators(
   selectedBundle: JsonObject,
   validatorExports: ReadonlyMap<string, string>,
@@ -349,6 +382,7 @@ async function defaultBundleJavaScript(sourceText: string): Promise<string> {
     bundle: true,
     format: "esm",
     platform: "browser",
+    preserveSymlinks: true,
     sourcemap: false,
     write: false,
     stdin: {
@@ -408,6 +442,7 @@ export async function generateProtocolArtifacts({
   notificationDefinitions,
   selectedRequestMethods,
   selectedNotificationMethods,
+  selectedAuxiliarySchemaIds,
   dependencies = {},
 }: GenerateProtocolArtifactsOptions): Promise<Record<string, string>> {
   const selectedRequests = selectedRequestDefinitions(
@@ -423,6 +458,7 @@ export async function generateProtocolArtifacts({
     selectedNotificationMethods,
     schemaBundle,
   );
+  const selectedAuxiliarySchemas = selectAuxiliarySchemas(schemaBundle, selectedAuxiliarySchemaIds);
   validateSchemaExists(schemaBundle, "JSONRPCMessage", "JSON-RPC envelope");
   const envelopeRuntime = await generateStandaloneArtifacts({
     basename: "jsonRpcEnvelopeValidators",
@@ -440,6 +476,7 @@ export async function generateProtocolArtifacts({
     rootSchemaIds: [
       ...selectedRequests.map(({ responseSchema }) => responseSchema),
       ...selectedNotificationDefinitions.map(({ paramsSchema }) => paramsSchema),
+      ...selectedAuxiliarySchemas.map(({ schemaId }) => schemaId),
     ],
     allErrors: false,
     messages: false,
@@ -449,6 +486,7 @@ export async function generateProtocolArtifacts({
     requestDefinitions: selectedRequests,
     notificationDefinitions: parsedNotificationDefinitions,
     selectedNotificationDefinitions,
+    selectedAuxiliarySchemas,
     envelopeValidatorExports: envelopeRuntime.validatorExports,
     payloadValidatorExports: payloadRuntime.validatorExports,
     formatTypeScript: dependencies.formatTypeScript ?? format,

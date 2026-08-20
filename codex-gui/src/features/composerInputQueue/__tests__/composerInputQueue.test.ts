@@ -8,7 +8,13 @@ import {
   type StartClaim,
 } from "../composerInputQueue";
 
-const message = (id: string): ComposerQueueMessage => ({ id, text: `message ${id}` });
+const message = (id: string): ComposerQueueMessage => ({
+  id,
+  input: [
+    { type: "text", text: `message ${id}`, text_elements: [] },
+    { type: "skill", name: `skill-${id}`, path: `/example/skills/${id}/SKILL.md` },
+  ],
+});
 
 function startClaim(transition: ComposerInputQueueTransition): StartClaim {
   const effect = transition.effects[0];
@@ -32,10 +38,18 @@ const committedMessage = (claim: StartClaim, turnId: string, commitId: string) =
 
 describe("composer input queue", () => {
   it("issues one opaque single-message start claim for an idle submit", () => {
-    const queue = createComposerInputQueue({ activeTurnId: null });
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
 
-    expect(queue.view()).toEqual({ queuedCount: 0, releaseState: { type: "safe" } });
-    const transition = submit(queue, "a");
+    expect(queue.view()).toEqual({
+      queuedCount: 0,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
+      releaseState: { type: "safe" },
+    });
+    const submittedMessage = message("a");
+    const transition = queue.submit(submittedMessage);
     const claim = startClaim(transition);
 
     expect(transition).toEqual({
@@ -43,8 +57,21 @@ describe("composer input queue", () => {
       effects: [{ type: "performStart", claim }],
     });
     expect(claim).toMatchObject({ type: "start", message: message("a") });
+    expect(claim.message).not.toBe(submittedMessage);
+    expect(claim.message.input).not.toBe(submittedMessage.input);
+    const submittedText = submittedMessage.input[0];
+    const claimedText = claim.message.input[0];
+    if (submittedText?.type !== "text" || claimedText?.type !== "text") {
+      throw new Error("expected first input items to be text");
+    }
+    expect(claimedText).not.toBe(submittedText);
+    expect(claimedText.text_elements).not.toBe(submittedText.text_elements);
     expect(queue.view()).toEqual({
       queuedCount: 0,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "pendingStart", phase: "issuing" }],
@@ -61,11 +88,17 @@ describe("composer input queue", () => {
 
   it("exposes every local release blocker without exposing owned messages", () => {
     expect(createComposerInputQueue().view().releaseState).toEqual({ type: "safe" });
-    expect(createComposerInputQueue({ activeTurnId: "turn-active" }).view().releaseState).toEqual({
+    expect(
+      createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-active" }).view()
+        .releaseState,
+    ).toEqual({
       type: "safe",
     });
 
-    const ordinary = createComposerInputQueue({ activeTurnId: "turn-active" });
+    const ordinary = createComposerInputQueue({
+      threadId: "thread-1",
+      activeTurnId: "turn-active",
+    });
     submit(ordinary, "ordinary");
     expect(ordinary.view().releaseState).toEqual({
       type: "blocked",
@@ -108,20 +141,27 @@ describe("composer input queue", () => {
   });
 
   it("queues active, pending, and busy submissions without outbound effects and keeps FIFO", () => {
-    const activeQueue = createComposerInputQueue({ activeTurnId: "turn-active" });
+    const activeQueue = createComposerInputQueue({
+      threadId: "thread-1",
+      activeTurnId: "turn-active",
+    });
     expect(submit(activeQueue, "active")).toEqual({
       result: { type: "queued", messageId: "active" },
       effects: [],
     });
     expect(activeQueue.view()).toEqual({
       queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "ordinaryQueued", count: 1 }],
       },
     });
 
-    const queue = createComposerInputQueue({ activeTurnId: null });
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
     const firstClaim = startClaim(submit(queue, "a"));
     expect(submit(queue, "b")).toEqual({
       result: { type: "queued", messageId: "b" },
@@ -129,6 +169,10 @@ describe("composer input queue", () => {
     });
     expect(queue.view()).toEqual({
       queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [
@@ -143,6 +187,10 @@ describe("composer input queue", () => {
     });
     expect(queue.view()).toEqual({
       queuedCount: 2,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [
@@ -157,6 +205,10 @@ describe("composer input queue", () => {
     expect(secondClaim.message).toEqual(message("b"));
     expect(queue.view()).toEqual({
       queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [
@@ -171,6 +223,10 @@ describe("composer input queue", () => {
     expect(thirdClaim.message).toEqual(message("c"));
     expect(queue.view()).toEqual({
       queuedCount: 0,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "pendingStart", phase: "issuing" }],
@@ -178,30 +234,46 @@ describe("composer input queue", () => {
     });
   });
 
-  it("rejects blank and locally owned duplicate messages without changing ownership", () => {
-    const queue = createComposerInputQueue({ activeTurnId: null });
+  it("rejects empty input and whitespace-only text without changing ownership", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
 
-    expect(queue.submit({ id: "blank", text: " \n\t " })).toEqual({
-      result: { type: "invalidInput", reason: "emptyText" },
+    expect(queue.submit({ id: "empty", input: [] })).toEqual({
+      result: { type: "invalidInput", reason: "emptyInput" },
       effects: [],
     });
-    const claim = startClaim(submit(queue, "a"));
-    expect(submit(queue, "a")).toEqual({
+    expect(
+      queue.submit({
+        id: "blank",
+        input: [{ type: "text", text: " \n\t ", text_elements: [] }],
+      }),
+    ).toEqual({
+      result: { type: "invalidInput", reason: "emptyInput" },
+      effects: [],
+    });
+    const skillOnly = message("skill-only").input[1];
+    if (skillOnly == null) throw new Error("skill-only fixture must exist");
+    expect(queue.submit({ id: "skill-only", input: [skillOnly] }).result).toEqual({
+      type: "claimIssued",
+    });
+
+    const duplicateQueue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
+    const claim = startClaim(submit(duplicateQueue, "a"));
+    expect(submit(duplicateQueue, "a")).toEqual({
       result: { type: "duplicateIdentity", messageId: "a" },
       effects: [],
     });
-    expect(queue.settleStart({ type: "accepted", claim, turnId: "turn-a" })).toEqual({
+    expect(duplicateQueue.settleStart({ type: "accepted", claim, turnId: "turn-a" })).toEqual({
       result: { type: "applied", operation: "startAccepted" },
       effects: [],
     });
-    expect(submit(queue, "a")).toEqual({
+    expect(submit(duplicateQueue, "a")).toEqual({
       result: { type: "duplicateIdentity", messageId: "a" },
       effects: [],
     });
   });
 
   it("keeps accepted claims single-flight and classifies replay, conflict, and foreign claims", () => {
-    const queue = createComposerInputQueue({ activeTurnId: null });
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
     const claim = startClaim(submit(queue, "a"));
     const accepted = { type: "accepted", claim, turnId: "turn-a" } as const;
 
@@ -230,7 +302,7 @@ describe("composer input queue", () => {
   });
 
   it("keeps delivery-unknown ownership and blocks draining", () => {
-    const queue = createComposerInputQueue({ activeTurnId: null });
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
     const claim = startClaim(submit(queue, "a"));
     const unknown = { type: "deliveryUnknown", claim } as const;
 
@@ -240,6 +312,10 @@ describe("composer input queue", () => {
     });
     expect(queue.view()).toEqual({
       queuedCount: 0,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "pendingStart", phase: "deliveryUnknown" }],
@@ -251,6 +327,10 @@ describe("composer input queue", () => {
     });
     expect(queue.view()).toEqual({
       queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [
@@ -265,6 +345,10 @@ describe("composer input queue", () => {
     });
     expect(queue.view()).toEqual({
       queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [
@@ -280,7 +364,7 @@ describe("composer input queue", () => {
   });
 
   it("recovers a definitely rejected claim, drains one FIFO item, and releases its identity", () => {
-    const queue = createComposerInputQueue({ activeTurnId: null });
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
     const firstClaim = startClaim(submit(queue, "a"));
     submit(queue, "b");
     submit(queue, "c");
@@ -427,6 +511,10 @@ describe("composer input queue", () => {
     });
     expect(queue.view()).toEqual({
       queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "ordinaryQueued", count: 1 }],
@@ -441,6 +529,10 @@ describe("composer input queue", () => {
     expect(startClaim(completed).message).toEqual(message("b"));
     expect(queue.view()).toEqual({
       queuedCount: 0,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "pendingStart", phase: "issuing" }],
@@ -480,20 +572,17 @@ describe("composer input queue", () => {
     submit(queue, "b");
     queue.settleStart({ type: "deliveryUnknown", claim });
 
-    for (const observation of [
-      { type: "turnStarted", turnId: "foreign", commitId: "foreign-start" },
-      {
+    expect(
+      queue.observe({ type: "turnStarted", turnId: "foreign", commitId: "foreign-start" }),
+    ).toEqual({ result: { type: "applied", operation: "observationRecorded" }, effects: [] });
+    expect(
+      queue.prepareInterruptedTerminal({
         type: "turnCompleted",
         turnId: "foreign",
         status: "interrupted",
         commitId: "foreign-terminal",
-      },
-    ] as const) {
-      expect(queue.observe(observation)).toEqual({
-        result: { type: "applied", operation: "observationRecorded" },
-        effects: [],
-      });
-    }
+      }),
+    ).toEqual({ result: { type: "applied", operation: "observationRecorded" }, effects: [] });
     expect(submit(queue, "a").result).toEqual({ type: "duplicateIdentity", messageId: "a" });
     expect(submit(queue, "b").result).toEqual({ type: "duplicateIdentity", messageId: "b" });
   });
@@ -595,12 +684,16 @@ describe("composer input queue", () => {
     expect(startClaim(completed).message).toEqual(message("b"));
   });
 
-  it("recovers every ordinary message on interruption without starting another turn", () => {
-    const queue = createComposerInputQueue({ activeTurnId: "turn-a" });
+  it("prepares one local interruption and restores ordinary messages in FIFO order", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-a" });
     submit(queue, "b");
     submit(queue, "c");
     expect(queue.view()).toEqual({
       queuedCount: 2,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "ordinaryQueued", count: 2 }],
@@ -613,29 +706,123 @@ describe("composer input queue", () => {
       commitId: "terminal-a",
     } as const;
 
-    expect(queue.observe(interrupted)).toEqual({
-      result: { type: "recoveryProduced", reason: "interrupted", messageIds: ["b", "c"] },
+    expect(queue.prepareInterruptedTerminal(interrupted)).toEqual({
+      result: { type: "interruptedTerminalPrepared", turnId: "turn-a" },
+      effects: [],
+    });
+    expect(queue.applyInterruptedDisposition("wrong-turn", "local")).toEqual({
+      result: { type: "ownershipMismatch", subject: "interruptedTurn" },
+      effects: [],
+    });
+    const stopped = queue.applyInterruptedDisposition("turn-a", "local");
+    expect(stopped).toEqual({
+      result: { type: "recoveryProduced", reason: "userStopped", messageIds: ["b", "c"] },
       effects: [
         {
           type: "recover",
-          batch: { reason: "interrupted", messages: [message("b"), message("c")] },
+          batch: { reason: "userStopped", rejected: null, messages: [message("b"), message("c")] },
         },
       ],
     });
-    expect(queue.view()).toEqual({ queuedCount: 0, releaseState: { type: "safe" } });
-    expect(queue.observe(interrupted)).toEqual({
-      result: { type: "idempotentReplay", subject: "runtimeObservation" },
+    expect(queue.applyInterruptedDisposition("turn-a", "local")).toEqual({
+      result: { type: "ownershipMismatch", subject: "interruptedTurn" },
       effects: [],
     });
-    expect(submit(queue, "b").effects[0]?.type).toBe("performStart");
+    const recovery = stopped.effects[0];
+    if (recovery?.type !== "recover" || recovery.batch.reason !== "userStopped") {
+      throw new Error("expected user-stopped recovery");
+    }
+    expect(queue.restoreUserStoppedRecovery({ ...recovery.batch })).toEqual({
+      result: { type: "ownershipMismatch", subject: "userStoppedRecovery" },
+      effects: [],
+    });
+    const first = startClaim(queue.restoreUserStoppedRecovery(recovery.batch));
+    expect(queue.restoreUserStoppedRecovery(recovery.batch)).toEqual({
+      result: { type: "ownershipMismatch", subject: "userStoppedRecovery" },
+      effects: [],
+    });
+    expect(first.message).toEqual(message("b"));
+    queue.settleStart({ type: "accepted", claim: first, turnId: "turn-b" });
     expect(
-      createComposerInputQueue({ activeTurnId: "empty" }).observe({
-        type: "turnCompleted",
-        turnId: "empty",
-        status: "interrupted",
-        commitId: "empty-terminal",
-      }),
-    ).toEqual({ result: { type: "applied", operation: "turnCompleted" }, effects: [] });
+      startClaim(
+        queue.observe({
+          type: "turnCompleted",
+          turnId: "turn-b",
+          status: "completed",
+          commitId: "terminal-b",
+        }),
+      ).message,
+    ).toEqual(message("c"));
+  });
+
+  it("restores local rejected steers before ordinary and auto-drains non-local interruption", () => {
+    const local = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-local" });
+    submit(local, "ordinary");
+    const first = local.submitSteer(message("steer-a")).effects[0];
+    if (first?.type !== "performSteer") throw new Error("expected steer claim");
+    local.submitSteer(message("steer-b"));
+    local.settleSteer({ type: "activeTurnNotSteerable", claim: first.claim });
+    local.prepareInterruptedTerminal({
+      type: "turnCompleted",
+      turnId: "turn-local",
+      status: "interrupted",
+      commitId: "terminal-local",
+    });
+    const stopped = local.applyInterruptedDisposition("turn-local", "local");
+    const recovery = stopped.effects[0];
+    if (recovery?.type !== "recover" || recovery.batch.reason !== "userStopped") {
+      throw new Error("expected user-stopped recovery");
+    }
+    const merge = startClaim(local.restoreUserStoppedRecovery(recovery.batch));
+    expect({ input: merge.message.input, queued: local.view().queuedCount }).toEqual({
+      input: [...message("steer-a").input, ...message("steer-b").input],
+      queued: 1,
+    });
+    local.settleStart({ type: "accepted", claim: merge, turnId: "turn-merge" });
+    expect(
+      startClaim(
+        local.observe({
+          type: "turnCompleted",
+          turnId: "turn-merge",
+          status: "completed",
+          commitId: "terminal-merge",
+        }),
+      ).message,
+    ).toEqual(message("ordinary"));
+
+    const nonLocal = createComposerInputQueue({
+      threadId: "thread-1",
+      activeTurnId: "turn-non-local",
+    });
+    submit(nonLocal, "ordinary-front");
+    const pending = nonLocal.submitSteer(message("pending")).effects[0];
+    if (pending?.type !== "performSteer") throw new Error("expected steer claim");
+    nonLocal.submitSteer(message("unsent"));
+    nonLocal.settleSteer({ type: "accepted", claim: pending.claim, turnId: "turn-non-local" });
+    nonLocal.prepareInterruptedTerminal({
+      type: "turnCompleted",
+      turnId: "turn-non-local",
+      status: "interrupted",
+      commitId: "terminal-non-local",
+    });
+    const rejectedFirst = startClaim(
+      nonLocal.applyInterruptedDisposition("turn-non-local", "nonLocal"),
+    );
+    expect(rejectedFirst.message.input).toEqual([
+      ...message("pending").input,
+      ...message("unsent").input,
+    ]);
+    nonLocal.settleStart({ type: "accepted", claim: rejectedFirst, turnId: "turn-rejected" });
+    expect(
+      startClaim(
+        nonLocal.observe({
+          type: "turnCompleted",
+          turnId: "turn-rejected",
+          status: "completed",
+          commitId: "terminal-rejected",
+        }),
+      ).message,
+    ).toEqual(message("ordinary-front"));
   });
 
   it("reconciles terminal-before-settlement and classifies terminal replay and lateness", () => {
@@ -686,6 +873,10 @@ describe("composer input queue", () => {
     );
     expect(queue.view()).toEqual({
       queuedCount: 2,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [{ type: "ordinaryQueued", count: 2 }],
@@ -701,6 +892,10 @@ describe("composer input queue", () => {
     const second = startClaim(failed);
     expect(queue.view()).toEqual({
       queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
       releaseState: {
         type: "blocked",
         blockers: [
@@ -713,16 +908,24 @@ describe("composer input queue", () => {
       queue.settleStart({ type: "accepted", claim: second, turnId: "turn-b" }),
       queue.observe({ type: "turnStarted", turnId: "turn-b", commitId: "start-b" }),
     );
-    const interrupted = queue.observe({
-      type: "turnCompleted",
-      turnId: "turn-b",
-      status: "interrupted",
-      commitId: "terminal-b",
-    });
+    transitions.push(
+      queue.prepareInterruptedTerminal({
+        type: "turnCompleted",
+        turnId: "turn-b",
+        status: "interrupted",
+        commitId: "terminal-b",
+      }),
+    );
+    const interrupted = queue.applyInterruptedDisposition("turn-b", "local");
     transitions.push(interrupted);
     expect(interrupted).toEqual({
-      result: { type: "recoveryProduced", reason: "interrupted", messageIds: ["c"] },
-      effects: [{ type: "recover", batch: { reason: "interrupted", messages: [message("c")] } }],
+      result: { type: "recoveryProduced", reason: "userStopped", messageIds: ["c"] },
+      effects: [
+        {
+          type: "recover",
+          batch: { reason: "userStopped", rejected: null, messages: [message("c")] },
+        },
+      ],
     });
     for (const transition of transitions) {
       expect(transition.effects.filter(({ type }) => type === "performStart")).toHaveLength(
@@ -733,10 +936,286 @@ describe("composer input queue", () => {
       effects.flatMap((effect) =>
         effect.type === "performStart"
           ? [effect.claim.message.id]
-          : effect.batch.messages.map(({ id }) => id),
+          : effect.type === "performSteer"
+            ? [effect.claim.intent.messageId]
+            : effect.batch.reason === "steerDefinitelyNotAccepted"
+              ? effect.batch.transfer.intents.map(({ messageId }) => messageId)
+              : effect.batch.messages.map(({ id }) => id),
       ),
     );
     expect(effectOwnerIds).toEqual(["a", "b", "c"]);
     expect(new Set(effectOwnerIds).size).toBe(effectOwnerIds.length);
+  });
+
+  it("lets direct steers bypass the ordinary FIFO while ordinary entries keep their order", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "ordinary-a");
+    submit(queue, "ordinary-b");
+
+    const first = queue.submitSteer(message("steer-a"));
+    const firstEffect = first.effects[0];
+    expect(firstEffect?.type).toBe("performSteer");
+    if (firstEffect?.type !== "performSteer") throw new Error("expected direct steer claim");
+    expect(firstEffect.claim.intent).toMatchObject({
+      messageId: "steer-a",
+      threadId: "thread-1",
+      expectedTurnId: "turn-1",
+      source: "direct",
+    });
+    expect(queue.submitSteer(message("steer-b"))).toEqual({
+      result: { type: "applied", operation: "steerQueued" },
+      effects: [],
+    });
+
+    const accepted = queue.settleSteer({
+      type: "accepted",
+      claim: firstEffect.claim,
+      turnId: "turn-1",
+    });
+    const secondEffect = accepted.effects[0];
+    expect(secondEffect?.type).toBe("performSteer");
+    if (secondEffect?.type !== "performSteer") throw new Error("expected successor steer claim");
+    expect(secondEffect.claim.intent.messageId).toBe("steer-b");
+    expect(
+      queue.observe({
+        type: "userMessageCommitted",
+        clientId: firstEffect.claim.intent.clientUserMessageId,
+        turnId: "turn-1",
+        commitId: "commit-steer-a",
+      }),
+    ).toEqual({ result: { type: "applied", operation: "steerCommitted" }, effects: [] });
+    expect(queue.view()).toMatchObject({
+      queuedCount: 2,
+      pendingSteers: [{ key: "steer-b", phase: "issuing" }],
+    });
+
+    queue.settleSteer({ type: "accepted", claim: secondEffect.claim, turnId: "turn-1" });
+    queue.observe({
+      type: "userMessageCommitted",
+      clientId: secondEffect.claim.intent.clientUserMessageId,
+      turnId: "turn-1",
+      commitId: "commit-steer-b",
+    });
+    const completed = queue.observe({
+      type: "turnCompleted",
+      turnId: "turn-1",
+      status: "completed",
+      commitId: "terminal-1",
+    });
+    const ordinaryA = startClaim(completed);
+    expect(ordinaryA.message).toEqual(message("ordinary-a"));
+    const next = queue.settleStart({ type: "definitelyNotAccepted", claim: ordinaryA });
+    const ordinaryB = startClaim({ ...next, effects: next.effects.slice(1) });
+    expect(ordinaryB.message).toEqual(message("ordinary-b"));
+  });
+
+  it("promotes only the ordinary front into the steer tail", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "ordinary-a");
+    submit(queue, "ordinary-b");
+    const direct = queue.submitSteer(message("direct"));
+    const directEffect = direct.effects[0];
+    if (directEffect?.type !== "performSteer") throw new Error("expected direct steer claim");
+
+    expect(queue.promoteOrdinaryFrontToSteer()).toEqual({
+      result: { type: "applied", operation: "steerQueued" },
+      effects: [],
+    });
+    expect(queue.view()).toMatchObject({
+      queuedCount: 1,
+      queuedSteers: [{ key: "ordinary-a" }],
+    });
+    const accepted = queue.settleSteer({
+      type: "accepted",
+      claim: directEffect.claim,
+      turnId: "turn-1",
+    });
+    const promotedEffect = accepted.effects[0];
+    expect(promotedEffect?.type).toBe("performSteer");
+    if (promotedEffect?.type !== "performSteer") throw new Error("expected promoted steer claim");
+    expect(promotedEffect.claim.intent).toMatchObject({
+      messageId: "ordinary-a",
+      source: "ordinaryPromotion",
+    });
+    expect(queue.view().queuedCount).toBe(1);
+  });
+
+  it("moves a promoted ordinary front to the rejected tail when its target is closed", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "ordinary-a");
+    submit(queue, "ordinary-b");
+    const direct = queue.submitSteer(message("direct"));
+    const directEffect = direct.effects[0];
+    if (directEffect?.type !== "performSteer") throw new Error("expected direct steer claim");
+    expect(
+      queue.settleSteer({ type: "activeTurnNotSteerable", claim: directEffect.claim }),
+    ).toEqual({
+      result: { type: "applied", operation: "steerRejected" },
+      effects: [],
+    });
+
+    expect(queue.promoteOrdinaryFrontToSteer()).toEqual({
+      result: { type: "applied", operation: "steerRejected" },
+      effects: [],
+    });
+    expect(queue.view()).toMatchObject({
+      queuedCount: 1,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [{ key: "direct" }, { key: "ordinary-a" }],
+    });
+  });
+
+  it.each([
+    ["responseTurnMismatch", "accepted"],
+    ["deliveryUnknown", "deliveryUnknown"],
+  ] as const)("keeps %s steer ownership and blocks successors", (phase, settlementType) => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    const first = queue.submitSteer(message("a"));
+    const effect = first.effects[0];
+    if (effect?.type !== "performSteer") throw new Error("expected steer claim");
+    queue.submitSteer(message("b"));
+    if (settlementType === "accepted") {
+      queue.settleSteer({ type: "accepted", claim: effect.claim, turnId: "turn-other" });
+    } else {
+      queue.settleSteer({ type: "deliveryUnknown", claim: effect.claim });
+    }
+
+    expect(queue.view()).toMatchObject({
+      pendingSteers: [{ key: "a", phase }],
+      queuedSteers: [{ key: "b" }],
+      hasUnknownSteer: true,
+      releaseState: {
+        type: "blocked",
+        blockers: [
+          { type: "steerQueued", count: 1 },
+          { type: "pendingSteers", count: 1, hasUnknown: true },
+        ],
+      },
+    });
+  });
+
+  it("merges terminal rejected steers before ordinary and restores them after definite start failure", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "ordinary");
+    const first = queue.submitSteer(message("steer-a"));
+    const firstEffect = first.effects[0];
+    if (firstEffect?.type !== "performSteer") throw new Error("expected steer claim");
+    queue.submitSteer(message("steer-b"));
+    expect(queue.settleSteer({ type: "activeTurnNotSteerable", claim: firstEffect.claim })).toEqual(
+      {
+        result: { type: "applied", operation: "steerRejected" },
+        effects: [],
+      },
+    );
+    expect(queue.view().rejectedSteers.map(({ key }) => key)).toEqual(["steer-a", "steer-b"]);
+
+    const terminal = queue.observe({
+      type: "turnCompleted",
+      turnId: "turn-1",
+      status: "completed",
+      commitId: "terminal-1",
+    });
+    const merge = startClaim(terminal);
+    expect(merge.provenance.type).toBe("rejectedSteerMerge");
+    expect(merge.message.input).toEqual([...message("steer-a").input, ...message("steer-b").input]);
+    expect(queue.view()).toMatchObject({ queuedCount: 1, rejectedSteers: [] });
+
+    expect(queue.settleStart({ type: "definitelyNotAccepted", claim: merge })).toEqual({
+      result: { type: "applied", operation: "rejectedSteerStartRestored" },
+      effects: [],
+    });
+    expect(queue.view()).toMatchObject({
+      queuedCount: 1,
+      rejectedSteers: [{ key: "steer-a" }, { key: "steer-b" }],
+    });
+  });
+
+  it("releases rejected merge identities only after the accepted start is observed", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    const first = queue.submitSteer(message("steer-a"));
+    const firstEffect = first.effects[0];
+    if (firstEffect?.type !== "performSteer") throw new Error("expected steer claim");
+    queue.submitSteer(message("steer-b"));
+    queue.settleSteer({ type: "activeTurnNotSteerable", claim: firstEffect.claim });
+
+    const terminal = queue.observe({
+      type: "turnCompleted",
+      turnId: "turn-1",
+      status: "completed",
+      commitId: "terminal-1",
+    });
+    const merge = startClaim(terminal);
+    expect(merge.provenance.type).toBe("rejectedSteerMerge");
+
+    expect(queue.settleStart({ type: "accepted", claim: merge, turnId: "turn-2" })).toEqual({
+      result: { type: "applied", operation: "startAccepted" },
+      effects: [],
+    });
+    expect(queue.view().rejectedSteers).toEqual([]);
+    expect(queue.submitSteer(message("steer-a"))).toEqual({
+      result: { type: "duplicateIdentity", messageId: "steer-a" },
+      effects: [],
+    });
+    expect(queue.submitSteer(message(merge.message.id))).toEqual({
+      result: { type: "duplicateIdentity", messageId: merge.message.id },
+      effects: [],
+    });
+
+    expect(queue.observe({ type: "turnStarted", turnId: "turn-2", commitId: "start-2" })).toEqual({
+      result: { type: "applied", operation: "turnStarted" },
+      effects: [],
+    });
+    expect(queue.view().rejectedSteers).toEqual([]);
+
+    const resubmitted = queue.submitSteer(message("steer-a"));
+    expect(resubmitted.result.type).not.toBe("duplicateIdentity");
+    expect(resubmitted.effects[0]).toMatchObject({
+      type: "performSteer",
+      claim: { intent: { messageId: "steer-a", expectedTurnId: "turn-2" } },
+    });
+    expect(queue.submitSteer(message(merge.message.id))).toEqual({
+      result: { type: "applied", operation: "steerQueued" },
+      effects: [],
+    });
+  });
+
+  it("keeps generic steer rejection in steer recovery and exposes only bounded previews", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    const longText = "x".repeat(200);
+    const first = queue.submitSteer({
+      id: "long",
+      input: [
+        { type: "text", text: longText, text_elements: [] },
+        { type: "skill", name: "secret-skill", path: "/example/skills/secret/SKILL.md" },
+      ],
+    });
+    const effect = first.effects[0];
+    if (effect?.type !== "performSteer") throw new Error("expected steer claim");
+    const view = queue.view();
+    expect(view.pendingSteers[0]?.preview).toEqual({
+      type: "text",
+      text: `${"x".repeat(157)}...`,
+    });
+    expect(JSON.stringify(view)).not.toContain("/example/skills/");
+    expect(JSON.stringify(view)).not.toContain("clientUserMessageId");
+    const rejected = queue.settleSteer({ type: "definitelyNotAccepted", claim: effect.claim });
+    const recovery = rejected.effects[0];
+    expect(recovery?.type).toBe("recover");
+    if (recovery?.type !== "recover" || recovery.batch.reason !== "steerDefinitelyNotAccepted") {
+      throw new Error("expected steer recovery transfer");
+    }
+    expect(rejected).toEqual({
+      result: {
+        type: "recoveryProduced",
+        reason: "steerDefinitelyNotAccepted",
+        messageIds: ["long"],
+      },
+      effects: [{ type: "recover", batch: recovery.batch }],
+    });
+    expect(queue.restoreSteerRecovery(recovery.batch.transfer).effects[0]).toMatchObject({
+      type: "performSteer",
+      claim: { intent: { messageId: "long" } },
+    });
   });
 });

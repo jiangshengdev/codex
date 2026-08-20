@@ -159,7 +159,7 @@ describe("GuiHostTransportSession", () => {
     );
   });
 
-  it("rejects a correlated RPC failure with a plain Error, rpc source, and exact text", async () => {
+  it("preserves a correlated RPC error envelope with the existing failure semantics", async () => {
     const { session, socket } = createSession();
     let settlement: TransportRequestSettlement<InitializeResponse> | undefined;
     const promise = session.request(requestDescriptors.initialize, initializeParams, (value) => {
@@ -167,9 +167,31 @@ describe("GuiHostTransportSession", () => {
     });
     const id = requestId(socket);
     const message = `JSON-RPC error (id=${String(id)}, code=-32000): request failed`;
+    const rpcError = {
+      code: -32000,
+      message: "request failed",
+      data: {
+        message: "cannot steer a review turn",
+        codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+        additionalDetails: null,
+      },
+    };
 
-    expect(session.settleRpcError(id, { code: -32000, message: "request failed" })).toBe(true);
-    expectFailure(settlement, "rpc", "definitelyNotAccepted", message);
+    expect(session.settleRpcError(id, rpcError)).toBe(true);
+    expect(settlement).toEqual({
+      type: "failure",
+      failure: {
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error(message),
+        rpcError,
+      },
+    });
+    if (settlement?.type !== "failure" || settlement.failure.source !== "rpc") {
+      throw new Error("Expected an RPC failure settlement");
+    }
+    expect(settlement.failure.error.constructor).toBe(Error);
+    expect(settlement.failure.rpcError).toBe(rpcError);
     await expect(promise).rejects.toEqual(new Error(message));
   });
 

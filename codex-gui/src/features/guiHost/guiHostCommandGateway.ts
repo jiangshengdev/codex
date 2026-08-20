@@ -1,4 +1,5 @@
 import { requestDescriptors } from "@/generated/appServerProtocol";
+import { validateV2TurnError } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
 import type { RequestParams, RequestResponse } from "./appServerProtocol";
 import type {
   AppServerRequestSender,
@@ -13,13 +14,32 @@ export type GuiHostCommandFailureSource = TransportRequestFailure["source"];
 export class GuiHostCommandError extends Error {
   readonly source: GuiHostCommandFailureSource;
   readonly delivery: TransportRequestDelivery;
+  readonly rpcError?: NonNullable<TransportRequestFailure["rpcError"]>;
+  readonly activeTurnNotSteerable: boolean;
 
   constructor(failure: TransportRequestFailure) {
     super(failure.error.message, { cause: failure.error });
     this.name = "GuiHostCommandError";
     this.source = failure.source;
     this.delivery = failure.delivery;
+    if (failure.rpcError !== undefined) {
+      this.rpcError = failure.rpcError;
+    }
+    this.activeTurnNotSteerable = activeTurnNotSteerable(failure.rpcError);
   }
+}
+
+function activeTurnNotSteerable(rpcError: TransportRequestFailure["rpcError"]): boolean {
+  const data = rpcError?.data;
+  if (!validateV2TurnError(data)) {
+    return false;
+  }
+  const codexErrorInfo = data.codexErrorInfo;
+  return (
+    typeof codexErrorInfo === "object" &&
+    codexErrorInfo !== null &&
+    "activeTurnNotSteerable" in codexErrorInfo
+  );
 }
 
 export function isGuiHostCommandError(error: unknown): error is GuiHostCommandError {
@@ -30,6 +50,7 @@ export type GuiHostCommands = {
   attachThreadProjection: (
     params: RequestParams<"thread/projection/attach">,
   ) => Promise<RequestResponse<"thread/projection/attach">>;
+  listSkills: (params: RequestParams<"skills/list">) => Promise<RequestResponse<"skills/list">>;
   listThreads: (params: RequestParams<"thread/list">) => Promise<RequestResponse<"thread/list">>;
   readThread: (params: RequestParams<"thread/read">) => Promise<RequestResponse<"thread/read">>;
   resumeThread: (
@@ -57,6 +78,7 @@ export class GuiHostCommandGateway {
     this.commands = {
       attachThreadProjection: (params) =>
         this.request(requestDescriptors["thread/projection/attach"], params),
+      listSkills: (params) => this.request(requestDescriptors["skills/list"], params),
       listThreads: (params) => this.request(requestDescriptors["thread/list"], params),
       readThread: (params) => this.request(requestDescriptors["thread/read"], params),
       resumeThread: (params) => this.request(requestDescriptors["thread/resume"], params),

@@ -482,6 +482,18 @@ mod tests {
     }
 
     #[test]
+    fn allows_backend_skills_changed_notification() {
+        let text = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "skills/changed",
+            "params": {},
+        })
+        .to_string();
+
+        assert!(is_allowed_backend_text(&text));
+    }
+
+    #[test]
     fn rejects_other_backend_notification() {
         let text = serde_json::json!({
             "jsonrpc": "2.0",

@@ -60,6 +60,7 @@ import type { FuzzyFileSearchResponse } from "./FuzzyFileSearchResponse";
 import type { GetAccountParams } from "./v2/GetAccountParams";
 import type { GetAccountRateLimitsResponse } from "./v2/GetAccountRateLimitsResponse";
 import type { GetAccountResponse } from "./v2/GetAccountResponse";
+import type { GetAccountTokenUsageParams } from "./v2/GetAccountTokenUsageParams";
 import type { GetAccountTokenUsageResponse } from "./v2/GetAccountTokenUsageResponse";
 import type { GetAuthStatusParams } from "./GetAuthStatusParams";
 import type { GetAuthStatusResponse } from "./GetAuthStatusResponse";
@@ -272,7 +273,7 @@ export type ClientRequestDefinition =
   | { method: "account/logout"; params: undefined; response: LogoutAccountResponse; }
   | { method: "account/rateLimits/read"; params: undefined; response: GetAccountRateLimitsResponse; }
   | { method: "account/rateLimitResetCredit/consume"; params: ConsumeAccountRateLimitResetCreditParams; response: ConsumeAccountRateLimitResetCreditResponse; }
-  | { method: "account/usage/read"; params: undefined; response: GetAccountTokenUsageResponse; }
+  | { method: "account/usage/read"; params: GetAccountTokenUsageParams | null; response: GetAccountTokenUsageResponse; }
   | { method: "account/workspaceMessages/read"; params: undefined; response: GetWorkspaceMessagesResponse; }
   | { method: "account/sendAddCreditsNudgeEmail"; params: SendAddCreditsNudgeEmailParams; response: SendAddCreditsNudgeEmailResponse; }
   | { method: "feedback/upload"; params: FeedbackUploadParams; response: FeedbackUploadResponse; }

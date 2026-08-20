@@ -145,6 +145,17 @@ function schemaBundle(): JsonObject {
           ],
         },
         Shared: { type: "string", minLength: 1 },
+        TurnError: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            codexErrorInfo: {
+              anyOf: [{ enum: ["other"], type: "string" }, { type: "null" }],
+            },
+            additionalDetails: { type: ["string", "null"] },
+          },
+          required: ["message"],
+        },
         SelectedNotification: {
           type: "object",
           additionalProperties: false,
@@ -170,6 +181,7 @@ async function generate(
     notificationDefinitions?: JsonObject[];
     selectedRequestMethods?: readonly string[];
     selectedNotificationMethods?: readonly string[];
+    selectedAuxiliarySchemaIds?: readonly string[];
     dependencies?: JsonObject;
   } = {},
 ) {
@@ -180,6 +192,7 @@ async function generate(
     selectedRequestMethods: overrides.selectedRequestMethods ?? FIXTURE_REQUEST_METHODS,
     selectedNotificationMethods:
       overrides.selectedNotificationMethods ?? FIXTURE_NOTIFICATION_METHODS,
+    selectedAuxiliarySchemaIds: overrides.selectedAuxiliarySchemaIds ?? [],
     dependencies: overrides.dependencies,
   });
 }
@@ -362,6 +375,7 @@ describe("protocol validator input selection", () => {
       ...inputs,
       selectedRequestMethods: SELECTED_REQUEST_METHODS,
       selectedNotificationMethods: SELECTED_NOTIFICATION_METHODS,
+      selectedAuxiliarySchemaIds: ["v2/TurnError"],
     });
 
     expect(artifacts["appServerPayloadValidators.raw.js"]).toContain(
@@ -373,6 +387,7 @@ describe("protocol validator input selection", () => {
     expect(artifacts["jsonRpcEnvelopeValidators.raw.js"]).not.toContain(
       "ThreadProjectionEventNotification",
     );
+    expect(artifacts["appServerPayloadValidators.js"]).not.toContain("../codex-gui/node_modules");
   });
 
   test("rejects a selected request missing from metadata", async () => {
@@ -425,6 +440,12 @@ describe("protocol validator input selection", () => {
 
     await expect(generate({ notificationDefinitions: definitions })).rejects.toThrow(
       /notification.*params schema.*v2\/MissingNotification/i,
+    );
+  });
+
+  test("rejects a selected auxiliary schema missing from the bundle", async () => {
+    await expect(generate({ selectedAuxiliarySchemaIds: ["v2/MissingAuxiliary"] })).rejects.toThrow(
+      /auxiliary schema.*v2\/MissingAuxiliary/i,
     );
   });
 
@@ -495,6 +516,32 @@ describe("protocol validator artifacts", () => {
     expect(validate({ kind: "left", optionalNullable: 1 })).toBe(false);
     expect(validate({ kind: "unknown" })).toBe(false);
     expect(validate({ kind: "left", extra: true })).toBe(false);
+  });
+
+  test("emits an auxiliary validator with schema-required TypeScript fields", async () => {
+    const artifacts = await generate({ selectedAuxiliarySchemaIds: ["v2/TurnError"] });
+    const validators = await importJavaScript(artifacts["appServerPayloadValidators.js"]);
+    const validate = validators.validateV2TurnError;
+    expect(isRuntimeValidator(validate)).toBe(true);
+    if (!isRuntimeValidator(validate)) throw new Error("Missing TurnError validator");
+
+    expect(validate({ message: "failed" })).toBe(true);
+    expect(validate({ message: "failed", codexErrorInfo: "other", additionalDetails: null })).toBe(
+      true,
+    );
+    expect(validate({ codexErrorInfo: null, additionalDetails: null })).toBe(false);
+    expect(validate({ message: 1 })).toBe(false);
+    expect(validate({ message: "failed", codexErrorInfo: 1 })).toBe(false);
+    expect(validate({ message: "failed", additionalDetails: 1 })).toBe(false);
+    expect(validate("failed")).toBe(false);
+
+    expect(artifacts["appServerPayloadValidators.d.ts"].replaceAll(/\s+/gu, "")).toContain(
+      'ProtocolValidator<Partial<TurnError>&Required<Pick<TurnError,"message">>>',
+    );
+    expect(artifacts["appServerPayloadValidators.raw.js"]).toContain("TurnError");
+    expect(
+      exportedNames("appServerPayloadValidators.js", artifacts["appServerPayloadValidators.js"]),
+    ).toContain("validateV2TurnError");
   });
 
   test("emits separate JSON-RPC envelope and selected payload ESM groups", async () => {

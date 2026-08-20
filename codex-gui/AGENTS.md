@@ -1,5 +1,13 @@
 # codex-gui
 
+## GUI Module Size Override
+
+- Within `codex-gui/**`, the repository-root guidance to target Rust modules under 500 LoC applies only to Rust code. Do not apply it to TypeScript, TSX, or JavaScript files.
+- The repository-root guidance that complex logic changes should stay under 500 changed lines is change-size review guidance. It is not a per-file LoC limit and must not be converted into a hard stop based on `wc -l`.
+- Do not add or enforce a GUI plan, completion criterion, or implementation gate that fails solely because a TypeScript, TSX, or JavaScript file reaches an exact line count such as 500. Any existing project work document that does so is overridden for files under `codex-gui/**`.
+- Do not impose per-file line-count limits on frontend test code anywhere in the workflow. This includes unit, Browser Mode, and end-to-end tests, files under `__tests__/**`, test fixtures, and test helpers. Do not split, compress, weaken, or remove test coverage merely to satisfy a file-length target.
+- Evaluate GUI module extraction using responsibilities, state ownership, coupling, function scope, testability, and reviewability. File length is only supporting evidence; it does not decide the result by itself.
+
 ## Authoritative Contract Invariants
 
 - Treat every cross-module or generated contract consumed by `codex-gui` as having a single authoritative source. Use its authoritative artifacts directly or derive from them mechanically.

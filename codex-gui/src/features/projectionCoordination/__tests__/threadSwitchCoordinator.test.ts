@@ -1,4 +1,5 @@
 import type { UnknownAction } from "@reduxjs/toolkit";
+import type { TurnStartParams } from "@codex-protocol/v2";
 import { describe, expect, it, vi } from "vitest";
 import type { AppDispatch } from "@/app/store";
 import { makeStore } from "@/app/store";
@@ -24,6 +25,7 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { liveThreadReplacementCommitted } from "../liveThreadReplacement";
 import {
   ProjectionApplicationCoordinator,
@@ -34,6 +36,14 @@ import { ThreadSwitchCoordinator } from "../threadSwitchCoordinator";
 const oldThreadId = attachBaseline.snapshot.thread.id;
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
 type AttachResponse = Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>;
+const input = (text: string): TurnStartParams["input"] => [
+  { type: "text", text, text_elements: [] },
+];
+const emptySkillCatalogState: SkillCatalogState = {
+  type: "ready",
+  candidates: [],
+  partialErrorCount: 0,
+};
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -61,6 +71,7 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
   actions.length = 0;
 
   const commands = createGuiHostCommands();
+  vi.mocked(commands.listSkills).mockResolvedValue({ data: [] });
   vi.mocked(commands.attachThreadProjection).mockImplementation(({ threadId }) =>
     Promise.resolve(attachWithThreadId(attachReplacement, threadId)),
   );
@@ -68,6 +79,8 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
     threadId: oldThreadId,
     activeTurnId: null,
     startTurn: commands.startTurn,
+    steerTurn: commands.steerTurn,
+    interruptTurn: commands.interruptTurn,
   });
   const realReserveRelease = queueCoordinator.reserveRelease;
   const reservationRelease = vi.fn<ComposerInputQueueCoordinatorReleaseReservation["release"]>();
@@ -86,6 +99,30 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
   });
   const queueDispose = vi.spyOn(queueCoordinator, "dispose");
   const projectionDispose = vi.spyOn(projectionOwner, "dispose");
+  const skillCatalogDispose = vi.fn<() => void>();
+  const skillCatalog = {
+    getSnapshot: () => emptySkillCatalogState,
+    subscribe: () => () => undefined,
+    invalidate: () => false,
+    retry: () => false,
+    dispose: skillCatalogDispose,
+  };
+  let activeOwnerDisposed = false;
+  const activeOwnerDispose = vi.fn<() => void>(() => {
+    if (activeOwnerDisposed) {
+      return;
+    }
+    activeOwnerDisposed = true;
+    try {
+      queueCoordinator.dispose();
+    } finally {
+      try {
+        skillCatalog.dispose();
+      } finally {
+        projectionOwner.dispose();
+      }
+    }
+  });
   const publishActiveOwner =
     vi.fn<ConstructorParameters<typeof ThreadSwitchCoordinator>[0]["publishActiveOwner"]>();
   const coordinator = new ThreadSwitchCoordinator({
@@ -95,6 +132,8 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
           subscriptionId: attachBaseline.subscriptionId,
           projectionOwner,
           queueCoordinator,
+          skillCatalog,
+          dispose: activeOwnerDispose,
         }
       : null,
     commands,
@@ -105,6 +144,7 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
 
   return {
     actions,
+    activeOwnerDispose,
     commands,
     coordinator,
     projectionDispose,
@@ -114,6 +154,7 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
     reservationRelease,
     reserveRelease,
     scheduler,
+    skillCatalogDispose,
     setDispatchReentry: (reentry: (action: UnknownAction) => void) => {
       dispatchReentry = reentry;
     },
@@ -299,6 +340,8 @@ describe("ThreadSwitchCoordinator", () => {
     });
     expect(h.queueDispose).toHaveBeenCalledOnce();
     expect(h.projectionDispose).toHaveBeenCalledOnce();
+    expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
+    expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
     expect(h.publishActiveOwner).toHaveBeenCalledOnce();
   });
 
@@ -328,7 +371,7 @@ describe("ThreadSwitchCoordinator", () => {
       }
       if (phase === "attach") await Promise.resolve();
 
-      expect(h.queueCoordinator.submit("blocked during switch")).toEqual({
+      expect(h.queueCoordinator.submit(input("blocked during switch"))).toEqual({
         type: "rejected",
         reason: "releaseReserved",
       });
@@ -499,6 +542,8 @@ describe("ThreadSwitchCoordinator", () => {
     });
     expect(h.queueDispose).toHaveBeenCalledOnce();
     expect(h.projectionDispose).toHaveBeenCalledOnce();
+    expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
+    expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
     await expect(h.coordinator.continueThread(oldThreadId)).resolves.toMatchObject({
       type: "blocked",
       reason: { type: "disposed" },
@@ -546,6 +591,8 @@ describe("ThreadSwitchCoordinator", () => {
       expect(h.coordinator.getActiveOwner()?.threadId).toBe(candidateThreadId);
       expect(h.queueDispose).toHaveBeenCalledOnce();
       expect(h.projectionDispose).toHaveBeenCalledOnce();
+      expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
+      expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
       await expect(
         h.coordinator.continueThread("00000000-0000-0000-0000-000000000004"),
       ).resolves.toMatchObject({ type: "switched" });

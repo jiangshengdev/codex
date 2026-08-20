@@ -29,10 +29,16 @@ export const localAudioInput = (path: string): UserInput => ({
   path,
 });
 
-export const userMessage = (id: string, content: UserInput[]): ThreadItem => ({
+type UserMessageClientId = Extract<ThreadItem, { type: "userMessage" }>["clientId"];
+
+export const userMessage = (
+  id: string,
+  content: UserInput[],
+  clientId: UserMessageClientId = null,
+): ThreadItem => ({
   type: "userMessage",
   id,
-  clientId: null,
+  clientId,
   content,
 });
 

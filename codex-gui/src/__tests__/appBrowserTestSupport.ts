@@ -13,7 +13,11 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
-import type { ThreadProjectionAttachResponse } from "@codex-protocol/v2";
+import type {
+  SkillMetadata,
+  SkillsListResponse,
+  ThreadProjectionAttachResponse,
+} from "@codex-protocol/v2";
 
 export type StartGuiHostConnectionMock = {
   mockImplementation: (
@@ -36,6 +40,22 @@ let resetGeneration = 0;
 
 type AttachProjectionParams = Parameters<GuiHostCommands["attachThreadProjection"]>[0];
 type AttachProjectionResponse = Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>;
+
+export type Deferred<T> = Readonly<{
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: unknown) => void;
+}>;
+
+export const createDeferred = <T>(): Deferred<T> => {
+  let resolve: Deferred<T>["resolve"] = () => undefined;
+  let reject: Deferred<T>["reject"] = () => undefined;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
 
 export type DeferredAttachProjection = Readonly<{
   getRequestThreadId: () => string | null;
@@ -60,6 +80,9 @@ export const createGuiHostCommands = (): GuiHostCommands => ({
   attachThreadProjection: vi
     .fn<GuiHostCommands["attachThreadProjection"]>()
     .mockResolvedValue(attachResponse),
+  listSkills: vi.fn<GuiHostCommands["listSkills"]>().mockResolvedValue({
+    data: [{ cwd: attachResponse.snapshot.thread.cwd, skills: [], errors: [] }],
+  }),
   listThreads: vi.fn<GuiHostCommands["listThreads"]>().mockResolvedValue({
     data: [],
     nextCursor: null,
@@ -97,6 +120,14 @@ export const createGuiHostCommands = (): GuiHostCommands => ({
 });
 
 export const createCommands = createGuiHostCommands;
+
+export const skillsListResponse = (
+  cwd: string,
+  skills: SkillMetadata[],
+  errors: SkillsListResponse["data"][number]["errors"] = [],
+): SkillsListResponse => ({
+  data: [{ cwd, skills, errors }],
+});
 
 export const queueAttachProjectionResponse = (
   commands: GuiHostCommands,
@@ -266,6 +297,10 @@ export const emitRawHostStatus = (
 
 export const markCommandsUnavailable = (options: StartGuiHostConnectionOptions): void => {
   options.onCommandsUnavailable?.();
+};
+
+export const emitSkillsChanged = (options: StartGuiHostConnectionOptions): void => {
+  options.onSkillsChanged?.({});
 };
 
 export const emitProjectionEvent = (
