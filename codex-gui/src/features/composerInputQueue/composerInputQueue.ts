@@ -76,7 +76,7 @@ function transition(
 }
 
 function ownMessage(message: ComposerQueueMessage): ComposerQueueMessage {
-  return { id: message.id, input: [...message.input] };
+  return { id: message.id, input: copyComposerInputPayload(message.input) };
 }
 function hasMeaningfulInput(input: ComposerQueueMessage["input"]): boolean {
   return input.some((item) => item.type !== "text" || item.text.trim() !== "");

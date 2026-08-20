@@ -59,6 +59,13 @@ describe("composer input queue", () => {
     expect(claim).toMatchObject({ type: "start", message: message("a") });
     expect(claim.message).not.toBe(submittedMessage);
     expect(claim.message.input).not.toBe(submittedMessage.input);
+    const submittedText = submittedMessage.input[0];
+    const claimedText = claim.message.input[0];
+    if (submittedText?.type !== "text" || claimedText?.type !== "text") {
+      throw new Error("expected first input items to be text");
+    }
+    expect(claimedText).not.toBe(submittedText);
+    expect(claimedText.text_elements).not.toBe(submittedText.text_elements);
     expect(queue.view()).toEqual({
       queuedCount: 0,
       pendingSteers: [],
