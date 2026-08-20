@@ -35,14 +35,19 @@ export type ComposerInterruptStateEvent =
 
 export type InterruptTerminalDisposition = "local" | "nonLocal";
 
+export type InterruptTerminalOutcome = Readonly<{
+  fact: InterruptTerminalFact;
+  disposition: InterruptTerminalDisposition;
+}>;
+
 export type ComposerInterruptStateResult =
   | Readonly<{ type: "issued"; claim: InterruptClaim }>
   | Readonly<{ type: "blocked"; phase: InterruptPhase }>
   | Readonly<{
       type: "accepted" | "deliveryUnknown" | "definitelyNotAccepted";
-      terminalDisposition: InterruptTerminalDisposition | null;
+      terminal: InterruptTerminalOutcome | null;
     }>
-  | Readonly<{ type: "terminal"; disposition: InterruptTerminalDisposition }>
+  | Readonly<{ type: "terminal"; terminal: InterruptTerminalOutcome }>
   | Readonly<{ type: "terminalDeferred" }>
   | Readonly<{ type: "idempotentReplay"; subject: "settlement" | "terminal" }>
   | Readonly<{ type: "stale"; subject: "settlement" | "terminal" }>
@@ -84,6 +89,17 @@ function sameTarget(left: InterruptTerminalFact, right: InterruptTerminalFact): 
 
 function sameIdentity(left: InterruptTerminalFact, right: InterruptTerminalFact): boolean {
   return sameTarget(left, right) && left.generation === right.generation;
+}
+
+function ownTerminalFact(fact: InterruptTerminalFact): InterruptTerminalFact {
+  return { params: { ...fact.params }, generation: fact.generation };
+}
+
+function terminalOutcome(
+  fact: InterruptTerminalFact,
+  disposition: InterruptTerminalDisposition,
+): InterruptTerminalOutcome {
+  return { fact: ownTerminalFact(fact), disposition };
 }
 
 class ComposerInterruptStateImpl implements ComposerInterruptState {
@@ -171,17 +187,17 @@ class ComposerInterruptStateImpl implements ComposerInterruptState {
       }
       return {
         type: settlement.type,
-        terminalDisposition: terminal == null ? null : "nonLocal",
+        terminal: terminal == null ? null : terminalOutcome(terminal, "nonLocal"),
       };
     }
     const phase = settlement.type === "accepted" ? "accepted" : "unknown";
     if (terminal == null) {
       this.pending = { record, phase, terminal: null };
-      return { type: settlement.type, terminalDisposition: null };
+      return { type: settlement.type, terminal: null };
     }
     this.pending = null;
     this.rememberTerminal(terminal);
-    return { type: settlement.type, terminalDisposition: "local" };
+    return { type: settlement.type, terminal: terminalOutcome(terminal, "local") };
   }
 
   private terminal(fact: InterruptTerminalFact): ComposerInterruptStateResult {
@@ -202,19 +218,19 @@ class ComposerInterruptStateImpl implements ComposerInterruptState {
       }
       if (sameIdentity(claimFact, fact)) {
         if (this.pending.phase === "issuing") {
-          this.pending = { ...this.pending, terminal: { ...fact, params: { ...fact.params } } };
+          this.pending = { ...this.pending, terminal: ownTerminalFact(fact) };
           return { type: "terminalDeferred" };
         }
         this.pending = null;
         this.rememberTerminal(fact);
-        return { type: "terminal", disposition: "local" };
+        return { type: "terminal", terminal: terminalOutcome(fact, "local") };
       }
     }
     if (this.recentTerminals.some((recent) => sameTarget(recent, fact))) {
       return { type: "stale", subject: "terminal" };
     }
     this.rememberTerminal(fact);
-    return { type: "terminal", disposition: "nonLocal" };
+    return { type: "terminal", terminal: terminalOutcome(fact, "nonLocal") };
   }
 
   public transition = (event: ComposerInterruptStateEvent): ComposerInterruptStateResult => {

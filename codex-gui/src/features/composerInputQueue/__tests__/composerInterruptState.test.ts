@@ -48,9 +48,13 @@ void assertInterruptClaimCannotBeForged;
 describe("composer interrupt state", () => {
   it("classifies an unmatched terminal once and blocks a second issuing claim", () => {
     const state = createComposerInterruptState();
+    const terminalEvent = terminal();
 
-    expect(state.transition(terminal())).toEqual({ type: "terminal", disposition: "nonLocal" });
-    expect(state.transition(terminal())).toEqual({
+    expect(state.transition(terminalEvent)).toEqual({
+      type: "terminal",
+      terminal: { fact: terminalEvent.fact, disposition: "nonLocal" },
+    });
+    expect(state.transition(terminalEvent)).toEqual({
       type: "idempotentReplay",
       subject: "terminal",
     });
@@ -88,7 +92,7 @@ describe("composer interrupt state", () => {
       expect(state.transition({ type: "settle", settlement: { type: settlement, claim } })).toEqual(
         {
           type: settlement,
-          terminalDisposition: null,
+          terminal: null,
         },
       );
       expect(state.state()).toEqual({
@@ -103,7 +107,11 @@ describe("composer interrupt state", () => {
           generation: 1,
         }),
       ).toEqual({ type: "blocked", phase });
-      expect(state.transition(terminal())).toEqual({ type: "terminal", disposition: "local" });
+      const terminalEvent = terminal();
+      expect(state.transition(terminalEvent)).toEqual({
+        type: "terminal",
+        terminal: { fact: terminalEvent.fact, disposition: "local" },
+      });
       expect(state.state()).toBeNull();
       expect(state.transition({ type: "settle", settlement: { type: settlement, claim } })).toEqual(
         { type: "idempotentReplay", subject: "settlement" },
@@ -128,16 +136,20 @@ describe("composer interrupt state", () => {
     (settlement) => {
       const state = createComposerInterruptState();
       const claim = issue(state);
+      const terminalEvent = terminal();
 
-      expect(state.transition(terminal())).toEqual({ type: "terminalDeferred" });
-      expect(state.transition(terminal())).toEqual({
+      expect(state.transition(terminalEvent)).toEqual({ type: "terminalDeferred" });
+      expect(state.transition(terminalEvent)).toEqual({
         type: "idempotentReplay",
         subject: "terminal",
       });
       expect(state.transition({ type: "settle", settlement: { type: settlement, claim } })).toEqual(
-        { type: settlement, terminalDisposition: "local" },
+        {
+          type: settlement,
+          terminal: { fact: terminalEvent.fact, disposition: "local" },
+        },
       );
-      expect(state.transition(terminal())).toEqual({
+      expect(state.transition(terminalEvent)).toEqual({
         type: "idempotentReplay",
         subject: "terminal",
       });
@@ -147,14 +159,18 @@ describe("composer interrupt state", () => {
   it("reclassifies a terminal-before-definite-rejection as non-local", () => {
     const state = createComposerInterruptState();
     const claim = issue(state);
+    const terminalEvent = terminal();
 
-    expect(state.transition(terminal())).toEqual({ type: "terminalDeferred" });
+    expect(state.transition(terminalEvent)).toEqual({ type: "terminalDeferred" });
     expect(
       state.transition({
         type: "settle",
         settlement: { type: "definitelyNotAccepted", claim },
       }),
-    ).toEqual({ type: "definitelyNotAccepted", terminalDisposition: "nonLocal" });
+    ).toEqual({
+      type: "definitelyNotAccepted",
+      terminal: { fact: terminalEvent.fact, disposition: "nonLocal" },
+    });
     expect(state.state()).toBeNull();
   });
 
@@ -167,7 +183,7 @@ describe("composer interrupt state", () => {
         type: "settle",
         settlement: { type: "definitelyNotAccepted", claim: oldClaim },
       }),
-    ).toEqual({ type: "definitelyNotAccepted", terminalDisposition: null });
+    ).toEqual({ type: "definitelyNotAccepted", terminal: null });
     expect(state.state()).toBeNull();
     expect(
       state.transition({
@@ -183,8 +199,12 @@ describe("composer interrupt state", () => {
     expect(
       state.transition({ type: "settle", settlement: { type: "accepted", claim: oldClaim } }),
     ).toEqual({ type: "stale", subject: "settlement" });
-    expect(state.transition(terminal(1))).toEqual({ type: "terminal", disposition: "nonLocal" });
-    expect(state.transition(terminal(1))).toEqual({
+    const oldTerminal = terminal(1);
+    expect(state.transition(oldTerminal)).toEqual({
+      type: "terminal",
+      terminal: { fact: oldTerminal.fact, disposition: "nonLocal" },
+    });
+    expect(state.transition(oldTerminal)).toEqual({
       type: "idempotentReplay",
       subject: "terminal",
     });
@@ -215,7 +235,7 @@ describe("composer interrupt state", () => {
     });
     expect(
       state.transition({ type: "settle", settlement: { type: "deliveryUnknown", claim } }),
-    ).toEqual({ type: "deliveryUnknown", terminalDisposition: null });
+    ).toEqual({ type: "deliveryUnknown", terminal: null });
     expect(
       state.transition({ type: "settle", settlement: { type: "deliveryUnknown", claim: clone } }),
     ).toEqual({ type: "ownershipMismatch", subject: "interruptClaim" });
@@ -237,15 +257,20 @@ describe("composer interrupt state", () => {
       state.transition({ type: "settle", settlement: { type: "accepted", claim: foreignClaim } }),
     ).toEqual({ type: "ownershipMismatch", subject: "interruptClaim" });
     expect(state.transition(terminal(1))).toEqual({ type: "stale", subject: "terminal" });
-    expect(state.transition(terminal(2, "turn-other"))).toEqual({
+    const foreignTerminal = terminal(2, "turn-other");
+    expect(state.transition(foreignTerminal)).toEqual({
       type: "terminal",
-      disposition: "nonLocal",
+      terminal: { fact: foreignTerminal.fact, disposition: "nonLocal" },
     });
     expect(state.state()?.phase).toBe("issuing");
     expect(state.transition({ type: "settle", settlement: { type: "accepted", claim } })).toEqual({
       type: "accepted",
-      terminalDisposition: null,
+      terminal: null,
     });
-    expect(state.transition(terminal(2))).toEqual({ type: "terminal", disposition: "local" });
+    const matchingTerminal = terminal(2);
+    expect(state.transition(matchingTerminal)).toEqual({
+      type: "terminal",
+      terminal: { fact: matchingTerminal.fact, disposition: "local" },
+    });
   });
 });
