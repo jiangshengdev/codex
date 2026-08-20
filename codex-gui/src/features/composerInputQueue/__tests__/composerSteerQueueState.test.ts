@@ -53,13 +53,13 @@ function assertSteerInputIsDeepReadonly(input: SteerIntent["input"]): void {
   const item = input[0];
   if (item?.type === "text") {
     // @ts-expect-error generated item fields are recursively readonly
-    item.text = item.text;
-    // @ts-expect-error nested generated arrays are recursively readonly
-    item.text_elements.push();
+    item.text = "replacement";
     const textElement = item.text_elements[0];
     if (textElement != null) {
+      // @ts-expect-error nested generated arrays are recursively readonly
+      item.text_elements[0] = textElement;
       // @ts-expect-error nested generated object fields are recursively readonly
-      textElement.byteRange.start = textElement.byteRange.start;
+      textElement.byteRange.start = 1;
     }
   }
 }

@@ -303,7 +303,8 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     turnId: TurnIdentity,
     reason: RejectedSteer["reason"],
   ): RejectedSteer["reason"] {
-    const closedTurns = this.closedTargets.get(threadId) ?? new Map();
+    const closedTurns =
+      this.closedTargets.get(threadId) ?? new Map<TurnIdentity, RejectedSteer["reason"]>();
     const existingReason = closedTurns.get(turnId);
     if (existingReason != null) {
       return existingReason;
