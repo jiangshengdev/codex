@@ -119,7 +119,9 @@ describe("ComposerInputQueueCoordinator", () => {
       steerTurn: vi.fn<SteerTurn>(),
       interruptTurn,
     });
-    const listener = vi.fn(() => {
+    const listener = vi.fn<
+      Parameters<ReturnType<typeof createComposerInputQueueCoordinator>["subscribe"]>[0]
+    >(() => {
       expect(coordinator.getSnapshot().interrupt).toEqual({ phase: "issuing" });
       coordinator.dispose();
     });
@@ -711,10 +713,10 @@ describe("ComposerInputQueueCoordinator", () => {
   });
 
   it("sends exact steer identities, issues an accepted successor, and releases only its commit", async () => {
-    const responses: Array<{
+    const responses: {
       promise: Promise<TurnSteerResponse>;
       resolve: (response: TurnSteerResponse) => void;
-    }> = [];
+    }[] = [];
     const steerTurn = vi.fn<SteerTurn>(() => {
       let resolve!: (response: TurnSteerResponse) => void;
       const promise = new Promise<TurnSteerResponse>((yes) => {
