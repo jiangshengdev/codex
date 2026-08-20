@@ -13,7 +13,6 @@ import {
   ComposerEditor,
   type ComposerEditorController,
   type ComposerEditorProps,
-  type ComposerEditorSnapshot,
 } from "../ComposerEditor";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
 import { compileComposerDraft } from "../compileComposerDraft";
@@ -106,7 +105,7 @@ test("filters by canonical and display names but never by description", async ()
 });
 
 test("replaces a query at a middle caret with canonical skill input without submitting", async () => {
-  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor(
     [skill("canonical-match", "/canonical", "Friendly")],
     { onSubmit },
@@ -151,7 +150,7 @@ test("replaces a query at a middle caret with canonical skill input without subm
 });
 
 test("uses Tab to choose, Escape to close, and Shift Enter only to add a line break", async () => {
-  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor([skill("alpha", "/alpha")], {
     onSubmit,
   });
@@ -177,7 +176,7 @@ test("uses Tab to choose, Escape to close, and Shift Enter only to add a line br
 });
 
 test("submits plain text without letting Enter rewrite the editor snapshot", async () => {
-  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor([], { onSubmit });
   const editor = screen.getByRole("combobox", { name: "Message" });
 
@@ -188,15 +187,92 @@ test("submits plain text without letting Enter rewrite the editor snapshot", asy
   await screen.user.keyboard("{Enter}");
 
   expect(onSubmit).toHaveBeenCalledOnce();
-  const submittedSnapshot = onSubmit.mock.calls.at(0)?.at(0);
+  const submittedSnapshot = onSubmit.mock.calls[0]?.[0];
   if (submittedSnapshot == null) {
     throw new Error("plain text submit must provide an editor snapshot");
   }
   expect(submittedSnapshot).toBe(snapshotBeforeSubmit);
+  expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(getController(controllerRef).getSnapshot()).toBe(snapshotBeforeSubmit);
   expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
     { type: "text", text: "Hello", text_elements: [] },
   ]);
+});
+
+test.each([
+  {
+    platform: "MacIntel",
+    ariaShortcut: "Meta+Enter",
+    guideModifiers: { metaKey: true },
+    ordinaryModifiers: { ctrlKey: true },
+  },
+  {
+    platform: "Win32",
+    ariaShortcut: "Control+Enter",
+    guideModifiers: { ctrlKey: true },
+    ordinaryModifiers: { metaKey: true },
+  },
+])(
+  "uses only the $ariaShortcut guide chord on $platform",
+  async ({ ariaShortcut, guideModifiers, ordinaryModifiers, platform }) => {
+    await withNavigatorPlatform(platform, async () => {
+      const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+      const { controllerRef, screen } = await renderEditor([], { onSubmit });
+      const editor = screen.getByRole("combobox", { name: "Message" });
+
+      await expect.element(editor).toHaveAttribute("aria-keyshortcuts", ariaShortcut);
+      await editor.fill("Guide this");
+      await expect
+        .poll(() => getController(controllerRef).getSnapshot().textContent)
+        .toBe("Guide this");
+      const guideSnapshot = getController(controllerRef).getSnapshot();
+      dispatchEnterShortcut(editor.element(), guideModifiers);
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "guide");
+
+      onSubmit.mockClear();
+      dispatchEnterShortcut(editor.element(), ordinaryModifiers);
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "ordinary");
+
+      onSubmit.mockClear();
+      dispatchEnterShortcut(editor.element(), { ...guideModifiers, altKey: true });
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "ordinary");
+
+      onSubmit.mockClear();
+      await editor.fill("");
+      await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
+      const emptySnapshot = getController(controllerRef).getSnapshot();
+      dispatchEnterShortcut(editor.element(), guideModifiers);
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(onSubmit).toHaveBeenLastCalledWith(emptySnapshot, "guide");
+
+      onSubmit.mockClear();
+      await editor.fill("Line");
+      dispatchEnterShortcut(editor.element(), { ...guideModifiers, shiftKey: true });
+      expect(onSubmit).not.toHaveBeenCalled();
+      // Synthetic dispatch does not perform the browser's default edit; the real-keyboard
+      // Shift+Enter test above owns the line-break assertion.
+    });
+  },
+);
+
+test("keeps the typeahead Enter owner ahead of the guide shortcut", async () => {
+  await withNavigatorPlatform("MacIntel", async () => {
+    const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+    const { controllerRef, screen } = await renderEditor([skill("alpha", "/alpha")], {
+      onSubmit,
+    });
+    const editor = screen.getByRole("combobox", { name: "Message" });
+
+    await editor.fill("$alp");
+    await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
+    dispatchEnterShortcut(editor.element(), { metaKey: true });
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("$alpha");
+  });
 });
 
 test("shows authoritative source labels for every candidate and parent paths for duplicate display names", async () => {
@@ -373,7 +449,7 @@ test("does not scroll back to an offscreen active candidate when pointer hover p
 });
 
 test("uses the same replacement for pointer selection and retains editor focus", async () => {
-  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor([skill("pointer", "/pointer")], {
     onSubmit,
   });
@@ -388,7 +464,7 @@ test("uses the same replacement for pointer selection and retains editor focus",
 });
 
 test("uses touch pointer down to select without moving focus from the editor", async () => {
-  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor([skill("touch", "/skills/touch/SKILL.md")], {
     onSubmit,
   });
@@ -431,7 +507,7 @@ test("keeps a skill token atomic across caret navigation, deletion, undo, and re
 });
 
 test("blocks query selection and submission during programmatic composition events", async () => {
-  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { screen } = await renderEditor([skill("alpha", "/alpha")], { onSubmit });
   const editor = screen.getByRole("combobox", { name: "Message" });
   const root = editor.element();
@@ -454,7 +530,7 @@ test("blocks query selection and submission during programmatic composition even
 });
 
 test("consumes only the first Enter immediately following composition end", async () => {
-  const onSubmit = vi.fn<(snapshot: ComposerEditorSnapshot) => void>();
+  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { screen } = await renderEditor([], {
     guardCompositionEndEnter: true,
     onSubmit,
@@ -470,14 +546,38 @@ test("consumes only the first Enter immediately following composition end", asyn
 
   await screen.user.keyboard("{Enter}");
   expect(onSubmit).toHaveBeenCalledOnce();
-  const submittedSnapshot = onSubmit.mock.calls.at(0)?.at(0);
+  const submittedSnapshot = onSubmit.mock.calls[0]?.[0];
   if (submittedSnapshot == null) {
     throw new Error("guarded composition submit must provide an editor snapshot");
   }
+  expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(submittedSnapshot.textContent).toBe("中文");
   expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
     { type: "text", text: "中文", text_elements: [] },
   ]);
+});
+
+test("applies composition-end suppression before the guide shortcut intent", async () => {
+  await withNavigatorPlatform("MacIntel", async () => {
+    const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+    const { controllerRef, screen } = await renderEditor([], {
+      guardCompositionEndEnter: true,
+      onSubmit,
+    });
+    const editor = screen.getByRole("combobox", { name: "Message" });
+    const root = editor.element();
+
+    await editor.fill("中文");
+    root.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    root.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "中文" }));
+    dispatchEnterShortcut(root, { metaKey: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    const snapshot = getController(controllerRef).getSnapshot();
+    dispatchEnterShortcut(root, { metaKey: true });
+    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit).toHaveBeenLastCalledWith(snapshot, "guide");
+  });
 });
 
 test("preserves catalog loading, refresh, partial error, total error, retry, empty, and disabled semantics", async () => {
@@ -604,7 +704,7 @@ test("shows invalid token text only when a complete ready catalog confirms its p
 
 type RenderEditorOptions = Readonly<{
   guardCompositionEndEnter?: boolean;
-  onSubmit?: (snapshot: ComposerEditorSnapshot) => void;
+  onSubmit?: ComposerEditorProps["onSubmit"];
 }>;
 
 async function renderEditor(
@@ -731,6 +831,38 @@ function firstTextCharacterRect(root: Element): DOMRect {
   range.setStart(textNode, 0);
   range.setEnd(textNode, 1);
   return range.getBoundingClientRect();
+}
+
+type EnterShortcutModifiers = Readonly<
+  Partial<Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">>
+>;
+
+function dispatchEnterShortcut(element: Element, modifiers: EnterShortcutModifiers): void {
+  element.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+      ...modifiers,
+    }),
+  );
+}
+
+async function withNavigatorPlatform(platform: string, run: () => Promise<void>): Promise<void> {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(navigator, "platform");
+  Object.defineProperty(navigator, "platform", {
+    configurable: true,
+    value: platform,
+  });
+  try {
+    await run();
+  } finally {
+    if (originalDescriptor == null) {
+      Reflect.deleteProperty(navigator, "platform");
+    } else {
+      Object.defineProperty(navigator, "platform", originalDescriptor);
+    }
+  }
 }
 
 function dispatchHistoryShortcut(element: Element, command: "undo" | "redo"): void {

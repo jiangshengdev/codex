@@ -26,6 +26,8 @@ export type ComposerEditorSnapshot = Readonly<{
   textContent: string;
 }>;
 
+export type ComposerEditorSubmitIntent = "ordinary" | "guide";
+
 export type ComposerEditorController = Readonly<{
   getSnapshot: () => ComposerEditorSnapshot;
   subscribe: (listener: () => void) => () => void;
@@ -41,7 +43,7 @@ export type ComposerEditorProps = Readonly<{
   guardCompositionEndEnter: boolean;
   onControllerChange?: (controller: ComposerEditorController | null) => void;
   onRetrySkillCatalog?: () => void;
-  onSubmit: (snapshot: ComposerEditorSnapshot) => void;
+  onSubmit: (snapshot: ComposerEditorSnapshot, intent: ComposerEditorSubmitIntent) => void;
   placeholder: string;
   skillCatalog: SkillCatalogState;
   skillMenuParent: HTMLElement | null;
@@ -64,6 +66,7 @@ export function ComposerEditor({
   skillMenuParent,
   skillValidity,
 }: ComposerEditorProps) {
+  const primaryModifier = primaryModifierForPlatform(navigator.platform);
   const activeControllerRef = useRef<ComposerEditorController | null>(null);
   const isComposingRef = useRef(false);
   const suppressNextEnterRef = useRef(false);
@@ -87,7 +90,12 @@ export function ComposerEditor({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== "Enter" || event.shiftKey) {
+    if (event.key !== "Enter") {
+      suppressNextEnterRef.current = false;
+      return;
+    }
+    const intent = submitIntentForEnter(event.nativeEvent, primaryModifier);
+    if (intent == null) {
       suppressNextEnterRef.current = false;
       return;
     }
@@ -109,7 +117,7 @@ export function ComposerEditor({
     }
 
     event.preventDefault();
-    onSubmitRef.current(controller.getSnapshot());
+    onSubmitRef.current(controller.getSnapshot(), intent);
   };
 
   return (
@@ -120,6 +128,7 @@ export function ComposerEditor({
             <ContentEditable
               aria-autocomplete="list"
               aria-label={ariaLabel}
+              aria-keyshortcuts={shortcutForPrimaryModifier(primaryModifier)}
               aria-multiline="true"
               className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
               onCompositionEnd={onCompositionEnd}
@@ -143,6 +152,7 @@ export function ComposerEditor({
         activeControllerRef={activeControllerRef}
         isComposingRef={isComposingRef}
         onSubmitRef={onSubmitRef}
+        primaryModifier={primaryModifier}
         suppressNextEnterRef={suppressNextEnterRef}
       />
       <HistoryPlugin />
@@ -174,15 +184,41 @@ const initialConfig = {
   },
 };
 
+type PrimaryModifier = "control" | "meta";
+
+function primaryModifierForPlatform(platform: string): PrimaryModifier {
+  return platform.startsWith("Mac") ? "meta" : "control";
+}
+
+function shortcutForPrimaryModifier(primaryModifier: PrimaryModifier): string {
+  return primaryModifier === "meta" ? "Meta+Enter" : "Control+Enter";
+}
+
+function submitIntentForEnter(
+  event: Pick<globalThis.KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">,
+  primaryModifier: PrimaryModifier,
+): ComposerEditorSubmitIntent | null {
+  if (event.shiftKey) {
+    return null;
+  }
+  const isGuide =
+    primaryModifier === "meta"
+      ? event.metaKey && !event.ctrlKey && !event.altKey
+      : event.ctrlKey && !event.metaKey && !event.altKey;
+  return isGuide ? "guide" : "ordinary";
+}
+
 function EnterCommandPlugin({
   activeControllerRef,
   isComposingRef,
   onSubmitRef,
+  primaryModifier,
   suppressNextEnterRef,
 }: Readonly<{
   activeControllerRef: { current: ComposerEditorController | null };
   isComposingRef: { current: boolean };
   onSubmitRef: { current: ComposerEditorProps["onSubmit"] };
+  primaryModifier: PrimaryModifier;
   suppressNextEnterRef: { current: boolean };
 }>): null {
   const [editor] = useLexicalComposerContext();
@@ -195,7 +231,8 @@ function EnterCommandPlugin({
           if (event == null) {
             return false;
           }
-          if (event.shiftKey) {
+          const intent = submitIntentForEnter(event, primaryModifier);
+          if (intent == null) {
             return false;
           }
           if (event.isComposing || isComposingRef.current) {
@@ -214,12 +251,19 @@ function EnterCommandPlugin({
           }
 
           event.preventDefault();
-          onSubmitRef.current(controller.getSnapshot());
+          onSubmitRef.current(controller.getSnapshot(), intent);
           return true;
         },
         COMMAND_PRIORITY_BEFORE_EDITOR,
       ),
-    [activeControllerRef, editor, isComposingRef, onSubmitRef, suppressNextEnterRef],
+    [
+      activeControllerRef,
+      editor,
+      isComposingRef,
+      onSubmitRef,
+      primaryModifier,
+      suppressNextEnterRef,
+    ],
   );
 
   return null;
