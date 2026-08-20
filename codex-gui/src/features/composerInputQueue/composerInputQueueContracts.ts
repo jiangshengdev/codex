@@ -5,15 +5,18 @@ import type {
   TurnStartParams,
 } from "@codex-protocol/v2";
 import type { ComposerInputPreview } from "./composerInputPreview";
+import type { InterruptTerminalDisposition } from "./composerInterruptState";
 import type {
   PendingSteerPhase,
   RejectedSteer,
+  RejectedSteerTransfer,
   SteerRecoveryTransfer,
 } from "./composerSteerQueueState";
 
 type TurnIdentity = Turn["id"];
 type CommitIdentity = ThreadProjectionEventNotification["commitId"];
 type TerminalStatus = Exclude<Turn["status"], "inProgress">;
+type NonInterruptedTerminalStatus = Exclude<TerminalStatus, "interrupted">;
 type ObservedClientIdentity = NonNullable<Extract<ThreadItem, { type: "userMessage" }>["clientId"]>;
 
 export type ComposerQueueMessage = Readonly<{
@@ -21,9 +24,18 @@ export type ComposerQueueMessage = Readonly<{
   input: readonly TurnStartParams["input"][number][];
 }>;
 
+export type ComposerInterruptedDisposition = InterruptTerminalDisposition;
+
+export type UserStoppedRecoveryBatch = Readonly<{
+  reason: "userStopped";
+  rejected: RejectedSteerTransfer | null;
+  messages: readonly ComposerQueueMessage[];
+}>;
+
 export type RecoveryBatch =
+  | UserStoppedRecoveryBatch
   | Readonly<{
-      reason: "interrupted" | "startDefinitelyNotAccepted";
+      reason: "startDefinitelyNotAccepted";
       messages: readonly ComposerQueueMessage[];
     }>
   | Readonly<{
@@ -34,6 +46,7 @@ export type RecoveryBatch =
 export type ComposerInputQueueResult =
   | Readonly<{ type: "claimIssued" }>
   | Readonly<{ type: "queued"; messageId: string }>
+  | Readonly<{ type: "interruptedTerminalPrepared"; turnId: TurnIdentity }>
   | Readonly<{
       type: "applied";
       operation:
@@ -47,6 +60,7 @@ export type ComposerInputQueueResult =
         | "steerRecoveryRestored"
         | "turnCompleted"
         | "turnStarted"
+        | "userStoppedRecoveryRestored"
         | "userMessageCommitted";
     }>
   | Readonly<{ type: "deliveryUnknown" }>
@@ -73,7 +87,9 @@ export type ComposerInputQueueResult =
         | "runtimeTurn"
         | "startClaim"
         | "steerClaim"
-        | "steerRecoveryTransfer";
+        | "steerRecoveryTransfer"
+        | "interruptedTurn"
+        | "userStoppedRecovery";
     }>;
 
 export type ComposerInputQueuePendingStartPhase =
@@ -122,6 +138,13 @@ export type ComposerInputQueueView = Readonly<{
   releaseState: ComposerInputQueueReleaseState;
 }>;
 
+export type InterruptedTurnCompletedObservation = Readonly<{
+  type: "turnCompleted";
+  turnId: TurnIdentity;
+  status: "interrupted";
+  commitId: CommitIdentity;
+}>;
+
 export type RuntimeObservation =
   | Readonly<{ type: "turnStarted"; turnId: TurnIdentity; commitId: CommitIdentity }>
   | Readonly<{
@@ -133,9 +156,15 @@ export type RuntimeObservation =
   | Readonly<{
       type: "turnCompleted";
       turnId: TurnIdentity;
-      status: TerminalStatus;
+      status: NonInterruptedTerminalStatus;
       commitId: CommitIdentity;
-    }>;
+    }>
+  | InterruptedTurnCompletedObservation;
+
+export type NonInterruptedRuntimeObservation = Exclude<
+  RuntimeObservation,
+  InterruptedTurnCompletedObservation
+>;
 
 export type CreateComposerInputQueueInput = Readonly<{
   threadId: string;
