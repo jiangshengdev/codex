@@ -572,20 +572,17 @@ describe("composer input queue", () => {
     submit(queue, "b");
     queue.settleStart({ type: "deliveryUnknown", claim });
 
-    for (const observation of [
-      { type: "turnStarted", turnId: "foreign", commitId: "foreign-start" },
-      {
+    expect(
+      queue.observe({ type: "turnStarted", turnId: "foreign", commitId: "foreign-start" }),
+    ).toEqual({ result: { type: "applied", operation: "observationRecorded" }, effects: [] });
+    expect(
+      queue.prepareInterruptedTerminal({
         type: "turnCompleted",
         turnId: "foreign",
         status: "interrupted",
         commitId: "foreign-terminal",
-      },
-    ] as const) {
-      expect(queue.observe(observation)).toEqual({
-        result: { type: "applied", operation: "observationRecorded" },
-        effects: [],
-      });
-    }
+      }),
+    ).toEqual({ result: { type: "applied", operation: "observationRecorded" }, effects: [] });
     expect(submit(queue, "a").result).toEqual({ type: "duplicateIdentity", messageId: "a" });
     expect(submit(queue, "b").result).toEqual({ type: "duplicateIdentity", messageId: "b" });
   });
@@ -687,7 +684,7 @@ describe("composer input queue", () => {
     expect(startClaim(completed).message).toEqual(message("b"));
   });
 
-  it("recovers every ordinary message on interruption without starting another turn", () => {
+  it("prepares one local interruption and restores ordinary messages in FIFO order", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-a" });
     submit(queue, "b");
     submit(queue, "c");
@@ -709,36 +706,123 @@ describe("composer input queue", () => {
       commitId: "terminal-a",
     } as const;
 
-    expect(queue.observe(interrupted)).toEqual({
-      result: { type: "recoveryProduced", reason: "interrupted", messageIds: ["b", "c"] },
+    expect(queue.prepareInterruptedTerminal(interrupted)).toEqual({
+      result: { type: "interruptedTerminalPrepared", turnId: "turn-a" },
+      effects: [],
+    });
+    expect(queue.applyInterruptedDisposition("wrong-turn", "local")).toEqual({
+      result: { type: "ownershipMismatch", subject: "interruptedTurn" },
+      effects: [],
+    });
+    const stopped = queue.applyInterruptedDisposition("turn-a", "local");
+    expect(stopped).toEqual({
+      result: { type: "recoveryProduced", reason: "userStopped", messageIds: ["b", "c"] },
       effects: [
         {
           type: "recover",
-          batch: { reason: "interrupted", messages: [message("b"), message("c")] },
+          batch: { reason: "userStopped", rejected: null, messages: [message("b"), message("c")] },
         },
       ],
     });
-    expect(queue.view()).toEqual({
-      queuedCount: 0,
-      pendingSteers: [],
-      queuedSteers: [],
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: { type: "safe" },
-    });
-    expect(queue.observe(interrupted)).toEqual({
-      result: { type: "idempotentReplay", subject: "runtimeObservation" },
+    expect(queue.applyInterruptedDisposition("turn-a", "local")).toEqual({
+      result: { type: "ownershipMismatch", subject: "interruptedTurn" },
       effects: [],
     });
-    expect(submit(queue, "b").effects[0]?.type).toBe("performStart");
+    const recovery = stopped.effects[0];
+    if (recovery?.type !== "recover" || recovery.batch.reason !== "userStopped") {
+      throw new Error("expected user-stopped recovery");
+    }
+    expect(queue.restoreUserStoppedRecovery({ ...recovery.batch })).toEqual({
+      result: { type: "ownershipMismatch", subject: "userStoppedRecovery" },
+      effects: [],
+    });
+    const first = startClaim(queue.restoreUserStoppedRecovery(recovery.batch));
+    expect(queue.restoreUserStoppedRecovery(recovery.batch)).toEqual({
+      result: { type: "ownershipMismatch", subject: "userStoppedRecovery" },
+      effects: [],
+    });
+    expect(first.message).toEqual(message("b"));
+    queue.settleStart({ type: "accepted", claim: first, turnId: "turn-b" });
     expect(
-      createComposerInputQueue({ threadId: "thread-1", activeTurnId: "empty" }).observe({
-        type: "turnCompleted",
-        turnId: "empty",
-        status: "interrupted",
-        commitId: "empty-terminal",
-      }),
-    ).toEqual({ result: { type: "applied", operation: "turnCompleted" }, effects: [] });
+      startClaim(
+        queue.observe({
+          type: "turnCompleted",
+          turnId: "turn-b",
+          status: "completed",
+          commitId: "terminal-b",
+        }),
+      ).message,
+    ).toEqual(message("c"));
+  });
+
+  it("restores local rejected steers before ordinary and auto-drains non-local interruption", () => {
+    const local = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-local" });
+    submit(local, "ordinary");
+    const first = local.submitSteer(message("steer-a")).effects[0];
+    if (first?.type !== "performSteer") throw new Error("expected steer claim");
+    local.submitSteer(message("steer-b"));
+    local.settleSteer({ type: "activeTurnNotSteerable", claim: first.claim });
+    local.prepareInterruptedTerminal({
+      type: "turnCompleted",
+      turnId: "turn-local",
+      status: "interrupted",
+      commitId: "terminal-local",
+    });
+    const stopped = local.applyInterruptedDisposition("turn-local", "local");
+    const recovery = stopped.effects[0];
+    if (recovery?.type !== "recover" || recovery.batch.reason !== "userStopped") {
+      throw new Error("expected user-stopped recovery");
+    }
+    const merge = startClaim(local.restoreUserStoppedRecovery(recovery.batch));
+    expect({ input: merge.message.input, queued: local.view().queuedCount }).toEqual({
+      input: [...message("steer-a").input, ...message("steer-b").input],
+      queued: 1,
+    });
+    local.settleStart({ type: "accepted", claim: merge, turnId: "turn-merge" });
+    expect(
+      startClaim(
+        local.observe({
+          type: "turnCompleted",
+          turnId: "turn-merge",
+          status: "completed",
+          commitId: "terminal-merge",
+        }),
+      ).message,
+    ).toEqual(message("ordinary"));
+
+    const nonLocal = createComposerInputQueue({
+      threadId: "thread-1",
+      activeTurnId: "turn-non-local",
+    });
+    submit(nonLocal, "ordinary-front");
+    const pending = nonLocal.submitSteer(message("pending")).effects[0];
+    if (pending?.type !== "performSteer") throw new Error("expected steer claim");
+    nonLocal.submitSteer(message("unsent"));
+    nonLocal.settleSteer({ type: "accepted", claim: pending.claim, turnId: "turn-non-local" });
+    nonLocal.prepareInterruptedTerminal({
+      type: "turnCompleted",
+      turnId: "turn-non-local",
+      status: "interrupted",
+      commitId: "terminal-non-local",
+    });
+    const rejectedFirst = startClaim(
+      nonLocal.applyInterruptedDisposition("turn-non-local", "nonLocal"),
+    );
+    expect(rejectedFirst.message.input).toEqual([
+      ...message("pending").input,
+      ...message("unsent").input,
+    ]);
+    nonLocal.settleStart({ type: "accepted", claim: rejectedFirst, turnId: "turn-rejected" });
+    expect(
+      startClaim(
+        nonLocal.observe({
+          type: "turnCompleted",
+          turnId: "turn-rejected",
+          status: "completed",
+          commitId: "terminal-rejected",
+        }),
+      ).message,
+    ).toEqual(message("ordinary-front"));
   });
 
   it("reconciles terminal-before-settlement and classifies terminal replay and lateness", () => {
@@ -824,16 +908,24 @@ describe("composer input queue", () => {
       queue.settleStart({ type: "accepted", claim: second, turnId: "turn-b" }),
       queue.observe({ type: "turnStarted", turnId: "turn-b", commitId: "start-b" }),
     );
-    const interrupted = queue.observe({
-      type: "turnCompleted",
-      turnId: "turn-b",
-      status: "interrupted",
-      commitId: "terminal-b",
-    });
+    transitions.push(
+      queue.prepareInterruptedTerminal({
+        type: "turnCompleted",
+        turnId: "turn-b",
+        status: "interrupted",
+        commitId: "terminal-b",
+      }),
+    );
+    const interrupted = queue.applyInterruptedDisposition("turn-b", "local");
     transitions.push(interrupted);
     expect(interrupted).toEqual({
-      result: { type: "recoveryProduced", reason: "interrupted", messageIds: ["c"] },
-      effects: [{ type: "recover", batch: { reason: "interrupted", messages: [message("c")] } }],
+      result: { type: "recoveryProduced", reason: "userStopped", messageIds: ["c"] },
+      effects: [
+        {
+          type: "recover",
+          batch: { reason: "userStopped", rejected: null, messages: [message("c")] },
+        },
+      ],
     });
     for (const transition of transitions) {
       expect(transition.effects.filter(({ type }) => type === "performStart")).toHaveLength(
