@@ -287,7 +287,8 @@ test("sends plain text through turn/start", async ({ page }) => {
   await page.goto(`/task/${threadId}#token=e2e-secret-token`);
   await expect(page.locator("main")).toHaveAttribute("data-gui-host-status", "initialized");
 
-  await page.getByPlaceholder("Message Codex").fill("Hello from e2e");
+  const composer = page.getByRole("combobox", { name: "Message Codex", exact: true });
+  await composer.fill("Hello from e2e");
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect
@@ -303,7 +304,7 @@ test("sends plain text through turn/start", async ({ page }) => {
     clientUserMessageId,
     input: [{ type: "text", text: "Hello from e2e", text_elements: [] }],
   });
-  await expect(page.getByPlaceholder("Message Codex")).toHaveValue("");
+  await expect(composer).toHaveText("");
 });
 
 test("interrupts active turn through turn/interrupt", async ({ page }) => {
