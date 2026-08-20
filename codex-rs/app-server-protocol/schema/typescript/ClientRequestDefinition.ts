@@ -272,7 +272,7 @@ export type ClientRequestDefinition =
   | { method: "account/logout"; params: undefined; response: LogoutAccountResponse; }
   | { method: "account/rateLimits/read"; params: undefined; response: GetAccountRateLimitsResponse; }
   | { method: "account/rateLimitResetCredit/consume"; params: ConsumeAccountRateLimitResetCreditParams; response: ConsumeAccountRateLimitResetCreditResponse; }
-  | { method: "account/usage/read"; params: undefined; response: GetAccountTokenUsageResponse; }
+  | { method: "account/usage/read"; params: GetAccountTokenUsageParams | null; response: GetAccountTokenUsageResponse; }
   | { method: "account/workspaceMessages/read"; params: undefined; response: GetWorkspaceMessagesResponse; }
   | { method: "account/sendAddCreditsNudgeEmail"; params: SendAddCreditsNudgeEmailParams; response: SendAddCreditsNudgeEmailResponse; }
   | { method: "feedback/upload"; params: FeedbackUploadParams; response: FeedbackUploadResponse; }

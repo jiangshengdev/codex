@@ -303,8 +303,8 @@ mod tests {
     use codex_protocol::items::TurnItem as ProtocolTurnItem;
     use codex_protocol::protocol::EventMsg;
     use codex_protocol::protocol::ItemCompletedEvent;
-    use codex_protocol::protocol::RolloutItem;
     use codex_protocol::protocol::SessionSource;
+    use codex_rollout::RolloutItem;
     use codex_thread_store::AppendThreadItemsParams;
     use codex_thread_store::InMemoryThreadStore;
     use codex_thread_store::ThreadStore;
