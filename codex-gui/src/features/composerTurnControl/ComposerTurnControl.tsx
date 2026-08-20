@@ -1,7 +1,7 @@
 import { Button, Chip, Surface, toast } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { $getRoot } from "lexical";
-import { useRef, useId, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import {
@@ -35,6 +35,7 @@ import {
   isConnectionUsable,
 } from "./composerTurnControlModel";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
+import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
@@ -64,6 +65,8 @@ export function ComposerTurnControl({
   const isSubmittingRef = useRef(false);
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
+  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
+  const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
   const threadId = useAppSelector(selectThreadRuntimeThreadId);
   const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
@@ -197,9 +200,13 @@ export function ComposerTurnControl({
       ref={composerShellRef}
     >
       <Surface
-        className="composer-panel relative mx-auto grid w-full max-w-3xl gap-2 rounded-[20px] p-2 shadow-md"
+        aria-disabled={!connectionUsable}
+        className="composer-panel relative mx-auto grid w-full max-w-3xl gap-2 rounded-field border bg-field p-2 text-field-foreground shadow-field [border-color:var(--field-border)] [border-width:var(--border-width-field)] transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none [&:has([contenteditable]:focus)]:bg-field-focus [&:has([contenteditable]:focus)]:[border-color:var(--field-border-focus)] [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:bg-field-hover [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:[border-color:var(--field-border-hover)] data-[disabled=true]:status-disabled data-[focus-visible=true]:status-focused-field"
+        data-disabled={!connectionUsable}
+        data-focus-visible={composerFocusVisible}
         variant="default"
       >
+        <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
           ariaLabel={t`Message Codex`}
           disabled={!connectionUsable}
@@ -209,6 +216,7 @@ export function ComposerTurnControl({
           onSubmit={submit}
           placeholder={t`Message Codex`}
           skillCatalog={skillCatalog}
+          skillMenuParent={skillMenuParent}
           skillValidity={skillValidity}
         />
         {queueSnapshot.queuedCount > 0 || queueSnapshot.recoveryCount > 0 ? (
@@ -272,6 +280,80 @@ export function ComposerTurnControl({
       </Surface>
     </section>
   );
+}
+
+function useComposerFocusVisible(composerShellRef: {
+  readonly current: HTMLElement | null;
+}): boolean {
+  const [isFocusVisible, setIsFocusVisible] = useState(false);
+
+  useEffect(() => {
+    const composerPanel = composerShellRef.current?.querySelector(".composer-panel");
+    if (!(composerPanel instanceof HTMLElement)) {
+      return;
+    }
+
+    let lastModality: "keyboard" | "pointer" = "keyboard";
+    let publishedFocusVisible = false;
+    const publishFocusVisible = (nextFocusVisible: boolean): void => {
+      if (publishedFocusVisible === nextFocusVisible) {
+        return;
+      }
+      publishedFocusVisible = nextFocusVisible;
+      setIsFocusVisible(nextFocusVisible);
+    };
+    const handlePointerDown = (): void => {
+      lastModality = "pointer";
+      if (composerPanel.contains(document.activeElement)) {
+        publishFocusVisible(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Tab" && event.key !== "Escape") {
+        return;
+      }
+      lastModality = "keyboard";
+      if (composerPanel.contains(document.activeElement)) {
+        publishFocusVisible(true);
+      }
+    };
+    const handleVirtualClick = (event: MouseEvent): void => {
+      if (event.detail !== 0) {
+        return;
+      }
+      lastModality = "keyboard";
+      if (
+        composerPanel.contains(document.activeElement) ||
+        (event.target instanceof Node && composerPanel.contains(event.target))
+      ) {
+        publishFocusVisible(true);
+      }
+    };
+    const handleFocusIn = (): void => {
+      publishFocusVisible(lastModality === "keyboard");
+    };
+    const handleFocusOut = (event: FocusEvent): void => {
+      if (event.relatedTarget instanceof Node && composerPanel.contains(event.relatedTarget)) {
+        return;
+      }
+      publishFocusVisible(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("click", handleVirtualClick, true);
+    composerPanel.addEventListener("focusin", handleFocusIn);
+    composerPanel.addEventListener("focusout", handleFocusOut);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("click", handleVirtualClick, true);
+      composerPanel.removeEventListener("focusin", handleFocusIn);
+      composerPanel.removeEventListener("focusout", handleFocusOut);
+    };
+  }, [composerShellRef]);
+
+  return isFocusVisible;
 }
 
 const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {

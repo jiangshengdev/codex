@@ -44,6 +44,7 @@ export type ComposerEditorProps = Readonly<{
   onSubmit: (snapshot: ComposerEditorSnapshot) => void;
   placeholder: string;
   skillCatalog: SkillCatalogState;
+  skillMenuParent: HTMLElement | null;
   skillValidity?: Readonly<{
     invalidPaths: ReadonlySet<string>;
     statusText: string;
@@ -60,6 +61,7 @@ export function ComposerEditor({
   onSubmit,
   placeholder,
   skillCatalog,
+  skillMenuParent,
   skillValidity,
 }: ComposerEditorProps) {
   const activeControllerRef = useRef<ComposerEditorController | null>(null);
@@ -112,29 +114,31 @@ export function ComposerEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <PlainTextPlugin
-        contentEditable={
-          <ContentEditable
-            aria-autocomplete="list"
-            aria-label={ariaLabel}
-            aria-multiline="true"
-            className="min-h-24 w-full resize-none bg-transparent px-3 py-2 outline-none"
-            onCompositionEnd={onCompositionEnd}
-            onCompositionStart={onCompositionStart}
-            onKeyDown={onKeyDown}
-            spellCheck
-          />
-        }
-        ErrorBoundary={LexicalErrorBoundary}
-        placeholder={
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute px-3 py-2 text-default-500"
-          >
-            {placeholder}
-          </div>
-        }
-      />
+      <div className="relative min-w-0">
+        <PlainTextPlugin
+          contentEditable={
+            <ContentEditable
+              aria-autocomplete="list"
+              aria-label={ariaLabel}
+              aria-multiline="true"
+              className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
+              onCompositionEnd={onCompositionEnd}
+              onCompositionStart={onCompositionStart}
+              onKeyDown={onKeyDown}
+              spellCheck
+            />
+          }
+          ErrorBoundary={LexicalErrorBoundary}
+          placeholder={
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 px-3 py-2 leading-6 text-field-placeholder"
+            >
+              {placeholder}
+            </div>
+          }
+        />
+      </div>
       <EnterCommandPlugin
         activeControllerRef={activeControllerRef}
         isComposingRef={isComposingRef}
@@ -149,11 +153,14 @@ export function ComposerEditor({
       />
       <EditablePlugin disabled={disabled} />
       <SkillValidityPlugin skillValidity={skillValidity} />
-      <SkillTypeaheadPlugin
-        isComposingRef={isComposingRef}
-        onRetry={onRetrySkillCatalog}
-        skillCatalog={skillCatalog}
-      />
+      {skillMenuParent == null ? null : (
+        <SkillTypeaheadPlugin
+          isComposingRef={isComposingRef}
+          onRetry={onRetrySkillCatalog}
+          portalParent={skillMenuParent}
+          skillCatalog={skillCatalog}
+        />
+      )}
       <ComposerClipboardPlugin />
     </LexicalComposer>
   );

@@ -76,7 +76,9 @@ async fn launch_gui_tool_names_for_service(
     gui_launch_service: Arc<crate::gui_launch_service::AppServerGuiLaunchService>,
 ) -> Vec<String> {
     let auth_manager =
-        AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false).await;
+        AuthManager::shared_from_config(config, /*enable_codex_api_key_env*/ false)
+            .await
+            .expect("test auth manager");
     let environment_manager = Arc::new(EnvironmentManager::default_for_tests());
     let executor_skill_provider: Arc<dyn codex_skills_extension::SkillProvider> = Arc::new(
         codex_skills_extension::ExecutorSkillProvider::new_with_restriction_product(
@@ -98,7 +100,7 @@ async fn launch_gui_tool_names_for_service(
             gui_launch_service,
             git_attribution_base_url: config.chatgpt_base_url.clone(),
             http_client_factory: config.http_client_factory(),
-            thread_store: codex_core::thread_store_from_config(config, /*state_db*/ None),
+            queue_service: None,
         },
     );
     let session_store = ExtensionData::new("session-test");

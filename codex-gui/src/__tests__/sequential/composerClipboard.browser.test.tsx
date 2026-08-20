@@ -1,3 +1,4 @@
+import { useState, type CSSProperties } from "react";
 import { expect, test, vi } from "vitest";
 import { compileComposerDraft } from "@/features/composerEditor/compileComposerDraft";
 import {
@@ -83,7 +84,7 @@ async function renderEditors() {
   const screen = await renderWithProviders(
     <div>
       <textarea aria-label="External source" />
-      <ComposerEditor
+      <ClipboardEditorFixture
         ariaLabel="Source composer"
         disabled={false}
         guardCompositionEndEnter={false}
@@ -94,7 +95,7 @@ async function renderEditors() {
         placeholder="Source"
         skillCatalog={skillCatalog}
       />
-      <ComposerEditor
+      <ClipboardEditorFixture
         ariaLabel="Target composer"
         disabled={false}
         guardCompositionEndEnter={false}
@@ -115,6 +116,21 @@ async function renderEditors() {
     targetController: () => requireController(targetController),
   };
 }
+
+function ClipboardEditorFixture(props: Omit<ComposerEditorProps, "skillMenuParent">) {
+  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
+
+  return (
+    <div className="w-96 max-w-full">
+      <div ref={setSkillMenuParent} style={fixtureSkillMenuParentStyle} />
+      <ComposerEditor {...props} skillMenuParent={skillMenuParent} />
+    </div>
+  );
+}
+
+const fixtureSkillMenuParentStyle = {
+  "--composer-skill-menu-max-height": "18rem",
+} as CSSProperties;
 
 async function insertSkill(
   screen: Awaited<ReturnType<typeof renderWithProviders>>,

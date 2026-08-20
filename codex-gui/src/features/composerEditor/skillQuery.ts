@@ -11,7 +11,7 @@ export type SkillQueryResult = Readonly<{
   displayName: string;
   sourceLabel: string;
   score: number;
-  hasDuplicateDisplayName: boolean;
+  disambiguatingParentPath: string | null;
 }>;
 
 export function skillDisplayName(candidate: SkillQueryCandidate): string {
@@ -39,7 +39,7 @@ export function querySkills(
   query: string,
 ): SkillQueryResult[] {
   const normalizedQuery = query.trim().toLowerCase();
-  const pathsByDisplayName = collectPathsByDisplayName(candidates);
+  const disambiguatingParentPaths = collectDisambiguatingParentPaths(candidates);
   const results: SkillQueryResult[] = [];
 
   for (const candidate of candidates) {
@@ -56,7 +56,8 @@ export function querySkills(
       displayName,
       sourceLabel: skillSourceLabel(candidate),
       score,
-      hasDuplicateDisplayName: (pathsByDisplayName.get(displayName.toLowerCase())?.size ?? 0) >= 2,
+      disambiguatingParentPath:
+        disambiguatingParentPaths.get(displayName.toLowerCase())?.get(candidate.path) ?? null,
     });
   }
 
@@ -70,9 +71,9 @@ export function querySkills(
   return results.slice(0, MAX_SKILL_QUERY_RESULTS);
 }
 
-function collectPathsByDisplayName(
+function collectDisambiguatingParentPaths(
   candidates: readonly SkillQueryCandidate[],
-): Map<string, Set<string>> {
+): Map<string, Map<string, string | null>> {
   const pathsByDisplayName = new Map<string, Set<string>>();
   for (const candidate of candidates) {
     const displayName = skillDisplayName(candidate).toLowerCase();
@@ -80,7 +81,82 @@ function collectPathsByDisplayName(
     paths.add(candidate.path);
     pathsByDisplayName.set(displayName, paths);
   }
-  return pathsByDisplayName;
+
+  const disambiguatingParentPaths = new Map<string, Map<string, string | null>>();
+  for (const [displayName, paths] of pathsByDisplayName) {
+    const pathsForDisplayName = new Map<string, string | null>();
+    if (paths.size < 2) {
+      for (const path of paths) {
+        pathsForDisplayName.set(path, null);
+      }
+    } else {
+      const parentPaths = Array.from(paths, parseParentPath);
+      for (const parentPath of parentPaths) {
+        pathsForDisplayName.set(parentPath.path, shortestUniqueParentPath(parentPath, parentPaths));
+      }
+    }
+    disambiguatingParentPaths.set(displayName, pathsForDisplayName);
+  }
+  return disambiguatingParentPaths;
+}
+
+type ParsedParentPath = Readonly<{
+  path: string;
+  fullParentPath: string;
+  segments: readonly string[];
+  separator: "/" | "\\";
+}>;
+
+function parseParentPath(path: string): ParsedParentPath {
+  const lastForwardSeparator = path.lastIndexOf("/");
+  const lastBackwardSeparator = path.lastIndexOf("\\");
+  const lastSeparator = Math.max(lastForwardSeparator, lastBackwardSeparator);
+  const separator = lastBackwardSeparator > lastForwardSeparator ? "\\" : "/";
+  if (lastSeparator < 0) {
+    return { path, fullParentPath: "", segments: [], separator };
+  }
+  let fullParentPath = path.slice(0, lastSeparator);
+  if (lastSeparator === 0 || /^[A-Za-z]:[\\/]$/u.test(path.slice(0, lastSeparator + 1))) {
+    fullParentPath = path.slice(0, lastSeparator + 1);
+  }
+
+  return {
+    path,
+    fullParentPath,
+    segments: fullParentPath.split(/[\\/]+/u).filter((segment) => segment.length > 0),
+    separator,
+  };
+}
+
+function shortestUniqueParentPath(
+  parentPath: ParsedParentPath,
+  parentPaths: readonly ParsedParentPath[],
+): string {
+  if (/^[A-Za-z]:[\\/]$/u.test(parentPath.fullParentPath)) {
+    return parentPath.fullParentPath;
+  }
+
+  for (let segmentCount = 1; segmentCount <= parentPath.segments.length; segmentCount += 1) {
+    const suffix = parentPathSuffix(parentPath, segmentCount);
+    const suffixKey = parentPathSuffixKey(parentPath, segmentCount);
+    const isUnique = parentPaths.every(
+      (otherParentPath) =>
+        otherParentPath.path === parentPath.path ||
+        parentPathSuffixKey(otherParentPath, segmentCount) !== suffixKey,
+    );
+    if (isUnique) {
+      return suffix;
+    }
+  }
+  return parentPath.fullParentPath;
+}
+
+function parentPathSuffix(parentPath: ParsedParentPath, segmentCount: number): string {
+  return parentPath.segments.slice(-segmentCount).join(parentPath.separator);
+}
+
+function parentPathSuffixKey(parentPath: ParsedParentPath, segmentCount: number): string {
+  return JSON.stringify(parentPath.segments.slice(-segmentCount));
 }
 
 function scoreSubsequence(value: string, normalizedQuery: string): number | null {

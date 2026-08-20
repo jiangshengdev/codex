@@ -1,9 +1,9 @@
+use crate::RolloutItem;
 use codex_protocol::ThreadId;
 use codex_protocol::items::ContextCompactionItem;
 use codex_protocol::items::TurnItem;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::ItemCompletedEvent;
-use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::ThreadHistoryMode;
 
 use super::is_persisted_rollout_item;

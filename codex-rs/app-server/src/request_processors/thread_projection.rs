@@ -12,6 +12,7 @@ use codex_app_server_protocol::ThreadProjectionDetachStatus;
 use codex_app_server_protocol::ThreadProjectionSnapshot;
 #[cfg(test)]
 use codex_goal_extension::GoalService;
+use codex_thread_store::PersistContext;
 use std::sync::Arc;
 #[cfg(test)]
 use std::sync::OnceLock;
@@ -274,7 +275,7 @@ impl ThreadRequestProcessor {
                     .is_some()
                 {
                     self.thread_store
-                        .persist_thread(thread_id)
+                        .persist_thread(thread_id, PersistContext::Standard)
                         .await
                         .map_err(|err| thread_read_history_load_error(thread_id, err))?;
                     self.paginated_thread_full_turns(thread_id)
