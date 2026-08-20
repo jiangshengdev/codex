@@ -357,8 +357,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       clientUserMessageId: claim.clientUserMessageId,
       input: [...claim.message.input],
     }).then(
-      ({ turn }) => this.settle(generation, { type: "accepted", claim, turnId: turn.id }),
-      (error: unknown) => this.settle(generation, { type: deliveryFailure(error), claim }),
+      ({ turn }) => {
+        this.settle(generation, { type: "accepted", claim, turnId: turn.id });
+      },
+      (error: unknown) => {
+        this.settle(generation, { type: deliveryFailure(error), claim });
+      },
     );
   }
   private settle(generation: number, settlement: StartSettlement): void {
@@ -373,7 +377,9 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       clientUserMessageId: claim.intent.clientUserMessageId,
       input: copyComposerInputPayload(claim.intent.input),
     }).then(
-      ({ turnId }) => this.settleSteer(generation, { type: "accepted", claim, turnId }),
+      ({ turnId }) => {
+        this.settleSteer(generation, { type: "accepted", claim, turnId });
+      },
       (error: unknown) => {
         const type =
           isGuiHostCommandError(error) && error.activeTurnNotSteerable
@@ -388,12 +394,15 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private performInterrupt(claim: InterruptClaim): void {
     const generation = this.generation;
     this.interruptTurn(claim.params).then(
-      () => this.settleInterrupt(generation, { type: "accepted", claim }),
-      (error: unknown) =>
+      () => {
+        this.settleInterrupt(generation, { type: "accepted", claim });
+      },
+      (error: unknown) => {
         this.settleInterrupt(generation, {
           type: deliveryFailure(error),
           claim,
-        }),
+        });
+      },
     );
   }
   private settleInterrupt(generation: number, settlement: InterruptSettlement): void {
