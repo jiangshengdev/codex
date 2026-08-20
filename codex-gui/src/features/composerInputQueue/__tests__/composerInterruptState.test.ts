@@ -73,12 +73,10 @@ describe("composer interrupt state", () => {
     });
   });
 
-  const retainedSettlements: ReadonlyArray<
-    readonly [
-      Extract<InterruptSettlement["type"], "accepted" | "deliveryUnknown">,
-      Extract<InterruptPhase, "accepted" | "unknown">,
-    ]
-  > = [
+  const retainedSettlements: readonly (readonly [
+    Extract<InterruptSettlement["type"], "accepted" | "deliveryUnknown">,
+    Extract<InterruptPhase, "accepted" | "unknown">,
+  ])[] = [
     ["accepted", "accepted"],
     ["deliveryUnknown", "unknown"],
   ];

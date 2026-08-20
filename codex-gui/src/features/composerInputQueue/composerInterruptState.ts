@@ -160,7 +160,7 @@ class ComposerInterruptStateImpl implements ComposerInterruptState {
   ): ComposerInterruptStateResult {
     const token = settlement.claim[interruptClaimCapability];
     const previous = this.recentSettlements.find((record) => record.token === token);
-    if (previous == null || previous.claim !== settlement.claim) {
+    if (previous?.claim !== settlement.claim) {
       return { type: "ownershipMismatch", subject: "interruptClaim" };
     }
     return previous.type === settlement.type
