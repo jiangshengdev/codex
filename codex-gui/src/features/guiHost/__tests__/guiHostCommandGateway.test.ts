@@ -39,9 +39,11 @@ function setup(socket: RecordingWebSocket = new RecordingWebSocket()) {
   return { gateway: new GuiHostCommandGateway(transport), socket, transport };
 }
 
-const rpcErrorClassificationCases: ReadonlyArray<
-  readonly [string, JSONRPCErrorError["data"] | undefined, boolean]
-> = [
+const rpcErrorClassificationCases: readonly (readonly [
+  string,
+  JSONRPCErrorError["data"] | undefined,
+  boolean,
+])[] = [
   [
     "complete active-turn error",
     {
