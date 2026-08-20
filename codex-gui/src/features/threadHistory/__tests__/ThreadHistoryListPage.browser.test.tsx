@@ -14,6 +14,7 @@ import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type { Thread, ThreadListResponse } from "@codex-protocol/v2";
@@ -83,6 +84,17 @@ const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
   element.scrollWidth <= element.clientWidth + 1;
 
 const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
+const emptySkillCatalogState: SkillCatalogState = {
+  type: "ready",
+  candidates: [],
+  partialErrorCount: 0,
+};
+const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
+  getSnapshot: () => emptySkillCatalogState,
+  subscribe: () => () => undefined,
+  invalidate: () => false,
+  retry: () => false,
+};
 
 type RenderHistoryOptions = {
   commandsAvailable?: boolean;
@@ -96,6 +108,8 @@ const activeOwner = (): ActiveThreadOwnerHandle => ({
   subscriptionId: attachResponse.subscriptionId,
   projectionOwner: null as never,
   queueCoordinator: null as never,
+  skillCatalog,
+  dispose: () => undefined,
 });
 
 const renderHistory = async (

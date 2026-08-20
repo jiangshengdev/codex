@@ -11,15 +11,46 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type { ThreadItem, TurnStartParams, TurnStartResponse } from "@codex-protocol/v2";
-import { createComposerInputQueueCoordinator as createCoordinator } from "../composerInputQueueCoordinator";
+import type {
+  ThreadItem,
+  TurnInterruptParams,
+  TurnInterruptResponse,
+  TurnStartParams,
+  TurnStartResponse,
+  TurnSteerParams,
+  TurnSteerResponse,
+} from "@codex-protocol/v2";
+import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
 
 type Deferred = ReturnType<typeof deferredStart>;
 type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;
+type SteerTurn = (params: TurnSteerParams) => Promise<TurnSteerResponse>;
+type InterruptTurn = (params: TurnInterruptParams) => Promise<TurnInterruptResponse>;
+type CoordinatorInput = Parameters<typeof createComposerInputQueueCoordinator>[0];
+const createCoordinator = (
+  options: Omit<CoordinatorInput, "interruptTurn"> & { interruptTurn?: InterruptTurn },
+) =>
+  createComposerInputQueueCoordinator({
+    ...options,
+    interruptTurn: options.interruptTurn ?? vi.fn<InterruptTurn>(),
+  });
+const input = (text: string): TurnStartParams["input"] => [
+  { type: "text", text, text_elements: [] },
+  { type: "skill", name: `skill-${text}`, path: `/example/skills/${text}/SKILL.md` },
+];
 const deferredStart = () => {
   let resolve!: (response: TurnStartResponse) => void;
   let reject!: (error: unknown) => void;
   const promise = new Promise<TurnStartResponse>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+};
+const deferredInterrupt = () => {
+  let resolve!: (response: TurnInterruptResponse) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<TurnInterruptResponse>((yes, no) => {
     resolve = yes;
     reject = no;
   });
@@ -42,6 +73,7 @@ describe("ComposerInputQueueCoordinator", () => {
       threadId: "thread-1",
       activeTurnId: "turn-active",
       startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
     });
     const reserved = coordinator.reserveRelease();
 
@@ -52,20 +84,22 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     expect({
       readiness: coordinator.getReleaseReadiness(),
-      submit: coordinator.submit("blocked"),
+      submit: coordinator.submit(input("blocked")),
       recover: coordinator.recover(),
+      interrupt: coordinator.interruptActiveTurn(),
       reserveAgain: coordinator.reserveRelease(),
     }).toEqual({
       readiness: { type: "blocked", blockers: [{ type: "releaseReserved" }] },
       submit: { type: "rejected", reason: "releaseReserved" },
       recover: false,
+      interrupt: false,
       reserveAgain: { type: "blocked", blockers: [{ type: "releaseReserved" }] },
     });
 
     reserved.reservation.release();
     expect({
       readiness: coordinator.getReleaseReadiness(),
-      submit: coordinator.submit("accepted after release"),
+      submit: coordinator.submit(input("accepted after release")),
     }).toEqual({ readiness: { type: "safe" }, submit: { type: "accepted" } });
 
     coordinator.dispose();
@@ -73,6 +107,34 @@ describe("ComposerInputQueueCoordinator", () => {
       type: "blocked",
       blockers: [{ type: "disposed" }],
     });
+    expect(coordinator.interruptActiveTurn()).toBe(false);
+  });
+
+  it("rechecks interrupt ownership after an issuing listener disposes synchronously", () => {
+    const interruptTurn = vi.fn<InterruptTurn>();
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-active",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
+      interruptTurn,
+    });
+    const listener = vi.fn<
+      Parameters<ReturnType<typeof createComposerInputQueueCoordinator>["subscribe"]>[0]
+    >(() => {
+      expect(coordinator.getSnapshot().interrupt).toEqual({ phase: "issuing" });
+      coordinator.dispose();
+    });
+    coordinator.subscribe(listener);
+
+    expect(coordinator.interruptActiveTurn()).toBe(true);
+    expect(interruptTurn).not.toHaveBeenCalled();
+    expect(coordinator.getSnapshot()).toMatchObject({ canStop: false, interrupt: null });
+    expect(coordinator.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "disposed" }],
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 
   it("exposes its owner and combines queue release readiness without treating an active turn as blocked", async () => {
@@ -80,10 +142,11 @@ describe("ComposerInputQueueCoordinator", () => {
       threadId: "thread-active",
       activeTurnId: "turn-active",
       startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
     });
     expect(active.ownerThreadId).toBe("thread-active");
     expect(active.getReleaseReadiness()).toEqual({ type: "safe" });
-    active.submit("ordinary");
+    active.submit(input("ordinary"));
     expect(active.getReleaseReadiness()).toEqual({
       type: "blocked",
       blockers: [{ type: "ordinaryQueued", count: 1 }],
@@ -95,8 +158,10 @@ describe("ComposerInputQueueCoordinator", () => {
       threadId: "thread-1",
       activeTurnId: null,
       startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
     });
-    coordinator.submit("pending");
+    expect(coordinator.interruptActiveTurn()).toBe(false);
+    coordinator.submit(input("pending"));
     expect(coordinator.getReleaseReadiness()).toEqual({
       type: "blocked",
       blockers: [{ type: "pendingStart", phase: "issuing" }],
@@ -135,12 +200,13 @@ describe("ComposerInputQueueCoordinator", () => {
         threadId: "thread-1",
         activeTurnId: null,
         startTurn,
+        steerTurn: vi.fn<SteerTurn>(),
       });
-      expect(coordinator.submit("first")).toEqual({ type: "accepted" });
-      expect(coordinator.submit("second")).toEqual({ type: "accepted" });
+      expect(coordinator.submit(input("first"))).toEqual({ type: "accepted" });
+      expect(coordinator.submit(input("second"))).toEqual({ type: "accepted" });
       expect(startTurn.mock.calls[0]?.[0]).toMatchObject({
         threadId: "thread-1",
-        input: [{ type: "text", text: "first", text_elements: [] }],
+        input: input("first"),
       });
       const clientId = startTurn.mock.calls[0]?.[0].clientUserMessageId;
       coordinator.observeAcceptedEvent(
@@ -164,9 +230,7 @@ describe("ComposerInputQueueCoordinator", () => {
         ),
       );
       expect(startTurn).toHaveBeenCalledTimes(2);
-      expect(startTurn.mock.calls[1]?.[0].input).toEqual([
-        { type: "text", text: "second", text_elements: [] },
-      ]);
+      expect(startTurn.mock.calls[1]?.[0].input).toEqual(input("second"));
     },
   );
 
@@ -177,9 +241,14 @@ describe("ComposerInputQueueCoordinator", () => {
       requests.push(request);
       return request.promise;
     });
-    const coordinator = createCoordinator({ threadId: "thread-1", activeTurnId: null, startTurn });
-    coordinator.submit("unknown");
-    coordinator.submit("queued");
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    coordinator.submit(input("unknown"));
+    coordinator.submit(input("queued"));
     requests[0]?.reject(
       new GuiHostCommandError({
         source: "missingResult",
@@ -189,6 +258,7 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     await flush();
     expect(startTurn).toHaveBeenCalledTimes(1);
+    expect(startTurn.mock.calls[0]?.[0].input).toEqual(input("unknown"));
     expect(coordinator.getReleaseReadiness()).toEqual({
       type: "blocked",
       blockers: [
@@ -207,9 +277,10 @@ describe("ComposerInputQueueCoordinator", () => {
       threadId: "thread-1",
       activeTurnId: null,
       startTurn: definiteStart,
+      steerTurn: vi.fn<SteerTurn>(),
     });
-    definite.submit("rejected");
-    definite.submit("deferred");
+    definite.submit(input("rejected"));
+    definite.submit(input("deferred"));
     definiteRequests[0]?.reject(
       new GuiHostCommandError({
         source: "rpc",
@@ -226,28 +297,114 @@ describe("ComposerInputQueueCoordinator", () => {
         { type: "recoveryPending", count: 1 },
       ],
     });
-    expect(definite.submit("blocked")).toEqual({ type: "rejected", reason: "recoveryPending" });
+    expect(definite.submit(input("blocked"))).toEqual({
+      type: "rejected",
+      reason: "recoveryPending",
+    });
     expect(definiteStart).toHaveBeenCalledTimes(1);
     expect(definite.recover()).toBe(true);
     expect(definite.recover()).toBe(false);
     expect(definiteStart).toHaveBeenCalledTimes(2);
-    expect(definiteStart.mock.calls[1]?.[0].input[0]).toMatchObject({ text: "deferred" });
+    expect(definiteStart.mock.calls[1]?.[0].input).toEqual(input("deferred"));
     definiteRequests[1]?.resolve({ turn: baseTurn("turn-deferred") });
     await flush();
     definite.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit-deferred", baseTurn("turn-deferred"))),
     );
-    expect(definiteStart.mock.calls[2]?.[0].input[0]).toMatchObject({ text: "rejected" });
+    expect(definiteStart.mock.calls[2]?.[0].input).toEqual(input("rejected"));
   });
 
-  it("recovers interrupted messages in FIFO order and preserves stable snapshots", async () => {
+  it("classifies an interrupted start after accepted or delivery-unknown owner evidence", async () => {
+    const acceptedRequest = deferredStart();
+    const acceptedStart = vi
+      .fn<StartTurn>()
+      .mockImplementationOnce(() => acceptedRequest.promise)
+      .mockResolvedValue({ turn: baseTurn("accepted-next") });
+    const accepted = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      startTurn: acceptedStart,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    accepted.submit(input("accepted-owner"));
+    accepted.submit(input("accepted-next"));
+    accepted.observeAcceptedEvent(
+      live(
+        turnCompleted(eventTurnCompleted, "accepted-terminal", {
+          ...baseTurn("accepted-owner"),
+          status: "interrupted",
+        }),
+      ),
+    );
+    expect(acceptedStart).toHaveBeenCalledTimes(1);
+    acceptedRequest.resolve({ turn: baseTurn("accepted-owner") });
+    await flush();
+    expect(acceptedStart.mock.calls.map(([params]) => params.input)).toEqual([
+      input("accepted-owner"),
+      input("accepted-next"),
+    ]);
+    expect(accepted.getSnapshot().recovery).toBeNull();
+
+    const unknownRequest = deferredStart();
+    const unknownStart = vi
+      .fn<StartTurn>()
+      .mockImplementationOnce(() => unknownRequest.promise)
+      .mockResolvedValue({ turn: baseTurn("unknown-next") });
+    const unknown = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      startTurn: unknownStart,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    unknown.submit(input("unknown-owner"));
+    unknown.submit(input("unknown-next"));
+    const clientId = unknownStart.mock.calls[0]?.[0].clientUserMessageId;
+    unknown.observeAcceptedEvent(
+      live(
+        turnCompleted(eventTurnCompleted, "unknown-terminal", {
+          ...baseTurn("unknown-owner"),
+          status: "interrupted",
+        }),
+      ),
+    );
+    unknownRequest.reject(new Error("delivery is unknown"));
+    await flush();
+    expect(unknownStart).toHaveBeenCalledTimes(1);
+    unknown.observeAcceptedEvent(
+      live(
+        itemStarted(
+          eventItemStarted,
+          "unknown-commit",
+          "unknown-owner",
+          committedUserMessage(clientId ?? "missing-client-id"),
+        ),
+      ),
+    );
+    expect(unknownStart.mock.calls.map(([params]) => params.input)).toEqual([
+      input("unknown-owner"),
+      input("unknown-next"),
+    ]);
+    expect(unknown.getSnapshot().recovery).toBeNull();
+  });
+
+  it("owns local stop through explicit FIFO recovery and auto-drains non-local interruption", async () => {
     const startTurn = vi.fn<StartTurn>(({ input }) =>
       Promise.resolve({ turn: baseTurn(input[0]?.type === "text" ? input[0].text : "unexpected") }),
     );
+    const steerTurn = vi.fn<SteerTurn>().mockRejectedValue(
+      new GuiHostCommandError({
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error("steer rejected"),
+      }),
+    );
+    const interruptTurn = vi.fn<InterruptTurn>().mockResolvedValue({});
     const coordinator = createCoordinator({
       threadId: "thread-1",
       activeTurnId: "turn-active",
       startTurn,
+      steerTurn,
+      interruptTurn,
     });
     const initial = coordinator.getSnapshot();
     const snapshots: unknown[] = [];
@@ -261,8 +418,37 @@ describe("ComposerInputQueueCoordinator", () => {
       replay: "snapshotDuplicate",
     });
     expect(coordinator.getSnapshot()).toBe(initial);
-    coordinator.submit("one");
-    coordinator.submit("two");
+    coordinator.submit(input("one"));
+    coordinator.submit(input("two"));
+    expect({
+      issued: coordinator.interruptActiveTurn(),
+      duplicate: coordinator.interruptActiveTurn(),
+    }).toEqual({ issued: true, duplicate: false });
+    expect(interruptTurn).toHaveBeenCalledExactlyOnceWith({
+      threadId: "thread-1",
+      turnId: "turn-active",
+    });
+    expect(coordinator.getSnapshot()).toEqual({
+      queuedCount: 2,
+      recoveryCount: 0,
+      recovery: null,
+      isRecovering: false,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
+      canStop: false,
+      interrupt: { phase: "issuing" },
+    });
+    expect(coordinator.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "ordinaryQueued", count: 2 },
+        { type: "interruptPending", phase: "issuing" },
+      ],
+    });
+    coordinator.submitSteer(input("steer"));
+    await flush();
     coordinator.observeAcceptedEvent(
       live(
         turnCompleted(eventTurnCompleted, "commit-interrupt", {
@@ -271,39 +457,225 @@ describe("ComposerInputQueueCoordinator", () => {
         }),
       ),
     );
-    expect(coordinator.getSnapshot()).toMatchObject({ queuedCount: 0, recoveryCount: 2 });
+    expect(coordinator.getSnapshot()).toMatchObject({
+      queuedCount: 0,
+      recoveryCount: 3,
+      recovery: { reason: "userStopped", count: 3 },
+      interrupt: null,
+    });
+    expect(coordinator.interruptActiveTurn()).toBe(false);
     expect(coordinator.recover()).toBe(true);
     expect(startTurn).toHaveBeenCalledTimes(1);
+    expect(startTurn.mock.calls[0]?.[0].input).toEqual(input("steer"));
     await flush();
+    coordinator.observeAcceptedEvent(
+      live(turnCompleted(eventTurnCompleted, "commit-steer", baseTurn("steer"))),
+    );
     coordinator.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit-one", baseTurn("one"))),
     );
-    expect(startTurn.mock.calls.map(([params]) => params.input[0])).toEqual([
-      { type: "text", text: "one", text_elements: [] },
-      { type: "text", text: "two", text_elements: [] },
+    await flush();
+    expect(startTurn.mock.calls.map(([params]) => params.input)).toEqual([
+      input("steer"),
+      input("one"),
+      input("two"),
     ]);
-    expect(snapshots).toContainEqual({ queuedCount: 0, recoveryCount: 2, isRecovering: true });
+    expect(snapshots).toContainEqual({
+      queuedCount: 0,
+      recoveryCount: 3,
+      recovery: { reason: "userStopped", count: 3 },
+      isRecovering: true,
+      pendingSteers: [],
+      queuedSteers: [],
+      rejectedSteers: [],
+      hasUnknownSteer: false,
+      canStop: false,
+      interrupt: null,
+    });
     expect(releaseReadiness).toContainEqual({
       type: "blocked",
-      blockers: [{ type: "recoveryPending", count: 2 }, { type: "recovering" }],
+      blockers: [{ type: "recoveryPending", count: 3 }, { type: "recovering" }],
     });
+
+    const nonLocalStart = vi.fn<StartTurn>(({ input }) =>
+      Promise.resolve({ turn: baseTurn(input[0]?.type === "text" ? input[0].text : "unexpected") }),
+    );
+    const nonLocalSteer = vi.fn<SteerTurn>().mockRejectedValue(
+      new GuiHostCommandError({
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error("non-local steer rejected"),
+      }),
+    );
+    const nonLocal = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-foreign",
+      startTurn: nonLocalStart,
+      steerTurn: nonLocalSteer,
+    });
+    nonLocal.submit(input("ordinary"));
+    nonLocal.submitSteer(input("rejected-steer"));
+    await flush();
+    expect(nonLocal.getSnapshot().recovery).toEqual({
+      reason: "steerDefinitelyNotAccepted",
+      count: 1,
+    });
+    nonLocal.observeAcceptedEvent(
+      live(
+        turnCompleted(eventTurnCompleted, "foreign-interrupt", {
+          ...baseTurn("turn-foreign"),
+          status: "interrupted",
+        }),
+      ),
+    );
+    expect(nonLocalStart.mock.calls.map(([params]) => params.input)).toEqual([
+      input("rejected-steer"),
+    ]);
+    await flush();
+    nonLocal.observeAcceptedEvent(
+      live(turnCompleted(eventTurnCompleted, "rejected-terminal", baseTurn("rejected-steer"))),
+    );
+    expect(nonLocalStart.mock.calls.map(([params]) => params.input)).toEqual([
+      input("rejected-steer"),
+      input("ordinary"),
+    ]);
+  });
+
+  it.each([
+    ["accepted", null, "userStopped", 0],
+    ["deliveryUnknown", new Error("unknown"), "userStopped", 0],
+    [
+      "definitelyNotAccepted",
+      new GuiHostCommandError({
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error("rejected"),
+      }),
+      null,
+      1,
+    ],
+  ] as const)(
+    "classifies terminal-before-%s settlement once",
+    async (_phase, error, recovery, starts) => {
+      const request = deferredInterrupt();
+      const interruptTurn = vi.fn<InterruptTurn>(() => request.promise);
+      const startTurn = vi.fn<StartTurn>().mockResolvedValue({ turn: baseTurn("ordinary") });
+      const coordinator = createCoordinator({
+        threadId: "thread-1",
+        activeTurnId: "turn",
+        startTurn,
+        steerTurn: vi.fn<SteerTurn>(),
+        interruptTurn,
+      });
+      coordinator.submit(input("ordinary"));
+      coordinator.interruptActiveTurn();
+      const terminal = live(
+        turnCompleted(eventTurnCompleted, "terminal", {
+          ...baseTurn("turn"),
+          status: "interrupted",
+        }),
+      );
+      coordinator.observeAcceptedEvent(terminal);
+      expect(startTurn).not.toHaveBeenCalled();
+      if (error == null) request.resolve({});
+      else request.reject(error);
+      await flush();
+      expect({
+        recovery: coordinator.getSnapshot().recovery?.reason ?? null,
+        starts: startTurn.mock.calls.length,
+      }).toEqual({ recovery, starts });
+      expect(coordinator.getSnapshot().interrupt).toBeNull();
+      const settledSnapshot = coordinator.getSnapshot();
+      coordinator.observeAcceptedEvent(terminal);
+      expect(coordinator.getSnapshot()).toBe(settledSnapshot);
+    },
+  );
+
+  it.each([
+    ["accepted", "completed", null],
+    ["unknown", "failed", new Error("unknown")],
+    [
+      "definitelyNotAccepted",
+      "failed",
+      new GuiHostCommandError({
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error("rejected"),
+      }),
+    ],
+  ] as const)("clears a %s interrupt when its turn ends with %s", async (phase, status, error) => {
+    const interruptTurn =
+      error == null
+        ? vi.fn<InterruptTurn>().mockResolvedValue({})
+        : vi.fn<InterruptTurn>().mockRejectedValue(error);
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
+      interruptTurn,
+    });
+    coordinator.interruptActiveTurn();
+    await flush();
+    expect(coordinator.getSnapshot().interrupt).toEqual({ phase });
+    coordinator.observeAcceptedEvent(
+      live(
+        turnCompleted(eventTurnCompleted, "normal-terminal", {
+          ...baseTurn("turn"),
+          status,
+        }),
+      ),
+    );
+    expect(coordinator.getSnapshot()).toMatchObject({ canStop: false, interrupt: null });
+    expect(coordinator.getReleaseReadiness()).toEqual({ type: "safe" });
+  });
+
+  it("clears an issuing interrupt on normal terminal and ignores its late settlement", async () => {
+    const request = deferredInterrupt();
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
+      interruptTurn: vi.fn<InterruptTurn>(() => request.promise),
+    });
+    coordinator.interruptActiveTurn();
+    coordinator.observeAcceptedEvent(
+      live(turnCompleted(eventTurnCompleted, "normal-terminal", baseTurn("turn"))),
+    );
+    const terminalSnapshot = coordinator.getSnapshot();
+    expect(terminalSnapshot).toMatchObject({ canStop: false, interrupt: null });
+    request.resolve({});
+    await flush();
+    expect(coordinator.getSnapshot()).toBe(terminalSnapshot);
+    expect(coordinator.getReleaseReadiness()).toEqual({ type: "safe" });
   });
 
   it("ignores mismatched events and settlements after disposal", async () => {
     const request = deferredStart();
     const startTurn = vi.fn<StartTurn>(() => request.promise);
-    const coordinator = createCoordinator({ threadId: "thread-1", activeTurnId: null, startTurn });
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
     const listener = vi.fn<() => void>();
     coordinator.subscribe(listener);
-    coordinator.submit("first");
+    coordinator.submit(input("first"));
     coordinator.observeAcceptedEvent({
       notification: { ...eventItemStarted, threadId: "thread-2" },
       replay: "live",
     });
     coordinator.dispose();
     const readinessAtDisposal = coordinator.getReleaseReadiness();
-    const queued = createCoordinator({ threadId: "thread-1", activeTurnId: "active", startTurn });
-    queued.submit("queued");
+    const queued = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "active",
+      startTurn,
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    queued.submit(input("queued"));
     queued.dispose();
     queued.observeAcceptedEvent(
       live(turnCompleted(eventTurnCompleted, "commit", baseTurn("active"))),
@@ -311,9 +683,267 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(startTurn).toHaveBeenCalledTimes(1);
     request.resolve({ turn: baseTurn("turn-1") });
     await flush();
-    expect(coordinator.submit("late")).toEqual({ type: "rejected", reason: "disposed" });
+    expect(coordinator.submit(input("late"))).toEqual({ type: "rejected", reason: "disposed" });
     expect(coordinator.getReleaseReadiness()).toEqual(readinessAtDisposal);
     expect(listener).not.toHaveBeenCalled();
     expect(startTurn).toHaveBeenCalledTimes(1);
+
+    const interruptRequest = deferredInterrupt();
+    const interrupted = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "interrupt-active",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
+      interruptTurn: vi.fn<InterruptTurn>(() => interruptRequest.promise),
+    });
+    const interruptListener = vi.fn<() => void>();
+    interrupted.subscribe(interruptListener);
+    interrupted.interruptActiveTurn();
+    interrupted.dispose();
+    const interruptSnapshot = interrupted.getSnapshot();
+    const notificationsAtDisposal = interruptListener.mock.calls.length;
+    interruptRequest.resolve({});
+    await flush();
+    expect(interrupted.getSnapshot()).toBe(interruptSnapshot);
+    expect(interrupted.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "disposed" }],
+    });
+    expect(interruptListener).toHaveBeenCalledTimes(notificationsAtDisposal);
+  });
+
+  it("sends exact steer identities, issues an accepted successor, and releases only its commit", async () => {
+    const responses: {
+      promise: Promise<TurnSteerResponse>;
+      resolve: (response: TurnSteerResponse) => void;
+    }[] = [];
+    const steerTurn = vi.fn<SteerTurn>(() => {
+      let resolve!: (response: TurnSteerResponse) => void;
+      const promise = new Promise<TurnSteerResponse>((yes) => {
+        resolve = yes;
+      });
+      responses.push({ promise, resolve });
+      return promise;
+    });
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-1",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn,
+    });
+    coordinator.submitSteer(input("first"));
+    coordinator.submitSteer(input("second"));
+    const firstParams = steerTurn.mock.calls[0]?.[0];
+    expect(firstParams).toEqual({
+      threadId: "thread-1",
+      expectedTurnId: "turn-1",
+      clientUserMessageId: firstParams?.clientUserMessageId,
+      input: input("first"),
+    });
+    expect(firstParams?.clientUserMessageId).toMatch(/^composer-steer-/);
+    expect(coordinator.getSnapshot()).toMatchObject({
+      pendingSteers: [{ phase: "issuing", preview: { type: "text", text: "first" } }],
+      queuedSteers: [{ preview: { type: "text", text: "second" } }],
+      hasUnknownSteer: false,
+    });
+    const serializedSnapshot = JSON.stringify(coordinator.getSnapshot());
+    expect(serializedSnapshot).not.toContain("/example/skills/");
+    expect(serializedSnapshot).not.toContain('"input":');
+    expect(serializedSnapshot).not.toContain('"path":');
+    expect(serializedSnapshot).not.toContain('"claim":');
+    expect(serializedSnapshot).not.toContain('"error":');
+    expect(serializedSnapshot).not.toContain("clientUserMessageId");
+
+    responses[0]?.resolve({ turnId: "turn-1" });
+    await flush();
+    expect(steerTurn).toHaveBeenCalledTimes(2);
+    expect(steerTurn.mock.calls[1]?.[0].input).toEqual(input("second"));
+    coordinator.observeAcceptedEvent(
+      live(
+        itemStarted(
+          eventItemStarted,
+          "commit-first",
+          "turn-1",
+          committedUserMessage(firstParams?.clientUserMessageId ?? "missing-client-id"),
+        ),
+      ),
+    );
+    expect(coordinator.getSnapshot().pendingSteers).toMatchObject([
+      { phase: "issuing", preview: { type: "text", text: "second" } },
+    ]);
+
+    coordinator.dispose();
+    responses[1]?.resolve({ turnId: "turn-1" });
+    await flush();
+    expect(steerTurn).toHaveBeenCalledTimes(2);
+  });
+
+  it("copies every generated steer input variant into the wire request", () => {
+    const steerTurn = vi.fn<SteerTurn>(() => new Promise<TurnSteerResponse>(() => undefined));
+    const wireInput: TurnSteerParams["input"] = [
+      {
+        type: "text",
+        text: "@agent",
+        text_elements: [{ byteRange: { start: 0, end: 6 }, placeholder: "agent" }],
+      },
+      { type: "image", detail: "high", url: "https://example.test/image.png" },
+      { type: "localImage", detail: "low", path: "/tmp/image.png" },
+      { type: "audio", url: "https://example.test/audio.wav" },
+      { type: "localAudio", path: "/tmp/audio.wav" },
+      { type: "skill", name: "skill-name", path: "/tmp/SKILL.md" },
+      { type: "mention", name: "agent", path: "/tmp/agent.md" },
+    ];
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-1",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn,
+    });
+
+    coordinator.submitSteer(wireInput);
+
+    const requestInput = steerTurn.mock.calls[0]?.[0].input;
+    expect(requestInput).toEqual(wireInput);
+    expect(requestInput).not.toBe(wireInput);
+    expect(requestInput?.[0]).not.toBe(wireInput[0]);
+    if (requestInput?.[0]?.type !== "text" || wireInput[0]?.type !== "text") {
+      throw new Error("expected text inputs");
+    }
+    expect(requestInput[0].text_elements).not.toBe(wireInput[0].text_elements);
+    expect(requestInput[0].text_elements[0]).not.toBe(wireInput[0].text_elements[0]);
+  });
+
+  it.each([
+    ["responseTurnMismatch", "response"],
+    ["deliveryUnknown", "error"],
+  ] as const)("keeps %s blocked without issuing a successor", async (phase, settlement) => {
+    let resolve!: (response: TurnSteerResponse) => void;
+    let reject!: (error: unknown) => void;
+    const steerTurn = vi.fn<SteerTurn>(
+      () =>
+        new Promise<TurnSteerResponse>((yes, no) => {
+          resolve = yes;
+          reject = no;
+        }),
+    );
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-1",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn,
+    });
+    coordinator.submitSteer(input("first"));
+    coordinator.submitSteer(input("second"));
+    if (settlement === "response") {
+      resolve({ turnId: "turn-other" });
+    } else {
+      reject(new Error("delivery is unknown"));
+    }
+    await flush();
+
+    expect(steerTurn).toHaveBeenCalledTimes(1);
+    expect(coordinator.getSnapshot()).toMatchObject({
+      pendingSteers: [{ phase }],
+      queuedSteers: [{ preview: { type: "text", text: "second" } }],
+      hasUnknownSteer: true,
+    });
+    expect(coordinator.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "steerQueued", count: 1 },
+        { type: "pendingSteers", count: 1, hasUnknown: true },
+      ],
+    });
+  });
+
+  it("preserves structured rejections for a terminal merge before ordinary start", async () => {
+    let rejectSteer!: (error: unknown) => void;
+    const steerTurn = vi.fn<SteerTurn>(
+      () =>
+        new Promise<TurnSteerResponse>((_resolve, reject) => {
+          rejectSteer = reject;
+        }),
+    );
+    const startRequest = deferredStart();
+    const startTurn = vi.fn<StartTurn>(() => startRequest.promise);
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-1",
+      startTurn,
+      steerTurn,
+    });
+    coordinator.submit(input("ordinary"));
+    coordinator.submitSteer(input("steer-a"));
+    coordinator.submitSteer(input("steer-b"));
+    rejectSteer(
+      new GuiHostCommandError({
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error("cannot steer"),
+        rpcError: {
+          code: -32000,
+          message: "cannot steer",
+          data: {
+            message: "cannot steer",
+            codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+            additionalDetails: null,
+          },
+        },
+      }),
+    );
+    await flush();
+    expect(coordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview)).toEqual([
+      { type: "text", text: "steer-a" },
+      { type: "text", text: "steer-b" },
+    ]);
+
+    coordinator.observeAcceptedEvent(
+      live(turnCompleted(eventTurnCompleted, "terminal-1", baseTurn("turn-1"))),
+    );
+    expect(startTurn).toHaveBeenCalledTimes(1);
+    expect(startTurn.mock.calls[0]?.[0].input).toEqual([...input("steer-a"), ...input("steer-b")]);
+    startRequest.reject(
+      new GuiHostCommandError({
+        source: "rpc",
+        delivery: "definitelyNotAccepted",
+        error: new Error("start rejected"),
+      }),
+    );
+    await flush();
+    expect(coordinator.getSnapshot()).toMatchObject({
+      queuedCount: 1,
+      rejectedSteers: [
+        { preview: { type: "text", text: "steer-a" } },
+        { preview: { type: "text", text: "steer-b" } },
+      ],
+    });
+  });
+
+  it("recovers a generic definite steer rejection through the steer path", async () => {
+    const steerTurn = vi
+      .fn<SteerTurn>()
+      .mockRejectedValueOnce(
+        new GuiHostCommandError({
+          source: "rpc",
+          delivery: "definitelyNotAccepted",
+          error: new Error("rejected"),
+        }),
+      )
+      .mockResolvedValue({ turnId: "turn-1" });
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-1",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn,
+    });
+    coordinator.submitSteer(input("recover-steer"));
+    await flush();
+    expect(coordinator.getSnapshot()).toMatchObject({
+      recoveryCount: 1,
+      recovery: { reason: "steerDefinitelyNotAccepted", count: 1 },
+    });
+    expect(coordinator.recover()).toBe(true);
+    expect(steerTurn).toHaveBeenCalledTimes(2);
+    expect(steerTurn.mock.calls[1]?.[0]).toEqual(steerTurn.mock.calls[0]?.[0]);
   });
 });

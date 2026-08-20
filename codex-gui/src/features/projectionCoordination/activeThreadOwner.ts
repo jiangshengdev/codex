@@ -4,6 +4,7 @@ import {
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
   ThreadProjectionAttachResponse,
   ThreadProjectionClosedNotification,
@@ -21,9 +22,16 @@ export type ActiveThreadOwnerHandle = Readonly<{
   subscriptionId: string;
   projectionOwner: ProjectionApplicationCoordinator;
   queueCoordinator: ComposerInputQueueCoordinator;
+  skillCatalog: Readonly<
+    Pick<SkillCatalogOwner, "getSnapshot" | "subscribe" | "invalidate" | "retry">
+  >;
+  dispose(): void;
 }>;
 
-type ActiveThreadOwnerCommands = Pick<GuiHostCommands, "startTurn">;
+type ActiveThreadOwnerCommands = Pick<
+  GuiHostCommands,
+  "interruptTurn" | "listSkills" | "startTurn" | "steerTurn"
+>;
 
 export type PreparedActiveThreadOwner = Readonly<{
   activeOwner: ActiveThreadOwnerHandle;
@@ -66,6 +74,7 @@ export function prepareActiveThreadOwner({
 }>): PreparedActiveThreadOwner {
   const replacementRecord = buildLiveThreadReplacementRecord(attachResponse);
   let queueCoordinator: ComposerInputQueueCoordinator | null = null;
+  let skillCatalog: SkillCatalogOwner | null = null;
   const projectionOwner = new ProjectionApplicationCoordinator({
     dispatch,
     scheduler,
@@ -73,6 +82,22 @@ export function prepareActiveThreadOwner({
       queueCoordinator?.observeAcceptedEvent(payload);
     },
   });
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    try {
+      queueCoordinator?.dispose();
+    } finally {
+      try {
+        skillCatalog?.dispose();
+      } finally {
+        projectionOwner.dispose();
+      }
+    }
+  };
 
   try {
     queueCoordinator = createComposerInputQueueCoordinator({
@@ -82,9 +107,16 @@ export function prepareActiveThreadOwner({
           .toReversed()
           .find((turn) => turn.status === "inProgress")?.id ?? null,
       startTurn: commands.startTurn,
+      steerTurn: commands.steerTurn,
+      interruptTurn: commands.interruptTurn,
     });
+    skillCatalog = new SkillCatalogOwner({
+      cwd: attachResponse.snapshot.thread.cwd,
+      listSkills: commands.listSkills,
+    });
+    skillCatalog.start();
   } catch (error: unknown) {
-    projectionOwner.dispose();
+    dispose();
     throw error;
   }
 
@@ -93,18 +125,12 @@ export function prepareActiveThreadOwner({
     subscriptionId: attachResponse.subscriptionId,
     projectionOwner,
     queueCoordinator,
+    skillCatalog,
+    dispose,
   };
-  let disposed = false;
   return {
     activeOwner,
     commit: () => projectionOwner.commitLiveThreadReplacement(replacementRecord),
-    dispose: () => {
-      if (disposed) {
-        return;
-      }
-      disposed = true;
-      queueCoordinator.dispose();
-      projectionOwner.dispose();
-    },
+    dispose,
   };
 }

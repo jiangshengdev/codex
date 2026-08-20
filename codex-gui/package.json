@@ -35,6 +35,8 @@
   "dependencies": {
     "@heroui/react": "^3.2.2",
     "@heroui/styles": "^3.2.2",
+    "@lexical/clipboard": "0.49.0",
+    "@lexical/react": "0.49.0",
     "@lingui/core": "^6.5.0",
     "@lingui/react": "^6.5.0",
     "@reduxjs/toolkit": "^2.12.0",
@@ -45,6 +47,7 @@
     "@tanstack/react-router": "^1.170.18",
     "@xyflow/react": "^12.11.2",
     "ajv": "^8.17.1",
+    "lexical": "0.49.0",
     "lucide-react": "^1.25.0",
     "mdast-util-to-hast": "13.2.1",
     "pathe": "2.0.3",

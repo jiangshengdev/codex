@@ -55,7 +55,13 @@ export type ThreadSwitchCleanupFailure = Readonly<{
 
 type ThreadSwitchCommands = Pick<
   GuiHostCommands,
-  "attachThreadProjection" | "detachThreadProjection" | "resumeThread" | "startTurn"
+  | "attachThreadProjection"
+  | "detachThreadProjection"
+  | "interruptTurn"
+  | "listSkills"
+  | "resumeThread"
+  | "startTurn"
+  | "steerTurn"
 >;
 
 type ThreadSwitchCoordinatorOptions = Readonly<{
@@ -341,8 +347,7 @@ export class ThreadSwitchCoordinator {
     }>,
   ): ThreadSwitchCleanupFailure | null {
     const { previousOwner } = prepared;
-    previousOwner?.queueCoordinator.dispose();
-    previousOwner?.projectionOwner.dispose();
+    previousOwner?.dispose();
     if (replay.disposeAfterCommit) {
       this.disposeActiveOwner();
     }
@@ -484,7 +489,6 @@ export class ThreadSwitchCoordinator {
   }
 
   private disposeActiveOwner(): void {
-    this.activeOwner?.queueCoordinator.dispose();
-    this.activeOwner?.projectionOwner.dispose();
+    this.activeOwner?.dispose();
   }
 }

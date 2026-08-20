@@ -44,6 +44,27 @@ const threadResumeResponse = (threadId: string): RequestResponse<"thread/resume"
 });
 
 const threadId = attachBaseline.snapshot.thread.id;
+const skillsListParams: RequestParams<"skills/list"> = {
+  cwds: [attachBaseline.snapshot.thread.cwd],
+  forceReload: false,
+};
+const skillsListResponse: RequestResponse<"skills/list"> = {
+  data: [
+    {
+      cwd: attachBaseline.snapshot.thread.cwd,
+      skills: [
+        {
+          name: "grill-me",
+          description: "Stress-test a plan.",
+          path: "/workspace/project/skills/grill-me/SKILL.md",
+          scope: "repo",
+          enabled: true,
+        },
+      ],
+      errors: [],
+    },
+  ],
+};
 
 describe("guiHostClient commands", () => {
   it("sends history requests through the ready command API", async () => {
@@ -122,6 +143,23 @@ describe("guiHostClient commands", () => {
     });
     sendJsonRpcResult(socket, attachRequest.id, attachResponse);
     await expect(attachPromise).resolves.toEqual(attachResponse);
+  });
+
+  it("sends skills/list through the ready command API", async () => {
+    const { commands, socket } = startConnectionUntilCommandsReady({});
+    const promise = commands.listSkills(skillsListParams);
+    const request = readLatestRpcRequest(socket, "skills/list");
+
+    expect(request).toEqual({
+      jsonrpc: "2.0",
+      id: request.id,
+      method: "skills/list",
+      params: skillsListParams,
+    });
+
+    sendJsonRpcResult(socket, request.id, skillsListResponse);
+
+    await expect(promise).resolves.toEqual(skillsListResponse);
   });
 
   it("sends turn/start through the ready command API", async () => {
@@ -203,17 +241,25 @@ describe("guiHostClient commands", () => {
       params,
     });
 
-    sendJsonRpcError(socket, request.id, {
+    const rpcError = {
       code: -32000,
-      message: "active turn already running",
-    });
+      message: "cannot steer a review turn",
+      data: {
+        message: "cannot steer a review turn",
+        codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+        additionalDetails: null,
+      },
+    };
+    sendJsonRpcError(socket, request.id, rpcError);
 
     const error: unknown = await promise.catch((failure: unknown) => failure);
     if (!isGuiHostCommandError(error)) {
       throw new Error("Expected GuiHostCommandError");
     }
     expect(error.source).toBe("rpc");
-    expect(error.message).toContain("active turn already running");
+    expect(error.message).toContain("cannot steer a review turn");
+    expect(error.rpcError).toEqual(rpcError);
+    expect(error.activeTurnNotSteerable).toBe(true);
     if (!(error.cause instanceof Error)) {
       throw new Error("Expected GuiHostCommandError cause");
     }
@@ -245,6 +291,49 @@ describe("guiHostClient commands", () => {
     expect(error.message).toContain("thread list unavailable");
     expect(socket.closed).toEqual([]);
     expect(statuses.at(-1)).toBe("initialized");
+  });
+
+  it("propagates skills/list JSON-RPC errors without closing the socket", async () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { commands, socket } = startConnectionUntilCommandsReady({
+      onStatus,
+    });
+    const promise = commands.listSkills(skillsListParams);
+    const request = readLatestRpcRequest(socket, "skills/list");
+
+    sendJsonRpcError(socket, request.id, {
+      code: -32000,
+      message: "skill catalog unavailable",
+    });
+
+    const error: unknown = await promise.catch((failure: unknown) => failure);
+    if (!isGuiHostCommandError(error)) {
+      throw new Error("Expected GuiHostCommandError");
+    }
+    expect(error.source).toBe("rpc");
+    expect(error.message).toContain("skill catalog unavailable");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("initialized");
+  });
+
+  it("rejects a malformed skills/list response and keeps commands available", async () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { commands, socket } = startConnectionUntilCommandsReady({
+      onStatus,
+    });
+    const listPromise = commands.listSkills(skillsListParams);
+    const listRequest = readLatestRpcRequest(socket, "skills/list");
+
+    sendJsonRpcResult(socket, listRequest.id, { data: null });
+
+    await expect(listPromise).rejects.toThrow("skills/list returned malformed result payload");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("initialized");
+
+    const interruptPromise = commands.interruptTurn({ threadId, turnId: "turn-active" });
+    const interruptRequest = readLatestRpcRequest(socket, "turn/interrupt");
+    sendJsonRpcResult(socket, interruptRequest.id, {});
+    await expect(interruptPromise).resolves.toEqual({});
   });
 
   it("rejects a malformed thread/list response and keeps commands available", async () => {

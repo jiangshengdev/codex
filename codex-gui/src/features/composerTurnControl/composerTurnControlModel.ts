@@ -1,4 +1,6 @@
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type { ThreadRuntimeSubscription } from "@/features/threadRuntime/threadRuntimeSlice";
 
 export type ComposerAvailabilityInput = {
@@ -21,52 +23,105 @@ export function isConnectionUsable(input: ComposerAvailabilityInput): boolean {
 export function canSend(input: {
   connectionUsable: boolean;
   controllerReady: boolean;
-  draft: string;
+  draftText: string;
   isSending: boolean;
   recoveryCount: number;
+  selectedSkillsValid: boolean;
 }): boolean {
   return (
     input.connectionUsable &&
     input.controllerReady &&
-    input.draft.trim().length > 0 &&
+    input.draftText.trim().length > 0 &&
     !input.isSending &&
-    input.recoveryCount === 0
+    input.recoveryCount === 0 &&
+    input.selectedSkillsValid
   );
+}
+
+export type ComposerGuideControlState = Readonly<{
+  visible: boolean;
+  buttonEnabled: boolean;
+  shortcutEnabled: boolean;
+}>;
+
+export function composerGuideControlState(input: {
+  activeTurnId: string | null;
+  connectionUsable: boolean;
+  controllerMatchesCurrentThread: boolean;
+  draftText: string;
+  isSending: boolean;
+  recoveryCount: number;
+  selectedSkillsValid: boolean;
+}): ComposerGuideControlState {
+  const visible = input.activeTurnId != null && input.controllerMatchesCurrentThread;
+  const operationEnabled =
+    visible && input.connectionUsable && !input.isSending && input.recoveryCount === 0;
+  const hasDraft = input.draftText.trim().length > 0;
+  return {
+    visible,
+    buttonEnabled: operationEnabled && hasDraft && input.selectedSkillsValid,
+    shortcutEnabled: operationEnabled && (!hasDraft || input.selectedSkillsValid),
+  };
+}
+
+const noInvalidSkillPaths: ReadonlySet<string> = new Set();
+
+export function invalidSelectedSkillPaths(
+  skillCatalog: SkillCatalogState,
+  selectedSkillPaths: readonly string[],
+): ReadonlySet<string> {
+  if (skillCatalog.type !== "ready" || skillCatalog.partialErrorCount > 0) {
+    return noInvalidSkillPaths;
+  }
+
+  const availablePaths = new Set(skillCatalog.candidates.map((candidate) => candidate.path));
+  const invalidPaths = new Set<string>();
+  for (const path of selectedSkillPaths) {
+    if (!availablePaths.has(path)) {
+      invalidPaths.add(path);
+    }
+  }
+  return invalidPaths.size === 0 ? noInvalidSkillPaths : invalidPaths;
 }
 
 export function canRecoverComposerQueue(input: {
   connectionUsable: boolean;
-  hasController: boolean;
+  controllerReady: boolean;
   recoveryCount: number;
   isRecovering: boolean;
 }): boolean {
   return (
-    input.connectionUsable && input.hasController && input.recoveryCount > 0 && !input.isRecovering
+    input.connectionUsable &&
+    input.controllerReady &&
+    input.recoveryCount > 0 &&
+    !input.isRecovering
   );
 }
 
-export function canStop(input: {
-  connectionUsable: boolean;
-  activeTurnId: string | null;
-  isStopping: boolean;
-}): boolean {
-  return input.connectionUsable && input.activeTurnId != null && !input.isStopping;
-}
+type ComposerInterruptPhase = NonNullable<
+  ComposerInputQueueCoordinatorSnapshot["interrupt"]
+>["phase"];
 
-export function errorDescription(error: unknown): string | undefined {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
-  }
-  return undefined;
+type ComposerStopControlState = Readonly<{
+  enabled: boolean;
+  failed: boolean;
+  pending: boolean;
+}>;
+
+export function composerStopControlState(input: {
+  connectionUsable: boolean;
+  controllerMatchesCurrentThread: boolean;
+  interruptPhase: ComposerInterruptPhase | null;
+  queueCanStop: boolean;
+}): ComposerStopControlState {
+  return {
+    enabled: input.connectionUsable && input.controllerMatchesCurrentThread && input.queueCanStop,
+    failed:
+      input.controllerMatchesCurrentThread && input.interruptPhase === "definitelyNotAccepted",
+    pending:
+      input.controllerMatchesCurrentThread &&
+      (input.interruptPhase === "issuing" ||
+        input.interruptPhase === "accepted" ||
+        input.interruptPhase === "unknown"),
+  };
 }

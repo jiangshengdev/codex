@@ -23,10 +23,22 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ThreadHistoryDetailPage } from "../ThreadHistoryDetailPage";
 
 const detailThreadId = "00000000-0000-0000-0000-000000000088";
+const emptySkillCatalogState: SkillCatalogState = {
+  type: "ready",
+  candidates: [],
+  partialErrorCount: 0,
+};
+const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
+  getSnapshot: () => emptySkillCatalogState,
+  subscribe: () => () => undefined,
+  invalidate: () => false,
+  retry: () => false,
+};
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -54,6 +66,8 @@ const activeOwner = (threadId: string): ActiveThreadOwnerHandle => ({
   subscriptionId: `subscription-${threadId}`,
   projectionOwner: null as never,
   queueCoordinator: null as never,
+  skillCatalog,
+  dispose: () => undefined,
 });
 
 type CapabilitiesStore = Readonly<{

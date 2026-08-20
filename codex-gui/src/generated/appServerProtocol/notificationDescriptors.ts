@@ -2,6 +2,7 @@
 import type { JSONRPCNotification } from "@codex-protocol/JSONRPCNotification";
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import {
+  validateV2SkillsChangedNotification,
   validateV2ThreadProjectionEventNotification,
   validateV2ThreadProjectionDeltaNotification,
   validateV2ThreadProjectionClosedNotification,
@@ -9,7 +10,11 @@ import {
 export type SelectedServerNotification = Extract<
   ServerNotification,
   {
-    method: "thread/projection/event" | "thread/projection/delta" | "thread/projection/closed";
+    method:
+      | "skills/changed"
+      | "thread/projection/event"
+      | "thread/projection/delta"
+      | "thread/projection/closed";
   }
 >;
 export type ServerNotificationClassification =
@@ -155,6 +160,17 @@ export function classifyServerNotification(
   notification: JSONRPCNotification,
 ): ServerNotificationClassification {
   switch (notification.method) {
+    case "skills/changed":
+      if (!validateV2SkillsChangedNotification(notification.params)) {
+        return { type: "selectedInvalid", method: notification.method };
+      }
+      return {
+        type: "selected",
+        notification: {
+          method: notification.method,
+          params: notification.params,
+        },
+      };
     case "thread/projection/event":
       if (!validateV2ThreadProjectionEventNotification(notification.params)) {
         return { type: "selectedInvalid", method: notification.method };

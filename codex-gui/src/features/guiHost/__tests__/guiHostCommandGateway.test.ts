@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { inProgressTurn } from "@/features/projection/__tests__/projectionTestBuilders";
+import type { JSONRPCErrorError } from "@codex-protocol/JSONRPCErrorError";
 import {
   isGuiHostCommandError,
   type GuiHostCommandFailureSource,
@@ -37,6 +38,40 @@ function setup(socket: RecordingWebSocket = new RecordingWebSocket()) {
   });
   return { gateway: new GuiHostCommandGateway(transport), socket, transport };
 }
+
+const rpcErrorClassificationCases: readonly (readonly [
+  string,
+  JSONRPCErrorError["data"] | undefined,
+  boolean,
+])[] = [
+  [
+    "complete active-turn error",
+    {
+      message: "cannot steer a review turn",
+      codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+      additionalDetails: null,
+    },
+    true,
+  ],
+  [
+    "generic turn error",
+    { message: "request failed", codexErrorInfo: "badRequest", additionalDetails: null },
+    false,
+  ],
+  ["message-only turn error", { message: "request failed" }, false],
+  ["null codex error info", { message: "request failed", codexErrorInfo: null }, false],
+  ["string data", "request failed", false],
+  ["unrelated object data", { unrelated: true }, false],
+  [
+    "malformed turn error",
+    {
+      message: 42,
+      codexErrorInfo: { activeTurnNotSteerable: { turnKind: "review" } },
+    },
+    false,
+  ],
+  ["no data", undefined, false],
+];
 
 async function expectCommandFailure(
   promise: Promise<unknown>,
@@ -140,6 +175,35 @@ describe("GuiHostCommandGateway", () => {
     transport.settleResult(interruptRequest.id, interruptResponse);
     await expect(interruptPromise).resolves.toBe(interruptResponse);
   });
+
+  it.each(rpcErrorClassificationCases)(
+    "classifies %s from validated RPC error data",
+    async (_, data, expected) => {
+      const { gateway, socket, transport } = setup();
+      gateway.activate();
+      const promise = gateway.commands.steerTurn({
+        threadId: "thread-1",
+        expectedTurnId: "turn-1",
+        clientUserMessageId: null,
+        input: [{ type: "text", text: "Guide", text_elements: [] }],
+      });
+      const request = readLatestRpcRequest(socket, "turn/steer");
+      const rpcError: JSONRPCErrorError = {
+        code: -32000,
+        message: "request failed",
+        ...(data === undefined ? {} : { data }),
+      };
+
+      transport.settleRpcError(request.id, rpcError);
+
+      const error: unknown = await promise.catch((failure: unknown) => failure);
+      if (!isGuiHostCommandError(error)) {
+        throw new Error("Expected GuiHostCommandError");
+      }
+      expect(error.rpcError).toBe(rpcError);
+      expect(error.activeTurnNotSteerable).toBe(expected);
+    },
+  );
 
   it("keeps ready state after a single rpc, missing, malformed, or send failure", async () => {
     const rpc = setup();

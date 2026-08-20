@@ -747,6 +747,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn browser_skills_list_request_reaches_backend() {
+        let backend = RecordingBackend::new();
+        let handle = start_host(backend.clone()).await;
+        let (mut websocket, _response) = connect_websocket(&handle).await;
+
+        websocket
+            .send(Message::Text(
+                authenticate_request(&handle, /*id*/ 1).into(),
+            ))
+            .await
+            .expect("auth frame should send");
+        let _ = websocket.next().await.expect("auth response should arrive");
+
+        websocket
+            .send(Message::Text(
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "skills/list",
+                    "params": {
+                        "cwds": ["/workspace/project"],
+                        "forceReload": false,
+                    },
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("skills/list request should send");
+
+        assert_eq!(
+            backend.wait_for_received(&["skills/list"]).await,
+            vec!["skills/list"]
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn browser_current_frontend_thread_requests_reach_backend() {
         let backend = RecordingBackend::new();
         let handle = start_host(backend.clone()).await;

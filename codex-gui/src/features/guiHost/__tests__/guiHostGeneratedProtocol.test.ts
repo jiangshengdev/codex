@@ -2,6 +2,8 @@ import { describe, expect, expectTypeOf, test } from "vitest";
 
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
 import type {
+  SkillsListParams,
+  SkillsListResponse,
   ThreadListParams,
   ThreadListResponse,
   ThreadProjectionAttachParams,
@@ -62,6 +64,17 @@ describe("generated GUI Host protocol boundary", () => {
     }
   });
 
+  test("associates skills/list with its generated params, response, and schemas", () => {
+    const descriptor = requestDescriptors["skills/list"];
+    type Method = typeof descriptor.method;
+
+    expectTypeOf<Method>().toEqualTypeOf<"skills/list">();
+    expectTypeOf<RequestParams<Method>>().toEqualTypeOf<SkillsListParams>();
+    expectTypeOf<RequestResponse<Method>>().toEqualTypeOf<SkillsListResponse>();
+    expect(descriptor.paramsSchema).toBe("v2/SkillsListParams");
+    expect(descriptor.responseSchema).toBe("v2/SkillsListResponse");
+  });
+
   test("associates turn/steer with its generated params, response, and schemas", () => {
     const descriptor = requestDescriptors["turn/steer"];
     type Method = typeof descriptor.method;
@@ -80,6 +93,7 @@ describe("generated GUI Host protocol boundary", () => {
 
   test("narrows selected notifications to their method-specific generated type", () => {
     const notifications = [
+      { method: "skills/changed", params: {} },
       { method: "thread/projection/event", params: eventTurnStarted },
       { method: "thread/projection/delta", params: eventAgentMessageDelta },
       { method: "thread/projection/closed", params: closedBackpressure },
@@ -93,6 +107,11 @@ describe("generated GUI Host protocol boundary", () => {
       }
 
       switch (classification.notification.method) {
+        case "skills/changed":
+          expectTypeOf(classification.notification).toEqualTypeOf<
+            Extract<ServerNotification, { method: "skills/changed" }>
+          >();
+          break;
         case "thread/projection/event":
           expectTypeOf(classification.notification).toEqualTypeOf<
             Extract<ServerNotification, { method: "thread/projection/event" }>

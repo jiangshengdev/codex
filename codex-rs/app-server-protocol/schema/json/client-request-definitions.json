@@ -396,7 +396,7 @@
   },
   {
     "method": "account/usage/read",
-    "paramsSchema": null,
+    "paramsSchema": "v2/GetAccountTokenUsageParams",
     "responseSchema": "v2/GetAccountTokenUsageResponse"
   },
   {

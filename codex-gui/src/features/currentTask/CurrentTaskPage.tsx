@@ -91,6 +91,7 @@ function CurrentTaskReady({
         guardCompositionEndEnter={guardCompositionEndEnter}
         guiHostStatus={status}
         routeTarget={routeTarget}
+        skillCatalogController={activeOwner.skillCatalog}
       />
     </main>
   );

@@ -6,7 +6,7 @@ import {
   eventTokenUsageUpdated,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import { requestDescriptors } from "@/generated/appServerProtocol";
+import { classifyServerNotification, requestDescriptors } from "@/generated/appServerProtocol";
 import {
   validateV2ThreadProjectionClosedNotification,
   validateV2ThreadProjectionDeltaNotification,
@@ -102,6 +102,43 @@ describe("generated app-server protocol", () => {
 
   it.each([
     [
+      "skills/list",
+      {
+        data: [
+          {
+            cwd: "/workspace/project",
+            skills: [
+              {
+                name: "grill-me",
+                description: "Stress-test a plan.",
+                path: "/workspace/project/skills/grill-me/SKILL.md",
+                scope: "repo",
+                enabled: true,
+              },
+            ],
+            errors: [],
+          },
+        ],
+      } satisfies RequestResponse<"skills/list">,
+      {
+        data: [
+          {
+            cwd: "/workspace/project",
+            skills: [
+              {
+                name: "grill-me",
+                description: "Stress-test a plan.",
+                path: "/workspace/project/skills/grill-me/SKILL.md",
+                scope: "repo",
+                enabled: null,
+              },
+            ],
+            errors: [],
+          },
+        ],
+      },
+    ],
+    [
       "thread/list",
       {
         data: [historyThread],
@@ -130,6 +167,17 @@ describe("generated app-server protocol", () => {
       expect(descriptor.validateResponse(malformed)).toBe(false);
     },
   );
+
+  it("classifies legal and malformed skills/changed notifications", () => {
+    expect(classifyServerNotification({ method: "skills/changed", params: {} })).toEqual({
+      type: "selected",
+      notification: { method: "skills/changed", params: {} },
+    });
+    expect(classifyServerNotification({ method: "skills/changed", params: null })).toEqual({
+      type: "selectedInvalid",
+      method: "skills/changed",
+    });
+  });
 
   it.each([
     ["event", validateV2ThreadProjectionEventNotification, eventTurnStarted],

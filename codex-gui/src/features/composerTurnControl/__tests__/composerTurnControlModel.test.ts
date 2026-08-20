@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import {
   canRecoverComposerQueue,
   canSend,
-  canStop,
-  errorDescription,
+  composerGuideControlState,
+  composerStopControlState,
+  invalidSelectedSkillPaths,
   isConnectionUsable,
 } from "../composerTurnControlModel";
 
 const initializedStatus: GuiHostStatus = {
   label: "initialized",
 };
+
+const skillCandidate = (path: string): SkillCatalogState["candidates"][number] => ({
+  name: path,
+  description: `${path} description`,
+  path,
+  scope: "repo",
+});
 
 describe("composerTurnControlModel", () => {
   it("requires attached identity, active subscription, thread id, and usable host status", () => {
@@ -60,72 +69,287 @@ describe("composerTurnControlModel", () => {
     ).toBe(false);
   });
 
-  it("derives send and stop availability", () => {
+  it("derives send availability", () => {
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(true);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "   ",
+        draftText: "   ",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(false);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(true);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: true,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(false);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: false,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
+        selectedSkillsValid: true,
       }),
     ).toBe(false);
     expect(
       canSend({
         connectionUsable: true,
         controllerReady: true,
-        draft: "Hello",
+        draftText: "Hello",
         isSending: false,
         recoveryCount: 2,
+        selectedSkillsValid: true,
       }),
     ).toBe(false);
+    expect(
+      canSend({
+        connectionUsable: true,
+        controllerReady: true,
+        draftText: "Hello",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: false,
+      }),
+    ).toBe(false);
+  });
 
-    expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: false })).toBe(
-      true,
-    );
-    expect(canStop({ connectionUsable: true, activeTurnId: null, isStopping: false })).toBe(false);
-    expect(canStop({ connectionUsable: false, activeTurnId: "turn-1", isStopping: false })).toBe(
-      false,
-    );
-    expect(canStop({ connectionUsable: true, activeTurnId: "turn-1", isStopping: true })).toBe(
-      false,
-    );
+  it.each([
+    {
+      caseName: "idle",
+      input: {
+        activeTurnId: null,
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "Guide this",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+      },
+      expected: { visible: false, buttonEnabled: false, shortcutEnabled: false },
+    },
+    {
+      caseName: "active with an empty draft",
+      input: {
+        activeTurnId: "turn-active",
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "  ",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+      },
+      expected: { visible: true, buttonEnabled: false, shortcutEnabled: true },
+    },
+    {
+      caseName: "active with a non-empty draft",
+      input: {
+        activeTurnId: "turn-active",
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "Guide this",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+      },
+      expected: { visible: true, buttonEnabled: true, shortcutEnabled: true },
+    },
+    ...[
+      {
+        blockedBy: "connection",
+        patch: { connectionUsable: false },
+        visible: true,
+      },
+      {
+        blockedBy: "owner identity",
+        patch: { controllerMatchesCurrentThread: false },
+        visible: false,
+      },
+      { blockedBy: "submission", patch: { isSending: true }, visible: true },
+      { blockedBy: "recovery", patch: { recoveryCount: 1 }, visible: true },
+      {
+        blockedBy: "invalid skills",
+        patch: { selectedSkillsValid: false },
+        visible: true,
+      },
+    ].map(({ blockedBy, patch, visible }) => ({
+      caseName: `active but blocked by ${blockedBy}`,
+      input: {
+        activeTurnId: "turn-active",
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        draftText: "Guide this",
+        isSending: false,
+        recoveryCount: 0,
+        selectedSkillsValid: true,
+        ...patch,
+      },
+      expected: { visible, buttonEnabled: false, shortcutEnabled: false },
+    })),
+  ])("derives guide control state for $caseName", ({ input, expected }) => {
+    expect(composerGuideControlState(input)).toEqual(expected);
+  });
+
+  it.each([
+    {
+      caseName: "available",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: null,
+        queueCanStop: true,
+      },
+      expected: { enabled: true, failed: false, pending: false },
+    },
+    {
+      caseName: "connection unavailable",
+      input: {
+        connectionUsable: false,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: null,
+        queueCanStop: true,
+      },
+      expected: { enabled: false, failed: false, pending: false },
+    },
+    {
+      caseName: "controller identity mismatch",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: false,
+        interruptPhase: "issuing",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: false },
+    },
+    {
+      caseName: "queue cannot stop",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: null,
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: false },
+    },
+    {
+      caseName: "issuing",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "issuing",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: true },
+    },
+    {
+      caseName: "accepted",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "accepted",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: true },
+    },
+    {
+      caseName: "delivery unknown",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "unknown",
+        queueCanStop: false,
+      },
+      expected: { enabled: false, failed: false, pending: true },
+    },
+    {
+      caseName: "definitely not accepted",
+      input: {
+        connectionUsable: true,
+        controllerMatchesCurrentThread: true,
+        interruptPhase: "definitelyNotAccepted",
+        queueCanStop: true,
+      },
+      expected: { enabled: true, failed: true, pending: false },
+    },
+  ] as const)("derives stop control state for $caseName", ({ input, expected }) => {
+    expect(composerStopControlState(input)).toEqual(expected);
+  });
+
+  it("derives invalid selected paths only from a complete ready catalog", () => {
+    const existingPath = "/skills/existing/SKILL.md";
+    const missingPath = "/skills/missing/SKILL.md";
+    const selectedPaths = [existingPath, missingPath];
+    const completeReady: SkillCatalogState = {
+      type: "ready",
+      candidates: [skillCandidate(existingPath)],
+      partialErrorCount: 0,
+    };
+
+    expect([...invalidSelectedSkillPaths(completeReady, selectedPaths)]).toEqual([missingPath]);
+
+    const inconclusiveStates: readonly SkillCatalogState[] = [
+      {
+        type: "ready",
+        candidates: [skillCandidate(existingPath)],
+        partialErrorCount: 1,
+      },
+      { type: "initialLoading", candidates: [], partialErrorCount: 0 },
+      {
+        type: "refreshing",
+        candidates: [skillCandidate(existingPath)],
+        partialErrorCount: 0,
+      },
+      { type: "stale", candidates: [skillCandidate(existingPath)], partialErrorCount: 0 },
+      { type: "failed", candidates: [], partialErrorCount: 0 },
+    ];
+
+    expect(
+      inconclusiveStates.map((state) => ({
+        type: state.type,
+        invalidPaths: [...invalidSelectedSkillPaths(state, selectedPaths)],
+      })),
+    ).toEqual([
+      { type: "ready", invalidPaths: [] },
+      { type: "initialLoading", invalidPaths: [] },
+      { type: "refreshing", invalidPaths: [] },
+      { type: "stale", invalidPaths: [] },
+      { type: "failed", invalidPaths: [] },
+    ]);
+
+    const recoveredReady: SkillCatalogState = {
+      type: "ready",
+      candidates: [skillCandidate(existingPath), skillCandidate(missingPath)],
+      partialErrorCount: 0,
+    };
+    expect([...invalidSelectedSkillPaths(recoveredReady, selectedPaths)]).toEqual([]);
   });
 
   it.each([
@@ -133,7 +357,7 @@ describe("composerTurnControlModel", () => {
       caseName: "commands unavailable",
       input: {
         connectionUsable: false,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -143,7 +367,7 @@ describe("composerTurnControlModel", () => {
       caseName: "manual reconnect required",
       input: {
         connectionUsable: false,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -153,7 +377,7 @@ describe("composerTurnControlModel", () => {
       caseName: "no recovery batch",
       input: {
         connectionUsable: true,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 0,
         isRecovering: false,
       },
@@ -163,7 +387,7 @@ describe("composerTurnControlModel", () => {
       caseName: "recovery already running",
       input: {
         connectionUsable: true,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: true,
       },
@@ -173,7 +397,7 @@ describe("composerTurnControlModel", () => {
       caseName: "controller unavailable",
       input: {
         connectionUsable: true,
-        hasController: false,
+        controllerReady: false,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -183,7 +407,7 @@ describe("composerTurnControlModel", () => {
       caseName: "recovery available",
       input: {
         connectionUsable: true,
-        hasController: true,
+        controllerReady: true,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -191,12 +415,5 @@ describe("composerTurnControlModel", () => {
     },
   ])("derives queue recovery availability for $caseName", ({ input, expected }) => {
     expect(canRecoverComposerQueue(input)).toBe(expected);
-  });
-
-  it("extracts human-readable error descriptions", () => {
-    expect(errorDescription(new Error("failed"))).toBe("failed");
-    expect(errorDescription("failed string")).toBe("failed string");
-    expect(errorDescription({ message: "structured" })).toBe("structured");
-    expect(errorDescription({})).toBeUndefined();
   });
 });

@@ -1,7 +1,19 @@
 // GENERATED CODE! DO NOT MODIFY BY HAND!
 import type { ServerNotification } from "@codex-protocol/ServerNotification";
+import type { TurnError } from "@codex-protocol/v2";
 import type { ProtocolValidator, RequestResponse } from "../../features/guiHost/appServerProtocol";
 export declare const validateInitializeResponse: ProtocolValidator<RequestResponse<"initialize">>;
+export declare const validateV2SkillsChangedNotification: ProtocolValidator<
+  Extract<
+    ServerNotification,
+    {
+      method: "skills/changed";
+    }
+  >["params"]
+>;
+export declare const validateV2SkillsListResponse: ProtocolValidator<
+  RequestResponse<"skills/list">
+>;
 export declare const validateV2ThreadListResponse: ProtocolValidator<
   RequestResponse<"thread/list">
 >;
@@ -40,6 +52,9 @@ export declare const validateV2ThreadReadResponse: ProtocolValidator<
 >;
 export declare const validateV2ThreadResumeResponse: ProtocolValidator<
   RequestResponse<"thread/resume">
+>;
+export declare const validateV2TurnError: ProtocolValidator<
+  Partial<TurnError> & Required<Pick<TurnError, "message">>
 >;
 export declare const validateV2TurnInterruptResponse: ProtocolValidator<
   RequestResponse<"turn/interrupt">
