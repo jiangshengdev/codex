@@ -2,9 +2,10 @@ import type {
   ThreadItem,
   ThreadProjectionEventNotification,
   Turn,
-  TurnStartParams,
 } from "@codex-protocol/v2";
+import type { ComposerDraft } from "@/features/composerEditor/composerDraft";
 import type { ComposerInputPreview } from "./composerInputPreview";
+import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
 import type { InterruptTerminalDisposition } from "./composerInterruptState";
 import type {
   RejectedSteer,
@@ -19,8 +20,10 @@ type NonInterruptedTerminalStatus = Exclude<TerminalStatus, "interrupted">;
 type ObservedClientIdentity = NonNullable<Extract<ThreadItem, { type: "userMessage" }>["clientId"]>;
 
 export type ComposerQueueMessage = Readonly<{
+  type: "recoverable";
   id: string;
-  input: readonly TurnStartParams["input"][number][];
+  draft: ComposerDraft;
+  input: ReadonlyComposerInputPayload;
 }>;
 
 declare const composerPendingInputDisplayKeyBrand: unique symbol;

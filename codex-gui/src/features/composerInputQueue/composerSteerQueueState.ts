@@ -3,6 +3,7 @@ import {
   copyComposerInputPayload,
   type ReadonlyComposerInputPayload,
 } from "./composerInputPayload";
+import type { ComposerQueueMessage } from "./composerInputQueueContracts";
 
 const steerClaimCapability: unique symbol = Symbol("SteerClaim");
 const rejectedSteerTransferCapability: unique symbol = Symbol("RejectedSteerTransfer");
@@ -16,19 +17,17 @@ type SteerClientIdentity = NonNullable<TurnSteerParams["clientUserMessageId"]>;
 export type SteerSource = "direct" | "ordinaryPromotion";
 
 export type EnqueueSteerInput = Readonly<{
-  messageId: string;
+  message: ComposerQueueMessage;
   threadId: ThreadIdentity;
   expectedTurnId: TurnIdentity;
-  input: ReadonlyComposerInputPayload;
   source: SteerSource;
 }>;
 
 export type SteerIntent = Readonly<{
-  messageId: string;
+  message: ComposerQueueMessage;
   threadId: ThreadIdentity;
   expectedTurnId: TurnIdentity;
   clientUserMessageId: SteerClientIdentity;
-  input: ReadonlyComposerInputPayload;
   source: SteerSource;
 }>;
 
@@ -71,8 +70,8 @@ export type ComposerSteerQueueState = Readonly<{
 }>;
 
 export type ComposerSteerPendingInput = Readonly<{
-  messageId: SteerIntent["messageId"];
-  input: SteerIntent["input"];
+  messageId: ComposerQueueMessage["id"];
+  input: ReadonlyComposerInputPayload;
 }>;
 
 export type ComposerSteerQueueOverview = Readonly<{
@@ -136,7 +135,7 @@ export type ComposerSteerQueue = Readonly<{
   overview(): ComposerSteerQueueOverview;
   pendingInputCount(): number;
   readPendingInputs(offset: number, limit: number): readonly ComposerSteerPendingInput[];
-  findPendingInput(messageId: SteerIntent["messageId"]): ComposerSteerPendingInput | null;
+  findPendingInput(messageId: ComposerQueueMessage["id"]): ComposerSteerPendingInput | null;
   transition(event: ComposerSteerQueueEvent): ComposerSteerQueueResult;
 }>;
 
@@ -174,8 +173,8 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
   ): readonly ComposerSteerPendingInput[] => {
     const pendingEnd = Math.min(this.pendingSteers.length, offset + limit);
     const result = this.pendingSteers.slice(offset, pendingEnd).map(({ claim }) => ({
-      messageId: claim.intent.messageId,
-      input: claim.intent.input,
+      messageId: claim.intent.message.id,
+      input: claim.intent.message.input,
     }));
     const remaining = limit - result.length;
     if (remaining <= 0) {
@@ -184,47 +183,53 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     const queuedOffset = Math.max(0, offset - this.pendingSteers.length);
     result.push(
       ...this.steerQueue.slice(queuedOffset, queuedOffset + remaining).map((intent) => ({
-        messageId: intent.messageId,
-        input: intent.input,
+        messageId: intent.message.id,
+        input: intent.message.input,
       })),
     );
     return result;
   };
 
   public findPendingInput = (
-    messageId: SteerIntent["messageId"],
+    messageId: ComposerQueueMessage["id"],
   ): ComposerSteerPendingInput | null => {
-    const pending = this.pendingSteers.find(({ claim }) => claim.intent.messageId === messageId);
+    const pending = this.pendingSteers.find(({ claim }) => claim.intent.message.id === messageId);
     const intent =
-      pending?.claim.intent ?? this.steerQueue.find((item) => item.messageId === messageId);
-    return intent == null ? null : { messageId: intent.messageId, input: intent.input };
+      pending?.claim.intent ?? this.steerQueue.find((item) => item.message.id === messageId);
+    return intent == null
+      ? null
+      : { messageId: intent.message.id, input: intent.message.input };
   };
 
   private enqueue(input: EnqueueSteerInput): ComposerSteerQueueResult {
-    if (this.knownMessageIds.has(input.messageId)) {
-      return { type: "duplicateIdentity", messageId: input.messageId };
+    if (this.knownMessageIds.has(input.message.id)) {
+      return { type: "duplicateIdentity", messageId: input.message.id };
     }
     nextClientUserMessageSequence += 1;
     const intent: SteerIntent = {
-      messageId: input.messageId,
+      message: {
+        type: "recoverable",
+        id: input.message.id,
+        draft: input.message.draft,
+        input: copyComposerInputPayload(input.message.input),
+      },
       threadId: input.threadId,
       expectedTurnId: input.expectedTurnId,
       clientUserMessageId: `composer-steer-${String(nextClientUserMessageSequence)}`,
-      input: copyComposerInputPayload(input.input),
       source: input.source,
     };
-    this.knownMessageIds.add(intent.messageId);
+    this.knownMessageIds.add(intent.message.id);
     const closedReason = this.closedTargets.get(intent.threadId)?.get(intent.expectedTurnId);
     if (closedReason != null) {
       this.rejectedSteersQueue.push({ intent, reason: closedReason });
       return {
         type: "rejected",
         reason: closedReason,
-        messageIds: [intent.messageId],
+        messageIds: [intent.message.id],
       };
     }
     this.steerQueue.push(intent);
-    return { type: "enqueued", messageId: intent.messageId };
+    return { type: "enqueued", messageId: intent.message.id };
   }
 
   private issueNext(): ComposerSteerQueueResult {
@@ -264,16 +269,16 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     }
     if (turnId !== claim.intent.expectedTurnId) {
       this.pendingSteers[index] = { claim, phase: "responseTurnMismatch" };
-      this.unknownPendingMessageIds.add(claim.intent.messageId);
+      this.unknownPendingMessageIds.add(claim.intent.message.id);
       return {
         type: "responseTurnMismatch",
-        messageId: claim.intent.messageId,
+        messageId: claim.intent.message.id,
         expectedTurnId: claim.intent.expectedTurnId,
         responseTurnId: turnId,
       };
     }
     this.pendingSteers[index] = { claim, phase: "acceptedAwaitingCommit" };
-    return { type: "accepted", messageId: claim.intent.messageId };
+    return { type: "accepted", messageId: claim.intent.message.id };
   }
 
   private markDeliveryUnknown(claim: SteerClaim): ComposerSteerQueueResult {
@@ -282,8 +287,8 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       return { type: "ownershipMismatch", subject: "steerClaim" };
     }
     this.pendingSteers[index] = { claim, phase: "deliveryUnknown" };
-    this.unknownPendingMessageIds.add(claim.intent.messageId);
-    return { type: "deliveryUnknown", messageId: claim.intent.messageId };
+    this.unknownPendingMessageIds.add(claim.intent.message.id);
+    return { type: "deliveryUnknown", messageId: claim.intent.message.id };
   }
 
   private rejectTarget(claim: SteerClaim): ComposerSteerQueueResult {
@@ -299,7 +304,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     return {
       type: "rejected",
       reason,
-      messageIds: intents.map(({ messageId }) => messageId),
+      messageIds: intents.map(({ message }) => message.id),
     };
   }
 
@@ -313,8 +318,8 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       return { type: "ownershipMismatch", subject: "steerClaim" };
     }
     this.pendingSteers.splice(index, 1);
-    this.unknownPendingMessageIds.delete(recoveredClaim.intent.messageId);
-    this.knownMessageIds.delete(recoveredClaim.intent.messageId);
+    this.unknownPendingMessageIds.delete(recoveredClaim.intent.message.id);
+    this.knownMessageIds.delete(recoveredClaim.intent.message.id);
     const token = {};
     const intents = [recoveredClaim.intent];
     this.outstandingRecoveryTransfers.set(token, intents);
@@ -346,9 +351,9 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       return { type: "ownershipMismatch", subject: "committedMessage" };
     }
     this.pendingSteers.splice(index, 1);
-    this.unknownPendingMessageIds.delete(claim.intent.messageId);
-    this.knownMessageIds.delete(claim.intent.messageId);
-    return { type: "committed", messageId: claim.intent.messageId };
+    this.unknownPendingMessageIds.delete(claim.intent.message.id);
+    this.knownMessageIds.delete(claim.intent.message.id);
+    return { type: "committed", messageId: claim.intent.message.id };
   }
 
   private terminal(threadId: ThreadIdentity, turnId: TurnIdentity): ComposerSteerQueueResult {
@@ -357,7 +362,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     const unsent = this.removeUnsentTarget(threadId, turnId);
     const intents = [...pending, ...unsent];
     this.rejectedSteersQueue.push(...intents.map((intent): RejectedSteer => ({ intent, reason })));
-    return { type: "terminal", messageIds: intents.map(({ messageId }) => messageId) };
+    return { type: "terminal", messageIds: intents.map(({ message }) => message.id) };
   }
 
   private closeTarget(
@@ -388,7 +393,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
         pending.claim.intent.expectedTurnId === turnId
       ) {
         removed.push(pending.claim.intent);
-        this.unknownPendingMessageIds.delete(pending.claim.intent.messageId);
+        this.unknownPendingMessageIds.delete(pending.claim.intent.message.id);
         this.pendingSteers.splice(index, 1);
       } else {
         index += 1;
@@ -451,7 +456,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     this.rejectedSteersQueue.unshift(...entries);
     return {
       type: "rejectedRestored",
-      messageIds: entries.map(({ intent }) => intent.messageId),
+      messageIds: entries.map(({ intent }) => intent.message.id),
     };
   }
 
@@ -461,11 +466,11 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
       return { type: "ownershipMismatch", subject: "rejectedTransfer" };
     }
     for (const { intent } of entries) {
-      this.knownMessageIds.delete(intent.messageId);
+      this.knownMessageIds.delete(intent.message.id);
     }
     return {
       type: "rejectedReleased",
-      messageIds: entries.map(({ intent }) => intent.messageId),
+      messageIds: entries.map(({ intent }) => intent.message.id),
     };
   }
 
@@ -477,12 +482,12 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     }
     this.outstandingRecoveryTransfers.delete(token);
     for (const intent of intents) {
-      this.knownMessageIds.add(intent.messageId);
+      this.knownMessageIds.add(intent.message.id);
     }
     this.steerQueue.unshift(...intents);
     return {
       type: "recoveryRestored",
-      messageIds: intents.map(({ messageId }) => messageId),
+      messageIds: intents.map(({ message }) => message.id),
     };
   }
 

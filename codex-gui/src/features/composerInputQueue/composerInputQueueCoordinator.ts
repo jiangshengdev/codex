@@ -9,6 +9,7 @@ import type {
 } from "@codex-protocol/v2";
 import { isGuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { ThreadRuntimeProjectionEventPayload } from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
 import {
   createComposerInputQueue,
   type ComposerInputQueue,
@@ -86,8 +87,8 @@ export type ComposerInputQueueCoordinatorReserveReleaseResult =
 
 export type ComposerInputQueueCoordinator = Readonly<{
   ownerThreadId: string;
-  submit(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult;
-  submitSteer(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult;
+  submit(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult;
+  submitSteer(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult;
   promoteOrdinaryFrontToSteer(): boolean;
   interruptActiveTurn(): boolean;
   recover(): boolean;
@@ -174,11 +175,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     return this.threadId;
   }
 
-  submit(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult {
-    return this.submitInput(input, this.queue.submit);
+  submit(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult {
+    return this.submitInput(capture, this.queue.submit);
   }
-  submitSteer(input: ComposerQueueMessage["input"]): ComposerInputQueueSubmitResult {
-    return this.submitInput(input, this.queue.submitSteer);
+  submitSteer(capture: ComposerDraftCapture): ComposerInputQueueSubmitResult {
+    return this.submitInput(capture, this.queue.submitSteer);
   }
   promoteOrdinaryFrontToSteer(): boolean {
     if (this.disposed || this.releaseReservation != null || this.recovery != null) {
@@ -332,14 +333,19 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.publishSnapshot();
   }
   private submitInput(
-    input: ComposerQueueMessage["input"],
+    capture: ComposerDraftCapture,
     submit: ComposerInputQueue["submit"],
   ): ComposerInputQueueSubmitResult {
     if (this.disposed) return { type: "rejected", reason: "disposed" };
     if (this.releaseReservation != null) return { type: "rejected", reason: "releaseReserved" };
     if (this.recovery != null) return { type: "rejected", reason: "recoveryPending" };
     nextMessageSequence += 1;
-    const message = { id: `composer-message-${String(nextMessageSequence)}`, input };
+    const message: ComposerQueueMessage = {
+      type: "recoverable",
+      id: `composer-message-${String(nextMessageSequence)}`,
+      draft: capture.draft,
+      input: capture.input,
+    };
     const transition = submit(message);
     if (transition.result.type === "invalidInput") {
       return { type: "rejected", reason: "invalidInput" };
@@ -371,7 +377,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.startTurn({
       threadId: this.ownerThreadId,
       clientUserMessageId: claim.clientUserMessageId,
-      input: [...claim.message.input],
+      input: copyComposerInputPayload(claim.message.input),
     }).then(
       ({ turn }) => {
         this.settle(generation, { type: "accepted", claim, turnId: turn.id });
@@ -391,7 +397,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       threadId: claim.intent.threadId,
       expectedTurnId: claim.intent.expectedTurnId,
       clientUserMessageId: claim.intent.clientUserMessageId,
-      input: copyComposerInputPayload(claim.intent.input),
+      input: copyComposerInputPayload(claim.intent.message.input),
     }).then(
       ({ turnId }) => {
         this.settleSteer(generation, { type: "accepted", claim, turnId });

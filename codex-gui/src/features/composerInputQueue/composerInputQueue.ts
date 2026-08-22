@@ -26,6 +26,7 @@ import {
 import { projectComposerInputQueueView } from "./composerInputQueueProjection";
 import {
   ComposerStartQueueState,
+  type ComposerStartMessage,
   type StartClaim,
   type StartSettlement,
 } from "./composerStartQueueState";
@@ -141,7 +142,12 @@ function recoveryTransition(
 }
 
 function ownMessage(message: ComposerQueueMessage): ComposerQueueMessage {
-  return { id: message.id, input: copyComposerInputPayload(message.input) };
+  return {
+    type: "recoverable",
+    id: message.id,
+    draft: message.draft,
+    input: copyComposerInputPayload(message.input),
+  };
 }
 
 function boundedPageLimit(limit: number): number {
@@ -315,11 +321,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     this.advanceDetailRevision();
   }
 
-  private issueStart(
-    message: ComposerQueueMessage,
-    provenance: StartClaim["provenance"],
-  ): ComposerInputQueueEffect {
-    return { type: "performStart", claim: this.startState.issue(message, provenance) };
+  private issueStart(message: ComposerStartMessage): ComposerInputQueueEffect {
+    return { type: "performStart", claim: this.startState.issue(message) };
   }
 
   private drainNextStart(): ComposerInputQueueEffect | null {
@@ -333,24 +336,23 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         nextRejectedMergeSequence += 1;
         messageId = `composer-rejected-steer-merge-${String(nextRejectedMergeSequence)}`;
       } while (this.knownMessageIds.has(messageId));
-      const message: ComposerQueueMessage = {
+      const message: ComposerStartMessage = {
+        type: "rejectedSteerMerge",
         id: messageId,
         input: taken.transfer.entries.flatMap(({ intent }) =>
-          copyComposerInputPayload(intent.input),
+          copyComposerInputPayload(intent.message.input),
         ),
+        transfer: taken.transfer,
       };
       this.knownMessageIds.add(message.id);
-      return this.issueStart(message, {
-        type: "rejectedSteerMerge",
-        transfer: taken.transfer,
-      });
+      return this.issueStart(message);
     }
     const message = this.ordinary.shift();
     if (message != null) {
       this.forgetDisplayKey(message.id);
       this.advanceDetailRevision();
     }
-    return message == null ? null : this.issueStart(message, { type: "ordinary" });
+    return message == null ? null : this.issueStart(message);
   }
 
   private drainSteer(): ComposerInputQueueEffect | null {
@@ -388,10 +390,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
 
   private releaseStartClaim(claim: StartClaim): void {
     this.knownMessageIds.delete(claim.message.id);
-    if (claim.provenance.type === "rejectedSteerMerge") {
+    if (claim.message.type === "rejectedSteerMerge") {
       const released = this.steerState.transition({
         type: "releaseRejected",
-        transfer: claim.provenance.transfer,
+        transfer: claim.message.transfer,
       });
       if (released.type === "rejectedReleased") {
         for (const messageId of released.messageIds) {
@@ -431,11 +433,11 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         }
         return this.applyTerminal(outcome.observation);
       case "definitelyNotAccepted": {
-        if (outcome.claim.provenance.type === "rejectedSteerMerge") {
+        if (outcome.claim.message.type === "rejectedSteerMerge") {
           this.knownMessageIds.delete(outcome.claim.message.id);
           this.steerState.transition({
             type: "restoreRejected",
-            transfer: outcome.claim.provenance.transfer,
+            transfer: outcome.claim.message.transfer,
           });
           return transition({ type: "applied", operation: "rejectedSteerStartRestored" });
         }
@@ -474,7 +476,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     this.knownMessageIds.add(ownedMessage.id);
     if (this.activeTurnId == null && !this.startState.hasPending() && this.ordinary.length === 0) {
       return transition({ type: "claimIssued" }, [
-        this.issueStart(ownedMessage, { type: "ordinary" }),
+        this.issueStart(ownedMessage),
       ]);
     }
     this.ordinary.push(ownedMessage);
@@ -498,10 +500,9 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const queued = this.steerState.transition({
       type: "enqueue",
       input: {
-        messageId: ownedMessage.id,
+        message: ownedMessage,
         threadId: this.threadId,
         expectedTurnId: this.activeTurnId,
-        input: ownedMessage.input,
         source: "direct",
       },
     });
@@ -526,10 +527,9 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const queued = this.steerState.transition({
       type: "enqueue",
       input: {
-        messageId: message.id,
+        message,
         threadId: this.threadId,
         expectedTurnId: this.activeTurnId,
-        input: message.input,
         source: "ordinaryPromotion",
       },
     });
@@ -573,7 +573,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       return transition({ type: "deliveryUnknown" });
     }
     if (result.type === "recoveryRequired") {
-      const messageIds = result.transfer.intents.map(({ messageId }) => messageId);
+      const messageIds = result.transfer.intents.map(({ message }) => message.id);
       for (const messageId of messageIds) {
         this.knownMessageIds.delete(messageId);
       }
@@ -637,7 +637,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const batch: UserStoppedRecoveryBatch = { reason: "userStopped", rejected, messages };
     this.userStoppedRecoveryOwners.add(batch);
     return recoveryTransition(batch, [
-      ...(rejected?.entries.map(({ intent }) => intent.messageId) ?? []),
+      ...(rejected?.entries.map(({ intent }) => intent.message.id) ?? []),
       ...messages.map(({ id }) => id),
     ]);
   };

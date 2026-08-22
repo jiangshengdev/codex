@@ -9,14 +9,12 @@ import {
   type ComposerPendingInputLane,
   type StartClaim,
 } from "../composerInputQueue";
+import {
+  composerDraftCapture,
+  composerQueueMessage,
+} from "./composerInputQueueTestFixtures";
 
-const message = (id: string): ComposerQueueMessage => ({
-  id,
-  input: [
-    { type: "text", text: `message ${id}`, text_elements: [] },
-    { type: "skill", name: `skill-${id}`, path: `/example/skills/${id}/SKILL.md` },
-  ],
-});
+const message = (id: string): ComposerQueueMessage => composerQueueMessage(id);
 
 function startClaim(transition: ComposerInputQueueTransition): StartClaim {
   const effect = transition.effects[0];
@@ -70,7 +68,7 @@ describe("composer input queue", () => {
       result: { type: "claimIssued" },
       effects: [{ type: "performStart", claim }],
     });
-    expect(claim).toMatchObject({ type: "start", message: message("a") });
+    expect(claim.message).toEqual(submittedMessage);
     expect(claim.message).not.toBe(submittedMessage);
     expect(claim.message.input).not.toBe(submittedMessage.input);
     const submittedText = submittedMessage.input[0];
@@ -248,25 +246,34 @@ describe("composer input queue", () => {
     });
   });
 
-  it("rejects empty input and whitespace-only text without changing ownership", () => {
+  it("rejects empty and whitespace-only captures without changing ownership", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
+    const emptyCapture = composerDraftCapture("");
+    const blankCapture = composerDraftCapture(" \n\t ");
 
-    expect(queue.submit({ id: "empty", input: [] })).toEqual({
-      result: { type: "invalidInput", reason: "emptyInput" },
-      effects: [],
-    });
     expect(
       queue.submit({
-        id: "blank",
-        input: [{ type: "text", text: " \n\t ", text_elements: [] }],
+        type: "recoverable",
+        id: "empty",
+        draft: emptyCapture.draft,
+        input: emptyCapture.input,
       }),
     ).toEqual({
       result: { type: "invalidInput", reason: "emptyInput" },
       effects: [],
     });
-    const skillOnly = message("skill-only").input[1];
-    if (skillOnly == null) throw new Error("skill-only fixture must exist");
-    expect(queue.submit({ id: "skill-only", input: [skillOnly] }).result).toEqual({
+    expect(
+      queue.submit({
+        type: "recoverable",
+        id: "blank",
+        draft: blankCapture.draft,
+        input: blankCapture.input,
+      }),
+    ).toEqual({
+      result: { type: "invalidInput", reason: "emptyInput" },
+      effects: [],
+    });
+    expect(queue.submit(message("non-empty")).result).toEqual({
       type: "claimIssued",
     });
 
@@ -1001,9 +1008,9 @@ describe("composer input queue", () => {
         effect.type === "performStart"
           ? [effect.claim.message.id]
           : effect.type === "performSteer"
-            ? [effect.claim.intent.messageId]
+            ? [effect.claim.intent.message.id]
             : effect.batch.reason === "steerDefinitelyNotAccepted"
-              ? effect.batch.transfer.intents.map(({ messageId }) => messageId)
+              ? effect.batch.transfer.intents.map(({ message }) => message.id)
               : effect.batch.messages.map(({ id }) => id),
       ),
     );
@@ -1020,10 +1027,11 @@ describe("composer input queue", () => {
     const firstEffect = first.effects[0];
     expect(firstEffect?.type).toBe("performSteer");
     if (firstEffect?.type !== "performSteer") throw new Error("expected direct steer claim");
-    expect(firstEffect.claim.intent).toMatchObject({
-      messageId: "steer-a",
+    expect(firstEffect.claim.intent).toEqual({
+      message: message("steer-a"),
       threadId: "thread-1",
       expectedTurnId: "turn-1",
+      clientUserMessageId: firstEffect.claim.intent.clientUserMessageId,
       source: "direct",
     });
     expect(queue.submitSteer(message("steer-b"))).toEqual({
@@ -1039,7 +1047,7 @@ describe("composer input queue", () => {
     const secondEffect = accepted.effects[0];
     expect(secondEffect?.type).toBe("performSteer");
     if (secondEffect?.type !== "performSteer") throw new Error("expected successor steer claim");
-    expect(secondEffect.claim.intent.messageId).toBe("steer-b");
+    expect(secondEffect.claim.intent.message).toEqual(message("steer-b"));
     expect(
       queue.observe({
         type: "userMessageCommitted",
@@ -1104,8 +1112,11 @@ describe("composer input queue", () => {
     const promotedEffect = accepted.effects[0];
     expect(promotedEffect?.type).toBe("performSteer");
     if (promotedEffect?.type !== "performSteer") throw new Error("expected promoted steer claim");
-    expect(promotedEffect.claim.intent).toMatchObject({
-      messageId: "ordinary-a",
+    expect(promotedEffect.claim.intent).toEqual({
+      message: message("ordinary-a"),
+      threadId: "thread-1",
+      expectedTurnId: "turn-1",
+      clientUserMessageId: promotedEffect.claim.intent.clientUserMessageId,
       source: "ordinaryPromotion",
     });
     expect(queue.view().ordinaryQueuedCount).toBe(1);
@@ -1191,7 +1202,11 @@ describe("composer input queue", () => {
       commitId: "terminal-1",
     });
     const merge = startClaim(terminal);
-    expect(merge.provenance.type).toBe("rejectedSteerMerge");
+    expect(merge.message.type).toBe("rejectedSteerMerge");
+    if (merge.message.type !== "rejectedSteerMerge") {
+      throw new Error("expected rejected steer merge");
+    }
+    expect("draft" in merge.message).toBe(false);
     expect(merge.message.input).toEqual([...message("steer-a").input, ...message("steer-b").input]);
     expect(queue.view()).toMatchObject({ ordinaryQueuedCount: 1, rejectedSteers: [] });
 
@@ -1220,7 +1235,7 @@ describe("composer input queue", () => {
       commitId: "terminal-1",
     });
     const merge = startClaim(terminal);
-    expect(merge.provenance.type).toBe("rejectedSteerMerge");
+    expect(merge.message.type).toBe("rejectedSteerMerge");
 
     expect(queue.settleStart({ type: "accepted", claim: merge, turnId: "turn-2" })).toEqual({
       result: { type: "applied", operation: "startAccepted" },
@@ -1244,10 +1259,12 @@ describe("composer input queue", () => {
 
     const resubmitted = queue.submitSteer(message("steer-a"));
     expect(resubmitted.result.type).not.toBe("duplicateIdentity");
-    expect(resubmitted.effects[0]).toMatchObject({
-      type: "performSteer",
-      claim: { intent: { messageId: "steer-a", expectedTurnId: "turn-2" } },
-    });
+    const resubmittedEffect = resubmitted.effects[0];
+    if (resubmittedEffect?.type !== "performSteer") {
+      throw new Error("expected resubmitted steer claim");
+    }
+    expect(resubmittedEffect.claim.intent.message).toEqual(message("steer-a"));
+    expect(resubmittedEffect.claim.intent.expectedTurnId).toBe("turn-2");
     expect(queue.submitSteer(message(merge.message.id))).toEqual({
       result: { type: "applied", operation: "steerQueued" },
       effects: [],
@@ -1257,12 +1274,12 @@ describe("composer input queue", () => {
   it("keeps generic steer rejection in steer recovery and exposes only bounded previews", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
     const longText = "x".repeat(200);
+    const longCapture = composerDraftCapture(longText);
     const first = queue.submitSteer({
+      type: "recoverable",
       id: "long",
-      input: [
-        { type: "text", text: longText, text_elements: [] },
-        { type: "skill", name: "secret-skill", path: "/example/skills/secret/SKILL.md" },
-      ],
+      draft: longCapture.draft,
+      input: longCapture.input,
     });
     const effect = first.effects[0];
     if (effect?.type !== "performSteer") throw new Error("expected steer claim");
@@ -1288,10 +1305,9 @@ describe("composer input queue", () => {
       },
       effects: [{ type: "recover", batch: recovery.batch }],
     });
-    expect(queue.restoreSteerRecovery(recovery.batch.transfer).effects[0]).toMatchObject({
-      type: "performSteer",
-      claim: { intent: { messageId: "long" } },
-    });
+    const restored = queue.restoreSteerRecovery(recovery.batch.transfer).effects[0];
+    if (restored?.type !== "performSteer") throw new Error("expected restored steer claim");
+    expect(restored.claim.intent).toEqual(recovery.batch.transfer.intents[0]);
   });
 
   it("pages ordinary inputs with an owner-enforced bound and opaque stable display keys", () => {
@@ -1341,18 +1357,14 @@ describe("composer input queue", () => {
   it("reads steer inputs pending-before-queued and returns current full text by display key", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
     const longText = "👩‍💻".repeat(161);
+    const longCapture = composerDraftCapture(`  ${longText}  `);
     queue.submitSteer({
+      type: "recoverable",
       id: "a",
-      input: [
-        { type: "text", text: `  ${longText}  `, text_elements: [] },
-        { type: "skill", name: "secret", path: "/private/skills/SKILL.md" },
-      ],
+      draft: longCapture.draft,
+      input: longCapture.input,
     });
     queue.submitSteer(message("b"));
-    queue.submitSteer({
-      id: "structured",
-      input: [{ type: "skill", name: "private-skill", path: "/private/skills/SKILL.md" }],
-    });
     const revision = queue.detailRevision();
     const page = queue.readPendingInputPage({ lane: "steer", revision, cursor: null, limit: 10 });
     expect(page.type).toBe("page");
@@ -1360,13 +1372,6 @@ describe("composer input queue", () => {
     expect(page.items.map(({ preview }) => preview)).toEqual([
       { type: "text", text: `${"👩‍💻".repeat(157)}...`, truncated: true },
       { type: "text", text: "message b", truncated: false },
-      {
-        type: "nonText",
-        imageCount: 0,
-        audioCount: 0,
-        skillCount: 1,
-        mentionCount: 0,
-      },
     ]);
     const firstKey = page.items[0]?.key;
     if (firstKey == null) throw new Error("expected first steer display key");
@@ -1380,15 +1385,8 @@ describe("composer input queue", () => {
       "/private/skills/",
     );
     const shortTextKey = page.items[1]?.key;
-    const structuredKey = page.items[2]?.key;
-    if (shortTextKey == null || structuredKey == null) {
-      throw new Error("expected short-text and structured display keys");
-    }
+    if (shortTextKey == null) throw new Error("expected short-text display key");
     expect(queue.readPendingInputDetail({ key: shortTextKey, revision })).toEqual({
-      type: "missing",
-      revision,
-    });
-    expect(queue.readPendingInputDetail({ key: structuredKey, revision })).toEqual({
       type: "missing",
       revision,
     });

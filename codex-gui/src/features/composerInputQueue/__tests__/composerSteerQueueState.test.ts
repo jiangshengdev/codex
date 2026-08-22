@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { TurnSteerParams } from "@codex-protocol/v2";
 
 import {
   createComposerSteerQueue,
@@ -10,17 +9,10 @@ import {
   type SteerIntent,
   type SteerRecoveryTransfer,
 } from "../composerSteerQueueState";
+import { composerSteerInput } from "./composerInputQueueTestFixtures";
 
-const steerInput = (messageId: string, expectedTurnId = "turn-a"): EnqueueSteerInput => ({
-  messageId,
-  threadId: "thread-a",
-  expectedTurnId,
-  input: [
-    { type: "text", text: `message ${messageId}`, text_elements: [] },
-    { type: "skill", name: `skill-${messageId}`, path: `/skills/${messageId}/SKILL.md` },
-  ],
-  source: "direct",
-});
+const steerInput = (messageId: string, expectedTurnId = "turn-a"): EnqueueSteerInput =>
+  composerSteerInput(messageId, expectedTurnId);
 
 function enqueue(queue: ComposerSteerQueue, messageId: string, expectedTurnId = "turn-a"): void {
   expect(
@@ -44,10 +36,10 @@ function accept(queue: ComposerSteerQueue, claim: SteerClaim): void {
       claim,
       turnId: claim.intent.expectedTurnId,
     }),
-  ).toEqual({ type: "accepted", messageId: claim.intent.messageId });
+  ).toEqual({ type: "accepted", messageId: claim.intent.message.id });
 }
 
-function assertSteerInputIsDeepReadonly(input: SteerIntent["input"]): void {
+function assertSteerInputIsDeepReadonly(input: SteerIntent["message"]["input"]): void {
   // @ts-expect-error steer input array ownership is readonly
   input[0] = input[0];
   const item = input[0];
@@ -88,8 +80,8 @@ describe("composer steer queue state", () => {
     accept(queue, first);
     const second = issue(queue);
 
-    expect(queue.state().steerQueue.map(({ messageId }) => messageId)).toEqual(["c"]);
-    expect(queue.state().pendingSteers.map(({ claim }) => claim.intent.messageId)).toEqual([
+    expect(queue.state().steerQueue.map(({ message }) => message.id)).toEqual(["c"]);
+    expect(queue.state().pendingSteers.map(({ claim }) => claim.intent.message.id)).toEqual([
       "a",
       "b",
     ]);
@@ -100,7 +92,7 @@ describe("composer steer queue state", () => {
       messageIds: ["a", "b", "c"],
     });
     expect(queue.state()).toMatchObject({ steerQueue: [], pendingSteers: [] });
-    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.messageId)).toEqual([
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
       "a",
       "b",
       "c",
@@ -124,7 +116,7 @@ describe("composer steer queue state", () => {
         clientUserMessageId: second.intent.clientUserMessageId,
       }),
     ).toEqual({ type: "committed", messageId: "b" });
-    expect(queue.state().pendingSteers.map(({ claim }) => claim.intent.messageId)).toEqual(["a"]);
+    expect(queue.state().pendingSteers.map(({ claim }) => claim.intent.message.id)).toEqual(["a"]);
 
     expect(
       queue.transition({
@@ -134,7 +126,7 @@ describe("composer steer queue state", () => {
         clientUserMessageId: first.intent.clientUserMessageId,
       }),
     ).toEqual({ type: "ownershipMismatch", subject: "committedMessage" });
-    expect(queue.state().pendingSteers.map(({ claim }) => claim.intent.messageId)).toEqual(["a"]);
+    expect(queue.state().pendingSteers.map(({ claim }) => claim.intent.message.id)).toEqual(["a"]);
   });
 
   it("appends terminal pending entries before unsent entries without disturbing other targets", () => {
@@ -152,12 +144,12 @@ describe("composer steer queue state", () => {
       type: "terminal",
       messageIds: ["a", "b", "c"],
     });
-    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.messageId)).toEqual([
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
       "a",
       "b",
       "c",
     ]);
-    expect(queue.state().steerQueue.map(({ messageId }) => messageId)).toEqual(["other"]);
+    expect(queue.state().steerQueue.map(({ message }) => message.id)).toEqual(["other"]);
   });
 
   it("keeps a terminal target closed and directly rejects every later enqueue with its reason", () => {
@@ -174,7 +166,7 @@ describe("composer steer queue state", () => {
     });
     expect(queue.transition({ type: "issueNext" })).toEqual({ type: "empty" });
     expect(queue.state().rejectedSteersQueue).toMatchObject([
-      { intent: { messageId: "late-terminal" }, reason: "terminal" },
+      { intent: { message: { id: "late-terminal" } }, reason: "terminal" },
     ]);
   });
 
@@ -194,7 +186,7 @@ describe("composer steer queue state", () => {
       messageIds: ["accepted-a", "issuing-a", "queued-a"],
     });
     const next = issue(queue);
-    expect(next.intent.messageId).toBe("queued-b");
+    expect(next.intent.message.id).toBe("queued-b");
     expect(queue.transition({ type: "issueNext" })).toEqual({ type: "blocked", phase: "issuing" });
 
     queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });
@@ -204,7 +196,7 @@ describe("composer steer queue state", () => {
       messageIds: ["late-a"],
     });
     expect(queue.state().steerQueue).toEqual([]);
-    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.messageId)).toEqual([
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
       "accepted-a",
       "issuing-a",
       "queued-a",
@@ -321,7 +313,7 @@ describe("composer steer queue state", () => {
     if (taken.type !== "rejectedTaken") throw new Error("expected rejected entries");
     const restoreClone = { ...taken.transfer };
     const releaseClone = { ...taken.transfer };
-    expect(taken.transfer.entries.map(({ intent }) => intent.messageId)).toEqual(["a", "b"]);
+    expect(taken.transfer.entries.map(({ intent }) => intent.message.id)).toEqual(["a", "b"]);
     expect(queue.state().rejectedSteersQueue).toEqual([]);
 
     expect(queue.transition({ type: "enqueue", input: steerInput("later", "turn-b") })).toEqual({
@@ -351,7 +343,7 @@ describe("composer steer queue state", () => {
       type: "rejectedRestored",
       messageIds: ["a", "b"],
     });
-    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.messageId)).toEqual([
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
       "a",
       "b",
       "later",
@@ -364,7 +356,7 @@ describe("composer steer queue state", () => {
       type: "ownershipMismatch",
       subject: "rejectedTransfer",
     });
-    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.messageId)).toEqual([
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
       "a",
       "b",
       "later",
@@ -414,7 +406,7 @@ describe("composer steer queue state", () => {
       messageId: "retained",
     });
     expect(rejected.state().rejectedSteersQueue).toMatchObject([
-      { intent: { messageId: "retained" } },
+      { intent: { message: { id: "retained" } } },
     ]);
   });
 
@@ -448,48 +440,30 @@ describe("composer steer queue state", () => {
       type: "ownershipMismatch",
       subject: "recoveryTransfer",
     });
-    expect(recovery.state().steerQueue.map(({ messageId }) => messageId)).toEqual([
+    expect(recovery.state().steerQueue.map(({ message }) => message.id)).toEqual([
       "recovery",
       "other",
     ]);
     const restored = issue(recovery);
     expect(restored.intent).toBe(required.transfer.intents[0]);
-    expect(restored.intent).toMatchObject({
-      messageId: "recovery",
-      threadId: "thread-a",
-      expectedTurnId: "turn-a",
-      clientUserMessageId: recoveryClaim.intent.clientUserMessageId,
-      source: "direct",
-    });
+    expect(restored.intent).toEqual(required.transfer.intents[0]);
   });
 
-  it("preserves the captured structured skill payload independently of the caller array", () => {
+  it("owns the complete captured message independently of the enqueue container", () => {
     const queue = createComposerSteerQueue();
     const input = steerInput("skill");
-    const callerInput: TurnSteerParams["input"] = [
-      { type: "text", text: "message skill", text_elements: [] },
-      { type: "skill", name: "skill-skill", path: "/skills/skill/SKILL.md" },
-    ];
 
-    queue.transition({ type: "enqueue", input: { ...input, input: callerInput } });
-    const callerText = callerInput[0];
-    if (callerText?.type === "text") {
-      callerText.text = "mutated text";
-      callerText.text_elements.push({ byteRange: { start: 0, end: 1 }, placeholder: "x" });
-    }
-    const callerSkill = callerInput[1];
-    if (callerSkill?.type === "skill") {
-      callerSkill.path = "/mutated/SKILL.md";
-    }
-    callerInput.splice(0, callerInput.length);
+    queue.transition({ type: "enqueue", input });
+    const queuedIntent = queue.state().steerQueue[0];
+    expect(queuedIntent?.message).toEqual(input.message);
+    expect(queuedIntent?.message).not.toBe(input.message);
+    expect(queuedIntent?.message.draft).toBe(input.message.draft);
+    expect(queuedIntent?.message.input).not.toBe(input.message.input);
     const claim = issue(queue);
     accept(queue, claim);
     queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });
 
-    expect(queue.state().rejectedSteersQueue[0]?.intent.input).toEqual([
-      { type: "text", text: "message skill", text_elements: [] },
-      { type: "skill", name: "skill-skill", path: "/skills/skill/SKILL.md" },
-    ]);
+    expect(queue.state().rejectedSteersQueue[0]?.intent).toEqual(claim.intent);
   });
 
   it("reads a bounded pending-then-queued window without exposing rejected entries", () => {
@@ -504,7 +478,7 @@ describe("composer steer queue state", () => {
     expect(queue.pendingInputCount()).toBe(3);
     expect(queue.readPendingInputs(0, 2).map(({ messageId }) => messageId)).toEqual(["a", "b"]);
     expect(queue.readPendingInputs(2, 2).map(({ messageId }) => messageId)).toEqual(["c"]);
-    expect(queue.findPendingInput("b")?.input).toEqual(steerInput("b").input);
+    expect(queue.findPendingInput("b")?.input).toEqual(steerInput("b").message.input);
 
     queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });
     expect(queue.pendingInputCount()).toBe(0);
