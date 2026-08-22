@@ -413,6 +413,7 @@ mod tests {
                 &config.codex_home,
                 outgoing,
             ),
+            /*turn_cost_worker*/ None,
             /*initial_config_warnings*/ Vec::new(),
         );
         let thread_id = thread_manager
