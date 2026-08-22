@@ -7,7 +7,7 @@ hide_table_of_contents: true
 
 # Codex GUI
 
-本页适用于当前 fork 的普通用户。
+本页适用于首次使用 Codex GUI 的普通用户。
 
 ## 1. 安装 Codex
 
@@ -23,11 +23,7 @@ npm install -g @jiangshengdev/codex@latest
 cdx
 ```
 
-## 3. 启动当前任务
-
-在 Codex 中发送一条消息，启动当前任务。
-
-## 4. 获取 GUI 地址
+## 3. 获取 GUI 地址
 
 输入：
 
@@ -37,6 +33,18 @@ cdx
 
 `/gui` 只会输出访问地址，不会自动打开浏览器。
 
-## 5. 打开 Codex GUI
+输出类似：
+
+```text
+Local: http://127.0.0.1:55426/task/01a02882-0483-7c03-9712-647a9fbb971b#token=YOUR_ACCESS_TOKEN
+LAN:   http://192.168.1.11:55426/task/01a02882-0483-7c03-9712-647a9fbb971b#token=YOUR_ACCESS_TOKEN
+```
+
+- 在运行 Codex 的电脑上访问时，使用 `Local`。
+- 从同一局域网内的其他设备访问时，使用 `LAN`。
+- 端口、任务 ID 和访问令牌每次可能不同，请以终端的实际输出为准。
+- 必须复制完整 URL，包括 `/task/...` 和 `#token=...`。访问令牌不要分享或公开。
+
+## 4. 打开 Codex GUI
 
 复制输出中的 `Local`，粘贴到浏览器地址栏并打开。
