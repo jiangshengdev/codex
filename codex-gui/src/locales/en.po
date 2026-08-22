@@ -18,32 +18,27 @@ msgid "... and {count} more"
 msgstr "... and {count} more"
 
 #. placeholder {0}: preview.audioCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:155
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:404
 msgid "{0, plural, one {# audio item} other {# audio items}}"
 msgstr "{0, plural, one {# audio item} other {# audio items}}"
 
 #. placeholder {0}: preview.imageCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:151
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:400
 msgid "{0, plural, one {# image} other {# images}}"
 msgstr "{0, plural, one {# image} other {# images}}"
 
 #. placeholder {0}: preview.mentionCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:163
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:412
 msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# mention} other {# mentions}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:101
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:100
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
-#. placeholder {0}: snapshot.queuedCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:88
-msgid "{0, plural, one {# message queued} other {# messages queued}}"
-msgstr "{0, plural, one {# message queued} other {# messages queued}}"
-
 #. placeholder {0}: preview.skillCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:159
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:408
 msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# skill} other {# skills}}"
 
@@ -95,6 +90,14 @@ msgstr "Back to history"
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:370
+msgid "Collapse"
+msgstr "Collapse"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:362
+msgid "Collapse pending message: {previewText}"
+msgstr "Collapse pending message: {previewText}"
+
 #. Accessible name for the region containing committed transcript turns
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:74
 msgid "Committed transcript"
@@ -142,7 +145,7 @@ msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {con
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:115
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:114
 msgid "Continue sending"
 msgstr "Continue sending"
 
@@ -156,7 +159,7 @@ msgstr "Continue this task"
 msgid "Current task"
 msgstr "Current task"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:68
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:80
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
@@ -180,6 +183,14 @@ msgstr "Error - Agent errored"
 msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:370
+msgid "Expand"
+msgstr "Expand"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:363
+msgid "Expand pending message: {previewText}"
+msgstr "Expand pending message: {previewText}"
+
 #. Status chip for a failed turn
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:858
 msgid "Failed"
@@ -198,15 +209,19 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:287
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:300
 msgid "Guide"
 msgstr "Guide"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:39
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:195
+msgid "Guide {guidingCount}"
+msgstr "Guide {guidingCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:60
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:31
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:279
 msgid "Guiding"
 msgstr "Guiding"
 
@@ -256,7 +271,7 @@ msgstr "Interrupted <0/> <1/>"
 msgid "Interrupted."
 msgstr "Interrupted."
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:118
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -284,12 +299,12 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:243
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:254
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:260
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:230
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:241
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -341,14 +356,34 @@ msgstr "Open an active task in this browser tab before viewing its history."
 msgid "Page not found"
 msgstr "Page not found"
 
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:192
+msgid "Pending"
+msgstr "Pending"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:212
+msgid "Pending details"
+msgstr "Pending details"
+
 #. Status of a collaborating agent before initialization finishes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:116
 msgid "Pending init"
 msgstr "Pending init"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:127
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:126
 msgid "Pending messages"
 msgstr "Pending messages"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:184
+msgid "Pending: Guide {guidingCount}"
+msgstr "Pending: Guide {guidingCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:182
+msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
+msgstr "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:185
+msgid "Pending: Queued {ordinaryQueuedCount}"
+msgstr "Pending: Queued {ordinaryQueuedCount}"
 
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:68
 msgid "Previous"
@@ -366,6 +401,14 @@ msgstr "QR access is unavailable until the GUI launch token is ready."
 #: src/features/qrAccess/QrAccessPopover.tsx:52
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:279
+msgid "Queued"
+msgstr "Queued"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:200
+msgid "Queued {ordinaryQueuedCount}"
+msgstr "Queued {ordinaryQueuedCount}"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
 msgid "Read-only history"
@@ -409,7 +452,7 @@ msgstr "Running"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:299
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:312
 msgid "Send"
 msgstr "Send"
 
@@ -417,6 +460,18 @@ msgstr "Send"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:263
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:307
+msgid "Show more"
+msgstr "Show more"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:300
+msgid "Show more guiding messages"
+msgstr "Show more guiding messages"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:300
+msgid "Show more queued messages"
+msgstr "Show more queued messages"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:378
 msgid "Showing saved skills because refresh failed"
@@ -461,15 +516,15 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:275
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:288
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:266
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:279
 msgid "Stop failed"
 msgstr "Stop failed"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:169
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:418
 msgid "Structured input"
 msgstr "Structured input"
 
@@ -550,6 +605,6 @@ msgstr "Waiting for {receiverCount} agents"
 msgid "Waiting for agents"
 msgstr "Waiting for agents"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:61
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:73
 msgid "Will send first"
 msgstr "Will send first"

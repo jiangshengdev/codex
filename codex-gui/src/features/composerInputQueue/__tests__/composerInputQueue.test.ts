@@ -57,7 +57,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 0,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: { type: "safe" },
@@ -83,7 +83,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 0,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -166,7 +166,7 @@ describe("composer input queue", () => {
     expect(activeQueue.view()).toEqual({
       ordinaryQueuedCount: 1,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: activeQueue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -184,7 +184,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 1,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -202,7 +202,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 2,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -220,7 +220,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 1,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -238,7 +238,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 0,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -327,7 +327,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 0,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -342,7 +342,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 1,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -360,7 +360,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 1,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -526,7 +526,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 1,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -544,7 +544,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 0,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -705,7 +705,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 2,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -938,7 +938,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 2,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -957,7 +957,7 @@ describe("composer input queue", () => {
     expect(queue.view()).toEqual({
       ordinaryQueuedCount: 1,
       guidingCount: 0,
-      detailRevision: expect.any(Number),
+      detailRevision: queue.detailRevision(),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {

@@ -9,6 +9,8 @@ const guiHostClientMock = vi.hoisted(() => ({
 }));
 
 const validThreadId = "11111111-2222-3333-4444-555555555555";
+const unsupportedQueryError = "Query parameters are not supported";
+const routeMatchWarning = "Warning: Error in route match: __root__/";
 
 vi.mock("@/features/guiHost/guiHostClient", () => ({
   startGuiHostConnection: guiHostClientMock.startGuiHostConnection,
@@ -55,33 +57,63 @@ beforeEach(() => {
 });
 
 test.each([
-  "/",
-  "/task",
-  `/task/${validThreadId}/extra`,
-  `/history/${validThreadId}/extra`,
-  "/task/not-a-uuid",
-  "/history/not-a-uuid",
-  `/task/${validThreadId}?threadId=legacy`,
-  "/history?anything=value",
-  `/history/${validThreadId}?empty`,
-])("rejects invalid URL %s before starting a GUI host connection", async (initialEntry) => {
-  const router = createAppRouter(createMemoryHistory({ initialEntries: [initialEntry] }));
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  { initialEntry: "/", expectedErrors: [], expectedWarnings: [] },
+  { initialEntry: "/task", expectedErrors: [], expectedWarnings: [] },
+  { initialEntry: `/task/${validThreadId}/extra`, expectedErrors: [], expectedWarnings: [] },
+  { initialEntry: `/history/${validThreadId}/extra`, expectedErrors: [], expectedWarnings: [] },
+  { initialEntry: "/task/not-a-uuid", expectedErrors: [], expectedWarnings: [] },
+  { initialEntry: "/history/not-a-uuid", expectedErrors: [], expectedWarnings: [] },
+  {
+    initialEntry: `/task/${validThreadId}?threadId=legacy`,
+    expectedErrors: [unsupportedQueryError],
+    expectedWarnings: [routeMatchWarning],
+  },
+  {
+    initialEntry: "/history?anything=value",
+    expectedErrors: [unsupportedQueryError],
+    expectedWarnings: [routeMatchWarning],
+  },
+  {
+    initialEntry: `/history/${validThreadId}?empty`,
+    expectedErrors: [unsupportedQueryError],
+    expectedWarnings: [routeMatchWarning],
+  },
+])(
+  "rejects invalid URL $initialEntry before starting a GUI host connection",
+  async ({ initialEntry, expectedErrors, expectedWarnings }) => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-  await expect
-    .element(screen.getByRole("heading", { level: 1, name: "Page not found" }))
-    .toBeVisible();
-  expect(guiHostClientMock.startGuiHostConnection).not.toHaveBeenCalled();
+    try {
+      const router = createAppRouter(createMemoryHistory({ initialEntries: [initialEntry] }));
+      const screen = await renderWithProviders(<RouterProvider router={router} />);
 
-  const originalUrl = new URL(initialEntry, "https://codex.test");
-  expect({
-    pathname: router.state.location.pathname,
-    search: router.state.location.search,
-  }).toEqual({
-    pathname: originalUrl.pathname,
-    search: Object.fromEntries(originalUrl.searchParams),
-  });
-});
+      await expect
+        .element(screen.getByRole("heading", { level: 1, name: "Page not found" }))
+        .toBeVisible();
+      expect(guiHostClientMock.startGuiHostConnection).not.toHaveBeenCalled();
+
+      const originalUrl = new URL(initialEntry, "https://codex.test");
+      expect({
+        pathname: router.state.location.pathname,
+        search: router.state.location.search,
+      }).toEqual({
+        pathname: originalUrl.pathname,
+        search: Object.fromEntries(originalUrl.searchParams),
+      });
+      expect(consoleError).toHaveBeenCalledTimes(expectedErrors.length);
+      expect(
+        consoleError.mock.calls.flatMap((args) =>
+          args.filter((argument) => argument instanceof Error).map((error) => error.message),
+        ),
+      ).toEqual(expectedErrors);
+      expect(consoleWarn.mock.calls).toEqual(expectedWarnings.map((warning) => [warning]));
+    } finally {
+      consoleError.mockRestore();
+      consoleWarn.mockRestore();
+    }
+  },
+);
 
 test.each([
   [

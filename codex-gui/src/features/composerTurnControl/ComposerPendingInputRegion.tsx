@@ -1,11 +1,19 @@
 import { Button, Chip, Separator, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
-import { Fragment, type ReactNode } from "react";
-import type { ComposerInputPreview } from "@/features/composerInputQueue/composerInputPreview";
-import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { Fragment, type ReactNode, useCallback, useState } from "react";
+import type {
+  ComposerInputQueueCoordinator,
+  ComposerInputQueueCoordinatorSnapshot,
+} from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import {
+  ComposerInputPreviewContent,
+  ComposerPendingInputDrawer,
+} from "./ComposerPendingInputDrawer";
 
 export type ComposerPendingInputRegionProps = Readonly<{
   canRecover: boolean;
+  controller: ComposerInputQueueCoordinator | null;
+  onFocusComposer: () => void;
   onRecover: () => void;
   recoveryDescriptionId: string;
   snapshot: ComposerInputQueueCoordinatorSnapshot;
@@ -13,40 +21,44 @@ export type ComposerPendingInputRegionProps = Readonly<{
 
 export function ComposerPendingInputRegion({
   canRecover,
+  controller,
+  onFocusComposer,
   onRecover,
   recoveryDescriptionId,
   snapshot,
 }: ComposerPendingInputRegionProps) {
   const { t } = useLingui();
-  const guideItems = [...snapshot.pendingSteers, ...snapshot.queuedSteers];
+  const [isDrawerPresent, setIsDrawerPresent] = useState(false);
+  const onDrawerPresenceChange = useCallback((isPresent: boolean): void => {
+    setIsDrawerPresent(isPresent);
+  }, []);
   const groups: { key: string; node: ReactNode }[] = [];
+  const hasNormalPending =
+    controller != null && (snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0);
 
-  if (guideItems.length > 0) {
+  if (hasNormalPending || isDrawerPresent) {
     groups.push({
-      key: "guiding",
+      key: "normal",
       node: (
-        <div className="grid min-w-0 gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-medium">
-              <Trans>Guiding</Trans>
-            </h3>
-            <Chip size="sm" variant="secondary">
-              {guideItems.length}
-            </Chip>
-          </div>
-          {snapshot.hasUnknownSteer ? (
-            <p className="text-sm text-warning" role="status">
-              <Trans>Guide status unknown</Trans>
-            </p>
-          ) : null}
-          <ul className="grid min-w-0 gap-2">
-            {guideItems.map((item) => (
-              <li className="min-w-0" key={item.key}>
-                <Preview preview={item.preview} />
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ComposerPendingInputDrawer
+          controller={controller}
+          detailRevision={snapshot.detailRevision}
+          guidingCount={snapshot.guidingCount}
+          onFocusComposer={onFocusComposer}
+          onPresenceChange={onDrawerPresenceChange}
+          ordinaryQueuedCount={snapshot.ordinaryQueuedCount}
+        />
+      ),
+    });
+  }
+
+  if (snapshot.hasUnknownSteer) {
+    groups.push({
+      key: "unknown-steer",
+      node: (
+        <p className="text-sm text-warning" role="status">
+          <Trans>Guide status unknown</Trans>
+        </p>
       ),
     });
   }
@@ -70,23 +82,10 @@ export function ComposerPendingInputRegion({
           <ul className="grid min-w-0 gap-2">
             {snapshot.rejectedSteers.map((item) => (
               <li className="min-w-0" key={item.key}>
-                <Preview preview={item.preview} />
+                <ComposerInputPreviewContent preview={item.preview} />
               </li>
             ))}
           </ul>
-        </div>
-      ),
-    });
-  }
-
-  if (snapshot.queuedCount > 0) {
-    groups.push({
-      key: "ordinary",
-      node: (
-        <div className="flex items-center gap-2">
-          <Chip size="sm" variant="tertiary">
-            <Plural value={snapshot.queuedCount} one="# message queued" other="# messages queued" />
-          </Chip>
         </div>
       ),
     });
@@ -134,39 +133,5 @@ export function ComposerPendingInputRegion({
         ))}
       </Surface>
     </section>
-  );
-}
-
-function Preview({ preview }: Readonly<{ preview: ComposerInputPreview }>) {
-  if (preview.type === "text") {
-    return (
-      <p className="min-w-0 line-clamp-3 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
-        {preview.text}
-      </p>
-    );
-  }
-
-  const counts: ReactNode[] = [];
-  if (preview.imageCount > 0) {
-    counts.push(<Plural key="images" value={preview.imageCount} one="# image" other="# images" />);
-  }
-  if (preview.audioCount > 0) {
-    counts.push(
-      <Plural key="audio" value={preview.audioCount} one="# audio item" other="# audio items" />,
-    );
-  }
-  if (preview.skillCount > 0) {
-    counts.push(<Plural key="skills" value={preview.skillCount} one="# skill" other="# skills" />);
-  }
-  if (preview.mentionCount > 0) {
-    counts.push(
-      <Plural key="mentions" value={preview.mentionCount} one="# mention" other="# mentions" />,
-    );
-  }
-
-  return (
-    <p className="flex min-w-0 flex-wrap gap-x-2 text-sm [overflow-wrap:anywhere]">
-      {counts.length === 0 ? <Trans>Structured input</Trans> : counts}
-    </p>
   );
 }
