@@ -43,6 +43,7 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type {
   ComposerPendingInputLane,
   ComposerPendingInputPageItem,
@@ -1629,9 +1630,9 @@ test("App keeps a local Stop paused until explicit rejected-first and ordinary F
     .poll(() => interruptTurn.mock.calls)
     .toEqual([[{ threadId: launchThreadId, turnId: activeTurn.id }]]);
   await expect.poll(() => queueCoordinator.getSnapshot().interrupt).toEqual({ phase: "accepted" });
-  expect(
-    queueCoordinator.submitSteer([{ type: "text", text: "Rejected steer", text_elements: [] }]),
-  ).toEqual({ type: "accepted" });
+  expect(queueCoordinator.submitSteer(composerDraftCapture("Rejected steer"))).toEqual({
+    type: "accepted",
+  });
   await expect
     .poll(() => queueCoordinator.getSnapshot().recovery)
     .toEqual({
@@ -1764,11 +1765,9 @@ test("App auto-recovers a non-local interruption rejected-first before ordinary 
 
   await composer.fill("Ordinary after non-local interruption");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  expect(
-    queueCoordinator.submitSteer([
-      { type: "text", text: "Non-local rejected steer", text_elements: [] },
-    ]),
-  ).toEqual({ type: "accepted" });
+  expect(queueCoordinator.submitSteer(composerDraftCapture("Non-local rejected steer"))).toEqual({
+    type: "accepted",
+  });
   await expect
     .poll(() => queueCoordinator.getSnapshot().recovery)
     .toEqual({

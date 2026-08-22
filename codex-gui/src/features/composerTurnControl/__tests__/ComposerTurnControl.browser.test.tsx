@@ -616,9 +616,16 @@ test("requires the queue controller owner to match the Redux current thread for 
   await send.click();
 
   expect(harness.interruptActiveTurn).toHaveBeenCalledExactlyOnceWith();
-  expect(harness.submit).toHaveBeenCalledExactlyOnceWith([
-    { type: "text", text: "Identity-gated draft", text_elements: [] },
-  ]);
+  expect(harness.submit).toHaveBeenCalledOnce();
+  const submittedCapture = harness.submit.mock.calls.at(0)?.at(0);
+  if (submittedCapture == null) throw new Error("ordinary submit must receive a composer capture");
+  expect(harness.submit).toHaveBeenCalledExactlyOnceWith(submittedCapture);
+  expect(submittedCapture.draft).toBeDefined();
+  expect(submittedCapture).toMatchObject({
+    input: [{ type: "text", text: "Identity-gated draft", text_elements: [] }],
+    textContent: "Identity-gated draft",
+    selectedSkillPaths: [],
+  });
 });
 
 test("marks a skill invalid only when a complete ready catalog confirms its path is unavailable", async () => {
@@ -947,9 +954,16 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
   await userEvent.unhover(guide);
   await guide.click();
 
-  expect(harness.submitSteer).toHaveBeenCalledExactlyOnceWith([
-    { type: "text", text: "Guide this turn", text_elements: [] },
-  ]);
+  expect(harness.submitSteer).toHaveBeenCalledOnce();
+  const submittedCapture = harness.submitSteer.mock.calls.at(0)?.at(0);
+  if (submittedCapture == null) throw new Error("guide submit must receive a composer capture");
+  expect(harness.submitSteer).toHaveBeenCalledExactlyOnceWith(submittedCapture);
+  expect(submittedCapture.draft).toBeDefined();
+  expect(submittedCapture).toMatchObject({
+    input: [{ type: "text", text: "Guide this turn", text_elements: [] }],
+    textContent: "Guide this turn",
+    selectedSkillPaths: [],
+  });
   expect(harness.submit).not.toHaveBeenCalled();
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
@@ -986,9 +1000,16 @@ test("routes guide shortcuts by draft presence while ordinary Enter stays ordina
 
   await composer.fill("Explicit guide");
   dispatchGuideShortcut(composer.element());
-  expect(harness.submitSteer).toHaveBeenCalledExactlyOnceWith([
-    { type: "text", text: "Explicit guide", text_elements: [] },
-  ]);
+  expect(harness.submitSteer).toHaveBeenCalledOnce();
+  const guideCapture = harness.submitSteer.mock.calls.at(0)?.at(0);
+  if (guideCapture == null) throw new Error("guide shortcut must submit a composer capture");
+  expect(harness.submitSteer).toHaveBeenCalledExactlyOnceWith(guideCapture);
+  expect(guideCapture.draft).toBeDefined();
+  expect(guideCapture).toMatchObject({
+    input: [{ type: "text", text: "Explicit guide", text_elements: [] }],
+    textContent: "Explicit guide",
+    selectedSkillPaths: [],
+  });
   expect(harness.promoteOrdinaryFrontToSteer).not.toHaveBeenCalled();
   expect(harness.submit).not.toHaveBeenCalled();
   await expect
@@ -1002,9 +1023,16 @@ test("routes guide shortcuts by draft presence while ordinary Enter stays ordina
   await composer.fill("Ordinary next turn");
   await composer.click();
   await screen.user.keyboard("{Enter}");
-  expect(harness.submit).toHaveBeenCalledExactlyOnceWith([
-    { type: "text", text: "Ordinary next turn", text_elements: [] },
-  ]);
+  expect(harness.submit).toHaveBeenCalledOnce();
+  const ordinaryCapture = harness.submit.mock.calls.at(0)?.at(0);
+  if (ordinaryCapture == null) throw new Error("ordinary Enter must submit a composer capture");
+  expect(harness.submit).toHaveBeenCalledExactlyOnceWith(ordinaryCapture);
+  expect(ordinaryCapture.draft).toBeDefined();
+  expect(ordinaryCapture).toMatchObject({
+    input: [{ type: "text", text: "Ordinary next turn", text_elements: [] }],
+    textContent: "Ordinary next turn",
+    selectedSkillPaths: [],
+  });
   expect(harness.submitSteer).toHaveBeenCalledTimes(1);
 });
 

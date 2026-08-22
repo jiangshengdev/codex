@@ -1,6 +1,5 @@
 import { Button, Surface, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { $getRoot } from "lexical";
 import {
   useCallback,
   useEffect,
@@ -18,8 +17,7 @@ import {
   type ComposerEditorSnapshot,
   type ComposerEditorSubmitIntent,
 } from "@/features/composerEditor/ComposerEditor";
-import { $isSkillNode } from "@/features/composerEditor/SkillNode";
-import { compileComposerDraft } from "@/features/composerEditor/compileComposerDraft";
+import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
 import type {
   ComposerInputQueueCoordinator,
   ComposerInputQueueCoordinatorSnapshot,
@@ -111,7 +109,7 @@ export function ComposerTurnControl({
     () =>
       invalidSelectedSkillPaths(
         skillCatalog,
-        editorSnapshot == null ? [] : selectedSkillPaths(editorSnapshot),
+        editorSnapshot?.selectedSkillPaths ?? [],
       ),
     [editorSnapshot, skillCatalog],
   );
@@ -157,24 +155,24 @@ export function ComposerTurnControl({
   useRevealComposerOnViewportResize(composerShellRef);
 
   const submit = (
-    requestedSnapshot?: ComposerEditorSnapshot,
+    requestedCapture?: ComposerDraftCapture,
     intent: ComposerEditorSubmitIntent = "ordinary",
   ): void => {
     const isSubmitting = isSubmittingRef.current;
-    const submittedSnapshot = requestedSnapshot ?? composerEditorController?.getSnapshot() ?? null;
+    const submittedCapture = requestedCapture ?? composerEditorController?.capture() ?? null;
     const submittedGuideControl = composerGuideControlState({
       activeTurnId,
       connectionUsable,
       controllerMatchesCurrentThread,
-      draftText: submittedSnapshot?.textContent ?? "",
+      draftText: submittedCapture?.textContent ?? "",
       isSending: isSubmitting,
       recoveryCount: queueSnapshot.recoveryCount,
       selectedSkillsValid:
-        submittedSnapshot == null ||
-        invalidSelectedSkillPaths(skillCatalog, selectedSkillPaths(submittedSnapshot)).size === 0,
+        submittedCapture == null ||
+        invalidSelectedSkillPaths(skillCatalog, submittedCapture.selectedSkillPaths).size === 0,
     });
     if (
-      submittedSnapshot == null ||
+      submittedCapture == null ||
       composerEditorController == null ||
       composerInputQueueController == null ||
       isSubmitting
@@ -182,7 +180,7 @@ export function ComposerTurnControl({
       return;
     }
 
-    if (intent === "guide" && submittedSnapshot.textContent.trim().length === 0) {
+    if (intent === "guide" && submittedCapture.textContent.trim().length === 0) {
       if (submittedGuideControl.shortcutEnabled) {
         composerInputQueueController.promoteOrdinaryFrontToSteer();
       }
@@ -195,26 +193,25 @@ export function ComposerTurnControl({
         : canSend({
             connectionUsable,
             controllerReady: controllerMatchesCurrentThread,
-            draftText: submittedSnapshot.textContent,
+            draftText: submittedCapture.textContent,
             isSending: isSubmitting,
             recoveryCount: queueSnapshot.recoveryCount,
             selectedSkillsValid:
-              invalidSelectedSkillPaths(skillCatalog, selectedSkillPaths(submittedSnapshot))
-                .size === 0,
+              invalidSelectedSkillPaths(skillCatalog, submittedCapture.selectedSkillPaths).size ===
+              0,
           });
     if (!submissionEnabled) {
       return;
     }
 
-    const input = compileComposerDraft(submittedSnapshot.editorState);
     isSubmittingRef.current = true;
     setIsSending(true);
     const result =
       intent === "guide"
-        ? composerInputQueueController.submitSteer(input)
-        : composerInputQueueController.submit(input);
+        ? composerInputQueueController.submitSteer(submittedCapture)
+        : composerInputQueueController.submit(submittedCapture);
     if (result.type === "accepted") {
-      composerEditorController.clearIfSame(submittedSnapshot.editorState);
+      composerEditorController.clearIfCurrent(submittedCapture);
     }
     queueMicrotask(() => {
       isSubmittingRef.current = false;
@@ -415,12 +412,3 @@ const getUnavailableQueueSnapshot = (): ComposerInputQueueCoordinatorSnapshot =>
   unavailableQueueSnapshot;
 const subscribeUnavailableEditor = (): (() => void) => () => undefined;
 const getUnavailableEditorSnapshot = (): null => null;
-
-function selectedSkillPaths(snapshot: ComposerEditorSnapshot): string[] {
-  return snapshot.editorState.read(() =>
-    $getRoot()
-      .getAllTextNodes()
-      .filter($isSkillNode)
-      .map((node) => node.getSkill().path),
-  );
-}

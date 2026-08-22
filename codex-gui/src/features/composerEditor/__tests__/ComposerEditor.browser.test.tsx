@@ -215,28 +215,32 @@ test.each([
         .toBe("Guide this");
       dispatchEnterShortcut(editor.element(), guideModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("Guide this");
-      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("guide");
+      const guideCall = onSubmit.mock.calls.at(-1);
+      expect(guideCall?.[0].textContent).toBe("Guide this");
+      expect(guideCall?.[1]).toBe("guide");
 
       onSubmit.mockClear();
       dispatchEnterShortcut(editor.element(), ordinaryModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("Guide this");
-      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("ordinary");
+      const ordinaryCall = onSubmit.mock.calls.at(-1);
+      expect(ordinaryCall?.[0].textContent).toBe("Guide this");
+      expect(ordinaryCall?.[1]).toBe("ordinary");
 
       onSubmit.mockClear();
       dispatchEnterShortcut(editor.element(), { ...guideModifiers, altKey: true });
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("Guide this");
-      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("ordinary");
+      const modifiedCall = onSubmit.mock.calls.at(-1);
+      expect(modifiedCall?.[0].textContent).toBe("Guide this");
+      expect(modifiedCall?.[1]).toBe("ordinary");
 
       onSubmit.mockClear();
       await editor.fill("");
       await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
       dispatchEnterShortcut(editor.element(), guideModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("");
-      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("guide");
+      const emptyGuideCall = onSubmit.mock.calls.at(-1);
+      expect(emptyGuideCall?.[0].textContent).toBe("");
+      expect(emptyGuideCall?.[1]).toBe("guide");
 
       onSubmit.mockClear();
       await editor.fill("Line");
@@ -657,7 +661,7 @@ test("consumes only the first Enter immediately following composition end", asyn
 test("applies composition-end suppression before the guide shortcut intent", async () => {
   await withNavigatorPlatform("MacIntel", async () => {
     const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
-    const { controllerRef, screen } = await renderEditor([], {
+    const { screen } = await renderEditor([], {
       guardCompositionEndEnter: true,
       onSubmit,
     });
@@ -672,8 +676,9 @@ test("applies composition-end suppression before the guide shortcut intent", asy
 
     dispatchEnterShortcut(root, { metaKey: true });
     expect(onSubmit).toHaveBeenCalledOnce();
-    expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("中文");
-    expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("guide");
+    const guideCall = onSubmit.mock.calls.at(-1);
+    expect(guideCall?.[0].textContent).toBe("中文");
+    expect(guideCall?.[1]).toBe("guide");
   });
 });
 

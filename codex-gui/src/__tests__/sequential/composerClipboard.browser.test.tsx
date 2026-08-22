@@ -1,6 +1,5 @@
 import { useState, type CSSProperties } from "react";
 import { expect, test, vi } from "vitest";
-import { compileComposerDraft } from "@/features/composerEditor/compileComposerDraft";
 import {
   ComposerEditor,
   type ComposerEditorController,
@@ -54,7 +53,7 @@ test("same-namespace copy and paste preserves skill identity without external le
   await harness.screen.user.paste();
   await expect.element(target).toHaveTextContent(`$${displayName}`);
   await expect
-    .poll(() => compileComposerDraft(harness.targetController().getSnapshot().editorState))
+    .poll(() => harness.targetController().capture().input)
     .toEqual([
       { type: "text", text: `$${canonicalName}`, text_elements: [] },
       { type: "skill", name: canonicalName, path: skillPath },
@@ -74,7 +73,7 @@ test("external canonical-looking plain text pastes as ordinary text", async () =
 
   await expect.element(target).toHaveTextContent(`$${canonicalName}`);
   await expect
-    .poll(() => compileComposerDraft(harness.targetController().getSnapshot().editorState))
+    .poll(() => harness.targetController().capture().input)
     .toEqual([{ type: "text", text: `$${canonicalName}`, text_elements: [] }]);
 });
 

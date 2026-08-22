@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AppDispatch } from "@/app/store";
+import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import * as composerInputQueueCoordinator from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
@@ -106,9 +107,7 @@ describe("activeThreadOwner skill catalog", () => {
     await Promise.resolve();
 
     expect(
-      prepared.activeOwner.queueCoordinator.submit([
-        { type: "text", text: "after dispose", text_elements: [] },
-      ]),
+      prepared.activeOwner.queueCoordinator.submit(composerCapture("after dispose")),
     ).toEqual({
       type: "rejected",
       reason: "disposed",

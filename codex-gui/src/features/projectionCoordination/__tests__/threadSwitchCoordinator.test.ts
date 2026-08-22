@@ -1,9 +1,9 @@
 import type { UnknownAction } from "@reduxjs/toolkit";
-import type { TurnStartParams } from "@codex-protocol/v2";
 import { describe, expect, it, vi } from "vitest";
 import type { AppDispatch } from "@/app/store";
 import { makeStore } from "@/app/store";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinatorReleaseReservation,
@@ -36,9 +36,6 @@ import { ThreadSwitchCoordinator } from "../threadSwitchCoordinator";
 const oldThreadId = attachBaseline.snapshot.thread.id;
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
 type AttachResponse = Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>;
-const input = (text: string): TurnStartParams["input"] => [
-  { type: "text", text, text_elements: [] },
-];
 const emptySkillCatalogState: SkillCatalogState = {
   type: "ready",
   candidates: [],
@@ -371,7 +368,7 @@ describe("ThreadSwitchCoordinator", () => {
       }
       if (phase === "attach") await Promise.resolve();
 
-      expect(h.queueCoordinator.submit(input("blocked during switch"))).toEqual({
+      expect(h.queueCoordinator.submit(composerCapture("blocked during switch"))).toEqual({
         type: "rejected",
         reason: "releaseReserved",
       });

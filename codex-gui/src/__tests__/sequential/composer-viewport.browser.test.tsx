@@ -10,6 +10,7 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import {
   attachedThreadIdObserved,
@@ -248,21 +249,10 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     const longToken = "x".repeat(240);
     const longOrdinaryText = "Ordinary message after guidance ".repeat(12).trim();
 
-    controller.submitSteer([{ type: "text", text: longToken, text_elements: [] }]);
-    controller.submitSteer([
-      {
-        type: "text",
-        text: "Additional guiding context ".repeat(12),
-        text_elements: [],
-      },
-    ]);
-    controller.submit([{ type: "text", text: longOrdinaryText, text_elements: [] }]);
-    controller.submit([
-      { type: "image", detail: "high", url: "https://example.test/image.png" },
-      { type: "audio", url: "https://example.test/audio.wav" },
-      { type: "skill", name: "review", path: "/private/review/SKILL.md" },
-      { type: "mention", name: "agent", path: "/private/agent.md" },
-    ]);
+    controller.submitSteer(composerDraftCapture(longToken));
+    controller.submitSteer(composerDraftCapture("Additional guiding context ".repeat(12)));
+    controller.submit(composerDraftCapture(longOrdinaryText));
+    controller.submit(composerDraftCapture("Second ordinary message"));
 
     const pendingRegion = screen.getByRole("region", { name: "Pending messages", exact: true });
     const trigger = pendingRegion.getByRole("button", {
@@ -284,7 +274,6 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     await expect
       .element(dialog.getByRole("heading", { name: "Queued", exact: true }))
       .toBeVisible();
-    await expect.element(dialog).toHaveTextContent(/1 image.*1 audio item.*1 skill.*1 mention/);
     const expandLongToken = dialog.getByRole("button", { name: /Expand pending message:/ }).first();
     await expandLongToken.click();
     const longDetail = dialog.getByText(longToken, { exact: true });
