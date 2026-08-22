@@ -18,32 +18,32 @@ msgid "... and {count} more"
 msgstr "…另有 {count} 项"
 
 #. placeholder {0}: preview.audioCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:155
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:391
 msgid "{0, plural, one {# audio item} other {# audio items}}"
 msgstr "{0, plural, one {# 段音频} other {# 段音频}}"
 
 #. placeholder {0}: preview.imageCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:151
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:387
 msgid "{0, plural, one {# image} other {# images}}"
 msgstr "{0, plural, one {# 张图片} other {# 张图片}}"
 
 #. placeholder {0}: preview.mentionCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:163
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:399
 msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# 个提及} other {# 个提及}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:101
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:100
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
 
 #. placeholder {0}: snapshot.queuedCount
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:88
-msgid "{0, plural, one {# message queued} other {# messages queued}}"
-msgstr "{0, plural, one {已排队 # 条} other {已排队 # 条}}"
+#~ msgid "{0, plural, one {# message queued} other {# messages queued}}"
+#~ msgstr "{0, plural, one {已排队 # 条} other {已排队 # 条}}"
 
 #. placeholder {0}: preview.skillCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:159
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:395
 msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# 个技能} other {# 个技能}}"
 
@@ -95,6 +95,15 @@ msgstr "返回历史记录"
 msgid "Closed {receiver}"
 msgstr "已关闭 {receiver}"
 
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:357
+msgid "Collapse"
+msgstr "收起"
+
+#. placeholder {0}: preview.text
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:349
+msgid "Collapse pending message: {0}"
+msgstr "收起待处理消息：{0}"
+
 #. Accessible name for the region containing committed transcript turns
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:74
 msgid "Committed transcript"
@@ -142,7 +151,7 @@ msgstr "上下文用量详情，已用 {percentageLabel}，{usedTokensLabel} / {
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗口容量未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:115
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:114
 msgid "Continue sending"
 msgstr "继续发送"
 
@@ -156,7 +165,7 @@ msgstr "继续此任务"
 msgid "Current task"
 msgstr "当前任务"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:68
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:80
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
@@ -180,6 +189,15 @@ msgstr "错误 - 智能体出错"
 msgid "Error - Agent resume failed"
 msgstr "错误 - 恢复智能体失败"
 
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:357
+msgid "Expand"
+msgstr "展开"
+
+#. placeholder {0}: preview.text
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:350
+msgid "Expand pending message: {0}"
+msgstr "展开待处理消息：{0}"
+
 #. Status chip for a failed turn
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:858
 msgid "Failed"
@@ -198,15 +216,19 @@ msgstr "等待结束"
 msgid "Go back home"
 msgstr "返回首页"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:287
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:300
 msgid "Guide"
 msgstr "引导"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:39
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:186
+msgid "Guide {guidingCount}"
+msgstr "引导 {guidingCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:60
 msgid "Guide status unknown"
 msgstr "引导状态未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:31
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:269
 msgid "Guiding"
 msgstr "引导中"
 
@@ -256,7 +278,7 @@ msgstr "已中断 <0/> <1/>"
 msgid "Interrupted."
 msgstr "已中断。"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:110
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:118
 msgid "Invalid skill"
 msgstr "无效技能"
 
@@ -284,12 +306,12 @@ msgstr "主导航"
 msgid "Menu"
 msgstr "菜单"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:243
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:249
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:254
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:260
 msgid "Message Codex"
 msgstr "向 Codex 发送消息"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:230
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:241
 msgid "Message composer"
 msgstr "消息输入区"
 
@@ -341,14 +363,34 @@ msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其
 msgid "Page not found"
 msgstr "找不到页面"
 
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:183
+msgid "Pending"
+msgstr "待处理"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:202
+msgid "Pending details"
+msgstr "待处理详情"
+
 #. Status of a collaborating agent before initialization finishes
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:116
 msgid "Pending init"
 msgstr "等待初始化"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:127
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:126
 msgid "Pending messages"
 msgstr "待处理消息"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:175
+msgid "Pending: Guide {guidingCount}"
+msgstr "待处理：引导 {guidingCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:173
+msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
+msgstr "待处理：引导 {guidingCount}，排队 {ordinaryQueuedCount}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:176
+msgid "Pending: Queued {ordinaryQueuedCount}"
+msgstr "待处理：排队 {ordinaryQueuedCount}"
 
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:68
 msgid "Previous"
@@ -366,6 +408,14 @@ msgstr "GUI 启动令牌尚未就绪，暂时无法通过二维码访问。"
 #: src/features/qrAccess/QrAccessPopover.tsx:52
 msgid "QR code for current GUI URL"
 msgstr "当前 GUI URL 的二维码。"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:269
+msgid "Queued"
+msgstr "已排队"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:191
+msgid "Queued {ordinaryQueuedCount}"
+msgstr "排队 {ordinaryQueuedCount}"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
 msgid "Read-only history"
@@ -409,7 +459,7 @@ msgstr "运行中"
 msgid "Scan with phone"
 msgstr "使用手机扫描"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:299
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:312
 msgid "Send"
 msgstr "发送"
 
@@ -417,6 +467,18 @@ msgstr "发送"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:263
 msgid "Sent input to {receiver}"
 msgstr "已向 {receiver} 发送输入"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:295
+msgid "Show more"
+msgstr "显示更多"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:290
+msgid "Show more guiding messages"
+msgstr "显示更多引导消息"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:290
+msgid "Show more queued messages"
+msgstr "显示更多排队消息"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:378
 msgid "Showing saved skills because refresh failed"
@@ -461,15 +523,15 @@ msgstr "已启动 {receiver}（{reasoningEffort}）"
 msgid "Started <0/> <1/>"
 msgstr "已启动 <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:275
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:288
 msgid "Stop"
 msgstr "停止"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:266
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:279
 msgid "Stop failed"
 msgstr "停止失败"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:169
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:405
 msgid "Structured input"
 msgstr "结构化输入"
 
@@ -550,6 +612,6 @@ msgstr "正在等待 {receiverCount} 个智能体"
 msgid "Waiting for agents"
 msgstr "正在等待智能体"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:61
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:73
 msgid "Will send first"
 msgstr "将优先发送"

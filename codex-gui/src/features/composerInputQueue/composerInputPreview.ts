@@ -1,4 +1,4 @@
-import type { UserInput } from "@codex-protocol/v2";
+import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
 
 const MAX_PREVIEW_GRAPHEMES = 160;
 const TRUNCATED_PREVIEW_GRAPHEMES = MAX_PREVIEW_GRAPHEMES - 3;
@@ -23,7 +23,7 @@ type ComposerInputSummary = Readonly<{
   mentionCount: number;
 }>;
 
-const summarizeComposerInput = (input: readonly UserInput[]): ComposerInputSummary => {
+const summarizeComposerInput = (input: ReadonlyComposerInputPayload): ComposerInputSummary => {
   const textParts: string[] = [];
   let imageCount = 0;
   let audioCount = 0;
@@ -65,7 +65,9 @@ const summarizeComposerInput = (input: readonly UserInput[]): ComposerInputSumma
   };
 };
 
-export const projectComposerInputPreview = (input: readonly UserInput[]): ComposerInputPreview => {
+export const projectComposerInputPreview = (
+  input: ReadonlyComposerInputPayload,
+): ComposerInputPreview => {
   const summary = summarizeComposerInput(input);
   if (summary.text.length > 0) {
     return { type: "text", ...truncatePreview(summary.text) };
@@ -80,7 +82,9 @@ export const projectComposerInputPreview = (input: readonly UserInput[]): Compos
   };
 };
 
-export const projectComposerInputTextDetail = (input: readonly UserInput[]): string | null => {
+export const projectComposerInputTextDetail = (
+  input: ReadonlyComposerInputPayload,
+): string | null => {
   const text = summarizeComposerInput(input).text;
   return text.length === 0 ? null : text;
 };
