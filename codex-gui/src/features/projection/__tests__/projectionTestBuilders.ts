@@ -54,6 +54,7 @@ export const agentMessage = (
   text,
   phase,
   memoryCitation: null,
+  delivery: null,
 });
 
 type ReasoningItem = Extract<ThreadItem, { type: "reasoning" }>;
