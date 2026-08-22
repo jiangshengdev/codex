@@ -1,7 +1,6 @@
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
 import { expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
-import { $getSelection, $isRangeSelection } from "lexical";
 
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
@@ -14,8 +13,8 @@ import {
   type ComposerEditorController,
   type ComposerEditorProps,
 } from "../ComposerEditor";
+import type { ComposerDraft } from "../composerDraft";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
-import { compileComposerDraft } from "../compileComposerDraft";
 
 test("opens a capped accessible skill list and keeps editor focus", async () => {
   const candidates = Array.from({ length: 25 }, (_, index) =>
@@ -119,18 +118,7 @@ test("replaces a query at a middle caret with canonical skill input without subm
   await editor.click();
   await expect.element(editor).toHaveFocus();
   setCollapsedCaret(editor.element(), "before $canonical after", 17);
-  await expect
-    .poll(() =>
-      getController(controllerRef)
-        .getSnapshot()
-        .editorState.read(() => {
-          const selection = $getSelection();
-          return $isRangeSelection(selection) && selection.isCollapsed()
-            ? selection.anchor.offset
-            : null;
-        }),
-    )
-    .toBe(17);
+  await expect.poll(() => collapsedCaretOffset(editor.element())).toBe(17);
   await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
   await screen.user.keyboard("{Enter}");
@@ -139,7 +127,7 @@ test("replaces a query at a middle caret with canonical skill input without subm
   await expect
     .poll(() => getController(controllerRef).getSnapshot().textContent)
     .toBe("before $Friendly after");
-  expect(compileComposerDraft(getController(controllerRef).getSnapshot().editorState)).toEqual([
+  expect(getController(controllerRef).capture().input).toEqual([
     {
       type: "text",
       text: "before $canonical-match after",
@@ -175,7 +163,7 @@ test("uses Tab to choose, Escape to close, and Shift Enter only to add a line br
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("Line\n");
 });
 
-test("submits plain text without letting Enter rewrite the editor snapshot", async () => {
+test("submits a plain-text capture without letting Enter rewrite the editor snapshot", async () => {
   const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor([], { onSubmit });
   const editor = screen.getByRole("combobox", { name: "Message" });
@@ -187,14 +175,14 @@ test("submits plain text without letting Enter rewrite the editor snapshot", asy
   await screen.user.keyboard("{Enter}");
 
   expect(onSubmit).toHaveBeenCalledOnce();
-  const submittedSnapshot = onSubmit.mock.calls[0]?.[0];
-  if (submittedSnapshot == null) {
-    throw new Error("plain text submit must provide an editor snapshot");
+  const submittedCapture = onSubmit.mock.calls[0]?.[0];
+  if (submittedCapture == null) {
+    throw new Error("plain text submit must provide a composer capture");
   }
-  expect(submittedSnapshot).toBe(snapshotBeforeSubmit);
   expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(getController(controllerRef).getSnapshot()).toBe(snapshotBeforeSubmit);
-  expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
+  expect(submittedCapture.textContent).toBe("Hello");
+  expect(submittedCapture.input).toEqual([
     { type: "text", text: "Hello", text_elements: [] },
   ]);
 });
@@ -225,28 +213,30 @@ test.each([
       await expect
         .poll(() => getController(controllerRef).getSnapshot().textContent)
         .toBe("Guide this");
-      const guideSnapshot = getController(controllerRef).getSnapshot();
       dispatchEnterShortcut(editor.element(), guideModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "guide");
+      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("Guide this");
+      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("guide");
 
       onSubmit.mockClear();
       dispatchEnterShortcut(editor.element(), ordinaryModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "ordinary");
+      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("Guide this");
+      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("ordinary");
 
       onSubmit.mockClear();
       dispatchEnterShortcut(editor.element(), { ...guideModifiers, altKey: true });
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "ordinary");
+      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("Guide this");
+      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("ordinary");
 
       onSubmit.mockClear();
       await editor.fill("");
       await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
-      const emptySnapshot = getController(controllerRef).getSnapshot();
       dispatchEnterShortcut(editor.element(), guideModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(emptySnapshot, "guide");
+      expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("");
+      expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("guide");
 
       onSubmit.mockClear();
       await editor.fill("Line");
@@ -506,6 +496,113 @@ test("keeps a skill token atomic across caret navigation, deletion, undo, and re
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
 });
 
+test("does not clear edits made after a composer capture", async () => {
+  const { controllerRef, screen } = await renderEditor([]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("captured");
+  await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("captured");
+  const capture = getController(controllerRef).capture();
+  await screen.user.keyboard(" later");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("captured later");
+
+  expect(getController(controllerRef).clearIfCurrent(capture)).toBe(false);
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("captured later");
+});
+
+test("restores a new editor session with the caret at the end and fresh history", async () => {
+  const selectedSkill = skill(
+    "canonical-restore",
+    "/skills/canonical-restore/SKILL.md",
+    "Restored Skill",
+  );
+  const { controllerRef, screen } = await renderEditor([selectedSkill]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$canonical");
+  await screen.user.keyboard("{Enter}");
+  await screen.user.keyboard(" tail");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+  const capture = getController(controllerRef).capture();
+  await editor.fill("old session");
+  await screen.user.keyboard("!");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("old session!");
+
+  expect(getController(controllerRef).restore(capture.draft)).toEqual({ type: "restored" });
+  await expect
+    .element(screen.getByText("$Restored Skill", { exact: true }))
+    .toBeInTheDocument();
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+  expect(getController(controllerRef).getSnapshot().selectedSkillPaths).toEqual([
+    selectedSkill.path,
+  ]);
+  expect(getController(controllerRef).capture().input).toEqual([
+    { type: "text", text: "$canonical-restore tail", text_elements: [] },
+    { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
+  ]);
+  await expect
+    .poll(() => {
+      const root = editor.element();
+      const textElements = root.querySelectorAll<HTMLElement>('[data-lexical-text="true"]');
+      const lastTextNode = textElements.item(textElements.length - 1).firstChild;
+      const selection = root.ownerDocument.getSelection();
+      return (
+        lastTextNode instanceof Text &&
+        selection?.isCollapsed === true &&
+        selection.anchorNode === lastTextNode &&
+        selection.anchorOffset === lastTextNode.length
+      );
+    })
+    .toBe(true);
+
+  dispatchHistoryShortcut(editor.element(), "undo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+
+  await screen.user.keyboard("!");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail!");
+  dispatchHistoryShortcut(editor.element(), "undo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+});
+
+test("rejects an invalid opaque draft without changing content or clearing history", async () => {
+  const { controllerRef, screen } = await renderEditor([]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("current");
+  await screen.user.keyboard(" draft");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("current draft");
+
+  expect(getController(controllerRef).restore({} as ComposerDraft)).toEqual({
+    type: "invalidDraft",
+  });
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("current draft");
+
+  dispatchHistoryShortcut(editor.element(), "undo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .not.toBe("current draft");
+});
+
 test("blocks query selection and submission during programmatic composition events", async () => {
   const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { screen } = await renderEditor([skill("alpha", "/alpha")], { onSubmit });
@@ -552,7 +649,7 @@ test("consumes only the first Enter immediately following composition end", asyn
   }
   expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(submittedSnapshot.textContent).toBe("中文");
-  expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
+  expect(submittedSnapshot.input).toEqual([
     { type: "text", text: "中文", text_elements: [] },
   ]);
 });
@@ -573,10 +670,10 @@ test("applies composition-end suppression before the guide shortcut intent", asy
     dispatchEnterShortcut(root, { metaKey: true });
     expect(onSubmit).not.toHaveBeenCalled();
 
-    const snapshot = getController(controllerRef).getSnapshot();
     dispatchEnterShortcut(root, { metaKey: true });
     expect(onSubmit).toHaveBeenCalledOnce();
-    expect(onSubmit).toHaveBeenLastCalledWith(snapshot, "guide");
+    expect(onSubmit.mock.calls.at(-1)?.at(0)?.textContent).toBe("中文");
+    expect(onSubmit.mock.calls.at(-1)?.at(1)).toBe("guide");
   });
 });
 
@@ -818,6 +915,19 @@ function setCollapsedCaret(root: Element, expectedText: string, offset: number):
   selection.removeAllRanges();
   selection.addRange(range);
   root.ownerDocument.dispatchEvent(new Event("selectionchange"));
+}
+
+function collapsedCaretOffset(root: Element): number | null {
+  const selection = root.ownerDocument.getSelection();
+  if (
+    selection == null ||
+    !selection.isCollapsed ||
+    selection.anchorNode == null ||
+    !root.contains(selection.anchorNode)
+  ) {
+    return null;
+  }
+  return selection.anchorOffset;
 }
 
 function firstTextCharacterRect(root: Element): DOMRect {
