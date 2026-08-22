@@ -7,7 +7,6 @@ import type {
 import type { ComposerInputPreview } from "./composerInputPreview";
 import type { InterruptTerminalDisposition } from "./composerInterruptState";
 import type {
-  PendingSteerPhase,
   RejectedSteer,
   RejectedSteerTransfer,
   SteerRecoveryTransfer,
@@ -23,6 +22,57 @@ export type ComposerQueueMessage = Readonly<{
   id: string;
   input: readonly TurnStartParams["input"][number][];
 }>;
+
+declare const composerPendingInputDisplayKeyBrand: unique symbol;
+declare const composerPendingInputCursorBrand: unique symbol;
+
+export type ComposerPendingInputLane = "ordinary" | "steer";
+
+export type ComposerPendingInputDisplayKey = string &
+  Readonly<{ [composerPendingInputDisplayKeyBrand]: true }>;
+
+export type ComposerPendingInputCursor = Readonly<{
+  [composerPendingInputCursorBrand]: true;
+}>;
+
+export type ComposerPendingInputPageItem = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  lane: ComposerPendingInputLane;
+  preview: ComposerInputPreview;
+}>;
+
+export type ComposerPendingInputPageRequest = Readonly<{
+  lane: ComposerPendingInputLane;
+  revision: number;
+  cursor: ComposerPendingInputCursor | null;
+  limit: number;
+}>;
+
+export type ComposerPendingInputPageResult =
+  | Readonly<{
+      type: "page";
+      revision: number;
+      items: readonly ComposerPendingInputPageItem[];
+      nextCursor: ComposerPendingInputCursor | null;
+    }>
+  | Readonly<{ type: "stale"; revision: number }>
+  | Readonly<{ type: "unavailable" }>;
+
+export type ComposerPendingInputDetailRequest = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  revision: number;
+}>;
+
+export type ComposerPendingInputDetailResult =
+  | Readonly<{
+      type: "detail";
+      key: ComposerPendingInputDisplayKey;
+      revision: number;
+      text: string;
+    }>
+  | Readonly<{ type: "missing"; revision: number }>
+  | Readonly<{ type: "stale"; revision: number }>
+  | Readonly<{ type: "unavailable" }>;
 
 export type ComposerInterruptedDisposition = InterruptTerminalDisposition;
 
@@ -112,17 +162,6 @@ export type ComposerInputQueueReleaseState =
   | Readonly<{ type: "safe" }>
   | Readonly<{ type: "blocked"; blockers: readonly ComposerInputQueueReleaseBlocker[] }>;
 
-export type ComposerPendingSteerView = Readonly<{
-  key: string;
-  preview: ComposerInputPreview;
-  phase: PendingSteerPhase;
-}>;
-
-export type ComposerQueuedSteerView = Readonly<{
-  key: string;
-  preview: ComposerInputPreview;
-}>;
-
 export type ComposerRejectedSteerView = Readonly<{
   key: string;
   preview: ComposerInputPreview;
@@ -130,9 +169,9 @@ export type ComposerRejectedSteerView = Readonly<{
 }>;
 
 export type ComposerInputQueueView = Readonly<{
-  queuedCount: number;
-  pendingSteers: readonly ComposerPendingSteerView[];
-  queuedSteers: readonly ComposerQueuedSteerView[];
+  ordinaryQueuedCount: number;
+  guidingCount: number;
+  detailRevision: number;
   rejectedSteers: readonly ComposerRejectedSteerView[];
   hasUnknownSteer: boolean;
   releaseState: ComposerInputQueueReleaseState;

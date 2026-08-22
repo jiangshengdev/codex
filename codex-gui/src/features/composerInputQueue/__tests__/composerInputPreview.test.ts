@@ -1,7 +1,10 @@
 import type { UserInput } from "@codex-protocol/v2";
 import { describe, expect, it } from "vitest";
 
-import { projectComposerInputPreview } from "../composerInputPreview";
+import {
+  projectComposerInputPreview,
+  projectComposerInputTextDetail,
+} from "../composerInputPreview";
 
 const textInput = (text: string): UserInput => ({
   type: "text",
@@ -18,6 +21,7 @@ describe("composer input preview", () => {
     expect(projectComposerInputPreview([textInput("a".repeat(length))])).toEqual({
       type: "text",
       text: expected,
+      truncated: length > 160,
     });
   });
 
@@ -28,6 +32,7 @@ describe("composer input preview", () => {
     expect(projectComposerInputPreview([textInput(grapheme.repeat(161))])).toEqual({
       type: "text",
       text: `${grapheme.repeat(157)}...`,
+      truncated: true,
     });
   });
 
@@ -37,6 +42,7 @@ describe("composer input preview", () => {
     ).toEqual({
       type: "text",
       text: "first line\n\nsecond  line",
+      truncated: false,
     });
   });
 
@@ -46,7 +52,23 @@ describe("composer input preview", () => {
         textInput("Use $review for this change"),
         { type: "skill", name: "review", path: "/private/skills/review/SKILL.md" },
       ]),
-    ).toEqual({ type: "text", text: "Use $review for this change" });
+    ).toEqual({ type: "text", text: "Use $review for this change", truncated: false });
+  });
+
+  it("projects complete normalized text only when text is present", () => {
+    const longText = `  ${"👩‍💻".repeat(161)}  `;
+
+    expect(
+      projectComposerInputTextDetail([
+        textInput(longText),
+        { type: "skill", name: "private-skill", path: "/private/skills/SKILL.md" },
+      ]),
+    ).toBe("👩‍💻".repeat(161));
+    expect(
+      projectComposerInputTextDetail([
+        { type: "mention", name: "private-mention", path: "/private/mentions/item" },
+      ]),
+    ).toBeNull();
   });
 
   it("projects every non-text variant to bounded counts without exposing identifiers", () => {
