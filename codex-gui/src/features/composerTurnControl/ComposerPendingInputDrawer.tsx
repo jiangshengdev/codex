@@ -1,6 +1,6 @@
 import { Button, Chip, Disclosure, Drawer, Separator } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
-import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type {
   ComposerPendingInputCursor,
   ComposerPendingInputLane,
@@ -54,8 +54,8 @@ export function ComposerPendingInputDrawer({
     setIsOpen(false);
     setPages(null);
   }, [onPresenceChange]);
-  const onDrawerContentRef = useCallback(
-    (element: HTMLDivElement | null): void => {
+  const onDrawerPresenceRef = useCallback(
+    (element: HTMLSpanElement | null): void => {
       if (element != null) {
         return;
       }
@@ -84,21 +84,30 @@ export function ComposerPendingInputDrawer({
     if (!isOpen) {
       return;
     }
-    if (!hasPendingInputs || ownerChanged || controller == null) {
-      closeInvalidDrawer();
-      return;
-    }
-    const nextPages = readInitialPages(
-      controller,
-      detailRevision,
-      guidingCount,
-      ordinaryQueuedCount,
-    );
-    if (nextPages == null) {
-      closeInvalidDrawer();
-      return;
-    }
-    setPages(nextPages);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
+      if (!hasPendingInputs || ownerChanged) {
+        closeInvalidDrawer();
+        return;
+      }
+      const nextPages = readInitialPages(
+        controller,
+        detailRevision,
+        guidingCount,
+        ordinaryQueuedCount,
+      );
+      if (nextPages == null) {
+        closeInvalidDrawer();
+        return;
+      }
+      setPages(nextPages);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [
     controller,
     detailRevision,
@@ -110,7 +119,7 @@ export function ComposerPendingInputDrawer({
   ]);
 
   const openDrawer = (): void => {
-    if (!hasPendingInputs || controller == null) {
+    if (!hasPendingInputs) {
       return;
     }
     setPages(null);
@@ -194,8 +203,9 @@ export function ComposerPendingInputDrawer({
         </Button>
       ) : null}
       <Drawer.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-        <Drawer.Content ref={onDrawerContentRef} placement="right">
+        <Drawer.Content placement="right">
           <Drawer.Dialog>
+            <span ref={onDrawerPresenceRef} aria-hidden="true" hidden />
             <Drawer.CloseTrigger />
             <Drawer.Header>
               <Drawer.Heading>
@@ -289,7 +299,9 @@ function PendingInputGroup({
           aria-label={
             lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
           }
-          onPress={() => onShowMore(lane)}
+          onPress={() => {
+            onShowMore(lane);
+          }}
           variant="tertiary"
         >
           <Trans>Show more</Trans>
@@ -317,6 +329,7 @@ function PendingInputItem({
   if (preview.type !== "text" || !preview.truncated) {
     return <ComposerInputPreviewContent preview={preview} />;
   }
+  const previewText = preview.text;
 
   const onExpandedChange = (expanded: boolean): void => {
     if (!expanded) {
@@ -346,8 +359,8 @@ function PendingInputItem({
         <Button
           aria-label={
             isExpanded
-              ? t`Collapse pending message: ${preview.text}`
-              : t`Expand pending message: ${preview.text}`
+              ? t`Collapse pending message: ${previewText}`
+              : t`Expand pending message: ${previewText}`
           }
           className="h-auto min-w-0 justify-between whitespace-normal"
           slot="trigger"

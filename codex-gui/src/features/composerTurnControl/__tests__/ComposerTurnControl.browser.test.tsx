@@ -159,7 +159,7 @@ const createQueueControllerHarness = (
       const cursor = request.cursor == null ? null : cursorFacts.get(request.cursor);
       if (
         request.cursor != null &&
-        (cursor == null || cursor.lane !== request.lane || cursor.revision !== request.revision)
+        (cursor?.lane !== request.lane || cursor.revision !== request.revision)
       ) {
         return { type: "stale", revision: snapshot.detailRevision };
       }
