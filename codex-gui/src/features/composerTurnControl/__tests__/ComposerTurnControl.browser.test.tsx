@@ -7,6 +7,14 @@ import {
   type ComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinatorSnapshot,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type {
+  ComposerPendingInputCursor,
+  ComposerPendingInputDetailResult,
+  ComposerPendingInputDisplayKey,
+  ComposerPendingInputLane,
+  ComposerPendingInputPageItem,
+  ComposerPendingInputPageResult,
+} from "@/features/composerInputQueue/composerInputQueueContracts";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
@@ -47,6 +55,41 @@ const readyEmptySkillCatalog: SkillCatalogState = {
   partialErrorCount: 0,
 };
 
+const queueSnapshot = (
+  overrides: Partial<ComposerInputQueueCoordinatorSnapshot> = {},
+): ComposerInputQueueCoordinatorSnapshot => ({
+  ordinaryQueuedCount: 0,
+  guidingCount: 0,
+  detailRevision: 0,
+  recoveryCount: 0,
+  recovery: null,
+  isRecovering: false,
+  rejectedSteers: [],
+  hasUnknownSteer: false,
+  canStop: false,
+  interrupt: null,
+  ...overrides,
+});
+
+type PendingInputHarnessItem = ComposerPendingInputPageItem & Readonly<{ detailText?: string }>;
+
+type PendingInputHarnessDetails = Readonly<{
+  ordinary: readonly PendingInputHarnessItem[];
+  steer: readonly PendingInputHarnessItem[];
+}>;
+
+const pendingInputItem = (
+  key: string,
+  lane: ComposerPendingInputLane,
+  preview: ComposerPendingInputPageItem["preview"],
+  detailText?: string,
+): PendingInputHarnessItem => ({
+  key: key as ComposerPendingInputDisplayKey,
+  lane,
+  preview,
+  ...(detailText == null ? {} : { detailText }),
+});
+
 const expectStartTurnCalledOnceWithText = (
   startTurn: Mock<GuiHostCommands["startTurn"]>,
   text: string,
@@ -83,9 +126,18 @@ function deferred<T>() {
   };
 }
 
-const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnapshot) => {
+const createQueueControllerHarness = (
+  initial: ComposerInputQueueCoordinatorSnapshot,
+  initialDetails: PendingInputHarnessDetails = { ordinary: [], steer: [] },
+) => {
   let snapshot = initial;
+  let details = initialDetails;
+  let ownerThreadId = threadId;
   const listeners = new Set<() => void>();
+  const cursorFacts = new WeakMap<
+    ComposerPendingInputCursor,
+    Readonly<{ lane: ComposerPendingInputLane; offset: number; revision: number }>
+  >();
   const recover = vi.fn<ComposerInputQueueCoordinator["recover"]>().mockReturnValue(true);
   const interruptActiveTurn = vi
     .fn<ComposerInputQueueCoordinator["interruptActiveTurn"]>()
@@ -99,8 +151,59 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
   const promoteOrdinaryFrontToSteer = vi
     .fn<ComposerInputQueueCoordinator["promoteOrdinaryFrontToSteer"]>()
     .mockReturnValue(false);
+  const readPendingInputPage = vi.fn<ComposerInputQueueCoordinator["readPendingInputPage"]>(
+    (request): ComposerPendingInputPageResult => {
+      if (request.revision !== snapshot.detailRevision) {
+        return { type: "stale", revision: snapshot.detailRevision };
+      }
+      const cursor = request.cursor == null ? null : cursorFacts.get(request.cursor);
+      if (
+        request.cursor != null &&
+        (cursor?.lane !== request.lane || cursor.revision !== request.revision)
+      ) {
+        return { type: "stale", revision: snapshot.detailRevision };
+      }
+      const offset = cursor?.offset ?? 0;
+      const laneItems = details[request.lane];
+      const items = laneItems
+        .slice(offset, offset + request.limit)
+        .map(({ detailText, ...item }) => {
+          void detailText;
+          return item;
+        });
+      const nextOffset = offset + items.length;
+      let nextCursor: ComposerPendingInputCursor | null = null;
+      if (nextOffset < laneItems.length) {
+        nextCursor = {} as ComposerPendingInputCursor;
+        cursorFacts.set(nextCursor, {
+          lane: request.lane,
+          offset: nextOffset,
+          revision: request.revision,
+        });
+      }
+      return { type: "page", revision: request.revision, items, nextCursor };
+    },
+  );
+  const readPendingInputDetail = vi.fn<ComposerInputQueueCoordinator["readPendingInputDetail"]>(
+    (request): ComposerPendingInputDetailResult => {
+      if (request.revision !== snapshot.detailRevision) {
+        return { type: "stale", revision: snapshot.detailRevision };
+      }
+      const item = [...details.steer, ...details.ordinary].find(({ key }) => key === request.key);
+      return item?.detailText == null
+        ? { type: "missing", revision: request.revision }
+        : {
+            type: "detail",
+            key: request.key,
+            revision: request.revision,
+            text: item.detailText,
+          };
+    },
+  );
   const controller = {
-    ownerThreadId: threadId,
+    get ownerThreadId() {
+      return ownerThreadId;
+    },
     submit,
     submitSteer,
     promoteOrdinaryFrontToSteer,
@@ -114,6 +217,8 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
       type: "reserved",
       reservation: { release: () => undefined },
     }),
+    readPendingInputPage,
+    readPendingInputDetail,
     getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -127,10 +232,20 @@ const createQueueControllerHarness = (initial: ComposerInputQueueCoordinatorSnap
     interruptActiveTurn,
     recover,
     promoteOrdinaryFrontToSteer,
+    readPendingInputDetail,
+    readPendingInputPage,
     submit,
     submitSteer,
     publish(next: ComposerInputQueueCoordinatorSnapshot): void {
       snapshot = next;
+      for (const listener of listeners) listener();
+    },
+    replaceDetails(next: PendingInputHarnessDetails): void {
+      details = next;
+    },
+    replaceOwnerThreadId(next: string): void {
+      ownerThreadId = next;
+      snapshot = { ...snapshot };
       for (const listener of listeners) listener();
     },
   };
@@ -471,18 +586,7 @@ test("submits a non-empty draft through the queue controller and clears it when 
 });
 
 test("requires the queue controller owner to match the Redux current thread for operations", async () => {
-  const harness = createQueueControllerHarness({
-    queuedCount: 0,
-    recoveryCount: 0,
-    recovery: null,
-    isRecovering: false,
-    pendingSteers: [],
-    queuedSteers: [],
-    rejectedSteers: [],
-    hasUnknownSteer: false,
-    canStop: true,
-    interrupt: null,
-  });
+  const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   const composer = getComposer(screen);
   const send = screen.getByRole("button", { name: "Send", exact: true });
@@ -789,7 +893,9 @@ test("active turn allows queuing and enables Stop", async () => {
   await getComposer(screen).fill("Next draft");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await expect.element(screen.getByText("1 message queued")).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Pending: Queued 1", exact: true }))
+    .toBeVisible();
   expect(commandHandle.startTurn).not.toHaveBeenCalled();
   const stopButton = screen.getByRole("button", { name: "Stop" });
   await expect.element(stopButton).toBeEnabled();
@@ -822,18 +928,7 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
     .not.toBeInTheDocument();
   await idleScreen.unmount();
 
-  const harness = createQueueControllerHarness({
-    queuedCount: 0,
-    recoveryCount: 0,
-    recovery: null,
-    isRecovering: false,
-    pendingSteers: [],
-    queuedSteers: [],
-    rejectedSteers: [],
-    hasUnknownSteer: false,
-    canStop: true,
-    interrupt: null,
-  });
+  const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
@@ -869,18 +964,19 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
 });
 
 test("routes guide shortcuts by draft presence while ordinary Enter stays ordinary", async () => {
-  const harness = createQueueControllerHarness({
-    queuedCount: 1,
-    recoveryCount: 0,
-    recovery: null,
-    isRecovering: false,
-    pendingSteers: [],
-    queuedSteers: [],
-    rejectedSteers: [],
-    hasUnknownSteer: false,
-    canStop: true,
-    interrupt: null,
-  });
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
+    {
+      ordinary: [
+        pendingInputItem("ordinary-shortcut", "ordinary", {
+          type: "text",
+          text: "Ordinary queued",
+          truncated: false,
+        }),
+      ],
+      steer: [],
+    },
+  );
   harness.promoteOrdinaryFrontToSteer.mockReturnValue(true);
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   screen.store.dispatch(
@@ -912,94 +1008,375 @@ test("routes guide shortcuts by draft presence while ordinary Enter stays ordina
   expect(harness.submitSteer).toHaveBeenCalledTimes(1);
 });
 
-test("renders ordered bounded steer projections and persistent recovery statuses", async () => {
-  const harness = createQueueControllerHarness({
-    queuedCount: 2,
-    recoveryCount: 0,
-    recovery: null,
-    isRecovering: false,
-    pendingSteers: [
-      {
-        key: "pending-private-id",
-        preview: { type: "text", text: "Pending first" },
-        phase: "acceptedAwaitingCommit",
-      },
-      {
-        key: "unknown-private-id",
-        preview: {
-          type: "nonText",
-          imageCount: 2,
-          audioCount: 1,
-          skillCount: 1,
-          mentionCount: 1,
+test("renders one bounded pending-input Drawer while keeping exceptional states inline", async () => {
+  const longPreview = `${"Guide detail ".repeat(13)}...`;
+  const longDetail = "Guide detail ".repeat(20).trim();
+  const steerItems = Array.from({ length: 21 }, (_, index) =>
+    index === 0
+      ? pendingInputItem(
+          "steer-long",
+          "steer",
+          { type: "text", text: longPreview, truncated: true },
+          longDetail,
+        )
+      : index === 1
+        ? pendingInputItem("steer-structured", "steer", {
+            type: "nonText",
+            imageCount: 2,
+            audioCount: 1,
+            skillCount: 1,
+            mentionCount: 1,
+          })
+        : pendingInputItem(`steer-${String(index)}`, "steer", {
+            type: "text",
+            text: `Steer ${String(index)}`,
+            truncated: false,
+          }),
+  );
+  const ordinaryItems = [
+    pendingInputItem("ordinary-a", "ordinary", {
+      type: "text",
+      text: "Ordinary A",
+      truncated: false,
+    }),
+    pendingInputItem("ordinary-b", "ordinary", {
+      type: "text",
+      text: "Ordinary B",
+      truncated: false,
+    }),
+    ...Array.from({ length: 19 }, (_, index) =>
+      pendingInputItem(`ordinary-${String(index + 2)}`, "ordinary", {
+        type: "text",
+        text: `Ordinary ${String(index + 2)}`,
+        truncated: false,
+      }),
+    ),
+  ];
+  const harness = createQueueControllerHarness(
+    queueSnapshot({
+      ordinaryQueuedCount: 21,
+      guidingCount: 21,
+      detailRevision: 4,
+      rejectedSteers: [
+        {
+          key: "rejected-private-id",
+          preview: { type: "text", text: "Rejected first", truncated: false },
+          reason: "activeTurnNotSteerable",
         },
-        phase: "deliveryUnknown",
-      },
-    ],
-    queuedSteers: [
-      { key: "queued-private-id", preview: { type: "text", text: "Queued after pending" } },
-    ],
-    rejectedSteers: [
-      {
-        key: "rejected-private-id",
-        preview: { type: "text", text: "Rejected first" },
-        reason: "activeTurnNotSteerable",
-      },
-    ],
-    hasUnknownSteer: true,
-    canStop: true,
-    interrupt: null,
+      ],
+      hasUnknownSteer: true,
+      canStop: true,
+    }),
+    { ordinary: ordinaryItems, steer: steerItems },
+  );
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+  const region = screen.getByRole("region", { name: "Pending messages", exact: true });
+  const trigger = region.getByRole("button", {
+    name: "Pending: Guide 21, Queued 21",
+    exact: true,
   });
+
+  await expect.element(trigger).toBeVisible();
+  await expect.element(region.getByText("Will send first", { exact: true })).toBeVisible();
+  await expect
+    .element(region.getByText("Currently unable to guide; added to queue", { exact: true }))
+    .toBeVisible();
+  await expect.element(region.getByText("Guide status unknown", { exact: true })).toBeVisible();
+  await expect.element(region.getByText("Ordinary A", { exact: true })).not.toBeInTheDocument();
+  expect(region.getByRole("button", { name: /retry/i }).query()).toBeNull();
+
+  await trigger.click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect.element(dialog).toBeVisible();
+  expect(harness.readPendingInputPage).toHaveBeenCalledTimes(2);
+  expect(harness.readPendingInputPage).toHaveBeenNthCalledWith(1, {
+    lane: "steer",
+    revision: 4,
+    cursor: null,
+    limit: 20,
+  });
+  expect(harness.readPendingInputPage).toHaveBeenNthCalledWith(2, {
+    lane: "ordinary",
+    revision: 4,
+    cursor: null,
+    limit: 20,
+  });
+  expect(screen.baseElement.contains(dialog.element())).toBe(true);
+  await expect.element(dialog.getByRole("heading", { name: "Guiding" })).toBeVisible();
+  await expect.element(dialog.getByRole("heading", { name: "Queued" })).toBeVisible();
+  await expect.element(dialog).not.toHaveTextContent("steer-long");
+  await expect.element(dialog).not.toHaveTextContent("ordinary-a");
+  await expect.element(dialog).toHaveTextContent(/2 images.*1 audio item.*1 skill.*1 mention/);
+  const dialogText = dialog.element().textContent;
+  expect(dialogText.indexOf(longPreview)).toBeLessThan(dialogText.indexOf("Steer 2"));
+  expect(dialogText.indexOf("Ordinary A")).toBeLessThan(dialogText.indexOf("Ordinary B"));
+  await expect.element(dialog.getByText("Steer 20", { exact: true })).not.toBeInTheDocument();
+
+  const expand = dialog.getByRole("button", { name: /Expand pending message:/ });
+  await expand.click();
+  await expect.element(dialog.getByText(longDetail, { exact: true })).toBeVisible();
+  const collapse = dialog.getByRole("button", { name: /Collapse pending message:/ });
+  await collapse.click();
+  await expect.element(dialog.getByText(longDetail, { exact: true })).not.toBeInTheDocument();
+
+  const showMoreGuiding = dialog.getByRole("button", {
+    name: "Show more guiding messages",
+    exact: true,
+  });
+  const showMoreQueued = dialog.getByRole("button", {
+    name: "Show more queued messages",
+    exact: true,
+  });
+  await expect.element(showMoreGuiding).toHaveTextContent("Show more");
+  await expect.element(showMoreQueued).toHaveTextContent("Show more");
+  await showMoreGuiding.click();
+  await showMoreQueued.click();
+  await expect.element(dialog.getByText("Steer 20", { exact: true })).toBeVisible();
+  await expect.element(dialog.getByText("Ordinary 20", { exact: true })).toBeVisible();
+
+  harness.replaceDetails({
+    ordinary: [
+      pendingInputItem("ordinary-revision", "ordinary", {
+        type: "text",
+        text: "Ordinary after revision",
+        truncated: false,
+      }),
+    ],
+    steer: [
+      pendingInputItem("steer-revision", "steer", {
+        type: "text",
+        text: "Steer after revision",
+        truncated: false,
+      }),
+    ],
+  });
+  harness.publish(
+    queueSnapshot({
+      ordinaryQueuedCount: 1,
+      guidingCount: 1,
+      detailRevision: 5,
+      hasUnknownSteer: true,
+      rejectedSteers: harness.controller.getSnapshot().rejectedSteers,
+      canStop: true,
+    }),
+  );
+  await expect.element(dialog.getByText("Steer after revision", { exact: true })).toBeVisible();
+  await expect.element(dialog.getByText("Steer 20", { exact: true })).not.toBeInTheDocument();
+  expect(harness.readPendingInputPage).toHaveBeenCalledTimes(6);
+  expect(harness.readPendingInputPage).toHaveBeenNthCalledWith(5, {
+    lane: "steer",
+    revision: 5,
+    cursor: null,
+    limit: 20,
+  });
+  expect(harness.readPendingInputPage).toHaveBeenNthCalledWith(6, {
+    lane: "ordinary",
+    revision: 5,
+    cursor: null,
+    limit: 20,
+  });
+  const currentTrigger = region.getByRole("button", {
+    name: "Pending: Guide 1, Queued 1",
+    exact: true,
+  });
+  const closeTrigger = dialog.getByRole("button", { name: "Close", exact: true });
+
+  closeTrigger.element().focus();
+  await expect.element(closeTrigger).toHaveFocus();
+  await screen.user.keyboard("{Escape}");
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(currentTrigger).toHaveFocus();
+});
+
+test("keeps the Drawer open when a pending-input detail is missing", async () => {
+  const previewText = "Missing detail preview...";
+  const item = pendingInputItem("missing-detail", "steer", {
+    type: "text",
+    text: previewText,
+    truncated: true,
+  });
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ guidingCount: 1, detailRevision: 1, canStop: true }),
+    { ordinary: [], steer: [item] },
+  );
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+
+  await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  const expand = dialog.getByRole("button", {
+    name: `Expand pending message: ${previewText}`,
+    exact: true,
+  });
+  await expand.click();
+
+  await expect.element(dialog).toBeVisible();
+  await expect.element(expand).toBeVisible();
+  expect(harness.readPendingInputDetail).toHaveBeenCalledExactlyOnceWith({
+    key: item.key,
+    revision: 1,
+  });
+});
+
+test("uses one pending trigger for either lane and hides it when both lanes are empty", async () => {
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ guidingCount: 1, detailRevision: 1, canStop: true }),
+    {
+      ordinary: [
+        pendingInputItem("ordinary-only", "ordinary", {
+          type: "text",
+          text: "Ordinary only",
+          truncated: false,
+        }),
+      ],
+      steer: [
+        pendingInputItem("steer-only", "steer", {
+          type: "text",
+          text: "Guide only",
+          truncated: false,
+        }),
+      ],
+    },
+  );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
 
-  await expect.element(region.getByText("Guiding", { exact: true })).toBeVisible();
-  await expect.element(region.getByText("Will send first", { exact: true })).toBeVisible();
-  await expect.element(region.getByText("2 messages queued", { exact: true })).toBeVisible();
+  const guideTrigger = region.getByRole("button", {
+    name: "Pending: Guide 1",
+    exact: true,
+  });
+  await expect.element(guideTrigger).toBeVisible();
+  await expect.element(guideTrigger).toHaveTextContent("Guide 1");
+  await expect.element(guideTrigger).not.toHaveTextContent("Queued");
+
+  harness.publish(queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 2, canStop: true }));
+  const queuedTrigger = region.getByRole("button", {
+    name: "Pending: Queued 1",
+    exact: true,
+  });
+  await expect.element(queuedTrigger).toBeVisible();
+  await expect.element(queuedTrigger).toHaveTextContent("Queued 1");
+  await expect.element(queuedTrigger).not.toHaveTextContent("Guide");
+
+  harness.publish(queueSnapshot({ detailRevision: 3, canStop: true }));
+  await expect.element(region).not.toBeInTheDocument();
+});
+
+test("closes and clears pending details when counts become empty", async () => {
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1, canStop: true }),
+    {
+      ordinary: [
+        pendingInputItem("ordinary-to-clear", "ordinary", {
+          type: "text",
+          text: "Clear this pending detail",
+          truncated: false,
+        }),
+      ],
+      steer: [],
+    },
+  );
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
-    .element(region.getByText("Currently unable to guide; added to queue", { exact: true }))
+    .element(dialog.getByText("Clear this pending detail", { exact: true }))
     .toBeVisible();
-  await expect.element(region.getByText("Guide status unknown", { exact: true })).toBeVisible();
-  await expect.element(region).toHaveTextContent(/2 images.*1 audio item.*1 skill.*1 mention/);
-  const regionText = region.element().textContent;
-  expect(regionText.indexOf("Pending first")).toBeLessThan(
-    regionText.indexOf("Queued after pending"),
+
+  harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
+
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Clear this pending detail", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(getComposer(screen)).toHaveFocus();
+  await expect
+    .element(screen.getByRole("region", { name: "Pending messages", exact: true }))
+    .not.toBeInTheDocument();
+});
+
+test("closes and clears pending details when the queue owner is replaced", async () => {
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ guidingCount: 1, detailRevision: 1, canStop: true }),
+    {
+      ordinary: [],
+      steer: [
+        pendingInputItem("steer-owner", "steer", {
+          type: "text",
+          text: "Old owner detail",
+          truncated: false,
+        }),
+      ],
+    },
   );
-  expect(regionText.indexOf("Queued after pending")).toBeLessThan(
-    regionText.indexOf("Rejected first"),
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
-  expect(regionText).not.toContain("private-id");
-  expect(region.getByRole("button", { name: /retry/i }).query()).toBeNull();
+
+  await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect.element(dialog.getByText("Old owner detail", { exact: true })).toBeVisible();
+
+  harness.replaceOwnerThreadId("replacement-thread");
+
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText("Old owner detail", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(getComposer(screen)).toHaveFocus();
 });
 
 test("renders Simplified Chinese guide and pending-input copy", async () => {
-  const harness = createQueueControllerHarness({
-    queuedCount: 2,
-    recoveryCount: 0,
-    recovery: null,
-    isRecovering: false,
-    pendingSteers: [
-      {
-        key: "pending-zh",
-        preview: { type: "text", text: "先引导这条" },
-        phase: "deliveryUnknown",
-      },
-    ],
-    queuedSteers: [],
-    rejectedSteers: [
-      {
-        key: "rejected-zh",
-        preview: { type: "text", text: "然后优先发送这条" },
-        reason: "activeTurnNotSteerable",
-      },
-    ],
-    hasUnknownSteer: true,
-    canStop: true,
-    interrupt: null,
-  });
+  const harness = createQueueControllerHarness(
+    queueSnapshot({
+      ordinaryQueuedCount: 2,
+      guidingCount: 1,
+      detailRevision: 1,
+      rejectedSteers: [
+        {
+          key: "rejected-zh",
+          preview: { type: "text", text: "然后优先发送这条", truncated: false },
+          reason: "activeTurnNotSteerable",
+        },
+      ],
+      hasUnknownSteer: true,
+      canStop: true,
+    }),
+    {
+      ordinary: [
+        pendingInputItem("ordinary-zh-a", "ordinary", {
+          type: "text",
+          text: "普通消息一",
+          truncated: false,
+        }),
+        pendingInputItem("ordinary-zh-b", "ordinary", {
+          type: "text",
+          text: "普通消息二",
+          truncated: false,
+        }),
+      ],
+      steer: [
+        pendingInputItem("pending-zh", "steer", {
+          type: "text",
+          text: "先引导这条",
+          truncated: false,
+        }),
+      ],
+    },
+  );
   const screen = await renderAttached(createGuiHostCommands(), false, "zh-CN", harness.controller);
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
@@ -1007,11 +1384,18 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
 
   await expect.element(screen.getByRole("button", { name: "引导", exact: true })).toBeDisabled();
   const region = screen.getByRole("region", { name: "待处理消息", exact: true });
-  await expect.element(region.getByText("引导中", { exact: true })).toBeVisible();
+  const trigger = region.getByRole("button", {
+    name: "待处理：引导 1，排队 2",
+    exact: true,
+  });
+  await expect.element(trigger).toBeVisible();
   await expect.element(region.getByText("将优先发送", { exact: true })).toBeVisible();
-  await expect.element(region.getByText("已排队 2 条", { exact: true })).toBeVisible();
   await expect.element(region.getByText("当前无法引导，已加入队列", { exact: true })).toBeVisible();
   await expect.element(region.getByText("引导状态未知", { exact: true })).toBeVisible();
+  await trigger.click();
+  const dialog = screen.getByRole("dialog", { name: "待处理详情", exact: true });
+  await expect.element(dialog.getByRole("heading", { name: "引导中" })).toBeVisible();
+  await expect.element(dialog.getByRole("heading", { name: "已排队" })).toBeVisible();
 });
 
 test("manual reconnect disables composer operations", async () => {
@@ -1078,18 +1462,10 @@ test("renders Simplified Chinese composer and recovery copy", async () => {
 });
 
 test("recovery disables send, keeps the editor editable, and prevents duplicate recovery", async () => {
-  const initialSnapshot: ComposerInputQueueCoordinatorSnapshot = {
-    queuedCount: 0,
+  const initialSnapshot = queueSnapshot({
     recoveryCount: 2,
     recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
-    isRecovering: false,
-    pendingSteers: [],
-    queuedSteers: [],
-    rejectedSteers: [],
-    hasUnknownSteer: false,
-    canStop: false,
-    interrupt: null,
-  };
+  });
   const harness = createQueueControllerHarness(initialSnapshot);
   harness.recover.mockImplementation(() => {
     harness.publish({ ...initialSnapshot, isRecovering: true });
@@ -1113,18 +1489,12 @@ test("recovery disables send, keeps the editor editable, and prevents duplicate 
 });
 
 test("guards recovery when commands are unavailable", async () => {
-  const harness = createQueueControllerHarness({
-    queuedCount: 0,
-    recoveryCount: 2,
-    recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
-    isRecovering: false,
-    pendingSteers: [],
-    queuedSteers: [],
-    rejectedSteers: [],
-    hasUnknownSteer: false,
-    canStop: false,
-    interrupt: null,
-  });
+  const harness = createQueueControllerHarness(
+    queueSnapshot({
+      recoveryCount: 2,
+      recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
+    }),
+  );
   const screen = await renderAttached(null, false, "en", harness.controller);
   const composer = getComposer(screen);
   const recoverButton = screen.getByRole("button", { name: "Continue sending" });
@@ -1134,18 +1504,12 @@ test("guards recovery when commands are unavailable", async () => {
 });
 
 test("guards recovery while manual reconnect is required", async () => {
-  const harness = createQueueControllerHarness({
-    queuedCount: 0,
-    recoveryCount: 2,
-    recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
-    isRecovering: false,
-    pendingSteers: [],
-    queuedSteers: [],
-    rejectedSteers: [],
-    hasUnknownSteer: false,
-    canStop: false,
-    interrupt: null,
-  });
+  const harness = createQueueControllerHarness(
+    queueSnapshot({
+      recoveryCount: 2,
+      recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
+    }),
+  );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   screen.store.dispatch(
     threadRuntimeManualReconnectRequired({
