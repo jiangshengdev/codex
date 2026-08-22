@@ -110,6 +110,92 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(coordinator.interruptActiveTurn()).toBe(false);
   });
 
+  it("delegates bounded details and rejects stale, foreign, and disposed reads", () => {
+    const createActive = (threadId: string) =>
+      createCoordinator({
+        threadId,
+        activeTurnId: `turn-${threadId}`,
+        startTurn: vi.fn<StartTurn>(),
+        steerTurn: vi.fn<SteerTurn>(),
+      });
+    const coordinator = createActive("thread-1");
+    const foreign = createActive("thread-2");
+    for (const owner of [coordinator, foreign]) {
+      owner.submit(input("one"));
+      owner.submit(input("two"));
+    }
+    expect(coordinator.getSnapshot()).toMatchObject({
+      ordinaryQueuedCount: 2,
+      guidingCount: 0,
+      detailRevision: 2,
+    });
+    expect(JSON.stringify(coordinator.getSnapshot())).not.toContain("one");
+    expect(JSON.stringify(coordinator.getSnapshot())).not.toContain('"input"');
+    const first = coordinator.readPendingInputPage({
+      lane: "ordinary",
+      revision: coordinator.getSnapshot().detailRevision,
+      cursor: null,
+      limit: 1,
+    });
+    if (first.type !== "page" || first.nextCursor == null) {
+      throw new Error("expected bounded ordinary cursor");
+    }
+    expect(first.items).toMatchObject([
+      { preview: { type: "text", text: "one", truncated: false } },
+    ]);
+    expect(
+      foreign.readPendingInputPage({
+        lane: "ordinary",
+        revision: foreign.getSnapshot().detailRevision,
+        cursor: first.nextCursor,
+        limit: 1,
+      }),
+    ).toEqual({ type: "stale", revision: foreign.getSnapshot().detailRevision });
+
+    const staleRevision = coordinator.getSnapshot().detailRevision;
+    const longText = "x".repeat(200);
+    coordinator.submit([
+      { type: "text", text: longText, text_elements: [] },
+      { type: "skill", name: "private", path: "/private/SKILL.md" },
+    ]);
+    expect(
+      coordinator.readPendingInputPage({
+        lane: "ordinary",
+        revision: staleRevision,
+        cursor: first.nextCursor,
+        limit: 1,
+      }),
+    ).toEqual({ type: "stale", revision: coordinator.getSnapshot().detailRevision });
+    const currentRevision = coordinator.getSnapshot().detailRevision;
+    const current = coordinator.readPendingInputPage({
+      lane: "ordinary",
+      revision: currentRevision,
+      cursor: null,
+      limit: 10,
+    });
+    if (current.type !== "page") throw new Error("expected current ordinary details");
+    const longItem = current.items.find(
+      ({ preview }) => preview.type === "text" && preview.truncated,
+    );
+    if (longItem == null) throw new Error("expected truncated ordinary detail");
+    expect(
+      coordinator.readPendingInputDetail({ key: longItem.key, revision: currentRevision }),
+    ).toEqual({ type: "detail", key: longItem.key, revision: currentRevision, text: longText });
+
+    coordinator.dispose();
+    expect(
+      coordinator.readPendingInputPage({
+        lane: "ordinary",
+        revision: currentRevision,
+        cursor: null,
+        limit: 1,
+      }),
+    ).toEqual({ type: "unavailable" });
+    expect(
+      coordinator.readPendingInputDetail({ key: longItem.key, revision: currentRevision }),
+    ).toEqual({ type: "unavailable" });
+  });
+
   it("rechecks interrupt ownership after an issuing listener disposes synchronously", () => {
     const interruptTurn = vi.fn<InterruptTurn>();
     const coordinator = createCoordinator({
@@ -429,12 +515,12 @@ describe("ComposerInputQueueCoordinator", () => {
       turnId: "turn-active",
     });
     expect(coordinator.getSnapshot()).toEqual({
-      queuedCount: 2,
+      ordinaryQueuedCount: 2,
+      guidingCount: 0,
+      detailRevision: 2,
       recoveryCount: 0,
       recovery: null,
       isRecovering: false,
-      pendingSteers: [],
-      queuedSteers: [],
       rejectedSteers: [],
       hasUnknownSteer: false,
       canStop: false,
@@ -449,6 +535,7 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     coordinator.submitSteer(input("steer"));
     await flush();
+    const beforeLocalStop = coordinator.getSnapshot();
     coordinator.observeAcceptedEvent(
       live(
         turnCompleted(eventTurnCompleted, "commit-interrupt", {
@@ -457,12 +544,23 @@ describe("ComposerInputQueueCoordinator", () => {
         }),
       ),
     );
-    expect(coordinator.getSnapshot()).toMatchObject({
-      queuedCount: 0,
+    const stoppedSnapshot = coordinator.getSnapshot();
+    expect(stoppedSnapshot).toMatchObject({
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
       recoveryCount: 3,
       recovery: { reason: "userStopped", count: 3 },
       interrupt: null,
     });
+    expect(stoppedSnapshot.detailRevision).toBeGreaterThan(beforeLocalStop.detailRevision);
+    expect(
+      coordinator.readPendingInputPage({
+        lane: "ordinary",
+        revision: beforeLocalStop.detailRevision,
+        cursor: null,
+        limit: 1,
+      }),
+    ).toEqual({ type: "stale", revision: stoppedSnapshot.detailRevision });
     expect(coordinator.interruptActiveTurn()).toBe(false);
     expect(coordinator.recover()).toBe(true);
     expect(startTurn).toHaveBeenCalledTimes(1);
@@ -481,12 +579,12 @@ describe("ComposerInputQueueCoordinator", () => {
       input("two"),
     ]);
     expect(snapshots).toContainEqual({
-      queuedCount: 0,
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: stoppedSnapshot.detailRevision,
       recoveryCount: 3,
       recovery: { reason: "userStopped", count: 3 },
       isRecovering: true,
-      pendingSteers: [],
-      queuedSteers: [],
       rejectedSteers: [],
       hasUnknownSteer: false,
       canStop: false,
@@ -742,9 +840,22 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     expect(firstParams?.clientUserMessageId).toMatch(/^composer-steer-/);
     expect(coordinator.getSnapshot()).toMatchObject({
-      pendingSteers: [{ phase: "issuing", preview: { type: "text", text: "first" } }],
-      queuedSteers: [{ preview: { type: "text", text: "second" } }],
+      guidingCount: 2,
+      ordinaryQueuedCount: 0,
       hasUnknownSteer: false,
+    });
+    const initialDetails = coordinator.readPendingInputPage({
+      lane: "steer",
+      revision: coordinator.getSnapshot().detailRevision,
+      cursor: null,
+      limit: 10,
+    });
+    expect(initialDetails).toMatchObject({
+      type: "page",
+      items: [
+        { preview: { type: "text", text: "first", truncated: false } },
+        { preview: { type: "text", text: "second", truncated: false } },
+      ],
     });
     const serializedSnapshot = JSON.stringify(coordinator.getSnapshot());
     expect(serializedSnapshot).not.toContain("/example/skills/");
@@ -768,9 +879,16 @@ describe("ComposerInputQueueCoordinator", () => {
         ),
       ),
     );
-    expect(coordinator.getSnapshot().pendingSteers).toMatchObject([
-      { phase: "issuing", preview: { type: "text", text: "second" } },
-    ]);
+    const remainingDetails = coordinator.readPendingInputPage({
+      lane: "steer",
+      revision: coordinator.getSnapshot().detailRevision,
+      cursor: null,
+      limit: 10,
+    });
+    expect(remainingDetails).toMatchObject({
+      type: "page",
+      items: [{ preview: { type: "text", text: "second", truncated: false } }],
+    });
 
     coordinator.dispose();
     responses[1]?.resolve({ turnId: "turn-1" });
@@ -843,9 +961,23 @@ describe("ComposerInputQueueCoordinator", () => {
 
     expect(steerTurn).toHaveBeenCalledTimes(1);
     expect(coordinator.getSnapshot()).toMatchObject({
-      pendingSteers: [{ phase }],
-      queuedSteers: [{ preview: { type: "text", text: "second" } }],
+      guidingCount: 2,
       hasUnknownSteer: true,
+    });
+    expect(["responseTurnMismatch", "deliveryUnknown"]).toContain(phase);
+    expect(
+      coordinator.readPendingInputPage({
+        lane: "steer",
+        revision: coordinator.getSnapshot().detailRevision,
+        cursor: null,
+        limit: 10,
+      }),
+    ).toMatchObject({
+      type: "page",
+      items: [
+        { preview: { type: "text", text: "first", truncated: false } },
+        { preview: { type: "text", text: "second", truncated: false } },
+      ],
     });
     expect(coordinator.getReleaseReadiness()).toEqual({
       type: "blocked",
@@ -893,8 +1025,8 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     await flush();
     expect(coordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview)).toEqual([
-      { type: "text", text: "steer-a" },
-      { type: "text", text: "steer-b" },
+      { type: "text", text: "steer-a", truncated: false },
+      { type: "text", text: "steer-b", truncated: false },
     ]);
 
     coordinator.observeAcceptedEvent(
@@ -911,10 +1043,10 @@ describe("ComposerInputQueueCoordinator", () => {
     );
     await flush();
     expect(coordinator.getSnapshot()).toMatchObject({
-      queuedCount: 1,
+      ordinaryQueuedCount: 1,
       rejectedSteers: [
-        { preview: { type: "text", text: "steer-a" } },
-        { preview: { type: "text", text: "steer-b" } },
+        { preview: { type: "text", text: "steer-a", truncated: false } },
+        { preview: { type: "text", text: "steer-b", truncated: false } },
       ],
     });
   });

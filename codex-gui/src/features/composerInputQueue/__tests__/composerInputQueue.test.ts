@@ -55,9 +55,9 @@ describe("composer input queue", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
 
     expect(queue.view()).toEqual({
-      queuedCount: 0,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: { type: "safe" },
@@ -81,9 +81,9 @@ describe("composer input queue", () => {
     expect(claimedText).not.toBe(submittedText);
     expect(claimedText.text_elements).not.toBe(submittedText.text_elements);
     expect(queue.view()).toEqual({
-      queuedCount: 0,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -164,9 +164,9 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(activeQueue.view()).toEqual({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -182,9 +182,9 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(queue.view()).toEqual({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -200,9 +200,9 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(queue.view()).toEqual({
-      queuedCount: 2,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 2,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -218,9 +218,9 @@ describe("composer input queue", () => {
     const secondClaim = startClaim({ ...afterFirst, effects: afterFirst.effects.slice(1) });
     expect(secondClaim.message).toEqual(message("b"));
     expect(queue.view()).toEqual({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -236,9 +236,9 @@ describe("composer input queue", () => {
     const thirdClaim = startClaim({ ...afterSecond, effects: afterSecond.effects.slice(1) });
     expect(thirdClaim.message).toEqual(message("c"));
     expect(queue.view()).toEqual({
-      queuedCount: 0,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -325,9 +325,9 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(queue.view()).toEqual({
-      queuedCount: 0,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -340,9 +340,9 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(queue.view()).toEqual({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -358,9 +358,9 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(queue.view()).toEqual({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -524,9 +524,9 @@ describe("composer input queue", () => {
       subject: "runtimeCommit",
     });
     expect(queue.view()).toEqual({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -542,9 +542,9 @@ describe("composer input queue", () => {
     });
     expect(startClaim(completed).message).toEqual(message("b"));
     expect(queue.view()).toEqual({
-      queuedCount: 0,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -703,9 +703,9 @@ describe("composer input queue", () => {
     submit(queue, "b");
     submit(queue, "c");
     expect(queue.view()).toEqual({
-      queuedCount: 2,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 2,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -838,7 +838,7 @@ describe("composer input queue", () => {
       throw new Error("expected user-stopped recovery");
     }
     const merge = startClaim(local.restoreUserStoppedRecovery(recovery.batch));
-    expect({ input: merge.message.input, queued: local.view().queuedCount }).toEqual({
+    expect({ input: merge.message.input, queued: local.view().ordinaryQueuedCount }).toEqual({
       input: [...message("steer-a").input, ...message("steer-b").input],
       queued: 1,
     });
@@ -936,9 +936,9 @@ describe("composer input queue", () => {
       queue.settleStart({ type: "accepted", claim: first, turnId: "turn-a" }),
     );
     expect(queue.view()).toEqual({
-      queuedCount: 2,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 2,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -955,9 +955,9 @@ describe("composer input queue", () => {
     transitions.push(failed);
     const second = startClaim(failed);
     expect(queue.view()).toEqual({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
+      detailRevision: expect.any(Number),
       rejectedSteers: [],
       hasUnknownSteer: false,
       releaseState: {
@@ -1049,9 +1049,12 @@ describe("composer input queue", () => {
       }),
     ).toEqual({ result: { type: "applied", operation: "steerCommitted" }, effects: [] });
     expect(queue.view()).toMatchObject({
-      queuedCount: 2,
-      pendingSteers: [{ key: "steer-b", phase: "issuing" }],
+      ordinaryQueuedCount: 2,
+      guidingCount: 1,
     });
+    expect(pendingPage(queue, "steer").items).toMatchObject([
+      { preview: { type: "text", text: "message steer-b", truncated: false } },
+    ]);
 
     queue.settleSteer({ type: "accepted", claim: secondEffect.claim, turnId: "turn-1" });
     queue.observe({
@@ -1086,9 +1089,13 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(queue.view()).toMatchObject({
-      queuedCount: 1,
-      queuedSteers: [{ key: "ordinary-a" }],
+      ordinaryQueuedCount: 1,
+      guidingCount: 2,
     });
+    expect(pendingPage(queue, "steer").items).toMatchObject([
+      { preview: { text: "message direct" } },
+      { preview: { text: "message ordinary-a" } },
+    ]);
     const accepted = queue.settleSteer({
       type: "accepted",
       claim: directEffect.claim,
@@ -1101,7 +1108,7 @@ describe("composer input queue", () => {
       messageId: "ordinary-a",
       source: "ordinaryPromotion",
     });
-    expect(queue.view().queuedCount).toBe(1);
+    expect(queue.view().ordinaryQueuedCount).toBe(1);
   });
 
   it("moves a promoted ordinary front to the rejected tail when its target is closed", () => {
@@ -1123,9 +1130,8 @@ describe("composer input queue", () => {
       effects: [],
     });
     expect(queue.view()).toMatchObject({
-      queuedCount: 1,
-      pendingSteers: [],
-      queuedSteers: [],
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
       rejectedSteers: [{ key: "direct" }, { key: "ordinary-a" }],
     });
   });
@@ -1146,8 +1152,7 @@ describe("composer input queue", () => {
     }
 
     expect(queue.view()).toMatchObject({
-      pendingSteers: [{ key: "a", phase }],
-      queuedSteers: [{ key: "b" }],
+      guidingCount: 2,
       hasUnknownSteer: true,
       releaseState: {
         type: "blocked",
@@ -1157,6 +1162,11 @@ describe("composer input queue", () => {
         ],
       },
     });
+    expect(["responseTurnMismatch", "deliveryUnknown"]).toContain(phase);
+    expect(pendingPage(queue, "steer").items).toMatchObject([
+      { preview: { text: "message a" } },
+      { preview: { text: "message b" } },
+    ]);
   });
 
   it("merges terminal rejected steers before ordinary and restores them after definite start failure", () => {
@@ -1183,14 +1193,14 @@ describe("composer input queue", () => {
     const merge = startClaim(terminal);
     expect(merge.provenance.type).toBe("rejectedSteerMerge");
     expect(merge.message.input).toEqual([...message("steer-a").input, ...message("steer-b").input]);
-    expect(queue.view()).toMatchObject({ queuedCount: 1, rejectedSteers: [] });
+    expect(queue.view()).toMatchObject({ ordinaryQueuedCount: 1, rejectedSteers: [] });
 
     expect(queue.settleStart({ type: "definitelyNotAccepted", claim: merge })).toEqual({
       result: { type: "applied", operation: "rejectedSteerStartRestored" },
       effects: [],
     });
     expect(queue.view()).toMatchObject({
-      queuedCount: 1,
+      ordinaryQueuedCount: 1,
       rejectedSteers: [{ key: "steer-a" }, { key: "steer-b" }],
     });
   });
@@ -1257,7 +1267,7 @@ describe("composer input queue", () => {
     const effect = first.effects[0];
     if (effect?.type !== "performSteer") throw new Error("expected steer claim");
     const view = queue.view();
-    expect(view.pendingSteers[0]?.preview).toEqual({
+    expect(pendingPage(queue, "steer").items[0]?.preview).toEqual({
       type: "text",
       text: `${"x".repeat(157)}...`,
       truncated: true,

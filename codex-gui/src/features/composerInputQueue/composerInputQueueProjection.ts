@@ -5,56 +5,45 @@ import type {
 } from "./composerInputQueueContracts";
 import { projectComposerInputPreview } from "./composerInputPreview";
 import { copyComposerInputPayload } from "./composerInputPayload";
-import type { ComposerSteerQueueState } from "./composerSteerQueueState";
+import type { ComposerSteerQueueOverview } from "./composerSteerQueueState";
 
 export function projectComposerInputQueueView(
-  queuedCount: number,
+  ordinaryQueuedCount: number,
   pendingStartPhase: ComposerInputQueuePendingStartPhase | null,
-  steerState: Readonly<ComposerSteerQueueState>,
+  steerOverview: ComposerSteerQueueOverview,
+  detailRevision: number,
 ): ComposerInputQueueView {
-  const pendingSteers = steerState.pendingSteers.map(({ claim, phase }) => ({
-    key: claim.intent.messageId,
-    preview: projectComposerInputPreview(copyComposerInputPayload(claim.intent.input)),
-    phase,
-  }));
-  const queuedSteers = steerState.steerQueue.map((intent) => ({
-    key: intent.messageId,
-    preview: projectComposerInputPreview(copyComposerInputPayload(intent.input)),
-  }));
-  const rejectedSteers = steerState.rejectedSteersQueue.map(({ intent, reason }) => ({
+  const rejectedSteers = steerOverview.rejectedSteersQueue.map(({ intent, reason }) => ({
     key: intent.messageId,
     preview: projectComposerInputPreview(copyComposerInputPayload(intent.input)),
     reason,
   }));
-  const hasUnknownSteer = pendingSteers.some(
-    ({ phase }) => phase === "deliveryUnknown" || phase === "responseTurnMismatch",
-  );
   const blockers: ComposerInputQueueReleaseBlocker[] = [];
-  if (queuedCount > 0) {
-    blockers.push({ type: "ordinaryQueued", count: queuedCount });
+  if (ordinaryQueuedCount > 0) {
+    blockers.push({ type: "ordinaryQueued", count: ordinaryQueuedCount });
   }
   if (pendingStartPhase != null) {
     blockers.push({ type: "pendingStart", phase: pendingStartPhase });
   }
-  if (queuedSteers.length > 0) {
-    blockers.push({ type: "steerQueued", count: queuedSteers.length });
+  if (steerOverview.queuedCount > 0) {
+    blockers.push({ type: "steerQueued", count: steerOverview.queuedCount });
   }
-  if (pendingSteers.length > 0) {
+  if (steerOverview.pendingCount > 0) {
     blockers.push({
       type: "pendingSteers",
-      count: pendingSteers.length,
-      hasUnknown: hasUnknownSteer,
+      count: steerOverview.pendingCount,
+      hasUnknown: steerOverview.hasUnknown,
     });
   }
   if (rejectedSteers.length > 0) {
     blockers.push({ type: "rejectedSteers", count: rejectedSteers.length });
   }
   return {
-    queuedCount,
-    pendingSteers,
-    queuedSteers,
+    ordinaryQueuedCount,
+    guidingCount: steerOverview.pendingCount + steerOverview.queuedCount,
+    detailRevision,
     rejectedSteers,
-    hasUnknownSteer,
+    hasUnknownSteer: steerOverview.hasUnknown,
     releaseState: blockers.length === 0 ? { type: "safe" } : { type: "blocked", blockers },
   };
 }

@@ -178,7 +178,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     return projectComposerInputQueueView(
       this.ordinary.length,
       this.startState.pendingPhase(),
-      this.steerState.state(),
+      this.steerState.overview(),
+      this.currentDetailRevision,
     );
   };
 

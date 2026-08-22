@@ -7,7 +7,6 @@ import type {
 import type { ComposerInputPreview } from "./composerInputPreview";
 import type { InterruptTerminalDisposition } from "./composerInterruptState";
 import type {
-  PendingSteerPhase,
   RejectedSteer,
   RejectedSteerTransfer,
   SteerRecoveryTransfer,
@@ -163,17 +162,6 @@ export type ComposerInputQueueReleaseState =
   | Readonly<{ type: "safe" }>
   | Readonly<{ type: "blocked"; blockers: readonly ComposerInputQueueReleaseBlocker[] }>;
 
-export type ComposerPendingSteerView = Readonly<{
-  key: string;
-  preview: ComposerInputPreview;
-  phase: PendingSteerPhase;
-}>;
-
-export type ComposerQueuedSteerView = Readonly<{
-  key: string;
-  preview: ComposerInputPreview;
-}>;
-
 export type ComposerRejectedSteerView = Readonly<{
   key: string;
   preview: ComposerInputPreview;
@@ -181,9 +169,9 @@ export type ComposerRejectedSteerView = Readonly<{
 }>;
 
 export type ComposerInputQueueView = Readonly<{
-  queuedCount: number;
-  pendingSteers: readonly ComposerPendingSteerView[];
-  queuedSteers: readonly ComposerQueuedSteerView[];
+  ordinaryQueuedCount: number;
+  guidingCount: number;
+  detailRevision: number;
   rejectedSteers: readonly ComposerRejectedSteerView[];
   hasUnknownSteer: boolean;
   releaseState: ComposerInputQueueReleaseState;
