@@ -92,7 +92,7 @@ export function restoreComposerDraft(
   draft: ComposerDraft,
 ): ComposerDraftRestoreResult {
   const record = composerDraftRecords.get(draft);
-  if (record == null || record.version !== composerDraftVersion) {
+  if (record?.version !== composerDraftVersion) {
     return { type: "invalidDraft" };
   }
 
