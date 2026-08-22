@@ -21,9 +21,11 @@ import {
 } from "./composerInputQueue";
 import type {
   ComposerInputQueueReleaseBlocker,
-  ComposerPendingSteerView,
+  ComposerPendingInputDetailRequest,
+  ComposerPendingInputDetailResult,
+  ComposerPendingInputPageRequest,
+  ComposerPendingInputPageResult,
   ComposerQueueMessage,
-  ComposerQueuedSteerView,
   ComposerRejectedSteerView,
   RecoveryBatch,
 } from "./composerInputQueueContracts";
@@ -34,12 +36,12 @@ import { copyComposerInputPayload } from "./composerInputPayload";
 import { runtimeObservationFromAcceptedProjectionEvent } from "./composerInputQueueRuntimeObservation";
 
 export type ComposerInputQueueCoordinatorSnapshot = Readonly<{
-  queuedCount: number;
+  ordinaryQueuedCount: number;
+  guidingCount: number;
+  detailRevision: number;
   recoveryCount: number;
   recovery: Readonly<{ reason: RecoveryBatch["reason"]; count: number }> | null;
   isRecovering: boolean;
-  pendingSteers: readonly ComposerPendingSteerView[];
-  queuedSteers: readonly ComposerQueuedSteerView[];
   rejectedSteers: readonly ComposerRejectedSteerView[];
   hasUnknownSteer: boolean;
   canStop: boolean;
@@ -92,6 +94,10 @@ export type ComposerInputQueueCoordinator = Readonly<{
   observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void;
   getReleaseReadiness(): ComposerInputQueueCoordinatorReleaseReadiness;
   reserveRelease(): ComposerInputQueueCoordinatorReserveReleaseResult;
+  readPendingInputPage(request: ComposerPendingInputPageRequest): ComposerPendingInputPageResult;
+  readPendingInputDetail(
+    request: ComposerPendingInputDetailRequest,
+  ): ComposerPendingInputDetailResult;
   getSnapshot(): ComposerInputQueueCoordinatorSnapshot;
   subscribe(listener: () => void): () => void;
   dispose(): void;
@@ -152,12 +158,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       activeTurnId: input.activeTurnId,
     });
     this.snapshot = {
-      queuedCount: 0,
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: this.queue.detailRevision(),
       recoveryCount: 0,
       recovery: null,
       isRecovering: false,
-      pendingSteers: [],
-      queuedSteers: [],
       rejectedSteers: [],
       hasUnknownSteer: false,
       canStop: input.activeTurnId != null,
@@ -256,6 +262,16 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.consumeTransition(this.queue.observe(observation));
   }
   getSnapshot = (): ComposerInputQueueCoordinatorSnapshot => this.snapshot;
+  readPendingInputPage = (
+    request: ComposerPendingInputPageRequest,
+  ): ComposerPendingInputPageResult => {
+    return this.disposed ? { type: "unavailable" } : this.queue.readPendingInputPage(request);
+  };
+  readPendingInputDetail = (
+    request: ComposerPendingInputDetailRequest,
+  ): ComposerPendingInputDetailResult => {
+    return this.disposed ? { type: "unavailable" } : this.queue.readPendingInputDetail(request);
+  };
   getReleaseReadiness = (): ComposerInputQueueCoordinatorReleaseReadiness => {
     if (this.disposed) return { type: "blocked", blockers: [{ type: "disposed" }] };
     const queueState = this.queue.view().releaseState;
@@ -482,12 +498,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     const interruptPhase =
       interrupt?.phase ?? (this.failedInterruptTurnId == null ? null : "definitelyNotAccepted");
     const next: ComposerInputQueueCoordinatorSnapshot = {
-      queuedCount: queueView.queuedCount,
+      ordinaryQueuedCount: queueView.ordinaryQueuedCount,
+      guidingCount: queueView.guidingCount,
+      detailRevision: queueView.detailRevision,
       recoveryCount: count,
       recovery: this.recovery == null ? null : { reason: this.recovery.reason, count },
       isRecovering: this.isRecovering,
-      pendingSteers: queueView.pendingSteers,
-      queuedSteers: queueView.queuedSteers,
       rejectedSteers: queueView.rejectedSteers,
       hasUnknownSteer: queueView.hasUnknownSteer,
       canStop: this.canInterrupt(currentTurnId),

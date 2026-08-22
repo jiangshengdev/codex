@@ -3,6 +3,7 @@
 export const metricsExpression = `JSON.stringify({
   url: location.href,
   title: document.title,
+  rootRendered: (document.querySelector('#root')?.childElementCount ?? 0) > 0,
   innerWidth,
   innerHeight,
   outerWidth,
@@ -19,7 +20,12 @@ export const metricsExpression = `JSON.stringify({
 })`;
 
 export function isCodexGui(metrics) {
-  return metrics?.title === 'codex-gui' && typeof metrics?.url === 'string';
+  return (
+    typeof metrics?.url === 'string' &&
+    metrics?.rootRendered === true &&
+    (metrics?.title === 'Codex' ||
+      (typeof metrics?.title === 'string' && metrics.title.endsWith(' · Codex')))
+  );
 }
 
 export function responsiveLike(metrics) {
@@ -37,6 +43,7 @@ export function summarizeMetrics(metrics) {
   return {
     url: metrics?.url ?? null,
     title: metrics?.title ?? null,
+    rootRendered: metrics?.rootRendered ?? null,
     innerWidth: metrics?.innerWidth ?? null,
     innerHeight: metrics?.innerHeight ?? null,
     outerWidth: metrics?.outerWidth ?? null,

@@ -4,6 +4,13 @@ import type {
   ComposerInputQueueResult,
   ComposerInputQueueView,
   ComposerQueueMessage,
+  ComposerPendingInputCursor,
+  ComposerPendingInputDetailRequest,
+  ComposerPendingInputDetailResult,
+  ComposerPendingInputDisplayKey,
+  ComposerPendingInputLane,
+  ComposerPendingInputPageRequest,
+  ComposerPendingInputPageResult,
   CreateComposerInputQueueInput,
   InterruptedTurnCompletedObservation,
   NonInterruptedRuntimeObservation,
@@ -12,6 +19,10 @@ import type {
   UserStoppedRecoveryBatch,
 } from "./composerInputQueueContracts";
 import { copyComposerInputPayload } from "./composerInputPayload";
+import {
+  projectComposerInputPreview,
+  projectComposerInputTextDetail,
+} from "./composerInputPreview";
 import { projectComposerInputQueueView } from "./composerInputQueueProjection";
 import {
   ComposerStartQueueState,
@@ -32,6 +43,13 @@ export type {
   ComposerInputQueueView,
   ComposerInterruptedDisposition,
   ComposerQueueMessage,
+  ComposerPendingInputCursor,
+  ComposerPendingInputDetailRequest,
+  ComposerPendingInputDetailResult,
+  ComposerPendingInputDisplayKey,
+  ComposerPendingInputLane,
+  ComposerPendingInputPageRequest,
+  ComposerPendingInputPageResult,
   CreateComposerInputQueueInput,
   InterruptedTurnCompletedObservation,
   NonInterruptedRuntimeObservation,
@@ -43,6 +61,22 @@ export type { StartClaim, StartSettlement } from "./composerStartQueueState";
 
 type TurnIdentity = Turn["id"];
 let nextRejectedMergeSequence = 0;
+let nextPendingInputDisplaySequence = 0;
+
+export const COMPOSER_PENDING_INPUT_MAX_PAGE_SIZE = 20;
+
+const cursorOwner = Symbol("ComposerPendingInputCursor.owner");
+const cursorRevision = Symbol("ComposerPendingInputCursor.revision");
+const cursorLane = Symbol("ComposerPendingInputCursor.lane");
+const cursorOffset = Symbol("ComposerPendingInputCursor.offset");
+
+type OwnedPendingInputCursor = ComposerPendingInputCursor &
+  Readonly<{
+    [cursorOwner]: object;
+    [cursorRevision]: number;
+    [cursorLane]: ComposerPendingInputLane;
+    [cursorOffset]: number;
+  }>;
 
 export type ComposerInputQueueEffect =
   | Readonly<{ type: "performStart"; claim: StartClaim }>
@@ -56,6 +90,11 @@ export type ComposerInputQueueTransition = Readonly<{
 
 export type ComposerInputQueue = Readonly<{
   view(): ComposerInputQueueView;
+  detailRevision(): number;
+  readPendingInputPage(request: ComposerPendingInputPageRequest): ComposerPendingInputPageResult;
+  readPendingInputDetail(
+    request: ComposerPendingInputDetailRequest,
+  ): ComposerPendingInputDetailResult;
   currentTurnId(): TurnIdentity | null;
   submit(message: ComposerQueueMessage): ComposerInputQueueTransition;
   submitSteer(message: ComposerQueueMessage): ComposerInputQueueTransition;
@@ -104,6 +143,14 @@ function recoveryTransition(
 function ownMessage(message: ComposerQueueMessage): ComposerQueueMessage {
   return { id: message.id, input: copyComposerInputPayload(message.input) };
 }
+
+function boundedPageLimit(limit: number): number {
+  if (!Number.isFinite(limit)) {
+    return COMPOSER_PENDING_INPUT_MAX_PAGE_SIZE;
+  }
+  return Math.max(1, Math.min(COMPOSER_PENDING_INPUT_MAX_PAGE_SIZE, Math.floor(limit)));
+}
+
 function hasMeaningfulInput(input: ComposerQueueMessage["input"]): boolean {
   return input.some((item) => item.type !== "text" || item.text.trim() !== "");
 }
@@ -115,6 +162,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   private readonly startState = new ComposerStartQueueState();
   private readonly steerState = createComposerSteerQueue();
   private readonly threadId: string;
+  private readonly detailCursorOwner = {};
+  private readonly displayKeyByMessageId = new Map<string, ComposerPendingInputDisplayKey>();
+  private readonly messageIdByDisplayKey = new Map<ComposerPendingInputDisplayKey, string>();
+  private currentDetailRevision = 0;
   private activeTurnId: TurnIdentity | null;
   private preparedInterruptedTurnId: TurnIdentity | null = null;
 
@@ -127,11 +178,142 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     return projectComposerInputQueueView(
       this.ordinary.length,
       this.startState.pendingPhase(),
-      this.steerState.state(),
+      this.steerState.overview(),
+      this.currentDetailRevision,
     );
   };
 
+  public detailRevision = (): number => this.currentDetailRevision;
+
+  public readPendingInputPage = (
+    request: ComposerPendingInputPageRequest,
+  ): ComposerPendingInputPageResult => {
+    if (request.revision !== this.currentDetailRevision) {
+      return { type: "stale", revision: this.currentDetailRevision };
+    }
+    const cursor = request.cursor as OwnedPendingInputCursor | null;
+    if (
+      cursor != null &&
+      (cursor[cursorOwner] !== this.detailCursorOwner ||
+        cursor[cursorRevision] !== request.revision ||
+        cursor[cursorLane] !== request.lane)
+    ) {
+      return { type: "stale", revision: this.currentDetailRevision };
+    }
+    const offset = cursor?.[cursorOffset] ?? 0;
+    const limit = boundedPageLimit(request.limit);
+    const items =
+      request.lane === "ordinary"
+        ? this.ordinary.slice(offset, offset + limit).map((message) => ({
+            key: this.requireDisplayKey(message.id),
+            lane: request.lane,
+            preview: projectComposerInputPreview(message.input),
+          }))
+        : this.steerState.readPendingInputs(offset, limit).map((intent) => ({
+            key: this.requireDisplayKey(intent.messageId),
+            lane: request.lane,
+            preview: projectComposerInputPreview(intent.input),
+          }));
+    const count =
+      request.lane === "ordinary" ? this.ordinary.length : this.steerState.pendingInputCount();
+    const nextOffset = offset + items.length;
+    return {
+      type: "page",
+      revision: this.currentDetailRevision,
+      items,
+      nextCursor:
+        nextOffset < count
+          ? this.createPendingInputCursor(request.lane, this.currentDetailRevision, nextOffset)
+          : null,
+    };
+  };
+
+  public readPendingInputDetail = (
+    request: ComposerPendingInputDetailRequest,
+  ): ComposerPendingInputDetailResult => {
+    if (request.revision !== this.currentDetailRevision) {
+      return { type: "stale", revision: this.currentDetailRevision };
+    }
+    const messageId = this.messageIdByDisplayKey.get(request.key);
+    if (messageId == null) {
+      return { type: "missing", revision: this.currentDetailRevision };
+    }
+    const message =
+      this.ordinary.find(({ id }) => id === messageId) ??
+      this.steerState.findPendingInput(messageId);
+    if (message == null) {
+      return { type: "missing", revision: this.currentDetailRevision };
+    }
+    const preview = projectComposerInputPreview(message.input);
+    if (preview.type !== "text" || !preview.truncated) {
+      return { type: "missing", revision: this.currentDetailRevision };
+    }
+    const text = projectComposerInputTextDetail(message.input);
+    return text == null
+      ? { type: "missing", revision: this.currentDetailRevision }
+      : { type: "detail", key: request.key, revision: this.currentDetailRevision, text };
+  };
+
   public currentTurnId = (): TurnIdentity | null => this.activeTurnId;
+
+  private advanceDetailRevision(): void {
+    this.currentDetailRevision += 1;
+  }
+
+  private ownDisplayKey(messageId: string): ComposerPendingInputDisplayKey {
+    const existing = this.displayKeyByMessageId.get(messageId);
+    if (existing != null) {
+      return existing;
+    }
+    nextPendingInputDisplaySequence += 1;
+    const key = `composer-pending-input-${String(
+      nextPendingInputDisplaySequence,
+    )}` as ComposerPendingInputDisplayKey;
+    this.displayKeyByMessageId.set(messageId, key);
+    this.messageIdByDisplayKey.set(key, messageId);
+    return key;
+  }
+
+  private requireDisplayKey(messageId: string): ComposerPendingInputDisplayKey {
+    const key = this.displayKeyByMessageId.get(messageId);
+    if (key == null) {
+      throw new Error("Composer pending input is missing its display key");
+    }
+    return key;
+  }
+
+  private forgetDisplayKey(messageId: string): void {
+    const key = this.displayKeyByMessageId.get(messageId);
+    if (key == null) {
+      return;
+    }
+    this.displayKeyByMessageId.delete(messageId);
+    this.messageIdByDisplayKey.delete(key);
+  }
+
+  private createPendingInputCursor(
+    lane: ComposerPendingInputLane,
+    revision: number,
+    offset: number,
+  ): ComposerPendingInputCursor {
+    const cursor: OwnedPendingInputCursor = {
+      [cursorOwner]: this.detailCursorOwner,
+      [cursorRevision]: revision,
+      [cursorLane]: lane,
+      [cursorOffset]: offset,
+    } as OwnedPendingInputCursor;
+    return cursor;
+  }
+
+  private removeNormalDisplayKeys(messageIds: readonly string[]): void {
+    if (messageIds.length === 0) {
+      return;
+    }
+    for (const messageId of messageIds) {
+      this.forgetDisplayKey(messageId);
+    }
+    this.advanceDetailRevision();
+  }
 
   private issueStart(
     message: ComposerQueueMessage,
@@ -164,6 +346,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       });
     }
     const message = this.ordinary.shift();
+    if (message != null) {
+      this.forgetDisplayKey(message.id);
+      this.advanceDetailRevision();
+    }
     return message == null ? null : this.issueStart(message, { type: "ordinary" });
   }
 
@@ -172,6 +358,9 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       return null;
     }
     const result = this.steerState.transition({ type: "issueNext" });
+    if (result.type === "issued") {
+      this.advanceDetailRevision();
+    }
     return result.type === "issued" ? { type: "performSteer", claim: result.claim } : null;
   }
 
@@ -186,11 +375,14 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     if (this.activeTurnId === observation.turnId) {
       this.activeTurnId = null;
     }
-    this.steerState.transition({
+    const terminal = this.steerState.transition({
       type: "terminal",
       threadId: this.threadId,
       turnId: observation.turnId,
     });
+    if (terminal.type === "terminal") {
+      this.removeNormalDisplayKeys(terminal.messageIds);
+    }
     return this.drainTransition("turnCompleted", this.drainNextStart());
   }
 
@@ -286,6 +478,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       ]);
     }
     this.ordinary.push(ownedMessage);
+    this.ownDisplayKey(ownedMessage.id);
+    this.advanceDetailRevision();
     return transition({ type: "queued", messageId: ownedMessage.id });
   };
 
@@ -311,6 +505,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         source: "direct",
       },
     });
+    if (queued.type === "enqueued") {
+      this.ownDisplayKey(ownedMessage.id);
+      this.advanceDetailRevision();
+    }
     return this.drainTransition(
       queued.type === "rejected" ? "steerRejected" : "steerQueued",
       this.drainSteer(),
@@ -335,7 +533,9 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         source: "ordinaryPromotion",
       },
     });
+    this.advanceDetailRevision();
     if (queued.type === "rejected") {
+      this.forgetDisplayKey(message.id);
       return transition({ type: "applied", operation: "steerRejected" });
     }
     return this.drainTransition("steerQueued", this.drainSteer());
@@ -348,6 +548,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     }
     for (const messageId of restored.messageIds) {
       this.knownMessageIds.add(messageId);
+      this.ownDisplayKey(messageId);
+    }
+    if (restored.messageIds.length > 0) {
+      this.advanceDetailRevision();
     }
     return this.drainTransition("steerRecoveryRestored", this.drainSteer());
   };
@@ -373,10 +577,14 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       for (const messageId of messageIds) {
         this.knownMessageIds.delete(messageId);
       }
+      this.removeNormalDisplayKeys(messageIds);
       return recoveryTransition(
         { reason: "steerDefinitelyNotAccepted", transfer: result.transfer },
         messageIds,
       );
+    }
+    if (result.type === "rejected") {
+      this.removeNormalDisplayKeys(result.messageIds);
     }
     const operation =
       result.type === "accepted"
@@ -401,7 +609,14 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       return transition({ type: "ownershipMismatch", subject: "interruptedTurn" });
     }
     this.preparedInterruptedTurnId = null;
-    this.steerState.transition({ type: "terminal", threadId: this.threadId, turnId });
+    const terminal = this.steerState.transition({
+      type: "terminal",
+      threadId: this.threadId,
+      turnId,
+    });
+    if (terminal.type === "terminal") {
+      this.removeNormalDisplayKeys(terminal.messageIds);
+    }
     if (disposition === "nonLocal") {
       return this.drainTransition("turnCompleted", this.drainNextStart());
     }
@@ -409,7 +624,13 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const taken = this.steerState.transition({ type: "takeRejected" });
     const rejected = taken.type === "rejectedTaken" ? taken.transfer : null;
     const messages = this.ordinary.splice(0);
-    for (const message of messages) this.knownMessageIds.delete(message.id);
+    for (const message of messages) {
+      this.knownMessageIds.delete(message.id);
+      this.forgetDisplayKey(message.id);
+    }
+    if (messages.length > 0) {
+      this.advanceDetailRevision();
+    }
     if (rejected == null && messages.length === 0) {
       return transition({ type: "applied", operation: "turnCompleted" });
     }
@@ -441,7 +662,13 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     }
     const messages = batch.messages.map(ownMessage);
     this.ordinary.unshift(...messages);
-    for (const message of messages) this.knownMessageIds.add(message.id);
+    for (const message of messages) {
+      this.knownMessageIds.add(message.id);
+      this.ownDisplayKey(message.id);
+    }
+    if (messages.length > 0) {
+      this.advanceDetailRevision();
+    }
     return this.drainTransition("userStoppedRecoveryRestored", this.drainNextStart());
   };
 
@@ -457,6 +684,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       });
       if (steerResult.type === "committed") {
         this.knownMessageIds.delete(steerResult.messageId);
+        this.removeNormalDisplayKeys([steerResult.messageId]);
         return this.drainTransition("steerCommitted", this.drainSteer());
       }
     }

@@ -6,7 +6,7 @@ const TRUNCATED_PREVIEW_GRAPHEMES = MAX_PREVIEW_GRAPHEMES - 3;
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 export type ComposerInputPreview =
-  | Readonly<{ type: "text"; text: string }>
+  | Readonly<{ type: "text"; text: string; truncated: boolean }>
   | Readonly<{
       type: "nonText";
       imageCount: number;
@@ -15,7 +15,15 @@ export type ComposerInputPreview =
       mentionCount: number;
     }>;
 
-export const projectComposerInputPreview = (input: readonly UserInput[]): ComposerInputPreview => {
+type ComposerInputSummary = Readonly<{
+  text: string;
+  imageCount: number;
+  audioCount: number;
+  skillCount: number;
+  mentionCount: number;
+}>;
+
+const summarizeComposerInput = (input: readonly UserInput[]): ComposerInputSummary => {
   const textParts: string[] = [];
   let imageCount = 0;
   let audioCount = 0;
@@ -48,13 +56,8 @@ export const projectComposerInputPreview = (input: readonly UserInput[]): Compos
     }
   }
 
-  const normalizedText = textParts.join("").trim();
-  if (normalizedText.length > 0) {
-    return { type: "text", text: truncatePreview(normalizedText) };
-  }
-
   return {
-    type: "nonText",
+    text: textParts.join("").trim(),
     imageCount,
     audioCount,
     skillCount,
@@ -62,14 +65,37 @@ export const projectComposerInputPreview = (input: readonly UserInput[]): Compos
   };
 };
 
-const truncatePreview = (text: string): string => {
+export const projectComposerInputPreview = (input: readonly UserInput[]): ComposerInputPreview => {
+  const summary = summarizeComposerInput(input);
+  if (summary.text.length > 0) {
+    return { type: "text", ...truncatePreview(summary.text) };
+  }
+
+  return {
+    type: "nonText",
+    imageCount: summary.imageCount,
+    audioCount: summary.audioCount,
+    skillCount: summary.skillCount,
+    mentionCount: summary.mentionCount,
+  };
+};
+
+export const projectComposerInputTextDetail = (input: readonly UserInput[]): string | null => {
+  const text = summarizeComposerInput(input).text;
+  return text.length === 0 ? null : text;
+};
+
+const truncatePreview = (text: string): Readonly<{ text: string; truncated: boolean }> => {
   const graphemes: string[] = [];
   for (const segment of graphemeSegmenter.segment(text)) {
     graphemes.push(segment.segment);
     if (graphemes.length > MAX_PREVIEW_GRAPHEMES) {
-      return `${graphemes.slice(0, TRUNCATED_PREVIEW_GRAPHEMES).join("")}...`;
+      return {
+        text: `${graphemes.slice(0, TRUNCATED_PREVIEW_GRAPHEMES).join("")}...`,
+        truncated: true,
+      };
     }
   }
 
-  return graphemes.join("");
+  return { text: graphemes.join(""), truncated: false };
 };

@@ -75,7 +75,7 @@ export const CommittedTranscriptSurfaceRenderer = ({
         comment: "Accessible name for the region containing committed transcript turns",
         message: "Committed transcript",
       })}
-      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4"
+      className="committed-transcript-surface mx-auto grid min-w-0 w-full max-w-3xl gap-4 pt-3"
     >
       {globalStatus.length > 0 ? (
         <div className="committed-transcript-status-list grid min-w-0 gap-2">
