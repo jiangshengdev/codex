@@ -5,15 +5,45 @@ description: Codex GUI 极简安装与启动指南
 hide_table_of_contents: true
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Codex GUI
 
 本页适用于首次使用 Codex GUI 的普通用户。
 
 ## 1. 安装 Codex
 
+<Tabs groupId="package-manager" defaultValue="npm">
+<TabItem value="npm" label="npm">
+
 ```bash
 npm install -g @jiangshengdev/codex@latest
 ```
+
+</TabItem>
+<TabItem value="pnpm" label="pnpm">
+
+```bash
+pnpm add -g @jiangshengdev/codex@latest
+```
+
+</TabItem>
+<TabItem value="yarn" label="Yarn Classic">
+
+```bash
+yarn global add @jiangshengdev/codex@latest
+```
+
+</TabItem>
+<TabItem value="bun" label="Bun">
+
+```bash
+bun add -g @jiangshengdev/codex@latest
+```
+
+</TabItem>
+</Tabs>
 
 ## 2. 启动 Codex
 
@@ -36,8 +66,8 @@ cdx
 输出类似：
 
 ```text
-Local: http://127.0.0.1:55426/task/01a02882-0483-7c03-9712-647a9fbb971b#token=YOUR_ACCESS_TOKEN
-LAN:   http://192.168.1.11:55426/task/01a02882-0483-7c03-9712-647a9fbb971b#token=YOUR_ACCESS_TOKEN
+Local: http://127.0.0.1:<PORT>/task/<TASK_ID>#token=<ACCESS_TOKEN>
+LAN:   http://<LAN_IP>:<PORT>/task/<TASK_ID>#token=<ACCESS_TOKEN>
 ```
 
 - 在运行 Codex 的电脑上访问时，使用 `Local`。
