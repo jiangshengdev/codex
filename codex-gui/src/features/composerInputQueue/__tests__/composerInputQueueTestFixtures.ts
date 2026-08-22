@@ -1,9 +1,4 @@
-import {
-  $createParagraphNode,
-  $createTextNode,
-  $getRoot,
-  createEditor,
-} from "lexical";
+import { $createParagraphNode, $createTextNode, $getRoot, createEditor } from "lexical";
 
 import {
   captureComposerDraft,

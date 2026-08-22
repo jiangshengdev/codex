@@ -106,11 +106,7 @@ export function ComposerTurnControl({
     threadId != null &&
     composerInputQueueController.ownerThreadId === threadId;
   const invalidSkillPaths = useMemo(
-    () =>
-      invalidSelectedSkillPaths(
-        skillCatalog,
-        editorSnapshot?.selectedSkillPaths ?? [],
-      ),
+    () => invalidSelectedSkillPaths(skillCatalog, editorSnapshot?.selectedSkillPaths ?? []),
     [editorSnapshot, skillCatalog],
   );
   const invalidStatusText = t`Invalid skill`;

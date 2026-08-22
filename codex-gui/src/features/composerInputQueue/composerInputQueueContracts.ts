@@ -1,8 +1,4 @@
-import type {
-  ThreadItem,
-  ThreadProjectionEventNotification,
-  Turn,
-} from "@codex-protocol/v2";
+import type { ThreadItem, ThreadProjectionEventNotification, Turn } from "@codex-protocol/v2";
 import type { ComposerDraft } from "@/features/composerEditor/composerDraft";
 import type { ComposerInputPreview } from "./composerInputPreview";
 import type { ReadonlyComposerInputPayload } from "./composerInputPayload";

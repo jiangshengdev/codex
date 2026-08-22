@@ -22,10 +22,7 @@ import type {
 } from "@codex-protocol/v2";
 import { copyComposerInputPayload } from "../composerInputPayload";
 import { createComposerInputQueueCoordinator } from "../composerInputQueueCoordinator";
-import {
-  composerCapture,
-  composerDraftCapture,
-} from "./composerInputQueueTestFixtures";
+import { composerCapture, composerDraftCapture } from "./composerInputQueueTestFixtures";
 
 type Deferred = ReturnType<typeof deferredStart>;
 type StartTurn = (params: TurnStartParams) => Promise<TurnStartResponse>;

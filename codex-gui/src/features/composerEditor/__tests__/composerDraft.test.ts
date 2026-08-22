@@ -7,11 +7,7 @@ import {
 } from "lexical";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  captureComposerDraft,
-  restoreComposerDraft,
-  type ComposerDraft,
-} from "../composerDraft";
+import { captureComposerDraft, restoreComposerDraft, type ComposerDraft } from "../composerDraft";
 import { $createSkillNode, $isSkillNode, SkillNode, type SkillNodeState } from "../SkillNode";
 
 describe("composerDraft", () => {
@@ -161,7 +157,9 @@ describe("composerDraft", () => {
 
     editor.update(
       () => {
-        $getRoot().clear().append($createParagraphNode().append($createTextNode("replacement")));
+        $getRoot()
+          .clear()
+          .append($createParagraphNode().append($createTextNode("replacement")));
       },
       { discrete: true },
     );
@@ -179,7 +177,8 @@ describe("composerDraft", () => {
         { type: "skill", name: "shared", path: second.path },
       ],
       selectedSkillPaths: [first.path, first.path, second.path],
-      textContent: "literal $shared then $First display and $Duplicate display\n\n$Second display done",
+      textContent:
+        "literal $shared then $First display and $Duplicate display\n\n$Second display done",
     });
     expect(readSkills(editor)).toEqual([first, duplicate, second]);
   });
@@ -205,12 +204,7 @@ describe("composerDraft", () => {
   });
 });
 
-function skill(
-  name: string,
-  path: string,
-  displayName: string,
-  sourceLabel = "",
-): SkillNodeState {
+function skill(name: string, path: string, displayName: string, sourceLabel = ""): SkillNodeState {
   return { name, path, displayName, sourceLabel };
 }
 

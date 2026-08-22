@@ -182,9 +182,7 @@ test("submits a plain-text capture without letting Enter rewrite the editor snap
   expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(getController(controllerRef).getSnapshot()).toBe(snapshotBeforeSubmit);
   expect(submittedCapture.textContent).toBe("Hello");
-  expect(submittedCapture.input).toEqual([
-    { type: "text", text: "Hello", text_elements: [] },
-  ]);
+  expect(submittedCapture.input).toEqual([{ type: "text", text: "Hello", text_elements: [] }]);
 });
 
 test.each([
@@ -541,9 +539,7 @@ test("restores a new editor session with the caret at the end and fresh history"
     .toBe("old session!");
 
   expect(getController(controllerRef).restore(capture.draft)).toEqual({ type: "restored" });
-  await expect
-    .element(screen.getByText("$Restored Skill", { exact: true }))
-    .toBeInTheDocument();
+  await expect.element(screen.getByText("$Restored Skill", { exact: true })).toBeInTheDocument();
   await expect
     .poll(() => getController(controllerRef).getSnapshot().textContent)
     .toBe("$Restored Skill tail");
@@ -653,9 +649,7 @@ test("consumes only the first Enter immediately following composition end", asyn
   }
   expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(submittedSnapshot.textContent).toBe("中文");
-  expect(submittedSnapshot.input).toEqual([
-    { type: "text", text: "中文", text_elements: [] },
-  ]);
+  expect(submittedSnapshot.input).toEqual([{ type: "text", text: "中文", text_elements: [] }]);
 });
 
 test("applies composition-end suppression before the guide shortcut intent", async () => {

@@ -196,9 +196,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     const pending = this.pendingSteers.find(({ claim }) => claim.intent.message.id === messageId);
     const intent =
       pending?.claim.intent ?? this.steerQueue.find((item) => item.message.id === messageId);
-    return intent == null
-      ? null
-      : { messageId: intent.message.id, input: intent.message.input };
+    return intent == null ? null : { messageId: intent.message.id, input: intent.message.input };
   };
 
   private enqueue(input: EnqueueSteerInput): ComposerSteerQueueResult {

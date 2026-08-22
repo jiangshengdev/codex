@@ -475,9 +475,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const ownedMessage = ownMessage(message);
     this.knownMessageIds.add(ownedMessage.id);
     if (this.activeTurnId == null && !this.startState.hasPending() && this.ordinary.length === 0) {
-      return transition({ type: "claimIssued" }, [
-        this.issueStart(ownedMessage),
-      ]);
+      return transition({ type: "claimIssued" }, [this.issueStart(ownedMessage)]);
     }
     this.ordinary.push(ownedMessage);
     this.ownDisplayKey(ownedMessage.id);

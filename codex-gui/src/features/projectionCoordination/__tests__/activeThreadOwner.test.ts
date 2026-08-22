@@ -106,9 +106,7 @@ describe("activeThreadOwner skill catalog", () => {
     pending.resolve(response("stale"));
     await Promise.resolve();
 
-    expect(
-      prepared.activeOwner.queueCoordinator.submit(composerCapture("after dispose")),
-    ).toEqual({
+    expect(prepared.activeOwner.queueCoordinator.submit(composerCapture("after dispose"))).toEqual({
       type: "rejected",
       reason: "disposed",
     });

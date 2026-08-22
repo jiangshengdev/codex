@@ -9,10 +9,7 @@ import {
   type ComposerPendingInputLane,
   type StartClaim,
 } from "../composerInputQueue";
-import {
-  composerDraftCapture,
-  composerQueueMessage,
-} from "./composerInputQueueTestFixtures";
+import { composerDraftCapture, composerQueueMessage } from "./composerInputQueueTestFixtures";
 
 const message = (id: string): ComposerQueueMessage => composerQueueMessage(id);
 
