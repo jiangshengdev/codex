@@ -448,6 +448,7 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*turn_cost_worker*/ None,
             /*initial_config_warnings*/ Vec::new(),
         );
 
@@ -633,6 +634,7 @@ mod tests {
                     message: "final answer".to_string(),
                     phase: None,
                     memory_citation: None,
+                    delivery: None,
                 },
             )),
             RolloutItem::EventMsg(EventMsg::TurnComplete(
@@ -763,6 +765,7 @@ mod tests {
             /*state_db*/ None,
             /*log_db*/ None,
             skills_watcher,
+            /*turn_cost_worker*/ None,
             /*initial_config_warnings*/ Vec::new(),
         );
 

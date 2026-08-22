@@ -11,6 +11,7 @@
       "ephemeral": false,
       "section": null,
       "sectionEnteredAt": null,
+      "projectId": null,
       "historyMode": "legacy",
       "modelProvider": "openai",
       "createdAt": 1700000000,

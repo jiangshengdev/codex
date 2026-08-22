@@ -97,8 +97,12 @@ where
         git_attribution_base_url,
         http_client_factory,
     );
-    codex_guardian::install(&mut builder, guardian_agent_spawner);
-    codex_guardian_v2::install(&mut builder, auth_manager.clone(), thread_manager);
+    codex_guardian_v2::install(
+        &mut builder,
+        guardian_agent_spawner,
+        auth_manager.clone(),
+        thread_manager,
+    );
     let gui_launch_availability = Arc::clone(&gui_launch_service);
     codex_gui_agent_extension::install_with_service(
         &mut builder,
@@ -124,6 +128,7 @@ where
         codex_otel::global(),
         |config: &Config| codex_skills_extension::SkillsExtensionConfig {
             include_instructions: config.include_skill_instructions,
+            max_context_tokens: config.skill_max_context_tokens,
             bundled_skills_enabled: config.bundled_skills_enabled(),
             orchestrator_skills_enabled: config.orchestrator_skills_enabled,
             shadow_selection_enabled: config
