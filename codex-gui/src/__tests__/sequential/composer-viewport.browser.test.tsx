@@ -227,7 +227,7 @@ test("does not scroll for visual viewport resize after composer blur", async () 
   }
 });
 
-test("keeps a taller pending-input region accessible and horizontally closed in a narrow viewport", async () => {
+test("keeps the compact pending trigger and right Drawer horizontally closed in a narrow viewport", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
   const activeTurnId = "viewport-active-turn";
   const pendingSteer = createDeferred<Awaited<ReturnType<GuiHostCommands["steerTurn"]>>>();
@@ -245,8 +245,8 @@ test("keeps a taller pending-input region accessible and horizontally closed in 
     const screen = await renderAttached(commandHandle, controller);
     const composerShell = screen.getByRole("region", { name: "Message composer" }).element();
     const composer = screen.getByRole("combobox", { name: "Message Codex", exact: true });
-    const baselineComposerHeight = composerShell.getBoundingClientRect().height;
-    const longToken = "x".repeat(160);
+    const longToken = "x".repeat(240);
+    const longOrdinaryText = "Ordinary message after guidance ".repeat(12).trim();
 
     controller.submitSteer([{ type: "text", text: longToken, text_elements: [] }]);
     controller.submitSteer([
@@ -256,20 +256,39 @@ test("keeps a taller pending-input region accessible and horizontally closed in 
         text_elements: [],
       },
     ]);
+    controller.submit([{ type: "text", text: longOrdinaryText, text_elements: [] }]);
     controller.submit([
-      { type: "text", text: "Ordinary message after guidance", text_elements: [] },
+      { type: "image", detail: "high", url: "https://example.test/image.png" },
+      { type: "audio", url: "https://example.test/audio.wav" },
+      { type: "skill", name: "review", path: "/private/review/SKILL.md" },
+      { type: "mention", name: "agent", path: "/private/agent.md" },
     ]);
 
     const pendingRegion = screen.getByRole("region", { name: "Pending messages", exact: true });
+    const trigger = pendingRegion.getByRole("button", {
+      name: "Pending: Guide 2, Queued 2",
+      exact: true,
+    });
     await expect.element(pendingRegion).toBeVisible();
+    await expect.element(trigger).toBeVisible();
     await expect
-      .element(pendingRegion.getByRole("heading", { name: "Guiding", exact: true }))
+      .element(pendingRegion.getByText(longToken, { exact: true }))
+      .not.toBeInTheDocument();
+
+    await trigger.click();
+    const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+    await expect.element(dialog).toBeVisible();
+    await expect
+      .element(dialog.getByRole("heading", { name: "Guiding", exact: true }))
       .toBeVisible();
     await expect
-      .element(pendingRegion.getByText("1 message queued", { exact: true }))
+      .element(dialog.getByRole("heading", { name: "Queued", exact: true }))
       .toBeVisible();
-    const longPreview = pendingRegion.getByText(longToken, { exact: true });
-    await expect.element(longPreview).toBeVisible();
+    await expect.element(dialog).toHaveTextContent(/1 image.*1 audio item.*1 skill.*1 mention/);
+    const expandLongToken = dialog.getByRole("button", { name: /Expand pending message:/ }).first();
+    await expandLongToken.click();
+    const longDetail = dialog.getByText(longToken, { exact: true });
+    await expect.element(longDetail).toBeVisible();
 
     await expect
       .poll(() => {
@@ -278,31 +297,39 @@ test("keeps a taller pending-input region accessible and horizontally closed in 
           return null;
         }
         const pendingElement = pendingRegion.element();
-        const previewElement = longPreview.element();
-        const pendingBounds = pendingElement.getBoundingClientRect();
+        const triggerElement = trigger.element();
+        const dialogElement = dialog.element();
+        const detailElement = longDetail.element();
+        const dialogBounds = dialogElement.getBoundingClientRect();
+        const triggerBounds = triggerElement.getBoundingClientRect();
 
         return {
-          composerGrew: composerShell.getBoundingClientRect().height > baselineComposerHeight,
           composerHorizontallyClosed: composerShell.scrollWidth <= composerShell.clientWidth + 1,
+          detailHorizontallyClosed: detailElement.scrollWidth <= detailElement.clientWidth + 1,
+          dialogHorizontallyClosed: dialogElement.scrollWidth <= dialogElement.clientWidth + 1,
+          dialogWithinViewport:
+            dialogBounds.left >= -1 && dialogBounds.right <= window.innerWidth + 1,
           documentHorizontallyClosed:
             documentScroller.scrollWidth <= documentScroller.clientWidth + 1,
-          lineClamp: getComputedStyle(previewElement).webkitLineClamp,
           pendingHorizontallyClosed: pendingElement.scrollWidth <= pendingElement.clientWidth + 1,
-          pendingWithinViewport:
-            pendingBounds.left >= -1 && pendingBounds.right <= window.innerWidth + 1,
-          previewHorizontallyClosed: previewElement.scrollWidth <= previewElement.clientWidth + 1,
+          triggerHorizontallyClosed: triggerElement.scrollWidth <= triggerElement.clientWidth + 1,
+          triggerWithinViewport:
+            triggerBounds.left >= -1 && triggerBounds.right <= window.innerWidth + 1,
         };
       })
       .toEqual({
-        composerGrew: true,
         composerHorizontallyClosed: true,
+        detailHorizontallyClosed: true,
+        dialogHorizontallyClosed: true,
+        dialogWithinViewport: true,
         documentHorizontallyClosed: true,
-        lineClamp: "3",
         pendingHorizontallyClosed: true,
-        pendingWithinViewport: true,
-        previewHorizontallyClosed: true,
+        triggerHorizontallyClosed: true,
+        triggerWithinViewport: true,
       });
 
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect.element(dialog).not.toBeInTheDocument();
     await composer.click();
     await expect.element(composer).toHaveFocus();
   } finally {

@@ -43,6 +43,10 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type {
+  ComposerPendingInputLane,
+  ComposerPendingInputPageItem,
+} from "@/features/composerInputQueue/composerInputQueueContracts";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import type {
   GuiHostCommands,
@@ -107,6 +111,7 @@ const startGuiHostConnectionMock =
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
 let threadSwitchProbeActiveOwner: ActiveThreadOwnerHandle | null = null;
+let threadSwitchProbeContinueThread: ReturnType<typeof useAppCapabilities>["continueThread"] = null;
 let threadSwitchProbePromise: ReturnType<
   NonNullable<ReturnType<typeof useAppCapabilities>["continueThread"]>
 > | null = null;
@@ -127,7 +132,8 @@ function ThreadSwitchCapabilityProbe() {
   );
   useEffect(() => {
     threadSwitchProbeActiveOwner = activeOwner;
-  }, [activeOwner]);
+    threadSwitchProbeContinueThread = continueThread;
+  }, [activeOwner, continueThread]);
 
   return (
     <section aria-label="Thread switch capability probe">
@@ -151,6 +157,15 @@ function ThreadSwitchCapabilityProbe() {
         {skillCatalogSnapshot.candidates.map(({ name }) => name).join(",") || "none"}
       </output>
     </section>
+  );
+}
+
+function ThreadSwitchComposerProbe() {
+  return (
+    <>
+      <ThreadSwitchCapabilityProbe />
+      <CurrentTaskPage />
+    </>
   );
 }
 
@@ -238,13 +253,19 @@ const createQueueCoordinatorMock = (
           ? releaseReadiness
           : { type: "reserved", reservation: { release: reservationRelease } },
       ),
+    readPendingInputPage: vi
+      .fn<ComposerInputQueueCoordinator["readPendingInputPage"]>()
+      .mockReturnValue({ type: "unavailable" }),
+    readPendingInputDetail: vi
+      .fn<ComposerInputQueueCoordinator["readPendingInputDetail"]>()
+      .mockReturnValue({ type: "unavailable" }),
     getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
-      queuedCount: 0,
+      ordinaryQueuedCount: 0,
+      guidingCount: 0,
+      detailRevision: 0,
       recoveryCount: 0,
       recovery: null,
       isRecovering: false,
-      pendingSteers: [],
-      queuedSteers: [],
       rejectedSteers: [],
       hasUnknownSteer: false,
       canStop: false,
@@ -257,6 +278,32 @@ const createQueueCoordinatorMock = (
   } satisfies ComposerInputQueueCoordinator;
   return { coordinator, dispose, observeAcceptedEvent, reservationRelease };
 };
+
+const readPendingItems = (
+  coordinator: ComposerInputQueueCoordinator,
+  lane: ComposerPendingInputLane,
+  limit = 20,
+): readonly ComposerPendingInputPageItem[] => {
+  const snapshot = coordinator.getSnapshot();
+  const result = coordinator.readPendingInputPage({
+    lane,
+    revision: snapshot.detailRevision,
+    cursor: null,
+    limit,
+  });
+  if (result.type !== "page") {
+    throw new Error(`expected ${lane} pending-input page, received ${result.type}`);
+  }
+  return result.items;
+};
+
+const readPendingTextPreviews = (
+  coordinator: ComposerInputQueueCoordinator,
+  lane: ComposerPendingInputLane,
+): string[] =>
+  readPendingItems(coordinator, lane).map(({ preview }) =>
+    preview.type === "text" ? preview.text : "nonText",
+  );
 
 const requireThreadSwitchProbeOwner = (): ActiveThreadOwnerHandle => {
   if (threadSwitchProbeActiveOwner == null) {
@@ -356,6 +403,7 @@ beforeEach(() => {
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
   threadSwitchProbeActiveOwner = null;
+  threadSwitchProbeContinueThread = null;
   threadSwitchProbePromise = null;
 });
 
@@ -1256,14 +1304,26 @@ test("App sends ordinary Enter through start identity and renders only its live 
 });
 
 test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
-  const { activeTurn, options, screen, startTurn } = await renderActiveApp();
+  const { activeTurn, options, queueCoordinator, screen, startTurn } = await renderActiveApp();
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
 
   await getAppComposer(screen).fill("Queued from active turn");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
 
-  await expect.element(screen.getByText("1 message queued")).toBeVisible();
-  await expect.element(screen.getByText("Queued from active turn")).not.toBeInTheDocument();
+  const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
+  await expect.element(trigger).toBeVisible();
+  expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
+  expect(readPendingTextPreviews(queueCoordinator, "ordinary")).toEqual([
+    "Queued from active turn",
+  ]);
+  await expect
+    .element(transcript.getByText("Queued from active turn", { exact: true }))
+    .not.toBeInTheDocument();
   expect(startTurn).not.toHaveBeenCalled();
+
+  await trigger.click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect.element(dialog.getByText("Queued from active turn", { exact: true })).toBeVisible();
 
   const completed = turnCompleted(eventTurnCompleted, "commit-active-terminal", {
     ...activeTurn,
@@ -1275,7 +1335,12 @@ test("App queues during an active turn and starts exactly once after its live te
   );
 
   expectStartTurnCalledOnceWithText(startTurn, "Queued from active turn");
-  await expect.element(screen.getByText("Queued from active turn")).not.toBeInTheDocument();
+  await expect.element(dialog).not.toBeInTheDocument();
+  await expect.element(trigger).not.toBeInTheDocument();
+  expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(0);
+  await expect
+    .element(transcript.getByText("Queued from active turn", { exact: true }))
+    .not.toBeInTheDocument();
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
 
@@ -1297,7 +1362,7 @@ test("App guides explicit input ahead of ordinary FIFO and commits accepted iden
   await screen.user.keyboard("{Enter}");
   await composer.fill("Ordinary B");
   await screen.user.keyboard("{Enter}");
-  await expect.poll(() => queueCoordinator.getSnapshot().queuedCount).toBe(2);
+  await expect.poll(() => queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(2);
 
   await composer.fill("Explicit steer S");
   dispatchGuideShortcut(composer.element());
@@ -1314,9 +1379,11 @@ test("App guides explicit input ahead of ordinary FIFO and commits accepted iden
 
   await expect.poll(() => composer.element().textContent.trim()).toBe("");
   dispatchGuideShortcut(composer.element());
-  await expect.poll(() => queueCoordinator.getSnapshot().queuedCount).toBe(1);
-  expect(queueCoordinator.getSnapshot().queuedSteers).toMatchObject([
-    { preview: { type: "text", text: "Ordinary A" } },
+  await expect.poll(() => queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
+  await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(2);
+  expect(readPendingTextPreviews(queueCoordinator, "steer")).toEqual([
+    "Explicit steer S",
+    "Ordinary A",
   ]);
 
   explicitSteer.resolve({ turnId: activeTurn.id });
@@ -1331,9 +1398,7 @@ test("App guides explicit input ahead of ordinary FIFO and commits accepted iden
   expect(typeof promotedParams.clientUserMessageId).toBe("string");
   expect(promotedParams.clientUserMessageId).not.toBe(explicitParams.clientUserMessageId);
   promotedSteer.resolve({ turnId: activeTurn.id });
-  await expect
-    .poll(() => queueCoordinator.getSnapshot().pendingSteers.map(({ phase }) => phase))
-    .toEqual(["acceptedAwaitingCommit", "acceptedAwaitingCommit"]);
+  await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(2);
 
   const committedPromoted = eventWithEnvelope(
     itemStarted(
@@ -1349,12 +1414,9 @@ test("App guides explicit input ahead of ordinary FIFO and commits accepted iden
     { parentCommitId: attachResponse.snapshot.headCommitId },
   );
   emitProjectionEvent(options, committedPromoted);
-  await expect
-    .poll(() => queueCoordinator.getSnapshot().pendingSteers)
-    .toMatchObject([
-      { phase: "acceptedAwaitingCommit", preview: { type: "text", text: "Explicit steer S" } },
-    ]);
-  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(1);
+  expect(readPendingTextPreviews(queueCoordinator, "steer")).toEqual(["Explicit steer S"]);
+  expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
 
   const committedExplicit = eventWithEnvelope(
     itemStarted(
@@ -1370,10 +1432,13 @@ test("App guides explicit input ahead of ordinary FIFO and commits accepted iden
     { parentCommitId: committedPromoted.commitId },
   );
   emitProjectionEvent(options, committedExplicit);
-  await expect.poll(() => queueCoordinator.getSnapshot().pendingSteers).toEqual([]);
-  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(0);
+  expect(readPendingItems(queueCoordinator, "steer")).toEqual([]);
+  expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
   expect(startTurn).not.toHaveBeenCalled();
-  await expect.element(screen.getByText("1 message queued", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Pending: Queued 1", exact: true }))
+    .toBeVisible();
   await expect.element(screen.getByText("Ordinary B", { exact: true })).not.toBeInTheDocument();
 });
 
@@ -1398,7 +1463,11 @@ test("App batch rejects a non-steerable target and restores a failed merged star
   await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
   await composer.fill("Rejected steer B");
   dispatchGuideShortcut(composer.element());
-  await expect.poll(() => queueCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+  await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(2);
+  expect(readPendingTextPreviews(queueCoordinator, "steer")).toEqual([
+    "Rejected steer A",
+    "Rejected steer B",
+  ]);
 
   steerRequest.reject(
     new GuiHostCommandError({
@@ -1419,11 +1488,19 @@ test("App batch rejects a non-steerable target and restores a failed merged star
   await expect
     .poll(() => queueCoordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview))
     .toEqual([
-      { type: "text", text: "Rejected steer A" },
-      { type: "text", text: "Rejected steer B" },
+      { type: "text", text: "Rejected steer A", truncated: false },
+      { type: "text", text: "Rejected steer B", truncated: false },
     ]);
   expect(steerTurn).toHaveBeenCalledOnce();
-  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  expect(queueCoordinator.getSnapshot()).toMatchObject({
+    ordinaryQueuedCount: 1,
+    guidingCount: 0,
+    recoveryCount: 0,
+  });
+  expect(readPendingItems(queueCoordinator, "steer")).toEqual([]);
+  await expect
+    .element(screen.getByRole("button", { name: "Pending: Queued 1", exact: true }))
+    .toBeVisible();
 
   const terminal = eventWithEnvelope(
     turnCompleted(eventTurnCompleted, "commit-non-steerable-terminal", {
@@ -1440,7 +1517,7 @@ test("App batch rejects a non-steerable target and restores a failed merged star
     clientUserMessageId: mergedParams.clientUserMessageId,
     input: [textInput("Rejected steer A"), textInput("Rejected steer B")],
   });
-  expect(queueCoordinator.getSnapshot().queuedCount).toBe(1);
+  expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
 
   startRequest.reject(
     new GuiHostCommandError({
@@ -1451,14 +1528,16 @@ test("App batch rejects a non-steerable target and restores a failed merged star
   );
   await expect
     .poll(() => ({
-      queuedCount: queueCoordinator.getSnapshot().queuedCount,
+      ordinaryQueuedCount: queueCoordinator.getSnapshot().ordinaryQueuedCount,
+      guidingCount: queueCoordinator.getSnapshot().guidingCount,
       rejectedPreviews: queueCoordinator.getSnapshot().rejectedSteers.map(({ preview }) => preview),
     }))
     .toEqual({
-      queuedCount: 1,
+      ordinaryQueuedCount: 1,
+      guidingCount: 0,
       rejectedPreviews: [
-        { type: "text", text: "Rejected steer A" },
-        { type: "text", text: "Rejected steer B" },
+        { type: "text", text: "Rejected steer A", truncated: false },
+        { type: "text", text: "Rejected steer B", truncated: false },
       ],
     });
   expect(startTurn).toHaveBeenCalledOnce();
@@ -1479,7 +1558,7 @@ test.each(["response mismatch", "delivery unknown"] as const)(
     await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
     await composer.fill("Unknown steer successor");
     dispatchGuideShortcut(composer.element());
-    await expect.poll(() => queueCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+    await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(2);
 
     if (settlement === "response mismatch") {
       steerRequest.resolve({ turnId: "turn-response-mismatch" });
@@ -1492,24 +1571,29 @@ test.each(["response mismatch", "delivery unknown"] as const)(
         }),
       );
     }
-    const expectedPhase =
-      settlement === "response mismatch" ? "responseTurnMismatch" : "deliveryUnknown";
     await expect
       .poll(() => queueCoordinator.getSnapshot())
       .toMatchObject({
-        pendingSteers: [
-          { phase: expectedPhase, preview: { type: "text", text: "Unknown steer first" } },
-        ],
-        queuedSteers: [{ preview: { type: "text", text: "Unknown steer successor" } }],
+        guidingCount: 2,
         hasUnknownSteer: true,
       });
+    expect(readPendingTextPreviews(queueCoordinator, "steer")).toEqual([
+      "Unknown steer first",
+      "Unknown steer successor",
+    ]);
+    expect(queueCoordinator.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "steerQueued", count: 1 },
+        { type: "pendingSteers", count: 1, hasUnknown: true },
+      ],
+    });
     await expect.element(screen.getByText("Guide status unknown", { exact: true })).toBeVisible();
     await steerRequest.promise.catch(() => undefined);
     await Promise.resolve();
     expect(steerTurn).toHaveBeenCalledOnce();
     expect(queueCoordinator.getSnapshot()).toMatchObject({
-      pendingSteers: [{ phase: expectedPhase }],
-      queuedSteers: [{ preview: { type: "text", text: "Unknown steer successor" } }],
+      guidingCount: 2,
       hasUnknownSteer: true,
     });
   },
@@ -1554,6 +1638,13 @@ test("App keeps a local Stop paused until explicit rejected-first and ordinary F
       reason: "steerDefinitelyNotAccepted",
       count: 1,
     });
+  expect(queueCoordinator.getSnapshot()).toMatchObject({
+    ordinaryQueuedCount: 2,
+    guidingCount: 0,
+    recoveryCount: 1,
+  });
+  const queuedTrigger = screen.getByRole("button", { name: "Pending: Queued 2", exact: true });
+  await expect.element(queuedTrigger).toBeVisible();
 
   const interrupted = turnCompleted(eventTurnCompleted, "commit-active-interrupted", {
     ...activeTurn,
@@ -1565,6 +1656,12 @@ test("App keeps a local Stop paused until explicit rejected-first and ordinary F
   );
 
   await expect.element(screen.getByText("3 messages have not been sent")).toBeVisible();
+  expect(queueCoordinator.getSnapshot()).toMatchObject({
+    ordinaryQueuedCount: 0,
+    guidingCount: 0,
+    recoveryCount: 3,
+  });
+  await expect.element(queuedTrigger).not.toBeInTheDocument();
   expect(startTurn).not.toHaveBeenCalled();
   await composer.fill("Draft preserved during recovery");
   await expect.element(composer).toHaveAttribute("contenteditable", "true");
@@ -2106,48 +2203,79 @@ test("App isolates a disposed coordinator late steer settlement from its replace
   type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
   const oldSteerRequest = createDeferred<SteerResponse>();
   const oldSteerTurn = vi.fn<GuiHostCommands["steerTurn"]>(() => oldSteerRequest.promise);
-  const {
-    activeTurn,
-    options,
-    queueCoordinator: oldCoordinator,
-    screen,
-  } = await renderActiveApp({ steerTurn: oldSteerTurn });
+  const commands: GuiHostCommands = { ...createGuiHostCommands(), steerTurn: oldSteerTurn };
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchComposerProbe} />,
+  );
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const activeTurn = inProgressTurn("turn-active-owner-switch");
+  queueAttachProjectionResponse(commands, attachWithTurns(attachResponse, [activeTurn]));
+  initializeHost(options, commands);
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(1);
+  const oldCoordinatorResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(0);
+  if (oldCoordinatorResult?.type !== "return") {
+    throw new Error("initial App owner must create a queue coordinator");
+  }
+  const oldCoordinator = oldCoordinatorResult.value;
+  vi.spyOn(oldCoordinator, "reserveRelease").mockReturnValue({
+    type: "reserved",
+    reservation: { release: vi.fn<() => void>() },
+  });
   const composer = getAppComposer(screen);
+  const oldIssuingText = "Old issuing steer ".repeat(12).trim();
 
-  await composer.fill("Old issuing steer");
+  await composer.fill(oldIssuingText);
   dispatchGuideShortcut(composer.element());
   await expect.poll(() => oldSteerTurn.mock.calls.length).toBe(1);
   await composer.fill("Old queued successor");
   dispatchGuideShortcut(composer.element());
-  await expect.poll(() => oldCoordinator.getSnapshot().queuedSteers.length).toBe(1);
+  await expect.poll(() => oldCoordinator.getSnapshot().guidingCount).toBe(2);
+  const oldRevision = oldCoordinator.getSnapshot().detailRevision;
+  const oldPage = oldCoordinator.readPendingInputPage({
+    lane: "steer",
+    revision: oldRevision,
+    cursor: null,
+    limit: 1,
+  });
+  if (oldPage.type !== "page" || oldPage.nextCursor == null || oldPage.items[0] == null) {
+    throw new Error("old owner must expose a bounded steer page");
+  }
+  const oldDetailKey = oldPage.items[0].key;
+  expect(
+    oldCoordinator.readPendingInputDetail({ key: oldDetailKey, revision: oldRevision }),
+  ).toEqual({
+    type: "detail",
+    key: oldDetailKey,
+    revision: oldRevision,
+    text: oldIssuingText,
+  });
+  await screen.getByRole("button", { name: "Pending: Guide 2", exact: true }).click();
+  const oldDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await oldDialog.getByRole("button", { name: /Expand pending message:/ }).click();
+  await expect.element(oldDialog.getByText(oldIssuingText, { exact: true })).toBeVisible();
 
-  markCommandsUnavailable(options);
+  const replacementTurn = inProgressTurn("turn-replacement-owner");
+  const candidateAttach = attachWithThreadId(
+    attachWithTurns(attachResponse, [replacementTurn]),
+    candidateThreadId,
+  );
+  queueAttachProjectionResponse(commands, candidateAttach);
+  const continueThread = threadSwitchProbeContinueThread;
+  if (continueThread == null) {
+    throw new Error("thread switch probe must expose continueThread");
+  }
+  threadSwitchProbePromise = continueThread(candidateThreadId);
+  await threadSwitchProbePromise;
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(2);
+  await expect.element(oldDialog).not.toBeInTheDocument();
+  await expect.element(composer).toHaveFocus();
   await expect
     .poll(() => oldCoordinator.getReleaseReadiness())
     .toEqual({
       type: "blocked",
       blockers: [{ type: "disposed" }],
     });
-
-  const replacementTurn = inProgressTurn("turn-replacement-owner");
-  const replacementStartTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: inProgressTurn("turn-replacement-started"),
-  });
-  const replacementSteerTurn = vi.fn<GuiHostCommands["steerTurn"]>().mockResolvedValue({
-    turnId: replacementTurn.id,
-  });
-  const replacementCommands: GuiHostCommands = {
-    ...createGuiHostCommands(),
-    startTurn: replacementStartTurn,
-    steerTurn: replacementSteerTurn,
-  };
-  queueAttachProjectionResponse(
-    replacementCommands,
-    attachWithTurns(attachResponse, [replacementTurn]),
-  );
-  initializeHost(options, replacementCommands);
-  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(2);
-  await expect.element(getAppComposer(screen)).toHaveAttribute("contenteditable", "true");
+  await expect.element(composer).toHaveAttribute("contenteditable", "true");
   await expect
     .poll(() => selectThreadRuntimeRecord(screen.store.getState())?.snapshotTurns)
     .toStrictEqual([replacementTurn]);
@@ -2156,21 +2284,36 @@ test("App isolates a disposed coordinator late steer settlement from its replace
     throw new Error("replacement App owner must create a queue coordinator");
   }
   const replacementCoordinator = replacementResult.value;
+  expect(replacementCoordinator.ownerThreadId).toBe(candidateThreadId);
   const replacementSnapshot = replacementCoordinator.getSnapshot();
   const replacementTranscript = screen.store.getState().transcriptState;
+  expect(
+    replacementCoordinator.readPendingInputPage({
+      lane: "steer",
+      revision: replacementSnapshot.detailRevision,
+      cursor: oldPage.nextCursor,
+      limit: 1,
+    }),
+  ).toEqual({ type: "stale", revision: replacementSnapshot.detailRevision });
+  expect(
+    replacementCoordinator.readPendingInputDetail({
+      key: oldDetailKey,
+      revision: replacementSnapshot.detailRevision,
+    }),
+  ).toEqual({ type: "missing", revision: replacementSnapshot.detailRevision });
+  expect(
+    oldCoordinator.readPendingInputDetail({ key: oldDetailKey, revision: oldRevision }),
+  ).toEqual({ type: "unavailable" });
 
   oldSteerRequest.resolve({ turnId: activeTurn.id });
   await oldSteerRequest.promise;
   await Promise.resolve();
 
   expect(oldSteerTurn).toHaveBeenCalledOnce();
-  expect(replacementSteerTurn).not.toHaveBeenCalled();
-  expect(replacementStartTurn).not.toHaveBeenCalled();
+  expect(commands.startTurn).not.toHaveBeenCalled();
   expect(replacementCoordinator.getSnapshot()).toBe(replacementSnapshot);
   expect(screen.store.getState().transcriptState).toBe(replacementTranscript);
-  await expect
-    .element(screen.getByText("Old issuing steer", { exact: true }))
-    .not.toBeInTheDocument();
+  await expect.element(screen.getByText(oldIssuingText, { exact: true })).not.toBeInTheDocument();
   await expect
     .element(screen.getByText("Old queued successor", { exact: true }))
     .not.toBeInTheDocument();
