@@ -1,7 +1,15 @@
 import { Button, Surface, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { $getRoot } from "lexical";
-import { useEffect, useRef, useId, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useId,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useAppSelector } from "@/app/hooks";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import {
@@ -142,6 +150,9 @@ export function ComposerTurnControl({
     recoveryCount: queueSnapshot.recoveryCount,
     isRecovering: queueSnapshot.isRecovering,
   });
+  const focusComposer = useCallback((): void => {
+    composerEditorController?.focus();
+  }, [composerEditorController]);
 
   useRevealComposerOnViewportResize(composerShellRef);
 
@@ -253,6 +264,8 @@ export function ComposerTurnControl({
         />
         <ComposerPendingInputRegion
           canRecover={canRecover}
+          controller={controllerMatchesCurrentThread ? composerInputQueueController : null}
+          onFocusComposer={focusComposer}
           onRecover={recover}
           recoveryDescriptionId={recoveryDescriptionId}
           snapshot={queueSnapshot}
@@ -386,12 +399,12 @@ function useComposerFocusVisible(composerShellRef: {
 }
 
 const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {
-  queuedCount: 0,
+  ordinaryQueuedCount: 0,
+  guidingCount: 0,
+  detailRevision: 0,
   recoveryCount: 0,
   recovery: null,
   isRecovering: false,
-  pendingSteers: [],
-  queuedSteers: [],
   rejectedSteers: [],
   hasUnknownSteer: false,
   canStop: false,
