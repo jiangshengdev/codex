@@ -70,6 +70,11 @@ export type ComposerSteerQueueState = Readonly<{
   rejectedSteersQueue: readonly RejectedSteer[];
 }>;
 
+export type ComposerSteerPendingInput = Readonly<{
+  messageId: SteerIntent["messageId"];
+  input: SteerIntent["input"];
+}>;
+
 export type ComposerSteerQueueEvent =
   | Readonly<{ type: "enqueue"; input: EnqueueSteerInput }>
   | Readonly<{ type: "issueNext" }>
@@ -121,6 +126,9 @@ export type ComposerSteerQueueResult =
 
 export type ComposerSteerQueue = Readonly<{
   state(): ComposerSteerQueueState;
+  pendingInputCount(): number;
+  readPendingInputs(offset: number, limit: number): readonly ComposerSteerPendingInput[];
+  findPendingInput(messageId: SteerIntent["messageId"]): ComposerSteerPendingInput | null;
   transition(event: ComposerSteerQueueEvent): ComposerSteerQueueResult;
 }>;
 
@@ -141,6 +149,40 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     pendingSteers: [...this.pendingSteers],
     rejectedSteersQueue: [...this.rejectedSteersQueue],
   });
+
+  public pendingInputCount = (): number => this.pendingSteers.length + this.steerQueue.length;
+
+  public readPendingInputs = (
+    offset: number,
+    limit: number,
+  ): readonly ComposerSteerPendingInput[] => {
+    const pendingEnd = Math.min(this.pendingSteers.length, offset + limit);
+    const result = this.pendingSteers.slice(offset, pendingEnd).map(({ claim }) => ({
+      messageId: claim.intent.messageId,
+      input: claim.intent.input,
+    }));
+    const remaining = limit - result.length;
+    if (remaining <= 0) {
+      return result;
+    }
+    const queuedOffset = Math.max(0, offset - this.pendingSteers.length);
+    result.push(
+      ...this.steerQueue.slice(queuedOffset, queuedOffset + remaining).map((intent) => ({
+        messageId: intent.messageId,
+        input: intent.input,
+      })),
+    );
+    return result;
+  };
+
+  public findPendingInput = (
+    messageId: SteerIntent["messageId"],
+  ): ComposerSteerPendingInput | null => {
+    const pending = this.pendingSteers.find(({ claim }) => claim.intent.messageId === messageId);
+    const intent =
+      pending?.claim.intent ?? this.steerQueue.find((item) => item.messageId === messageId);
+    return intent == null ? null : { messageId: intent.messageId, input: intent.input };
+  };
 
   private enqueue(input: EnqueueSteerInput): ComposerSteerQueueResult {
     if (this.knownMessageIds.has(input.messageId)) {

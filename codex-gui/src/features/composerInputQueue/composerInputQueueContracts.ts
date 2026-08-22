@@ -24,6 +24,57 @@ export type ComposerQueueMessage = Readonly<{
   input: readonly TurnStartParams["input"][number][];
 }>;
 
+declare const composerPendingInputDisplayKeyBrand: unique symbol;
+declare const composerPendingInputCursorBrand: unique symbol;
+
+export type ComposerPendingInputLane = "ordinary" | "steer";
+
+export type ComposerPendingInputDisplayKey = string &
+  Readonly<{ [composerPendingInputDisplayKeyBrand]: true }>;
+
+export type ComposerPendingInputCursor = Readonly<{
+  [composerPendingInputCursorBrand]: true;
+}>;
+
+export type ComposerPendingInputPageItem = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  lane: ComposerPendingInputLane;
+  preview: ComposerInputPreview;
+}>;
+
+export type ComposerPendingInputPageRequest = Readonly<{
+  lane: ComposerPendingInputLane;
+  revision: number;
+  cursor: ComposerPendingInputCursor | null;
+  limit: number;
+}>;
+
+export type ComposerPendingInputPageResult =
+  | Readonly<{
+      type: "page";
+      revision: number;
+      items: readonly ComposerPendingInputPageItem[];
+      nextCursor: ComposerPendingInputCursor | null;
+    }>
+  | Readonly<{ type: "stale"; revision: number }>
+  | Readonly<{ type: "unavailable" }>;
+
+export type ComposerPendingInputDetailRequest = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  revision: number;
+}>;
+
+export type ComposerPendingInputDetailResult =
+  | Readonly<{
+      type: "detail";
+      key: ComposerPendingInputDisplayKey;
+      revision: number;
+      text: string;
+    }>
+  | Readonly<{ type: "missing"; revision: number }>
+  | Readonly<{ type: "stale"; revision: number }>
+  | Readonly<{ type: "unavailable" }>;
+
 export type ComposerInterruptedDisposition = InterruptTerminalDisposition;
 
 export type UserStoppedRecoveryBatch = Readonly<{

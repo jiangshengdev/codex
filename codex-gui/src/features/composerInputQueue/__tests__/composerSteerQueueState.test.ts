@@ -491,4 +491,24 @@ describe("composer steer queue state", () => {
       { type: "skill", name: "skill-skill", path: "/skills/skill/SKILL.md" },
     ]);
   });
+
+  it("reads a bounded pending-then-queued window without exposing rejected entries", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "a");
+    enqueue(queue, "b");
+    enqueue(queue, "c");
+    const first = issue(queue);
+    accept(queue, first);
+    issue(queue);
+
+    expect(queue.pendingInputCount()).toBe(3);
+    expect(queue.readPendingInputs(0, 2).map(({ messageId }) => messageId)).toEqual(["a", "b"]);
+    expect(queue.readPendingInputs(2, 2).map(({ messageId }) => messageId)).toEqual(["c"]);
+    expect(queue.findPendingInput("b")?.input).toEqual(steerInput("b").input);
+
+    queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });
+    expect(queue.pendingInputCount()).toBe(0);
+    expect(queue.readPendingInputs(0, 2)).toEqual([]);
+    expect(queue.findPendingInput("a")).toBeNull();
+  });
 });
