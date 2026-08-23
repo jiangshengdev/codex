@@ -31,6 +31,15 @@ declare const composerPendingInputCursorBrand: unique symbol;
 
 export type ComposerPendingInputLane = "ordinary" | "steer";
 
+export type ComposerPendingInputMoveDestination = "earlier" | "later" | "first" | "last";
+
+export type ComposerPendingInputMovement = Readonly<{
+  position: number;
+  count: number;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
+}>;
+
 export type ComposerPendingInputDisplayKey = string &
   Readonly<{ [composerPendingInputDisplayKeyBrand]: true }>;
 
@@ -55,6 +64,7 @@ export type ComposerPendingInputPageItem = Readonly<{
   key: ComposerPendingInputDisplayKey;
   lane: ComposerPendingInputLane;
   management: ComposerPendingInputManagement;
+  movement: ComposerPendingInputMovement | null;
   preview: ComposerInputPreview;
 }>;
 
@@ -96,6 +106,12 @@ export type ComposerPendingInputManagementRequest = Readonly<{
   revision: number;
 }>;
 
+export type ComposerPendingInputMoveRequest = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  revision: number;
+  destination: ComposerPendingInputMoveDestination;
+}>;
+
 export type ComposerPendingInputDrainIntent = Readonly<{
   lane: ComposerPendingInputLane;
 }>;
@@ -116,6 +132,15 @@ type ComposerPendingInputManagementFailure =
   | Readonly<{ type: "stale"; revision: number }>
   | Readonly<{ type: "notManageable"; revision: number }>
   | Readonly<{ type: "conflict"; reason: "editInProgress"; revision: number }>;
+
+export type ComposerPendingInputMovementResult =
+  | Readonly<{
+      type: "movement";
+      revision: number;
+      lane: ComposerPendingInputLane;
+      movement: ComposerPendingInputMovement;
+    }>
+  | ComposerPendingInputManagementFailure;
 
 export type ComposerPendingInputBeginEditResult =
   | Readonly<{
@@ -151,6 +176,17 @@ export type ComposerPendingInputDeleteResult =
       revision: number;
       drainIntent: ComposerPendingInputDrainIntent;
     }>
+  | ComposerPendingInputManagementFailure;
+
+export type ComposerPendingInputMoveResult =
+  | Readonly<{
+      type: "moved";
+      revision: number;
+      lane: ComposerPendingInputLane;
+      position: number;
+      count: number;
+    }>
+  | Readonly<{ type: "noOp"; reason: "alreadyAtDestination"; revision: number }>
   | ComposerPendingInputManagementFailure;
 
 export type ComposerInterruptedDisposition = InterruptTerminalDisposition;

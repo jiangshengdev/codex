@@ -266,6 +266,9 @@ const createQueueCoordinatorMock = (
     deletePendingInput: vi
       .fn<ComposerInputQueueCoordinator["deletePendingInput"]>()
       .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
+    movePendingInput: vi
+      .fn<ComposerInputQueueCoordinator["movePendingInput"]>()
+      .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
     getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
       ordinaryQueuedCount: 0,
       guidingCount: 0,
@@ -361,6 +364,20 @@ const steerTurnParamsAt = (
   }
   return call[0];
 };
+
+const readGuiHostCommandCallCounts = (
+  commands: GuiHostCommands,
+): Record<keyof GuiHostCommands, number> => ({
+  attachThreadProjection: vi.mocked(commands.attachThreadProjection).mock.calls.length,
+  listSkills: vi.mocked(commands.listSkills).mock.calls.length,
+  listThreads: vi.mocked(commands.listThreads).mock.calls.length,
+  readThread: vi.mocked(commands.readThread).mock.calls.length,
+  resumeThread: vi.mocked(commands.resumeThread).mock.calls.length,
+  detachThreadProjection: vi.mocked(commands.detachThreadProjection).mock.calls.length,
+  startTurn: vi.mocked(commands.startTurn).mock.calls.length,
+  steerTurn: vi.mocked(commands.steerTurn).mock.calls.length,
+  interruptTurn: vi.mocked(commands.interruptTurn).mock.calls.length,
+});
 
 const dispatchGuideShortcut = (element: Element): void => {
   const isMac = navigator.platform.startsWith("Mac");
@@ -1354,6 +1371,190 @@ test("App queues during an active turn and starts exactly once after its live te
   await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
 
+test("App drains ordinary inputs in the authoritative order selected through Pending details", async () => {
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const issuingSteer = createDeferred<SteerResponse>();
+  const secondSteer = createDeferred<SteerResponse>();
+  const steerTurn = vi
+    .fn<GuiHostCommands["steerTurn"]>()
+    .mockImplementationOnce(() => issuingSteer.promise)
+    .mockImplementationOnce(() => secondSteer.promise);
+  const firstStartedTurn = inProgressTurn("turn-reordered-ordinary-first");
+  const secondStartedTurn = inProgressTurn("turn-reordered-ordinary-second");
+  const thirdStartedTurn = inProgressTurn("turn-reordered-ordinary-third");
+  const startTurn = vi
+    .fn<GuiHostCommands["startTurn"]>()
+    .mockResolvedValueOnce({ turn: firstStartedTurn })
+    .mockResolvedValueOnce({ turn: secondStartedTurn })
+    .mockResolvedValueOnce({ turn: thirdStartedTurn });
+  const { activeTurn, commandHandle, options, queueCoordinator, screen } = await renderActiveApp({
+    startTurn,
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+
+  for (const text of ["Ordinary order A", "Ordinary order B", "Ordinary order C"]) {
+    await composer.fill(text);
+    await screen.getByRole("button", { name: "Send", exact: true }).click();
+  }
+  for (const text of ["Steer lane A", "Steer lane B"]) {
+    await composer.fill(text);
+    dispatchGuideShortcut(composer.element());
+  }
+  await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(2);
+  const steerOrderBeforeMove = readPendingTextPreviews(queueCoordinator, "steer");
+  expect(steerOrderBeforeMove).toEqual(["Steer lane A", "Steer lane B"]);
+
+  await screen.getByRole("button", { name: "Pending: Guide 2, Queued 3", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await dialog
+    .getByRole("group", { name: "Ordinary order C", exact: true })
+    .getByRole("button", {
+      name: "More move options for pending message: Ordinary order C",
+      exact: true,
+    })
+    .click();
+  const releaseReadinessBeforeMove = queueCoordinator.getReleaseReadiness();
+  const hostCallsBeforeMove = readGuiHostCommandCallCounts(commandHandle);
+  expect(hostCallsBeforeMove).toEqual({
+    attachThreadProjection: 1,
+    listSkills: 1,
+    listThreads: 0,
+    readThread: 0,
+    resumeThread: 0,
+    detachThreadProjection: 0,
+    startTurn: 0,
+    steerTurn: 1,
+    interruptTurn: 0,
+  });
+  await screen
+    .getByRole("menu")
+    .getByRole("menuitem", { name: "Move to first", exact: true })
+    .click();
+
+  await expect
+    .poll(() => readPendingTextPreviews(queueCoordinator, "ordinary"))
+    .toEqual(["Ordinary order C", "Ordinary order A", "Ordinary order B"]);
+  expect(readPendingTextPreviews(queueCoordinator, "steer")).toEqual(steerOrderBeforeMove);
+  expect(queueCoordinator.getReleaseReadiness()).toEqual(releaseReadinessBeforeMove);
+  expect(readGuiHostCommandCallCounts(commandHandle)).toEqual(hostCallsBeforeMove);
+  expect(startTurn).not.toHaveBeenCalled();
+  expect(steerTurn).toHaveBeenCalledOnce();
+  for (const text of ["Ordinary order A", "Ordinary order B", "Ordinary order C"]) {
+    await expect.element(transcript.getByText(text, { exact: true })).not.toBeInTheDocument();
+  }
+
+  const firstSteerParams = steerTurnParamsAt(steerTurn, 0);
+  const firstSteerCommitted = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-reordered-ordinary-steer-a",
+      activeTurn.id,
+      userMessage(
+        "user-reordered-ordinary-steer-a",
+        [textInput("Steer lane A")],
+        firstSteerParams.clientUserMessageId,
+      ),
+    ),
+    { parentCommitId: attachResponse.snapshot.headCommitId },
+  );
+  emitProjectionEvent(options, firstSteerCommitted);
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(2);
+  const secondSteerParams = steerTurnParamsAt(steerTurn, 1);
+  expect(secondSteerParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: secondSteerParams.clientUserMessageId,
+    input: [textInput("Steer lane B")],
+  });
+  const secondSteerCommitted = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-reordered-ordinary-steer-b",
+      activeTurn.id,
+      userMessage(
+        "user-reordered-ordinary-steer-b",
+        [textInput("Steer lane B")],
+        secondSteerParams.clientUserMessageId,
+      ),
+    ),
+    { parentCommitId: firstSteerCommitted.commitId },
+  );
+  emitProjectionEvent(options, secondSteerCommitted);
+  issuingSteer.resolve({ turnId: activeTurn.id });
+  secondSteer.resolve({ turnId: activeTurn.id });
+
+  const activeTerminal = eventWithEnvelope(
+    turnCompleted(eventTurnCompleted, "commit-reordered-ordinary-active-terminal", {
+      ...activeTurn,
+      status: "completed",
+    }),
+    { parentCommitId: secondSteerCommitted.commitId },
+  );
+  emitProjectionEvent(options, activeTerminal);
+
+  await expect.poll(() => startTurn.mock.calls.length).toBe(1);
+  const firstParams = startTurnParamsAt(startTurn, 0);
+  expect(firstParams).toEqual({
+    threadId: launchThreadId,
+    clientUserMessageId: firstParams.clientUserMessageId,
+    input: [textInput("Ordinary order C")],
+  });
+  expect(typeof firstParams.clientUserMessageId).toBe("string");
+
+  const firstStarted = eventWithEnvelope(
+    turnStarted(eventTurnStarted, "commit-reordered-ordinary-first-started", firstStartedTurn),
+    { parentCommitId: activeTerminal.commitId },
+  );
+  emitProjectionEvent(options, firstStarted);
+  const firstTerminal = eventWithEnvelope(
+    turnCompleted(eventTurnCompleted, "commit-reordered-ordinary-first-terminal", {
+      ...firstStartedTurn,
+      status: "completed",
+    }),
+    { parentCommitId: firstStarted.commitId },
+  );
+  emitProjectionEvent(options, firstTerminal);
+
+  await expect.poll(() => startTurn.mock.calls.length).toBe(2);
+  const secondParams = startTurnParamsAt(startTurn, 1);
+  expect(secondParams).toEqual({
+    threadId: launchThreadId,
+    clientUserMessageId: secondParams.clientUserMessageId,
+    input: [textInput("Ordinary order A")],
+  });
+  expect(typeof secondParams.clientUserMessageId).toBe("string");
+  expect(secondParams.clientUserMessageId).not.toBe(firstParams.clientUserMessageId);
+
+  const secondStarted = eventWithEnvelope(
+    turnStarted(eventTurnStarted, "commit-reordered-ordinary-second-started", secondStartedTurn),
+    { parentCommitId: firstTerminal.commitId },
+  );
+  emitProjectionEvent(options, secondStarted);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      turnCompleted(eventTurnCompleted, "commit-reordered-ordinary-second-terminal", {
+        ...secondStartedTurn,
+        status: "completed",
+      }),
+      { parentCommitId: secondStarted.commitId },
+    ),
+  );
+
+  await expect.poll(() => startTurn.mock.calls.length).toBe(3);
+  const thirdParams = startTurnParamsAt(startTurn, 2);
+  expect(thirdParams).toEqual({
+    threadId: launchThreadId,
+    clientUserMessageId: thirdParams.clientUserMessageId,
+    input: [textInput("Ordinary order B")],
+  });
+  expect(typeof thirdParams.clientUserMessageId).toBe("string");
+  expect(new Set(startTurn.mock.calls.map(([params]) => params.clientUserMessageId)).size).toBe(3);
+  expect(steerTurn).toHaveBeenCalledTimes(2);
+});
+
 test("App keeps a middle ordinary edit in place after deleting its predecessor", async () => {
   const firstStartedTurn = inProgressTurn("turn-managed-ordinary-first");
   const secondStartedTurn = inProgressTurn("turn-managed-ordinary-second");
@@ -1569,15 +1770,134 @@ test("App edits only an unsent steer and preserves its place behind the issuing 
   editedSteer.resolve({ turnId: activeTurn.id });
 });
 
+test("App issues steer inputs in the authoritative suffix order selected through Pending details", async () => {
+  type SteerResponse = Awaited<ReturnType<GuiHostCommands["steerTurn"]>>;
+  const issuingSteer = createDeferred<SteerResponse>();
+  const movedSteer = createDeferred<SteerResponse>();
+  const remainingSteer = createDeferred<SteerResponse>();
+  const steerTurn = vi
+    .fn<GuiHostCommands["steerTurn"]>()
+    .mockImplementationOnce(() => issuingSteer.promise)
+    .mockImplementationOnce(() => movedSteer.promise)
+    .mockImplementationOnce(() => remainingSteer.promise);
+  const { activeTurn, commandHandle, queueCoordinator, screen, startTurn } = await renderActiveApp({
+    steerTurn,
+  });
+  const composer = getAppComposer(screen);
+  const transcript = screen.getByRole("region", { name: "Committed transcript" });
+
+  for (const text of ["Ordinary lane A", "Ordinary lane B"]) {
+    await composer.fill(text);
+    await screen.getByRole("button", { name: "Send", exact: true }).click();
+  }
+  await composer.fill("Issuing steer remains fixed");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(1);
+  const issuingParams = steerTurnParamsAt(steerTurn, 0);
+  expect(issuingParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: issuingParams.clientUserMessageId,
+    input: [textInput("Issuing steer remains fixed")],
+  });
+  expect(typeof issuingParams.clientUserMessageId).toBe("string");
+  await composer.fill("Steer suffix A");
+  dispatchGuideShortcut(composer.element());
+  await composer.fill("Steer suffix B");
+  dispatchGuideShortcut(composer.element());
+  await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(3);
+
+  await screen.getByRole("button", { name: "Pending: Guide 3, Queued 2", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await dialog
+    .getByRole("group", { name: "Steer suffix B", exact: true })
+    .getByRole("button", {
+      name: "More move options for pending message: Steer suffix B",
+      exact: true,
+    })
+    .click();
+  const releaseReadinessBeforeMove = queueCoordinator.getReleaseReadiness();
+  const hostCallsBeforeMove = readGuiHostCommandCallCounts(commandHandle);
+  expect(hostCallsBeforeMove).toEqual({
+    attachThreadProjection: 1,
+    listSkills: 1,
+    listThreads: 0,
+    readThread: 0,
+    resumeThread: 0,
+    detachThreadProjection: 0,
+    startTurn: 0,
+    steerTurn: 1,
+    interruptTurn: 0,
+  });
+  await screen
+    .getByRole("menu")
+    .getByRole("menuitem", { name: "Move to first", exact: true })
+    .click();
+
+  await expect
+    .poll(() => readPendingTextPreviews(queueCoordinator, "steer"))
+    .toEqual(["Issuing steer remains fixed", "Steer suffix B", "Steer suffix A"]);
+  expect(readPendingTextPreviews(queueCoordinator, "ordinary")).toEqual([
+    "Ordinary lane A",
+    "Ordinary lane B",
+  ]);
+  expect(queueCoordinator.getReleaseReadiness()).toEqual(releaseReadinessBeforeMove);
+  expect(readGuiHostCommandCallCounts(commandHandle)).toEqual(hostCallsBeforeMove);
+  expect(steerTurn).toHaveBeenCalledOnce();
+  expect(steerTurnParamsAt(steerTurn, 0)).toEqual(issuingParams);
+  expect(startTurn).not.toHaveBeenCalled();
+  for (const text of [
+    "Ordinary lane A",
+    "Ordinary lane B",
+    "Issuing steer remains fixed",
+    "Steer suffix A",
+    "Steer suffix B",
+  ]) {
+    await expect.element(transcript.getByText(text, { exact: true })).not.toBeInTheDocument();
+  }
+
+  issuingSteer.resolve({ turnId: activeTurn.id });
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(2);
+  const movedParams = steerTurnParamsAt(steerTurn, 1);
+  expect(movedParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: movedParams.clientUserMessageId,
+    input: [textInput("Steer suffix B")],
+  });
+  expect(typeof movedParams.clientUserMessageId).toBe("string");
+  expect(movedParams.clientUserMessageId).not.toBe(issuingParams.clientUserMessageId);
+
+  movedSteer.resolve({ turnId: activeTurn.id });
+  await expect.poll(() => steerTurn.mock.calls.length).toBe(3);
+  const remainingParams = steerTurnParamsAt(steerTurn, 2);
+  expect(remainingParams).toEqual({
+    threadId: launchThreadId,
+    expectedTurnId: activeTurn.id,
+    clientUserMessageId: remainingParams.clientUserMessageId,
+    input: [textInput("Steer suffix A")],
+  });
+  expect(typeof remainingParams.clientUserMessageId).toBe("string");
+  expect(new Set(steerTurn.mock.calls.map(([params]) => params.clientUserMessageId)).size).toBe(3);
+  expect(readPendingTextPreviews(queueCoordinator, "ordinary")).toEqual([
+    "Ordinary lane A",
+    "Ordinary lane B",
+  ]);
+  expect(startTurn).not.toHaveBeenCalled();
+  remainingSteer.resolve({ turnId: activeTurn.id });
+});
+
 test("App defers ordinary management during recovery and sends the successor before the failed input", async () => {
   type StartResponse = Awaited<ReturnType<GuiHostCommands["startTurn"]>>;
   const failedStart = createDeferred<StartResponse>();
   const successorTurn = inProgressTurn("turn-managed-ordinary-successor");
+  const secondSuccessorTurn = inProgressTurn("turn-managed-ordinary-second-successor");
   const retriedTurn = inProgressTurn("turn-managed-ordinary-retry");
   const startTurn = vi
     .fn<GuiHostCommands["startTurn"]>()
     .mockImplementationOnce(() => failedStart.promise)
     .mockResolvedValueOnce({ turn: successorTurn })
+    .mockResolvedValueOnce({ turn: secondSuccessorTurn })
     .mockResolvedValueOnce({ turn: retriedTurn });
   const { activeTurn, options, queueCoordinator, screen } = await renderActiveApp({ startTurn });
   const composer = getAppComposer(screen);
@@ -1586,7 +1906,9 @@ test("App defers ordinary management during recovery and sends the successor bef
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await composer.fill("Ordinary successor under edit");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  await composer.fill("Second ordinary successor keeps recovery order");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Pending: Queued 3", exact: true }).click();
   const listDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await listDialog
     .getByRole("group", { name: "Ordinary successor under edit", exact: true })
@@ -1620,10 +1942,33 @@ test("App defers ordinary management during recovery and sends the successor bef
   await screen.getByRole("button", { name: "Save", exact: true }).click();
   expect(startTurn).toHaveBeenCalledOnce();
   expect(queueCoordinator.getSnapshot()).toMatchObject({
-    ordinaryQueuedCount: 1,
+    ordinaryQueuedCount: 2,
     recoveryCount: 1,
     isRecovering: false,
   });
+  const recoveryOrderBeforeMove = readPendingTextPreviews(queueCoordinator, "ordinary");
+  expect(recoveryOrderBeforeMove).toEqual([
+    "Edited ordinary successor stays first",
+    "Second ordinary successor keeps recovery order",
+  ]);
+  const recoveryMoveTarget = readPendingItems(queueCoordinator, "ordinary").at(1);
+  if (recoveryMoveTarget == null) {
+    throw new Error("recovery scenario must expose the second ordinary successor");
+  }
+  const recoveryRevision = queueCoordinator.getSnapshot().detailRevision;
+  expect(
+    queueCoordinator.movePendingInput({
+      key: recoveryMoveTarget.key,
+      revision: recoveryRevision,
+      destination: "first",
+    }),
+  ).toEqual({
+    type: "unavailable",
+    scope: "liveOwner",
+    reason: "recoveryPending",
+    revision: recoveryRevision,
+  });
+  expect(readPendingTextPreviews(queueCoordinator, "ordinary")).toEqual(recoveryOrderBeforeMove);
   await screen.getByRole("button", { name: "Close", exact: true }).click();
   await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
 
@@ -1655,6 +2000,33 @@ test("App defers ordinary management during recovery and sends the successor bef
   expect(startTurnParamsAt(startTurn, 2)).toEqual({
     threadId: launchThreadId,
     clientUserMessageId: startTurnParamsAt(startTurn, 2).clientUserMessageId,
+    input: [textInput("Second ordinary successor keeps recovery order")],
+  });
+
+  const secondSuccessorStarted = eventWithEnvelope(
+    turnStarted(
+      eventTurnStarted,
+      "commit-managed-ordinary-second-successor-started",
+      secondSuccessorTurn,
+    ),
+    { parentCommitId: "commit-managed-ordinary-successor-completed" },
+  );
+  emitProjectionEvent(options, secondSuccessorStarted);
+  emitProjectionEvent(
+    options,
+    eventWithEnvelope(
+      turnCompleted(eventTurnCompleted, "commit-managed-ordinary-second-successor-completed", {
+        ...secondSuccessorTurn,
+        status: "completed",
+      }),
+      { parentCommitId: secondSuccessorStarted.commitId },
+    ),
+  );
+
+  await expect.poll(() => startTurn.mock.calls.length).toBe(4);
+  expect(startTurnParamsAt(startTurn, 3)).toEqual({
+    threadId: launchThreadId,
+    clientUserMessageId: startTurnParamsAt(startTurn, 3).clientUserMessageId,
     input: [textInput("Ordinary that will fail")],
   });
 });
@@ -2604,6 +2976,7 @@ test("App releases an edited owner only after its marker settles and drains", as
       return result;
     });
   const deletePendingInput = vi.spyOn(oldCoordinator, "deletePendingInput");
+  const movePendingInput = vi.spyOn(oldCoordinator, "movePendingInput");
   const readPendingInputDetail = vi.spyOn(oldCoordinator, "readPendingInputDetail");
   const readPendingInputPage = vi.spyOn(oldCoordinator, "readPendingInputPage");
   const composer = getAppComposer(screen);
@@ -2718,6 +3091,7 @@ test("App releases an edited owner only after its marker settles and drains", as
     beginEdit: beginEdit.mock.calls.length,
     cancel: cancel.mock.calls.length,
     deletePendingInput: deletePendingInput.mock.calls.length,
+    movePendingInput: movePendingInput.mock.calls.length,
     readDetail: readPendingInputDetail.mock.calls.length,
     readPage: readPendingInputPage.mock.calls.length,
     save: save.mock.calls.length,
@@ -2771,6 +3145,7 @@ test("App releases an edited owner only after its marker settles and drains", as
     beginEdit: beginEdit.mock.calls.length,
     cancel: cancel.mock.calls.length,
     deletePendingInput: deletePendingInput.mock.calls.length,
+    movePendingInput: movePendingInput.mock.calls.length,
     readDetail: readPendingInputDetail.mock.calls.length,
     readPage: readPendingInputPage.mock.calls.length,
     save: save.mock.calls.length,
@@ -2799,6 +3174,44 @@ test("App releases an edited owner only after its marker settles and drains", as
   expect(startTurn).toHaveBeenCalledOnce();
   expect(replacementCoordinator.getSnapshot()).toBe(replacementSnapshot);
   expect(screen.store.getState().transcriptState).toBe(replacementTranscript);
+
+  for (const text of ["Replacement owner order A", "Replacement owner order B"]) {
+    await composer.fill(text);
+    await screen.getByRole("button", { name: "Send", exact: true }).click();
+  }
+  await expect.poll(() => replacementCoordinator.getSnapshot().ordinaryQueuedCount).toBe(2);
+  const replacementOrderBeforeOldMove = readPendingTextPreviews(replacementCoordinator, "ordinary");
+  expect(replacementOrderBeforeOldMove).toEqual([
+    "Replacement owner order A",
+    "Replacement owner order B",
+  ]);
+  expect(
+    oldCoordinator.movePendingInput({
+      key: oldDetailKey,
+      revision: oldRevision,
+      destination: "first",
+    }),
+  ).toEqual({ type: "unavailable", scope: "ownerGone", reason: "ownerReplaced" });
+  expect(movePendingInput).toHaveBeenCalledOnce();
+  expect(readPendingTextPreviews(replacementCoordinator, "ordinary")).toEqual(
+    replacementOrderBeforeOldMove,
+  );
+
+  const replacementMoveTarget = readPendingItems(replacementCoordinator, "ordinary").at(1);
+  if (replacementMoveTarget == null) {
+    throw new Error("replacement owner must expose its second ordinary input");
+  }
+  expect(
+    replacementCoordinator.movePendingInput({
+      key: replacementMoveTarget.key,
+      revision: replacementCoordinator.getSnapshot().detailRevision,
+      destination: "first",
+    }),
+  ).toMatchObject({ type: "moved", lane: "ordinary", position: 1, count: 2 });
+  expect(readPendingTextPreviews(replacementCoordinator, "ordinary")).toEqual([
+    "Replacement owner order B",
+    "Replacement owner order A",
+  ]);
   await expect
     .element(
       screen.getByText("Old owner must not write this draft to the replacement", { exact: true }),

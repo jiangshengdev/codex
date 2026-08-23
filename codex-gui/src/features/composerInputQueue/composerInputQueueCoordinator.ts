@@ -29,6 +29,8 @@ import type {
   ComposerPendingInputEditRestore,
   ComposerPendingInputEditSaveResult,
   ComposerPendingInputManagementRequest,
+  ComposerPendingInputMoveRequest,
+  ComposerPendingInputMoveResult,
   ComposerPendingInputOwnerGoneCause,
   ComposerPendingInputOwnerGoneResult,
   ComposerPendingInputPageRequest,
@@ -110,6 +112,20 @@ export type ComposerPendingInputCoordinatorDeleteResult =
   | Readonly<{ type: "deleted"; revision: number }>
   | ComposerPendingInputCoordinatorManagementFailure;
 
+type ComposerPendingInputCoordinatorMoveUnavailable = Readonly<{
+  type: "unavailable";
+  scope: "liveOwner";
+  reason: "editInProgress" | "mutationPending" | "releaseReserved" | "recoveryPending";
+  revision: number;
+}>;
+
+export type ComposerPendingInputCoordinatorMoveResult =
+  | Extract<ComposerPendingInputMoveResult, { type: "moved" | "noOp" }>
+  | Readonly<{ type: "stale"; scope: "liveOwner"; revision: number }>
+  | Readonly<{ type: "notManageable"; scope: "liveOwner"; revision: number }>
+  | ComposerPendingInputCoordinatorMoveUnavailable
+  | ComposerPendingInputOwnerGoneResult;
+
 export type ComposerInputQueueSubmitResult =
   | Readonly<{ type: "accepted" }>
   | Readonly<{
@@ -173,6 +189,9 @@ export type ComposerInputQueueCoordinator = Readonly<{
   deletePendingInput(
     request: ComposerPendingInputManagementRequest,
   ): ComposerPendingInputCoordinatorDeleteResult;
+  movePendingInput(
+    request: ComposerPendingInputMoveRequest,
+  ): ComposerPendingInputCoordinatorMoveResult;
   getSnapshot(): ComposerInputQueueCoordinatorSnapshot;
   subscribe(listener: () => void): () => void;
   dispose(cause?: ComposerPendingInputOwnerGoneCause): void;
@@ -224,6 +243,8 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   private disposeCause: ComposerPendingInputOwnerGoneCause | null = null;
   private isRecovering = false;
   private managementAcquiring = false;
+  private managementMutating = false;
+  private projectingSettledMoveSnapshot = false;
   private replayingAcceptedEvents = false;
   private readonly deferredAcceptedEvents: ThreadRuntimeProjectionEventPayload[] = [];
   private activeManagementSession: PendingInputManagementSession | null = null;
@@ -347,7 +368,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   observeAcceptedEvent(payload: Readonly<ThreadRuntimeProjectionEventPayload>): void {
     if (this.disposed || payload.notification.threadId !== this.threadId) return;
     this.deferredAcceptedEvents.push(payload);
-    if (this.managementAcquiring || this.replayingAcceptedEvents) return;
+    if (this.managementAcquiring || this.managementMutating || this.replayingAcceptedEvents) return;
     const generation = this.generation;
     const replay = this.flushDeferredAcceptedEvents(generation);
     if (this.currentOwnerDiffersFrom(generation)) return;
@@ -488,6 +509,84 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
         return this.liveSessionInvalidation(result.revision);
     }
   };
+  movePendingInput = (
+    request: ComposerPendingInputMoveRequest,
+  ): ComposerPendingInputCoordinatorMoveResult => {
+    if (this.disposed) return this.ownerGoneResult();
+    if (this.managementMutationPending()) {
+      return this.pendingInputMoveUnavailable("mutationPending");
+    }
+    if (this.releaseReservation != null) {
+      return this.pendingInputMoveUnavailable("releaseReserved");
+    }
+    if (this.recovery != null || this.isRecovering) {
+      return this.pendingInputMoveUnavailable("recoveryPending");
+    }
+    if (this.activeManagementSession != null) {
+      return this.pendingInputMoveUnavailable("editInProgress");
+    }
+
+    const generation = this.generation;
+    this.managementMutating = true;
+    try {
+      const result = this.queue.movePendingInput(request);
+      switch (result.type) {
+        case "moved": {
+          this.setManagementOutcome(null);
+          this.projectingSettledMoveSnapshot = true;
+          let firstFailure: AcceptedEventReplayResult = { type: "flushed" };
+          try {
+            this.publishSnapshot();
+          } catch (error: unknown) {
+            firstFailure = { type: "failed", error };
+          }
+          if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
+
+          while (this.deferredAcceptedEvents.length > 0) {
+            const replay = this.flushDeferredAcceptedEvents(generation);
+            if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
+            if (firstFailure.type === "flushed" && replay.type === "failed") {
+              firstFailure = replay;
+            }
+          }
+          if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
+          if (firstFailure.type === "failed") throw firstFailure.error;
+
+          const movement = this.queue.readPendingInputMovement({
+            key: request.key,
+            revision: this.queue.detailRevision(),
+          });
+          switch (movement.type) {
+            case "movement":
+              return {
+                type: "moved",
+                revision: movement.revision,
+                lane: movement.lane,
+                position: movement.movement.position,
+                count: movement.movement.count,
+              };
+            case "stale":
+            case "notManageable":
+              return { ...movement, scope: "liveOwner" };
+            case "conflict":
+              return this.pendingInputMoveUnavailable("editInProgress", movement.revision);
+          }
+          movement satisfies never;
+          throw new Error("Unhandled pending input movement result");
+        }
+        case "noOp":
+          return result;
+        case "stale":
+        case "notManageable":
+          return { ...result, scope: "liveOwner" };
+        case "conflict":
+          return this.pendingInputMoveUnavailable("editInProgress", result.revision);
+      }
+    } finally {
+      this.projectingSettledMoveSnapshot = false;
+      this.managementMutating = false;
+    }
+  };
   getReleaseReadiness = (): ComposerInputQueueCoordinatorReleaseReadiness => {
     if (this.disposed) return { type: "blocked", blockers: [{ type: "disposed" }] };
     const queueState = this.queue.view().releaseState;
@@ -541,6 +640,8 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     this.deferredAcceptedEvents.length = 0;
     this.activeManagementSession = null;
     this.isRecovering = false;
+    this.managementMutating = false;
+    this.projectingSettledMoveSnapshot = false;
     this.replayingAcceptedEvents = false;
     this.failedInterruptTurnId = null;
     this.snapshot = {
@@ -743,7 +844,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       isRecovering: this.isRecovering,
       rejectedSteers: queueView.rejectedSteers,
       hasUnknownSteer: queueView.hasUnknownSteer,
-      canStop: this.canInterrupt(currentTurnId),
+      canStop: this.canInterruptForSnapshot(currentTurnId),
       interrupt: interruptPhase == null ? null : { phase: interruptPhase },
       pendingInputManagementOutcome: this.snapshot.pendingInputManagementOutcome,
     };
@@ -761,6 +862,28 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       this.activeManagementSession == null &&
       turnId != null &&
       this.interruptState.state() == null
+    );
+  }
+
+  private canInterruptForSnapshot(turnId: Turn["id"] | null): turnId is Turn["id"] {
+    if (!this.projectingSettledMoveSnapshot) return this.canInterrupt(turnId);
+    return (
+      !this.disposed &&
+      this.releaseReservation == null &&
+      this.recovery == null &&
+      !this.isRecovering &&
+      !this.settledMoveProjectionHasManagementBlocker() &&
+      this.activeManagementSession == null &&
+      turnId != null &&
+      this.interruptState.state() == null
+    );
+  }
+
+  private settledMoveProjectionHasManagementBlocker(): boolean {
+    return (
+      this.managementAcquiring ||
+      this.replayingAcceptedEvents ||
+      this.deferredAcceptedEvents.length > 0
     );
   }
 
@@ -957,9 +1080,22 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     };
   }
 
+  private pendingInputMoveUnavailable(
+    reason: ComposerPendingInputCoordinatorMoveUnavailable["reason"],
+    revision: number = this.queue.detailRevision(),
+  ): ComposerPendingInputCoordinatorMoveUnavailable {
+    return {
+      type: "unavailable",
+      scope: "liveOwner",
+      reason,
+      revision,
+    };
+  }
+
   private managementMutationPending(): boolean {
     return (
       this.managementAcquiring ||
+      this.managementMutating ||
       this.replayingAcceptedEvents ||
       this.deferredAcceptedEvents.length > 0
     );

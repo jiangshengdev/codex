@@ -1699,7 +1699,10 @@ describe("composer input queue", () => {
           result: { type: "ownershipMismatch", subject: "pendingInputEdit" },
           effects: [],
         });
-        expect(pendingPage(queue, "ordinary")).toEqual(beforePage);
+        expect(pendingPage(queue, "ordinary")).toEqual({
+          ...beforePage,
+          items: beforePage.items.map((item) => ({ ...item, movement: null })),
+        });
         return { type: "invalidDraft" };
       }),
     ).toEqual({ type: "invalidDraft", revision: beforeRevision });

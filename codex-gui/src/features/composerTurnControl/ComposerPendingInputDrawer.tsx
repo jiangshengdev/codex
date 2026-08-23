@@ -1,11 +1,11 @@
-import { Alert, Button, Chip, Disclosure, Drawer, Separator } from "@heroui/react";
+import { Alert, Button, Chip, Disclosure, Drawer, Dropdown, Label, Separator } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
 import type {
-  ComposerPendingInputCursor,
   ComposerPendingInputDetailResult,
   ComposerPendingInputLane,
+  ComposerPendingInputMoveDestination,
   ComposerPendingInputPageItem,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
 import type { ComposerInputPreview } from "@/features/composerInputQueue/composerInputPreview";
@@ -16,17 +16,19 @@ import type {
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { ComposerPendingInputEditor } from "./ComposerPendingInputEditor";
+import {
+  createComposerPendingInputLoadBudgets,
+  readInitialComposerPendingInputPrefixes,
+  refreshComposerPendingInputPrefixes,
+  showMoreComposerPendingInputLane,
+  type ComposerPendingInputLoadBudgets,
+  type ComposerPendingInputPrefixes,
+} from "./composerPendingInputPages";
 
-const PENDING_INPUT_PAGE_SIZE = 20;
-
-type PendingInputPages = Readonly<{
-  controller: ComposerInputQueueCoordinator;
-  revision: number;
-  ordinary: readonly ComposerPendingInputPageItem[];
-  ordinaryCursor: ComposerPendingInputCursor | null;
-  steer: readonly ComposerPendingInputPageItem[];
-  steerCursor: ComposerPendingInputCursor | null;
-}>;
+type PendingInputPages = ComposerPendingInputPrefixes &
+  Readonly<{
+    controller: ComposerInputQueueCoordinator;
+  }>;
 
 type EditSession =
   | Readonly<{
@@ -49,10 +51,24 @@ type OpenedOwner = Readonly<{
 type DrawerAlert =
   | "empty"
   | "invalidDraft"
+  | "moveNotApplied"
+  | "moveNotAppliedRefreshFailed"
+  | "moveRefreshFailed"
   | "notManageable"
   | "sessionInvalidated"
   | "stale"
   | "targetInvalidated";
+
+type MoveAnnouncement = Readonly<{
+  lane: ComposerPendingInputLane;
+  position: number;
+  count: number;
+}>;
+
+type ExhaustedMoveRefresh = Readonly<{
+  controller: ComposerInputQueueCoordinator;
+  throughRevision: number;
+}>;
 
 export type ComposerPendingInputDrawerProps = Readonly<{
   controller: ComposerInputQueueCoordinator | null;
@@ -82,6 +98,10 @@ export function ComposerPendingInputDrawer({
   const [pages, setPages] = useState<PendingInputPages | null>(null);
   const [editSession, setEditSession] = useState<EditSession | null>(null);
   const [alert, setAlert] = useState<DrawerAlert | null>(null);
+  const [moveAnnouncement, setMoveAnnouncement] = useState<MoveAnnouncement | null>(null);
+  const [exhaustedMoveRefresh, setExhaustedMoveRefresh] = useState<ExhaustedMoveRefresh | null>(
+    null,
+  );
   const [managementCompletionHold, setManagementCompletionHold] = useState(false);
   const [editorValid, setEditorValid] = useState(true);
   const focusAfterCloseRef = useRef<"composer" | "trigger" | null>(null);
@@ -105,13 +125,23 @@ export function ComposerPendingInputDrawer({
   const displayedEditSession = matchingManagementOutcome ? null : editSession;
   const displayedAlert = matchingManagementOutcome ? "targetInvalidated" : alert;
   const completionHold = managementCompletionHold || matchingManagementOutcome;
+  const moveRefreshIsSuppressed =
+    exhaustedMoveRefresh?.controller === controller &&
+    detailRevision <= exhaustedMoveRefresh.throughRevision;
   const projectedPages =
     isOpen && ownerMatches && controller != null
-      ? pages?.controller === controller && pages.revision === detailRevision
-        ? pages
-        : readInitialPages(controller, detailRevision, guidingCount, ordinaryQueuedCount)
+      ? moveRefreshIsSuppressed
+        ? null
+        : pages?.controller === controller && pages.revision === detailRevision
+          ? pages
+          : readInitialPages(controller, detailRevision)
       : null;
-  const pagesUnavailable = isOpen && ownerMatches && controller != null && projectedPages == null;
+  const pagesUnavailable =
+    isOpen &&
+    ownerMatches &&
+    controller != null &&
+    !moveRefreshIsSuppressed &&
+    projectedPages == null;
   const shouldCloseExternally =
     isOpen &&
     (!ownerMatches ||
@@ -134,6 +164,8 @@ export function ComposerPendingInputDrawer({
     preparingEditRef.current = null;
     setEditSession(null);
     setAlert(null);
+    setMoveAnnouncement(null);
+    setExhaustedMoveRefresh(null);
     setManagementCompletionHold(false);
   }, [onPresenceChange]);
 
@@ -151,14 +183,26 @@ export function ComposerPendingInputDrawer({
   };
 
   const refreshPages = useCallback(
-    (revision: number): PendingInputPages | null => {
+    (
+      revision: number,
+      budgets: ComposerPendingInputLoadBudgets = pages?.controller === controller
+        ? pages.budgets
+        : createComposerPendingInputLoadBudgets(),
+    ): PendingInputPages | null => {
       if (controller == null) return null;
-      const nextPages = readInitialPages(controller, revision, guidingCount, ordinaryQueuedCount);
-      if (nextPages == null) return null;
+      const result = refreshComposerPendingInputPrefixes(controller, revision, budgets);
+      if (result.type === "unavailable") {
+        closeInvalidDrawer();
+        return null;
+      }
+      const nextPrefixes = result.type === "ready" ? result.prefixes : result.fallback;
+      if (nextPrefixes == null) return null;
+      const nextPages = { controller, ...nextPrefixes };
+      setExhaustedMoveRefresh(null);
       setPages(nextPages);
       return nextPages;
     },
-    [controller, guidingCount, ordinaryQueuedCount],
+    [closeInvalidDrawer, controller, pages],
   );
 
   const closeAfterExplicitRequest = useCallback((): void => {
@@ -169,6 +213,7 @@ export function ComposerPendingInputDrawer({
       focusAfterCloseRef.current = "composer";
       onPresenceChange(true);
     }
+    setExhaustedMoveRefresh(null);
     setIsOpen(false);
   }, [hasPendingInputs, onPresenceChange]);
 
@@ -178,6 +223,7 @@ export function ComposerPendingInputDrawer({
       preparingEditRef.current = null;
       setEditSession(null);
       setAlert(nextAlert);
+      setMoveAnnouncement(null);
       refreshPages(revision);
       focusHeading();
     },
@@ -210,6 +256,7 @@ export function ComposerPendingInputDrawer({
       preparingEditRef.current = null;
       setEditSession(null);
       setAlert(null);
+      setMoveAnnouncement(null);
       if (closeAfterSettlement) {
         closeAfterExplicitRequest();
       } else {
@@ -259,6 +306,8 @@ export function ComposerPendingInputDrawer({
       preparingEditRef.current = null;
       setEditSession(null);
       setAlert(null);
+      setMoveAnnouncement(null);
+      setExhaustedMoveRefresh(null);
       setManagementCompletionHold(false);
       onPresenceChange(false);
       queueMicrotask(() => {
@@ -294,6 +343,7 @@ export function ComposerPendingInputDrawer({
           !managementCompletionPendingRef.current &&
           !nextHasPendingInputs)
       ) {
+        if (!nextOwnerMatches) setExhaustedMoveRefresh(null);
         setClosingSession((current) => current ?? openedOwner);
       }
     });
@@ -305,12 +355,7 @@ export function ComposerPendingInputDrawer({
 
   const openDrawer = (): void => {
     if (!hasPendingInputs) return;
-    const nextPages = readInitialPages(
-      controller,
-      detailRevision,
-      guidingCount,
-      ordinaryQueuedCount,
-    );
+    const nextPages = readInitialPages(controller, detailRevision);
     if (nextPages == null) return;
     setOpenedOwner({ controller, threadId: controller.ownerThreadId });
     setClosingSession(null);
@@ -318,6 +363,8 @@ export function ComposerPendingInputDrawer({
     preparingEditRef.current = null;
     setEditSession(null);
     setAlert(null);
+    setMoveAnnouncement(null);
+    setExhaustedMoveRefresh(null);
     setManagementCompletionHold(false);
     focusAfterCloseRef.current = null;
     onPresenceChange(true);
@@ -342,6 +389,7 @@ export function ComposerPendingInputDrawer({
     };
     preparingEditRef.current = preparingSession;
     setAlert(null);
+    setMoveAnnouncement(null);
     setEditorValid(true);
     setEditSession(preparingSession);
   };
@@ -367,6 +415,7 @@ export function ComposerPendingInputDrawer({
       };
       preparingEditRef.current = null;
       setEditSession(activeSession);
+      setExhaustedMoveRefresh(null);
       setPages((current) =>
         current == null ? current : { ...current, revision: result.revision },
       );
@@ -400,7 +449,8 @@ export function ComposerPendingInputDrawer({
 
   const deleteItem = (item: ComposerPendingInputPageItem): boolean => {
     if (controller == null || visiblePages == null) return false;
-    const visibleKeys = visiblePages[item.lane].map(({ key }) => key);
+    setMoveAnnouncement(null);
+    const visibleKeys = visiblePages[item.lane].items.map(({ key }) => key);
     const deletedIndex = visibleKeys.indexOf(item.key);
     const focusKey =
       visibleKeys[deletedIndex + 1] ?? (deletedIndex > 0 ? visibleKeys[deletedIndex - 1] : null);
@@ -451,39 +501,72 @@ export function ComposerPendingInputDrawer({
 
   const showMore = (lane: ComposerPendingInputLane): void => {
     if (visiblePages == null) return;
-    const cursor = lane === "steer" ? visiblePages.steerCursor : visiblePages.ordinaryCursor;
-    if (cursor == null) return;
-    const result = visiblePages.controller.readPendingInputPage({
-      lane,
-      revision: visiblePages.revision,
-      cursor,
-      limit: PENDING_INPUT_PAGE_SIZE,
-    });
+    const result = showMoreComposerPendingInputLane(visiblePages.controller, visiblePages, lane);
     if (result.type === "unavailable") {
       closeInvalidDrawer();
       return;
     }
-    if (result.type !== "page") {
+    if (result.type === "stale") {
       handleLiveFailure("stale", result.revision);
       return;
     }
-    setPages((current) => {
-      const basePages =
-        current?.controller === visiblePages.controller &&
-        current.revision === visiblePages.revision
-          ? current
-          : visiblePages;
-      return lane === "steer"
-        ? {
-            ...basePages,
-            steer: [...basePages.steer, ...result.items],
-            steerCursor: result.nextCursor,
-          }
-        : {
-            ...basePages,
-            ordinary: [...basePages.ordinary, ...result.items],
-            ordinaryCursor: result.nextCursor,
-          };
+    setExhaustedMoveRefresh(null);
+    setPages({ controller: visiblePages.controller, ...result.prefixes });
+  };
+
+  const moveItem = (
+    item: ComposerPendingInputPageItem,
+    destination: ComposerPendingInputMoveDestination,
+  ): void => {
+    if (controller == null || visiblePages == null) return;
+    setMoveAnnouncement(null);
+    const budgets = visiblePages.budgets;
+    const result = runManagementCompletion(() =>
+      controller.movePendingInput({ key: item.key, revision: visiblePages.revision, destination }),
+    );
+    if (result.type === "noOp") return;
+    if (result.type === "unavailable" && result.scope === "ownerGone") {
+      closeInvalidDrawer();
+      return;
+    }
+
+    const revision = result.revision;
+    const refreshed = refreshComposerPendingInputPrefixes(controller, revision, budgets);
+    if (refreshed.type === "unavailable") {
+      closeInvalidDrawer();
+      return;
+    }
+    const nextPrefixes = refreshed.type === "ready" ? refreshed.prefixes : refreshed.fallback;
+    if (nextPrefixes != null) {
+      setExhaustedMoveRefresh(null);
+      setPages({ controller, ...nextPrefixes });
+    } else if (refreshed.type === "stale") {
+      setExhaustedMoveRefresh({ controller, throughRevision: refreshed.revision });
+    }
+
+    if (result.type !== "moved") {
+      setManagementCompletionHold(true);
+      setAlert(refreshed.type === "ready" ? "moveNotApplied" : "moveNotAppliedRefreshFailed");
+      focusHeading();
+      return;
+    }
+
+    if (refreshed.type === "stale") {
+      setManagementCompletionHold(true);
+      setAlert("moveRefreshFailed");
+      focusHeading();
+      return;
+    }
+    setManagementCompletionHold(false);
+    setMoveAnnouncement({ lane: result.lane, position: result.position, count: result.count });
+    setAlert(null);
+    queueMicrotask(() => {
+      const itemStillVisible = nextPrefixes?.[result.lane].items.some(
+        ({ key }) => key === item.key,
+      );
+      const itemTarget = itemStillVisible ? itemFocusTargetsRef.current.get(item.key) : null;
+      if (itemTarget != null) itemTarget.focus();
+      else laneHeadingRefs.current.get(result.lane)?.focus();
     });
   };
 
@@ -494,6 +577,8 @@ export function ComposerPendingInputDrawer({
         ? t`Pending: Guide ${guidingCount}`
         : t`Pending: Queued ${ordinaryQueuedCount}`;
   const renderTrigger = !externallyClosed && (hasPendingInputs || displayedIsOpen);
+  const movedPosition = moveAnnouncement?.position ?? 0;
+  const movedCount = moveAnnouncement?.count ?? 0;
 
   return (
     <>
@@ -528,6 +613,19 @@ export function ComposerPendingInputDrawer({
             </Drawer.Header>
             <Drawer.Body>
               {displayedAlert == null ? null : <PendingManagementAlert alert={displayedAlert} />}
+              {moveAnnouncement == null ? null : (
+                <p aria-live="polite" role="status">
+                  {moveAnnouncement.lane === "ordinary" ? (
+                    <Trans>
+                      Queued message moved to position {movedPosition} of {movedCount}.
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      Guiding message moved to position {movedPosition} of {movedCount}.
+                    </Trans>
+                  )}
+                </p>
+              )}
               {displayedEditSession?.phase !== "active" ? (
                 <PendingInputList
                   actionsDisabled={displayedEditSession?.phase === "preparing"}
@@ -535,6 +633,7 @@ export function ComposerPendingInputDrawer({
                   guidingCount={guidingCount}
                   onBeginEdit={beginEdit}
                   onDetailFailure={handleDetailFailure}
+                  onMove={moveItem}
                   onShowMore={showMore}
                   ordinaryQueuedCount={ordinaryQueuedCount}
                   pages={visiblePages}
@@ -589,6 +688,10 @@ function PendingManagementAlert({ alert }: Readonly<{ alert: DrawerAlert }>) {
         <Alert.Title>
           {alert === "empty" ? (
             <Trans>Message cannot be empty</Trans>
+          ) : alert === "moveNotApplied" || alert === "moveNotAppliedRefreshFailed" ? (
+            <Trans>Pending message was not reordered</Trans>
+          ) : alert === "moveRefreshFailed" ? (
+            <Trans>Updated pending order could not be loaded</Trans>
           ) : (
             <Trans>Pending message changed</Trans>
           )}
@@ -596,6 +699,18 @@ function PendingManagementAlert({ alert }: Readonly<{ alert: DrawerAlert }>) {
         <Alert.Description>
           {alert === "invalidDraft" ? (
             <Trans>This pending message cannot be edited.</Trans>
+          ) : alert === "moveNotApplied" ? (
+            <Trans>The pending-message order did not change. Refresh complete; try again.</Trans>
+          ) : alert === "moveNotAppliedRefreshFailed" ? (
+            <Trans>
+              The pending-message order did not change, and the refreshed order could not be loaded
+              because the queue kept changing.
+            </Trans>
+          ) : alert === "moveRefreshFailed" ? (
+            <Trans>
+              The message was moved, but repeated queue changes prevented the updated order from
+              loading.
+            </Trans>
           ) : alert === "targetInvalidated" ? (
             <Trans>The target turn closed before the edit was saved.</Trans>
           ) : alert === "notManageable" ? (
@@ -619,6 +734,7 @@ function PendingInputList({
   guidingCount,
   onBeginEdit,
   onDetailFailure,
+  onMove,
   onShowMore,
   ordinaryQueuedCount,
   pages,
@@ -630,6 +746,10 @@ function PendingInputList({
   guidingCount: number;
   onBeginEdit: (item: ComposerPendingInputPageItem) => void;
   onDetailFailure: (result: Exclude<ComposerPendingInputDetailResult, { type: "detail" }>) => void;
+  onMove: (
+    item: ComposerPendingInputPageItem,
+    destination: ComposerPendingInputMoveDestination,
+  ) => void;
   onShowMore: (lane: ComposerPendingInputLane) => void;
   ordinaryQueuedCount: number;
   pages: PendingInputPages | null;
@@ -650,12 +770,13 @@ function PendingInputList({
           actionsDisabled={actionsDisabled}
           controller={pages.controller}
           count={guidingCount}
-          items={pages.steer}
+          items={pages.steer.items}
           lane="steer"
-          nextCursor={pages.steerCursor}
+          nextCursorAvailable={pages.steer.nextCursor != null}
           onBeginEdit={onBeginEdit}
           onDetailFailure={onDetailFailure}
           onDelete={deleteItem}
+          onMove={onMove}
           onShowMore={onShowMore}
           registerItemFocusTarget={registerItemFocusTarget}
           registerLaneHeading={registerLaneHeading}
@@ -668,12 +789,13 @@ function PendingInputList({
           actionsDisabled={actionsDisabled}
           controller={pages.controller}
           count={ordinaryQueuedCount}
-          items={pages.ordinary}
+          items={pages.ordinary.items}
           lane="ordinary"
-          nextCursor={pages.ordinaryCursor}
+          nextCursorAvailable={pages.ordinary.nextCursor != null}
           onBeginEdit={onBeginEdit}
           onDetailFailure={onDetailFailure}
           onDelete={deleteItem}
+          onMove={onMove}
           onShowMore={onShowMore}
           registerItemFocusTarget={registerItemFocusTarget}
           registerLaneHeading={registerLaneHeading}
@@ -690,10 +812,11 @@ function PendingInputGroup({
   count,
   items,
   lane,
-  nextCursor,
+  nextCursorAvailable,
   onBeginEdit,
   onDetailFailure,
   onDelete,
+  onMove,
   onShowMore,
   registerItemFocusTarget,
   registerLaneHeading,
@@ -704,10 +827,14 @@ function PendingInputGroup({
   count: number;
   items: readonly ComposerPendingInputPageItem[];
   lane: ComposerPendingInputLane;
-  nextCursor: ComposerPendingInputCursor | null;
+  nextCursorAvailable: boolean;
   onBeginEdit: (item: ComposerPendingInputPageItem) => void;
   onDetailFailure: (result: Exclude<ComposerPendingInputDetailResult, { type: "detail" }>) => void;
   onDelete: (item: ComposerPendingInputPageItem) => boolean;
+  onMove: (
+    item: ComposerPendingInputPageItem,
+    destination: ComposerPendingInputMoveDestination,
+  ) => void;
   onShowMore: (lane: ComposerPendingInputLane) => void;
   revision: number;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
@@ -740,13 +867,14 @@ function PendingInputGroup({
               onBeginEdit={onBeginEdit}
               onDetailFailure={onDetailFailure}
               onDelete={onDelete}
+              onMove={onMove}
               registerItemFocusTarget={registerItemFocusTarget}
               revision={revision}
             />
           </li>
         ))}
       </ul>
-      {nextCursor == null ? null : (
+      {!nextCursorAvailable ? null : (
         <Button
           aria-label={
             lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
@@ -770,6 +898,7 @@ function PendingInputItem({
   onBeginEdit,
   onDetailFailure,
   onDelete,
+  onMove,
   registerItemFocusTarget,
   revision,
 }: Readonly<{
@@ -779,6 +908,10 @@ function PendingInputItem({
   onBeginEdit: (item: ComposerPendingInputPageItem) => void;
   onDetailFailure: (result: Exclude<ComposerPendingInputDetailResult, { type: "detail" }>) => void;
   onDelete: (item: ComposerPendingInputPageItem) => boolean;
+  onMove: (
+    item: ComposerPendingInputPageItem,
+    destination: ComposerPendingInputMoveDestination,
+  ) => void;
   revision: number;
   registerItemFocusTarget: (key: string, element: HTMLElement | null) => void;
 }>) {
@@ -874,7 +1007,64 @@ function PendingInputItem({
             </Button>
           </div>
         ) : (
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            {!actionsDisabled && item.movement != null ? (
+              <>
+                <Button
+                  aria-label={t`Move up pending message: ${previewText}`}
+                  isDisabled={!item.movement.canMoveEarlier}
+                  onPress={() => {
+                    onMove(item, "earlier");
+                  }}
+                  size="sm"
+                  variant="tertiary"
+                >
+                  <Trans>Move up</Trans>
+                </Button>
+                <Button
+                  aria-label={t`Move down pending message: ${previewText}`}
+                  isDisabled={!item.movement.canMoveLater}
+                  onPress={() => {
+                    onMove(item, "later");
+                  }}
+                  size="sm"
+                  variant="tertiary"
+                >
+                  <Trans>Move down</Trans>
+                </Button>
+                <Dropdown>
+                  <Button
+                    aria-label={t`More move options for pending message: ${previewText}`}
+                    size="sm"
+                    variant="tertiary"
+                  >
+                    <Trans>Move to</Trans>
+                  </Button>
+                  <Dropdown.Popover>
+                    <Dropdown.Menu
+                      disabledKeys={[
+                        ...(item.movement.canMoveEarlier ? [] : ["first"]),
+                        ...(item.movement.canMoveLater ? [] : ["last"]),
+                      ]}
+                      onAction={(key) => {
+                        if (key === "first" || key === "last") onMove(item, key);
+                      }}
+                    >
+                      <Dropdown.Item id="first" textValue={t`Move pending message to first`}>
+                        <Label>
+                          <Trans>Move to first</Trans>
+                        </Label>
+                      </Dropdown.Item>
+                      <Dropdown.Item id="last" textValue={t`Move pending message to last`}>
+                        <Label>
+                          <Trans>Move to last</Trans>
+                        </Label>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              </>
+            ) : null}
             <Button
               isDisabled={actionsDisabled}
               onPress={() => {
@@ -898,7 +1088,7 @@ function PendingInputItem({
           </div>
         )
       ) : (
-        <p className="text-sm text-muted" role="status">
+        <p className="text-sm text-muted">
           {item.management.type === "editing" ? (
             <Trans>This message is being edited.</Trans>
           ) : (
@@ -942,41 +1132,11 @@ export function ComposerInputPreviewContent({
 function readInitialPages(
   controller: ComposerInputQueueCoordinator,
   revision: number,
-  guidingCount: number,
-  ordinaryQueuedCount: number,
 ): PendingInputPages | null {
-  const steer = readInitialLane(controller, "steer", revision, guidingCount);
-  const ordinary = readInitialLane(controller, "ordinary", revision, ordinaryQueuedCount);
-  if (steer == null || ordinary == null) return null;
-  return {
-    controller,
-    revision,
-    steer: steer.items,
-    steerCursor: steer.nextCursor,
-    ordinary: ordinary.items,
-    ordinaryCursor: ordinary.nextCursor,
-  };
-}
-
-function readInitialLane(
-  controller: ComposerInputQueueCoordinator,
-  lane: ComposerPendingInputLane,
-  revision: number,
-  count: number,
-): Readonly<{
-  items: readonly ComposerPendingInputPageItem[];
-  nextCursor: ComposerPendingInputCursor | null;
-}> | null {
-  if (count === 0) return { items: [], nextCursor: null };
-  const result = controller.readPendingInputPage({
-    lane,
-    revision,
-    cursor: null,
-    limit: PENDING_INPUT_PAGE_SIZE,
-  });
-  return result.type === "page" ? { items: result.items, nextCursor: result.nextCursor } : null;
+  const result = readInitialComposerPendingInputPrefixes(controller, revision);
+  return result.type === "ready" ? { controller, ...result.prefixes } : null;
 }
 
 function pendingInputPagesAreEmpty(pages: PendingInputPages): boolean {
-  return pages.steer.length === 0 && pages.ordinary.length === 0;
+  return pages.steer.items.length === 0 && pages.ordinary.items.length === 0;
 }
