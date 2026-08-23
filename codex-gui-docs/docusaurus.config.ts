@@ -60,7 +60,7 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: '指南',
+          title: '文档',
           items: [
             {
               label: '首页',
@@ -82,6 +82,10 @@ const config: Config = {
             {
               label: 'GitHub',
               href: 'https://github.com/jiangshengdev/codex',
+            },
+            {
+              label: 'Docusaurus',
+              href: 'https://docusaurus.io',
             },
           ],
         },
