@@ -9,8 +9,8 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 
 ## Rules
 
-- Before creating a worktree or symlink, print the exact command and target paths.
-- Wait for user confirmation unless either the user explicitly says to execute directly, or a confirmed plan lists that worktree's exact name, branch, base, target path, include scope, and command. Any parameter drift or unplanned worktree creation requires new confirmation.
+- Before executing the creation command, print the complete command, the worktree target path, and every symlink the script will create as an exact `link path -> target` mapping.
+- Wait for user confirmation unless either the user explicitly says to execute directly, or a confirmed plan lists that worktree's exact name, branch, base, target path, include scope, and command. A matching confirmed plan waives only the repeated wait, never the pre-execution printout. Any parameter drift or unplanned worktree creation requires new confirmation.
 - When a confirmed plan declares multiple worktrees, the coordinating agent must create and verify all of them before any implementation edit, generation, artifact verification, or task commit begins.
 - Do not install dependencies.
 - Do not download documentation.
