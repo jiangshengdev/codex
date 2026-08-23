@@ -378,31 +378,72 @@ const dispatchGuideShortcut = (element: Element): void => {
   );
 };
 
+const dispatchComposition = (element: Element, data: string): void => {
+  element.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  element.dispatchEvent(
+    new CompositionEvent("compositionend", {
+      bubbles: true,
+      data,
+    }),
+  );
+};
+
+type RenderActiveTurnOptions = Readonly<{
+  captureEditReservations?: boolean;
+  commandHandle?: GuiHostCommands;
+  skillCatalogController?: ActiveThreadOwnerHandle["skillCatalog"];
+}>;
+
+const renderActiveTurn = async ({
+  captureEditReservations = false,
+  commandHandle = createGuiHostCommands(),
+  skillCatalogController,
+}: RenderActiveTurnOptions = {}) => {
+  const event = eventTurnStarted;
+  if (event.event.type !== "turnStarted") {
+    throw new Error("fixture must be turnStarted");
+  }
+  const turn = event.event.notification.turn;
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: turn.id,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
+  });
+  const reservations = captureEditReservations
+    ? capturePendingInputEditReservations(controller)
+    : [];
+  const screen = await renderAttached(
+    commandHandle,
+    false,
+    "en",
+    controller,
+    skillCatalogController ?? createSkillCatalogHarness().controller,
+  );
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
+  return {
+    commandHandle,
+    composer: getComposer(screen),
+    controller,
+    event,
+    reservations,
+    screen,
+    turn,
+  };
+};
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 async function beginPendingStop(draft: string) {
-  if (eventTurnStarted.event.type !== "turnStarted") {
-    throw new Error("fixture must be turnStarted");
-  }
   const pending = deferred<Awaited<ReturnType<GuiHostCommands["interruptTurn"]>>>();
   const interruptTurn = vi
     .fn<GuiHostCommands["interruptTurn"]>()
     .mockReturnValueOnce(pending.promise);
   const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), interruptTurn };
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: eventTurnStarted.event.notification.turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn,
-  });
-  const screen = await renderAttached(commandHandle, false, "en", controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
-  const composer = getComposer(screen);
+  const { composer, controller, screen } = await renderActiveTurn({ commandHandle });
   const stopButton = screen.getByRole("button", { name: "Stop" });
 
   await composer.fill(draft);
@@ -777,13 +818,7 @@ test("sends completed composition Enter immediately when guard is disabled", asy
 
   await composer.fill("你好呀");
   await composer.click();
-  editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  editorRoot.dispatchEvent(
-    new CompositionEvent("compositionend", {
-      bubbles: true,
-      data: "你好呀",
-    }),
-  );
+  dispatchComposition(editorRoot, "你好呀");
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("你好呀");
@@ -801,13 +836,7 @@ test("keeps guarded completed composition Enter from sending draft", async () =>
 
   await composer.fill("你好呀");
   await composer.click();
-  editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  editorRoot.dispatchEvent(
-    new CompositionEvent("compositionend", {
-      bubbles: true,
-      data: "你好呀",
-    }),
-  );
+  dispatchComposition(editorRoot, "你好呀");
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("你好呀");
@@ -831,13 +860,7 @@ test("clears completed composition suppression on the next non Enter keydown", a
 
   await composer.fill("你好呀");
   await composer.click();
-  editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  editorRoot.dispatchEvent(
-    new CompositionEvent("compositionend", {
-      bubbles: true,
-      data: "你好呀",
-    }),
-  );
+  dispatchComposition(editorRoot, "你好呀");
   await expect
     .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
     .toBe("你好呀");
@@ -866,13 +889,7 @@ test.each([" ", "Enter"])(
 
     await composer.fill("你好呀");
     await composer.click();
-    editorRoot.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-    editorRoot.dispatchEvent(
-      new CompositionEvent("compositionend", {
-        bubbles: true,
-        data: "你好呀",
-      }),
-    );
+    dispatchComposition(editorRoot, "你好呀");
     await expect
       .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
       .toBe("你好呀");
@@ -899,22 +916,9 @@ test.each([" ", "Enter"])(
 );
 
 test("active turn allows queuing and enables Stop", async () => {
-  const commandHandle = createGuiHostCommands();
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") {
-    throw new Error("fixture must be turnStarted");
-  }
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: event.event.notification.turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
-  });
-  const screen = await renderAttached(commandHandle, false, "en", controller);
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
+  const { commandHandle, composer, controller, screen, turn } = await renderActiveTurn();
 
-  await getComposer(screen).fill("Next draft");
+  await composer.fill("Next draft");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await screen.getByRole("button", { name: "Send", exact: true }).click();
   await expect
@@ -928,13 +932,13 @@ test("active turn allows queuing and enables Stop", async () => {
 
   expect(commandHandle.interruptTurn).toHaveBeenCalledExactlyOnceWith({
     threadId,
-    turnId: event.event.notification.turn.id,
+    turnId: turn.id,
   });
   await expect.poll(() => controller.getSnapshot().interrupt?.phase).toBe("accepted");
 
   controller.observeAcceptedEvent({
     notification: turnCompleted(eventTurnCompleted, "commit-local-stop", {
-      ...event.event.notification.turn,
+      ...turn,
       status: "interrupted",
     }),
     replay: "live",
@@ -1241,20 +1245,9 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
 });
 
 test("edits and deletes an ordinary pending message in one Drawer without changing the main draft", async () => {
-  const commandHandle = createGuiHostCommands();
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: event.event.notification.turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
+  const { composer, reservations, screen } = await renderActiveTurn({
+    captureEditReservations: true,
   });
-  const reservations = capturePendingInputEditReservations(controller);
-  const screen = await renderAttached(commandHandle, false, "en", controller);
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
-  const composer = getComposer(screen);
 
   await composer.fill("Original queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -1339,20 +1332,9 @@ test("edits and deletes an ordinary pending message in one Drawer without changi
 });
 
 test("returns focus to the Composer when cancelling an edit synchronously drains the last pending message", async () => {
-  const commandHandle = createGuiHostCommands();
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: event.event.notification.turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
+  const { composer, controller, reservations, screen } = await renderActiveTurn({
+    captureEditReservations: true,
   });
-  const reservations = capturePendingInputEditReservations(controller);
-  const screen = await renderAttached(commandHandle, false, "en", controller);
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
-  const composer = getComposer(screen);
 
   await composer.fill("Drain after cancelling edit");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -1419,19 +1401,10 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   const commandHandle = createGuiHostCommands();
   const steerRequest = deferred<Awaited<ReturnType<GuiHostCommands["steerTurn"]>>>();
   vi.mocked(commandHandle.steerTurn).mockReturnValue(steerRequest.promise);
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: event.event.notification.turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
+  const { composer, controller, reservations, screen } = await renderActiveTurn({
+    captureEditReservations: true,
+    commandHandle,
   });
-  const reservations = capturePendingInputEditReservations(controller);
-  const screen = await renderAttached(commandHandle, false, "en", controller);
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
-  const composer = getComposer(screen);
 
   await composer.fill("Already issued steer");
   await screen.getByRole("button", { name: "Guide", exact: true }).click();
@@ -1480,25 +1453,11 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
 test("tears down an active edit without settling the old reservation when its owner is disposed", async () => {
   const commandHandle = createGuiHostCommands();
   const skillCatalog = createSkillCatalogHarness();
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: event.event.notification.turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
-  });
-  const reservations = capturePendingInputEditReservations(controller);
-  const screen = await renderAttached(
+  const { composer, controller, reservations, screen } = await renderActiveTurn({
+    captureEditReservations: true,
     commandHandle,
-    false,
-    "en",
-    controller,
-    skillCatalog.controller,
-  );
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
-  const composer = getComposer(screen);
+    skillCatalogController: skillCatalog.controller,
+  });
 
   await composer.fill("Owner-bound queued message");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
@@ -1537,19 +1496,7 @@ test("tears down an active edit without settling the old reservation when its ow
 });
 
 test("restores delete focus only to a neighbor in the same lane", async () => {
-  const commandHandle = createGuiHostCommands();
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: event.event.notification.turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
-  });
-  const screen = await renderAttached(commandHandle, false, "en", controller);
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
-  const composer = getComposer(screen);
+  const { composer, screen } = await renderActiveTurn();
 
   await composer.fill("First ordinary neighbor");
   await screen.getByRole("button", { name: "Send", exact: true }).click();
