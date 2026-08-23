@@ -148,17 +148,16 @@ async function arrangeVisualViewportResize({
       y: composerTop,
       toJSON: () => ({}),
     });
-
-    return {
-      cleanup: visualViewport.restore,
-      screen,
-      scrollBy,
-      async resizeTo(height: number): Promise<void> {
-        visualViewport.viewport.height = height;
-        expect(visualViewport.dispatchResize()).toBe(true);
-        await nextAnimationFrame();
-      },
+    const cleanup = (): void => {
+      visualViewport.restore();
     };
+    const resizeTo = async (height: number): Promise<void> => {
+      visualViewport.viewport.height = height;
+      expect(visualViewport.dispatchResize()).toBe(true);
+      await nextAnimationFrame();
+    };
+
+    return { cleanup, resizeTo, screen, scrollBy };
   } catch (error) {
     visualViewport.restore();
     throw error;
