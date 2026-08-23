@@ -20,6 +20,17 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 - Stop on conflicts and print the exact path that blocks progress.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
 
+## Pre-execution Disclosure Gate
+
+For each worktree, before any tool call that can create the worktree or a symlink, emit one complete, durable disclosure record containing:
+
+- the complete command verbatim
+- every requested path alias
+- the canonical worktree path
+- every canonical `link path -> target` mapping the script will actually create, including the shared Vitest link
+
+If any field is missing, stop and do not invoke the script. Record each planned worktree separately. Output produced after execution cannot backfill or replace this preflight record.
+
 ## Default Layout
 
 Defaults:
