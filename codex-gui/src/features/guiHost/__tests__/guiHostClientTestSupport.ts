@@ -1,11 +1,11 @@
 import { expect, vi } from "vitest";
-import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
 import type { JSONRPCErrorError } from "@codex-protocol/JSONRPCErrorError";
 import {
   startGuiHostConnection,
   type GuiHostCommands,
   type StartGuiHostConnectionOptions,
 } from "../guiHostClient";
+import { initializeResponse } from "./guiHostTestSupport";
 
 type StatusSummary = {
   label: string;
@@ -119,13 +119,7 @@ export function sendAuthenticateResult(socket: RecordingWebSocket): void {
 
 export function sendInitializeResult(socket: RecordingWebSocket): void {
   const request = readLatestRpcRequest(socket, "initialize");
-  const response: InitializeResponse = {
-    userAgent: "codex-test",
-    codexHome: "/codex-home",
-    platformFamily: "test",
-    platformOs: "test",
-  };
-  sendJsonRpcResult(socket, request.id, response);
+  sendJsonRpcResult(socket, request.id, initializeResponse);
 }
 
 export function startGuiHostConnectionWithSocket({
