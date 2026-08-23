@@ -18,17 +18,17 @@ msgid "... and {count} more"
 msgstr "... and {count} more"
 
 #. placeholder {0}: preview.audioCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:831
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1139
 msgid "{0, plural, one {# audio item} other {# audio items}}"
 msgstr "{0, plural, one {# audio item} other {# audio items}}"
 
 #. placeholder {0}: preview.imageCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:828
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1136
 msgid "{0, plural, one {# image} other {# images}}"
 msgstr "{0, plural, one {# image} other {# images}}"
 
 #. placeholder {0}: preview.mentionCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:837
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1145
 msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# mention} other {# mentions}}"
 
@@ -38,7 +38,7 @@ msgid "{0, plural, one {# message has not been sent} other {# messages have not 
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
 #. placeholder {0}: preview.skillCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:834
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1142
 msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# skill} other {# skills}}"
 
@@ -68,7 +68,7 @@ msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:205
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:174
 msgid "Active"
 msgstr "Active"
 
@@ -77,15 +77,15 @@ msgstr "Active"
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:443
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:412
 msgid "Another task switch is already in progress."
 msgstr "Another task switch is already in progress."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:201
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:170
 msgid "Back to history"
 msgstr "Back to history"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:487
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:690
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -94,11 +94,11 @@ msgstr "Cancel"
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:738
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:977
 msgid "Collapse"
 msgstr "Collapse"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:730
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:969
 msgid "Collapse pending message: {previewText}"
 msgstr "Collapse pending message: {previewText}"
 
@@ -153,7 +153,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:426
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:395
 msgid "Continue this task"
 msgstr "Continue this task"
 
@@ -167,26 +167,26 @@ msgstr "Current task"
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:781
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:800
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1028
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1108
 msgid "Delete"
 msgstr "Delete"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:768
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1009
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:792
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1098
 msgid "Edit"
 msgstr "Edit"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:445
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:634
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:69
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:77
 msgid "Edit pending message"
 msgstr "Edit pending message"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:526
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:743
 msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
@@ -210,11 +210,11 @@ msgstr "Error - Agent errored"
 msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:738
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:977
 msgid "Expand"
 msgstr "Expand"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:731
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:970
 msgid "Expand pending message: {previewText}"
 msgstr "Expand pending message: {previewText}"
 
@@ -240,7 +240,7 @@ msgstr "Go back home"
 msgid "Guide"
 msgstr "Guide"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:425
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:614
 msgid "Guide {guidingCount}"
 msgstr "Guide {guidingCount}"
 
@@ -248,9 +248,15 @@ msgstr "Guide {guidingCount}"
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:645
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:876
 msgid "Guiding"
 msgstr "Guiding"
+
+#. placeholder {0}: moveAnnouncement.position
+#. placeholder {1}: moveAnnouncement.count
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:647
+msgid "Guiding message moved to position {0} of {1}."
+msgstr "Guiding message moved to position {0} of {1}."
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:91
@@ -258,16 +264,16 @@ msgstr "Guiding"
 msgid "History"
 msgstr "History"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:45
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:46
 msgid "History context unavailable"
 msgstr "History context unavailable"
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:148
 msgid "History detail"
 msgstr "History detail"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:204
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:173
 msgid "Idle"
 msgstr "Idle"
 
@@ -304,23 +310,23 @@ msgstr "Interrupted."
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:771
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1018
 msgid "Keep"
 msgstr "Keep"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:138
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:107
 msgid "Load more"
 msgstr "Load more"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:110
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:79
 msgid "Loading history…"
 msgstr "Loading history…"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:447
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:451
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:215
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:184
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
@@ -332,7 +338,7 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:511
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:714
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
@@ -344,6 +350,46 @@ msgstr "Message Codex"
 #: src/features/composerTurnControl/ComposerTurnControl.tsx:234
 msgid "Message composer"
 msgstr "Message composer"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1059
+msgid "More move options for pending message: {previewText}"
+msgstr "More move options for pending message: {previewText}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1055
+msgid "Move down"
+msgstr "Move down"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1047
+msgid "Move down pending message: {previewText}"
+msgstr "Move down pending message: {previewText}"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1075
+msgid "Move pending message to first"
+msgstr "Move pending message to first"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1080
+msgid "Move pending message to last"
+msgstr "Move pending message to last"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1063
+msgid "Move to"
+msgstr "Move to"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1077
+msgid "Move to first"
+msgstr "Move to first"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1082
+msgid "Move to last"
+msgstr "Move to last"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1044
+msgid "Move up"
+msgstr "Move up"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1036
+msgid "Move up pending message: {previewText}"
+msgstr "Move up pending message: {previewText}"
 
 #: src/features/appShell/AppShellTopBar.tsx:69
 msgid "Navigation"
@@ -367,15 +413,15 @@ msgstr "No agents completed yet"
 msgid "No committed messages yet."
 msgstr "No committed messages yet."
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:118
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:87
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:294
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:298
 msgid "No matching skills"
 msgstr "No matching skills"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:563
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:785
 msgid "No pending messages"
 msgstr "No pending messages"
 
@@ -384,11 +430,11 @@ msgstr "No pending messages"
 msgid "Not found"
 msgstr "Not found"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:203
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:172
 msgid "Not loaded"
 msgstr "Not loaded"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:48
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:49
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
@@ -397,11 +443,11 @@ msgstr "Open an active task in this browser tab before viewing its history."
 msgid "Page not found"
 msgstr "Page not found"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:422
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:611
 msgid "Pending"
 msgstr "Pending"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:443
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:632
 msgid "Pending details"
 msgstr "Pending details"
 
@@ -410,23 +456,27 @@ msgstr "Pending details"
 msgid "Pending init"
 msgstr "Pending init"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:513
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:720
 msgid "Pending message changed"
 msgstr "Pending message changed"
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:716
+msgid "Pending message was not reordered"
+msgstr "Pending message was not reordered"
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:134
 msgid "Pending messages"
 msgstr "Pending messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:414
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:603
 msgid "Pending: Guide {guidingCount}"
 msgstr "Pending: Guide {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:412
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:601
 msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 msgstr "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:415
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:604
 msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "Pending: Queued {ordinaryQueuedCount}"
 
@@ -447,23 +497,29 @@ msgstr "QR access is unavailable until the GUI launch token is ready."
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:645
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:876
 msgid "Queued"
 msgstr "Queued"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:430
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:619
 msgid "Queued {ordinaryQueuedCount}"
 msgstr "Queued {ordinaryQueuedCount}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:209
+#. placeholder {0}: moveAnnouncement.position
+#. placeholder {1}: moveAnnouncement.count
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:643
+msgid "Queued message moved to position {0} of {1}."
+msgstr "Queued message moved to position {0} of {1}."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:178
 msgid "Read-only history"
 msgstr "Read-only history"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:528
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:745
 msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:449
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:453
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
@@ -485,13 +541,13 @@ msgstr "Resumed {receiver}"
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:437
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:263
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:239
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:441
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:232
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:208
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:392
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:361
 msgid "Return to current task"
 msgstr "Return to current task"
 
@@ -500,7 +556,7 @@ msgstr "Return to current task"
 msgid "Running"
 msgstr "Running"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:490
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:693
 msgid "Save"
 msgstr "Save"
 
@@ -518,19 +574,19 @@ msgstr "Send"
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:675
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:909
 msgid "Show more"
 msgstr "Show more"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:670
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:902
 msgid "Show more guiding messages"
 msgstr "Show more guiding messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:670
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:902
 msgid "Show more queued messages"
 msgstr "Show more queued messages"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:453
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:457
 msgid "Showing saved skills because refresh failed"
 msgstr "Showing saved skills because refresh failed"
 
@@ -539,11 +595,11 @@ msgstr "Showing saved skills because refresh failed"
 msgid "Shutdown"
 msgstr "Shutdown"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:451
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:455
 msgid "Skills could not be loaded"
 msgstr "Skills could not be loaded"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:456
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:460
 msgid "Some skills could not be loaded"
 msgstr "Some skills could not be loaded"
 
@@ -581,48 +637,60 @@ msgstr "Stop"
 msgid "Stop failed"
 msgstr "Stop failed"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:706
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:841
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:945
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1149
 msgid "Structured input"
 msgstr "Structured input"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:206
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:175
 msgid "System error"
 msgstr "System error"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:438
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:407
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:520
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:733
+msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
+msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:729
+msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
+msgstr "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:727
+msgid "The pending-message order did not change. Refresh complete; try again."
+msgstr "The pending-message order did not change. Refresh complete; try again."
+
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:737
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:445
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
 msgid "The task connection is no longer available."
 msgstr "The task connection is no longer available."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:60
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:61
 msgid "The task connection was closed."
 msgstr "The task connection was closed."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:522
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:739
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "This message has entered the sending process and can no longer be managed."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:809
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1117
 msgid "This message has entered the sending process."
 msgstr "This message has entered the sending process."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:807
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1115
 msgid "This message is being edited."
 msgstr "This message is being edited."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:518
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:725
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:221
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:190
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -636,15 +704,15 @@ msgstr "Transcript context pages"
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:402
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:371
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:230
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:199
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:258
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:227
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -656,17 +724,21 @@ msgstr "Unable to load the current task"
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:374
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:343
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:189
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:150
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:148
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:158
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:119
 msgid "Untitled task"
 msgstr "Untitled task"
 
-#: src/features/threadHistory/ThreadHistoryListPage.tsx:194
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:718
+msgid "Updated pending order could not be loaded"
+msgstr "Updated pending order could not be loaded"
+
+#: src/features/threadHistory/ThreadHistoryListPage.tsx:163
 msgid "View"
 msgstr "View"
 

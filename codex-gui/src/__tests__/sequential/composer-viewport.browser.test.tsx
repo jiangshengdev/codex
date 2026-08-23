@@ -272,10 +272,13 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     controller.submitSteer(composerDraftCapture("Additional guiding context ".repeat(12)));
     controller.submit(composerDraftCapture(longOrdinaryText));
     controller.submit(composerDraftCapture("Second ordinary message"));
+    for (let index = 1; index <= 19; index += 1) {
+      controller.submit(composerDraftCapture(`Additional ordinary message ${index}`));
+    }
 
     const pendingRegion = screen.getByRole("region", { name: "Pending messages", exact: true });
     const trigger = pendingRegion.getByRole("button", {
-      name: "Pending: Guide 2, Queued 2",
+      name: "Pending: Guide 2, Queued 21",
       exact: true,
     });
     await expect.element(pendingRegion).toBeVisible();
@@ -304,7 +307,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
       .toBe(true);
 
     const editButtons = dialog.getByRole("button", { name: "Edit", exact: true }).all();
-    expect(editButtons.length).toBe(3);
+    expect(editButtons.length).toBe(21);
     await editButtons[1]?.click();
     const pendingEditor = screen.getByRole("combobox", {
       name: "Edit pending message",
@@ -345,6 +348,61 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
       name: "Second ordinary message",
       exact: true,
     });
+    secondOrdinary.element().scrollIntoView({ block: "nearest" });
+    await expect.element(secondOrdinary).toBeInViewport();
+    const moveUp = secondOrdinary.getByRole("button", {
+      name: "Move up pending message: Second ordinary message",
+      exact: true,
+    });
+    const moveDown = secondOrdinary.getByRole("button", {
+      name: "Move down pending message: Second ordinary message",
+      exact: true,
+    });
+    const moreMoveOptions = secondOrdinary.getByRole("button", {
+      name: "More move options for pending message: Second ordinary message",
+      exact: true,
+    });
+    moveUp.element().scrollIntoView({ block: "nearest" });
+    await expect.element(moveUp).toBeInViewport();
+    await expect.element(moveDown).toBeInViewport();
+    await expect.element(moreMoveOptions).toBeInViewport();
+
+    await moreMoveOptions.click();
+    const moveMenu = page.getByRole("menu");
+    moveMenu.element().scrollIntoView({ block: "nearest" });
+    await expect.element(moveMenu).toBeInViewport();
+    await expect
+      .element(moveMenu.getByRole("menuitem", { name: "Move to first", exact: true }))
+      .toBeInViewport();
+    await expect
+      .element(moveMenu.getByRole("menuitem", { name: "Move to last", exact: true }))
+      .toBeInViewport();
+    await screen.user.keyboard("{Escape}");
+    await expect.element(moveMenu).not.toBeInTheDocument();
+    await expect.element(listDialog).toBeVisible();
+
+    await moreMoveOptions.click();
+    const reopenedMoveMenu = page.getByRole("menu");
+    await reopenedMoveMenu
+      .getByRole("menuitem", { name: "Move to first", exact: true })
+      .click();
+    await expect.element(reopenedMoveMenu).not.toBeInTheDocument();
+    const moveStatus = listDialog
+      .getByRole("status")
+      .filter({ hasText: "Queued message moved to position 1 of 21." });
+    moveStatus.element().scrollIntoView({ block: "nearest" });
+    await expect.element(moveStatus).toBeInViewport();
+    await expect
+      .element(moveStatus)
+      .toHaveTextContent("Queued message moved to position 1 of 21.");
+
+    const showMoreQueued = listDialog.getByRole("button", {
+      name: "Show more queued messages",
+      exact: true,
+    });
+    showMoreQueued.element().scrollIntoView({ block: "nearest" });
+    await expect.element(showMoreQueued).toBeInViewport();
+
     await secondOrdinary.getByRole("button", { name: "Delete", exact: true }).click();
     const keep = secondOrdinary.getByRole("button", { name: "Keep", exact: true });
     const confirmDelete = secondOrdinary.getByRole("button", { name: "Delete", exact: true });
