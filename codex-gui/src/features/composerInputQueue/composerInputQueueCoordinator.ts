@@ -872,22 +872,44 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   private flushDeferredAcceptedEvents(generation: number): AcceptedEventReplayResult {
     if (this.replayingAcceptedEvents) return { type: "flushed" };
+    let replay: AcceptedEventReplayResult = { type: "flushed" };
     this.replayingAcceptedEvents = true;
     try {
       while (this.deferredAcceptedEvents.length > 0) {
-        if (this.disposed || generation !== this.generation) return { type: "flushed" };
+        if (this.disposed || generation !== this.generation) break;
         const payload = this.deferredAcceptedEvents.shift();
         if (payload == null) break;
         try {
           this.applyAcceptedEvent(payload);
         } catch (error: unknown) {
-          return { type: "failed", error };
+          replay = { type: "failed", error };
+          break;
         }
       }
-      return { type: "flushed" };
     } finally {
       this.replayingAcceptedEvents = false;
     }
+    if (
+      this.deferredAcceptedEvents.length === 0 &&
+      !this.disposed &&
+      generation === this.generation
+    ) {
+      try {
+        this.publishSnapshot();
+      } catch (error: unknown) {
+        replay = {
+          type: "failed",
+          error:
+            replay.type === "failed"
+              ? new AggregateError(
+                  [replay.error, error],
+                  "Runtime replay and final snapshot publication failed",
+                )
+              : error,
+        };
+      }
+    }
+    return replay;
   }
 
   private cancelUndeliveredManagementSession(session: PendingInputManagementSession): void {
@@ -926,7 +948,11 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
 
   private managementMutationPending(): boolean {
-    return this.managementAcquiring || this.replayingAcceptedEvents;
+    return (
+      this.managementAcquiring ||
+      this.replayingAcceptedEvents ||
+      this.deferredAcceptedEvents.length > 0
+    );
   }
 
   private ownerGoneResult(): ComposerPendingInputOwnerGoneResult {

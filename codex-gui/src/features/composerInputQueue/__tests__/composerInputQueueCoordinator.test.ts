@@ -1185,6 +1185,111 @@ describe("ComposerInputQueueCoordinator", () => {
     );
   });
 
+  it("publishes canStop after accepted-event replay releases its mutation gate", () => {
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: null,
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    const canStopSnapshots: boolean[] = [];
+    coordinator.subscribe(() => canStopSnapshots.push(coordinator.getSnapshot().canStop));
+
+    coordinator.observeAcceptedEvent(
+      live(turnStarted(eventTurnStarted, "replay-turn-started", baseTurn("turn-started"))),
+    );
+
+    expect(coordinator.getSnapshot().canStop).toBe(true);
+    expect(canStopSnapshots.at(-1)).toBe(true);
+  });
+
+  it("publishes the final replay snapshot after an empty-mailbox listener failure", () => {
+    const createPendingSteer = () => {
+      const steerTurn = vi.fn<SteerTurn>(() => new Promise<TurnSteerResponse>(() => undefined));
+      const coordinator = createCoordinator({
+        threadId: "thread-1",
+        activeTurnId: "turn-1",
+        startTurn: vi.fn<StartTurn>(),
+        steerTurn,
+      });
+      coordinator.submitSteer(input("pending steer"));
+      const clientId = steerTurn.mock.calls[0]?.[0].clientUserMessageId;
+      const committed = live(
+        itemStarted(
+          eventItemStarted,
+          "empty-mailbox-commit",
+          "turn-1",
+          committedUserMessage(clientId ?? "missing-client-id"),
+        ),
+      );
+      return { committed, coordinator };
+    };
+
+    const singleFailure = createPendingSteer();
+    const replayError = new Error("replay listener failed");
+    let unsubscribe = (): void => undefined;
+    unsubscribe = singleFailure.coordinator.subscribe(() => {
+      unsubscribe();
+      throw replayError;
+    });
+    expect(() => singleFailure.coordinator.observeAcceptedEvent(singleFailure.committed)).toThrow(
+      replayError,
+    );
+    expect(singleFailure.coordinator.getSnapshot()).toMatchObject({
+      guidingCount: 0,
+      canStop: true,
+    });
+
+    const doubleFailure = createPendingSteer();
+    const finalPublishError = new Error("final snapshot listener failed");
+    let listenerCall = 0;
+    doubleFailure.coordinator.subscribe(() => {
+      listenerCall += 1;
+      throw listenerCall === 1 ? replayError : finalPublishError;
+    });
+    let combinedError: unknown;
+    try {
+      doubleFailure.coordinator.observeAcceptedEvent(doubleFailure.committed);
+    } catch (error: unknown) {
+      combinedError = error;
+    }
+    expect(combinedError).toBeInstanceOf(AggregateError);
+    if (!(combinedError instanceof AggregateError)) throw new Error("expected aggregate error");
+    expect(combinedError.errors).toEqual([replayError, finalPublishError]);
+    expect(doubleFailure.coordinator.getSnapshot().canStop).toBe(true);
+  });
+
+  it("cancels an undelivered edit when final replay snapshot publication throws", () => {
+    const coordinator = createCoordinator({
+      threadId: "thread-1",
+      activeTurnId: "turn-active",
+      startTurn: vi.fn<StartTurn>(),
+      steerTurn: vi.fn<SteerTurn>(),
+    });
+    coordinator.submit(input("pending"));
+    const item = pendingItem(coordinator, "ordinary");
+    const publishError = new Error("final replay snapshot failed");
+    let unsubscribe = (): void => undefined;
+    unsubscribe = coordinator.subscribe(() => {
+      unsubscribe();
+      throw publishError;
+    });
+
+    expect(() =>
+      coordinator.beginPendingInputEdit(
+        { key: item.key, revision: coordinator.getSnapshot().detailRevision },
+        () => ({ type: "restored" }),
+      ),
+    ).toThrow(publishError);
+    expect(coordinator.getSnapshot().canStop).toBe(true);
+    expect(
+      coordinator.deletePendingInput({
+        key: item.key,
+        revision: coordinator.getSnapshot().detailRevision,
+      }),
+    ).toMatchObject({ type: "deleted" });
+  });
+
   it("replays deferred and listener-injected runtime facts in strict FIFO order", () => {
     const startTurn = vi.fn<StartTurn>().mockResolvedValue({ turn: baseTurn("turn-pending") });
     const coordinator = createCoordinator({
