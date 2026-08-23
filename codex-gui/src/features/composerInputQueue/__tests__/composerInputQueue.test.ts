@@ -6,6 +6,7 @@ import {
   type ComposerInputQueue,
   type ComposerInputQueueTransition,
   type ComposerQueueMessage,
+  type ComposerPendingInputCursor,
   type ComposerPendingInputLane,
   type StartClaim,
 } from "../composerInputQueue";
@@ -24,6 +25,16 @@ function startClaim(transition: ComposerInputQueueTransition): StartClaim {
 
 function submit(queue: ComposerInputQueue, id: string): ComposerInputQueueTransition {
   return queue.submit(message(id));
+}
+
+function acceptAndCompleteStart(queue: ComposerInputQueue, claim: StartClaim, turnId: string) {
+  queue.settleStart({ type: "accepted", claim, turnId });
+  return queue.observe({
+    type: "turnCompleted",
+    turnId,
+    status: "completed",
+    commitId: `terminal-${turnId}`,
+  });
 }
 
 function pendingPage(queue: ComposerInputQueue, lane: ComposerPendingInputLane, limit = 100) {
@@ -1570,5 +1581,557 @@ describe("composer input queue", () => {
         limit: 1,
       }),
     ).toEqual({ type: "stale", revision: firstOwner.detailRevision() });
+  });
+
+  it("projects owner-derived management state for ordinary, queued steer, and pending steer", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "ordinary");
+    const issued = queue.submitSteer(message("pending-steer"));
+    const issueEffect = issued.effects[0];
+    if (issueEffect?.type !== "performSteer") throw new Error("expected pending steer claim");
+    queue.submitSteer(message("queued-steer"));
+
+    expect(pendingPage(queue, "ordinary").items).toMatchObject([
+      { lane: "ordinary", management: { type: "manageable" } },
+    ]);
+    expect(pendingPage(queue, "steer").items).toMatchObject([
+      {
+        lane: "steer",
+        management: { type: "readOnly", reason: "deliveryInProgress" },
+      },
+      { lane: "steer", management: { type: "manageable" } },
+    ]);
+    const pendingSteerKey = pendingPage(queue, "steer").items[0]?.key;
+    if (pendingSteerKey == null) throw new Error("expected pending steer key");
+    let restoreCalled = false;
+    expect(
+      queue.beginPendingInputEdit(
+        { key: pendingSteerKey, revision: queue.detailRevision() },
+        () => {
+          restoreCalled = true;
+          return { type: "restored" };
+        },
+      ),
+    ).toEqual({ type: "notManageable", revision: queue.detailRevision() });
+    expect(restoreCalled).toBe(false);
+  });
+
+  it("begins an ordinary edit only after a current manageable slot restores successfully", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "a");
+    submit(queue, "b");
+    const before = pendingPage(queue, "ordinary");
+    const firstKey = before.items[0]?.key;
+    const secondKey = before.items[1]?.key;
+    if (firstKey == null || secondKey == null) throw new Error("expected ordinary keys");
+    const beforeView = queue.view();
+
+    let restoreCalls = 0;
+    expect(
+      queue.beginPendingInputEdit({ key: firstKey, revision: queue.detailRevision() }, () => {
+        restoreCalls += 1;
+        return { type: "invalidDraft" };
+      }),
+    ).toEqual({ type: "invalidDraft", revision: queue.detailRevision() });
+    expect(restoreCalls).toBe(1);
+    expect(queue.view()).toEqual(beforeView);
+    expect(pendingPage(queue, "ordinary")).toEqual(before);
+
+    const staleRevision = queue.detailRevision();
+    submit(queue, "c");
+    expect(
+      queue.beginPendingInputEdit({ key: firstKey, revision: staleRevision }, () => {
+        restoreCalls += 1;
+        return { type: "restored" };
+      }),
+    ).toEqual({ type: "stale", revision: queue.detailRevision() });
+    expect(restoreCalls).toBe(1);
+
+    const foreignQueue = createComposerInputQueue({
+      threadId: "thread-2",
+      activeTurnId: "turn-2",
+    });
+    submit(foreignQueue, "foreign");
+    const foreignKey = pendingPage(foreignQueue, "ordinary").items[0]?.key;
+    if (foreignKey == null) throw new Error("expected foreign key");
+    expect(
+      queue.beginPendingInputEdit({ key: foreignKey, revision: queue.detailRevision() }, () => {
+        restoreCalls += 1;
+        return { type: "restored" };
+      }),
+    ).toEqual({ type: "notManageable", revision: queue.detailRevision() });
+    expect(restoreCalls).toBe(1);
+
+    const begun = queue.beginPendingInputEdit(
+      { key: secondKey, revision: queue.detailRevision() },
+      () => {
+        restoreCalls += 1;
+        return { type: "restored" };
+      },
+    );
+    expect(begun.type).toBe("begun");
+    if (begun.type !== "begun") throw new Error("expected edit reservation");
+    expect(restoreCalls).toBe(2);
+    expect(pendingPage(queue, "ordinary").items).toMatchObject([
+      { key: firstKey, management: { type: "manageable" } },
+      { key: secondKey, management: { type: "editing" } },
+      { management: { type: "manageable" } },
+    ]);
+    expect(
+      queue.beginPendingInputEdit(
+        {
+          key: secondKey,
+          revision: queue.detailRevision(),
+        },
+        () => ({ type: "restored" }),
+      ),
+    ).toEqual({
+      type: "conflict",
+      reason: "editInProgress",
+      revision: queue.detailRevision(),
+    });
+  });
+
+  it("rolls back an invalid restore after rejecting reentrant owner mutations", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "a");
+    submit(queue, "b");
+    const beforeRevision = queue.detailRevision();
+    const beforeView = queue.view();
+    const beforePage = pendingPage(queue, "ordinary");
+    const firstKey = beforePage.items[0]?.key;
+    if (firstKey == null) throw new Error("expected reentrant edit key");
+
+    expect(
+      queue.beginPendingInputEdit({ key: firstKey, revision: beforeRevision }, () => {
+        expect(queue.deletePendingInput({ key: firstKey, revision: beforeRevision })).toEqual({
+          type: "conflict",
+          reason: "editInProgress",
+          revision: beforeRevision,
+        });
+        expect(submit(queue, "reentrant")).toEqual({
+          result: { type: "ownershipMismatch", subject: "pendingInputEdit" },
+          effects: [],
+        });
+        expect(pendingPage(queue, "ordinary")).toEqual(beforePage);
+        return { type: "invalidDraft" };
+      }),
+    ).toEqual({ type: "invalidDraft", revision: beforeRevision });
+    expect(queue.detailRevision()).toBe(beforeRevision);
+    expect(queue.view()).toEqual(beforeView);
+    expect(pendingPage(queue, "ordinary")).toEqual(beforePage);
+    const begun = queue.beginPendingInputEdit({ key: firstKey, revision: beforeRevision }, () => {
+      expect(queue.deletePendingInput({ key: firstKey, revision: beforeRevision })).toEqual({
+        type: "conflict",
+        reason: "editInProgress",
+        revision: beforeRevision,
+      });
+      return { type: "restored" };
+    });
+    if (begun.type !== "begun") throw new Error("expected reentrant-safe reservation");
+    expect(pendingPage(queue, "ordinary").items).toMatchObject([
+      { key: firstKey, management: { type: "editing" }, preview: { text: "message a" } },
+      { key: beforePage.items[1]?.key, preview: { text: "message b" } },
+    ]);
+    expect(begun.reservation.cancel().type).toBe("cancelled");
+    expect(submit(queue, "reentrant").result).toEqual({
+      type: "queued",
+      messageId: "reentrant",
+    });
+  });
+
+  it.each([
+    ["head", 0],
+    ["middle", 1],
+    ["tail", 2],
+  ])("keeps a %s reservation in bounded pages and release projection", (_position, index) => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "a");
+    submit(queue, "b");
+    submit(queue, "c");
+    const initial = pendingPage(queue, "ordinary");
+    const keys = initial.items.map(({ key }) => key);
+    const editKey = keys[index];
+    if (editKey == null) throw new Error("expected parameterized edit key");
+    const begun = queue.beginPendingInputEdit(
+      { key: editKey, revision: queue.detailRevision() },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected parameterized reservation");
+
+    const pagedKeys = [];
+    let cursor: ComposerPendingInputCursor | null = null;
+    do {
+      const page = queue.readPendingInputPage({
+        lane: "ordinary",
+        revision: queue.detailRevision(),
+        cursor,
+        limit: 1,
+      });
+      if (page.type !== "page") throw new Error("expected reservation page");
+      const item = page.items[0];
+      if (item == null) throw new Error("expected reservation page item");
+      pagedKeys.push(item.key);
+      if (pagedKeys.length - 1 === index) {
+        expect(item.management).toEqual({ type: "editing" });
+      }
+      cursor = page.nextCursor;
+    } while (cursor != null);
+    expect(pagedKeys).toEqual(keys);
+    expect(queue.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [{ type: "ordinaryQueued", count: 3 }],
+    });
+    expect(begun.reservation.cancel().type).toBe("cancelled");
+  });
+
+  it("keeps an ordinary reservation in place while earlier messages drain and saves by capability", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
+    const firstClaim = startClaim(submit(queue, "a"));
+    submit(queue, "b");
+    submit(queue, "c");
+    submit(queue, "d");
+    const before = pendingPage(queue, "ordinary", 2);
+    const allBefore = pendingPage(queue, "ordinary");
+    const originalKeys = allBefore.items.map(({ key }) => key);
+    const editKey = originalKeys[1];
+    if (before.nextCursor == null || editKey == null) throw new Error("expected middle edit key");
+    const begun = queue.beginPendingInputEdit(
+      { key: editKey, revision: queue.detailRevision() },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected edit reservation");
+
+    expect(queue.view().ordinaryQueuedCount).toBe(3);
+    expect(queue.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [
+        { type: "ordinaryQueued", count: 3 },
+        { type: "pendingStart", phase: "issuing" },
+      ],
+    });
+    const during = pendingPage(queue, "ordinary", 2);
+    expect(during.items.map(({ key }) => key)).toEqual(originalKeys.slice(0, 2));
+    expect(during.items[1]?.management).toEqual({ type: "editing" });
+    expect(during.nextCursor).not.toBeNull();
+
+    queue.settleStart({ type: "accepted", claim: firstClaim, turnId: "turn-a" });
+    const secondClaim = startClaim(
+      queue.observe({
+        type: "turnCompleted",
+        turnId: "turn-a",
+        status: "completed",
+        commitId: "terminal-a",
+      }),
+    );
+    expect(secondClaim.message).toEqual(message("b"));
+    queue.settleStart({ type: "accepted", claim: secondClaim, turnId: "turn-b" });
+    expect(
+      queue.observe({
+        type: "turnCompleted",
+        turnId: "turn-b",
+        status: "completed",
+        commitId: "terminal-b",
+      }),
+    ).toEqual({ result: { type: "applied", operation: "turnCompleted" }, effects: [] });
+    expect(pendingPage(queue, "ordinary").items.map(({ key }) => key)).toEqual(
+      originalKeys.slice(1),
+    );
+
+    const editedCapture = composerDraftCapture("edited c");
+    const saved = begun.reservation.save(editedCapture);
+    expect(saved).toEqual({
+      type: "saved",
+      revision: queue.detailRevision(),
+      drainIntent: { lane: "ordinary" },
+    });
+    expect(pendingPage(queue, "ordinary").items).toMatchObject([
+      { key: editKey, management: { type: "manageable" }, preview: { text: "edited c" } },
+      { key: originalKeys[2], preview: { text: "message d" } },
+    ]);
+    expect(begun.reservation.cancel()).toEqual({
+      type: "unavailable",
+      reason: "sessionSettled",
+      revision: queue.detailRevision(),
+    });
+    if (saved.type !== "saved") throw new Error("expected saved drain intent");
+    const resumed = startClaim(queue.drainPendingInput(saved.drainIntent));
+    expect(resumed.message).toEqual({
+      type: "recoverable",
+      id: "c",
+      draft: editedCapture.draft,
+      input: editedCapture.input,
+    });
+    expect(pendingPage(queue, "ordinary").items.map(({ key }) => key)).toEqual([originalKeys[2]]);
+  });
+
+  it("rejects empty saves, restores cancel content, and never forms a claim while settling", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "a");
+    submit(queue, "b");
+    const page = pendingPage(queue, "ordinary");
+    const firstKey = page.items[0]?.key;
+    if (firstKey == null) throw new Error("expected ordinary key");
+    const begun = queue.beginPendingInputEdit(
+      { key: firstKey, revision: queue.detailRevision() },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected edit reservation");
+    const editingRevision = queue.detailRevision();
+
+    expect(begun.reservation.save(composerDraftCapture(" \n\t "))).toEqual({
+      type: "invalidInput",
+      reason: "emptyInput",
+      revision: editingRevision,
+    });
+    expect(queue.detailRevision()).toBe(editingRevision);
+    expect(pendingPage(queue, "ordinary").items[0]).toMatchObject({
+      key: firstKey,
+      management: { type: "editing" },
+      preview: { text: "message a" },
+    });
+    expect(queue.promoteOrdinaryFrontToSteer()).toEqual({
+      result: { type: "noOp", reason: "ordinaryQueueBlockedByEdit" },
+      effects: [],
+    });
+    const cancelled = begun.reservation.cancel();
+    expect(cancelled).toEqual({
+      type: "cancelled",
+      revision: queue.detailRevision(),
+      drainIntent: { lane: "ordinary" },
+    });
+    expect(pendingPage(queue, "ordinary").items).toMatchObject([
+      { key: firstKey, management: { type: "manageable" }, preview: { text: "message a" } },
+      { preview: { text: "message b" } },
+    ]);
+    expect(begun.reservation.save(composerDraftCapture("late save"))).toEqual({
+      type: "unavailable",
+      reason: "sessionSettled",
+      revision: queue.detailRevision(),
+    });
+    expect(begun.reservation.save(composerDraftCapture(" \n\t "))).toEqual({
+      type: "unavailable",
+      reason: "sessionSettled",
+      revision: queue.detailRevision(),
+    });
+    expect(
+      startClaim(
+        queue.observe({
+          type: "turnCompleted",
+          turnId: "turn-1",
+          status: "completed",
+          commitId: "terminal-1",
+        }),
+      ).message,
+    ).toEqual(message("a"));
+  });
+
+  it("deletes exact ordinary slots by revision without creating a start claim", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+    submit(queue, "a");
+    submit(queue, "b");
+    submit(queue, "c");
+    const initial = pendingPage(queue, "ordinary");
+    const [firstKey, middleKey, lastKey] = initial.items.map(({ key }) => key);
+    if (firstKey == null || middleKey == null || lastKey == null) {
+      throw new Error("expected delete keys");
+    }
+    const staleRevision = queue.detailRevision();
+    const deletedMiddle = queue.deletePendingInput({ key: middleKey, revision: staleRevision });
+    expect(deletedMiddle).toEqual({
+      type: "deleted",
+      revision: queue.detailRevision(),
+      drainIntent: { lane: "ordinary" },
+    });
+    expect(queue.deletePendingInput({ key: lastKey, revision: staleRevision })).toEqual({
+      type: "stale",
+      revision: queue.detailRevision(),
+    });
+    expect(pendingPage(queue, "ordinary").items.map(({ key }) => key)).toEqual([firstKey, lastKey]);
+
+    expect(queue.deletePendingInput({ key: firstKey, revision: queue.detailRevision() })).toEqual({
+      type: "deleted",
+      revision: queue.detailRevision(),
+      drainIntent: { lane: "ordinary" },
+    });
+    expect(queue.deletePendingInput({ key: lastKey, revision: queue.detailRevision() })).toEqual({
+      type: "deleted",
+      revision: queue.detailRevision(),
+      drainIntent: { lane: "ordinary" },
+    });
+    expect(queue.view().ordinaryQueuedCount).toBe(0);
+    expect(submit(queue, "a").result).toEqual({ type: "queued", messageId: "a" });
+    expect(pendingPage(queue, "ordinary").items).toHaveLength(1);
+  });
+
+  it("keeps recovery ordering behind an ordinary reservation until its drain intent is consumed", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
+    const failedClaim = startClaim(submit(queue, "failed"));
+    submit(queue, "edited");
+    submit(queue, "successor");
+    const editKey = pendingPage(queue, "ordinary").items[0]?.key;
+    if (editKey == null) throw new Error("expected recovery edit key");
+    const begun = queue.beginPendingInputEdit(
+      { key: editKey, revision: queue.detailRevision() },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected edit reservation");
+
+    const failed = queue.settleStart({ type: "definitelyNotAccepted", claim: failedClaim });
+    expect(failed.effects).toHaveLength(1);
+    expect(failed.effects[0]?.type).toBe("recover");
+    const saved = begun.reservation.save(composerDraftCapture("saved while recovering"));
+    if (saved.type !== "saved") throw new Error("expected saved reservation");
+    expect(queue.view().releaseState).toEqual({
+      type: "blocked",
+      blockers: [{ type: "ordinaryQueued", count: 2 }],
+    });
+
+    expect(queue.submit(message("failed"))).toEqual({
+      result: { type: "queued", messageId: "failed" },
+      effects: [],
+    });
+    const editedClaim = startClaim(queue.drainPendingInput(saved.drainIntent));
+    expect(editedClaim.message.id).toBe("edited");
+    expect(pendingPage(queue, "ordinary").items.map(({ preview }) => preview)).toMatchObject([
+      { text: "message successor" },
+      { text: "message failed" },
+    ]);
+    const successorClaim = startClaim(acceptAndCompleteStart(queue, editedClaim, "turn-edited"));
+    const recoveredFailedClaim = startClaim(
+      acceptAndCompleteStart(queue, successorClaim, "turn-successor"),
+    );
+    expect([
+      editedClaim.message.id,
+      successorClaim.message.id,
+      recoveredFailedClaim.message.id,
+    ]).toEqual(["edited", "successor", "failed"]);
+  });
+
+  it("keeps a reservation blocked behind delivery unknown and rejects local interruption", () => {
+    const deliveryUnknownQueue = createComposerInputQueue({
+      threadId: "thread-1",
+      activeTurnId: null,
+    });
+    const unknownClaim = startClaim(submit(deliveryUnknownQueue, "pending"));
+    submit(deliveryUnknownQueue, "edited");
+    const unknownEditKey = pendingPage(deliveryUnknownQueue, "ordinary").items[0]?.key;
+    if (unknownEditKey == null) throw new Error("expected delivery-unknown edit key");
+    const unknownEdit = deliveryUnknownQueue.beginPendingInputEdit(
+      { key: unknownEditKey, revision: deliveryUnknownQueue.detailRevision() },
+      () => ({ type: "restored" }),
+    );
+    if (unknownEdit.type !== "begun") throw new Error("expected delivery-unknown reservation");
+    deliveryUnknownQueue.settleStart({ type: "deliveryUnknown", claim: unknownClaim });
+    const cancelled = unknownEdit.reservation.cancel();
+    if (cancelled.type !== "cancelled") throw new Error("expected delivery-unknown cancel");
+    expect(deliveryUnknownQueue.drainPendingInput(cancelled.drainIntent)).toEqual({
+      result: { type: "applied", operation: "pendingInputManagementDrained" },
+      effects: [],
+    });
+
+    const interruptedQueue = createComposerInputQueue({
+      threadId: "thread-2",
+      activeTurnId: "turn-2",
+    });
+    submit(interruptedQueue, "edited");
+    const interruptedKey = pendingPage(interruptedQueue, "ordinary").items[0]?.key;
+    if (interruptedKey == null) throw new Error("expected interrupted edit key");
+    const interruptedEdit = interruptedQueue.beginPendingInputEdit(
+      { key: interruptedKey, revision: interruptedQueue.detailRevision() },
+      () => ({ type: "restored" }),
+    );
+    if (interruptedEdit.type !== "begun") throw new Error("expected interrupted reservation");
+    interruptedQueue.prepareInterruptedTerminal({
+      type: "turnCompleted",
+      turnId: "turn-2",
+      status: "interrupted",
+      commitId: "terminal-2",
+    });
+    expect(interruptedQueue.applyInterruptedDisposition("turn-2", "local")).toEqual({
+      result: { type: "ownershipMismatch", subject: "pendingInputEdit" },
+      effects: [],
+    });
+    expect(pendingPage(interruptedQueue, "ordinary").items[0]).toMatchObject({
+      key: interruptedKey,
+      management: { type: "editing" },
+    });
+  });
+
+  it("preserves an existing deferred successor effect ahead of management drain", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
+    const failedClaim = startClaim(submit(queue, "failed"));
+    submit(queue, "successor");
+    submit(queue, "edited");
+    const editKey = pendingPage(queue, "ordinary").items[1]?.key;
+    if (editKey == null) throw new Error("expected deferred-successor edit key");
+    const begun = queue.beginPendingInputEdit(
+      { key: editKey, revision: queue.detailRevision() },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected deferred-successor reservation");
+
+    const failure = queue.settleStart({ type: "definitelyNotAccepted", claim: failedClaim });
+    expect(failure.effects[0]?.type).toBe("recover");
+    const successorEffect = failure.effects[1];
+    if (successorEffect?.type !== "performStart") {
+      throw new Error("expected existing deferred successor effect");
+    }
+    expect(successorEffect.claim.message.id).toBe("successor");
+    const saved = begun.reservation.save(composerDraftCapture("edited after failure"));
+    if (saved.type !== "saved") throw new Error("expected deferred-successor save");
+    expect(queue.submit(message("failed"))).toEqual({
+      result: { type: "queued", messageId: "failed" },
+      effects: [],
+    });
+    expect(pendingPage(queue, "ordinary").items.map(({ preview }) => preview)).toMatchObject([
+      { text: "edited after failure" },
+      { text: "message failed" },
+    ]);
+    const editedClaim = startClaim(
+      acceptAndCompleteStart(queue, successorEffect.claim, "turn-successor"),
+    );
+    const recoveredFailedClaim = startClaim(
+      acceptAndCompleteStart(queue, editedClaim, "turn-edited"),
+    );
+    expect([
+      successorEffect.claim.message.id,
+      editedClaim.message.id,
+      recoveredFailedClaim.message.id,
+    ]).toEqual(["successor", "edited", "failed"]);
+  });
+
+  it("returns only an ordinary drain intent when deleting during start recovery", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
+    const failedClaim = startClaim(submit(queue, "failed"));
+    submit(queue, "existing-successor");
+    submit(queue, "deleted-during-recovery");
+    const deleteKey = pendingPage(queue, "ordinary").items[1]?.key;
+    if (deleteKey == null) throw new Error("expected recovery delete key");
+    const failure = queue.settleStart({ type: "definitelyNotAccepted", claim: failedClaim });
+    expect(failure.effects.map(({ type }) => type)).toEqual(["recover", "performStart"]);
+
+    expect(queue.deletePendingInput({ key: deleteKey, revision: queue.detailRevision() })).toEqual({
+      type: "deleted",
+      revision: queue.detailRevision(),
+      drainIntent: { lane: "ordinary" },
+    });
+    expect(queue.view().ordinaryQueuedCount).toBe(0);
+    expect(queue.submit(message("failed"))).toEqual({
+      result: { type: "queued", messageId: "failed" },
+      effects: [],
+    });
+    const successorEffect = failure.effects[1];
+    if (successorEffect?.type !== "performStart") {
+      throw new Error("expected recovery-delete successor claim");
+    }
+    const recoveredFailedClaim = startClaim(
+      acceptAndCompleteStart(queue, successorEffect.claim, "turn-successor"),
+    );
+    expect([successorEffect.claim.message.id, recoveredFailedClaim.message.id]).toEqual([
+      "existing-successor",
+      "failed",
+    ]);
+    expect(recoveredFailedClaim.message.id).not.toBe("deleted-during-recovery");
   });
 });

@@ -1,5 +1,9 @@
 import type { ThreadItem, ThreadProjectionEventNotification, Turn } from "@codex-protocol/v2";
-import type { ComposerDraft } from "@/features/composerEditor/composerDraft";
+import type {
+  ComposerDraft,
+  ComposerDraftCapture,
+  ComposerDraftRestoreResult,
+} from "@/features/composerEditor/composerDraft";
 import type { ComposerInputPreview } from "./composerInputPreview";
 import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
 import type { InterruptTerminalDisposition } from "./composerInterruptState";
@@ -34,9 +38,15 @@ export type ComposerPendingInputCursor = Readonly<{
   [composerPendingInputCursorBrand]: true;
 }>;
 
+export type ComposerPendingInputManagement =
+  | Readonly<{ type: "manageable" }>
+  | Readonly<{ type: "editing" }>
+  | Readonly<{ type: "readOnly"; reason: "deliveryInProgress" }>;
+
 export type ComposerPendingInputPageItem = Readonly<{
   key: ComposerPendingInputDisplayKey;
   lane: ComposerPendingInputLane;
+  management: ComposerPendingInputManagement;
   preview: ComposerInputPreview;
 }>;
 
@@ -73,6 +83,61 @@ export type ComposerPendingInputDetailResult =
   | Readonly<{ type: "stale"; revision: number }>
   | Readonly<{ type: "unavailable" }>;
 
+export type ComposerPendingInputManagementRequest = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  revision: number;
+}>;
+
+export type ComposerPendingInputDrainIntent = Readonly<{
+  lane: ComposerPendingInputLane;
+}>;
+
+export type ComposerPendingInputEditReservation = Readonly<{
+  save(capture: ComposerDraftCapture): ComposerPendingInputEditSaveResult;
+  cancel(): ComposerPendingInputEditCancelResult;
+}>;
+
+type ComposerPendingInputManagementFailure =
+  | Readonly<{ type: "stale"; revision: number }>
+  | Readonly<{ type: "notManageable"; revision: number }>
+  | Readonly<{ type: "conflict"; reason: "editInProgress"; revision: number }>;
+
+export type ComposerPendingInputBeginEditResult =
+  | Readonly<{
+      type: "begun";
+      revision: number;
+      reservation: ComposerPendingInputEditReservation;
+    }>
+  | Readonly<{ type: "invalidDraft"; revision: number }>
+  | ComposerPendingInputManagementFailure;
+
+export type ComposerPendingInputEditRestore = (draft: ComposerDraft) => ComposerDraftRestoreResult;
+
+export type ComposerPendingInputEditSaveResult =
+  | Readonly<{
+      type: "saved";
+      revision: number;
+      drainIntent: ComposerPendingInputDrainIntent;
+    }>
+  | Readonly<{ type: "invalidInput"; reason: "emptyInput"; revision: number }>
+  | Readonly<{ type: "unavailable"; reason: "sessionSettled"; revision: number }>;
+
+export type ComposerPendingInputEditCancelResult =
+  | Readonly<{
+      type: "cancelled";
+      revision: number;
+      drainIntent: ComposerPendingInputDrainIntent;
+    }>
+  | Readonly<{ type: "unavailable"; reason: "sessionSettled"; revision: number }>;
+
+export type ComposerPendingInputDeleteResult =
+  | Readonly<{
+      type: "deleted";
+      revision: number;
+      drainIntent: ComposerPendingInputDrainIntent;
+    }>
+  | ComposerPendingInputManagementFailure;
+
 export type ComposerInterruptedDisposition = InterruptTerminalDisposition;
 
 export type UserStoppedRecoveryBatch = Readonly<{
@@ -100,6 +165,7 @@ export type ComposerInputQueueResult =
       type: "applied";
       operation:
         | "observationRecorded"
+        | "pendingInputManagementDrained"
         | "rejectedSteerStartRestored"
         | "startAccepted"
         | "steerAccepted"
@@ -120,7 +186,10 @@ export type ComposerInputQueueResult =
     }>
   | Readonly<{ type: "invalidInput"; reason: "emptyInput" }>
   | Readonly<{ type: "duplicateIdentity"; messageId: string }>
-  | Readonly<{ type: "noOp"; reason: "noActiveTurn" | "ordinaryQueueEmpty" }>
+  | Readonly<{
+      type: "noOp";
+      reason: "noActiveTurn" | "ordinaryQueueEmpty" | "ordinaryQueueBlockedByEdit";
+    }>
   | Readonly<{
       type: "idempotentReplay";
       subject: "runtimeCommit" | "runtimeObservation" | "startSettlement";
@@ -138,6 +207,7 @@ export type ComposerInputQueueResult =
         | "steerClaim"
         | "steerRecoveryTransfer"
         | "interruptedTurn"
+        | "pendingInputEdit"
         | "userStoppedRecovery";
     }>;
 
