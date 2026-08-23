@@ -4,6 +4,7 @@ import {
   COMPOSER_PENDING_INPUT_MAX_PAGE_SIZE,
   createComposerInputQueue,
   type ComposerInputQueue,
+  type ComposerInputQueueView,
   type ComposerInputQueueTransition,
   type ComposerQueueMessage,
   type ComposerPendingInputCursor,
@@ -56,18 +57,24 @@ const committedMessage = (claim: StartClaim, turnId: string, commitId: string) =
   commitId,
 });
 
+const expectedQueueView = (
+  queue: ComposerInputQueue,
+  overrides: Partial<ComposerInputQueueView> = {},
+): ComposerInputQueueView => ({
+  ordinaryQueuedCount: 0,
+  guidingCount: 0,
+  detailRevision: queue.detailRevision(),
+  rejectedSteers: [],
+  hasUnknownSteer: false,
+  releaseState: { type: "safe" },
+  ...overrides,
+});
+
 describe("composer input queue", () => {
   it("issues one opaque single-message start claim for an idle submit", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
 
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 0,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: { type: "safe" },
-    });
+    expect(queue.view()).toEqual(expectedQueueView(queue));
     const submittedMessage = message("a");
     const transition = queue.submit(submittedMessage);
     const claim = startClaim(transition);
@@ -86,17 +93,14 @@ describe("composer input queue", () => {
     }
     expect(claimedText).not.toBe(submittedText);
     expect(claimedText.text_elements).not.toBe(submittedText.text_elements);
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 0,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "pendingStart", phase: "issuing" }],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "pendingStart", phase: "issuing" }],
+        },
+      }),
+    );
   });
 
   it("issues distinct client message identities across queue instances", () => {
@@ -169,17 +173,15 @@ describe("composer input queue", () => {
       result: { type: "queued", messageId: "active" },
       effects: [],
     });
-    expect(activeQueue.view()).toEqual({
-      ordinaryQueuedCount: 1,
-      guidingCount: 0,
-      detailRevision: activeQueue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "ordinaryQueued", count: 1 }],
-      },
-    });
+    expect(activeQueue.view()).toEqual(
+      expectedQueueView(activeQueue, {
+        ordinaryQueuedCount: 1,
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "ordinaryQueued", count: 1 }],
+        },
+      }),
+    );
 
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
     const firstClaim = startClaim(submit(queue, "a"));
@@ -187,71 +189,62 @@ describe("composer input queue", () => {
       result: { type: "queued", messageId: "b" },
       effects: [],
     });
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 1,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [
-          { type: "ordinaryQueued", count: 1 },
-          { type: "pendingStart", phase: "issuing" },
-        ],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 1,
+        releaseState: {
+          type: "blocked",
+          blockers: [
+            { type: "ordinaryQueued", count: 1 },
+            { type: "pendingStart", phase: "issuing" },
+          ],
+        },
+      }),
+    );
     expect(submit(queue, "c")).toEqual({
       result: { type: "queued", messageId: "c" },
       effects: [],
     });
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 2,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [
-          { type: "ordinaryQueued", count: 2 },
-          { type: "pendingStart", phase: "issuing" },
-        ],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 2,
+        releaseState: {
+          type: "blocked",
+          blockers: [
+            { type: "ordinaryQueued", count: 2 },
+            { type: "pendingStart", phase: "issuing" },
+          ],
+        },
+      }),
+    );
 
     const afterFirst = queue.settleStart({ type: "definitelyNotAccepted", claim: firstClaim });
     const secondClaim = startClaim({ ...afterFirst, effects: afterFirst.effects.slice(1) });
     expect(secondClaim.message).toEqual(message("b"));
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 1,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [
-          { type: "ordinaryQueued", count: 1 },
-          { type: "pendingStart", phase: "issuing" },
-        ],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 1,
+        releaseState: {
+          type: "blocked",
+          blockers: [
+            { type: "ordinaryQueued", count: 1 },
+            { type: "pendingStart", phase: "issuing" },
+          ],
+        },
+      }),
+    );
 
     const afterSecond = queue.settleStart({ type: "definitelyNotAccepted", claim: secondClaim });
     const thirdClaim = startClaim({ ...afterSecond, effects: afterSecond.effects.slice(1) });
     expect(thirdClaim.message).toEqual(message("c"));
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 0,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "pendingStart", phase: "issuing" }],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "pendingStart", phase: "issuing" }],
+        },
+      }),
+    );
   });
 
   it("rejects empty and whitespace-only captures without changing ownership", () => {
@@ -339,53 +332,46 @@ describe("composer input queue", () => {
       result: { type: "deliveryUnknown" },
       effects: [],
     });
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 0,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "pendingStart", phase: "deliveryUnknown" }],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "pendingStart", phase: "deliveryUnknown" }],
+        },
+      }),
+    );
     expect(submit(queue, "b")).toEqual({
       result: { type: "queued", messageId: "b" },
       effects: [],
     });
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 1,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [
-          { type: "ordinaryQueued", count: 1 },
-          { type: "pendingStart", phase: "deliveryUnknown" },
-        ],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 1,
+        releaseState: {
+          type: "blocked",
+          blockers: [
+            { type: "ordinaryQueued", count: 1 },
+            { type: "pendingStart", phase: "deliveryUnknown" },
+          ],
+        },
+      }),
+    );
     expect(queue.settleStart(unknown)).toEqual({
       result: { type: "idempotentReplay", subject: "startSettlement" },
       effects: [],
     });
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 1,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [
-          { type: "ordinaryQueued", count: 1 },
-          { type: "pendingStart", phase: "deliveryUnknown" },
-        ],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 1,
+        releaseState: {
+          type: "blocked",
+          blockers: [
+            { type: "ordinaryQueued", count: 1 },
+            { type: "pendingStart", phase: "deliveryUnknown" },
+          ],
+        },
+      }),
+    );
     expect(submit(queue, "a")).toEqual({
       result: { type: "duplicateIdentity", messageId: "a" },
       effects: [],
@@ -538,17 +524,15 @@ describe("composer input queue", () => {
       type: "ownershipMismatch",
       subject: "runtimeCommit",
     });
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 1,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "ordinaryQueued", count: 1 }],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 1,
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "ordinaryQueued", count: 1 }],
+        },
+      }),
+    );
     const completed = queue.observe({
       type: "turnCompleted",
       turnId: "turn-a",
@@ -556,17 +540,14 @@ describe("composer input queue", () => {
       commitId: "terminal-a",
     });
     expect(startClaim(completed).message).toEqual(message("b"));
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 0,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "pendingStart", phase: "issuing" }],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "pendingStart", phase: "issuing" }],
+        },
+      }),
+    );
 
     const terminalQueue = createComposerInputQueue();
     const terminalClaim = startClaim(submit(terminalQueue, "a"));
@@ -717,17 +698,15 @@ describe("composer input queue", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-a" });
     submit(queue, "b");
     submit(queue, "c");
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 2,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "ordinaryQueued", count: 2 }],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 2,
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "ordinaryQueued", count: 2 }],
+        },
+      }),
+    );
     const interrupted = {
       type: "turnCompleted",
       turnId: "turn-a",
@@ -950,17 +929,15 @@ describe("composer input queue", () => {
       queue.observe(committedMessage(first, "turn-a", "message-a")),
       queue.settleStart({ type: "accepted", claim: first, turnId: "turn-a" }),
     );
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 2,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [{ type: "ordinaryQueued", count: 2 }],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 2,
+        releaseState: {
+          type: "blocked",
+          blockers: [{ type: "ordinaryQueued", count: 2 }],
+        },
+      }),
+    );
     const failed = queue.observe({
       type: "turnCompleted",
       turnId: "turn-a",
@@ -969,20 +946,18 @@ describe("composer input queue", () => {
     });
     transitions.push(failed);
     const second = startClaim(failed);
-    expect(queue.view()).toEqual({
-      ordinaryQueuedCount: 1,
-      guidingCount: 0,
-      detailRevision: queue.detailRevision(),
-      rejectedSteers: [],
-      hasUnknownSteer: false,
-      releaseState: {
-        type: "blocked",
-        blockers: [
-          { type: "ordinaryQueued", count: 1 },
-          { type: "pendingStart", phase: "issuing" },
-        ],
-      },
-    });
+    expect(queue.view()).toEqual(
+      expectedQueueView(queue, {
+        ordinaryQueuedCount: 1,
+        releaseState: {
+          type: "blocked",
+          blockers: [
+            { type: "ordinaryQueued", count: 1 },
+            { type: "pendingStart", phase: "issuing" },
+          ],
+        },
+      }),
+    );
     transitions.push(
       queue.settleStart({ type: "accepted", claim: second, turnId: "turn-b" }),
       queue.observe({ type: "turnStarted", turnId: "turn-b", commitId: "start-b" }),
