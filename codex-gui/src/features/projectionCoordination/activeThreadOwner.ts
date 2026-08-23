@@ -3,6 +3,7 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { ComposerPendingInputOwnerGoneCause } from "@/features/composerInputQueue/composerInputQueueContracts";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
@@ -25,7 +26,7 @@ export type ActiveThreadOwnerHandle = Readonly<{
   skillCatalog: Readonly<
     Pick<SkillCatalogOwner, "getSnapshot" | "subscribe" | "invalidate" | "retry">
   >;
-  dispose(): void;
+  dispose(cause?: ComposerPendingInputOwnerGoneCause): void;
 }>;
 
 type ActiveThreadOwnerCommands = Pick<
@@ -36,7 +37,7 @@ type ActiveThreadOwnerCommands = Pick<
 export type PreparedActiveThreadOwner = Readonly<{
   activeOwner: ActiveThreadOwnerHandle;
   commit(): boolean;
-  dispose(): void;
+  dispose(cause?: ComposerPendingInputOwnerGoneCause): void;
 }>;
 
 export type ActiveThreadOwnerNotification =
@@ -83,13 +84,13 @@ export function prepareActiveThreadOwner({
     },
   });
   let disposed = false;
-  const dispose = () => {
+  const dispose = (cause: ComposerPendingInputOwnerGoneCause = "disposed") => {
     if (disposed) {
       return;
     }
     disposed = true;
     try {
-      queueCoordinator?.dispose();
+      queueCoordinator?.dispose(cause);
     } finally {
       try {
         skillCatalog?.dispose();

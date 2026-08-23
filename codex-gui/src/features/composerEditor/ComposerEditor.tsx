@@ -28,7 +28,9 @@ import {
   type ComposerDraftRestoreResult,
 } from "./composerDraft";
 import { $isSkillNode, SkillNode } from "./SkillNode";
-import { SkillTypeaheadPlugin } from "./SkillTypeaheadPlugin";
+import { SkillTypeaheadPlugin, type SkillTypeaheadPlacement } from "./SkillTypeaheadPlugin";
+
+export type ComposerEditorSkillMenuPlacement = SkillTypeaheadPlacement;
 
 export type ComposerEditorSnapshot = Readonly<{
   textContent: string;
@@ -58,6 +60,7 @@ export type ComposerEditorProps = Readonly<{
   placeholder: string;
   skillCatalog: SkillCatalogState;
   skillMenuParent: HTMLElement | null;
+  skillMenuPlacement?: ComposerEditorSkillMenuPlacement;
   skillValidity?: Readonly<{
     invalidPaths: ReadonlySet<string>;
     statusText: string;
@@ -75,6 +78,7 @@ export function ComposerEditor({
   placeholder,
   skillCatalog,
   skillMenuParent,
+  skillMenuPlacement = "above",
   skillValidity,
 }: ComposerEditorProps) {
   const primaryModifier = primaryModifierForPlatform(navigator.platform);
@@ -178,6 +182,7 @@ export function ComposerEditor({
         <SkillTypeaheadPlugin
           isComposingRef={isComposingRef}
           onRetry={onRetrySkillCatalog}
+          placement={skillMenuPlacement}
           portalParent={skillMenuParent}
           skillCatalog={skillCatalog}
         />

@@ -258,9 +258,12 @@ export function ComposerTurnControl({
         <ComposerPendingInputRegion
           canRecover={canRecover}
           controller={controllerMatchesCurrentThread ? composerInputQueueController : null}
+          guardCompositionEndEnter={guardCompositionEndEnter}
           onFocusComposer={focusComposer}
           onRecover={recover}
+          onRetrySkillCatalog={skillCatalogController.retry}
           recoveryDescriptionId={recoveryDescriptionId}
+          skillCatalog={skillCatalog}
           snapshot={queueSnapshot}
         />
         <div className="flex items-center justify-between gap-2">
@@ -402,6 +405,7 @@ const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {
   hasUnknownSteer: false,
   canStop: false,
   interrupt: null,
+  pendingInputManagementOutcome: null,
 };
 const subscribeUnavailableQueue = (): (() => void) => () => undefined;
 const getUnavailableQueueSnapshot = (): ComposerInputQueueCoordinatorSnapshot =>

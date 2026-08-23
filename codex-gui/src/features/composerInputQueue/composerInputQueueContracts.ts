@@ -38,6 +38,14 @@ export type ComposerPendingInputCursor = Readonly<{
   [composerPendingInputCursorBrand]: true;
 }>;
 
+export type ComposerPendingInputOwnerGoneCause = "disposed" | "ownerReplaced";
+
+export type ComposerPendingInputOwnerGoneResult = Readonly<{
+  type: "unavailable";
+  scope: "ownerGone";
+  reason: ComposerPendingInputOwnerGoneCause;
+}>;
+
 export type ComposerPendingInputManagement =
   | Readonly<{ type: "manageable" }>
   | Readonly<{ type: "editing" }>
@@ -65,7 +73,7 @@ export type ComposerPendingInputPageResult =
       nextCursor: ComposerPendingInputCursor | null;
     }>
   | Readonly<{ type: "stale"; revision: number }>
-  | Readonly<{ type: "unavailable" }>;
+  | ComposerPendingInputOwnerGoneResult;
 
 export type ComposerPendingInputDetailRequest = Readonly<{
   key: ComposerPendingInputDisplayKey;
@@ -81,7 +89,7 @@ export type ComposerPendingInputDetailResult =
     }>
   | Readonly<{ type: "missing"; revision: number }>
   | Readonly<{ type: "stale"; revision: number }>
-  | Readonly<{ type: "unavailable" }>;
+  | ComposerPendingInputOwnerGoneResult;
 
 export type ComposerPendingInputManagementRequest = Readonly<{
   key: ComposerPendingInputDisplayKey;
@@ -90,6 +98,13 @@ export type ComposerPendingInputManagementRequest = Readonly<{
 
 export type ComposerPendingInputDrainIntent = Readonly<{
   lane: ComposerPendingInputLane;
+}>;
+
+export type ComposerPendingInputEditInvalidation = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  lane: "steer";
+  reason: "targetInvalidated";
+  targetReason: "activeTurnNotSteerable" | "terminal";
 }>;
 
 export type ComposerPendingInputEditReservation = Readonly<{

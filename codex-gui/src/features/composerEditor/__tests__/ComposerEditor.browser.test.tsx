@@ -31,12 +31,196 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
   await expect.element(editor).toHaveAttribute("aria-autocomplete", "list");
   await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(editor).toHaveAttribute("aria-controls", listbox.element().id);
-  await expect.element(editor).toHaveAttribute("aria-activedescendant", "typeahead-item-0");
-  await expect
-    .element(listbox.getByRole("option").first())
-    .toHaveAttribute("aria-selected", "true");
+  const activeOption = listbox.getByRole("option").first();
+  await expect.element(editor).toHaveAttribute("aria-activedescendant", activeOption.element().id);
+  await expect.element(activeOption).toHaveAttribute("aria-selected", "true");
   await expect.element(editor).toHaveFocus();
   expect(getController(controllerRef).getRootElement()).toBe(editor.element());
+});
+
+test("keeps a drawer-placed skill menu inside its dialog and returns focus after selection", async () => {
+  const controllerRef = createRef<ComposerEditorController>();
+  const screen = await renderWithProviders(
+    <DrawerEditorFixture
+      candidates={Array.from({ length: 20 }, (_, index) =>
+        skill(`drawer-${String(index).padStart(2, "0")}`, `/drawer/${String(index)}`),
+      )}
+      controllerRef={controllerRef}
+    />,
+  );
+  const dialog = screen.getByRole("dialog", { name: "Edit pending input" });
+  const editor = dialog.getByRole("combobox", { name: "Pending message" });
+
+  await editor.fill("$drawer-01");
+
+  const menuParent = dialog.getByRole("region", { name: "Skill suggestions" });
+  const listbox = dialog.getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(listbox).toBeVisible();
+  expect(menuParent.element().contains(listbox.element())).toBe(true);
+  const menuSurface = listbox.element().querySelector("[data-skill-menu-surface]");
+  if (!(menuSurface instanceof HTMLElement)) {
+    throw new Error("drawer skill menu surface must render inside its anchor");
+  }
+  await expect
+    .poll(() => {
+      const dialogBounds = dialog.element().getBoundingClientRect();
+      const editorBounds = editor.element().getBoundingClientRect();
+      const hostBounds = menuParent.element().getBoundingClientRect();
+      const anchorBounds = listbox.element().getBoundingClientRect();
+      const menuBounds = menuSurface.getBoundingClientRect();
+      return (
+        anchorBounds.top >= editorBounds.bottom &&
+        anchorBounds.bottom <= hostBounds.bottom &&
+        menuBounds.bottom <= hostBounds.bottom &&
+        hostBounds.bottom <= dialogBounds.bottom
+      );
+    })
+    .toBe(true);
+
+  await listbox.getByRole("option", { name: /drawer-01/ }).click();
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$drawer-01");
+  await expect.element(editor).toHaveFocus();
+});
+
+test("keeps controller, draft, history, composition, and typeahead state independent per editor", async () => {
+  const firstControllerRef = createRef<ComposerEditorController>();
+  const secondControllerRef = createRef<ComposerEditorController>();
+  const firstSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+  const secondSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+  const screen = await renderWithProviders(
+    <IndependentEditorsFixture
+      firstControllerRef={firstControllerRef}
+      firstSubmit={firstSubmit}
+      secondControllerRef={secondControllerRef}
+      secondSubmit={secondSubmit}
+    />,
+  );
+  await expect.poll(() => firstControllerRef.current).not.toBeNull();
+  await expect.poll(() => secondControllerRef.current).not.toBeNull();
+  const firstEditor = screen.getByRole("combobox", { name: "First message" });
+  const secondEditor = screen.getByRole("combobox", { name: "Second message" });
+  const firstController = getController(firstControllerRef);
+  const secondController = getController(secondControllerRef);
+
+  expect(firstController).not.toBe(secondController);
+  expect(firstController.getRootElement()).toBe(firstEditor.element());
+  expect(secondController.getRootElement()).toBe(secondEditor.element());
+
+  await firstEditor.fill("first");
+  await screen.user.keyboard("!");
+  setCollapsedCaret(firstEditor.element(), "first!", 3);
+  await expect.poll(() => collapsedCaretOffset(firstEditor.element())).toBe(3);
+  await secondEditor.fill("second");
+  setCollapsedCaret(secondEditor.element(), "second", 2);
+  await expect.poll(() => collapsedCaretOffset(secondEditor.element())).toBe(2);
+  firstController.focus();
+  await expect.poll(() => collapsedCaretOffset(firstEditor.element())).toBe(3);
+  secondController.focus();
+  await expect.poll(() => collapsedCaretOffset(secondEditor.element())).toBe(2);
+  dispatchHistoryShortcut(firstEditor.element(), "undo");
+  await expect.poll(() => firstController.getSnapshot().textContent).toBe("first");
+  expect(secondController.getSnapshot().textContent).toBe("second");
+
+  await firstEditor.fill("$alp");
+  const firstMenu = screen
+    .getByRole("region", { name: "First skill suggestions" })
+    .getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(firstMenu).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => firstController.getSnapshot().textContent).toBe("$alpha");
+  expect(secondController.getSnapshot().textContent).toBe("second");
+
+  firstEditor.element().dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  await secondEditor.click();
+  await screen.user.keyboard("{Enter}");
+  expect(firstSubmit).not.toHaveBeenCalled();
+  expect(secondSubmit).toHaveBeenCalledOnce();
+  expect(secondSubmit.mock.calls[0]).toEqual([secondController.capture(), "ordinary"]);
+  firstEditor.element().dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+});
+
+test("keeps simultaneous typeahead ids and keyboard ownership scoped to each editor", async () => {
+  const firstControllerRef = createRef<ComposerEditorController>();
+  const secondControllerRef = createRef<ComposerEditorController>();
+  const screen = await renderWithProviders(
+    <IndependentEditorsFixture
+      firstControllerRef={firstControllerRef}
+      firstSubmit={() => undefined}
+      secondControllerRef={secondControllerRef}
+      secondSubmit={() => undefined}
+    />,
+  );
+  await expect.poll(() => firstControllerRef.current).not.toBeNull();
+  await expect.poll(() => secondControllerRef.current).not.toBeNull();
+  const firstEditor = screen.getByRole("combobox", { name: "First message" });
+  const secondEditor = screen.getByRole("combobox", { name: "Second message" });
+  const firstController = getController(firstControllerRef);
+  const secondController = getController(secondControllerRef);
+
+  await firstEditor.fill("$alp");
+  const firstDraft = firstController.capture().draft;
+  await secondEditor.fill("$alp");
+  expect(firstController.restore(firstDraft)).toEqual({ type: "restored" });
+
+  const firstMenu = screen
+    .getByRole("region", { name: "First skill suggestions" })
+    .getByRole("listbox", { name: "Typeahead menu" });
+  const secondMenu = screen
+    .getByRole("region", { name: "Second skill suggestions" })
+    .getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(firstMenu).toBeVisible();
+  await expect.element(secondMenu).toBeVisible();
+  const firstOption = firstMenu.getByRole("option", { name: /alpha/ });
+  const secondOption = secondMenu.getByRole("option", { name: /alpha/ });
+  await expect.element(firstEditor).toHaveAttribute("aria-controls", firstMenu.element().id);
+  await expect.element(secondEditor).toHaveAttribute("aria-controls", secondMenu.element().id);
+  await expect
+    .element(firstEditor)
+    .toHaveAttribute("aria-activedescendant", firstOption.element().id);
+  await expect
+    .element(secondEditor)
+    .toHaveAttribute("aria-activedescendant", secondOption.element().id);
+  expect(firstMenu.element().id).not.toBe(secondMenu.element().id);
+  expect(firstOption.element().id).not.toBe(secondOption.element().id);
+
+  firstController.focus();
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => firstController.getSnapshot().textContent).toBe("$alpha");
+  await expect.element(firstMenu).not.toBeInTheDocument();
+  await expect.element(secondMenu).toBeVisible();
+  expect(secondController.getSnapshot().textContent).toBe("$alp");
+
+  expect(firstController.restore(firstDraft)).toEqual({ type: "restored" });
+  await expect.element(firstMenu).toBeVisible();
+  secondController.focus();
+  await screen.user.keyboard("{Escape}");
+  await expect.element(secondMenu).not.toBeInTheDocument();
+  await expect.element(firstMenu).toBeVisible();
+  expect(firstController.getSnapshot().textContent).toBe("$alp");
+});
+
+test("consumes typeahead Escape before an enclosing dialog key handler", async () => {
+  const onDialogEscape = vi.fn<() => void>();
+  const screen = await renderWithProviders(
+    <DrawerEditorFixture
+      candidates={[skill("alpha", "/alpha")]}
+      controllerRef={createRef<ComposerEditorController>()}
+      onDialogEscape={onDialogEscape}
+    />,
+  );
+  const editor = screen.getByRole("combobox", { name: "Pending message" });
+
+  await editor.fill("$");
+  await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
+  await screen.user.keyboard("{Escape}");
+
+  await expect
+    .element(screen.getByRole("listbox", { name: "Typeahead menu" }))
+    .not.toBeInTheDocument();
+  expect(onDialogEscape).not.toHaveBeenCalled();
+  await expect.element(editor).toHaveFocus();
 });
 
 test("aligns its placeholder and bounds multiline growth to its own scroll area", async () => {
@@ -839,8 +1023,113 @@ function ComposerEditorFixture(props: Omit<ComposerEditorProps, "skillMenuParent
   );
 }
 
+function DrawerEditorFixture({
+  candidates,
+  controllerRef,
+  onDialogEscape,
+}: Readonly<{
+  candidates: readonly SkillCatalogCandidate[];
+  controllerRef: RefObject<ComposerEditorController | null>;
+  onDialogEscape?: () => void;
+}>) {
+  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
+
+  return (
+    <div
+      aria-label="Edit pending input"
+      className="h-56 w-96 max-w-full overflow-hidden"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          onDialogEscape?.();
+        }
+      }}
+      role="dialog"
+    >
+      <ComposerEditor
+        ariaLabel="Pending message"
+        controllerRef={controllerRef}
+        disabled={false}
+        guardCompositionEndEnter={false}
+        onSubmit={() => undefined}
+        placeholder="Edit pending message"
+        skillCatalog={catalog("ready", candidates)}
+        skillMenuParent={skillMenuParent}
+        skillMenuPlacement="below"
+      />
+      <div
+        aria-label="Skill suggestions"
+        ref={setSkillMenuParent}
+        role="region"
+        style={drawerSkillMenuParentStyle}
+      />
+    </div>
+  );
+}
+
+function IndependentEditorsFixture({
+  firstControllerRef,
+  firstSubmit,
+  secondControllerRef,
+  secondSubmit,
+}: Readonly<{
+  firstControllerRef: RefObject<ComposerEditorController | null>;
+  firstSubmit: ComposerEditorProps["onSubmit"];
+  secondControllerRef: RefObject<ComposerEditorController | null>;
+  secondSubmit: ComposerEditorProps["onSubmit"];
+}>) {
+  const [firstMenuParent, setFirstMenuParent] = useState<HTMLElement | null>(null);
+  const [secondMenuParent, setSecondMenuParent] = useState<HTMLElement | null>(null);
+  const skillCatalog = catalog("ready", [skill("alpha", "/alpha")]);
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <div
+          aria-label="First skill suggestions"
+          ref={setFirstMenuParent}
+          role="region"
+          style={fixtureSkillMenuParentStyle}
+        />
+        <ComposerEditor
+          ariaLabel="First message"
+          controllerRef={firstControllerRef}
+          disabled={false}
+          guardCompositionEndEnter={false}
+          onSubmit={firstSubmit}
+          placeholder="First message"
+          skillCatalog={skillCatalog}
+          skillMenuParent={firstMenuParent}
+        />
+      </div>
+      <div>
+        <div
+          aria-label="Second skill suggestions"
+          ref={setSecondMenuParent}
+          role="region"
+          style={fixtureSkillMenuParentStyle}
+        />
+        <ComposerEditor
+          ariaLabel="Second message"
+          controllerRef={secondControllerRef}
+          disabled={false}
+          guardCompositionEndEnter={false}
+          onSubmit={secondSubmit}
+          placeholder="Second message"
+          skillCatalog={skillCatalog}
+          skillMenuParent={secondMenuParent}
+        />
+      </div>
+    </div>
+  );
+}
+
 const fixtureSkillMenuParentStyle = {
   "--composer-skill-menu-max-height": "18rem",
+} as CSSProperties;
+
+const drawerSkillMenuParentStyle = {
+  "--composer-skill-menu-max-height": "6rem",
+  height: "var(--composer-skill-menu-max-height)",
 } as CSSProperties;
 
 function catalog(

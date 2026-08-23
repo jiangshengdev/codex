@@ -5,6 +5,7 @@ import type {
   ComposerInputQueueCoordinator,
   ComposerInputQueueCoordinatorSnapshot,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import {
   ComposerInputPreviewContent,
   ComposerPendingInputDrawer,
@@ -13,18 +14,24 @@ import {
 export type ComposerPendingInputRegionProps = Readonly<{
   canRecover: boolean;
   controller: ComposerInputQueueCoordinator | null;
+  guardCompositionEndEnter: boolean;
   onFocusComposer: () => void;
   onRecover: () => void;
+  onRetrySkillCatalog: () => void;
   recoveryDescriptionId: string;
+  skillCatalog: SkillCatalogState;
   snapshot: ComposerInputQueueCoordinatorSnapshot;
 }>;
 
 export function ComposerPendingInputRegion({
   canRecover,
   controller,
+  guardCompositionEndEnter,
   onFocusComposer,
   onRecover,
+  onRetrySkillCatalog,
   recoveryDescriptionId,
+  skillCatalog,
   snapshot,
 }: ComposerPendingInputRegionProps) {
   const { t } = useLingui();
@@ -42,11 +49,12 @@ export function ComposerPendingInputRegion({
       node: (
         <ComposerPendingInputDrawer
           controller={controller}
-          detailRevision={snapshot.detailRevision}
-          guidingCount={snapshot.guidingCount}
+          guardCompositionEndEnter={guardCompositionEndEnter}
           onFocusComposer={onFocusComposer}
           onPresenceChange={onDrawerPresenceChange}
-          ordinaryQueuedCount={snapshot.ordinaryQueuedCount}
+          onRetrySkillCatalog={onRetrySkillCatalog}
+          skillCatalog={skillCatalog}
+          snapshot={snapshot}
         />
       ),
     });
