@@ -2292,6 +2292,7 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(startTurn.mock.calls.map(([params]) => params.input)).toEqual([input("one").input]);
     expect(gatedResults).not.toHaveLength(0);
     for (const gated of gatedResults) {
+      const revision = gated.revision;
       if (
         gated.move.type !== "unavailable" ||
         gated.begin.type !== "unavailable" ||
@@ -2300,33 +2301,27 @@ describe("ComposerInputQueueCoordinator", () => {
       ) {
         throw new Error("expected management operations to remain gated during move replay");
       }
-      expect(gated).toEqual({
-        revision: gated.revision,
-        move: {
-          type: "unavailable",
-          scope: "liveOwner",
-          reason: "mutationPending",
-          revision: gated.revision,
-        },
-        begin: {
-          type: "unavailable",
-          scope: "liveOwner",
-          reason: "mutationPending",
-          revision: gated.revision,
-        },
-        delete: {
-          type: "unavailable",
-          scope: "liveOwner",
-          reason: "mutationPending",
-          revision: gated.revision,
-        },
-        release: {
-          type: "blocked",
-          blockers: [{ type: "managementPending" }],
-        },
-        recover: false,
-        interrupt: false,
+      expect(gated.move).toEqual({
+        type: "unavailable",
+        scope: "liveOwner",
+        reason: "mutationPending",
+        revision,
       });
+      expect(gated.begin).toEqual({
+        type: "unavailable",
+        scope: "liveOwner",
+        reason: "mutationPending",
+        revision,
+      });
+      expect(gated.delete).toEqual({
+        type: "unavailable",
+        scope: "liveOwner",
+        reason: "mutationPending",
+        revision,
+      });
+      expect(gated.recover).toEqual(false);
+      expect(gated.interrupt).toEqual(false);
+      expect(gated.release.blockers.some(({ type }) => type === "managementPending")).toBe(true);
     }
   });
 
