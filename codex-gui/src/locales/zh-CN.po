@@ -18,17 +18,17 @@ msgid "... and {count} more"
 msgstr "…另有 {count} 项"
 
 #. placeholder {0}: preview.audioCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1139
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1117
 msgid "{0, plural, one {# audio item} other {# audio items}}"
 msgstr "{0, plural, one {# 段音频} other {# 段音频}}"
 
 #. placeholder {0}: preview.imageCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1136
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1114
 msgid "{0, plural, one {# image} other {# images}}"
 msgstr "{0, plural, one {# 张图片} other {# 张图片}}"
 
 #. placeholder {0}: preview.mentionCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1145
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1123
 msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# 个提及} other {# 个提及}}"
 
@@ -38,7 +38,7 @@ msgid "{0, plural, one {# message has not been sent} other {# messages have not 
 msgstr "{0, plural, one {# 条消息尚未发送} other {# 条消息尚未发送}}"
 
 #. placeholder {0}: preview.skillCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1142
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1120
 msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# 个技能} other {# 个技能}}"
 
@@ -85,7 +85,7 @@ msgstr "另一项任务切换正在进行中。"
 msgid "Back to history"
 msgstr "返回历史记录"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:690
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:666
 msgid "Cancel"
 msgstr "取消"
 
@@ -94,11 +94,11 @@ msgstr "取消"
 msgid "Closed {receiver}"
 msgstr "已关闭 {receiver}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:977
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:955
 msgid "Collapse"
 msgstr "收起"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:969
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:947
 msgid "Collapse pending message: {previewText}"
 msgstr "收起待处理消息：{previewText}"
 
@@ -167,26 +167,26 @@ msgstr "当前任务"
 msgid "Currently unable to guide; added to queue"
 msgstr "当前无法引导，已加入队列"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1028
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1108
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1006
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1086
 msgid "Delete"
 msgstr "删除"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1009
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:987
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1098
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1076
 msgid "Edit"
 msgstr "编辑"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:634
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:610
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:69
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:77
 msgid "Edit pending message"
 msgstr "编辑待处理消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:743
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:721
 msgid "Enter a message before saving."
 msgstr "请先输入消息再保存。"
 
@@ -210,11 +210,11 @@ msgstr "错误 - 智能体出错"
 msgid "Error - Agent resume failed"
 msgstr "错误 - 恢复智能体失败"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:977
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:955
 msgid "Expand"
 msgstr "展开"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:970
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:948
 msgid "Expand pending message: {previewText}"
 msgstr "展开待处理消息：{previewText}"
 
@@ -240,7 +240,7 @@ msgstr "返回首页"
 msgid "Guide"
 msgstr "引导"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:614
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:590
 msgid "Guide {guidingCount}"
 msgstr "引导 {guidingCount}"
 
@@ -248,15 +248,13 @@ msgstr "引导 {guidingCount}"
 msgid "Guide status unknown"
 msgstr "引导状态未知"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:876
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:854
 msgid "Guiding"
 msgstr "引导中"
 
-#. placeholder {0}: moveAnnouncement.position
-#. placeholder {1}: moveAnnouncement.count
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:647
-msgid "Guiding message moved to position {0} of {1}."
-msgstr "已将引导消息移到第 {0} 项，共 {1} 项。"
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:623
+msgid "Guiding message moved to position {movedPosition} of {movedCount}."
+msgstr "已将引导消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
 #: src/features/appShell/AppShellTopBar.tsx:91
@@ -310,7 +308,7 @@ msgstr "已中断。"
 msgid "Invalid skill"
 msgstr "无效技能"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1018
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:996
 msgid "Keep"
 msgstr "保留"
 
@@ -338,7 +336,7 @@ msgstr "主导航"
 msgid "Menu"
 msgstr "菜单"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:714
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:690
 msgid "Message cannot be empty"
 msgstr "消息不能为空"
 
@@ -351,43 +349,43 @@ msgstr "向 Codex 发送消息"
 msgid "Message composer"
 msgstr "消息输入区"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1059
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1037
 msgid "More move options for pending message: {previewText}"
 msgstr "待处理消息的更多移动选项：{previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1055
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1033
 msgid "Move down"
 msgstr "下移"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1047
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1025
 msgid "Move down pending message: {previewText}"
 msgstr "下移待处理消息：{previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1075
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1053
 msgid "Move pending message to first"
 msgstr "将待处理消息移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1080
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1058
 msgid "Move pending message to last"
 msgstr "将待处理消息移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1063
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1041
 msgid "Move to"
 msgstr "移动到"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1077
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1055
 msgid "Move to first"
 msgstr "移至队首"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1082
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1060
 msgid "Move to last"
 msgstr "移至队尾"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1044
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1022
 msgid "Move up"
 msgstr "上移"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1036
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1014
 msgid "Move up pending message: {previewText}"
 msgstr "上移待处理消息：{previewText}"
 
@@ -421,7 +419,7 @@ msgstr "当前工作目录没有历史记录。"
 msgid "No matching skills"
 msgstr "没有匹配的技能"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:785
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:763
 msgid "No pending messages"
 msgstr "没有待处理消息"
 
@@ -443,11 +441,11 @@ msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其
 msgid "Page not found"
 msgstr "找不到页面"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:611
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:587
 msgid "Pending"
 msgstr "待处理"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:632
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:608
 msgid "Pending details"
 msgstr "待处理详情"
 
@@ -456,11 +454,11 @@ msgstr "待处理详情"
 msgid "Pending init"
 msgstr "等待初始化"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:720
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:696
 msgid "Pending message changed"
 msgstr "待处理消息已发生变化"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:716
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:692
 msgid "Pending message was not reordered"
 msgstr "待处理消息未重新排序"
 
@@ -468,15 +466,15 @@ msgstr "待处理消息未重新排序"
 msgid "Pending messages"
 msgstr "待处理消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:603
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:577
 msgid "Pending: Guide {guidingCount}"
 msgstr "待处理：引导 {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:601
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:575
 msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 msgstr "待处理：引导 {guidingCount}，排队 {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:604
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:578
 msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "待处理：排队 {ordinaryQueuedCount}"
 
@@ -497,25 +495,23 @@ msgstr "GUI 启动令牌尚未就绪，暂时无法通过二维码访问。"
 msgid "QR code for current GUI URL"
 msgstr "当前 GUI URL 的二维码。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:876
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:854
 msgid "Queued"
 msgstr "已排队"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:619
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:595
 msgid "Queued {ordinaryQueuedCount}"
 msgstr "排队 {ordinaryQueuedCount}"
 
-#. placeholder {0}: moveAnnouncement.position
-#. placeholder {1}: moveAnnouncement.count
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:643
-msgid "Queued message moved to position {0} of {1}."
-msgstr "已将已排队消息移到第 {0} 项，共 {1} 项。"
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:619
+msgid "Queued message moved to position {movedPosition} of {movedCount}."
+msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:178
 msgid "Read-only history"
 msgstr "只读历史记录"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:745
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:723
 msgid "Refresh complete. Try the action again."
 msgstr "已刷新，请重试此操作。"
 
@@ -556,7 +552,7 @@ msgstr "返回当前任务"
 msgid "Running"
 msgstr "运行中"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:693
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:669
 msgid "Save"
 msgstr "保存"
 
@@ -574,15 +570,15 @@ msgstr "发送"
 msgid "Sent input to {receiver}"
 msgstr "已向 {receiver} 发送输入"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:909
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:887
 msgid "Show more"
 msgstr "显示更多"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:902
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:880
 msgid "Show more guiding messages"
 msgstr "显示更多引导消息"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:902
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:880
 msgid "Show more queued messages"
 msgstr "显示更多排队消息"
 
@@ -637,8 +633,8 @@ msgstr "停止"
 msgid "Stop failed"
 msgstr "停止失败"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:945
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1149
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:923
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1127
 msgid "Structured input"
 msgstr "结构化输入"
 
@@ -650,19 +646,19 @@ msgstr "系统错误"
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:733
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:710
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "消息已移动，但队列反复变化，无法加载更新后的顺序。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:729
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:705
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 msgstr "待处理消息的顺序没有改变，但由于队列持续变化，无法加载刷新后的顺序。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:727
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:703
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:737
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:715
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
@@ -674,19 +670,19 @@ msgstr "任务连接已不可用。"
 msgid "The task connection was closed."
 msgstr "任务连接已关闭。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:739
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:717
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "这条消息已进入发送流程，无法再管理。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1117
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1095
 msgid "This message has entered the sending process."
 msgstr "这条消息已进入发送流程。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1115
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1093
 msgid "This message is being edited."
 msgstr "这条消息正在编辑。"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:725
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:701
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
@@ -734,7 +730,7 @@ msgstr "暂时无法切换任务"
 msgid "Untitled task"
 msgstr "未命名任务"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:718
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:694
 msgid "Updated pending order could not be loaded"
 msgstr "无法加载更新后的待处理顺序"
 
