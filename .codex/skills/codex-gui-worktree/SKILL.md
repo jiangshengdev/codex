@@ -9,10 +9,12 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 
 ## Rules
 
-- Before creating a worktree or symlink, print the exact command and target paths and wait for user confirmation, unless the user explicitly says to execute directly.
+- Before creating a worktree or symlink, print the exact command and target paths.
+- Wait for user confirmation unless either the user explicitly says to execute directly, or a confirmed plan lists that worktree's exact name, branch, base, target path, include scope, and command. Any parameter drift or unplanned worktree creation requires new confirmation.
+- When a confirmed plan declares multiple worktrees, the coordinating agent must create and verify all of them before any implementation edit, generation, artifact verification, or task commit begins.
 - Do not install dependencies.
 - Do not download documentation.
-- Do not stage or commit.
+- This setup skill does not stage or commit. Later nodes may stage or commit in the prepared worktree only when separately authorized by a confirmed plan.
 - Do not overwrite existing branches, worktrees, files, directories, or symlinks.
 - Stop on conflicts and print the exact path that blocks progress.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
