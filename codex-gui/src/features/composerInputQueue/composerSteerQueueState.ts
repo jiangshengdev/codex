@@ -5,8 +5,14 @@ import {
 } from "./composerInputPayload";
 import type {
   ComposerPendingInputManagement,
+  ComposerPendingInputMoveDestination,
+  ComposerPendingInputMovement,
   ComposerQueueMessage,
 } from "./composerInputQueueContracts";
+import {
+  composerPendingInputMoveTargetIndex,
+  moveArrayElement,
+} from "./composerPendingInputMove";
 
 const steerClaimCapability: unique symbol = Symbol("SteerClaim");
 const rejectedSteerTransferCapability: unique symbol = Symbol("RejectedSteerTransfer");
@@ -107,6 +113,7 @@ export type ComposerSteerPendingInput = Readonly<{
   messageId: ComposerQueueMessage["id"];
   input: ReadonlyComposerInputPayload;
   management: ComposerPendingInputManagement;
+  movement: ComposerPendingInputMovement | null;
 }>;
 
 export type SteerEditAcquisitionResult =
@@ -119,6 +126,11 @@ export type SteerEditSettlementResult =
 
 export type SteerDeleteResult =
   | Readonly<{ type: "deleted"; messageId: string }>
+  | Readonly<{ type: "notManageable" }>;
+
+export type SteerMoveResult =
+  | Readonly<{ type: "moved"; position: number; count: number }>
+  | Readonly<{ type: "noOp"; reason: "alreadyAtDestination" }>
   | Readonly<{ type: "notManageable" }>;
 
 export type ComposerSteerQueueOverview = Readonly<{
@@ -207,6 +219,10 @@ export type ComposerSteerQueue = Readonly<{
   ): SteerEditSettlementResult;
   cancelPendingInputEdit(reservation: SteerEditReservation): SteerEditSettlementResult;
   deletePendingInput(messageId: ComposerQueueMessage["id"]): SteerDeleteResult;
+  movePendingInput(
+    messageId: ComposerQueueMessage["id"],
+    destination: ComposerPendingInputMoveDestination,
+  ): SteerMoveResult;
   transition(event: ComposerSteerQueueEvent): ComposerSteerQueueResult;
 }>;
 
@@ -250,6 +266,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
         messageId: claim.intent.message.id,
         input: claim.intent.message.input,
         management: { type: "readOnly", reason: "deliveryInProgress" } as const,
+        movement: null,
       }));
     const remaining = limit - result.length;
     if (remaining <= 0) {
@@ -257,7 +274,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     }
     const queuedOffset = Math.max(0, offset - this.pendingSteers.length);
     result.push(
-      ...this.steerQueue.slice(queuedOffset, queuedOffset + remaining).map((slot) => {
+      ...this.steerQueue.slice(queuedOffset, queuedOffset + remaining).map((slot, index) => {
         const intent = this.slotIntent(slot);
         return {
           messageId: intent.message.id,
@@ -266,6 +283,7 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
             slot.type === "reservation"
               ? ({ type: "editing" } as const)
               : ({ type: "manageable" } as const),
+          movement: this.movementForQueueIndex(queuedOffset + index),
         };
       }),
     );
@@ -289,6 +307,10 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
               : slot?.type === "reservation"
                 ? { type: "editing" }
                 : { type: "manageable" },
+          movement:
+            pending != null || slot == null
+              ? null
+              : this.movementForQueueIndex(this.steerQueue.indexOf(slot)),
         };
   };
 
@@ -382,6 +404,48 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
     this.steerQueue.splice(index, 1);
     this.knownMessageIds.delete(deleted.message.id);
     return { type: "deleted", messageId: deleted.message.id };
+  };
+
+  public movePendingInput = (
+    messageId: ComposerQueueMessage["id"],
+    destination: ComposerPendingInputMoveDestination,
+  ): SteerMoveResult => {
+    if (
+      this.outstandingRecoveryTransfers.size > 0 ||
+      this.steerQueue.some((slot) => slot.type !== "intent")
+    ) {
+      return { type: "notManageable" };
+    }
+    const sourceIndex = this.steerQueue.findIndex(
+      (slot) => slot.type === "intent" && slot.message.id === messageId,
+    );
+    if (sourceIndex < 0) {
+      return { type: "notManageable" };
+    }
+    const count = this.steerQueue.length;
+    const targetIndex = composerPendingInputMoveTargetIndex(sourceIndex, count, destination);
+    if (sourceIndex === targetIndex) {
+      return { type: "noOp", reason: "alreadyAtDestination" };
+    }
+    const schedulingOrder = this.steerQueue
+      .map((slot) => {
+        const intent = this.slotIntent(slot);
+        const order = this.intentOrder.get(intent);
+        if (order == null) {
+          throw new Error("Composer pending steer lost its scheduling order");
+        }
+        return order;
+      })
+      .sort((left, right) => left - right);
+    moveArrayElement(this.steerQueue, sourceIndex, targetIndex);
+    this.steerQueue.forEach((slot, index) => {
+      const order = schedulingOrder[index];
+      if (order == null) {
+        throw new Error("Composer pending steer move lost a scheduling order token");
+      }
+      this.intentOrder.set(this.slotIntent(slot), order);
+    });
+    return { type: "moved", position: targetIndex + 1, count };
   };
 
   private enqueue(input: EnqueueSteerInput): ComposerSteerQueueResult {
@@ -646,6 +710,30 @@ class ComposerSteerQueueImpl implements ComposerSteerQueue {
 
   private slotIntent(slot: SteerQueueSlot): SteerIntent {
     return slot.type === "intent" ? slot : slot.original;
+  }
+
+  private movementForQueueIndex(queueIndex: number): ComposerPendingInputMovement | null {
+    if (
+      this.outstandingRecoveryTransfers.size > 0 ||
+      this.steerQueue.some((candidate) => candidate.type !== "intent")
+    ) {
+      return null;
+    }
+    const slot = this.steerQueue[queueIndex];
+    if (slot?.type !== "intent") {
+      return null;
+    }
+    const sortableSlots = this.steerQueue.filter((candidate) => candidate.type === "intent");
+    const position = sortableSlots.indexOf(slot);
+    if (position < 0) {
+      throw new Error("Composer pending steer projection lost its sortable position");
+    }
+    return {
+      position: position + 1,
+      count: sortableSlots.length,
+      canMoveEarlier: position > 0,
+      canMoveLater: position < sortableSlots.length - 1,
+    };
   }
 
   private findAcquisition(acquisition: SteerEditAcquisition): number {

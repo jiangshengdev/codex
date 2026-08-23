@@ -18,6 +18,8 @@ import type {
   ComposerPendingInputEditSaveResult,
   ComposerPendingInputLane,
   ComposerPendingInputManagementRequest,
+  ComposerPendingInputMoveRequest,
+  ComposerPendingInputMoveResult,
   ComposerPendingInputPageRequest,
   ComposerPendingInputPageResult,
   CreateComposerInputQueueInput,
@@ -28,6 +30,10 @@ import type {
   UserStoppedRecoveryBatch,
 } from "./composerInputQueueContracts";
 import { copyComposerInputPayload } from "./composerInputPayload";
+import {
+  composerPendingInputMoveTargetIndex,
+  moveArrayElement,
+} from "./composerPendingInputMove";
 import {
   projectComposerInputPreview,
   projectComposerInputTextDetail,
@@ -71,6 +77,10 @@ export type {
   ComposerPendingInputLane,
   ComposerPendingInputManagement,
   ComposerPendingInputManagementRequest,
+  ComposerPendingInputMoveDestination,
+  ComposerPendingInputMoveRequest,
+  ComposerPendingInputMoveResult,
+  ComposerPendingInputMovement,
   ComposerPendingInputPageRequest,
   ComposerPendingInputPageResult,
   CreateComposerInputQueueInput,
@@ -126,6 +136,7 @@ export type ComposerInputQueue = Readonly<{
   deletePendingInput(
     request: ComposerPendingInputManagementRequest,
   ): ComposerPendingInputDeleteResult;
+  movePendingInput(request: ComposerPendingInputMoveRequest): ComposerPendingInputMoveResult;
   drainPendingInput(intent: ComposerPendingInputDrainIntent): ComposerInputQueueTransition;
   currentTurnId(): TurnIdentity | null;
   submit(message: ComposerQueueMessage): ComposerInputQueueTransition;
@@ -279,14 +290,25 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     }
     const offset = cursor?.[cursorOffset] ?? 0;
     const limit = boundedPageLimit(request.limit);
+    const isMovementBlocked = this.activeEditAcquisition != null || this.activeEdit != null;
     const items =
       request.lane === "ordinary"
-        ? this.ordinary.slice(offset, offset + limit).map((slot) => {
+        ? this.ordinary.slice(offset, offset + limit).map((slot, pageIndex) => {
             const message = slot.type === "recoverable" ? slot : slot.original;
+            const index = offset + pageIndex;
             return {
               key: this.requireDisplayKey(message.id),
               lane: request.lane,
               management: { type: slot.type === "reservation" ? "editing" : "manageable" } as const,
+              movement:
+                !isMovementBlocked && slot.type === "recoverable"
+                  ? {
+                      position: index + 1,
+                      count: this.ordinary.length,
+                      canMoveEarlier: index > 0,
+                      canMoveLater: index + 1 < this.ordinary.length,
+                    }
+                  : null,
               preview: projectComposerInputPreview(message.input),
             };
           })
@@ -294,6 +316,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
             key: this.requireDisplayKey(intent.messageId),
             lane: request.lane,
             management: intent.management,
+            movement: isMovementBlocked ? null : intent.movement,
             preview: projectComposerInputPreview(intent.input),
           }));
     const count =
@@ -466,6 +489,59 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       type: "deleted",
       revision: this.currentDetailRevision,
       drainIntent: { lane: "steer" },
+    };
+  };
+
+  public movePendingInput = (
+    request: ComposerPendingInputMoveRequest,
+  ): ComposerPendingInputMoveResult => {
+    const resolution = this.resolvePendingInputManagement(request);
+    if (resolution.type === "stale" || resolution.type === "conflict") {
+      return resolution;
+    }
+    if (resolution.type === "ordinary") {
+      const slot = this.ordinary[resolution.index];
+      if (slot?.type !== "recoverable") {
+        return { type: "notManageable", revision: this.currentDetailRevision };
+      }
+      const count = this.ordinary.length;
+      const targetIndex = composerPendingInputMoveTargetIndex(
+        resolution.index,
+        count,
+        request.destination,
+      );
+      if (targetIndex === resolution.index) {
+        return {
+          type: "noOp",
+          reason: "alreadyAtDestination",
+          revision: this.currentDetailRevision,
+        };
+      }
+      moveArrayElement(this.ordinary, resolution.index, targetIndex);
+      this.advanceDetailRevision();
+      return {
+        type: "moved",
+        revision: this.currentDetailRevision,
+        lane: "ordinary",
+        position: targetIndex + 1,
+        count,
+      };
+    }
+    if (resolution.type === "notManageable") {
+      return resolution;
+    }
+    const moved = this.steerState.movePendingInput(resolution.messageId, request.destination);
+    if (moved.type === "notManageable") {
+      return { type: "notManageable", revision: this.currentDetailRevision };
+    }
+    if (moved.type === "noOp") {
+      return { ...moved, revision: this.currentDetailRevision };
+    }
+    this.advanceDetailRevision();
+    return {
+      ...moved,
+      revision: this.currentDetailRevision,
+      lane: "steer",
     };
   };
 
