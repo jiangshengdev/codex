@@ -152,6 +152,7 @@ export function SkillTypeaheadPlugin({
       anchorElementRef.current == null || query == null ? null : (
         <SkillMenu
           anchorElement={anchorElementRef.current}
+          anchorElementRef={anchorElementRef}
           editor={editor}
           menuId={menuId}
           onRetry={onRetry}
@@ -200,6 +201,7 @@ class SkillMenuOption extends MenuOption {
 
 function SkillMenu({
   anchorElement,
+  anchorElementRef,
   editor,
   menuId,
   onRetry,
@@ -211,6 +213,7 @@ function SkillMenu({
   skillCatalog,
 }: Readonly<{
   anchorElement: HTMLElement;
+  anchorElementRef: RefObject<HTMLElement | null>;
   editor: LexicalEditor;
   menuId: string;
   onRetry: (() => void) | undefined;
@@ -235,8 +238,9 @@ function SkillMenu({
   const previewOption = hoveredOption ?? activeOption;
 
   useEffect(() => {
+    const anchorElement = anchorElementRef.current;
     const rootElement = editor.getRootElement();
-    if (rootElement == null) {
+    if (anchorElement == null || rootElement == null) {
       return;
     }
     const activeOptionId = selectedIndex == null ? null : skillMenuOptionId(menuId, selectedIndex);
@@ -273,7 +277,7 @@ function SkillMenu({
         rootElement.removeAttribute("aria-activedescendant");
       }
     };
-  }, [anchorElement, editor, menuId, selectedIndex]);
+  }, [anchorElementRef, editor, menuId, selectedIndex]);
 
   useLayoutEffect(() => {
     activeOption?.ref?.current?.scrollIntoView({ block: "nearest" });
