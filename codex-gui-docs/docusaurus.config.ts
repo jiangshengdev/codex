@@ -26,7 +26,7 @@ const config: Config = {
       {
         docs: {
           routeBasePath: '/',
-          sidebarPath: false,
+          sidebarPath: './sidebars.ts',
         },
         blog: false,
         theme: {
@@ -44,9 +44,42 @@ const config: Config = {
       title: 'Codex GUI',
       items: [
         {
+          type: 'docSidebar',
+          sidebarId: 'docsSidebar',
+          label: '文档',
+          position: 'left',
+        },
+        {
           href: 'https://github.com/jiangshengdev/codex',
           label: 'GitHub',
           position: 'right',
+        },
+      ],
+    },
+    footer: {
+      style: 'dark',
+      links: [
+        {
+          title: '指南',
+          items: [
+            {
+              label: '安装与启动',
+              to: '/',
+            },
+            {
+              label: '从源码启动',
+              to: '/development/getting-started',
+            },
+          ],
+        },
+        {
+          title: '项目',
+          items: [
+            {
+              label: 'GitHub',
+              href: 'https://github.com/jiangshengdev/codex',
+            },
+          ],
         },
       ],
     },
