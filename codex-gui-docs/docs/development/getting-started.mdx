@@ -28,6 +28,7 @@ description: Codex GUI 贡献者开发环境与首次启动指南
 ```bash
 git clone https://github.com/jiangshengdev/codex.git
 cd codex
+git switch test
 ```
 
 ## 3. 安装项目依赖
@@ -74,7 +75,7 @@ export NO_PROXY=127.0.0.1,localhost
 just c
 ```
 
-这些变量只应设置在当前开发终端中，不要永久写入 shell 配置。永久设置 `CODEX_GUI_HOST_MODE=dev` 会让已安装版本也尝试连接本地 Vite。
+以上 `export` 命令只对当前终端及其子进程生效；也可以按自己的开发习惯将这些变量写入 shell 配置。`CODEX_GUI_HOST_MODE=dev` 在哪里生效，从那里启动的 Codex 就会使用本地 Vite 开发服务器。
 
 ### 环境变量说明
 
