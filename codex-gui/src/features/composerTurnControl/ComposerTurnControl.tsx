@@ -405,6 +405,7 @@ const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {
   hasUnknownSteer: false,
   canStop: false,
   interrupt: null,
+  pendingInputManagementOutcome: null,
 };
 const subscribeUnavailableQueue = (): (() => void) => () => undefined;
 const getUnavailableQueueSnapshot = (): ComposerInputQueueCoordinatorSnapshot =>

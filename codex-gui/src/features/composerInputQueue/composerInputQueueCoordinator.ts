@@ -103,6 +103,7 @@ export type ComposerPendingInputCoordinatorBeginEditResult =
       reservation: ComposerPendingInputCoordinatorEditReservation;
     }>
   | Readonly<{ type: "invalidDraft"; scope: "liveOwner"; revision: number }>
+  | ComposerPendingInputLiveInvalidation
   | ComposerPendingInputCoordinatorManagementFailure;
 
 export type ComposerPendingInputCoordinatorDeleteResult =
