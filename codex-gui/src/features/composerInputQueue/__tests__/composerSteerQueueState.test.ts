@@ -751,10 +751,10 @@ describe("composer steer queue state", () => {
     queue.transition({ type: "enqueue", input });
     const queuedIntent = queue.state().steerQueue[0];
     if (queuedIntent?.type !== "intent") throw new Error("expected queued steer intent");
-    expect(queuedIntent?.message).toEqual(input.message);
-    expect(queuedIntent?.message).not.toBe(input.message);
-    expect(queuedIntent?.message.draft).toBe(input.message.draft);
-    expect(queuedIntent?.message.input).not.toBe(input.message.input);
+    expect(queuedIntent.message).toEqual(input.message);
+    expect(queuedIntent.message).not.toBe(input.message);
+    expect(queuedIntent.message.draft).toBe(input.message.draft);
+    expect(queuedIntent.message.input).not.toBe(input.message.input);
     const claim = issue(queue);
     accept(queue, claim);
     queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });

@@ -1895,7 +1895,7 @@ describe("ComposerInputQueueCoordinator", () => {
     const initialRevision = coordinator.getSnapshot().detailRevision;
     const publishedStates: unknown[] = [];
     const reentrantResults: unknown[] = [];
-    const listener = vi.fn(() => {
+    const listener = vi.fn<() => void>(() => {
       const revision = coordinator.getSnapshot().detailRevision;
       publishedStates.push({
         revision,
@@ -2012,7 +2012,7 @@ describe("ComposerInputQueueCoordinator", () => {
     });
     pendingSteer.submitSteer(input("delivery in progress"));
     const readOnlyItem = pendingItem(pendingSteer, "steer");
-    const readOnlyListener = vi.fn();
+    const readOnlyListener = vi.fn<() => void>();
     pendingSteer.subscribe(readOnlyListener);
     expect(
       pendingSteer.movePendingInput({
@@ -2224,11 +2224,20 @@ describe("ComposerInputQueueCoordinator", () => {
     let finalPublicationInjectionCount = 0;
     let eventCReplayPublicationCount = 0;
     let movementBeforeReplay: unknown;
-    const gatedResults: unknown[] = [];
+    const gatedResults: Readonly<{
+      revision: number;
+      move: ReturnType<typeof coordinator.movePendingInput>;
+      begin: ReturnType<typeof coordinator.beginPendingInputEdit>;
+      delete: ReturnType<typeof coordinator.deletePendingInput>;
+      release: ReturnType<typeof coordinator.reserveRelease>;
+      recover: boolean;
+      interrupt: boolean;
+    }>[] = [];
     coordinator.subscribe(() => {
       const revision = coordinator.getSnapshot().detailRevision;
       const moveRequest = { key: target.key, revision, destination: "last" } as const;
       gatedResults.push({
+        revision,
         move: coordinator.movePendingInput(moveRequest),
         begin: coordinator.beginPendingInputEdit({ key: target.key, revision }, () => ({
           type: "restored",
@@ -2283,28 +2292,37 @@ describe("ComposerInputQueueCoordinator", () => {
     expect(startTurn.mock.calls.map(([params]) => params.input)).toEqual([input("one").input]);
     expect(gatedResults).not.toHaveLength(0);
     for (const gated of gatedResults) {
+      if (
+        gated.move.type !== "unavailable" ||
+        gated.begin.type !== "unavailable" ||
+        gated.delete.type !== "unavailable" ||
+        gated.release.type !== "blocked"
+      ) {
+        throw new Error("expected management operations to remain gated during move replay");
+      }
       expect(gated).toEqual({
+        revision: gated.revision,
         move: {
           type: "unavailable",
           scope: "liveOwner",
           reason: "mutationPending",
-          revision: expect.any(Number),
+          revision: gated.revision,
         },
         begin: {
           type: "unavailable",
           scope: "liveOwner",
           reason: "mutationPending",
-          revision: expect.any(Number),
+          revision: gated.revision,
         },
         delete: {
           type: "unavailable",
           scope: "liveOwner",
           reason: "mutationPending",
-          revision: expect.any(Number),
+          revision: gated.revision,
         },
         release: {
           type: "blocked",
-          blockers: expect.arrayContaining([{ type: "managementPending" }]),
+          blockers: [{ type: "managementPending" }],
         },
         recover: false,
         interrupt: false,
@@ -2407,7 +2425,7 @@ describe("ComposerInputQueueCoordinator", () => {
     coordinator.submit(input("one"));
     coordinator.submit(input("two"));
     const target = pendingItem(coordinator, "ordinary", 1);
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     coordinator.subscribe(listener);
     coordinator.dispose();
 

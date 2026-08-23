@@ -571,6 +571,8 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
             case "conflict":
               return this.pendingInputMoveUnavailable("editInProgress", movement.revision);
           }
+          movement satisfies never;
+          throw new Error("Unhandled pending input movement result");
         }
         case "noOp":
           return result;

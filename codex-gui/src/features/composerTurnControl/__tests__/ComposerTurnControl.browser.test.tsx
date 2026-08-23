@@ -1461,7 +1461,7 @@ test("moves pending messages through the authoritative owner and preserves menu 
   });
   await expect
     .poll(() => {
-      const text = dialog.element().textContent ?? "";
+      const text = dialog.element().textContent;
       return text.indexOf("Queued B") < text.indexOf("Queued A");
     })
     .toBe(true);
@@ -1507,7 +1507,7 @@ test("moves pending messages through the authoritative owner and preserves menu 
   });
   await expect
     .poll(() => {
-      const text = dialog.element().textContent ?? "";
+      const text = dialog.element().textContent;
       return text.indexOf("Queued C") < text.indexOf("Queued A");
     })
     .toBe(true);
@@ -1530,7 +1530,7 @@ test("moves pending messages through the authoritative owner and preserves menu 
   });
   await expect
     .poll(() => {
-      const text = dialog.element().textContent ?? "";
+      const text = dialog.element().textContent;
       return text.indexOf("Queued D") < text.indexOf("Queued A");
     })
     .toBe(true);
@@ -1616,10 +1616,13 @@ test("re-reads independent lane budgets after a move and does not locate an item
     cursor: null,
     limit: 20,
   });
-  expect(harness.readPendingInputPage).toHaveBeenNthCalledWith(6, {
+  const sixthPageRead = harness.readPendingInputPage.mock.calls.at(5);
+  if (sixthPageRead == null) throw new Error("expected a second ordinary page read");
+  const [{ cursor, ...sixthPageRequest }] = sixthPageRead;
+  expect(cursor).not.toBeNull();
+  expect(sixthPageRequest).toEqual({
     lane: "ordinary",
     revision: 21,
-    cursor: expect.anything(),
     limit: 20,
   });
   await expect
@@ -1673,7 +1676,7 @@ test("does not announce or refresh when an accepted move action is a no-op", asy
     revision: 25,
     destination: "earlier",
   });
-  const dialogText = dialog.element().textContent ?? "";
+  const dialogText = dialog.element().textContent;
   expect(dialogText.indexOf("No-op queued A")).toBeLessThan(dialogText.indexOf("No-op queued B"));
   expect(dialog.getByRole("status").query()).toBeNull();
   expect(dialog.getByRole("alert").query()).toBeNull();

@@ -273,7 +273,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     controller.submit(composerDraftCapture(longOrdinaryText));
     controller.submit(composerDraftCapture("Second ordinary message"));
     for (let index = 1; index <= 19; index += 1) {
-      controller.submit(composerDraftCapture(`Additional ordinary message ${index}`));
+      controller.submit(composerDraftCapture(`Additional ordinary message ${String(index)}`));
     }
 
     const pendingRegion = screen.getByRole("region", { name: "Pending messages", exact: true });

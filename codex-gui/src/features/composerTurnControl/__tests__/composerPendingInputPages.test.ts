@@ -31,7 +31,9 @@ function item(id: string, lane: ComposerPendingInputLane): ComposerPendingInputP
 }
 
 function items(prefix: string, lane: ComposerPendingInputLane, count: number) {
-  return Array.from({ length: count }, (_, index) => item(`${prefix}-${index + 1}`, lane));
+  return Array.from({ length: count }, (_, index) =>
+    item(`${prefix}-${String(index + 1)}`, lane),
+  );
 }
 
 function itemIds(entries: readonly ComposerPendingInputPageItem[]): string[] {
@@ -56,11 +58,13 @@ function createPagedReader(revisions: Readonly<Record<number, LaneItems>>) {
   >();
   return vi.fn<ComposerInputQueueCoordinator["readPendingInputPage"]>((request) => {
     const revisionItems = revisions[request.revision];
-    if (revisionItems == null) throw new Error(`missing revision ${request.revision}`);
+    if (revisionItems == null) {
+      throw new Error(`missing revision ${String(request.revision)}`);
+    }
     const cursor = request.cursor == null ? null : cursorFacts.get(request.cursor);
     if (
       request.cursor != null &&
-      (cursor == null || cursor.lane !== request.lane || cursor.revision !== request.revision)
+      (cursor?.lane !== request.lane || cursor.revision !== request.revision)
     ) {
       throw new Error("invalid cursor");
     }

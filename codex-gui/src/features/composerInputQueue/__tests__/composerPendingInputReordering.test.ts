@@ -7,6 +7,7 @@ import {
   type ComposerPendingInputDisplayKey,
   type ComposerPendingInputLane,
   type ComposerPendingInputMoveDestination,
+  type ComposerPendingInputMovement,
   type StartClaim,
 } from "../composerInputQueue";
 import {
@@ -495,7 +496,7 @@ describe("composer pending input reordering", () => {
     let acquisitionResult: ReturnType<ComposerInputQueue["movePendingInput"]> | null = null;
     let acquisitionReadResult: ReturnType<ComposerInputQueue["readPendingInputMovement"]> | null =
       null;
-    let acquisitionMovements: readonly (unknown | null)[] = [];
+    let acquisitionMovements: readonly (ComposerPendingInputMovement | null)[] = [];
 
     const begun = queue.beginPendingInputEdit({ key: ordinaryKey, revision }, () => {
       acquisitionMovements = [

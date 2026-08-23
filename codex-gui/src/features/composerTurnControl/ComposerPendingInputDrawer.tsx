@@ -353,16 +353,6 @@ export function ComposerPendingInputDrawer({
     if (matchingManagementOutcome) headingRef.current?.focus();
   }, [matchingManagementOutcome, pendingInputManagementOutcome]);
 
-  useEffect(() => {
-    if (
-      exhaustedMoveRefresh != null &&
-      (controller !== exhaustedMoveRefresh.controller ||
-        detailRevision > exhaustedMoveRefresh.throughRevision)
-    ) {
-      setExhaustedMoveRefresh(null);
-    }
-  }, [controller, detailRevision, exhaustedMoveRefresh]);
-
   const openDrawer = (): void => {
     if (!hasPendingInputs) return;
     const nextPages = readInitialPages(controller, detailRevision);
@@ -587,6 +577,8 @@ export function ComposerPendingInputDrawer({
         ? t`Pending: Guide ${guidingCount}`
         : t`Pending: Queued ${ordinaryQueuedCount}`;
   const renderTrigger = !externallyClosed && (hasPendingInputs || displayedIsOpen);
+  const movedPosition = moveAnnouncement?.position ?? 0;
+  const movedCount = moveAnnouncement?.count ?? 0;
 
   return (
     <>
@@ -625,13 +617,11 @@ export function ComposerPendingInputDrawer({
                 <p aria-live="polite" role="status">
                   {moveAnnouncement.lane === "ordinary" ? (
                     <Trans>
-                      Queued message moved to position {moveAnnouncement.position} of{" "}
-                      {moveAnnouncement.count}.
+                      Queued message moved to position {movedPosition} of {movedCount}.
                     </Trans>
                   ) : (
                     <Trans>
-                      Guiding message moved to position {moveAnnouncement.position} of{" "}
-                      {moveAnnouncement.count}.
+                      Guiding message moved to position {movedPosition} of {movedCount}.
                     </Trans>
                   )}
                 </p>
