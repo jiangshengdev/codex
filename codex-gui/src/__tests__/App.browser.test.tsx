@@ -2589,7 +2589,20 @@ test("App releases an edited owner only after its marker settles and drains", as
   }
   const oldCoordinator = oldCoordinatorResult.value;
   const observeAcceptedEvent = vi.spyOn(oldCoordinator, "observeAcceptedEvent");
-  const beginEdit = vi.spyOn(oldCoordinator, "beginPendingInputEdit");
+  const beginPendingInputEdit = oldCoordinator.beginPendingInputEdit;
+  const editCapture: {
+    begun: Extract<
+      ReturnType<ComposerInputQueueCoordinator["beginPendingInputEdit"]>,
+      { type: "begun" }
+    > | null;
+  } = { begun: null };
+  const beginEdit = vi
+    .spyOn(oldCoordinator, "beginPendingInputEdit")
+    .mockImplementation((request, restore) => {
+      const result = beginPendingInputEdit(request, restore);
+      if (result.type === "begun") editCapture.begun = result;
+      return result;
+    });
   const deletePendingInput = vi.spyOn(oldCoordinator, "deletePendingInput");
   const readPendingInputDetail = vi.spyOn(oldCoordinator, "readPendingInputDetail");
   const readPendingInputPage = vi.spyOn(oldCoordinator, "readPendingInputPage");
@@ -2617,8 +2630,8 @@ test("App releases an edited owner only after its marker settles and drains", as
     exact: true,
   });
   await oldEditor.fill("Old owner must not write this draft to the replacement");
-  const begun = beginEdit.mock.results.at(0)?.value;
-  if (begun?.type !== "begun") throw new Error("old owner edit must begin");
+  const begun = editCapture.begun;
+  if (begun == null) throw new Error("old owner edit must begin");
   const save = vi.spyOn(begun.reservation, "save");
   const cancel = vi.spyOn(begun.reservation, "cancel");
   expect(readPendingItems(oldCoordinator, "ordinary")).toMatchObject([
