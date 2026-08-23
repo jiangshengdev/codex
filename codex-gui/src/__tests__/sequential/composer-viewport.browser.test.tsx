@@ -6,6 +6,7 @@ import {
   createGuiHostCommands,
   launchThreadId,
 } from "@/__tests__/appBrowserTestSupport";
+import { createDeferred } from "@/__tests__/testDeferred";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -70,14 +71,6 @@ const nextAnimationFrame = (): Promise<void> =>
       resolve();
     });
   });
-
-function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-  return { promise, resolve };
-}
 
 type MutableVisualViewport = VisualViewport & {
   height: number;

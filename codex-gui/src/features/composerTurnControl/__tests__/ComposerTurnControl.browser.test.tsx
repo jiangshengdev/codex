@@ -2,6 +2,7 @@ import { Toast } from "@heroui/react";
 import { afterEach, expect, test, vi, type Mock } from "vitest";
 import { userEvent } from "vitest/browser";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -112,23 +113,6 @@ const expectStartTurnCalledOnceWithText = (
     input: [{ type: "text", text, text_elements: [] }],
   });
 };
-
-function deferred<T>() {
-  const callbacks = {} as {
-    resolve: (value: T) => void;
-    reject: (reason?: unknown) => void;
-  };
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    callbacks.resolve = promiseResolve;
-    callbacks.reject = promiseReject;
-  });
-
-  return {
-    promise,
-    resolve: callbacks.resolve,
-    reject: callbacks.reject,
-  };
-}
 
 const createQueueControllerHarness = (
   initial: ComposerInputQueueCoordinatorSnapshot,

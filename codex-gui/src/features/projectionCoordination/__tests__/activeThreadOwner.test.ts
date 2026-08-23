@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { AppDispatch } from "@/app/store";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import * as composerInputQueueCoordinator from "@/features/composerInputQueue/composerInputQueueCoordinator";
@@ -7,16 +8,6 @@ import { attachBaseline } from "@/features/projection/__tests__/projectionFixtur
 import type { SkillsListResponse } from "@codex-protocol/v2";
 import { prepareActiveThreadOwner } from "../activeThreadOwner";
 import type { ProjectionAnimationFrameScheduler } from "../projectionApplicationCoordinator";
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, resolve, reject };
-}
 
 const dispatch = ((action: unknown) => action) as unknown as AppDispatch;
 const scheduler: ProjectionAnimationFrameScheduler = {

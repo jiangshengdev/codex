@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
@@ -12,16 +13,6 @@ import {
 } from "../threadHistoryDetailOwner";
 
 type ReadThreadResponse = Awaited<ReturnType<GuiHostCommands["readThread"]>>;
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, resolve, reject };
-}
 
 const response = (threadId: string): ReadThreadResponse => ({
   thread: attachWithThreadId(attachWithTurns(attachResponse, []), threadId).snapshot.thread,

@@ -14,6 +14,7 @@ import {
   seedBrowserAuthorizationSession,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
+import { createDeferred as deferred } from "./testDeferred";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -33,16 +34,6 @@ const startGuiHostConnectionMock =
 
 const historyThreadId = "00000000-0000-0000-0000-000000000002";
 const historyThread = attachWithThreadId(attachResponse, historyThreadId).snapshot.thread;
-
-const deferred = <T,>() => {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, reject, resolve };
-};
 
 const createHistoryCommands = () => {
   const commands = createGuiHostCommands();

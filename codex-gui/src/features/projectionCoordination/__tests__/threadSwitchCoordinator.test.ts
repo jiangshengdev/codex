@@ -1,5 +1,6 @@
 import type { UnknownAction } from "@reduxjs/toolkit";
 import { describe, expect, it, vi } from "vitest";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { AppDispatch } from "@/app/store";
 import { makeStore } from "@/app/store";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
@@ -40,12 +41,6 @@ const emptySkillCatalogState: SkillCatalogState = {
   type: "ready",
   candidates: [],
   partialErrorCount: 0,
-};
-
-const deferred = <T>() => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((settle) => (resolve = settle));
-  return { promise, resolve };
 };
 
 const createHarness = ({ initialActiveOwner = true } = {}) => {

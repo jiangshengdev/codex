@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { StrictMode, useSyncExternalStore } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { AppCapabilities, ContinueThread } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import { AppShell } from "@/features/appShell/AppShell";
@@ -38,16 +39,6 @@ const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
   subscribe: () => () => undefined,
   invalidate: () => false,
   retry: () => false,
-};
-
-const deferred = <T,>() => {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, reject, resolve };
 };
 
 const historyThread = (

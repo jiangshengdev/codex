@@ -1,6 +1,7 @@
 import type { UnknownAction } from "@reduxjs/toolkit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { AppDispatch } from "@/app/store";
 import { makeStore } from "@/app/store";
 import { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
@@ -32,12 +33,6 @@ const currentThreadId = attachBaseline.snapshot.thread.id;
 const recoveryThreadId = "00000000-0000-0000-0000-000000000002";
 const detailThreadId = "00000000-0000-0000-0000-000000000003";
 type AttachResponse = Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>;
-
-const deferred = <T>() => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((settle) => (resolve = settle));
-  return { promise, resolve };
-};
 
 const expectSessionWriteFailure = (error: unknown, cause: Error): void => {
   expect(error).toBeInstanceOf(Error);
