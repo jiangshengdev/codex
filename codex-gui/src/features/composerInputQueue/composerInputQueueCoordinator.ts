@@ -339,7 +339,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     const effects = [...recoveryEffects, ...this.deferredEffects];
     this.deferredEffects = [];
     this.runEffects(effects);
-    if (this.disposed || generation !== this.generation) return false;
+    if (this.currentOwnerDiffersFrom(generation)) return false;
     this.flushDeferredManagementDrains();
     this.publishSnapshot();
     return true;
@@ -350,7 +350,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     if (this.managementAcquiring || this.replayingAcceptedEvents) return;
     const generation = this.generation;
     const replay = this.flushDeferredAcceptedEvents(generation);
-    if (this.disposed || generation !== this.generation) return;
+    if (this.currentOwnerDiffersFrom(generation)) return;
     if (replay.type === "failed") throw replay.error;
     this.flushDeferredManagementDrains();
   }
@@ -394,27 +394,35 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     }
     const generation = this.generation;
     this.managementAcquiring = true;
-    let result: ReturnType<ComposerInputQueue["beginPendingInputEdit"]>;
-    let restoreFailed = false;
-    let restoreError: unknown;
+    let acquisition:
+      | Readonly<{
+          type: "result";
+          result: ReturnType<ComposerInputQueue["beginPendingInputEdit"]>;
+        }>
+      | Readonly<{ type: "failed"; error: unknown }>;
     try {
-      result = this.queue.beginPendingInputEdit(request, restore);
+      acquisition = {
+        type: "result",
+        result: this.queue.beginPendingInputEdit(request, restore),
+      };
     } catch (error: unknown) {
-      restoreFailed = true;
-      restoreError = error;
+      acquisition = { type: "failed", error };
     } finally {
       this.managementAcquiring = false;
     }
-    if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
-    if (restoreFailed) {
+    if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
+    if (acquisition.type === "failed") {
       const replay = this.flushDeferredAcceptedEvents(generation);
-      if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+      if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
       if (replay.type === "failed") {
-        throw new AggregateError([restoreError, replay.error], "Restore and runtime replay failed");
+        throw new AggregateError(
+          [acquisition.error, replay.error],
+          "Restore and runtime replay failed",
+        );
       }
-      throw restoreError;
+      throw acquisition.error;
     }
-    const settledResult = result!;
+    const settledResult = acquisition.result;
     switch (settledResult.type) {
       case "begun": {
         const session: PendingInputManagementSession = {
@@ -426,15 +434,15 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
         this.activeManagementSession = session;
         this.setManagementOutcome(null);
         const replay = this.flushDeferredAcceptedEvents(generation);
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+        if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
         if (replay.type === "failed") {
           this.cancelUndeliveredManagementSession(session);
           this.publishSnapshot();
-          if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+          if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
           throw replay.error;
         }
         this.publishSnapshot();
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+        if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
         const unavailable = this.managementSessionUnavailable(session);
         if (unavailable != null) return unavailable;
         return {
@@ -445,20 +453,20 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       }
       case "invalidDraft": {
         const replay = this.flushDeferredAcceptedEvents(generation);
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+        if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
         if (replay.type === "failed") throw replay.error;
         return { ...settledResult, scope: "liveOwner", revision: this.queue.detailRevision() };
       }
       case "stale":
       case "notManageable": {
         const replay = this.flushDeferredAcceptedEvents(generation);
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+        if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
         if (replay.type === "failed") throw replay.error;
         return { ...settledResult, scope: "liveOwner", revision: this.queue.detailRevision() };
       }
       case "conflict": {
         const replay = this.flushDeferredAcceptedEvents(generation);
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+        if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
         if (replay.type === "failed") throw replay.error;
         return this.liveSessionInvalidation();
       }
@@ -470,14 +478,13 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
     if (this.disposed) return this.ownerGoneResult();
     if (this.managementMutationPending()) return this.liveMutationPending();
     if (this.releaseReservation != null) return this.liveSessionInvalidation();
-    const generation = this.generation;
     const result = this.queue.deletePendingInput(request);
     switch (result.type) {
       case "deleted":
         this.setManagementOutcome(null);
         this.handleManagementDrain(result.drainIntent);
         this.publishSnapshot();
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
+        if (this.currentOwnerIsGone()) return this.ownerGoneResult();
         return { type: "deleted", revision: this.queue.detailRevision() };
       case "stale":
       case "notManageable":
@@ -832,7 +839,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
 
   private consumeEditInvalidation(invalidation: ComposerPendingInputEditInvalidation | undefined) {
     const session = this.activeManagementSession;
-    if (invalidation == null || session == null || session.key !== invalidation.key) return;
+    if (invalidation == null || session?.key !== invalidation.key) return;
     const outcome: ComposerPendingInputLiveInvalidation = {
       type: "unavailable",
       scope: "liveOwner",
@@ -848,7 +855,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
 
   private handleManagementDrain(intent: ComposerPendingInputDrainIntent): void {
-    if (this.recovery != null || this.isRecovering) {
+    if (this.recoveryPending()) {
       this.deferredManagementLanes.add(intent.lane);
       return;
     }
@@ -856,12 +863,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
   }
 
   private flushDeferredManagementDrains(): void {
-    if (this.recovery != null || this.isRecovering) return;
+    if (this.recoveryPending()) return;
     const lanes = [...this.deferredManagementLanes];
     this.deferredManagementLanes.clear();
     for (const lane of lanes) {
       this.consumeTransition(this.queue.drainPendingInput({ lane }));
-      if (this.recovery != null || this.isRecovering) {
+      if (this.recoveryPending()) {
         for (const deferredLane of lanes.slice(lanes.indexOf(lane) + 1)) {
           this.deferredManagementLanes.add(deferredLane);
         }
@@ -953,6 +960,18 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       this.replayingAcceptedEvents ||
       this.deferredAcceptedEvents.length > 0
     );
+  }
+
+  private currentOwnerIsGone(): boolean {
+    return this.disposed;
+  }
+
+  private currentOwnerDiffersFrom(generation: number): boolean {
+    return this.currentOwnerIsGone() || generation !== this.generation;
+  }
+
+  private recoveryPending(): boolean {
+    return this.recovery != null || this.isRecovering;
   }
 
   private ownerGoneResult(): ComposerPendingInputOwnerGoneResult {

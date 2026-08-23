@@ -1232,9 +1232,9 @@ describe("ComposerInputQueueCoordinator", () => {
       unsubscribe();
       throw replayError;
     });
-    expect(() => singleFailure.coordinator.observeAcceptedEvent(singleFailure.committed)).toThrow(
-      replayError,
-    );
+    expect(() => {
+      singleFailure.coordinator.observeAcceptedEvent(singleFailure.committed);
+    }).toThrow(replayError);
     expect(singleFailure.coordinator.getSnapshot()).toMatchObject({
       guidingCount: 0,
       canStop: true,
@@ -1368,7 +1368,9 @@ describe("ComposerInputQueueCoordinator", () => {
     const terminal = live(
       turnCompleted(eventTurnCompleted, "restore-error-terminal", baseTurn("turn-active")),
     );
-    coordinator.subscribe(() => coordinator.dispose("ownerReplaced"));
+    coordinator.subscribe(() => {
+      coordinator.dispose("ownerReplaced");
+    });
 
     expect(
       coordinator.beginPendingInputEdit(
@@ -1463,7 +1465,9 @@ describe("ComposerInputQueueCoordinator", () => {
 
     const duringBegin = createQueued();
     const beginItem = pendingItem(duringBegin, "ordinary");
-    duringBegin.subscribe(() => duringBegin.dispose("ownerReplaced"));
+    duringBegin.subscribe(() => {
+      duringBegin.dispose("ownerReplaced");
+    });
     expect(
       duringBegin.beginPendingInputEdit(
         { key: beginItem.key, revision: duringBegin.getSnapshot().detailRevision },
@@ -1473,7 +1477,9 @@ describe("ComposerInputQueueCoordinator", () => {
 
     const duringDelete = createQueued();
     const deleteItem = pendingItem(duringDelete, "ordinary");
-    duringDelete.subscribe(() => duringDelete.dispose("ownerReplaced"));
+    duringDelete.subscribe(() => {
+      duringDelete.dispose("ownerReplaced");
+    });
     expect(
       duringDelete.deletePendingInput({
         key: deleteItem.key,
@@ -1489,7 +1495,9 @@ describe("ComposerInputQueueCoordinator", () => {
         () => ({ type: "restored" }),
       );
       if (begun.type !== "begun") throw new Error("expected settlement edit capability");
-      duringSettlement.subscribe(() => duringSettlement.dispose("ownerReplaced"));
+      duringSettlement.subscribe(() => {
+        duringSettlement.dispose("ownerReplaced");
+      });
       expect(
         operation === "save"
           ? begun.reservation.save(composerDraftCapture("edited"))
