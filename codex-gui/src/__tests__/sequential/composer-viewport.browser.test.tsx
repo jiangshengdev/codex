@@ -117,113 +117,109 @@ function installVisualViewport({
   };
 }
 
+async function arrangeVisualViewportResize({
+  composerBottom,
+  composerTop,
+  initialViewportHeight,
+}: {
+  composerBottom: number;
+  composerTop: number;
+  initialViewportHeight: number;
+}) {
+  const visualViewport = installVisualViewport({ height: initialViewportHeight });
+  try {
+    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(
+      initialViewportHeight,
+    );
+    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
+    const screen = await renderAttached();
+    const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
+    if (!(composerShell instanceof HTMLElement)) {
+      throw new Error("composer shell must render");
+    }
+    vi.spyOn(composerShell, "getBoundingClientRect").mockReturnValue({
+      bottom: composerBottom,
+      height: composerBottom - composerTop,
+      left: 0,
+      right: 390,
+      top: composerTop,
+      width: 390,
+      x: 0,
+      y: composerTop,
+      toJSON: () => ({}),
+    });
+
+    return {
+      cleanup: visualViewport.restore,
+      screen,
+      scrollBy,
+      async resizeTo(height: number): Promise<void> {
+        visualViewport.viewport.height = height;
+        expect(visualViewport.dispatchResize()).toBe(true);
+        await nextAnimationFrame();
+      },
+    };
+  } catch (error) {
+    visualViewport.restore();
+    throw error;
+  }
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 test("does not scroll after visual viewport resize when composer is already visible", async () => {
-  const visualViewport = installVisualViewport({ height: 699 });
+  const { cleanup, resizeTo, screen, scrollBy } = await arrangeVisualViewportResize({
+    initialViewportHeight: 699,
+    composerTop: 209,
+    composerBottom: 361,
+  });
   try {
-    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(699);
-    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
-    const screen = await renderAttached();
-    const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-    if (!(composerShell instanceof HTMLElement)) {
-      throw new Error("composer shell must render");
-    }
-    vi.spyOn(composerShell, "getBoundingClientRect").mockReturnValue({
-      bottom: 361,
-      height: 152,
-      left: 0,
-      right: 390,
-      top: 209,
-      width: 390,
-      x: 0,
-      y: 209,
-      toJSON: () => ({}),
-    });
-
     await screen.getByRole("combobox", { name: "Message Codex", exact: true }).click();
-    visualViewport.viewport.height = 361;
-    expect(visualViewport.dispatchResize()).toBe(true);
-    await nextAnimationFrame();
+    await resizeTo(361);
 
     expect(scrollBy).not.toHaveBeenCalled();
   } finally {
-    visualViewport.restore();
+    cleanup();
   }
 });
 
 test("scrolls once after visual viewport resize when composer remains covered", async () => {
-  const visualViewport = installVisualViewport({ height: 699 });
+  const { cleanup, resizeTo, screen, scrollBy } = await arrangeVisualViewportResize({
+    initialViewportHeight: 699,
+    composerTop: 547,
+    composerBottom: 699,
+  });
   try {
-    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(699);
-    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
-    const screen = await renderAttached();
-    const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-    if (!(composerShell instanceof HTMLElement)) {
-      throw new Error("composer shell must render");
-    }
-    vi.spyOn(composerShell, "getBoundingClientRect").mockReturnValue({
-      bottom: 699,
-      height: 152,
-      left: 0,
-      right: 390,
-      top: 547,
-      width: 390,
-      x: 0,
-      y: 547,
-      toJSON: () => ({}),
-    });
-
     await screen.getByRole("combobox", { name: "Message Codex", exact: true }).click();
-    visualViewport.viewport.height = 361;
-    expect(visualViewport.dispatchResize()).toBe(true);
-    await nextAnimationFrame();
+    await resizeTo(361);
 
     expect(scrollBy).toHaveBeenCalledTimes(1);
     expect(scrollBy).toHaveBeenCalledWith({ top: 346, behavior: "smooth" });
 
-    expect(visualViewport.dispatchResize()).toBe(true);
-    await nextAnimationFrame();
+    await resizeTo(361);
     expect(scrollBy).toHaveBeenCalledTimes(1);
   } finally {
-    visualViewport.restore();
+    cleanup();
   }
 });
 
 test("does not scroll for visual viewport resize after composer blur", async () => {
-  const visualViewport = installVisualViewport({ height: 699 });
+  const { cleanup, resizeTo, screen, scrollBy } = await arrangeVisualViewportResize({
+    initialViewportHeight: 699,
+    composerTop: 547,
+    composerBottom: 699,
+  });
   try {
-    vi.spyOn(document.documentElement, "clientHeight", "get").mockReturnValue(699);
-    const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => undefined);
-    const screen = await renderAttached();
-    const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-    if (!(composerShell instanceof HTMLElement)) {
-      throw new Error("composer shell must render");
-    }
-    vi.spyOn(composerShell, "getBoundingClientRect").mockReturnValue({
-      bottom: 699,
-      height: 152,
-      left: 0,
-      right: 390,
-      top: 547,
-      width: 390,
-      x: 0,
-      y: 547,
-      toJSON: () => ({}),
-    });
-
     const composer = screen.getByRole("combobox", { name: "Message Codex", exact: true });
     await composer.click();
     composer.element().blur();
-    visualViewport.viewport.height = 361;
-    expect(visualViewport.dispatchResize()).toBe(true);
-    await nextAnimationFrame();
+    await resizeTo(361);
 
     expect(scrollBy).not.toHaveBeenCalled();
   } finally {
-    visualViewport.restore();
+    cleanup();
   }
 });
 
