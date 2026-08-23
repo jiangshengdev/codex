@@ -451,12 +451,7 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
           reservation: this.createManagementCapability(session),
         };
       }
-      case "invalidDraft": {
-        const replay = this.flushDeferredAcceptedEvents(generation);
-        if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
-        if (replay.type === "failed") throw replay.error;
-        return { ...settledResult, scope: "liveOwner", revision: this.queue.detailRevision() };
-      }
+      case "invalidDraft":
       case "stale":
       case "notManageable": {
         const replay = this.flushDeferredAcceptedEvents(generation);
@@ -782,11 +777,9 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
         if (result.type === "unavailable") {
           return this.invalidateManagementSession(session);
         }
-        this.settleManagementSession(session);
-        this.handleManagementDrain(result.drainIntent);
-        this.publishSnapshot();
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
-        return { type: "saved", revision: this.queue.detailRevision() };
+        const completion = this.completeManagementMutation(session, generation, result.drainIntent);
+        if ("type" in completion) return completion;
+        return { type: "saved", revision: completion.revision };
       },
       cancel: () => {
         const unavailable = this.managementSessionUnavailable(session);
@@ -796,13 +789,23 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
         if (result.type === "unavailable") {
           return this.invalidateManagementSession(session);
         }
-        this.settleManagementSession(session);
-        this.handleManagementDrain(result.drainIntent);
-        this.publishSnapshot();
-        if (this.disposed || generation !== this.generation) return this.ownerGoneResult();
-        return { type: "cancelled", revision: this.queue.detailRevision() };
+        const completion = this.completeManagementMutation(session, generation, result.drainIntent);
+        if ("type" in completion) return completion;
+        return { type: "cancelled", revision: completion.revision };
       },
     };
+  }
+
+  private completeManagementMutation(
+    session: PendingInputManagementSession,
+    generation: number,
+    drainIntent: ComposerPendingInputDrainIntent,
+  ): Readonly<{ revision: number }> | ComposerPendingInputOwnerGoneResult {
+    this.settleManagementSession(session);
+    this.handleManagementDrain(drainIntent);
+    this.publishSnapshot();
+    if (this.currentOwnerDiffersFrom(generation)) return this.ownerGoneResult();
+    return { revision: this.queue.detailRevision() };
   }
 
   private managementSessionUnavailable(
