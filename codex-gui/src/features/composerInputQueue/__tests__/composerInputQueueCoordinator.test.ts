@@ -1104,7 +1104,7 @@ describe("ComposerInputQueueCoordinator", () => {
     coordinator.submit(input("earlier"));
     coordinator.submit(input("edit me"));
     const item = pendingItem(coordinator, "ordinary", 1);
-    const restore = vi.fn(() => {
+    const restore = vi.fn<Parameters<typeof coordinator.beginPendingInputEdit>[1]>(() => {
       expect(coordinator.interruptActiveTurn()).toBe(false);
       expect(coordinator.reserveRelease()).toEqual({
         type: "blocked",
