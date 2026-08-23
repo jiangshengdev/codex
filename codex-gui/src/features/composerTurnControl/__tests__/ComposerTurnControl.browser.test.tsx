@@ -202,6 +202,13 @@ const createQueueControllerHarness = (
       scope: "liveOwner",
       revision: snapshot.detailRevision,
     }));
+  const movePendingInput = vi
+    .fn<ComposerInputQueueCoordinator["movePendingInput"]>()
+    .mockImplementation(() => ({
+      type: "notManageable",
+      scope: "liveOwner",
+      revision: snapshot.detailRevision,
+    }));
   const controller = {
     get ownerThreadId() {
       return ownerThreadId;
@@ -223,6 +230,7 @@ const createQueueControllerHarness = (
     readPendingInputDetail,
     beginPendingInputEdit,
     deletePendingInput,
+    movePendingInput,
     getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -238,6 +246,7 @@ const createQueueControllerHarness = (
     promoteOrdinaryFrontToSteer,
     readPendingInputDetail,
     readPendingInputPage,
+    movePendingInput,
     submit,
     submitSteer,
     publish(next: ComposerInputQueueCoordinatorSnapshot): void {

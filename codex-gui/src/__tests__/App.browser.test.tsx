@@ -266,6 +266,9 @@ const createQueueCoordinatorMock = (
     deletePendingInput: vi
       .fn<ComposerInputQueueCoordinator["deletePendingInput"]>()
       .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
+    movePendingInput: vi
+      .fn<ComposerInputQueueCoordinator["movePendingInput"]>()
+      .mockReturnValue({ type: "unavailable", scope: "ownerGone", reason: "disposed" }),
     getSnapshot: vi.fn<ComposerInputQueueCoordinator["getSnapshot"]>().mockReturnValue({
       ordinaryQueuedCount: 0,
       guidingCount: 0,
