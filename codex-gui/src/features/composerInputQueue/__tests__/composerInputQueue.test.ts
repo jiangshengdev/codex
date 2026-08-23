@@ -1752,49 +1752,52 @@ describe("composer input queue", () => {
   });
 
   it.each([
-    ["head", 0],
-    ["middle", 1],
-    ["tail", 2],
-  ])("keeps a %s reservation in bounded pages and release projection", (_position, index) => {
-    const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
-    submit(queue, "a");
-    submit(queue, "b");
-    submit(queue, "c");
-    const initial = pendingPage(queue, "ordinary");
-    const keys = initial.items.map(({ key }) => key);
-    const editKey = keys[index];
-    if (editKey == null) throw new Error("expected parameterized edit key");
-    const begun = queue.beginPendingInputEdit(
-      { key: editKey, revision: queue.detailRevision() },
-      () => ({ type: "restored" }),
-    );
-    if (begun.type !== "begun") throw new Error("expected parameterized reservation");
+    ["head", 0, ["editing", "manageable", "manageable"]],
+    ["middle", 1, ["manageable", "editing", "manageable"]],
+    ["tail", 2, ["manageable", "manageable", "editing"]],
+  ])(
+    "keeps a %s reservation in bounded pages and release projection",
+    (_position, index, expectedManagement) => {
+      const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: "turn-1" });
+      submit(queue, "a");
+      submit(queue, "b");
+      submit(queue, "c");
+      const initial = pendingPage(queue, "ordinary");
+      const keys = initial.items.map(({ key }) => key);
+      const editKey = keys[index];
+      if (editKey == null) throw new Error("expected parameterized edit key");
+      const begun = queue.beginPendingInputEdit(
+        { key: editKey, revision: queue.detailRevision() },
+        () => ({ type: "restored" }),
+      );
+      if (begun.type !== "begun") throw new Error("expected parameterized reservation");
 
-    const pagedKeys = [];
-    let cursor: ComposerPendingInputCursor | null = null;
-    do {
-      const page = queue.readPendingInputPage({
-        lane: "ordinary",
-        revision: queue.detailRevision(),
-        cursor,
-        limit: 1,
+      const pagedKeys = [];
+      const pagedManagement = [];
+      let cursor: ComposerPendingInputCursor | null = null;
+      do {
+        const page = queue.readPendingInputPage({
+          lane: "ordinary",
+          revision: queue.detailRevision(),
+          cursor,
+          limit: 1,
+        });
+        if (page.type !== "page") throw new Error("expected reservation page");
+        const item = page.items[0];
+        if (item == null) throw new Error("expected reservation page item");
+        pagedKeys.push(item.key);
+        pagedManagement.push(item.management.type);
+        cursor = page.nextCursor;
+      } while (cursor != null);
+      expect(pagedKeys).toEqual(keys);
+      expect(pagedManagement).toEqual(expectedManagement);
+      expect(queue.view().releaseState).toEqual({
+        type: "blocked",
+        blockers: [{ type: "ordinaryQueued", count: 3 }],
       });
-      if (page.type !== "page") throw new Error("expected reservation page");
-      const item = page.items[0];
-      if (item == null) throw new Error("expected reservation page item");
-      pagedKeys.push(item.key);
-      if (pagedKeys.length - 1 === index) {
-        expect(item.management).toEqual({ type: "editing" });
-      }
-      cursor = page.nextCursor;
-    } while (cursor != null);
-    expect(pagedKeys).toEqual(keys);
-    expect(queue.view().releaseState).toEqual({
-      type: "blocked",
-      blockers: [{ type: "ordinaryQueued", count: 3 }],
-    });
-    expect(begun.reservation.cancel().type).toBe("cancelled");
-  });
+      expect(begun.reservation.cancel().type).toBe("cancelled");
+    },
+  );
 
   it("keeps an ordinary reservation in place while earlier messages drain and saves by capability", () => {
     const queue = createComposerInputQueue({ threadId: "thread-1", activeTurnId: null });
