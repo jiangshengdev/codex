@@ -278,6 +278,81 @@ describe("composer pending input reordering", () => {
     ]);
   });
 
+  it("reads authoritative ordinary and steer movement at the requested revision", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: "turn-a" });
+    queue.submit(composerQueueMessage("ordinary-a"));
+    queue.submit(composerQueueMessage("ordinary-b"));
+    queue.submit(composerQueueMessage("ordinary-c"));
+    queue.submitSteer(composerQueueMessage("pending"));
+    queue.submitSteer(composerQueueMessage("steer-a"));
+    queue.submitSteer(composerQueueMessage("steer-b"));
+    const revision = queue.detailRevision();
+
+    expect(
+      queue.readPendingInputMovement({
+        key: keyFor(queue, "ordinary", "ordinary-b"),
+        revision,
+      }),
+    ).toEqual({
+      type: "movement",
+      revision,
+      lane: "ordinary",
+      movement: {
+        position: 2,
+        count: 3,
+        canMoveEarlier: true,
+        canMoveLater: true,
+      },
+    });
+    expect(
+      queue.readPendingInputMovement({
+        key: keyFor(queue, "steer", "steer-b"),
+        revision,
+      }),
+    ).toEqual({
+      type: "movement",
+      revision,
+      lane: "steer",
+      movement: {
+        position: 2,
+        count: 2,
+        canMoveEarlier: true,
+        canMoveLater: false,
+      },
+    });
+  });
+
+  it("re-reads moved steer position until the target is claimed", () => {
+    const queue = createComposerInputQueue({ threadId: "thread-a", activeTurnId: "turn-a" });
+    const pending = steerClaim(queue.submitSteer(composerQueueMessage("pending")));
+    queue.submitSteer(composerQueueMessage("a"));
+    queue.submitSteer(composerQueueMessage("b"));
+    const key = keyFor(queue, "steer", "b");
+    const beforeMoveRevision = queue.detailRevision();
+
+    expect(
+      queue.movePendingInput({ key, revision: beforeMoveRevision, destination: "first" }),
+    ).toMatchObject({ type: "moved", position: 1, count: 2 });
+    const movedRevision = queue.detailRevision();
+    expect(queue.readPendingInputMovement({ key, revision: movedRevision })).toEqual({
+      type: "movement",
+      revision: movedRevision,
+      lane: "steer",
+      movement: {
+        position: 1,
+        count: 2,
+        canMoveEarlier: false,
+        canMoveLater: true,
+      },
+    });
+
+    const settled = queue.settleSteer({ type: "accepted", claim: pending, turnId: "turn-a" });
+    expect(steerClaim(settled).intent.message.id).toBe("b");
+    expect(
+      queue.readPendingInputMovement({ key, revision: queue.detailRevision() }),
+    ).toEqual({ type: "notManageable", revision: queue.detailRevision() });
+  });
+
   it.each([
     ["ordinary", "a", "earlier"],
     ["ordinary", "c", "later"],
@@ -336,6 +411,10 @@ describe("composer pending input reordering", () => {
     expect(
       queue.movePendingInput({ key, revision, destination: "first" }),
     ).toEqual({ type: "stale", revision: revision + 1 });
+    expect(queue.readPendingInputMovement({ key, revision })).toEqual({
+      type: "stale",
+      revision: revision + 1,
+    });
     expect(pageIds(queue, "ordinary")).toEqual(["b", "c", "a"]);
   });
 
@@ -351,6 +430,10 @@ describe("composer pending input reordering", () => {
     expect(
       queue.movePendingInput({ key: foreignKey, revision, destination: "first" }),
     ).toEqual({ type: "notManageable", revision });
+    expect(queue.readPendingInputMovement({ key: foreignKey, revision })).toEqual({
+      type: "notManageable",
+      revision,
+    });
     expect(queue.detailRevision()).toBe(revision);
     expect(pageIds(queue, "ordinary")).toEqual(["a", "b"]);
 
@@ -368,6 +451,9 @@ describe("composer pending input reordering", () => {
         destination: "first",
       }),
     ).toEqual({ type: "notManageable", revision: afterDrainRevision });
+    expect(
+      drained.readPendingInputMovement({ key: drainedKey, revision: afterDrainRevision }),
+    ).toEqual({ type: "notManageable", revision: afterDrainRevision });
     expect(drained.detailRevision()).toBe(afterDrainRevision);
     expect(afterDrainRevision).toBeGreaterThanOrEqual(beforeDrainRevision);
 
@@ -382,6 +468,9 @@ describe("composer pending input reordering", () => {
         revision: steerRevision,
         destination: "last",
       }),
+    ).toEqual({ type: "notManageable", revision: steerRevision });
+    expect(
+      steer.readPendingInputMovement({ key: pendingSteerKey, revision: steerRevision }),
     ).toEqual({ type: "notManageable", revision: steerRevision });
     expect(steer.detailRevision()).toBe(steerRevision);
     expect(pageIds(steer, "steer")).toEqual(["pending-steer", "queued-steer"]);
@@ -398,6 +487,9 @@ describe("composer pending input reordering", () => {
     const steerKey = keyFor(queue, "steer", "steer");
     const revision = queue.detailRevision();
     let acquisitionResult: ReturnType<ComposerInputQueue["movePendingInput"]> | null = null;
+    let acquisitionReadResult: ReturnType<
+      ComposerInputQueue["readPendingInputMovement"]
+    > | null = null;
     let acquisitionMovements: readonly (unknown | null)[] = [];
 
     const begun = queue.beginPendingInputEdit({ key: ordinaryKey, revision }, () => {
@@ -405,6 +497,7 @@ describe("composer pending input reordering", () => {
         ...pendingPage(queue, "ordinary").items.map(({ movement }) => movement),
         ...pendingPage(queue, "steer").items.map(({ movement }) => movement),
       ];
+      acquisitionReadResult = queue.readPendingInputMovement({ key: steerKey, revision });
       acquisitionResult = queue.movePendingInput({
         key: steerKey,
         revision,
@@ -413,6 +506,11 @@ describe("composer pending input reordering", () => {
       return { type: "restored" };
     });
     expect(acquisitionMovements).toEqual([null, null, null, null, null]);
+    expect(acquisitionReadResult).toEqual({
+      type: "conflict",
+      reason: "editInProgress",
+      revision,
+    });
     expect(acquisitionResult).toEqual({
       type: "conflict",
       reason: "editInProgress",
@@ -424,6 +522,13 @@ describe("composer pending input reordering", () => {
       ...pendingPage(queue, "steer").items.map(({ movement }) => movement),
     ]).toEqual([null, null, null, null, null]);
     expect(
+      queue.readPendingInputMovement({ key: steerKey, revision: begun.revision }),
+    ).toEqual({
+      type: "conflict",
+      reason: "editInProgress",
+      revision: begun.revision,
+    });
+    expect(
       queue.movePendingInput({
         key: steerKey,
         revision: begun.revision,
@@ -433,6 +538,42 @@ describe("composer pending input reordering", () => {
       type: "conflict",
       reason: "editInProgress",
       revision: begun.revision,
+    });
+  });
+
+  it("reports reservation and outstanding-recovery steer work as non-sortable", () => {
+    const reserved = createComposerSteerQueue();
+    enqueueSteer(reserved, "reserved");
+    enqueueSteer(reserved, "successor");
+    const acquired = reserved.acquirePendingInputEdit("reserved");
+    if (acquired.type !== "acquired") throw new Error("expected steer edit acquisition");
+    const reservation = reserved.reservePendingInputEdit(acquired.acquisition);
+    if (reservation == null) throw new Error("expected steer edit reservation");
+    expect(reserved.findPendingInput("reserved")).toMatchObject({
+      management: { type: "editing" },
+      movement: null,
+    });
+    expect(reserved.findPendingInput("successor")?.movement).toBeNull();
+    expect(reserved.movePendingInput("reserved", "first")).toEqual({ type: "notManageable" });
+    expect(reserved.movePendingInput("successor", "first")).toEqual({ type: "notManageable" });
+
+    const recovering = createComposerInputQueue({
+      threadId: "thread-a",
+      activeTurnId: "turn-a",
+    });
+    const failed = steerClaim(recovering.submitSteer(composerQueueMessage("failed")));
+    recovering.submitSteer(composerQueueMessage("a"));
+    recovering.submitSteer(composerQueueMessage("b"));
+    const key = keyFor(recovering, "steer", "a");
+    const recovery = recovering.settleSteer({ type: "definitelyNotAccepted", claim: failed });
+    expect(recovery.result).toMatchObject({
+      type: "recoveryProduced",
+      reason: "steerDefinitelyNotAccepted",
+    });
+    const revision = recovering.detailRevision();
+    expect(recovering.readPendingInputMovement({ key, revision })).toEqual({
+      type: "notManageable",
+      revision,
     });
   });
 

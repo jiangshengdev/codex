@@ -133,6 +133,15 @@ type ComposerPendingInputManagementFailure =
   | Readonly<{ type: "notManageable"; revision: number }>
   | Readonly<{ type: "conflict"; reason: "editInProgress"; revision: number }>;
 
+export type ComposerPendingInputMovementResult =
+  | Readonly<{
+      type: "movement";
+      revision: number;
+      lane: ComposerPendingInputLane;
+      movement: ComposerPendingInputMovement;
+    }>
+  | ComposerPendingInputManagementFailure;
+
 export type ComposerPendingInputBeginEditResult =
   | Readonly<{
       type: "begun";

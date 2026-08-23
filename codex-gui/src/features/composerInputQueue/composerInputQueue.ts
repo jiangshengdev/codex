@@ -20,6 +20,7 @@ import type {
   ComposerPendingInputManagementRequest,
   ComposerPendingInputMoveRequest,
   ComposerPendingInputMoveResult,
+  ComposerPendingInputMovementResult,
   ComposerPendingInputPageRequest,
   ComposerPendingInputPageResult,
   CreateComposerInputQueueInput,
@@ -81,6 +82,7 @@ export type {
   ComposerPendingInputMoveRequest,
   ComposerPendingInputMoveResult,
   ComposerPendingInputMovement,
+  ComposerPendingInputMovementResult,
   ComposerPendingInputPageRequest,
   ComposerPendingInputPageResult,
   CreateComposerInputQueueInput,
@@ -129,6 +131,9 @@ export type ComposerInputQueue = Readonly<{
   readPendingInputDetail(
     request: ComposerPendingInputDetailRequest,
   ): ComposerPendingInputDetailResult;
+  readPendingInputMovement(
+    request: ComposerPendingInputManagementRequest,
+  ): ComposerPendingInputMovementResult;
   beginPendingInputEdit(
     request: ComposerPendingInputManagementRequest,
     restore: ComposerPendingInputEditRestore,
@@ -363,6 +368,46 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   };
 
   public currentTurnId = (): TurnIdentity | null => this.activeTurnId;
+
+  public readPendingInputMovement = (
+    request: ComposerPendingInputManagementRequest,
+  ): ComposerPendingInputMovementResult => {
+    const resolution = this.resolvePendingInputManagement(request);
+    if (resolution.type === "stale" || resolution.type === "conflict") {
+      return resolution;
+    }
+    if (resolution.type === "ordinary") {
+      const slot = this.ordinary[resolution.index];
+      if (slot?.type !== "recoverable") {
+        return { type: "notManageable", revision: this.currentDetailRevision };
+      }
+      const count = this.ordinary.length;
+      return {
+        type: "movement",
+        revision: this.currentDetailRevision,
+        lane: "ordinary",
+        movement: {
+          position: resolution.index + 1,
+          count,
+          canMoveEarlier: resolution.index > 0,
+          canMoveLater: resolution.index + 1 < count,
+        },
+      };
+    }
+    if (resolution.type === "notManageable") {
+      return resolution;
+    }
+    const pendingInput = this.steerState.findPendingInput(resolution.messageId);
+    if (pendingInput?.management.type !== "manageable" || pendingInput.movement == null) {
+      return { type: "notManageable", revision: this.currentDetailRevision };
+    }
+    return {
+      type: "movement",
+      revision: this.currentDetailRevision,
+      lane: "steer",
+      movement: pendingInput.movement,
+    };
+  };
 
   public beginPendingInputEdit = (
     request: ComposerPendingInputManagementRequest,
