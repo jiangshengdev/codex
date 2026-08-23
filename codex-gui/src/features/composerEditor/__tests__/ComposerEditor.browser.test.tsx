@@ -137,7 +137,7 @@ test("keeps controller, draft, history, composition, and typeahead state indepen
   await screen.user.keyboard("{Enter}");
   expect(firstSubmit).not.toHaveBeenCalled();
   expect(secondSubmit).toHaveBeenCalledOnce();
-  expect(secondSubmit.mock.calls.at(0)?.at(0).textContent).toBe("second");
+  expect(secondSubmit.mock.calls[0]).toEqual([secondController.capture(), "ordinary"]);
   firstEditor.element().dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
 });
 
