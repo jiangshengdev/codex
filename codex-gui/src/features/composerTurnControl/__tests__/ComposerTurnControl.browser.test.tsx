@@ -68,6 +68,7 @@ const queueSnapshot = (
   hasUnknownSteer: false,
   canStop: false,
   interrupt: null,
+  pendingInputManagementOutcome: null,
   ...overrides,
 });
 
@@ -83,9 +84,11 @@ const pendingInputItem = (
   lane: ComposerPendingInputLane,
   preview: ComposerPendingInputPageItem["preview"],
   detailText?: string,
+  management: ComposerPendingInputPageItem["management"] = { type: "manageable" },
 ): PendingInputHarnessItem => ({
   key: key as ComposerPendingInputDisplayKey,
   lane,
+  management,
   preview,
   ...(detailText == null ? {} : { detailText }),
 });
@@ -200,6 +203,20 @@ const createQueueControllerHarness = (
           };
     },
   );
+  const beginPendingInputEdit = vi
+    .fn<ComposerInputQueueCoordinator["beginPendingInputEdit"]>()
+    .mockImplementation(() => ({
+      type: "notManageable",
+      scope: "liveOwner",
+      revision: snapshot.detailRevision,
+    }));
+  const deletePendingInput = vi
+    .fn<ComposerInputQueueCoordinator["deletePendingInput"]>()
+    .mockImplementation(() => ({
+      type: "notManageable",
+      scope: "liveOwner",
+      revision: snapshot.detailRevision,
+    }));
   const controller = {
     get ownerThreadId() {
       return ownerThreadId;
@@ -219,6 +236,8 @@ const createQueueControllerHarness = (
     }),
     readPendingInputPage,
     readPendingInputDetail,
+    beginPendingInputEdit,
+    deletePendingInput,
     getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -1046,6 +1065,7 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
           "steer",
           { type: "text", text: longPreview, truncated: true },
           longDetail,
+          { type: "readOnly", reason: "deliveryInProgress" },
         )
       : index === 1
         ? pendingInputItem("steer-structured", "steer", {
@@ -1138,6 +1158,9 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   await expect.element(dialog).not.toHaveTextContent("steer-long");
   await expect.element(dialog).not.toHaveTextContent("ordinary-a");
   await expect.element(dialog).toHaveTextContent(/2 images.*1 audio item.*1 skill.*1 mention/);
+  await expect
+    .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
+    .toBeVisible();
   const dialogText = dialog.element().textContent;
   expect(dialogText.indexOf(longPreview)).toBeLessThan(dialogText.indexOf("Steer 2"));
   expect(dialogText.indexOf("Ordinary A")).toBeLessThan(dialogText.indexOf("Ordinary B"));
@@ -1217,6 +1240,334 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
   await screen.user.keyboard("{Escape}");
   await expect.element(dialog).not.toBeInTheDocument();
   await expect.element(currentTrigger).toHaveFocus();
+});
+
+test("edits and deletes an ordinary pending message in one Drawer without changing the main draft", async () => {
+  const commandHandle = createGuiHostCommands();
+  const event = eventTurnStarted;
+  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: event.event.notification.turn.id,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
+  });
+  const beginEdit = vi.spyOn(controller, "beginPendingInputEdit");
+  const screen = await renderAttached(commandHandle, false, "en", controller);
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
+  const composer = getComposer(screen);
+
+  await composer.fill("Original queued message");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await composer.fill("Keep this main draft");
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  expect(screen.getByRole("dialog").all().length).toBe(1);
+
+  await dialog.getByRole("button", { name: "Edit", exact: true }).click();
+  const pendingEditor = screen.getByRole("combobox", {
+    name: "Edit pending message",
+    exact: true,
+  });
+  await expect.element(pendingEditor).toHaveTextContent("Original queued message");
+  const firstBeginResult = beginEdit.mock.results.at(0)?.value;
+  if (firstBeginResult?.type !== "begun") throw new Error("first edit must begin");
+  const firstCancel = vi.spyOn(firstBeginResult.reservation, "cancel");
+  await pendingEditor.fill("Discard this edit");
+  await screen.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(firstCancel).toHaveBeenCalledOnce();
+  const cancelledListDialog = screen.getByRole("dialog", {
+    name: "Pending details",
+    exact: true,
+  });
+  await expect
+    .element(cancelledListDialog.getByText("Original queued message", { exact: true }))
+    .toBeVisible();
+
+  await cancelledListDialog.getByRole("button", { name: "Edit", exact: true }).click();
+  const escapeEditor = screen.getByRole("combobox", {
+    name: "Edit pending message",
+    exact: true,
+  });
+  const secondBeginResult = beginEdit.mock.results.at(1)?.value;
+  if (secondBeginResult?.type !== "begun") throw new Error("second edit must begin");
+  const secondCancel = vi.spyOn(secondBeginResult.reservation, "cancel");
+  await escapeEditor.fill("Discard this edit with Escape");
+  await screen.user.keyboard("{Escape}");
+  expect(secondCancel).toHaveBeenCalledOnce();
+  await expect
+    .element(screen.getByRole("dialog", { name: "Edit pending message", exact: true }))
+    .not.toBeInTheDocument();
+  const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
+  await expect.element(trigger).toHaveFocus();
+  await trigger.click();
+  const reopenedListDialog = screen.getByRole("dialog", {
+    name: "Pending details",
+    exact: true,
+  });
+  await expect
+    .element(reopenedListDialog.getByText("Original queued message", { exact: true }))
+    .toBeVisible();
+
+  await reopenedListDialog.getByRole("button", { name: "Edit", exact: true }).click();
+  const restoredEditor = screen.getByRole("combobox", {
+    name: "Edit pending message",
+    exact: true,
+  });
+  await expect.element(restoredEditor).toHaveTextContent("Original queued message");
+  await restoredEditor.fill("Edited queued message");
+  await restoredEditor.click();
+  await screen.user.keyboard("{Enter}");
+
+  const listDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect
+    .element(listDialog.getByText("Edited queued message", { exact: true }))
+    .toBeVisible();
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("Keep this main draft");
+  expect(listDialog.getByRole("alert").query()).toBeNull();
+
+  await listDialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect
+    .element(listDialog.getByText("Delete this pending message?", { exact: true }))
+    .toBeVisible();
+  expect(screen.getByRole("dialog").all().length).toBe(1);
+  await listDialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect.element(listDialog.getByText("No pending messages", { exact: true })).toBeVisible();
+  await expect.element(listDialog.getByRole("heading", { name: "Pending details" })).toHaveFocus();
+  expect(listDialog.getByRole("alert").query()).toBeNull();
+});
+
+test("returns focus to the Composer when cancelling an edit synchronously drains the last pending message", async () => {
+  const commandHandle = createGuiHostCommands();
+  const event = eventTurnStarted;
+  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: event.event.notification.turn.id,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
+  });
+  const beginEdit = vi.spyOn(controller, "beginPendingInputEdit");
+  const screen = await renderAttached(commandHandle, false, "en", controller);
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
+  const composer = getComposer(screen);
+
+  await composer.fill("Drain after cancelling edit");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect
+    .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
+    .toBeVisible();
+  const begun = beginEdit.mock.results.at(0)?.value;
+  if (begun?.type !== "begun") throw new Error("draining edit must begin");
+  const cancel = vi.spyOn(begun.reservation, "cancel");
+
+  controller.observeAcceptedEvent({ notification: eventTurnCompleted, replay: "live" });
+  await expect.poll(() => controller.getSnapshot().ordinaryQueuedCount).toBe(1);
+
+  await screen.getByRole("button", { name: "Close", exact: true }).click();
+
+  expect(cancel).toHaveBeenCalledOnce();
+  await expect.poll(() => controller.getSnapshot().ordinaryQueuedCount).toBe(0);
+  await expect
+    .element(screen.getByRole("dialog", { name: "Edit pending message", exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(composer).toHaveFocus();
+});
+
+test("keeps live-owner management failures in the Drawer as an alert", async () => {
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 7, canStop: true }),
+    {
+      ordinary: [
+        pendingInputItem("ordinary-race", "ordinary", {
+          type: "text",
+          text: "Racing queued message",
+          truncated: false,
+        }),
+      ],
+      steer: [],
+    },
+  );
+  const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
+  screen.store.dispatch(
+    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
+  );
+
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect.element(dialog.getByText("Pending message changed", { exact: true })).toBeVisible();
+  await expect
+    .element(
+      dialog.getByText(
+        "This message has entered the sending process and can no longer be managed.",
+        { exact: true },
+      ),
+    )
+    .toBeVisible();
+  await expect.element(dialog).toBeVisible();
+  expect(harness.controller.getSnapshot().ordinaryQueuedCount).toBe(1);
+});
+
+test("keeps a last unsent steer target invalidation in the Drawer without settling its reservation", async () => {
+  const commandHandle = createGuiHostCommands();
+  const steerRequest = deferred<Awaited<ReturnType<GuiHostCommands["steerTurn"]>>>();
+  vi.mocked(commandHandle.steerTurn).mockReturnValue(steerRequest.promise);
+  const event = eventTurnStarted;
+  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: event.event.notification.turn.id,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
+  });
+  const beginEdit = vi.spyOn(controller, "beginPendingInputEdit");
+  const screen = await renderAttached(commandHandle, false, "en", controller);
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
+  const composer = getComposer(screen);
+
+  await composer.fill("Already issued steer");
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await composer.fill("Still unsent steer");
+  await screen.getByRole("button", { name: "Guide", exact: true }).click();
+  await screen.getByRole("button", { name: "Pending: Guide 2", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+
+  await expect
+    .element(dialog.getByText("This message has entered the sending process.", { exact: true }))
+    .toBeVisible();
+  expect(dialog.getByRole("button", { name: "Edit", exact: true }).all().length).toBe(1);
+  expect(dialog.getByRole("button", { name: "Delete", exact: true }).all().length).toBe(1);
+
+  await dialog.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect
+    .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
+    .toHaveTextContent("Still unsent steer");
+  const begun = beginEdit.mock.results.at(0)?.value;
+  if (begun?.type !== "begun") throw new Error("unsent steer edit must begin");
+  const save = vi.spyOn(begun.reservation, "save");
+  const cancel = vi.spyOn(begun.reservation, "cancel");
+
+  controller.observeAcceptedEvent({ notification: eventTurnCompleted, replay: "live" });
+
+  await expect.poll(() => controller.getSnapshot().guidingCount).toBe(0);
+  const heldDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect
+    .element(heldDialog.getByText("Pending message changed", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(
+      heldDialog.getByText("The target turn closed before the edit was saved.", { exact: true }),
+    )
+    .toBeVisible();
+  expect(save).not.toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
+  await expect.element(heldDialog.getByRole("heading", { name: "Pending details" })).toHaveFocus();
+  await heldDialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect.element(heldDialog).not.toBeInTheDocument();
+  await expect.element(composer).toHaveFocus();
+  expect(save).not.toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
+});
+
+test("tears down an active edit without settling the old reservation when its owner is disposed", async () => {
+  const commandHandle = createGuiHostCommands();
+  const skillCatalog = createSkillCatalogHarness();
+  const event = eventTurnStarted;
+  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: event.event.notification.turn.id,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
+  });
+  const beginEdit = vi.spyOn(controller, "beginPendingInputEdit");
+  const screen = await renderAttached(
+    commandHandle,
+    false,
+    "en",
+    controller,
+    skillCatalog.controller,
+  );
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
+  const composer = getComposer(screen);
+
+  await composer.fill("Owner-bound queued message");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect
+    .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
+    .toBeVisible();
+  const begun = beginEdit.mock.results.at(0)?.value;
+  if (begun?.type !== "begun") throw new Error("owner-bound edit must begin");
+  const save = vi.spyOn(begun.reservation, "save");
+  const cancel = vi.spyOn(begun.reservation, "cancel");
+
+  controller.dispose("ownerReplaced");
+  await screen.rerender(
+    <>
+      <Toast.Provider placement="top" />
+      <ComposerTurnControl
+        authorizationToken={null}
+        commands={commandHandle}
+        composerInputQueueController={null}
+        guardCompositionEndEnter={false}
+        guiHostStatus={initializedStatus}
+        routeTarget={{ type: "currentTask", threadId }}
+        skillCatalogController={skillCatalog.controller}
+      />
+    </>,
+  );
+
+  await expect
+    .element(screen.getByRole("dialog", { name: "Edit pending message", exact: true }))
+    .not.toBeInTheDocument();
+  expect(save).not.toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
+  await expect.element(getComposer(screen)).toHaveFocus();
+});
+
+test("restores delete focus only to a neighbor in the same lane", async () => {
+  const commandHandle = createGuiHostCommands();
+  const event = eventTurnStarted;
+  if (event.event.type !== "turnStarted") throw new Error("fixture must be turnStarted");
+  const controller = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: event.event.notification.turn.id,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
+  });
+  const screen = await renderAttached(commandHandle, false, "en", controller);
+  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
+  const composer = getComposer(screen);
+
+  await composer.fill("First ordinary neighbor");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await composer.fill("Second ordinary neighbor");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  const firstItem = dialog.getByRole("group", { name: "First ordinary neighbor", exact: true });
+  await firstItem.getByRole("button", { name: "Delete", exact: true }).click();
+  await firstItem.getByRole("button", { name: "Delete", exact: true }).click();
+
+  const secondItem = dialog.getByRole("group", { name: "Second ordinary neighbor", exact: true });
+  await expect.element(secondItem).toHaveFocus();
+  await expect
+    .element(dialog.getByText("First ordinary neighbor", { exact: true }))
+    .not.toBeInTheDocument();
 });
 
 test("keeps the Drawer open when a pending-input detail is missing", async () => {
