@@ -31,9 +31,7 @@ function item(id: string, lane: ComposerPendingInputLane): ComposerPendingInputP
 }
 
 function items(prefix: string, lane: ComposerPendingInputLane, count: number) {
-  return Array.from({ length: count }, (_, index) =>
-    item(`${prefix}-${String(index + 1)}`, lane),
-  );
+  return Array.from({ length: count }, (_, index) => item(`${prefix}-${String(index + 1)}`, lane));
 }
 
 function itemIds(entries: readonly ComposerPendingInputPageItem[]): string[] {

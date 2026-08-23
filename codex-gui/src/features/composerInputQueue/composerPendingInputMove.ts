@@ -20,11 +20,7 @@ export function composerPendingInputMoveTargetIndex(
   }
 }
 
-export function moveArrayElement(
-  items: unknown[],
-  sourceIndex: number,
-  targetIndex: number,
-): void {
+export function moveArrayElement(items: unknown[], sourceIndex: number, targetIndex: number): void {
   if (
     sourceIndex < 0 ||
     sourceIndex >= items.length ||
