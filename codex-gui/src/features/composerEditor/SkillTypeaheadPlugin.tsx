@@ -31,9 +31,12 @@ import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwne
 import { $createSkillNode } from "./SkillNode";
 import { querySkills, type SkillQueryResult } from "./skillQuery";
 
+export type SkillTypeaheadPlacement = "above" | "below";
+
 export type SkillTypeaheadPluginProps = Readonly<{
   isComposingRef: RefObject<boolean>;
   onRetry: (() => void) | undefined;
+  placement: SkillTypeaheadPlacement;
   portalParent: HTMLElement;
   skillCatalog: SkillCatalogState;
 }>;
@@ -43,10 +46,12 @@ const SKILL_TRIGGER = /(^|\s|\()(\$([^\s$]{0,75}))$/u;
 export function SkillTypeaheadPlugin({
   isComposingRef,
   onRetry,
+  placement,
   portalParent,
   skillCatalog,
 }: SkillTypeaheadPluginProps) {
   const [editor] = useLexicalComposerContext();
+  const menuId = `composer-skill-menu-${useId()}`;
   const [query, setQuery] = useState<string | null>(null);
   const options = useMemo(
     () =>
@@ -147,17 +152,21 @@ export function SkillTypeaheadPlugin({
       anchorElementRef.current == null || query == null ? null : (
         <SkillMenu
           anchorElement={anchorElementRef.current}
+          editor={editor}
+          menuId={menuId}
           onRetry={onRetry}
+          placement={placement}
           {...itemProps}
           skillCatalog={skillCatalog}
         />
       ),
-    [onRetry, query, skillCatalog],
+    [editor, menuId, onRetry, placement, query, skillCatalog],
   );
+  const anchorClassName = skillMenuAnchorClassName(placement);
 
   return (
     <LexicalTypeaheadMenuPlugin<SkillMenuOption>
-      anchorClassName="composer-skill-menu-anchor pointer-events-none relative! top-auto! left-auto! h-fit! w-full! max-h-[var(--composer-skill-menu-max-height)]"
+      anchorClassName={anchorClassName}
       ignoreEntityBoundary={false}
       menuRenderFn={menuRenderFn}
       onClose={onClose}
@@ -172,6 +181,14 @@ export function SkillTypeaheadPlugin({
   );
 }
 
+function skillMenuAnchorClassName(placement: SkillTypeaheadPlacement): string {
+  const className =
+    "composer-skill-menu-anchor pointer-events-none relative! top-auto! left-auto! h-fit! w-full!";
+  return placement === "below"
+    ? `${className} mt-2 max-h-[calc(var(--composer-skill-menu-max-height)-0.5rem)]`
+    : `${className} max-h-[var(--composer-skill-menu-max-height)]`;
+}
+
 class SkillMenuOption extends MenuOption {
   readonly result: SkillQueryResult;
 
@@ -183,16 +200,22 @@ class SkillMenuOption extends MenuOption {
 
 function SkillMenu({
   anchorElement,
+  editor,
+  menuId,
   onRetry,
   options,
+  placement,
   selectedIndex,
   selectOptionAndCleanUp,
   setHighlightedIndex,
   skillCatalog,
 }: Readonly<{
   anchorElement: HTMLElement;
+  editor: LexicalEditor;
+  menuId: string;
   onRetry: (() => void) | undefined;
   options: SkillMenuOption[];
+  placement: SkillTypeaheadPlacement;
   selectedIndex: number | null;
   selectOptionAndCleanUp: (option: SkillMenuOption) => void;
   setHighlightedIndex: (index: number) => void;
@@ -211,13 +234,55 @@ function SkillMenu({
       : (options.find((option) => option.key === hoveredOptionKey) ?? null);
   const previewOption = hoveredOption ?? activeOption;
 
+  useEffect(() => {
+    const rootElement = editor.getRootElement();
+    if (rootElement == null) {
+      return;
+    }
+    const activeOptionId = selectedIndex == null ? null : skillMenuOptionId(menuId, selectedIndex);
+    const synchronizeIds = (): void => {
+      if (anchorElement.id !== menuId) {
+        anchorElement.id = menuId;
+      }
+      if (rootElement.getAttribute("aria-controls") !== menuId) {
+        rootElement.setAttribute("aria-controls", menuId);
+      }
+      if (
+        activeOptionId != null &&
+        rootElement.getAttribute("aria-activedescendant") !== activeOptionId
+      ) {
+        rootElement.setAttribute("aria-activedescendant", activeOptionId);
+      }
+    };
+    synchronizeIds();
+    const observer = new MutationObserver(synchronizeIds);
+    observer.observe(anchorElement, { attributeFilter: ["id"], attributes: true });
+    observer.observe(rootElement, {
+      attributeFilter: ["aria-activedescendant", "aria-controls"],
+      attributes: true,
+    });
+    return () => {
+      observer.disconnect();
+      if (rootElement.getAttribute("aria-controls") === menuId) {
+        rootElement.removeAttribute("aria-controls");
+      }
+      if (
+        activeOptionId != null &&
+        rootElement.getAttribute("aria-activedescendant") === activeOptionId
+      ) {
+        rootElement.removeAttribute("aria-activedescendant");
+      }
+    };
+  }, [anchorElement, editor, menuId, selectedIndex]);
+
   useLayoutEffect(() => {
     activeOption?.ref?.current?.scrollIntoView({ block: "nearest" });
   }, [activeOption]);
 
   return createPortal(
     <Surface
-      className="pointer-events-auto flex w-full max-h-[var(--composer-skill-menu-max-height)] flex-col overflow-hidden rounded-xl border border-separator shadow-lg"
+      className={`pointer-events-auto flex w-full ${skillMenuSurfaceMaxHeightClassName(placement)} flex-col overflow-hidden rounded-xl border border-separator shadow-lg`}
+      data-skill-menu-surface
       onPointerLeave={() => {
         setHoveredOptionKey(null);
       }}
@@ -260,7 +325,7 @@ function SkillMenu({
                 }`}
                 data-active={isSelected || undefined}
                 data-hovered={isHovered || undefined}
-                id={`typeahead-item-${String(index)}`}
+                id={skillMenuOptionId(menuId, index)}
                 key={option.key}
                 onPointerDown={(event) => {
                   if (event.button !== 0) {
@@ -327,6 +392,16 @@ function SkillMenu({
     </Surface>,
     anchorElement,
   );
+}
+
+function skillMenuOptionId(menuId: string, index: number): string {
+  return `${menuId}-option-${String(index)}`;
+}
+
+function skillMenuSurfaceMaxHeightClassName(placement: SkillTypeaheadPlacement): string {
+  return placement === "below"
+    ? "max-h-[calc(var(--composer-skill-menu-max-height)-0.5rem)]"
+    : "max-h-[var(--composer-skill-menu-max-height)]";
 }
 
 function skillOptionDetails(option: SkillMenuOption): string {
