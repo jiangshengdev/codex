@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Codex GUI',
-  tagline: 'Codex GUI 极简安装与启动指南',
+  tagline: 'Codex GUI 使用与开发文档',
 
   future: {
     v4: true,
@@ -63,8 +63,12 @@ const config: Config = {
           title: '指南',
           items: [
             {
-              label: '安装与启动',
+              label: '首页',
               to: '/',
+            },
+            {
+              label: '安装与启动',
+              to: '/getting-started',
             },
             {
               label: '从源码启动',
