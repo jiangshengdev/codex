@@ -12,6 +12,7 @@ import type {
   ComposerPendingInputDetailResult,
   ComposerPendingInputDisplayKey,
   ComposerPendingInputEditCancelResult,
+  ComposerPendingInputEditInvalidation,
   ComposerPendingInputEditReservation,
   ComposerPendingInputEditRestore,
   ComposerPendingInputEditSaveResult,
@@ -40,6 +41,9 @@ import {
 } from "./composerStartQueueState";
 import {
   createComposerSteerQueue,
+  type SteerEditAcquisition,
+  type SteerEditInvalidation,
+  type SteerEditReservation,
   type SteerRecoveryTransfer,
   type SteerClaim,
 } from "./composerSteerQueueState";
@@ -60,6 +64,7 @@ export type {
   ComposerPendingInputDetailResult,
   ComposerPendingInputDisplayKey,
   ComposerPendingInputEditCancelResult,
+  ComposerPendingInputEditInvalidation,
   ComposerPendingInputEditReservation,
   ComposerPendingInputEditRestore,
   ComposerPendingInputEditSaveResult,
@@ -104,6 +109,7 @@ export type ComposerInputQueueEffect =
 export type ComposerInputQueueTransition = Readonly<{
   result: ComposerInputQueueResult;
   effects: readonly ComposerInputQueueEffect[];
+  editInvalidation?: ComposerPendingInputEditInvalidation;
 }>;
 
 export type ComposerInputQueue = Readonly<{
@@ -153,8 +159,13 @@ const noEffects: readonly ComposerInputQueueEffect[] = [];
 function transition(
   result: ComposerInputQueueResult,
   effects: readonly ComposerInputQueueEffect[] = noEffects,
+  editInvalidation?: ComposerPendingInputEditInvalidation,
 ): ComposerInputQueueTransition {
-  return { result, effects: [...effects] };
+  return {
+    result,
+    effects: [...effects],
+    ...(editInvalidation == null ? {} : { editInvalidation }),
+  };
 }
 
 function recoveryTransition(
@@ -200,6 +211,14 @@ type OrdinaryEditAcquisition = Readonly<{
 
 type OrdinarySlot = ComposerQueueMessage | OrdinaryEditAcquisition | OrdinaryEditReservation;
 
+type PendingEditAcquisition =
+  | Readonly<{ lane: "ordinary"; slot: OrdinaryEditAcquisition }>
+  | Readonly<{ lane: "steer"; slot: SteerEditAcquisition }>;
+
+type PendingEditReservation =
+  | Readonly<{ lane: "ordinary"; slot: OrdinaryEditReservation }>
+  | Readonly<{ lane: "steer"; slot: SteerEditReservation }>;
+
 class ComposerInputQueueImpl implements ComposerInputQueue {
   private readonly ordinary: OrdinarySlot[] = [];
   private readonly knownMessageIds = new Set<string>();
@@ -211,8 +230,8 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   private readonly displayKeyByMessageId = new Map<string, ComposerPendingInputDisplayKey>();
   private readonly messageIdByDisplayKey = new Map<ComposerPendingInputDisplayKey, string>();
   private currentDetailRevision = 0;
-  private activeEditAcquisition: OrdinaryEditAcquisition | null = null;
-  private activeEdit: OrdinaryEditReservation | null = null;
+  private activeEditAcquisition: PendingEditAcquisition | null = null;
+  private activeEdit: PendingEditReservation | null = null;
   private activeTurnId: TurnIdentity | null;
   private preparedInterruptedTurnId: TurnIdentity | null = null;
 
@@ -260,13 +279,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
               preview: projectComposerInputPreview(message.input),
             };
           })
-        : this.steerState.readPendingInputs(offset, limit).map((intent, index) => ({
+        : this.steerState.readPendingInputs(offset, limit).map((intent) => ({
             key: this.requireDisplayKey(intent.messageId),
             lane: request.lane,
-            management:
-              offset + index < this.steerState.overview().pendingCount
-                ? ({ type: "readOnly", reason: "deliveryInProgress" } as const)
-                : ({ type: "manageable" } as const),
+            management: intent.management,
             preview: projectComposerInputPreview(intent.input),
           }));
     const count =
@@ -329,32 +345,72 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       };
     }
     const messageId = this.messageIdByDisplayKey.get(request.key);
-    const index = this.ordinary.findIndex(
+    const ordinaryIndex = this.ordinary.findIndex(
       (slot) => slot.type === "recoverable" && slot.id === messageId,
     );
-    if (index < 0) {
+    if (ordinaryIndex >= 0) {
+      const message = this.ordinary[ordinaryIndex];
+      if (message?.type !== "recoverable") {
+        return { type: "notManageable", revision: this.currentDetailRevision };
+      }
+      return this.beginOrdinaryEdit(ordinaryIndex, message, restore);
+    }
+    if (messageId == null) {
       return { type: "notManageable", revision: this.currentDetailRevision };
     }
-    const message = this.ordinary[index];
-    if (message?.type !== "recoverable") {
+    const acquired = this.steerState.acquirePendingInputEdit(messageId);
+    if (acquired.type !== "acquired") {
       return { type: "notManageable", revision: this.currentDetailRevision };
     }
+    this.activeEditAcquisition = { lane: "steer", slot: acquired.acquisition };
+    let restoreResult: ReturnType<ComposerPendingInputEditRestore>;
+    try {
+      restoreResult = restore(acquired.acquisition.original.message.draft);
+    } catch (error) {
+      this.rollbackEditAcquisition(this.activeEditAcquisition);
+      throw error;
+    }
+    if (restoreResult.type !== "restored") {
+      this.rollbackEditAcquisition(this.activeEditAcquisition);
+      return { type: "invalidDraft", revision: this.currentDetailRevision };
+    }
+    const reservation = this.steerState.reservePendingInputEdit(acquired.acquisition);
+    if (reservation == null) {
+      throw new Error("Composer pending steer edit acquisition lost its slot");
+    }
+    this.activeEditAcquisition = null;
+    const activeEdit: PendingEditReservation = { lane: "steer", slot: reservation };
+    this.activeEdit = activeEdit;
+    this.advanceDetailRevision();
+    return {
+      type: "begun",
+      revision: this.currentDetailRevision,
+      reservation: this.createEditCapability(activeEdit),
+    };
+  };
+
+  private beginOrdinaryEdit(
+    index: number,
+    message: ComposerQueueMessage,
+    restore: ComposerPendingInputEditRestore,
+  ): ComposerPendingInputBeginEditResult {
     const acquisition: OrdinaryEditAcquisition = {
       type: "acquiring",
       original: message,
       owner: {},
     };
     this.ordinary[index] = acquisition;
-    this.activeEditAcquisition = acquisition;
+    const activeAcquisition: PendingEditAcquisition = { lane: "ordinary", slot: acquisition };
+    this.activeEditAcquisition = activeAcquisition;
     let restoreResult: ReturnType<ComposerPendingInputEditRestore>;
     try {
       restoreResult = restore(message.draft);
     } catch (error) {
-      this.rollbackEditAcquisition(acquisition);
+      this.rollbackEditAcquisition(activeAcquisition);
       throw error;
     }
     if (restoreResult.type !== "restored") {
-      this.rollbackEditAcquisition(acquisition);
+      this.rollbackEditAcquisition(activeAcquisition);
       return { type: "invalidDraft", revision: this.currentDetailRevision };
     }
     const reservation: OrdinaryEditReservation = {
@@ -364,14 +420,15 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     };
     this.ordinary[index] = reservation;
     this.activeEditAcquisition = null;
-    this.activeEdit = reservation;
+    const activeEdit: PendingEditReservation = { lane: "ordinary", slot: reservation };
+    this.activeEdit = activeEdit;
     this.advanceDetailRevision();
     return {
       type: "begun",
       revision: this.currentDetailRevision,
-      reservation: this.createEditCapability(reservation),
+      reservation: this.createEditCapability(activeEdit),
     };
-  };
+  }
 
   public deletePendingInput = (
     request: ComposerPendingInputManagementRequest,
@@ -390,20 +447,34 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     const index = this.ordinary.findIndex(
       (slot) => slot.type === "recoverable" && slot.id === messageId,
     );
-    if (index < 0) {
+    if (index >= 0) {
+      const [deleted] = this.ordinary.splice(index, 1);
+      if (deleted?.type !== "recoverable") {
+        throw new Error("Composer pending input delete lost its ordinary message");
+      }
+      this.knownMessageIds.delete(deleted.id);
+      this.forgetDisplayKey(deleted.id);
+      this.advanceDetailRevision();
+      return {
+        type: "deleted",
+        revision: this.currentDetailRevision,
+        drainIntent: { lane: "ordinary" },
+      };
+    }
+    if (messageId == null) {
       return { type: "notManageable", revision: this.currentDetailRevision };
     }
-    const [deleted] = this.ordinary.splice(index, 1);
-    if (deleted?.type !== "recoverable") {
-      throw new Error("Composer pending input delete lost its ordinary message");
+    const deleted = this.steerState.deletePendingInput(messageId);
+    if (deleted.type !== "deleted") {
+      return { type: "notManageable", revision: this.currentDetailRevision };
     }
-    this.knownMessageIds.delete(deleted.id);
-    this.forgetDisplayKey(deleted.id);
+    this.knownMessageIds.delete(deleted.messageId);
+    this.forgetDisplayKey(deleted.messageId);
     this.advanceDetailRevision();
     return {
       type: "deleted",
       revision: this.currentDetailRevision,
-      drainIntent: { lane: "ordinary" },
+      drainIntent: { lane: "steer" },
     };
   };
 
@@ -421,14 +492,23 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     this.currentDetailRevision += 1;
   }
 
-  private rollbackEditAcquisition(acquisition: OrdinaryEditAcquisition): void {
-    const index = this.ordinary.findIndex(
-      (slot) => slot.type === "acquiring" && slot.owner === acquisition.owner,
-    );
-    if (index < 0 || this.activeEditAcquisition !== acquisition) {
+  private rollbackEditAcquisition(acquisition: PendingEditAcquisition): void {
+    if (this.activeEditAcquisition !== acquisition) {
       throw new Error("Composer pending input edit acquisition lost its slot");
     }
-    this.ordinary[index] = acquisition.original;
+    if (acquisition.lane === "steer") {
+      if (this.steerState.rollbackPendingInputEdit(acquisition.slot).type !== "settled") {
+        throw new Error("Composer pending steer edit acquisition lost its slot");
+      }
+    } else {
+      const index = this.ordinary.findIndex(
+        (slot) => slot.type === "acquiring" && slot.owner === acquisition.slot.owner,
+      );
+      if (index < 0) {
+        throw new Error("Composer pending ordinary edit acquisition lost its slot");
+      }
+      this.ordinary[index] = acquisition.slot.original;
+    }
     this.activeEditAcquisition = null;
   }
 
@@ -437,7 +517,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   private createEditCapability(
-    reservation: OrdinaryEditReservation,
+    reservation: PendingEditReservation,
   ): ComposerPendingInputEditReservation {
     return {
       save: (capture) => this.saveEditReservation(reservation, capture),
@@ -446,11 +526,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   }
 
   private saveEditReservation(
-    reservation: OrdinaryEditReservation,
+    reservation: PendingEditReservation,
     capture: Parameters<ComposerPendingInputEditReservation["save"]>[0],
   ): ComposerPendingInputEditSaveResult {
-    const index = this.findOwnedReservation(reservation);
-    if (index < 0) {
+    if (this.activeEdit !== reservation) {
       return {
         type: "unavailable",
         reason: "sessionSettled",
@@ -460,49 +539,82 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
     if (!hasMeaningfulInput(capture.input)) {
       return { type: "invalidInput", reason: "emptyInput", revision: this.currentDetailRevision };
     }
-    this.ordinary[index] = {
+    const originalMessage =
+      reservation.lane === "ordinary"
+        ? reservation.slot.original
+        : reservation.slot.original.message;
+    const message: ComposerQueueMessage = {
       type: "recoverable",
-      id: reservation.original.id,
+      id: originalMessage.id,
       draft: capture.draft,
       input: copyComposerInputPayload(capture.input),
     };
+    if (reservation.lane === "ordinary") {
+      const index = this.findOwnedOrdinaryReservation(reservation.slot);
+      if (index < 0) {
+        return this.settledEditSaveResult();
+      }
+      this.ordinary[index] = message;
+    } else if (this.steerState.savePendingInputEdit(reservation.slot, message).type !== "settled") {
+      return this.settledEditSaveResult();
+    }
     this.activeEdit = null;
     this.advanceDetailRevision();
     return {
       type: "saved",
       revision: this.currentDetailRevision,
-      drainIntent: { lane: "ordinary" },
+      drainIntent: { lane: reservation.lane },
     };
   }
 
   private cancelEditReservation(
-    reservation: OrdinaryEditReservation,
+    reservation: PendingEditReservation,
   ): ComposerPendingInputEditCancelResult {
-    const index = this.findOwnedReservation(reservation);
-    if (index < 0) {
+    if (this.activeEdit !== reservation) {
       return {
         type: "unavailable",
         reason: "sessionSettled",
         revision: this.currentDetailRevision,
       };
     }
-    this.ordinary[index] = reservation.original;
+    if (reservation.lane === "ordinary") {
+      const index = this.findOwnedOrdinaryReservation(reservation.slot);
+      if (index < 0) {
+        return {
+          type: "unavailable",
+          reason: "sessionSettled",
+          revision: this.currentDetailRevision,
+        };
+      }
+      this.ordinary[index] = reservation.slot.original;
+    } else if (this.steerState.cancelPendingInputEdit(reservation.slot).type !== "settled") {
+      return {
+        type: "unavailable",
+        reason: "sessionSettled",
+        revision: this.currentDetailRevision,
+      };
+    }
     this.activeEdit = null;
     this.advanceDetailRevision();
     return {
       type: "cancelled",
       revision: this.currentDetailRevision,
-      drainIntent: { lane: "ordinary" },
+      drainIntent: { lane: reservation.lane },
     };
   }
 
-  private findOwnedReservation(reservation: OrdinaryEditReservation): number {
-    if (this.activeEdit !== reservation) {
-      return -1;
-    }
+  private findOwnedOrdinaryReservation(reservation: OrdinaryEditReservation): number {
     return this.ordinary.findIndex(
       (slot) => slot.type === "reservation" && slot.owner === reservation.owner,
     );
+  }
+
+  private settledEditSaveResult(): ComposerPendingInputEditSaveResult {
+    return {
+      type: "unavailable",
+      reason: "sessionSettled",
+      revision: this.currentDetailRevision,
+    };
   }
 
   private ownDisplayKey(messageId: string): ComposerPendingInputDisplayKey {
@@ -612,8 +724,33 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
   private drainTransition(
     operation: Extract<ComposerInputQueueResult, { type: "applied" }>["operation"],
     effect: ComposerInputQueueEffect | null,
+    editInvalidation?: ComposerPendingInputEditInvalidation,
   ): ComposerInputQueueTransition {
-    return transition({ type: "applied", operation }, effect == null ? noEffects : [effect]);
+    return transition(
+      { type: "applied", operation },
+      effect == null ? noEffects : [effect],
+      editInvalidation,
+    );
+  }
+
+  private consumeSteerEditInvalidation(
+    invalidations: readonly SteerEditInvalidation[] | undefined,
+  ): ComposerPendingInputEditInvalidation | undefined {
+    if (this.activeEdit?.lane !== "steer" || invalidations == null) {
+      return undefined;
+    }
+    const invalidation = invalidations.find(({ owner }) => owner === this.activeEdit?.slot.owner);
+    if (invalidation == null) {
+      return undefined;
+    }
+    const key = this.requireDisplayKey(invalidation.messageId);
+    this.activeEdit = null;
+    return {
+      key,
+      lane: "steer",
+      reason: "targetInvalidated",
+      targetReason: invalidation.reason,
+    };
   }
 
   private applyTerminal(observation: TurnCompleted): ComposerInputQueueTransition {
@@ -625,10 +762,14 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       threadId: this.threadId,
       turnId: observation.turnId,
     });
+    const editInvalidation =
+      terminal.type === "terminal"
+        ? this.consumeSteerEditInvalidation(terminal.editInvalidations)
+        : undefined;
     if (terminal.type === "terminal") {
       this.removeNormalDisplayKeys(terminal.messageIds);
     }
-    return this.drainTransition("turnCompleted", this.drainNextStart());
+    return this.drainTransition("turnCompleted", this.drainNextStart(), editInvalidation);
   }
 
   private releaseStartClaim(claim: StartClaim): void {
@@ -810,6 +951,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       this.knownMessageIds.add(messageId);
       this.ownDisplayKey(messageId);
     }
+    for (const messageId of restored.rejectedMessageIds ?? []) {
+      this.knownMessageIds.add(messageId);
+      this.forgetDisplayKey(messageId);
+    }
     if (restored.messageIds.length > 0) {
       this.advanceDetailRevision();
     }
@@ -849,6 +994,10 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         messageIds,
       );
     }
+    const editInvalidation =
+      result.type === "rejected"
+        ? this.consumeSteerEditInvalidation(result.editInvalidations)
+        : undefined;
     if (result.type === "rejected") {
       this.removeNormalDisplayKeys(result.messageIds);
     }
@@ -858,7 +1007,7 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
         : result.type === "rejected"
           ? "steerRejected"
           : "observationRecorded";
-    return this.drainTransition(operation, this.drainSteer());
+    return this.drainTransition(operation, this.drainSteer(), editInvalidation);
   };
 
   public prepareInterruptedTerminal = (
@@ -889,11 +1038,15 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       threadId: this.threadId,
       turnId,
     });
+    const editInvalidation =
+      terminal.type === "terminal"
+        ? this.consumeSteerEditInvalidation(terminal.editInvalidations)
+        : undefined;
     if (terminal.type === "terminal") {
       this.removeNormalDisplayKeys(terminal.messageIds);
     }
     if (disposition === "nonLocal") {
-      return this.drainTransition("turnCompleted", this.drainNextStart());
+      return this.drainTransition("turnCompleted", this.drainNextStart(), editInvalidation);
     }
 
     const taken = this.steerState.transition({ type: "takeRejected" });
@@ -913,14 +1066,19 @@ class ComposerInputQueueImpl implements ComposerInputQueue {
       this.advanceDetailRevision();
     }
     if (rejected == null && messages.length === 0) {
-      return transition({ type: "applied", operation: "turnCompleted" });
+      return transition(
+        { type: "applied", operation: "turnCompleted" },
+        noEffects,
+        editInvalidation,
+      );
     }
     const batch: UserStoppedRecoveryBatch = { reason: "userStopped", rejected, messages };
     this.userStoppedRecoveryOwners.add(batch);
-    return recoveryTransition(batch, [
+    const recovery = recoveryTransition(batch, [
       ...(rejected?.entries.map(({ intent }) => intent.message.id) ?? []),
       ...messages.map(({ id }) => id),
     ]);
+    return editInvalidation == null ? recovery : { ...recovery, editInvalidation };
   };
 
   public restoreUserStoppedRecovery = (

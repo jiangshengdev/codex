@@ -92,6 +92,13 @@ export type ComposerPendingInputDrainIntent = Readonly<{
   lane: ComposerPendingInputLane;
 }>;
 
+export type ComposerPendingInputEditInvalidation = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  lane: "steer";
+  reason: "targetInvalidated";
+  targetReason: "activeTurnNotSteerable" | "terminal";
+}>;
+
 export type ComposerPendingInputEditReservation = Readonly<{
   save(capture: ComposerDraftCapture): ComposerPendingInputEditSaveResult;
   cancel(): ComposerPendingInputEditCancelResult;

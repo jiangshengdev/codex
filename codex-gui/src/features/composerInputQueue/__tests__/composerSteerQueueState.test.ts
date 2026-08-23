@@ -7,6 +7,7 @@ import {
   type RejectedSteerTransfer,
   type SteerClaim,
   type SteerIntent,
+  type SteerQueueSlot,
   type SteerRecoveryTransfer,
 } from "../composerSteerQueueState";
 import { composerSteerInput } from "./composerInputQueueTestFixtures";
@@ -37,6 +38,10 @@ function accept(queue: ComposerSteerQueue, claim: SteerClaim): void {
       turnId: claim.intent.expectedTurnId,
     }),
   ).toEqual({ type: "accepted", messageId: claim.intent.message.id });
+}
+
+function slotIntent(slot: SteerQueueSlot): SteerIntent {
+  return slot.type === "intent" ? slot : slot.original;
 }
 
 function assertSteerInputIsDeepReadonly(input: SteerIntent["message"]["input"]): void {
@@ -70,6 +75,296 @@ function assertTransferCapabilitiesCannotBeForged(): void {
 void assertTransferCapabilitiesCannotBeForged;
 
 describe("composer steer queue state", () => {
+  it.each([
+    ["head", 0],
+    ["middle", 1],
+    ["tail", 2],
+  ] as const)("keeps a %s edit reservation in its exact FIFO slot", (_position, index) => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "a");
+    enqueue(queue, "b");
+    enqueue(queue, "c");
+    const messageId = ["a", "b", "c"][index];
+    if (messageId == null) throw new Error("expected steer edit target");
+
+    const acquired = queue.acquirePendingInputEdit(messageId);
+    if (acquired.type !== "acquired") throw new Error("expected steer acquisition");
+    const reservation = queue.reservePendingInputEdit(acquired.acquisition);
+    if (reservation == null) throw new Error("expected steer reservation");
+
+    expect(queue.pendingInputCount()).toBe(3);
+    expect(queue.overview().queuedCount).toBe(3);
+    expect(queue.readPendingInputs(0, 3).map(({ messageId: id }) => id)).toEqual(["a", "b", "c"]);
+    expect(queue.readPendingInputs(0, 3).map(({ management }) => management)).toEqual(
+      [{ type: "manageable" }, { type: "manageable" }, { type: "manageable" }].with(index, {
+        type: "editing",
+      }),
+    );
+    for (let earlier = 0; earlier < index; earlier += 1) {
+      const claim = issue(queue);
+      accept(queue, claim);
+    }
+    expect(queue.transition({ type: "issueNext" })).toEqual({
+      type: "blocked",
+      phase: "editReservation",
+    });
+    expect(queue.cancelPendingInputEdit(reservation)).toEqual({ type: "settled" });
+    expect(issue(queue).intent.message.id).toBe(messageId);
+  });
+
+  it("saves only steer content while preserving every delivery identity", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "edited");
+    const original = queue.state().steerQueue[0];
+    if (original?.type !== "intent") throw new Error("expected original steer intent");
+    const acquired = queue.acquirePendingInputEdit("edited");
+    if (acquired.type !== "acquired") throw new Error("expected steer acquisition");
+    const reservation = queue.reservePendingInputEdit(acquired.acquisition);
+    if (reservation == null) throw new Error("expected steer reservation");
+    const replacement = steerInput("replacement").message;
+
+    expect(queue.savePendingInputEdit(reservation, replacement)).toEqual({ type: "settled" });
+    const saved = issue(queue).intent;
+    expect(saved).toEqual({
+      ...original,
+      message: {
+        ...original.message,
+        draft: replacement.draft,
+        input: replacement.input,
+      },
+    });
+    expect(saved.message.input).not.toBe(replacement.input);
+    expect(queue.cancelPendingInputEdit(reservation)).toEqual({ type: "unavailable" });
+    expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual({
+      type: "terminal",
+      messageIds: ["edited"],
+    });
+    expect(queue.state().rejectedSteersQueue[0]?.intent).toBe(saved);
+    expect(queue.state().rejectedSteersQueue[0]?.intent.message).toEqual(saved.message);
+  });
+
+  it("preserves saved steer order and identity when its queued target closes", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "edited");
+    enqueue(queue, "successor");
+    const original = queue.state().steerQueue[0];
+    if (original?.type !== "intent") throw new Error("expected original steer intent");
+    const acquired = queue.acquirePendingInputEdit("edited");
+    if (acquired.type !== "acquired") throw new Error("expected steer acquisition");
+    const reservation = queue.reservePendingInputEdit(acquired.acquisition);
+    if (reservation == null) throw new Error("expected steer reservation");
+    const replacement = steerInput("replacement").message;
+    expect(queue.savePendingInputEdit(reservation, replacement)).toEqual({ type: "settled" });
+
+    expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual({
+      type: "terminal",
+      messageIds: ["edited", "successor"],
+    });
+    const rejected = queue.state().rejectedSteersQueue;
+    expect(rejected.map(({ intent }) => intent.message.id)).toEqual(["edited", "successor"]);
+    expect(rejected[0]?.intent).toEqual({
+      ...original,
+      message: {
+        ...original.message,
+        draft: replacement.draft,
+        input: replacement.input,
+      },
+    });
+    expect(rejected[0]?.intent.threadId).toBe(original.threadId);
+    expect(rejected[0]?.intent.expectedTurnId).toBe(original.expectedTurnId);
+    expect(rejected[0]?.intent.clientUserMessageId).toBe(original.clientUserMessageId);
+    expect(rejected[0]?.intent.source).toBe(original.source);
+  });
+
+  it.each([
+    "issuing",
+    "acceptedAwaitingCommit",
+    "deliveryUnknown",
+    "responseTurnMismatch",
+  ] as const)("keeps a %s pending steer read-only", (phase) => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, phase);
+    const claim = issue(queue);
+    if (phase === "acceptedAwaitingCommit") {
+      accept(queue, claim);
+    } else if (phase === "deliveryUnknown") {
+      queue.transition({ type: "deliveryUnknown", claim });
+    } else if (phase === "responseTurnMismatch") {
+      queue.transition({ type: "responseAccepted", claim, turnId: "turn-other" });
+    }
+
+    expect(queue.findPendingInput(phase)?.management).toEqual({
+      type: "readOnly",
+      reason: "deliveryInProgress",
+    });
+    expect(queue.acquirePendingInputEdit(phase)).toEqual({ type: "notManageable" });
+    expect(queue.deletePendingInput(phase)).toEqual({ type: "notManageable" });
+  });
+
+  it.each(["terminal", "activeTurnNotSteerable"] as const)(
+    "invalidates a reserved target on %s and rejects the untouched original in order",
+    (closure) => {
+      const queue = createComposerSteerQueue();
+      enqueue(queue, "pending");
+      enqueue(queue, "edited");
+      enqueue(queue, "successor");
+      const pending = issue(queue);
+      const acquired = queue.acquirePendingInputEdit("edited");
+      if (acquired.type !== "acquired") throw new Error("expected steer acquisition");
+      const reservation = queue.reservePendingInputEdit(acquired.acquisition);
+      if (reservation == null) throw new Error("expected steer reservation");
+
+      const result =
+        closure === "terminal"
+          ? queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })
+          : queue.transition({ type: "activeTurnNotSteerable", claim: pending });
+      expect(result).toMatchObject({
+        type: closure === "terminal" ? "terminal" : "rejected",
+        messageIds: ["pending", "edited", "successor"],
+        editInvalidations: [
+          {
+            messageId: "edited",
+            owner: reservation.owner,
+            reason: closure === "terminal" ? "terminal" : "activeTurnNotSteerable",
+          },
+        ],
+      });
+      expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
+        "pending",
+        "edited",
+        "successor",
+      ]);
+      expect(queue.state().rejectedSteersQueue[1]?.intent).toBe(reservation.original);
+      expect(queue.savePendingInputEdit(reservation, steerInput("late").message)).toEqual({
+        type: "unavailable",
+      });
+      expect(queue.cancelPendingInputEdit(reservation)).toEqual({ type: "unavailable" });
+    },
+  );
+
+  it("restores a definitely-failed steer before a reservation without crossing it", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "failed");
+    enqueue(queue, "edited");
+    enqueue(queue, "successor");
+    const failed = issue(queue);
+    const acquired = queue.acquirePendingInputEdit("edited");
+    if (acquired.type !== "acquired") throw new Error("expected steer acquisition");
+    const reservation = queue.reservePendingInputEdit(acquired.acquisition);
+    if (reservation == null) throw new Error("expected steer reservation");
+    const recovery = queue.transition({ type: "definitelyNotAccepted", claim: failed });
+    if (recovery.type !== "recoveryRequired") throw new Error("expected steer recovery");
+
+    expect(queue.transition({ type: "restoreRecovery", transfer: recovery.transfer })).toEqual({
+      type: "recoveryRestored",
+      messageIds: ["failed"],
+    });
+    const retried = issue(queue);
+    expect(retried.intent.message.id).toBe("failed");
+    accept(queue, retried);
+    expect(queue.transition({ type: "issueNext" })).toEqual({
+      type: "blocked",
+      phase: "editReservation",
+    });
+    expect(queue.cancelPendingInputEdit(reservation)).toEqual({ type: "settled" });
+    expect(issue(queue).intent.message.id).toBe("edited");
+  });
+
+  it("rejects recovery ownership whose target closed before restore", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "failed");
+    enqueue(queue, "other", "turn-b");
+    const failed = issue(queue);
+    const recovery = queue.transition({ type: "definitelyNotAccepted", claim: failed });
+    if (recovery.type !== "recoveryRequired") throw new Error("expected steer recovery");
+    expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual({
+      type: "terminal",
+      messageIds: [],
+    });
+
+    expect(queue.transition({ type: "restoreRecovery", transfer: recovery.transfer })).toEqual({
+      type: "recoveryRestored",
+      messageIds: [],
+      rejectedMessageIds: ["failed"],
+    });
+    expect(queue.state().rejectedSteersQueue).toMatchObject([
+      { intent: { message: { id: "failed" } }, reason: "terminal" },
+    ]);
+    expect(issue(queue).intent.message.id).toBe("other");
+  });
+
+  it("restores a failed steer before its reserved original and successor in a closed target", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "failed");
+    enqueue(queue, "edited");
+    enqueue(queue, "successor");
+    const failed = issue(queue);
+    const recovery = queue.transition({ type: "definitelyNotAccepted", claim: failed });
+    if (recovery.type !== "recoveryRequired") throw new Error("expected steer recovery");
+    const acquired = queue.acquirePendingInputEdit("edited");
+    if (acquired.type !== "acquired") throw new Error("expected steer acquisition");
+    const reservation = queue.reservePendingInputEdit(acquired.acquisition);
+    if (reservation == null) throw new Error("expected steer reservation");
+    const temporary = steerInput("temporary").message;
+
+    expect(
+      queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" }),
+    ).toMatchObject({
+      type: "terminal",
+      messageIds: ["edited", "successor"],
+      editInvalidations: [{ messageId: "edited", owner: reservation.owner }],
+    });
+    expect(queue.transition({ type: "restoreRecovery", transfer: recovery.transfer })).toEqual({
+      type: "recoveryRestored",
+      messageIds: [],
+      rejectedMessageIds: ["failed"],
+    });
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
+      "failed",
+      "edited",
+      "successor",
+    ]);
+    const rejectedEdited = queue.state().rejectedSteersQueue[1]?.intent;
+    expect(rejectedEdited).toBe(reservation.original);
+    expect(rejectedEdited?.message).toEqual(steerInput("edited").message);
+    expect(rejectedEdited?.message.draft).not.toBe(temporary.draft);
+    expect(queue.savePendingInputEdit(reservation, temporary)).toEqual({ type: "unavailable" });
+    expect(queue.transition({ type: "restoreRecovery", transfer: recovery.transfer })).toEqual({
+      type: "ownershipMismatch",
+      subject: "recoveryTransfer",
+    });
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
+      "failed",
+      "edited",
+      "successor",
+    ]);
+  });
+
+  it("orders multiple closed recovery transfers by their original FIFO even when restored backward", () => {
+    const queue = createComposerSteerQueue();
+    enqueue(queue, "failed-a");
+    enqueue(queue, "failed-b");
+    enqueue(queue, "successor");
+    const failedA = issue(queue);
+    const recoveryA = queue.transition({ type: "definitelyNotAccepted", claim: failedA });
+    if (recoveryA.type !== "recoveryRequired") throw new Error("expected first recovery");
+    const failedB = issue(queue);
+    const recoveryB = queue.transition({ type: "definitelyNotAccepted", claim: failedB });
+    if (recoveryB.type !== "recoveryRequired") throw new Error("expected second recovery");
+    queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" });
+    const rejected = queue.transition({ type: "takeRejected" });
+    if (rejected.type !== "rejectedTaken") throw new Error("expected rejected transfer");
+
+    queue.transition({ type: "restoreRecovery", transfer: recoveryB.transfer });
+    queue.transition({ type: "restoreRecovery", transfer: recoveryA.transfer });
+    queue.transition({ type: "restoreRejected", transfer: rejected.transfer });
+    expect(queue.state().rejectedSteersQueue.map(({ intent }) => intent.message.id)).toEqual([
+      "failed-a",
+      "failed-b",
+      "successor",
+    ]);
+  });
+
   it("moves each entry through the steer, pending, and rejected FIFOs exactly once", () => {
     const queue = createComposerSteerQueue();
     enqueue(queue, "a");
@@ -80,7 +375,7 @@ describe("composer steer queue state", () => {
     accept(queue, first);
     const second = issue(queue);
 
-    expect(queue.state().steerQueue.map(({ message }) => message.id)).toEqual(["c"]);
+    expect(queue.state().steerQueue.map((slot) => slotIntent(slot).message.id)).toEqual(["c"]);
     expect(queue.state().pendingSteers.map(({ claim }) => claim.intent.message.id)).toEqual([
       "a",
       "b",
@@ -149,7 +444,7 @@ describe("composer steer queue state", () => {
       "b",
       "c",
     ]);
-    expect(queue.state().steerQueue.map(({ message }) => message.id)).toEqual(["other"]);
+    expect(queue.state().steerQueue.map((slot) => slotIntent(slot).message.id)).toEqual(["other"]);
   });
 
   it("keeps a terminal target closed and directly rejects every later enqueue with its reason", () => {
@@ -440,7 +735,7 @@ describe("composer steer queue state", () => {
       type: "ownershipMismatch",
       subject: "recoveryTransfer",
     });
-    expect(recovery.state().steerQueue.map(({ message }) => message.id)).toEqual([
+    expect(recovery.state().steerQueue.map((slot) => slotIntent(slot).message.id)).toEqual([
       "recovery",
       "other",
     ]);
@@ -455,6 +750,7 @@ describe("composer steer queue state", () => {
 
     queue.transition({ type: "enqueue", input });
     const queuedIntent = queue.state().steerQueue[0];
+    if (queuedIntent?.type !== "intent") throw new Error("expected queued steer intent");
     expect(queuedIntent?.message).toEqual(input.message);
     expect(queuedIntent?.message).not.toBe(input.message);
     expect(queuedIntent?.message.draft).toBe(input.message.draft);
