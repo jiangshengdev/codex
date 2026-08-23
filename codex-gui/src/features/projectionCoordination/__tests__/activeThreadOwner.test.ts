@@ -101,7 +101,7 @@ describe("activeThreadOwner skill catalog", () => {
     prepared.activeOwner.skillCatalog.subscribe(catalogListener);
 
     expect(prepared.activeOwner.dispose).toBe(prepared.dispose);
-    prepared.activeOwner.dispose();
+    prepared.activeOwner.dispose("ownerReplaced");
     prepared.dispose();
     pending.resolve(response("stale"));
     await Promise.resolve();
@@ -114,6 +114,7 @@ describe("activeThreadOwner skill catalog", () => {
     expect(prepared.activeOwner.skillCatalog.retry()).toBe(false);
     expect(catalogListener).not.toHaveBeenCalled();
     expect(queueDispose).toHaveBeenCalledOnce();
+    expect(queueDispose).toHaveBeenCalledExactlyOnceWith("ownerReplaced");
     expect(projectionDispose).toHaveBeenCalledOnce();
   });
 

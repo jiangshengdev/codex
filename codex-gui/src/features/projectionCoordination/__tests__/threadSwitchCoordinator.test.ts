@@ -105,13 +105,13 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
     dispose: skillCatalogDispose,
   };
   let activeOwnerDisposed = false;
-  const activeOwnerDispose = vi.fn<() => void>(() => {
+  const activeOwnerDispose = vi.fn<(cause?: "disposed" | "ownerReplaced") => void>((cause) => {
     if (activeOwnerDisposed) {
       return;
     }
     activeOwnerDisposed = true;
     try {
-      queueCoordinator.dispose();
+      queueCoordinator.dispose(cause);
     } finally {
       try {
         skillCatalog.dispose();
@@ -338,6 +338,7 @@ describe("ThreadSwitchCoordinator", () => {
     expect(h.queueDispose).toHaveBeenCalledOnce();
     expect(h.projectionDispose).toHaveBeenCalledOnce();
     expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
+    expect(h.activeOwnerDispose).toHaveBeenCalledExactlyOnceWith("ownerReplaced");
     expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
     expect(h.publishActiveOwner).toHaveBeenCalledOnce();
   });
@@ -537,9 +538,18 @@ describe("ThreadSwitchCoordinator", () => {
       type: "blocked",
       blockers: [{ type: "disposed" }],
     });
+    expect(
+      outcome.activeOwner.queueCoordinator.readPendingInputPage({
+        lane: "ordinary",
+        revision: 0,
+        cursor: null,
+        limit: 1,
+      }),
+    ).toEqual({ type: "unavailable", scope: "ownerGone", reason: "disposed" });
     expect(h.queueDispose).toHaveBeenCalledOnce();
     expect(h.projectionDispose).toHaveBeenCalledOnce();
     expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
+    expect(h.activeOwnerDispose).toHaveBeenCalledExactlyOnceWith("ownerReplaced");
     expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
     await expect(h.coordinator.continueThread(oldThreadId)).resolves.toMatchObject({
       type: "blocked",
@@ -589,6 +599,7 @@ describe("ThreadSwitchCoordinator", () => {
       expect(h.queueDispose).toHaveBeenCalledOnce();
       expect(h.projectionDispose).toHaveBeenCalledOnce();
       expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
+      expect(h.activeOwnerDispose).toHaveBeenCalledExactlyOnceWith("ownerReplaced");
       expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
       await expect(
         h.coordinator.continueThread("00000000-0000-0000-0000-000000000004"),

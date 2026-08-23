@@ -347,7 +347,7 @@ export class ThreadSwitchCoordinator {
     }>,
   ): ThreadSwitchCleanupFailure | null {
     const { previousOwner } = prepared;
-    previousOwner?.dispose();
+    previousOwner?.dispose("ownerReplaced");
     if (replay.disposeAfterCommit) {
       this.disposeActiveOwner();
     }
