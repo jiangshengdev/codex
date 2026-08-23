@@ -29,12 +29,22 @@ type PendingInputPages = Readonly<{
 }>;
 
 type EditSession =
-  | Readonly<{ phase: "preparing"; item: ComposerPendingInputPageItem }>
+  | Readonly<{
+      phase: "preparing";
+      item: ComposerPendingInputPageItem;
+      outcomeAtBegin: ComposerInputQueueCoordinatorSnapshot["pendingInputManagementOutcome"];
+    }>
   | Readonly<{
       phase: "active";
       item: ComposerPendingInputPageItem;
+      outcomeAtBegin: ComposerInputQueueCoordinatorSnapshot["pendingInputManagementOutcome"];
       reservation: ComposerPendingInputCoordinatorEditReservation;
     }>;
+
+type OpenedOwner = Readonly<{
+  controller: ComposerInputQueueCoordinator;
+  threadId: string;
+}>;
 
 type DrawerAlert =
   | "empty"
@@ -67,32 +77,61 @@ export function ComposerPendingInputDrawer({
   const { detailRevision, guidingCount, ordinaryQueuedCount, pendingInputManagementOutcome } =
     snapshot;
   const [isOpen, setIsOpen] = useState(false);
-  const [isInvalidClosing, setIsInvalidClosing] = useState(false);
+  const [openedOwner, setOpenedOwner] = useState<OpenedOwner | null>(null);
+  const [closingSession, setClosingSession] = useState<OpenedOwner | null>(null);
   const [pages, setPages] = useState<PendingInputPages | null>(null);
   const [editSession, setEditSession] = useState<EditSession | null>(null);
-  const editSessionRef = useRef<EditSession | null>(null);
-  editSessionRef.current = editSession;
   const [alert, setAlert] = useState<DrawerAlert | null>(null);
   const [managementCompletionHold, setManagementCompletionHold] = useState(false);
   const [editorValid, setEditorValid] = useState(true);
   const focusAfterCloseRef = useRef<"composer" | "trigger" | null>(null);
-  const previousControllerRef = useRef(controller);
+  const managementCompletionPendingRef = useRef(false);
+  const preparingEditRef = useRef<Extract<EditSession, { phase: "preparing" }> | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const pendingEditorControllerRef = useRef<ComposerEditorController | null>(null);
   const itemFocusTargetsRef = useRef(new Map<string, HTMLElement>());
   const laneHeadingRefs = useRef(new Map<ComposerPendingInputLane, HTMLHeadingElement>());
-  const handledOutcomeRef = useRef(pendingInputManagementOutcome);
   const hasPendingInputs = controller != null && (guidingCount > 0 || ordinaryQueuedCount > 0);
-  const visiblePages = pages?.controller === controller ? pages : null;
+  const ownerMatches =
+    openedOwner == null ||
+    (controller === openedOwner.controller && controller.ownerThreadId === openedOwner.threadId);
+  const matchingManagementOutcome =
+    isOpen &&
+    editSession != null &&
+    pendingInputManagementOutcome != null &&
+    pendingInputManagementOutcome !== editSession.outcomeAtBegin &&
+    pendingInputManagementOutcome.key === editSession.item.key;
+  const displayedEditSession = matchingManagementOutcome ? null : editSession;
+  const displayedAlert = matchingManagementOutcome ? "targetInvalidated" : alert;
+  const completionHold = managementCompletionHold || matchingManagementOutcome;
+  const projectedPages =
+    isOpen && ownerMatches && controller != null
+      ? pages?.controller === controller && pages.revision === detailRevision
+        ? pages
+        : readInitialPages(controller, detailRevision, guidingCount, ordinaryQueuedCount)
+      : null;
+  const pagesUnavailable = isOpen && ownerMatches && controller != null && projectedPages == null;
+  const shouldCloseExternally =
+    isOpen &&
+    (!ownerMatches ||
+      controller == null ||
+      pagesUnavailable ||
+      (!matchingManagementOutcome && !completionHold && !hasPendingInputs));
+  const sessionIsClosing = openedOwner != null && closingSession === openedOwner;
+  if (shouldCloseExternally && openedOwner != null && !sessionIsClosing) {
+    setClosingSession(openedOwner);
+  }
+  const externallyClosed = shouldCloseExternally || sessionIsClosing;
+  const displayedIsOpen = isOpen && !externallyClosed;
+  const visiblePages = displayedIsOpen ? projectedPages : null;
 
   const closeInvalidDrawer = useCallback((): void => {
     focusAfterCloseRef.current = "composer";
-    setIsInvalidClosing(true);
     onPresenceChange(true);
     setIsOpen(false);
     setPages(null);
-    editSessionRef.current = null;
+    preparingEditRef.current = null;
     setEditSession(null);
     setAlert(null);
     setManagementCompletionHold(false);
@@ -101,6 +140,15 @@ export function ComposerPendingInputDrawer({
   const focusHeading = useCallback((): void => {
     queueMicrotask(() => headingRef.current?.focus());
   }, []);
+
+  const runManagementCompletion = <Result,>(operation: () => Result): Result => {
+    managementCompletionPendingRef.current = true;
+    try {
+      return operation();
+    } finally {
+      managementCompletionPendingRef.current = false;
+    }
+  };
 
   const refreshPages = useCallback(
     (revision: number): PendingInputPages | null => {
@@ -119,7 +167,6 @@ export function ComposerPendingInputDrawer({
       onPresenceChange(false);
     } else {
       focusAfterCloseRef.current = "composer";
-      setIsInvalidClosing(true);
       onPresenceChange(true);
     }
     setIsOpen(false);
@@ -128,7 +175,7 @@ export function ComposerPendingInputDrawer({
   const handleLiveFailure = useCallback(
     (nextAlert: Exclude<DrawerAlert, "empty">, revision: number): void => {
       setManagementCompletionHold(true);
-      editSessionRef.current = null;
+      preparingEditRef.current = null;
       setEditSession(null);
       setAlert(nextAlert);
       refreshPages(revision);
@@ -160,7 +207,7 @@ export function ComposerPendingInputDrawer({
         setAlert("empty");
         return false;
       }
-      editSessionRef.current = null;
+      preparingEditRef.current = null;
       setEditSession(null);
       setAlert(null);
       if (closeAfterSettlement) {
@@ -181,92 +228,95 @@ export function ComposerPendingInputDrawer({
 
   const cancelEdit = useCallback(
     (closeAfterSettlement: boolean): boolean => {
-      if (editSession?.phase !== "active") return false;
-      return settleResult(
-        editSession.reservation.cancel(),
-        closeAfterSettlement,
-        editSession.item.key,
-      );
+      if (displayedEditSession?.phase !== "active") return false;
+      const result = closeAfterSettlement
+        ? displayedEditSession.reservation.cancel()
+        : runManagementCompletion(displayedEditSession.reservation.cancel);
+      return settleResult(result, closeAfterSettlement, displayedEditSession.item.key);
     },
-    [editSession, settleResult],
+    [displayedEditSession, settleResult],
   );
 
   const requestClose = useCallback((): void => {
-    if (editSession?.phase === "active" && !cancelEdit(true)) return;
-    if (editSession?.phase === "preparing") {
-      editSessionRef.current = null;
+    if (displayedEditSession?.phase === "active" && !cancelEdit(true)) return;
+    if (displayedEditSession?.phase === "preparing") {
+      preparingEditRef.current = null;
       setEditSession(null);
     }
-    if (editSession?.phase !== "active") closeAfterExplicitRequest();
-  }, [cancelEdit, closeAfterExplicitRequest, editSession]);
+    if (displayedEditSession?.phase !== "active") closeAfterExplicitRequest();
+  }, [cancelEdit, closeAfterExplicitRequest, displayedEditSession]);
 
   const onDrawerPresenceRef = useCallback(
     (element: HTMLSpanElement | null): void => {
       if (element != null) return;
       const focusTarget = focusAfterCloseRef.current;
+      if (focusTarget == null && triggerRef.current != null) return;
       focusAfterCloseRef.current = null;
-      if (focusTarget === "composer") {
-        queueMicrotask(() => {
+      setIsOpen(false);
+      setOpenedOwner(null);
+      setClosingSession(null);
+      setPages(null);
+      preparingEditRef.current = null;
+      setEditSession(null);
+      setAlert(null);
+      setManagementCompletionHold(false);
+      onPresenceChange(false);
+      queueMicrotask(() => {
+        const trigger = triggerRef.current;
+        if (focusTarget === "trigger" && trigger != null) {
+          trigger.focus();
+        } else {
           onFocusComposer();
-          setIsInvalidClosing(false);
-          onPresenceChange(false);
-        });
-      } else if (focusTarget === "trigger") {
-        queueMicrotask(() => {
-          const trigger = triggerRef.current;
-          if (trigger != null) {
-            trigger.focus();
-            return;
-          }
-          onFocusComposer();
-          setIsInvalidClosing(false);
-          onPresenceChange(false);
-        });
-      }
+        }
+      });
     },
     [onFocusComposer, onPresenceChange],
   );
 
   useEffect(() => {
-    const ownerChanged = previousControllerRef.current !== controller;
-    previousControllerRef.current = controller;
-    const managementOutcomeChanged = pendingInputManagementOutcome !== handledOutcomeRef.current;
-    handledOutcomeRef.current = pendingInputManagementOutcome;
-    if (!isOpen) return;
-    if (ownerChanged || controller == null) {
-      closeInvalidDrawer();
-      return;
-    }
-    if (
-      managementOutcomeChanged &&
-      pendingInputManagementOutcome != null &&
-      editSession != null &&
-      pendingInputManagementOutcome.key === editSession.item.key
-    ) {
-      handleLiveFailure("targetInvalidated", pendingInputManagementOutcome.revision);
-      return;
-    }
-    if (!hasPendingInputs && !managementCompletionHold) {
-      closeInvalidDrawer();
-      return;
-    }
-    if (editSession == null && refreshPages(detailRevision) == null) closeInvalidDrawer();
-  }, [
-    closeInvalidDrawer,
-    controller,
-    detailRevision,
-    editSession,
-    hasPendingInputs,
-    handleLiveFailure,
-    isOpen,
-    managementCompletionHold,
-    pendingInputManagementOutcome,
-    refreshPages,
-  ]);
+    if (!isOpen || openedOwner == null || controller == null) return;
+    return controller.subscribe(() => {
+      const nextSnapshot = controller.getSnapshot();
+      const nextOutcome = nextSnapshot.pendingInputManagementOutcome;
+      const nextOutcomeMatches =
+        editSession != null &&
+        nextOutcome != null &&
+        nextOutcome !== editSession.outcomeAtBegin &&
+        nextOutcome.key === editSession.item.key;
+      const nextOwnerMatches =
+        controller === openedOwner.controller && controller.ownerThreadId === openedOwner.threadId;
+      const nextHasPendingInputs =
+        nextSnapshot.guidingCount > 0 || nextSnapshot.ordinaryQueuedCount > 0;
+      if (
+        !nextOwnerMatches ||
+        (!nextOutcomeMatches &&
+          !completionHold &&
+          !managementCompletionPendingRef.current &&
+          !nextHasPendingInputs)
+      ) {
+        setClosingSession((current) => current ?? openedOwner);
+      }
+    });
+  }, [completionHold, controller, editSession, isOpen, openedOwner]);
+
+  useEffect(() => {
+    if (matchingManagementOutcome) headingRef.current?.focus();
+  }, [matchingManagementOutcome, pendingInputManagementOutcome]);
 
   const openDrawer = (): void => {
     if (!hasPendingInputs) return;
-    setPages(null);
+    const nextPages = readInitialPages(
+      controller,
+      detailRevision,
+      guidingCount,
+      ordinaryQueuedCount,
+    );
+    if (nextPages == null) return;
+    setOpenedOwner({ controller, threadId: controller.ownerThreadId });
+    setClosingSession(null);
+    setPages(nextPages);
+    preparingEditRef.current = null;
+    setEditSession(null);
     setAlert(null);
     setManagementCompletionHold(false);
     focusAfterCloseRef.current = null;
@@ -284,32 +334,45 @@ export function ComposerPendingInputDrawer({
   };
 
   const beginEdit = (item: ComposerPendingInputPageItem): void => {
-    if (editSessionRef.current != null) return;
+    if (displayedEditSession != null || preparingEditRef.current != null) return;
+    const preparingSession: Extract<EditSession, { phase: "preparing" }> = {
+      phase: "preparing",
+      item,
+      outcomeAtBegin: pendingInputManagementOutcome,
+    };
+    preparingEditRef.current = preparingSession;
     setAlert(null);
     setEditorValid(true);
-    setEditSession({ phase: "preparing", item });
+    setEditSession(preparingSession);
   };
 
   const onEditorControllerChange = (editor: ComposerEditorController | null): void => {
     pendingEditorControllerRef.current = editor;
-    const currentEditSession = editSessionRef.current;
-    if (editor == null || currentEditSession?.phase !== "preparing" || controller == null) return;
+    if (editor == null) {
+      preparingEditRef.current = null;
+      return;
+    }
+    const currentEditSession = preparingEditRef.current;
+    if (currentEditSession == null || controller == null) return;
     const result = controller.beginPendingInputEdit(
-      { key: currentEditSession.item.key, revision: pages?.revision ?? detailRevision },
+      { key: currentEditSession.item.key, revision: visiblePages?.revision ?? detailRevision },
       editor.restore,
     );
     if (result.type === "begun") {
       const activeSession: EditSession = {
         phase: "active",
         item: currentEditSession.item,
+        outcomeAtBegin: currentEditSession.outcomeAtBegin,
         reservation: result.reservation,
       };
-      editSessionRef.current = activeSession;
+      preparingEditRef.current = null;
       setEditSession(activeSession);
       setPages((current) =>
         current == null ? current : { ...current, revision: result.revision },
       );
-      queueMicrotask(() => editor.focus());
+      queueMicrotask(() => {
+        editor.focus();
+      });
       return;
     }
     if (result.type === "unavailable" && result.scope === "ownerGone") {
@@ -328,21 +391,25 @@ export function ComposerPendingInputDrawer({
   };
 
   const saveEdit = (): void => {
-    if (editSession?.phase !== "active" || pendingEditorControllerRef.current == null) return;
-    settleResult(
-      editSession.reservation.save(pendingEditorControllerRef.current.capture()),
-      false,
-      editSession.item.key,
-    );
+    if (displayedEditSession?.phase !== "active" || pendingEditorControllerRef.current == null)
+      return;
+    const capture = pendingEditorControllerRef.current.capture();
+    const result = runManagementCompletion(() => displayedEditSession.reservation.save(capture));
+    settleResult(result, false, displayedEditSession.item.key);
   };
 
   const deleteItem = (item: ComposerPendingInputPageItem): boolean => {
-    if (controller == null || pages == null) return false;
-    const visibleKeys = pages[item.lane].map(({ key }) => key);
+    if (controller == null || visiblePages == null) return false;
+    const visibleKeys = visiblePages[item.lane].map(({ key }) => key);
     const deletedIndex = visibleKeys.indexOf(item.key);
     const focusKey =
       visibleKeys[deletedIndex + 1] ?? (deletedIndex > 0 ? visibleKeys[deletedIndex - 1] : null);
-    const result = controller.deletePendingInput({ key: item.key, revision: pages.revision });
+    const result = runManagementCompletion(() =>
+      controller.deletePendingInput({
+        key: item.key,
+        revision: visiblePages.revision,
+      }),
+    );
     if (result.type === "deleted") {
       setAlert(null);
       const nextPages = refreshPages(result.revision);
@@ -401,16 +468,20 @@ export function ComposerPendingInputDrawer({
       return;
     }
     setPages((current) => {
-      if (
-        current?.controller !== visiblePages.controller ||
-        current.revision !== visiblePages.revision
-      )
-        return current;
+      const basePages =
+        current?.controller === visiblePages.controller &&
+        current.revision === visiblePages.revision
+          ? current
+          : visiblePages;
       return lane === "steer"
-        ? { ...current, steer: [...current.steer, ...result.items], steerCursor: result.nextCursor }
+        ? {
+            ...basePages,
+            steer: [...basePages.steer, ...result.items],
+            steerCursor: result.nextCursor,
+          }
         : {
-            ...current,
-            ordinary: [...current.ordinary, ...result.items],
+            ...basePages,
+            ordinary: [...basePages.ordinary, ...result.items],
             ordinaryCursor: result.nextCursor,
           };
     });
@@ -422,7 +493,7 @@ export function ComposerPendingInputDrawer({
       : guidingCount > 0
         ? t`Pending: Guide ${guidingCount}`
         : t`Pending: Queued ${ordinaryQueuedCount}`;
-  const renderTrigger = hasPendingInputs || isOpen || isInvalidClosing;
+  const renderTrigger = !externallyClosed && (hasPendingInputs || displayedIsOpen);
 
   return (
     <>
@@ -441,14 +512,14 @@ export function ComposerPendingInputDrawer({
           ) : null}
         </Button>
       ) : null}
-      <Drawer.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Drawer.Backdrop isOpen={displayedIsOpen} onOpenChange={onOpenChange}>
         <Drawer.Content placement="right">
           <Drawer.Dialog>
             <span ref={onDrawerPresenceRef} aria-hidden="true" hidden />
             <Drawer.CloseTrigger />
             <Drawer.Header>
               <Drawer.Heading ref={headingRef} tabIndex={-1}>
-                {editSession?.phase !== "active" ? (
+                {displayedEditSession?.phase !== "active" ? (
                   <Trans>Pending details</Trans>
                 ) : (
                   <Trans>Edit pending message</Trans>
@@ -456,10 +527,10 @@ export function ComposerPendingInputDrawer({
               </Drawer.Heading>
             </Drawer.Header>
             <Drawer.Body>
-              {alert == null ? null : <PendingManagementAlert alert={alert} />}
-              {editSession?.phase !== "active" ? (
+              {displayedAlert == null ? null : <PendingManagementAlert alert={displayedAlert} />}
+              {displayedEditSession?.phase !== "active" ? (
                 <PendingInputList
-                  actionsDisabled={editSession?.phase === "preparing"}
+                  actionsDisabled={displayedEditSession?.phase === "preparing"}
                   deleteItem={deleteItem}
                   guidingCount={guidingCount}
                   onBeginEdit={beginEdit}
@@ -477,8 +548,8 @@ export function ComposerPendingInputDrawer({
                   }}
                 />
               ) : null}
-              {editSession == null ? null : (
-                <div hidden={editSession.phase === "preparing"}>
+              {displayedEditSession == null ? null : (
+                <div hidden={displayedEditSession.phase === "preparing"}>
                   <ComposerPendingInputEditor
                     guardCompositionEndEnter={guardCompositionEndEnter}
                     onControllerChange={onEditorControllerChange}
@@ -490,7 +561,7 @@ export function ComposerPendingInputDrawer({
                 </div>
               )}
             </Drawer.Body>
-            {editSession?.phase !== "active" ? null : (
+            {displayedEditSession?.phase !== "active" ? null : (
               <Drawer.Footer>
                 <Button onPress={() => cancelEdit(false)} variant="secondary">
                   <Trans>Cancel</Trans>
@@ -648,7 +719,9 @@ function PendingInputGroup({
       <div className="flex items-center justify-between gap-2">
         <h3
           className="text-sm font-medium outline-none"
-          ref={(element) => registerLaneHeading(lane, element)}
+          ref={(element) => {
+            registerLaneHeading(lane, element);
+          }}
           tabIndex={-1}
         >
           {lane === "steer" ? <Trans>Guiding</Trans> : <Trans>Queued</Trans>}
@@ -678,7 +751,9 @@ function PendingInputGroup({
           aria-label={
             lane === "steer" ? t`Show more guiding messages` : t`Show more queued messages`
           }
-          onPress={() => onShowMore(lane)}
+          onPress={() => {
+            onShowMore(lane);
+          }}
           variant="tertiary"
         >
           <Trans>Show more</Trans>
@@ -765,7 +840,9 @@ function PendingInputItem({
     <div
       aria-label={previewText}
       className="grid min-w-0 gap-2 rounded-medium border border-separator p-3 outline-none"
-      ref={(element) => registerItemFocusTarget(item.key, element)}
+      ref={(element) => {
+        registerItemFocusTarget(item.key, element);
+      }}
       role="group"
       tabIndex={-1}
     >
@@ -776,7 +853,13 @@ function PendingInputItem({
             <span className="mr-auto text-sm">
               <Trans>Delete this pending message?</Trans>
             </span>
-            <Button onPress={() => setConfirmingDelete(false)} size="sm" variant="secondary">
+            <Button
+              onPress={() => {
+                setConfirmingDelete(false);
+              }}
+              size="sm"
+              variant="secondary"
+            >
               <Trans>Keep</Trans>
             </Button>
             <Button
@@ -794,7 +877,9 @@ function PendingInputItem({
           <div className="flex justify-end gap-2">
             <Button
               isDisabled={actionsDisabled}
-              onPress={() => onBeginEdit(item)}
+              onPress={() => {
+                onBeginEdit(item);
+              }}
               size="sm"
               variant="tertiary"
             >
@@ -802,7 +887,9 @@ function PendingInputItem({
             </Button>
             <Button
               isDisabled={actionsDisabled}
-              onPress={() => setConfirmingDelete(true)}
+              onPress={() => {
+                setConfirmingDelete(true);
+              }}
               size="sm"
               variant="danger-soft"
             >
