@@ -99,6 +99,40 @@ const createHarness = ({
   };
 };
 
+type Harness = ReturnType<typeof createHarness>;
+type StartupOutcome = Awaited<ReturnType<Harness["coordinator"]["start"]>>;
+
+const startDeferredAttach = (h: Harness) => {
+  const pending = deferred<AttachResponse>();
+  vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
+  const starting = h.coordinator.start();
+  return { pending, starting };
+};
+
+const bufferTurnStartedEvent = (h: Harness) => {
+  const event = eventWithEnvelope(eventTurnStarted, {
+    threadId: currentThreadId,
+    subscriptionId: attachBaseline.subscriptionId,
+  });
+  h.coordinator.handleProjectionEvent(event);
+  return event;
+};
+
+const requireReadyLiveOwner = (outcome: StartupOutcome) => {
+  if (outcome.type !== "ready" || outcome.activeOwner == null) {
+    throw new Error("expected a ready live owner");
+  }
+  return { activeOwner: outcome.activeOwner, outcome };
+};
+
+const resolveAttachAndRequireReadyOwner = async ({
+  pending,
+  starting,
+}: ReturnType<typeof startDeferredAttach>) => {
+  pending.resolve(attachWithThreadId(attachBaseline, currentThreadId));
+  return requireReadyLiveOwner(await starting);
+};
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -107,16 +141,12 @@ describe("RouteConnectionStartupCoordinator", () => {
   it("attaches the current route and commits recovery only before returning one live owner", async () => {
     const target = { type: "currentTask", threadId: currentThreadId } as const;
     const h = createHarness({ target, recoveryId: recoveryThreadId });
-    const pending = deferred<AttachResponse>();
-    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
+    const deferredAttach = startDeferredAttach(h);
 
-    const starting = h.coordinator.start();
     expect(h.commands.attachThreadProjection).toHaveBeenCalledWith({ threadId: currentThreadId });
     expect(h.commitActiveThread).not.toHaveBeenCalled();
-    pending.resolve(attachWithThreadId(attachBaseline, currentThreadId));
 
-    const outcome = await starting;
-    if (outcome.type !== "ready") throw new Error("expected a ready outcome");
+    const { outcome } = await resolveAttachAndRequireReadyOwner(deferredAttach);
     expect(outcome).toEqual({
       type: "ready",
       target,
@@ -237,8 +267,6 @@ describe("RouteConnectionStartupCoordinator", () => {
   it("keeps the committed owner and reports a buffered replay failure", async () => {
     const target = { type: "currentTask", threadId: currentThreadId } as const;
     const h = createHarness({ target, recoveryId: recoveryThreadId });
-    const pending = deferred<AttachResponse>();
-    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
     const replayError = new Error("replay failed");
     vi.spyOn(
       ProjectionApplicationCoordinator.prototype,
@@ -246,19 +274,10 @@ describe("RouteConnectionStartupCoordinator", () => {
     ).mockImplementationOnce(() => {
       throw replayError;
     });
-    const event = eventWithEnvelope(eventTurnStarted, {
-      threadId: currentThreadId,
-      subscriptionId: attachBaseline.subscriptionId,
-    });
+    const deferredAttach = startDeferredAttach(h);
+    bufferTurnStartedEvent(h);
 
-    const starting = h.coordinator.start();
-    h.coordinator.handleProjectionEvent(event);
-    pending.resolve(attachWithThreadId(attachBaseline, currentThreadId));
-
-    const outcome = await starting;
-    if (outcome.type !== "ready" || outcome.activeOwner == null) {
-      throw new Error("expected a ready live owner");
-    }
+    const { activeOwner, outcome } = await resolveAttachAndRequireReadyOwner(deferredAttach);
     expect(outcome).toEqual({
       type: "ready",
       target,
@@ -275,9 +294,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       activeThreadId: currentThreadId,
     });
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(1);
-    expect(
-      outcome.activeOwner.queueCoordinator.submit(composerCapture("owner remains live")),
-    ).toEqual({
+    expect(activeOwner.queueCoordinator.submit(composerCapture("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -290,10 +307,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       throw sessionError;
     });
 
-    const outcome = await h.coordinator.start();
-    if (outcome.type !== "ready" || outcome.activeOwner == null) {
-      throw new Error("expected a ready live owner");
-    }
+    const { activeOwner, outcome } = requireReadyLiveOwner(await h.coordinator.start());
     expect(outcome).toEqual({
       type: "ready",
       target,
@@ -318,9 +332,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       activeThreadId: recoveryThreadId,
     });
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(1);
-    expect(
-      outcome.activeOwner.queueCoordinator.submit(composerCapture("owner remains live")),
-    ).toEqual({
+    expect(activeOwner.queueCoordinator.submit(composerCapture("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -328,8 +340,6 @@ describe("RouteConnectionStartupCoordinator", () => {
   it("preserves replay and session errors when both post-commit steps fail", async () => {
     const target = { type: "currentTask", threadId: currentThreadId } as const;
     const h = createHarness({ target, recoveryId: recoveryThreadId });
-    const pending = deferred<AttachResponse>();
-    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
     const replayError = new Error("replay failed");
     const sessionError = new Error("session commit failed");
     vi.spyOn(
@@ -341,19 +351,10 @@ describe("RouteConnectionStartupCoordinator", () => {
     h.storage.setItem.mockImplementationOnce(() => {
       throw sessionError;
     });
-    const event = eventWithEnvelope(eventTurnStarted, {
-      threadId: currentThreadId,
-      subscriptionId: attachBaseline.subscriptionId,
-    });
+    const deferredAttach = startDeferredAttach(h);
+    bufferTurnStartedEvent(h);
 
-    const starting = h.coordinator.start();
-    h.coordinator.handleProjectionEvent(event);
-    pending.resolve(attachWithThreadId(attachBaseline, currentThreadId));
-
-    const outcome = await starting;
-    if (outcome.type !== "ready" || outcome.activeOwner == null) {
-      throw new Error("expected a ready live owner");
-    }
+    const { activeOwner, outcome } = await resolveAttachAndRequireReadyOwner(deferredAttach);
     expect(outcome).toEqual({
       type: "ready",
       target,
@@ -377,9 +378,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       token: "secret",
       activeThreadId: recoveryThreadId,
     });
-    expect(
-      outcome.activeOwner.queueCoordinator.submit(composerCapture("owner remains live")),
-    ).toEqual({
+    expect(activeOwner.queueCoordinator.submit(composerCapture("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -419,10 +418,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       scheduler: h.scheduler,
     });
 
-    const outcome = await coordinator.start();
-    if (outcome.type !== "ready" || outcome.activeOwner == null) {
-      throw new Error("expected a ready live owner");
-    }
+    const { activeOwner, outcome } = requireReadyLiveOwner(await coordinator.start());
     expect(outcome).toEqual({
       type: "ready",
       target,
@@ -438,9 +434,7 @@ describe("RouteConnectionStartupCoordinator", () => {
       token: "secret",
       activeThreadId: recoveryThreadId,
     });
-    expect(
-      outcome.activeOwner.queueCoordinator.submit(composerCapture("owner remains live")),
-    ).toEqual({
+    expect(activeOwner.queueCoordinator.submit(composerCapture("owner remains live"))).toEqual({
       type: "accepted",
     });
   });
@@ -490,8 +484,6 @@ describe("RouteConnectionStartupCoordinator", () => {
   it("disposes and detaches once when dispose reenters buffered replay", async () => {
     const target = { type: "currentTask", threadId: currentThreadId } as const;
     const h = createHarness({ target, recoveryId: recoveryThreadId });
-    const pending = deferred<AttachResponse>();
-    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
     let ownerDuringReplay: ActiveThreadOwnerHandle | null = null;
     vi.spyOn(
       ProjectionApplicationCoordinator.prototype,
@@ -502,13 +494,9 @@ describe("RouteConnectionStartupCoordinator", () => {
       ).activeOwner;
       h.coordinator.dispose();
     });
-    const event = eventWithEnvelope(eventTurnStarted, {
-      threadId: currentThreadId,
-      subscriptionId: attachBaseline.subscriptionId,
-    });
 
-    const starting = h.coordinator.start();
-    h.coordinator.handleProjectionEvent(event);
+    const { pending, starting } = startDeferredAttach(h);
+    bufferTurnStartedEvent(h);
     pending.resolve(attachWithThreadId(attachBaseline, currentThreadId));
     const outcome = await starting;
 
@@ -536,8 +524,6 @@ describe("RouteConnectionStartupCoordinator", () => {
   it("buffers event, delta, and closed notifications until the owner is ready and replays in order", async () => {
     const target = { type: "currentTask", threadId: currentThreadId } as const;
     const h = createHarness({ target });
-    const pending = deferred<AttachResponse>();
-    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
     const eventSpy = vi.spyOn(ProjectionApplicationCoordinator.prototype, "handleProjectionEvent");
     const deltaSpy = vi.spyOn(ProjectionApplicationCoordinator.prototype, "handleProjectionDelta");
     const closedSpy = vi.spyOn(
@@ -545,20 +531,18 @@ describe("RouteConnectionStartupCoordinator", () => {
       "handleProjectionClosed",
     );
     const owner = { threadId: currentThreadId, subscriptionId: attachBaseline.subscriptionId };
-    const event = eventWithEnvelope(eventTurnStarted, owner);
     const delta = deltaWithEnvelope(eventAgentMessageDelta, owner);
     const closed = closedWithEnvelope(closedBackpressure, owner);
 
-    const starting = h.coordinator.start();
-    h.coordinator.handleProjectionEvent(event);
+    const deferredAttach = startDeferredAttach(h);
+    const event = bufferTurnStartedEvent(h);
     h.coordinator.handleProjectionDelta(delta);
     h.coordinator.handleProjectionClosed(closed);
     expect(eventSpy).not.toHaveBeenCalled();
     expect(deltaSpy).not.toHaveBeenCalled();
     expect(closedSpy).not.toHaveBeenCalled();
 
-    pending.resolve(attachWithThreadId(attachBaseline, currentThreadId));
-    await expect(starting).resolves.toMatchObject({ type: "ready" });
+    await resolveAttachAndRequireReadyOwner(deferredAttach);
     expect(eventSpy).toHaveBeenCalledWith(event);
     expect(deltaSpy).toHaveBeenCalledWith(delta);
     expect(closedSpy).toHaveBeenCalledWith(closed);
@@ -575,10 +559,8 @@ describe("RouteConnectionStartupCoordinator", () => {
   it("rejects stale settlement after dispose and cleans the attached candidate", async () => {
     const target = { type: "currentTask", threadId: currentThreadId } as const;
     const h = createHarness({ target });
-    const pending = deferred<AttachResponse>();
-    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
 
-    const starting = h.coordinator.start();
+    const { pending, starting } = startDeferredAttach(h);
     h.coordinator.dispose();
     pending.resolve(attachWithThreadId(attachBaseline, currentThreadId));
 
