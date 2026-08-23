@@ -8,9 +8,7 @@ import type { ComposerInputQueueCoordinator } from "@/features/composerInputQueu
 
 export const COMPOSER_PENDING_INPUT_PAGE_SIZE = 20;
 
-export type ComposerPendingInputLoadBudgets = Readonly<
-  Record<ComposerPendingInputLane, number>
->;
+export type ComposerPendingInputLoadBudgets = Readonly<Record<ComposerPendingInputLane, number>>;
 
 type ComposerPendingInputLanePrefix = Readonly<{
   items: readonly ComposerPendingInputPageItem[];

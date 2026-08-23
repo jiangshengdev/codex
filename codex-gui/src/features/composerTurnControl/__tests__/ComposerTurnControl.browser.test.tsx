@@ -176,9 +176,7 @@ const createQueueControllerHarness = (
         [...details.ordinary, ...details.steer].some(
           ({ management }) => management.type === "editing",
         );
-      const sortableItems = laneItems.filter(
-        ({ management }) => management.type === "manageable",
-      );
+      const sortableItems = laneItems.filter(({ management }) => management.type === "manageable");
       const items = laneItems
         .slice(offset, offset + request.limit)
         .map(({ detailText, ...item }) => {
@@ -260,7 +258,10 @@ const createQueueControllerHarness = (
         return {
           type: "unavailable",
           scope: "liveOwner",
-          reason: snapshot.recovery != null || snapshot.isRecovering ? "recoveryPending" : "editInProgress",
+          reason:
+            snapshot.recovery != null || snapshot.isRecovering
+              ? "recoveryPending"
+              : "editInProgress",
           revision: snapshot.detailRevision,
         };
       }
@@ -278,9 +279,7 @@ const createQueueControllerHarness = (
       }
       const sortable = laneItems.filter(({ management }) => management.type === "manageable");
       const from = sortable.findIndex(({ key }) => key === request.key);
-      const destinationIndex = (
-        destination: ComposerPendingInputMoveDestination,
-      ): number => {
+      const destinationIndex = (destination: ComposerPendingInputMoveDestination): number => {
         switch (destination) {
           case "earlier":
             return Math.max(0, from - 1);
@@ -1409,9 +1408,7 @@ test("moves pending messages through the authoritative owner and preserves menu 
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
 
-  await screen
-    .getByRole("button", { name: "Pending: Guide 2, Queued 4", exact: true })
-    .click();
+  await screen.getByRole("button", { name: "Pending: Guide 2, Queued 4", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   const queuedA = dialog.getByRole("group", { name: "Queued A", exact: true });
   const queuedD = dialog.getByRole("group", { name: "Queued D", exact: true });
@@ -1468,12 +1465,10 @@ test("moves pending messages through the authoritative owner and preserves menu 
       return text.indexOf("Queued B") < text.indexOf("Queued A");
     })
     .toBe(true);
+  await expect.element(dialog.getByRole("group", { name: "Queued B", exact: true })).toHaveFocus();
   await expect
-    .element(dialog.getByRole("group", { name: "Queued B", exact: true }))
-    .toHaveFocus();
-  await expect.element(screen.getByRole("status")).toHaveTextContent(
-    "Queued message moved to position 1 of 4.",
-  );
+    .element(screen.getByRole("status"))
+    .toHaveTextContent("Queued message moved to position 1 of 4.");
   expect(screen.getByRole("status").all().length).toBe(1);
 
   await dialog
@@ -1552,9 +1547,9 @@ test("moves pending messages through the authoritative owner and preserves menu 
     revision: 14,
     destination: "earlier",
   });
-  await expect.element(screen.getByRole("status")).toHaveTextContent(
-    "Guiding message moved to position 1 of 2.",
-  );
+  await expect
+    .element(screen.getByRole("status"))
+    .toHaveTextContent("Guiding message moved to position 1 of 2.");
 });
 
 test("re-reads independent lane budgets after a move and does not locate an item beyond the prefix", async () => {
@@ -1586,16 +1581,16 @@ test("re-reads independent lane budgets after a move and does not locate an item
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
 
-  await screen
-    .getByRole("button", { name: "Pending: Guide 21, Queued 41", exact: true })
-    .click();
+  await screen.getByRole("button", { name: "Pending: Guide 21, Queued 41", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
-  await dialog
-    .getByRole("button", { name: "Show more queued messages", exact: true })
-    .click();
+  await dialog.getByRole("button", { name: "Show more queued messages", exact: true }).click();
   await expect.element(dialog.getByText("Ordinary budget 39", { exact: true })).toBeVisible();
-  await expect.element(dialog.getByText("Ordinary budget 40", { exact: true })).not.toBeInTheDocument();
-  await expect.element(dialog.getByText("Steer budget 20", { exact: true })).not.toBeInTheDocument();
+  await expect
+    .element(dialog.getByText("Ordinary budget 40", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(dialog.getByText("Steer budget 20", { exact: true }))
+    .not.toBeInTheDocument();
 
   await dialog
     .getByRole("group", { name: "Ordinary budget 0", exact: true })
@@ -1631,11 +1626,13 @@ test("re-reads independent lane budgets after a move and does not locate an item
     .element(dialog.getByText("Ordinary budget 0", { exact: true }))
     .not.toBeInTheDocument();
   await expect.element(dialog.getByRole("heading", { name: "Queued", exact: true })).toHaveFocus();
-  await expect.element(screen.getByRole("status")).toHaveTextContent(
-    "Queued message moved to position 41 of 41.",
-  );
+  await expect
+    .element(screen.getByRole("status"))
+    .toHaveTextContent("Queued message moved to position 41 of 41.");
   await expect.element(dialog.getByText("Ordinary budget 40", { exact: true })).toBeVisible();
-  await expect.element(dialog.getByText("Steer budget 20", { exact: true })).not.toBeInTheDocument();
+  await expect
+    .element(dialog.getByText("Steer budget 20", { exact: true }))
+    .not.toBeInTheDocument();
 });
 
 test("does not announce or refresh when an accepted move action is a no-op", async () => {
@@ -1677,9 +1674,7 @@ test("does not announce or refresh when an accepted move action is a no-op", asy
     destination: "earlier",
   });
   const dialogText = dialog.element().textContent ?? "";
-  expect(dialogText.indexOf("No-op queued A")).toBeLessThan(
-    dialogText.indexOf("No-op queued B"),
-  );
+  expect(dialogText.indexOf("No-op queued A")).toBeLessThan(dialogText.indexOf("No-op queued B"));
   expect(dialog.getByRole("status").query()).toBeNull();
   expect(dialog.getByRole("alert").query()).toBeNull();
   expect(harness.readPendingInputPage).toHaveBeenCalledTimes(pageReadCount);
@@ -1719,9 +1714,7 @@ test("restarts an atomic two-lane refresh once and falls back with an alert afte
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
-  await screen
-    .getByRole("button", { name: "Pending: Guide 2, Queued 2", exact: true })
-    .click();
+  await screen.getByRole("button", { name: "Pending: Guide 2, Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
 
   harness.queuePageReadOverride(() => {
@@ -1914,9 +1907,7 @@ test("hides move actions for owner-projected blockers and while delete confirmat
   screen.store.dispatch(
     threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
   );
-  await screen
-    .getByRole("button", { name: "Pending: Guide 3, Queued 3", exact: true })
-    .click();
+  await screen.getByRole("button", { name: "Pending: Guide 3, Queued 3", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
     .element(
@@ -1947,9 +1938,9 @@ test("hides move actions for owner-projected blockers and while delete confirmat
       exact: true,
     })
     .click();
-  await expect.element(screen.getByRole("status")).toHaveTextContent(
-    "Guiding message moved to position 1 of 2.",
-  );
+  await expect
+    .element(screen.getByRole("status"))
+    .toHaveTextContent("Guiding message moved to position 1 of 2.");
   expect(screen.getByRole("status").all().length).toBe(1);
   await expect.element(readOnlyStatusText).toBeVisible();
   expect(readOnlyStatusText.element().closest('[role="status"]')).toBeNull();
@@ -1977,7 +1968,9 @@ test("hides move actions for owner-projected blockers and while delete confirmat
       () => dialog.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length,
     )
     .toBe(0);
-  await expect.element(dialog.getByText("This message is being edited.", { exact: true })).toBeVisible();
+  await expect
+    .element(dialog.getByText("This message is being edited.", { exact: true }))
+    .toBeVisible();
 
   harness.replaceDetails({
     ordinary: [
@@ -1996,7 +1989,9 @@ test("hides move actions for owner-projected blockers and while delete confirmat
   });
   harness.setMovementBlocked(true);
   harness.publish(queueSnapshot({ ordinaryQueuedCount: 2, detailRevision: 43, canStop: true }));
-  expect(dialog.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length).toBe(0);
+  expect(dialog.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length).toBe(
+    0,
+  );
   harness.setMovementBlocked(false);
   harness.publish(queueSnapshot({ ordinaryQueuedCount: 2, detailRevision: 44, canStop: true }));
   const confirmGroup = dialog.getByRole("group", { name: "Confirm deletion item", exact: true });
@@ -2004,14 +1999,17 @@ test("hides move actions for owner-projected blockers and while delete confirmat
     .element(confirmGroup.getByRole("button", { name: /Move down pending message:/ }))
     .toBeVisible();
   await confirmGroup.getByRole("button", { name: "Delete", exact: true }).click();
-  expect(confirmGroup.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length).toBe(0);
+  expect(
+    confirmGroup.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length,
+  ).toBe(0);
   expect(confirmGroup.getByRole("button", { name: /More move options/ }).query()).toBeNull();
   await confirmGroup.getByRole("button", { name: "Keep", exact: true }).click();
 
   let preparationExcludedMoveActions = false;
   harness.beginPendingInputEdit.mockImplementationOnce(() => {
     preparationExcludedMoveActions =
-      confirmGroup.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length === 0;
+      confirmGroup.getByRole("button", { name: /Move (up|down) pending message:/ }).all().length ===
+      0;
     return {
       type: "notManageable",
       scope: "liveOwner",
@@ -2673,9 +2671,9 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
     .element(moveMenu.getByRole("menuitem", { name: "移至队首", exact: true }))
     .toBeVisible();
   await moveMenu.getByRole("menuitem", { name: "移至队首", exact: true }).click();
-  await expect.element(dialog.getByRole("status")).toHaveTextContent(
-    "已将已排队消息移到第 1 项，共 2 项。",
-  );
+  await expect
+    .element(dialog.getByRole("status"))
+    .toHaveTextContent("已将已排队消息移到第 1 项，共 2 项。");
 });
 
 test("manual reconnect disables composer operations", async () => {

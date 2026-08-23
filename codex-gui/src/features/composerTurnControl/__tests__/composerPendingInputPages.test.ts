@@ -16,7 +16,9 @@ import {
   showMoreComposerPendingInputLane,
 } from "../composerPendingInputPages";
 
-type LaneItems = Readonly<Record<ComposerPendingInputLane, readonly ComposerPendingInputPageItem[]>>;
+type LaneItems = Readonly<
+  Record<ComposerPendingInputLane, readonly ComposerPendingInputPageItem[]>
+>;
 
 function item(id: string, lane: ComposerPendingInputLane): ComposerPendingInputPageItem {
   return {

@@ -88,9 +88,11 @@ function issueSteer(queue: ComposerSteerQueue): SteerClaim {
 }
 
 function steerQueueIds(queue: ComposerSteerQueue): string[] {
-  return queue.state().steerQueue.map((slot) =>
-    slot.type === "intent" ? slot.message.id : slot.original.message.id,
-  );
+  return queue
+    .state()
+    .steerQueue.map((slot) =>
+      slot.type === "intent" ? slot.message.id : slot.original.message.id,
+    );
 }
 
 describe("composer pending input reordering", () => {
@@ -348,9 +350,10 @@ describe("composer pending input reordering", () => {
 
     const settled = queue.settleSteer({ type: "accepted", claim: pending, turnId: "turn-a" });
     expect(steerClaim(settled).intent.message.id).toBe("b");
-    expect(
-      queue.readPendingInputMovement({ key, revision: queue.detailRevision() }),
-    ).toEqual({ type: "notManageable", revision: queue.detailRevision() });
+    expect(queue.readPendingInputMovement({ key, revision: queue.detailRevision() })).toEqual({
+      type: "notManageable",
+      revision: queue.detailRevision(),
+    });
   });
 
   it.each([
@@ -397,9 +400,10 @@ describe("composer pending input reordering", () => {
     const key = firstPage.items[0]?.key;
     if (key == null) throw new Error("expected first pending key");
 
-    expect(
-      queue.movePendingInput({ key, revision, destination: "last" }),
-    ).toMatchObject({ type: "moved", revision: revision + 1 });
+    expect(queue.movePendingInput({ key, revision, destination: "last" })).toMatchObject({
+      type: "moved",
+      revision: revision + 1,
+    });
     expect(
       queue.readPendingInputPage({
         lane: "ordinary",
@@ -408,9 +412,10 @@ describe("composer pending input reordering", () => {
         limit: 1,
       }),
     ).toEqual({ type: "stale", revision: revision + 1 });
-    expect(
-      queue.movePendingInput({ key, revision, destination: "first" }),
-    ).toEqual({ type: "stale", revision: revision + 1 });
+    expect(queue.movePendingInput({ key, revision, destination: "first" })).toEqual({
+      type: "stale",
+      revision: revision + 1,
+    });
     expect(queue.readPendingInputMovement({ key, revision })).toEqual({
       type: "stale",
       revision: revision + 1,
@@ -427,9 +432,10 @@ describe("composer pending input reordering", () => {
     const foreignKey = keyFor(foreign, "ordinary", "foreign");
     const revision = queue.detailRevision();
 
-    expect(
-      queue.movePendingInput({ key: foreignKey, revision, destination: "first" }),
-    ).toEqual({ type: "notManageable", revision });
+    expect(queue.movePendingInput({ key: foreignKey, revision, destination: "first" })).toEqual({
+      type: "notManageable",
+      revision,
+    });
     expect(queue.readPendingInputMovement({ key: foreignKey, revision })).toEqual({
       type: "notManageable",
       revision,
@@ -487,9 +493,8 @@ describe("composer pending input reordering", () => {
     const steerKey = keyFor(queue, "steer", "steer");
     const revision = queue.detailRevision();
     let acquisitionResult: ReturnType<ComposerInputQueue["movePendingInput"]> | null = null;
-    let acquisitionReadResult: ReturnType<
-      ComposerInputQueue["readPendingInputMovement"]
-    > | null = null;
+    let acquisitionReadResult: ReturnType<ComposerInputQueue["readPendingInputMovement"]> | null =
+      null;
     let acquisitionMovements: readonly (unknown | null)[] = [];
 
     const begun = queue.beginPendingInputEdit({ key: ordinaryKey, revision }, () => {
@@ -521,9 +526,7 @@ describe("composer pending input reordering", () => {
       ...pendingPage(queue, "ordinary").items.map(({ movement }) => movement),
       ...pendingPage(queue, "steer").items.map(({ movement }) => movement),
     ]).toEqual([null, null, null, null, null]);
-    expect(
-      queue.readPendingInputMovement({ key: steerKey, revision: begun.revision }),
-    ).toEqual({
+    expect(queue.readPendingInputMovement({ key: steerKey, revision: begun.revision })).toEqual({
       type: "conflict",
       reason: "editInProgress",
       revision: begun.revision,
@@ -690,9 +693,9 @@ describe("composer pending input reordering", () => {
       "a",
     ]);
     expect(queue.findPendingInput("pending")?.movement).toBeNull();
-    expect(queue.transition({ type: "responseAccepted", claim: pending, turnId: "turn-a" })).toEqual(
-      { type: "accepted", messageId: "pending" },
-    );
+    expect(
+      queue.transition({ type: "responseAccepted", claim: pending, turnId: "turn-a" }),
+    ).toEqual({ type: "accepted", messageId: "pending" });
     expect(issueSteer(queue).intent.message.id).toBe("b");
   });
 
@@ -740,9 +743,10 @@ describe("composer pending input reordering", () => {
     enqueueSteer(queue, "a-2", "turn-a");
     queue.movePendingInput("a-2", "first");
 
-    expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual(
-      { type: "terminal", messageIds: ["a-2", "a-1"] },
-    );
+    expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual({
+      type: "terminal",
+      messageIds: ["a-2", "a-1"],
+    });
     expect(steerQueueIds(queue)).toEqual(["b-1"]);
     expect(issueSteer(queue).intent.message.id).toBe("b-1");
   });
@@ -805,17 +809,19 @@ describe("composer pending input reordering", () => {
     const failed = issueSteer(queue);
     const recovery = queue.transition({ type: "definitelyNotAccepted", claim: failed });
     if (recovery.type !== "recoveryRequired") throw new Error("expected recovery transfer");
-    expect(queue.readPendingInputs(0, 20).map(({ messageId, movement }) => ({ messageId, movement })))
-      .toEqual([
-        { messageId: "a", movement: null },
-        { messageId: "c", movement: null },
-      ]);
+    expect(
+      queue.readPendingInputs(0, 20).map(({ messageId, movement }) => ({ messageId, movement })),
+    ).toEqual([
+      { messageId: "a", movement: null },
+      { messageId: "c", movement: null },
+    ]);
     expect(queue.findPendingInput("a")?.movement).toBeNull();
     expect(queue.findPendingInput("c")?.movement).toBeNull();
     expect(queue.movePendingInput("a", "first")).toEqual({ type: "notManageable" });
-    expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual(
-      { type: "terminal", messageIds: ["a", "c"] },
-    );
+    expect(queue.transition({ type: "terminal", threadId: "thread-a", turnId: "turn-a" })).toEqual({
+      type: "terminal",
+      messageIds: ["a", "c"],
+    });
 
     expect(queue.transition({ type: "restoreRecovery", transfer: recovery.transfer })).toEqual({
       type: "recoveryRestored",

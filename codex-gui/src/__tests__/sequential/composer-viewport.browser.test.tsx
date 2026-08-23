@@ -383,18 +383,14 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
 
     await moreMoveOptions.click();
     const reopenedMoveMenu = page.getByRole("menu");
-    await reopenedMoveMenu
-      .getByRole("menuitem", { name: "Move to first", exact: true })
-      .click();
+    await reopenedMoveMenu.getByRole("menuitem", { name: "Move to first", exact: true }).click();
     await expect.element(reopenedMoveMenu).not.toBeInTheDocument();
     const moveStatus = listDialog
       .getByRole("status")
       .filter({ hasText: "Queued message moved to position 1 of 21." });
     moveStatus.element().scrollIntoView({ block: "nearest" });
     await expect.element(moveStatus).toBeInViewport();
-    await expect
-      .element(moveStatus)
-      .toHaveTextContent("Queued message moved to position 1 of 21.");
+    await expect.element(moveStatus).toHaveTextContent("Queued message moved to position 1 of 21.");
 
     const showMoreQueued = listDialog.getByRole("button", {
       name: "Show more queued messages",

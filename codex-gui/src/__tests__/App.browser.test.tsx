@@ -1406,9 +1406,7 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
   const steerOrderBeforeMove = readPendingTextPreviews(queueCoordinator, "steer");
   expect(steerOrderBeforeMove).toEqual(["Steer lane A", "Steer lane B"]);
 
-  await screen
-    .getByRole("button", { name: "Pending: Guide 2, Queued 3", exact: true })
-    .click();
+  await screen.getByRole("button", { name: "Pending: Guide 2, Queued 3", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await dialog
     .getByRole("group", { name: "Ordinary order C", exact: true })
@@ -1506,11 +1504,7 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
   expect(typeof firstParams.clientUserMessageId).toBe("string");
 
   const firstStarted = eventWithEnvelope(
-    turnStarted(
-      eventTurnStarted,
-      "commit-reordered-ordinary-first-started",
-      firstStartedTurn,
-    ),
+    turnStarted(eventTurnStarted, "commit-reordered-ordinary-first-started", firstStartedTurn),
     { parentCommitId: activeTerminal.commitId },
   );
   emitProjectionEvent(options, firstStarted);
@@ -1534,11 +1528,7 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
   expect(secondParams.clientUserMessageId).not.toBe(firstParams.clientUserMessageId);
 
   const secondStarted = eventWithEnvelope(
-    turnStarted(
-      eventTurnStarted,
-      "commit-reordered-ordinary-second-started",
-      secondStartedTurn,
-    ),
+    turnStarted(eventTurnStarted, "commit-reordered-ordinary-second-started", secondStartedTurn),
     { parentCommitId: firstTerminal.commitId },
   );
   emitProjectionEvent(options, secondStarted);
@@ -1790,8 +1780,9 @@ test("App issues steer inputs in the authoritative suffix order selected through
     .mockImplementationOnce(() => issuingSteer.promise)
     .mockImplementationOnce(() => movedSteer.promise)
     .mockImplementationOnce(() => remainingSteer.promise);
-  const { activeTurn, commandHandle, queueCoordinator, screen, startTurn } =
-    await renderActiveApp({ steerTurn });
+  const { activeTurn, commandHandle, queueCoordinator, screen, startTurn } = await renderActiveApp({
+    steerTurn,
+  });
   const composer = getAppComposer(screen);
   const transcript = screen.getByRole("region", { name: "Committed transcript" });
 
@@ -1816,9 +1807,7 @@ test("App issues steer inputs in the authoritative suffix order selected through
   dispatchGuideShortcut(composer.element());
   await expect.poll(() => queueCoordinator.getSnapshot().guidingCount).toBe(3);
 
-  await screen
-    .getByRole("button", { name: "Pending: Guide 3, Queued 2", exact: true })
-    .click();
+  await screen.getByRole("button", { name: "Pending: Guide 3, Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await dialog
     .getByRole("group", { name: "Steer suffix B", exact: true })
@@ -3191,10 +3180,7 @@ test("App releases an edited owner only after its marker settles and drains", as
     await screen.getByRole("button", { name: "Send", exact: true }).click();
   }
   await expect.poll(() => replacementCoordinator.getSnapshot().ordinaryQueuedCount).toBe(2);
-  const replacementOrderBeforeOldMove = readPendingTextPreviews(
-    replacementCoordinator,
-    "ordinary",
-  );
+  const replacementOrderBeforeOldMove = readPendingTextPreviews(replacementCoordinator, "ordinary");
   expect(replacementOrderBeforeOldMove).toEqual([
     "Replacement owner order A",
     "Replacement owner order B",

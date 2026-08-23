@@ -31,10 +31,7 @@ import type {
   UserStoppedRecoveryBatch,
 } from "./composerInputQueueContracts";
 import { copyComposerInputPayload } from "./composerInputPayload";
-import {
-  composerPendingInputMoveTargetIndex,
-  moveArrayElement,
-} from "./composerPendingInputMove";
+import { composerPendingInputMoveTargetIndex, moveArrayElement } from "./composerPendingInputMove";
 import {
   projectComposerInputPreview,
   projectComposerInputTextDetail,

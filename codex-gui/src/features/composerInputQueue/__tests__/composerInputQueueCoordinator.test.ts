@@ -1907,10 +1907,9 @@ describe("ComposerInputQueueCoordinator", () => {
           revision,
           destination: "last",
         }),
-        begin: coordinator.beginPendingInputEdit(
-          { key: item.key, revision },
-          () => ({ type: "restored" }),
-        ),
+        begin: coordinator.beginPendingInputEdit({ key: item.key, revision }, () => ({
+          type: "restored",
+        })),
         delete: coordinator.deletePendingInput({ key: item.key, revision }),
         release: coordinator.reserveRelease(),
         recover: coordinator.recover(),
@@ -1967,10 +1966,7 @@ describe("ComposerInputQueueCoordinator", () => {
         },
         release: {
           type: "blocked",
-          blockers: [
-            { type: "ordinaryQueued", count: 3 },
-            { type: "managementPending" },
-          ],
+          blockers: [{ type: "ordinaryQueued", count: 3 }, { type: "managementPending" }],
         },
         recover: false,
         interrupt: false,
@@ -1996,7 +1992,11 @@ describe("ComposerInputQueueCoordinator", () => {
       revision: coordinator.getSnapshot().detailRevision,
     });
     expect(
-      coordinator.movePendingInput({ key: item.key, revision: initialRevision, destination: "last" }),
+      coordinator.movePendingInput({
+        key: item.key,
+        revision: initialRevision,
+        destination: "last",
+      }),
     ).toEqual({
       type: "stale",
       scope: "liveOwner",
@@ -2097,9 +2097,7 @@ describe("ComposerInputQueueCoordinator", () => {
     });
 
     coordinator.observeAcceptedEvent(
-      live(
-        turnCompleted(eventTurnCompleted, "overlap-replay-a", baseTurn("turn-active")),
-      ),
+      live(turnCompleted(eventTurnCompleted, "overlap-replay-a", baseTurn("turn-active"))),
     );
     expect(replayMoveResults).not.toHaveLength(0);
     for (const result of replayMoveResults) {
@@ -2219,15 +2217,9 @@ describe("ComposerInputQueueCoordinator", () => {
     coordinator.submit(input("three"));
     coordinator.submit(input("target"));
     const target = pendingItem(coordinator, "ordinary", 3);
-    const eventA = live(
-      turnStarted(eventTurnStarted, "move-fifo-a", baseTurn("turn-active")),
-    );
-    const eventB = live(
-      turnStarted(eventTurnStarted, "move-fifo-b", baseTurn("turn-active")),
-    );
-    const eventC = live(
-      turnCompleted(eventTurnCompleted, "move-fifo-c", baseTurn("turn-active")),
-    );
+    const eventA = live(turnStarted(eventTurnStarted, "move-fifo-a", baseTurn("turn-active")));
+    const eventB = live(turnStarted(eventTurnStarted, "move-fifo-b", baseTurn("turn-active")));
+    const eventC = live(turnCompleted(eventTurnCompleted, "move-fifo-c", baseTurn("turn-active")));
     let initialInjectionCount = 0;
     let finalPublicationInjectionCount = 0;
     let eventCReplayPublicationCount = 0;
@@ -2238,10 +2230,9 @@ describe("ComposerInputQueueCoordinator", () => {
       const moveRequest = { key: target.key, revision, destination: "last" } as const;
       gatedResults.push({
         move: coordinator.movePendingInput(moveRequest),
-        begin: coordinator.beginPendingInputEdit(
-          { key: target.key, revision },
-          () => ({ type: "restored" }),
-        ),
+        begin: coordinator.beginPendingInputEdit({ key: target.key, revision }, () => ({
+          type: "restored",
+        })),
         delete: coordinator.deletePendingInput({ key: target.key, revision }),
         release: coordinator.reserveRelease(),
         recover: coordinator.recover(),
@@ -2252,16 +2243,10 @@ describe("ComposerInputQueueCoordinator", () => {
         movementBeforeReplay = pendingItem(coordinator, "ordinary", 2).movement;
         coordinator.observeAcceptedEvent(eventA);
         coordinator.observeAcceptedEvent(eventB);
-      } else if (
-        finalPublicationInjectionCount === 0 &&
-        coordinator.getSnapshot().canStop
-      ) {
+      } else if (finalPublicationInjectionCount === 0 && coordinator.getSnapshot().canStop) {
         finalPublicationInjectionCount += 1;
         coordinator.observeAcceptedEvent(eventC);
-      } else if (
-        finalPublicationInjectionCount === 1 &&
-        !coordinator.getSnapshot().canStop
-      ) {
+      } else if (finalPublicationInjectionCount === 1 && !coordinator.getSnapshot().canStop) {
         eventCReplayPublicationCount += 1;
       }
     });

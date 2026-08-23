@@ -1,13 +1,4 @@
-import {
-  Alert,
-  Button,
-  Chip,
-  Disclosure,
-  Drawer,
-  Dropdown,
-  Label,
-  Separator,
-} from "@heroui/react";
+import { Alert, Button, Chip, Disclosure, Drawer, Dropdown, Label, Separator } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
@@ -108,8 +99,9 @@ export function ComposerPendingInputDrawer({
   const [editSession, setEditSession] = useState<EditSession | null>(null);
   const [alert, setAlert] = useState<DrawerAlert | null>(null);
   const [moveAnnouncement, setMoveAnnouncement] = useState<MoveAnnouncement | null>(null);
-  const [exhaustedMoveRefresh, setExhaustedMoveRefresh] =
-    useState<ExhaustedMoveRefresh | null>(null);
+  const [exhaustedMoveRefresh, setExhaustedMoveRefresh] = useState<ExhaustedMoveRefresh | null>(
+    null,
+  );
   const [managementCompletionHold, setManagementCompletionHold] = useState(false);
   const [editorValid, setEditorValid] = useState(true);
   const focusAfterCloseRef = useRef<"composer" | "trigger" | null>(null);
@@ -193,10 +185,9 @@ export function ComposerPendingInputDrawer({
   const refreshPages = useCallback(
     (
       revision: number,
-      budgets: ComposerPendingInputLoadBudgets =
-        pages?.controller === controller
-          ? pages.budgets
-          : createComposerPendingInputLoadBudgets(),
+      budgets: ComposerPendingInputLoadBudgets = pages?.controller === controller
+        ? pages.budgets
+        : createComposerPendingInputLoadBudgets(),
     ): PendingInputPages | null => {
       if (controller == null) return null;
       const result = refreshComposerPendingInputPrefixes(controller, revision, budgets);
@@ -520,11 +511,7 @@ export function ComposerPendingInputDrawer({
 
   const showMore = (lane: ComposerPendingInputLane): void => {
     if (visiblePages == null) return;
-    const result = showMoreComposerPendingInputLane(
-      visiblePages.controller,
-      visiblePages,
-      lane,
-    );
+    const result = showMoreComposerPendingInputLane(visiblePages.controller, visiblePages, lane);
     if (result.type === "unavailable") {
       closeInvalidDrawer();
       return;
@@ -559,8 +546,7 @@ export function ComposerPendingInputDrawer({
       closeInvalidDrawer();
       return;
     }
-    const nextPrefixes =
-      refreshed.type === "ready" ? refreshed.prefixes : refreshed.fallback;
+    const nextPrefixes = refreshed.type === "ready" ? refreshed.prefixes : refreshed.fallback;
     if (nextPrefixes != null) {
       setExhaustedMoveRefresh(null);
       setPages({ controller, ...nextPrefixes });
@@ -570,9 +556,7 @@ export function ComposerPendingInputDrawer({
 
     if (result.type !== "moved") {
       setManagementCompletionHold(true);
-      setAlert(
-        refreshed.type === "ready" ? "moveNotApplied" : "moveNotAppliedRefreshFailed",
-      );
+      setAlert(refreshed.type === "ready" ? "moveNotApplied" : "moveNotAppliedRefreshFailed");
       focusHeading();
       return;
     }
@@ -641,11 +625,13 @@ export function ComposerPendingInputDrawer({
                 <p aria-live="polite" role="status">
                   {moveAnnouncement.lane === "ordinary" ? (
                     <Trans>
-                      Queued message moved to position {moveAnnouncement.position} of {moveAnnouncement.count}.
+                      Queued message moved to position {moveAnnouncement.position} of{" "}
+                      {moveAnnouncement.count}.
                     </Trans>
                   ) : (
                     <Trans>
-                      Guiding message moved to position {moveAnnouncement.position} of {moveAnnouncement.count}.
+                      Guiding message moved to position {moveAnnouncement.position} of{" "}
+                      {moveAnnouncement.count}.
                     </Trans>
                   )}
                 </p>
@@ -727,11 +713,13 @@ function PendingManagementAlert({ alert }: Readonly<{ alert: DrawerAlert }>) {
             <Trans>The pending-message order did not change. Refresh complete; try again.</Trans>
           ) : alert === "moveNotAppliedRefreshFailed" ? (
             <Trans>
-              The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing.
+              The pending-message order did not change, and the refreshed order could not be loaded
+              because the queue kept changing.
             </Trans>
           ) : alert === "moveRefreshFailed" ? (
             <Trans>
-              The message was moved, but repeated queue changes prevented the updated order from loading.
+              The message was moved, but repeated queue changes prevented the updated order from
+              loading.
             </Trans>
           ) : alert === "targetInvalidated" ? (
             <Trans>The target turn closed before the edit was saved.</Trans>

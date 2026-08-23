@@ -9,10 +9,7 @@ import type {
   ComposerPendingInputMovement,
   ComposerQueueMessage,
 } from "./composerInputQueueContracts";
-import {
-  composerPendingInputMoveTargetIndex,
-  moveArrayElement,
-} from "./composerPendingInputMove";
+import { composerPendingInputMoveTargetIndex, moveArrayElement } from "./composerPendingInputMove";
 
 const steerClaimCapability: unique symbol = Symbol("SteerClaim");
 const rejectedSteerTransferCapability: unique symbol = Symbol("RejectedSteerTransfer");
