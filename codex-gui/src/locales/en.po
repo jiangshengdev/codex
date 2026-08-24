@@ -81,10 +81,6 @@ msgstr "Agent spawn failed"
 msgid "An unexpected error occurred while continuing the task."
 msgstr "An unexpected error occurred while continuing the task."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:412
-#~ msgid "Another task switch is already in progress."
-#~ msgstr "Another task switch is already in progress."
-
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:489
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
@@ -703,10 +699,6 @@ msgstr "The target turn closed before the edit was saved."
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:598
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
-
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
-#~ msgid "The task connection is no longer available."
-#~ msgstr "The task connection is no longer available."
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:63
 msgid "The task connection was closed."
