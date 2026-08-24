@@ -94,6 +94,10 @@ pub struct MarketplaceRemoveParams {
 #[ts(export_to = "v2/")]
 pub struct MarketplaceRemoveResponse {
     pub marketplace_name: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_absolute_path_buf_schema"
+    )]
     pub installed_root: Option<AbsolutePathBuf>,
 }
 
@@ -231,6 +235,10 @@ pub struct PluginSkillReadParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct PluginSkillReadResponse {
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub contents: Option<String>,
 }
 
@@ -253,7 +261,10 @@ pub struct PluginShareSaveParams {
 pub struct PluginShareSaveResponse {
     pub remote_plugin_id: String,
     pub share_url: String,
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_bool_schema"
+    )]
     pub can_publish_to_workspace: Option<bool>,
 }
 
@@ -303,6 +314,10 @@ pub struct PluginShareCheckoutResponse {
     pub plugin_path: AbsolutePathBuf,
     pub marketplace_name: String,
     pub marketplace_path: AbsolutePathBuf,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub remote_version: Option<String>,
 }
 

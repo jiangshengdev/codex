@@ -171,6 +171,436 @@ fn experimental_precomputed_exports_match_generated() -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct TypeScriptFieldContract {
+    optional: bool,
+    nullable: bool,
+}
+
+#[test]
+fn response_field_presence_matches_typescript_contract() -> Result<()> {
+    let output_dir = tempfile::tempdir().context("create response contract temp dir")?;
+
+    for (view, experimental_api) in [("stable", false), ("experimental", true)] {
+        let view_dir = output_dir.path().join(view);
+        let typescript_dir = view_dir.join("typescript");
+        let json_dir = view_dir.join("json");
+        generate_ts_with_options(
+            &typescript_dir,
+            /*prettier*/ None,
+            GenerateTsOptions {
+                experimental_api,
+                ..GenerateTsOptions::default()
+            },
+        )
+        .with_context(|| format!("generate fresh {view} TypeScript response contracts"))?;
+        generate_json_with_experimental(&json_dir, experimental_api)
+            .with_context(|| format!("generate fresh {view} JSON response contracts"))?;
+
+        assert_response_field_contracts(view, &typescript_dir, &json_dir)?;
+    }
+
+    Ok(())
+}
+
+fn assert_response_field_contracts(
+    view: &str,
+    typescript_dir: &Path,
+    json_dir: &Path,
+) -> Result<()> {
+    let manifest_path = json_dir.join("client-request-definitions.json");
+    let manifest: Vec<Value> = serde_json::from_slice(
+        &std::fs::read(&manifest_path)
+            .with_context(|| format!("read fresh {view} request manifest"))?,
+    )
+    .with_context(|| format!("parse fresh {view} request manifest"))?;
+    let bundle_path = json_dir.join("codex_app_server_protocol.schemas.json");
+    let bundle: Value = serde_json::from_slice(
+        &std::fs::read(&bundle_path)
+            .with_context(|| format!("read fresh {view} JSON schema bundle"))?,
+    )
+    .with_context(|| format!("parse fresh {view} JSON schema bundle"))?;
+
+    let response_schema_ids = manifest
+        .iter()
+        .filter_map(|definition| definition["responseSchema"].as_str())
+        .filter(|schema_id| schema_id.starts_with("v2/"))
+        .collect::<BTreeSet<_>>();
+
+    for response_schema_id in response_schema_ids {
+        let response_schema = schema_definition(&bundle, response_schema_id).with_context(|| {
+            format!("resolve {view} JSON response schema {response_schema_id}")
+        })?;
+        let Some(properties) = response_schema.get("properties").and_then(Value::as_object) else {
+            continue;
+        };
+        let response_name = response_schema_id
+            .rsplit('/')
+            .next()
+            .context("response schema ID should contain a type name")?;
+        let typescript_path = typescript_dir.join(format!("{response_schema_id}.ts"));
+        let typescript = std::fs::read_to_string(&typescript_path).with_context(|| {
+            format!(
+                "read fresh {view} TypeScript response {}",
+                typescript_path.display()
+            )
+        })?;
+        let typescript_fields =
+            parse_typescript_object_fields(&typescript, &typescript_path, response_name)
+                .with_context(|| {
+                    format!("parse {view} TypeScript response {response_schema_id}")
+                })?;
+        let required = response_schema
+            .get("required")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect::<BTreeSet<_>>();
+        let typescript_field_names = typescript_fields
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        let json_field_names = properties
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            typescript_field_names, json_field_names,
+            "{view} response {response_schema_id} has different TypeScript and JSON Schema fields"
+        );
+
+        for (field_name, contract) in &typescript_fields {
+            if contract.optional || contract.nullable {
+                let json_required = required.contains(field_name.as_str());
+                assert_eq!(
+                    json_required, !contract.optional,
+                    "{view} response {response_schema_id}.{field_name} presence differs: TypeScript optional={}, JSON Schema required={json_required}",
+                    contract.optional
+                );
+                let property_schema = properties.get(field_name).with_context(|| {
+                    format!(
+                        "missing {view} JSON response field {response_schema_id}.{field_name}"
+                    )
+                })?;
+                let json_nullable = schema_accepts_null(property_schema, &bundle)?;
+                assert_eq!(
+                    json_nullable, contract.nullable,
+                    "{view} response {response_schema_id}.{field_name} nullability differs: TypeScript nullable={}, JSON Schema nullable={json_nullable}",
+                    contract.nullable
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn schema_definition<'a>(bundle: &'a Value, schema_id: &str) -> Result<&'a Value> {
+    schema_id
+        .split('/')
+        .try_fold(&bundle["definitions"], |definitions, segment| {
+            definitions
+                .get(segment)
+                .with_context(|| format!("missing schema definition segment {segment:?}"))
+        })
+}
+
+fn parse_typescript_object_fields(
+    typescript: &str,
+    typescript_path: &Path,
+    type_name: &str,
+) -> Result<BTreeMap<String, TypeScriptFieldContract>> {
+    let marker = format!("export type {type_name} =");
+    let declaration = typescript
+        .split_once(&marker)
+        .map(|(_, declaration)| declaration)
+        .with_context(|| format!("missing TypeScript declaration {marker:?}"))?;
+    let declaration = strip_typescript_comments(declaration);
+    if declaration.trim_start().starts_with("Record<string, never>") {
+        return Ok(BTreeMap::new());
+    }
+    let object_start = declaration
+        .find('{')
+        .context("TypeScript response should be an object type")?;
+    let object_end = declaration
+        .rfind('}')
+        .context("TypeScript response object should have a closing brace")?;
+    let body = &declaration[object_start + 1..object_end];
+    let mut fields = BTreeMap::new();
+
+    for field in split_top_level(body, ',') {
+        let field = field.trim();
+        if field.is_empty() {
+            continue;
+        }
+        let colon = field
+            .find(':')
+            .with_context(|| format!("TypeScript field is missing a colon: {field:?}"))?;
+        let name = field[..colon].trim();
+        let (name, optional) = match name.strip_suffix('?') {
+            Some(name) => (name.trim(), true),
+            None => (name, false),
+        };
+        let name = if name.starts_with('"') {
+            serde_json::from_str::<String>(name)
+                .with_context(|| format!("decode quoted TypeScript field name {name:?}"))?
+        } else {
+            anyhow::ensure!(
+                !name.is_empty()
+                    && name
+                        .chars()
+                        .all(|character| character == '_' || character.is_ascii_alphanumeric()),
+                "unsupported TypeScript field name {name:?}"
+            );
+            name.to_string()
+        };
+        let field_type = field[colon + 1..].trim();
+        let nullable = typescript_type_accepts_null(
+            field_type,
+            typescript,
+            typescript_path,
+            &mut BTreeSet::new(),
+        )?;
+        let previous = fields.insert(
+            name.clone(),
+            TypeScriptFieldContract { optional, nullable },
+        );
+        anyhow::ensure!(previous.is_none(), "duplicate TypeScript field {name:?}");
+    }
+
+    Ok(fields)
+}
+
+fn typescript_type_accepts_null(
+    field_type: &str,
+    source: &str,
+    source_path: &Path,
+    visiting: &mut BTreeSet<(PathBuf, String)>,
+) -> Result<bool> {
+    let members = split_top_level(field_type, '|');
+    if members
+        .iter()
+        .any(|member| matches!(member.trim(), "null" | "any" | "unknown"))
+    {
+        return Ok(true);
+    }
+
+    for member in members {
+        let member = member.trim();
+        if member.is_empty()
+            || !member
+                .chars()
+                .all(|character| character == '_' || character.is_ascii_alphanumeric())
+        {
+            continue;
+        }
+        let Some((import_path, imported_name)) =
+            imported_typescript_type_path(source, source_path, member)?
+        else {
+            continue;
+        };
+        let key = (import_path.clone(), imported_name.clone());
+        if !visiting.insert(key.clone()) {
+            continue;
+        }
+        let imported_source = std::fs::read_to_string(&import_path)
+            .with_context(|| format!("read imported TypeScript type {}", import_path.display()))?;
+        let marker = format!("export type {imported_name} =");
+        let declaration = imported_source
+            .split_once(&marker)
+            .map(|(_, declaration)| declaration)
+            .with_context(|| {
+                format!(
+                    "missing imported TypeScript declaration {marker:?} in {}",
+                    import_path.display()
+                )
+            })?;
+        let declaration = strip_typescript_comments(declaration);
+        let alias = split_top_level(&declaration, ';')
+            .into_iter()
+            .next()
+            .context("imported TypeScript alias should have a declaration")?
+            .trim();
+        let nullable =
+            typescript_type_accepts_null(alias, &imported_source, &import_path, visiting)?;
+        visiting.remove(&key);
+        if nullable {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn imported_typescript_type_path(
+    source: &str,
+    source_path: &Path,
+    type_name: &str,
+) -> Result<Option<(PathBuf, String)>> {
+    for line in source.lines().map(str::trim) {
+        let Some(import) = line.strip_prefix("import type {") else {
+            continue;
+        };
+        let Some((bindings, module)) = import.split_once('}') else {
+            continue;
+        };
+        let imported_name = bindings.split(',').find_map(|binding| {
+            let binding = binding.trim();
+            let (imported_name, local_name) = binding
+                .split_once(" as ")
+                .map_or((binding, binding), |(imported_name, local_name)| {
+                    (imported_name.trim(), local_name.trim())
+                });
+            (local_name == type_name).then(|| imported_name.to_string())
+        });
+        let Some(imported_name) = imported_name else {
+            continue;
+        };
+        let module = module
+            .trim()
+            .strip_prefix("from ")
+            .context("TypeScript type import should contain `from`")?
+            .trim_end_matches(';')
+            .trim();
+        let module = serde_json::from_str::<String>(module)
+            .with_context(|| format!("decode TypeScript import module {module:?}"))?;
+        let parent = source_path
+            .parent()
+            .context("TypeScript source should have a parent directory")?;
+        let import_path = parent.join(module).with_extension("ts");
+        return Ok(Some((
+            std::fs::canonicalize(&import_path).with_context(|| {
+                format!("resolve imported TypeScript type {}", import_path.display())
+            })?,
+            imported_name,
+        )));
+    }
+
+    Ok(None)
+}
+
+fn strip_typescript_comments(source: &str) -> String {
+    let mut result = String::with_capacity(source.len());
+    let mut characters = source.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character != '/' {
+            result.push(character);
+            continue;
+        }
+        match characters.peek() {
+            Some('/') => {
+                characters.next();
+                for character in characters.by_ref() {
+                    if character == '\n' {
+                        result.push('\n');
+                        break;
+                    }
+                }
+            }
+            Some('*') => {
+                characters.next();
+                let mut previous = '\0';
+                for character in characters.by_ref() {
+                    if previous == '*' && character == '/' {
+                        break;
+                    }
+                    previous = character;
+                }
+                result.push(' ');
+            }
+            _ => result.push(character),
+        }
+    }
+    result
+}
+
+fn split_top_level(source: &str, delimiter: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut delimiters = Vec::new();
+    for (index, character) in source.char_indices() {
+        match character {
+            '{' => delimiters.push('}'),
+            '[' => delimiters.push(']'),
+            '(' => delimiters.push(')'),
+            '<' => delimiters.push('>'),
+            '}' | ']' | ')' | '>' if delimiters.last() == Some(&character) => {
+                delimiters.pop();
+            }
+            _ if character == delimiter && delimiters.is_empty() => {
+                parts.push(&source[start..index]);
+                start = index + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(&source[start..]);
+    parts
+}
+
+fn schema_accepts_null(schema: &Value, bundle: &Value) -> Result<bool> {
+    let Value::Object(schema) = schema else {
+        return Ok(schema.as_bool().unwrap_or(false));
+    };
+
+    if let Some(reference) = schema.get("$ref").and_then(Value::as_str) {
+        let reference = reference
+            .strip_prefix("#/definitions/")
+            .with_context(|| format!("unsupported schema reference {reference:?}"))?;
+        return schema_accepts_null(schema_definition(bundle, reference)?, bundle);
+    }
+
+    let mut accepts_null = true;
+    if let Some(types) = schema.get("type") {
+        accepts_null &= match types {
+            Value::String(schema_type) => schema_type == "null",
+            Value::Array(schema_types) => schema_types
+                .iter()
+                .any(|value| value.as_str() == Some("null")),
+            _ => false,
+        };
+    }
+    if let Some(constant) = schema.get("const") {
+        accepts_null &= constant.is_null();
+    }
+    if let Some(values) = schema.get("enum").and_then(Value::as_array) {
+        accepts_null &= values.iter().any(Value::is_null);
+    }
+    if let Some(schemas) = schema.get("anyOf").and_then(Value::as_array) {
+        accepts_null &= schemas
+            .iter()
+            .map(|schema| schema_accepts_null(schema, bundle))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .any(|accepts_null| accepts_null);
+    }
+    if let Some(schemas) = schema.get("oneOf").and_then(Value::as_array) {
+        accepts_null &= schemas
+            .iter()
+            .map(|schema| schema_accepts_null(schema, bundle))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .filter(|accepts_null| *accepts_null)
+            .count()
+            == 1;
+    }
+    if let Some(schemas) = schema.get("allOf").and_then(Value::as_array) {
+        accepts_null &= schemas
+            .iter()
+            .map(|schema| schema_accepts_null(schema, bundle))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .all(|accepts_null| accepts_null);
+    }
+    if let Some(negated) = schema.get("not") {
+        accepts_null &= !schema_accepts_null(negated, bundle)?;
+    }
+
+    Ok(accepts_null)
+}
+
 #[test]
 fn client_request_definitions_export_method_params_and_response() -> Result<()> {
     let generated_tree = generate_typescript_schema_fixture_subtree_for_tests()

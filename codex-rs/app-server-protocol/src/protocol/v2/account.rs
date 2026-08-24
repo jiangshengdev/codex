@@ -304,7 +304,15 @@ pub struct GetAccountRateLimitsResponse {
     /// Backward-compatible single-bucket view; mirrors the historical payload.
     pub rate_limits: RateLimitSnapshot,
     /// Multi-bucket view keyed by metered `limit_id` (for example, `codex`).
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_rate_limits_by_limit_id_schema"
+    )]
     pub rate_limits_by_limit_id: Option<HashMap<String, RateLimitSnapshot>>,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_rate_limit_reset_credits_summary_schema"
+    )]
     pub rate_limit_reset_credits: Option<RateLimitResetCreditsSummary>,
 }
 
@@ -411,6 +419,10 @@ pub type NullableGetAccountTokenUsageParams = Option<GetAccountTokenUsageParams>
 #[ts(export_to = "v2/")]
 pub struct GetAccountTokenUsageResponse {
     pub summary: AccountTokenUsageSummary,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_account_token_usage_daily_buckets_schema"
+    )]
     pub daily_usage_buckets: Option<Vec<AccountTokenUsageDailyBucket>>,
     /// Estimated usage when a thread was requested and its billing route is available.
     #[serde(default)]
@@ -519,6 +531,10 @@ pub struct GetAccountParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct GetAccountResponse {
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_account_schema"
+    )]
     pub account: Option<Account>,
     pub requires_openai_auth: bool,
 }
