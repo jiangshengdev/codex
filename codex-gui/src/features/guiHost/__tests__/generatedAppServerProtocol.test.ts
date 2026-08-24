@@ -17,6 +17,12 @@ import type { RequestResponse } from "../appServerProtocol";
 
 const historyThread = attachBaseline.snapshot.thread;
 
+const threadListResponse = {
+  data: [historyThread],
+  nextCursor: "next-page",
+  backwardsCursor: null,
+} satisfies RequestResponse<"thread/list">;
+
 const threadResumeResponse = {
   thread: historyThread,
   model: "gpt-5",
@@ -138,15 +144,7 @@ describe("generated app-server protocol", () => {
         ],
       },
     ],
-    [
-      "thread/list",
-      {
-        data: [historyThread],
-        nextCursor: "next-page",
-        backwardsCursor: null,
-      } satisfies RequestResponse<"thread/list">,
-      { data: null, nextCursor: null, backwardsCursor: null },
-    ],
+    ["thread/list", threadListResponse, { data: null, nextCursor: null, backwardsCursor: null }],
     [
       "thread/read",
       { thread: historyThread } satisfies RequestResponse<"thread/read">,
@@ -165,6 +163,23 @@ describe("generated app-server protocol", () => {
 
       expect(descriptor.validateResponse(response)).toBe(true);
       expect(descriptor.validateResponse(malformed)).toBe(false);
+    },
+  );
+
+  it.each([
+    ["thread/list", "nextCursor", { ...threadListResponse, nextCursor: null }],
+    ["thread/list", "backwardsCursor", threadListResponse],
+    ["thread/resume", "serviceTier", threadResumeResponse],
+    ["thread/resume", "reasoningEffort", threadResumeResponse],
+  ] as const)(
+    "requires %s response field %s while accepting explicit null",
+    (method, field, responseWithNull) => {
+      const responseWithoutField = { ...responseWithNull };
+      Reflect.deleteProperty(responseWithoutField, field);
+
+      const descriptor = requestDescriptors[method];
+      expect(descriptor.validateResponse(responseWithNull)).toBe(true);
+      expect(descriptor.validateResponse(responseWithoutField)).toBe(false);
     },
   );
 
