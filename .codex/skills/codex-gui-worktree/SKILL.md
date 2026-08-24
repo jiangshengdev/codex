@@ -11,7 +11,9 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 
 - Before printing paths, resolve the worktree path plus every symlink path and target with the same physical-path and root-directory resolution semantics used by the bundled script.
 - Before executing the creation command, print the complete command unchanged, the canonical worktree target path, and every symlink the script will actually create as an exact canonical `link path -> target` mapping. If a requested path alias differs from its resolved path, print the requested alias alongside the actual canonical path or mapping.
-- Wait for user confirmation unless either the user explicitly says to execute directly, or a confirmed plan lists that worktree's exact name, branch, base, target path, include scope, and command. A matching confirmed plan waives only the repeated wait, never the pre-execution printout. Any parameter drift or unplanned worktree creation requires new confirmation.
+- A direct user request to create, prepare, bootstrap, or repair a `codex-gui` worktree authorizes that operation. After the required pre-execution disclosure, execute it without another confirmation; an earlier plan that omitted the worktree or said not to create one does not override the current request.
+- A confirmed plan that lists the worktree's exact name, branch, base, target path, include scope, and command also authorizes execution without another confirmation. It never waives the pre-execution disclosure.
+- Wait for confirmation only when the user is discussing rather than requesting the operation, the assistant proposed it, a required parameter cannot be inferred safely, or the target path, branch, file, directory, or symlink conflicts with existing state or risks an overwrite. Parameter drift beyond the current direct request or confirmed plan also requires confirmation.
 - When a confirmed plan declares multiple worktrees, the coordinating agent must create and verify all of them before any implementation edit, generation, artifact verification, or task commit begins.
 - Do not install dependencies.
 - Do not download documentation.
@@ -21,6 +23,8 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
 
 ## Pre-execution Disclosure Gate
+
+This disclosure is a durable informed record, not a second confirmation gate. When the current direct request or a matching confirmed plan already authorizes the operation, invoke the script after emitting the complete disclosure in the same turn.
 
 For each worktree, before any tool call that can create the worktree or a symlink, emit one complete, durable disclosure record containing:
 
