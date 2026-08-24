@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig, configDefaults, mergeConfig } from "vitest/config";
 import packageJson from "./package.json" with { type: "json" };
-import viteConfig from "./vite.config";
+import viteConfig from "./vite.config.ts";
 
 export default mergeConfig(
   viteConfig,

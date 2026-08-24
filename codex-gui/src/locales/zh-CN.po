@@ -81,10 +81,6 @@ msgstr "启动智能体失败"
 msgid "An unexpected error occurred while continuing the task."
 msgstr "继续此任务时发生意外错误。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:412
-#~ msgid "Another task switch is already in progress."
-#~ msgstr "另一项任务切换正在进行中。"
-
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:489
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
@@ -703,10 +699,6 @@ msgstr "目标轮次已在编辑保存前关闭。"
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:598
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
-
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
-#~ msgid "The task connection is no longer available."
-#~ msgstr "任务连接已不可用。"
 
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:63
 msgid "The task connection was closed."

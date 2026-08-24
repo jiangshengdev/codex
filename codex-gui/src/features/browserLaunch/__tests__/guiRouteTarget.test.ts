@@ -63,7 +63,7 @@ describe("selectGuiRouteTarget", () => {
         successfulMatch("/history/extra", {}),
       ]),
       selectGuiRouteTarget([
-        { ...successfulMatch("/", {}), globalNotFound: true },
+        { ...successfulMatch("/", {}), _notFound: true },
         successfulMatch(HISTORY_LIST_ROUTE_PATH, {}),
       ]),
       selectGuiRouteTarget([

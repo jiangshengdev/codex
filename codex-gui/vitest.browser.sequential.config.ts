@@ -2,7 +2,7 @@ import path from "node:path";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig, mergeConfig } from "vitest/config";
 import packageJson from "./package.json" with { type: "json" };
-import viteConfig from "./vite.config";
+import viteConfig from "./vite.config.ts";
 
 const browserViteConfig = { ...viteConfig, server: {} };
 
