@@ -1,21 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { AppDispatch } from "@/app/store";
+import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import * as composerInputQueueCoordinator from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import type { SkillsListResponse } from "@codex-protocol/v2";
 import { prepareActiveThreadOwner } from "../activeThreadOwner";
 import type { ProjectionAnimationFrameScheduler } from "../projectionApplicationCoordinator";
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, resolve, reject };
-}
 
 const dispatch = ((action: unknown) => action) as unknown as AppDispatch;
 const scheduler: ProjectionAnimationFrameScheduler = {
@@ -100,16 +92,12 @@ describe("activeThreadOwner skill catalog", () => {
     prepared.activeOwner.skillCatalog.subscribe(catalogListener);
 
     expect(prepared.activeOwner.dispose).toBe(prepared.dispose);
-    prepared.activeOwner.dispose();
+    prepared.activeOwner.dispose("ownerReplaced");
     prepared.dispose();
     pending.resolve(response("stale"));
     await Promise.resolve();
 
-    expect(
-      prepared.activeOwner.queueCoordinator.submit([
-        { type: "text", text: "after dispose", text_elements: [] },
-      ]),
-    ).toEqual({
+    expect(prepared.activeOwner.queueCoordinator.submit(composerCapture("after dispose"))).toEqual({
       type: "rejected",
       reason: "disposed",
     });
@@ -117,6 +105,7 @@ describe("activeThreadOwner skill catalog", () => {
     expect(prepared.activeOwner.skillCatalog.retry()).toBe(false);
     expect(catalogListener).not.toHaveBeenCalled();
     expect(queueDispose).toHaveBeenCalledOnce();
+    expect(queueDispose).toHaveBeenCalledExactlyOnceWith("ownerReplaced");
     expect(projectionDispose).toHaveBeenCalledOnce();
   });
 

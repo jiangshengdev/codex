@@ -9,13 +9,33 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 
 ## Rules
 
-- Before creating a worktree or symlink, print the exact command and target paths and wait for user confirmation, unless the user explicitly says to execute directly.
+- Before printing paths, resolve the worktree path plus every symlink path and target with the same physical-path and root-directory resolution semantics used by the bundled script.
+- Before executing the creation command, print the complete command unchanged, the canonical worktree target path, and every symlink the script will actually create as an exact canonical `link path -> target` mapping. If a requested path alias differs from its resolved path, print the requested alias alongside the actual canonical path or mapping.
+- A direct user request to create, prepare, bootstrap, or repair a `codex-gui` worktree authorizes that operation. After the required pre-execution disclosure, execute it without another confirmation; an earlier plan that omitted the worktree or said not to create one does not override the current request.
+- A confirmed plan that lists the worktree's exact name, branch, base, target path, include scope, and command also authorizes execution without another confirmation. It never waives the pre-execution disclosure.
+- Wait for confirmation only when the user is discussing rather than requesting the operation, the assistant proposed it, a required parameter cannot be inferred safely, or the target path, branch, file, directory, or symlink conflicts with existing state or risks an overwrite. Parameter drift beyond the current direct request or confirmed plan also requires confirmation.
+- When a confirmed plan declares multiple worktrees, the coordinating agent must create and verify all of them before any implementation edit, generation, artifact verification, or task commit begins.
 - Do not install dependencies.
 - Do not download documentation.
-- Do not stage or commit.
+- This setup skill does not stage or commit. Later nodes may stage or commit in the prepared worktree only when separately authorized by a confirmed plan.
 - Do not overwrite existing branches, worktrees, files, directories, or symlinks.
+- Before creation, confirm that every default sparse checkout path and every
+  `--include` path exists in the selected base's Git tree.
 - Stop on conflicts and print the exact path that blocks progress.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
+
+## Pre-execution Disclosure Gate
+
+This disclosure is a durable informed record, not a second confirmation gate. When the current direct request or a matching confirmed plan already authorizes the operation, invoke the script after emitting the complete disclosure in the same turn.
+
+For each worktree, before any tool call that can create the worktree or a symlink, emit one complete, durable disclosure record containing:
+
+- the complete command verbatim
+- every requested path alias
+- the canonical worktree path
+- every canonical `link path -> target` mapping the script will actually create, including the shared Vitest link
+
+If any field is missing, stop and do not invoke the script. Record each planned worktree separately. Output produced after execution cannot backfill or replace this preflight record.
 
 ## Default Layout
 
@@ -31,14 +51,26 @@ base branch: dev
 Default sparse checkout paths:
 
 ```text
+.codex/skills
+.agents/skills
+docs/superpowers
 codex-gui
 codex-rs/app-server-protocol/schema/typescript
+codex-rs/app-server-protocol/schema/json
+codex-rs/gui-host/schema/typescript
+codex-rs/gui-host/schema/json
 ```
 
-Add task-specific paths with `--include`, for example:
+These paths form the fixed task control plane for GUI worktrees: they keep the
+repository-local skills, project work documents, GUI sources, and generated
+protocol schemas available without depending on another checkout. The schema
+paths are direct inputs to GUI type-checking, Vite, and protocol validators.
+
+Use `--include` only for additional task-specific source or tool paths outside
+that fixed control plane, for example:
 
 ```text
-docs/superpowers/plans/2026/06/22/2026-06-22-codex-gui-frontend-refactor
+codex-rs/app-server
 ```
 
 ## Script
@@ -50,7 +82,7 @@ bash .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
   --name gui-transcript-state \
   --branch codex/gui-transcript-state \
   --base dev \
-  --include docs/superpowers/plans/2026/06/22/2026-06-22-codex-gui-frontend-refactor
+  --include codex-rs/app-server
 ```
 
 The script creates the sparse worktree, links local dependency and documentation caches, and verifies the result.
@@ -98,6 +130,9 @@ After running the script, report:
 - worktree path
 - branch
 - sparse checkout list
+- readability of the fixed task control plane, including its key skill
+  entrypoints, applicable `AGENTS.md` files, project work documents, and
+  protocol schemas
 - linked resources
 - `git status --short --branch`
 

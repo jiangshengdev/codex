@@ -19,6 +19,8 @@ import type {
   ThreadProjectionAttachResponse,
 } from "@codex-protocol/v2";
 
+export { createDeferred, type Deferred } from "./testDeferred";
+
 export type StartGuiHostConnectionMock = {
   mockImplementation: (
     implementation: (options: StartGuiHostConnectionOptions) => () => void,
@@ -40,22 +42,6 @@ let resetGeneration = 0;
 
 type AttachProjectionParams = Parameters<GuiHostCommands["attachThreadProjection"]>[0];
 type AttachProjectionResponse = Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>;
-
-export type Deferred<T> = Readonly<{
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (error: unknown) => void;
-}>;
-
-export const createDeferred = <T>(): Deferred<T> => {
-  let resolve: Deferred<T>["resolve"] = () => undefined;
-  let reject: Deferred<T>["reject"] = () => undefined;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, resolve, reject };
-};
 
 export type DeferredAttachProjection = Readonly<{
   getRequestThreadId: () => string | null;

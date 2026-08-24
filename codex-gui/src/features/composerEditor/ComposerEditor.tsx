@@ -18,12 +18,23 @@ import { useEffect, useMemo, useRef, type KeyboardEvent, type Ref } from "react"
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 
 import { ComposerClipboardPlugin } from "./ComposerClipboardPlugin";
+import {
+  captureComposerDraft,
+  composerDraftCaptureMatchesEditorState,
+  projectComposerDraft,
+  restoreComposerDraft,
+  type ComposerDraft,
+  type ComposerDraftCapture,
+  type ComposerDraftRestoreResult,
+} from "./composerDraft";
 import { $isSkillNode, SkillNode } from "./SkillNode";
-import { SkillTypeaheadPlugin } from "./SkillTypeaheadPlugin";
+import { SkillTypeaheadPlugin, type SkillTypeaheadPlacement } from "./SkillTypeaheadPlugin";
+
+export type ComposerEditorSkillMenuPlacement = SkillTypeaheadPlacement;
 
 export type ComposerEditorSnapshot = Readonly<{
-  editorState: EditorState;
   textContent: string;
+  selectedSkillPaths: readonly string[];
 }>;
 
 export type ComposerEditorSubmitIntent = "ordinary" | "guide";
@@ -31,7 +42,9 @@ export type ComposerEditorSubmitIntent = "ordinary" | "guide";
 export type ComposerEditorController = Readonly<{
   getSnapshot: () => ComposerEditorSnapshot;
   subscribe: (listener: () => void) => () => void;
-  clearIfSame: (editorState: EditorState) => boolean;
+  capture: () => ComposerDraftCapture;
+  clearIfCurrent: (capture: ComposerDraftCapture) => boolean;
+  restore: (draft: ComposerDraft) => ComposerDraftRestoreResult;
   focus: () => void;
   getRootElement: () => HTMLElement | null;
 }>;
@@ -43,10 +56,11 @@ export type ComposerEditorProps = Readonly<{
   guardCompositionEndEnter: boolean;
   onControllerChange?: (controller: ComposerEditorController | null) => void;
   onRetrySkillCatalog?: () => void;
-  onSubmit: (snapshot: ComposerEditorSnapshot, intent: ComposerEditorSubmitIntent) => void;
+  onSubmit: (capture: ComposerDraftCapture, intent: ComposerEditorSubmitIntent) => void;
   placeholder: string;
   skillCatalog: SkillCatalogState;
   skillMenuParent: HTMLElement | null;
+  skillMenuPlacement?: ComposerEditorSkillMenuPlacement;
   skillValidity?: Readonly<{
     invalidPaths: ReadonlySet<string>;
     statusText: string;
@@ -64,6 +78,7 @@ export function ComposerEditor({
   placeholder,
   skillCatalog,
   skillMenuParent,
+  skillMenuPlacement = "above",
   skillValidity,
 }: ComposerEditorProps) {
   const primaryModifier = primaryModifierForPlatform(navigator.platform);
@@ -117,7 +132,7 @@ export function ComposerEditor({
     }
 
     event.preventDefault();
-    onSubmitRef.current(controller.getSnapshot(), intent);
+    onSubmitRef.current(controller.capture(), intent);
   };
 
   return (
@@ -167,6 +182,7 @@ export function ComposerEditor({
         <SkillTypeaheadPlugin
           isComposingRef={isComposingRef}
           onRetry={onRetrySkillCatalog}
+          placement={skillMenuPlacement}
           portalParent={skillMenuParent}
           skillCatalog={skillCatalog}
         />
@@ -251,7 +267,7 @@ function EnterCommandPlugin({
           }
 
           event.preventDefault();
-          onSubmitRef.current(controller.getSnapshot(), intent);
+          onSubmitRef.current(controller.capture(), intent);
           return true;
         },
         COMMAND_PRIORITY_BEFORE_EDITOR,
@@ -383,11 +399,13 @@ function setSkillInvalidDom(
 
 class ComposerEditorControllerImpl implements ComposerEditorController {
   private readonly editor: LexicalEditor;
+  private publishedEditorState: EditorState;
   private snapshot: ComposerEditorSnapshot;
   private readonly listeners = new Set<() => void>();
 
   constructor(editor: LexicalEditor) {
     this.editor = editor;
+    this.publishedEditorState = editor.getEditorState();
     this.snapshot = snapshotFromEditorState(editor.getEditorState());
   }
 
@@ -400,8 +418,10 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
     };
   };
 
-  readonly clearIfSame = (editorState: EditorState): boolean => {
-    if (this.editor.getEditorState() !== editorState) {
+  readonly capture = (): ComposerDraftCapture => captureComposerDraft(this.editor.getEditorState());
+
+  readonly clearIfCurrent = (capture: ComposerDraftCapture): boolean => {
+    if (!composerDraftCaptureMatchesEditorState(capture, this.editor.getEditorState())) {
       return false;
     }
 
@@ -413,6 +433,9 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
     );
     return true;
   };
+
+  readonly restore = (draft: ComposerDraft): ComposerDraftRestoreResult =>
+    restoreComposerDraft(this.editor, draft);
 
   readonly focus = (): void => {
     this.editor.focus();
@@ -428,10 +451,11 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
   }
 
   private publish(editorState: EditorState): void {
-    if (this.snapshot.editorState === editorState) {
+    if (this.publishedEditorState === editorState) {
       return;
     }
 
+    this.publishedEditorState = editorState;
     this.snapshot = snapshotFromEditorState(editorState);
     for (const listener of this.listeners) {
       listener();
@@ -440,10 +464,7 @@ class ComposerEditorControllerImpl implements ComposerEditorController {
 }
 
 function snapshotFromEditorState(editorState: EditorState): ComposerEditorSnapshot {
-  return editorState.read(() => ({
-    editorState,
-    textContent: $getRoot().getTextContent(),
-  }));
+  return projectComposerDraft(editorState);
 }
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {

@@ -1,80 +1,13 @@
 ---
 slug: /
-title: Codex GUI
-description: Codex GUI 极简安装与启动指南
-hide_table_of_contents: true
+title: Codex GUI 文档
+description: Codex GUI 使用与开发文档导航
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
+import DocCardList from '@theme/DocCardList';
 
-# Codex GUI
+# Codex GUI 文档
 
-本页适用于首次使用 Codex GUI 的普通用户。
+选择下面的文档，开始使用或参与开发 Codex GUI。
 
-## 1. 安装 Codex
-
-<Tabs groupId="package-manager" defaultValue="npm">
-<TabItem value="npm" label="npm">
-
-```bash
-npm install -g @jiangshengdev/codex@latest
-```
-
-</TabItem>
-<TabItem value="pnpm" label="pnpm">
-
-```bash
-pnpm add -g @jiangshengdev/codex@latest
-```
-
-</TabItem>
-<TabItem value="yarn" label="Yarn Classic">
-
-```bash
-yarn global add @jiangshengdev/codex@latest
-```
-
-</TabItem>
-<TabItem value="bun" label="Bun">
-
-```bash
-bun add -g @jiangshengdev/codex@latest
-```
-
-</TabItem>
-</Tabs>
-
-## 2. 启动 Codex
-
-进入你的项目目录，然后运行：
-
-```bash
-cdx
-```
-
-## 3. 获取 GUI 地址
-
-输入：
-
-```text
-/gui
-```
-
-`/gui` 只会输出访问地址，不会自动打开浏览器。
-
-输出类似：
-
-```text
-Local: http://127.0.0.1:<PORT>/task/<TASK_ID>#token=<ACCESS_TOKEN>
-LAN:   http://<LAN_IP>:<PORT>/task/<TASK_ID>#token=<ACCESS_TOKEN>
-```
-
-- 在运行 Codex 的电脑上访问时，使用 `Local`。
-- 从同一局域网内的其他设备访问时，使用 `LAN`。
-- 端口、任务 ID 和访问令牌每次可能不同，请以终端的实际输出为准。
-- 必须复制完整 URL，包括 `/task/...` 和 `#token=...`。访问令牌不要分享或公开。
-
-## 4. 打开 Codex GUI
-
-复制输出中的 `Local`，粘贴到浏览器地址栏并打开。
+<DocCardList />

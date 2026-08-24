@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Chip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { useAppSelector } from "@/app/hooks";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
 import { HISTORY_DETAIL_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
@@ -9,6 +9,7 @@ import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import type { Thread } from "@codex-protocol/v2";
 import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHistoryListOwner";
+import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
 export function ThreadHistoryListPage() {
   const { activeOwner, commands, startupOutcome } = useAppCapabilities();
@@ -62,39 +63,7 @@ function ThreadHistoryListOwnerBound({ commands, cwd }: ThreadHistoryListOwnerBo
     () => new ThreadHistoryListOwner({ cwd, listThreads: commands.listThreads }),
     [commands.listThreads, cwd],
   );
-  const pendingDisposal = useRef<{
-    owner: ThreadHistoryListOwner;
-    cancel: () => void;
-  } | null>(null);
-  const state = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
-
-  useEffect(() => {
-    if (pendingDisposal.current?.owner === owner) {
-      pendingDisposal.current.cancel();
-      pendingDisposal.current = null;
-    }
-
-    owner.start();
-    return () => {
-      let cancelled = false;
-      const disposal = {
-        owner,
-        cancel: () => {
-          cancelled = true;
-        },
-      };
-      pendingDisposal.current = disposal;
-      queueMicrotask(() => {
-        if (cancelled) {
-          return;
-        }
-        if (pendingDisposal.current === disposal) {
-          pendingDisposal.current = null;
-        }
-        owner.dispose();
-      });
-    };
-  }, [owner]);
+  const state = useStrictModeSafeOwner(owner);
 
   return <HistoryListContent loadMore={owner.loadMore} retry={owner.retry} state={state} />;
 }

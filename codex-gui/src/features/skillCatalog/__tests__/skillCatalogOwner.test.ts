@@ -1,17 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import type { SkillMetadata, SkillsListResponse } from "@codex-protocol/v2";
 import { SkillCatalogOwner, type SkillCatalogState } from "../skillCatalogOwner";
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, resolve, reject };
-}
 
 const cwd = "/workspace/project";
 
