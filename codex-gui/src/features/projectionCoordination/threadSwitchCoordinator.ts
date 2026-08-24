@@ -40,13 +40,13 @@ export type ContinueThreadFailure =
       type: "connectionLost";
       progress: "beforeCommit" | "afterCommit";
       threadId: string;
-      cleanupError: unknown | null;
+      cleanupError: unknown;
     }>
   | Readonly<{
       type: "operationFailed";
       phase: "admission" | "resume" | "attach" | "activate";
       error: unknown;
-      cleanupError: unknown | null;
+      cleanupError: unknown;
     }>;
 
 export type ThreadSwitchWarning =
@@ -60,7 +60,7 @@ export type ThreadSwitchWarning =
 export type ActiveOwnerPublicationReceipt =
   | Readonly<{
       ownerPublished: true;
-      authorizationPersistenceError: unknown | null;
+      authorizationPersistenceError: unknown;
     }>
   | Readonly<{ ownerPublished: false; error: unknown }>;
 
@@ -117,7 +117,7 @@ type ActiveOwnerPreparationResult =
 type ActivationFacts = Readonly<{
   committed: boolean;
   published: boolean;
-  failure: unknown | null;
+  failure: unknown;
   warnings: readonly Extract<ThreadSwitchWarning, { type: "postCommitDegraded" }>[];
 }>;
 
@@ -137,7 +137,7 @@ type TerminalFacts = Readonly<{
   committed: boolean;
   published: boolean;
   failure: TerminalFailure | null;
-  cleanupError: unknown | null;
+  cleanupError: unknown;
   warnings: readonly ThreadSwitchWarning[];
 }>;
 
@@ -153,7 +153,7 @@ export class ThreadSwitchCoordinator {
   private transitionGeneration = 0;
   private commitInProgress = false;
   private disposeRequested = false;
-  private disposalError: unknown | null = null;
+  private disposalError: unknown = null;
   private busy = false;
   private disposed = false;
 
@@ -283,7 +283,7 @@ export class ThreadSwitchCoordinator {
     }
 
     this.finishCommitted(candidate);
-    let previousOwnerCleanupError: unknown | null = null;
+    let previousOwnerCleanupError: unknown = null;
     if (prepared.previousOwner != null) {
       try {
         prepared.previousOwner.dispose("ownerReplaced");
@@ -398,11 +398,11 @@ export class ThreadSwitchCoordinator {
     this.commitInProgress = true;
     let committed = false;
     let published = false;
-    let failure: unknown | null = null;
+    let failure: unknown = null;
     const warnings: Extract<ThreadSwitchWarning, { type: "postCommitDegraded" }>[] = [];
     try {
       let commitReturned = false;
-      let commitError: unknown | null = null;
+      let commitError: unknown = null;
       try {
         commitReturned = prepared.preparedOwner.commit();
       } catch (error: unknown) {
@@ -535,7 +535,7 @@ export class ThreadSwitchCoordinator {
     candidate: CandidateThreadOwner,
     failure: TerminalFailure,
     preparedOwner: PreparedActiveThreadOwner | null = null,
-    initialCleanupError: unknown | null = null,
+    initialCleanupError: unknown = null,
   ): Promise<ContinueThreadOutcome> {
     let cleanupError = initialCleanupError;
     if (preparedOwner != null) {
@@ -644,7 +644,7 @@ export class ThreadSwitchCoordinator {
     }
   }
 
-  private async detachCandidate(candidate: CandidateThreadOwner): Promise<unknown | null> {
+  private async detachCandidate(candidate: CandidateThreadOwner): Promise<unknown> {
     if (candidate.attachedThreadId == null) {
       return null;
     }
@@ -656,7 +656,7 @@ export class ThreadSwitchCoordinator {
     }
   }
 
-  private settleDeferredDisposal(): unknown | null {
+  private settleDeferredDisposal(): unknown {
     if (!this.disposeRequested) {
       return null;
     }
@@ -678,7 +678,7 @@ export class ThreadSwitchCoordinator {
   }
 }
 
-function appendError(current: unknown | null, error: unknown | null): unknown | null {
+function appendError(current: unknown, error: unknown): unknown {
   if (error == null) return current;
   if (current == null) return error;
   return new AggregateError([current, error], "Multiple thread switch errors");
