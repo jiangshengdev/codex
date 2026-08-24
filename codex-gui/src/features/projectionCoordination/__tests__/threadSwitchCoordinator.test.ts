@@ -26,6 +26,7 @@ import {
   threadRuntimeDeltasAccepted,
   threadRuntimeEventBuffered,
 } from "@/features/threadRuntime/threadRuntimeSlice";
+import { launchThreadIdRecorded } from "@/features/threadIdentity/threadIdentitySlice";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { liveThreadReplacementCommitted } from "../liveThreadReplacement";
 import {
@@ -46,9 +47,11 @@ const emptySkillCatalogState: SkillCatalogState = {
 const createHarness = ({ initialActiveOwner = true } = {}) => {
   const store = makeStore();
   const actions: UnknownAction[] = [];
+  let dispatchBeforeCommit: ((action: UnknownAction) => void) | undefined;
   let dispatchReentry: ((action: UnknownAction) => void) | undefined;
   const dispatch = ((action: UnknownAction) => {
     actions.push(action);
+    dispatchBeforeCommit?.(action);
     const result = store.dispatch(action);
     dispatchReentry?.(action);
     return result;
@@ -115,8 +118,9 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
       }
     }
   });
-  const publishActiveOwner =
-    vi.fn<ConstructorParameters<typeof ThreadSwitchCoordinator>[0]["publishActiveOwner"]>();
+  const publishActiveOwner = vi.fn<
+    ConstructorParameters<typeof ThreadSwitchCoordinator>[0]["publishActiveOwner"]
+  >(() => ({ ownerPublished: true, authorizationPersistenceError: null }));
   const coordinator = new ThreadSwitchCoordinator({
     activeOwner: initialActiveOwner
       ? {
@@ -130,6 +134,7 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
       : null,
     commands,
     dispatch,
+    readCommittedActiveThreadId: () => store.getState().threadIdentity.launchThreadId,
     publishActiveOwner,
     scheduler,
   });
@@ -147,6 +152,9 @@ const createHarness = ({ initialActiveOwner = true } = {}) => {
     reserveRelease,
     scheduler,
     skillCatalogDispose,
+    setDispatchBeforeCommit: (reentry: (action: UnknownAction) => void) => {
+      dispatchBeforeCommit = reentry;
+    },
     setDispatchReentry: (reentry: (action: UnknownAction) => void) => {
       dispatchReentry = reentry;
     },
@@ -158,10 +166,10 @@ describe("ThreadSwitchCoordinator", () => {
   it("publishes the first owner through the shared switch transaction", async () => {
     const h = createHarness({ initialActiveOwner: false });
 
-    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toMatchObject({
-      type: "switched",
-      activeOwner: { threadId: candidateThreadId },
-      cleanupFailure: null,
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [],
     });
 
     expect(h.commands.resumeThread).toHaveBeenCalledExactlyOnceWith({
@@ -188,10 +196,8 @@ describe("ThreadSwitchCoordinator", () => {
       else vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(error);
 
       await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
-        type: "failed",
-        phase,
-        error,
-        cleanupFailure: null,
+        type: "unavailable",
+        failure: { type: "operationFailed", phase, error, cleanupError: null },
       });
       expect(h.coordinator.getActiveOwner()).toBeNull();
       expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(0);
@@ -218,7 +224,11 @@ describe("ThreadSwitchCoordinator", () => {
     expect(h.actions).toHaveLength(0);
     pending.resolve(attach);
 
-    await expect(switching).resolves.toMatchObject({ type: "switched" });
+    await expect(switching).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [],
+    });
     expect(
       h.actions
         .filter((action) => action.type === threadRuntimeEventBuffered.type)
@@ -238,9 +248,13 @@ describe("ThreadSwitchCoordinator", () => {
       h.coordinator.dispose();
     }).not.toThrow();
     await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
-      type: "blocked",
-      reason: { type: "disposed" },
-      cleanupFailure: null,
+      type: "unavailable",
+      failure: {
+        type: "connectionLost",
+        progress: "beforeCommit",
+        threadId: candidateThreadId,
+        cleanupError: null,
+      },
     });
     expect(h.queueDispose).not.toHaveBeenCalled();
     expect(h.projectionDispose).not.toHaveBeenCalled();
@@ -251,7 +265,7 @@ describe("ThreadSwitchCoordinator", () => {
     const h = createHarness();
     const outcome = await h.coordinator.continueThread(oldThreadId);
 
-    expect(outcome.type).toBe("current");
+    expect(outcome).toEqual({ type: "ready", threadId: oldThreadId, warnings: [] });
     expect(h.reserveRelease).not.toHaveBeenCalled();
     expect(h.commands.resumeThread).not.toHaveBeenCalled();
   });
@@ -263,17 +277,44 @@ describe("ThreadSwitchCoordinator", () => {
       blockers: [{ type: "ordinaryQueued", count: 1 }],
     });
 
-    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toMatchObject({
-      type: "blocked",
-      reason: { type: "queueReleaseBlocked" },
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "unavailable",
+      failure: {
+        type: "currentThreadUnresolved",
+        blockers: [{ type: "ordinaryQueued", count: 1 }],
+        activeThreadId: oldThreadId,
+      },
     });
     expect(h.commands.resumeThread).not.toHaveBeenCalled();
-    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toMatchObject({
-      type: "switched",
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [],
     });
   });
 
-  it("rejects asynchronously when reserving the queue release throws synchronously", async () => {
+  it("reports a concurrent switch as temporarily unavailable", async () => {
+    const h = createHarness();
+    const pending = deferred<Awaited<ReturnType<GuiHostCommands["resumeThread"]>>>();
+    vi.mocked(h.commands.resumeThread).mockReturnValueOnce(pending.promise);
+    const switching = h.coordinator.continueThread(candidateThreadId);
+
+    await expect(
+      h.coordinator.continueThread("00000000-0000-0000-0000-000000000004"),
+    ).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "switchInProgress" },
+    });
+
+    pending.resolve(await createGuiHostCommands().resumeThread({ threadId: candidateThreadId }));
+    await expect(switching).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [],
+    });
+  });
+
+  it("returns an admission failure when reserving the queue release throws", async () => {
     const h = createHarness();
     const error = new Error("reserve release failed");
     h.reserveRelease.mockImplementationOnce(() => {
@@ -284,7 +325,10 @@ describe("ThreadSwitchCoordinator", () => {
     expect(() => {
       switching = h.coordinator.continueThread(candidateThreadId);
     }).not.toThrow();
-    await expect(switching).rejects.toBe(error);
+    await expect(switching).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "admission", error, cleanupError: null },
+    });
 
     expect(h.commands.resumeThread).not.toHaveBeenCalled();
     expect(h.commands.attachThreadProjection).not.toHaveBeenCalled();
@@ -298,15 +342,70 @@ describe("ThreadSwitchCoordinator", () => {
     if (phase === "resume") vi.mocked(h.commands.resumeThread).mockRejectedValueOnce(error);
     else vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(error);
 
-    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toMatchObject({
-      type: "failed",
-      phase,
-      error,
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase, error, cleanupError: null },
     });
     expect(h.coordinator.getActiveOwner()?.threadId).toBe(oldThreadId);
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(0);
     expect(h.reservationRelease).toHaveBeenCalledOnce();
     expect(h.queueDispose).not.toHaveBeenCalled();
+  });
+
+  it("keeps a resume failure primary when admission cleanup also fails", async () => {
+    const h = createHarness();
+    const error = new Error("resume failed");
+    const cleanupError = new Error("reservation release failed");
+    vi.mocked(h.commands.resumeThread).mockRejectedValueOnce(error);
+    h.reservationRelease.mockImplementationOnce(() => {
+      throw cleanupError;
+    });
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "resume", error, cleanupError },
+    });
+  });
+
+  it("reports connection loss while resume is pending as before commit", async () => {
+    const h = createHarness();
+    const pending = deferred<Awaited<ReturnType<GuiHostCommands["resumeThread"]>>>();
+    vi.mocked(h.commands.resumeThread).mockReturnValueOnce(pending.promise);
+    const switching = h.coordinator.continueThread(candidateThreadId);
+
+    h.coordinator.dispose();
+    pending.resolve(await createGuiHostCommands().resumeThread({ threadId: candidateThreadId }));
+
+    await expect(switching).resolves.toEqual({
+      type: "unavailable",
+      failure: {
+        type: "connectionLost",
+        progress: "beforeCommit",
+        threadId: candidateThreadId,
+        cleanupError: null,
+      },
+    });
+  });
+
+  it("reports connection loss while attach is pending as before commit", async () => {
+    const h = createHarness();
+    const pending = deferred<AttachResponse>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(pending.promise);
+    const switching = h.coordinator.continueThread(candidateThreadId);
+    await Promise.resolve();
+
+    h.coordinator.dispose();
+    pending.resolve(attachWithThreadId(attachReplacement, candidateThreadId));
+
+    await expect(switching).resolves.toEqual({
+      type: "unavailable",
+      failure: {
+        type: "connectionLost",
+        progress: "beforeCommit",
+        threadId: candidateThreadId,
+        cleanupError: null,
+      },
+    });
   });
 
   it("commits once, replaces all three slices, and releases the old owner once", async () => {
@@ -318,7 +417,11 @@ describe("ThreadSwitchCoordinator", () => {
 
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(0);
     pending.resolve(attachWithThreadId(attachReplacement, candidateThreadId));
-    await expect(switching).resolves.toMatchObject({ type: "switched" });
+    await expect(switching).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [],
+    });
 
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(1);
     expect(h.store.getState()).toMatchObject({
@@ -374,7 +477,11 @@ describe("ThreadSwitchCoordinator", () => {
         blockers: [{ type: "releaseReserved" }],
       });
       await resolvePending();
-      await expect(switching).resolves.toMatchObject({ type: "switched" });
+      await expect(switching).resolves.toEqual({
+        type: "ready",
+        threadId: candidateThreadId,
+        warnings: [],
+      });
       expect(h.reservationRelease).not.toHaveBeenCalled();
     },
   );
@@ -387,6 +494,7 @@ describe("ThreadSwitchCoordinator", () => {
     });
     h.publishActiveOwner.mockImplementationOnce(() => {
       order.push("publish");
+      return { ownerPublished: true, authorizationPersistenceError: null };
     });
 
     await h.coordinator.continueThread(candidateThreadId);
@@ -473,7 +581,7 @@ describe("ThreadSwitchCoordinator", () => {
     expect(h.store.getState().threadRuntime).toEqual(runtimeBeforeFlush);
   });
 
-  it("detaches an attached candidate that cannot commit", async () => {
+  it("detaches an attached candidate after attach identity validation fails", async () => {
     const h = createHarness();
     const detachError = new Error("candidate detach failed");
     vi.mocked(h.commands.attachThreadProjection).mockResolvedValueOnce(
@@ -482,13 +590,11 @@ describe("ThreadSwitchCoordinator", () => {
     vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(detachError);
 
     await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toMatchObject({
-      type: "failed",
-      phase: "attach",
-      cleanupFailure: {
-        phase: "detach",
-        owner: "candidate",
-        threadId: candidateThreadId,
-        error: detachError,
+      type: "unavailable",
+      failure: {
+        type: "operationFailed",
+        phase: "attach",
+        cleanupError: detachError,
       },
     });
     expect(h.commands.detachThreadProjection).toHaveBeenCalledWith({
@@ -497,73 +603,298 @@ describe("ThreadSwitchCoordinator", () => {
     expect(h.actions.filter(liveThreadReplacementCommitted.match)).toHaveLength(0);
   });
 
+  it("returns activate failure and detaches the candidate when commit does not take effect", async () => {
+    const h = createHarness();
+    vi.spyOn(
+      ProjectionApplicationCoordinator.prototype,
+      "commitLiveThreadReplacement",
+    ).mockReturnValueOnce(false);
+
+    const outcome = await h.coordinator.continueThread(candidateThreadId);
+    expect(outcome).toMatchObject({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "activate", cleanupError: null },
+    });
+    if (outcome.type !== "unavailable" || outcome.failure.type !== "operationFailed") {
+      throw new Error("expected an activate failure");
+    }
+    expect(outcome.failure.error).toBeInstanceOf(Error);
+    expect(h.publishActiveOwner).not.toHaveBeenCalled();
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: candidateThreadId,
+    });
+    expect(h.coordinator.getActiveOwner()?.threadId).toBe(oldThreadId);
+  });
+
+  it("reports connection loss during candidate cleanup as before commit", async () => {
+    const h = createHarness();
+    const pendingDetach =
+      deferred<Awaited<ReturnType<GuiHostCommands["detachThreadProjection"]>>>();
+    vi.mocked(h.commands.attachThreadProjection).mockResolvedValueOnce(
+      attachWithThreadId(attachReplacement, "00000000-0000-0000-0000-000000000003"),
+    );
+    vi.mocked(h.commands.detachThreadProjection).mockReturnValueOnce(pendingDetach.promise);
+    const switching = h.coordinator.continueThread(candidateThreadId);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledWith({
+      threadId: candidateThreadId,
+    });
+    h.coordinator.dispose();
+    pendingDetach.resolve({ status: "detached" });
+
+    await expect(switching).resolves.toEqual({
+      type: "unavailable",
+      failure: {
+        type: "connectionLost",
+        progress: "beforeCommit",
+        threadId: candidateThreadId,
+        cleanupError: null,
+      },
+    });
+  });
+
   it("reports a previous-owner detach failure after a successful commit", async () => {
     const h = createHarness();
     const error = new Error("previous detach failed");
     vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(error);
 
-    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toMatchObject({
-      type: "switched",
-      cleanupFailure: {
-        phase: "detach",
-        owner: "previous",
-        threadId: oldThreadId,
-        error,
-      },
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [{ type: "previousOwnerCleanupFailed", error }],
     });
     expect(h.coordinator.getActiveOwner()?.threadId).toBe(candidateThreadId);
   });
 
-  it.each(["dispatch", "publish"] as const)("survives %s reentrant disposal", async (source) => {
+  it("still detaches the previous projection when local owner cleanup throws", async () => {
     const h = createHarness();
-    if (source === "dispatch") {
-      h.setDispatchReentry((action) => {
-        if (liveThreadReplacementCommitted.match(action)) h.coordinator.dispose();
-      });
-    } else {
-      h.publishActiveOwner.mockImplementationOnce(() => {
-        h.coordinator.dispose();
-      });
-    }
-
-    const outcome = await h.coordinator.continueThread(candidateThreadId);
-    expect(outcome.type).toBe("switched");
-    if (outcome.type !== "switched") throw new Error("expected a switched outcome");
-    expect(outcome.activeOwner.queueCoordinator.getReleaseReadiness()).toEqual({
-      type: "blocked",
-      blockers: [{ type: "disposed" }],
+    const error = new Error("previous local cleanup failed");
+    h.activeOwnerDispose.mockImplementationOnce(() => {
+      throw error;
     });
-    expect(
-      outcome.activeOwner.queueCoordinator.readPendingInputPage({
-        lane: "ordinary",
-        revision: 0,
-        cursor: null,
-        limit: 1,
-      }),
-    ).toEqual({ type: "unavailable", scope: "ownerGone", reason: "disposed" });
-    expect(h.queueDispose).toHaveBeenCalledOnce();
-    expect(h.projectionDispose).toHaveBeenCalledOnce();
-    expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
-    expect(h.activeOwnerDispose).toHaveBeenCalledExactlyOnceWith("ownerReplaced");
-    expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
-    await expect(h.coordinator.continueThread(oldThreadId)).resolves.toMatchObject({
-      type: "blocked",
-      reason: { type: "disposed" },
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [{ type: "previousOwnerCleanupFailed", error }],
+    });
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: oldThreadId,
     });
   });
 
-  it.each(["commit", "publish", "replay"] as const)(
-    "converges owner and cleanup when application %s throws",
+  it("accumulates previous local and remote cleanup failures", async () => {
+    const h = createHarness();
+    const localError = new Error("previous local cleanup failed");
+    const remoteError = new Error("previous remote cleanup failed");
+    h.activeOwnerDispose.mockImplementationOnce(() => {
+      throw localError;
+    });
+    vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(remoteError);
+
+    const outcome = await h.coordinator.continueThread(candidateThreadId);
+    expect(outcome).toMatchObject({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [{ type: "previousOwnerCleanupFailed" }],
+    });
+    if (outcome.type !== "ready" || outcome.warnings[0]?.type !== "previousOwnerCleanupFailed") {
+      throw new Error("expected a previous-owner cleanup warning");
+    }
+    expect(outcome.warnings[0].error).toBeInstanceOf(AggregateError);
+    expect((outcome.warnings[0].error as AggregateError).errors).toEqual([localError, remoteError]);
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: oldThreadId,
+    });
+  });
+
+  it("reports connection loss while previous detach is pending as after commit", async () => {
+    const h = createHarness();
+    const pendingDetach =
+      deferred<Awaited<ReturnType<GuiHostCommands["detachThreadProjection"]>>>();
+    vi.mocked(h.commands.detachThreadProjection).mockReturnValueOnce(pendingDetach.promise);
+    const switching = h.coordinator.continueThread(candidateThreadId);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(h.publishActiveOwner).toHaveBeenCalledOnce();
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledWith({ threadId: oldThreadId });
+    h.coordinator.dispose();
+    pendingDetach.resolve({ status: "detached" });
+
+    await expect(switching).resolves.toEqual({
+      type: "unavailable",
+      failure: {
+        type: "connectionLost",
+        progress: "afterCommit",
+        threadId: candidateThreadId,
+        cleanupError: null,
+      },
+    });
+  });
+
+  it("rejects ready when the committed Provider store identity drifts during previous detach", async () => {
+    const h = createHarness();
+    const driftedThreadId = "00000000-0000-0000-0000-000000000004";
+    const pendingDetach =
+      deferred<Awaited<ReturnType<GuiHostCommands["detachThreadProjection"]>>>();
+    vi.mocked(h.commands.detachThreadProjection).mockReturnValueOnce(pendingDetach.promise);
+    const switching = h.coordinator.continueThread(candidateThreadId);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(h.publishActiveOwner).toHaveBeenCalledOnce();
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledWith({ threadId: oldThreadId });
+    h.store.dispatch(launchThreadIdRecorded(driftedThreadId));
+    pendingDetach.resolve({ status: "detached" });
+
+    const outcome = await switching;
+    expect(outcome).toMatchObject({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "activate", cleanupError: null },
+    });
+    if (outcome.type !== "unavailable" || outcome.failure.type !== "operationFailed") {
+      throw new Error("expected an activate failure after Provider store identity drift");
+    }
+    expect(outcome.failure.error).toBeInstanceOf(Error);
+    expect(h.store.getState().threadIdentity.launchThreadId).toBe(driftedThreadId);
+  });
+
+  it("returns a publication authorization degradation warning without losing the owner", async () => {
+    const h = createHarness();
+    const error = new Error("authorization persistence failed");
+    h.publishActiveOwner.mockReturnValueOnce({
+      ownerPublished: true,
+      authorizationPersistenceError: error,
+    });
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [{ type: "postCommitDegraded", operation: "publishAuthorization", error }],
+    });
+    expect(h.coordinator.getActiveOwner()?.threadId).toBe(candidateThreadId);
+  });
+
+  it("returns activate failure when owner publication is not established", async () => {
+    const h = createHarness();
+    const error = new Error("owner publication failed");
+    h.publishActiveOwner.mockReturnValueOnce({ ownerPublished: false, error });
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "activate", error, cleanupError: null },
+    });
+  });
+
+  it("returns activate failure when publication throws before returning a receipt", async () => {
+    const h = createHarness();
+    const error = new Error("publication threw");
+    h.publishActiveOwner.mockImplementationOnce(() => {
+      throw error;
+    });
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "activate", error, cleanupError: null },
+    });
+  });
+
+  it("returns activate failure when dispatch throws before the Redux commit", async () => {
+    const h = createHarness();
+    const error = new Error("dispatch failed before commit");
+    h.setDispatchBeforeCommit((action) => {
+      if (liveThreadReplacementCommitted.match(action)) throw error;
+    });
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "unavailable",
+      failure: { type: "operationFailed", phase: "activate", error, cleanupError: null },
+    });
+    expect(h.store.getState().threadIdentity.launchThreadId).toBe(oldThreadId);
+    expect(h.publishActiveOwner).not.toHaveBeenCalled();
+    expect(h.commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: candidateThreadId,
+    });
+  });
+
+  it("keeps post-commit and previous cleanup warnings separate and ordered", async () => {
+    const h = createHarness();
+    const postCommitError = new Error("authorization persistence failed");
+    const cleanupError = new Error("previous detach failed");
+    h.publishActiveOwner.mockReturnValueOnce({
+      ownerPublished: true,
+      authorizationPersistenceError: postCommitError,
+    });
+    vi.mocked(h.commands.detachThreadProjection).mockRejectedValueOnce(cleanupError);
+
+    await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+      type: "ready",
+      threadId: candidateThreadId,
+      warnings: [
+        {
+          type: "postCommitDegraded",
+          operation: "publishAuthorization",
+          error: postCommitError,
+        },
+        { type: "previousOwnerCleanupFailed", error: cleanupError },
+      ],
+    });
+  });
+
+  it.each(["dispatch", "publish"] as const)(
+    "reports after-commit connection loss for %s reentrant disposal",
+    async (source) => {
+      const h = createHarness();
+      if (source === "dispatch") {
+        h.setDispatchReentry((action) => {
+          if (liveThreadReplacementCommitted.match(action)) h.coordinator.dispose();
+        });
+      } else {
+        h.publishActiveOwner.mockImplementationOnce(() => {
+          h.coordinator.dispose();
+          return { ownerPublished: true, authorizationPersistenceError: null };
+        });
+      }
+
+      await expect(h.coordinator.continueThread(candidateThreadId)).resolves.toEqual({
+        type: "unavailable",
+        failure: {
+          type: "connectionLost",
+          progress: "afterCommit",
+          threadId: candidateThreadId,
+          cleanupError: null,
+        },
+      });
+      expect(h.coordinator.getActiveOwner()).toBeNull();
+      expect(h.queueDispose).toHaveBeenCalledOnce();
+      expect(h.projectionDispose).toHaveBeenCalledOnce();
+      expect(h.activeOwnerDispose).toHaveBeenCalledOnce();
+      expect(h.activeOwnerDispose).toHaveBeenCalledExactlyOnceWith("ownerReplaced");
+      expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
+      await expect(h.coordinator.continueThread(oldThreadId)).resolves.toEqual({
+        type: "unavailable",
+        failure: {
+          type: "connectionLost",
+          progress: "beforeCommit",
+          threadId: oldThreadId,
+          cleanupError: null,
+        },
+      });
+    },
+  );
+
+  it.each(["commit", "replay"] as const)(
+    "returns a replay degradation warning when application %s throws after Redux commit",
     async (operation) => {
       const h = createHarness();
       const error = new Error(`${operation} failed`);
       let switching: ReturnType<ThreadSwitchCoordinator["continueThread"]>;
-      if (operation === "publish") {
-        h.publishActiveOwner.mockImplementationOnce(() => {
-          throw error;
-        });
-        switching = h.coordinator.continueThread(candidateThreadId);
-      } else if (operation === "commit") {
+      if (operation === "commit") {
         h.setDispatchReentry((action) => {
           if (liveThreadReplacementCommitted.match(action)) throw error;
         });
@@ -586,9 +917,10 @@ describe("ThreadSwitchCoordinator", () => {
         pending.resolve(attach);
       }
 
-      await expect(switching).resolves.toMatchObject({
-        type: "switched",
-        cleanupFailure: { phase: "application", operation, error },
+      await expect(switching).resolves.toEqual({
+        type: "ready",
+        threadId: candidateThreadId,
+        warnings: [{ type: "postCommitDegraded", operation: "replay", error }],
       });
       expect(h.coordinator.getActiveOwner()?.threadId).toBe(candidateThreadId);
       expect(h.queueDispose).toHaveBeenCalledOnce();
@@ -598,7 +930,14 @@ describe("ThreadSwitchCoordinator", () => {
       expect(h.skillCatalogDispose).toHaveBeenCalledOnce();
       await expect(
         h.coordinator.continueThread("00000000-0000-0000-0000-000000000004"),
-      ).resolves.toMatchObject({ type: "switched" });
+      ).resolves.toEqual({
+        type: "ready",
+        threadId: "00000000-0000-0000-0000-000000000004",
+        warnings:
+          operation === "commit"
+            ? [{ type: "postCommitDegraded", operation: "replay", error }]
+            : [],
+      });
     },
   );
 });
