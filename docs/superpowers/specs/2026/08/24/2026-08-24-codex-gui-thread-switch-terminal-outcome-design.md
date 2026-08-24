@@ -46,11 +46,14 @@
 
 ## 已确认产品决策
 
-设计访谈完成了 3 项实质决策：
+设计访谈及实施中纠偏共完成了 4 项实质决策：
 
 1. 连接中断必须区分提交前与提交后。提交后要明确告诉用户“任务切换已提交，但连接已中断，当前无法打开”，不能伪装成操作完全没有发生。
 2. 提交后连接中断时保留历史详情页并显示错误，不导航到没有可用 owner 的当前任务页。
 3. 目标 owner 仍可用但旧 owner 的 detach 等收尾清理失败时，切换继续成功并导航，同时显示非阻断警告。
+4. `postCommitDegraded` 与 `previousOwnerCleanupFailed` 同时发生时，`ready` 携带 `warnings` 数组，页面分别显示两个 Toast，完整保留两类诊断；不得把两类错误合并成一个 warning。
+
+第 4 项是实施中发现原设计单值 `warning` 无法表达两类降级同时发生后的纠偏。用户选择原文：`A`；纠偏落盘与继续执行确认原文：`确认`。
 
 ## 设计原则
 
@@ -58,14 +61,16 @@
 
 `ready` 是唯一允许导航的结果。它必须满足：
 
-- 目标 thread 已成为权威 active thread；
+- 目标 thread 已成为 Redux 当前 Provider store 中的权威 active thread；
 - 目标 owner 已完成 commit 与 publish；
 - coordinator 在结果分类前没有待处理的 dispose；
-- coordinator 当前持有的 active owner 仍是本次目标 owner；
+- Bridge 从当前 Provider store 读取的权威 active thread identity 仍是本次目标 thread；
 - owner 尚未被 dispose；
 - 所有会让出 JavaScript 执行权的必要收尾步骤完成后，最终生命周期门禁仍通过。
 
 该不变量只覆盖结果交付时点。结果返回后发生新的连接关闭，仍按正常连接生命周期销毁 owner。
+
+coordinator 内部保存的 owner identity、projection owner identity 或 publication 布尔值只能作为过程事实，不能单独证明 Redux commit 已生效。Bridge 必须向 coordinator 提供读取当前 Provider store 权威 active-thread 状态的 callback；terminal gate 通过该 callback 验证 commit 结果。该 seam 保持在既有 `ThreadSwitchCoordinator` 与 `GuiHostConnectionBridge` 两个 production 文件内，不向 `activeThreadOwner.ts` 增加公开 liveness probe。
 
 ### 失败不携带 owner
 
@@ -92,7 +97,7 @@ type ContinueThreadOutcome =
   | Readonly<{
       type: "ready";
       threadId: string;
-      warning: ThreadSwitchWarning | null;
+      warnings: readonly ThreadSwitchWarning[];
     }>
   | Readonly<{
       type: "unavailable";
@@ -138,7 +143,7 @@ type ThreadSwitchWarning =
 - `current` 与 `switched` 合并为 `ready`，因为两者对调用方产生相同用户结果；
 - connection loss 保留 `beforeCommit` 与 `afterCommit` 的产品差异；
 - 执行失败保留 admission、resume、attach、activate 的可诊断阶段；
-- cleanup warning 与目标 owner 是否可用正交；
+- warnings 与目标 owner 是否可用正交；没有降级时数组为空，两类降级同时发生时保留两个不同 discriminant；
 - 失败结果在类型层面不可能携带可被误用的 owner。
 
 不采用完整 lifecycle receipt。`resumed`、`attached`、`replacementActivated`、`replacementReleased`、generation 和 dispose request 等事实属于 coordinator implementation；把它们全部暴露给页面会扩大 interface，并迫使调用方理解内部状态机。
@@ -156,7 +161,7 @@ type ThreadSwitchWarning =
 3. Activate：commit candidate，并发布新的 active owner。
 4. Reconcile：处理 commit/publish/replay 中观察到的异常与 dispose 请求。
 5. Cleanup：释放旧 owner，并尝试 detach 旧 projection。
-6. Terminal gate：在所有必要 await 之后再次核验 coordinator generation、disposed 状态与 active owner identity。
+6. Terminal gate：在所有必要 await 之后再次核验 coordinator generation、disposed 状态，并通过 Bridge callback 读取当前 Provider store 的权威 active-thread identity；不得用 coordinator 内部 owner 或 projection owner identity 代替 Redux commit proof。
 7. Classification：只有 terminal gate 证明 owner 可用时返回 `ready`；否则返回准确的 `unavailable`。
 
 终态分类必须集中在 coordinator 内部的单一收敛点。不得让各分支分别拼装含义相近但不变量不同的成功结果。
@@ -178,10 +183,11 @@ type ThreadSwitchWarning =
 
 异常按 owner 最终可用性分类，而不是只按发生位置分类：
 
-- 目标 owner 可用，旧 owner detach/cleanup 失败：`ready + previousOwnerCleanupFailed`。
-- commit 或 publish 抛错，但 reconciliation 能证明目标 owner 已发布且仍可用：允许 `ready + warning`。
+- 目标 owner 可用，旧 owner detach/cleanup 失败：`ready` 的 `warnings` 包含 `previousOwnerCleanupFailed`。
+- commit 或 publish 抛错，但 reconciliation 通过当前 Provider store 权威状态证明目标 thread 已提交且 owner 仍可用：允许 `ready` 的 `warnings` 包含对应 `postCommitDegraded`。
 - 无法证明 commit 生效，或目标 owner 已终止：`operationFailed.activate` 或 `connectionLost`。
 - cleanup error 不能覆盖主要失败原因；需要作为次级诊断信息保留。
+- 两类 warning 独立累积；同时发生时按 lifecycle 顺序返回 `[postCommitDegraded, previousOwnerCleanupFailed]`，不能拼接 error 后伪装成单一分类。
 
 ## History continue 用户界面
 
@@ -238,7 +244,7 @@ Toast 使用 warning 语义，不阻止 current task 操作。用户文案使用
 - 标题：`任务已打开`
 - 说明：`任务已打开，但部分状态同步未完成。`
 
-这两类 warning 都是 success-with-warning，但必须保留不同 discriminant 和诊断 operation，页面不能从原始 Error 文本猜分类。
+这两类 warning 都是 success-with-warning，但必须保留不同 discriminant 和诊断 operation，页面不能从原始 Error 文本猜分类。页面按 `warnings` 数组逐项调用 `toast.warning()`；两类同时发生时分别显示两个 Toast。
 
 ## 状态所有权
 
@@ -261,7 +267,8 @@ Toast 使用 warning 语义，不阻止 current task 操作。用户文案使用
 | 最终事实 | 结果 | 导航 | 页面反馈 | 恢复 |
 | --- | --- | --- | --- | --- |
 | 目标 owner 可用，无异常 | `ready` | 导航 | 无 | 正常使用 |
-| 目标 owner 可用，旧资源清理失败 | `ready + warning` | 导航 | warning Toast | 正常使用；保留诊断信息 |
+| 目标 owner 可用，旧资源清理失败 | `ready + warnings[previousOwnerCleanupFailed]` | 导航 | 一个 warning Toast | 正常使用；保留诊断信息 |
+| 目标 owner 可用，两类降级同时发生 | `ready + warnings[postCommitDegraded, previousOwnerCleanupFailed]` | 导航 | 两个独立 warning Toast | 正常使用；分别保留诊断信息 |
 | 另一切换正在执行 | `unavailable.switchInProgress` | 不导航 | 暂时阻塞 Alert | 稍后重试 |
 | 当前队列不能安全释放 | `unavailable.currentThreadUnresolved` | 不导航 | 阻塞 Alert | 返回当前任务处理 |
 | 提交前 connection generation 终止 | `unavailable.connectionLost.beforeCommit` | 不导航 | 失败 Alert | 重新连接后重试 |
@@ -323,11 +330,13 @@ Toast 使用 warning 语义，不阻止 current task 操作。用户文案使用
 - previous detach pending 期间 dispose 不再返回成功；
 - connection loss 在 commit 前后返回不同 progress；
 - 任一 unavailable 结果在类型和运行结果中都不携带 owner；
-- 目标 owner 可用且只有 previous detach/cleanup 失败时返回 `ready + warning`；
+- 目标 owner 可用且只有 previous detach/cleanup 失败时，`ready.warnings` 只包含 `previousOwnerCleanupFailed`；
 - activate 异常只有在最终能证明 owner 可用时才允许成功；
 - cleanup error 不覆盖主要失败原因；
 - admission、reservation release 与本地 owner cleanup 抛错不会越过统一终态分类；
 - previous-owner cleanup warning 与 post-commit degradation warning 使用不同 discriminant 和文案；
+- dispatch 在 Redux commit 生效前抛错时，coordinator 不得凭内部 owner/projection identity 报告 `ready`；
+- 两类 warning 同时发生时返回包含两项的 `warnings` 数组，不丢失或合并任一诊断；
 - disposed coordinator 不能在同一 generation 上恢复。
 
 ### ThreadHistoryDetailPage Browser Mode
@@ -340,7 +349,7 @@ Toast 使用 warning 语义，不阻止 current task 操作。用户文案使用
 - connection loss 后不会调用 stale continuation capability；
 - busy 与 queue blocker 保留各自恢复行为；
 - resume/attach/activate 失败保留 history transcript，并能在当前 capability 仍有效时重试；
-- cleanup warning 不阻止导航。
+- warnings 不阻止导航；两类 warning 同时存在时分别显示两个 Toast。
 
 ### App 纵向行为
 
@@ -348,8 +357,9 @@ App 级验证至少证明：
 
 - connection invalidation 会清除旧 `continueThread`，旧结果不会触发导航；
 - 新 connection generation 提供 capability 后，history 页面只调用新 capability；
-- cleanup warning 在 history 页面卸载并进入 current task 后仍通过现有 Toast provider 可见；
-- 普通成功没有 warning；
+- warnings 在 history 页面卸载并进入 current task 后仍通过现有 Toast provider 可见；
+- 普通成功的 `warnings` 为空；
+- 两类 warning 同时存在时，两个 Toast 都跨详情页卸载保持可见；
 - connection error 的全局状态与局部 switch 失败信息不会互相覆盖或产生错误成功提示。
 
 ### 可见 GUI 验证
@@ -372,5 +382,7 @@ App 级验证至少证明：
 - 失败不导航，成功才导航；
 - 可用目标 owner 不因旧资源清理失败而被错误判失败；
 - cleanup 降级通过非阻断警告可见；
+- terminal success 由当前 Provider store 的权威 Redux 状态证明，不由 coordinator 内部 owner identity 自证；
+- 同时发生的不同 warning 均被保留并分别展示；
 - 页面无需理解或探测 owner 生命周期内部状态；
 - 未扩大到自动重连、服务端协议或无关 GUI 重构。

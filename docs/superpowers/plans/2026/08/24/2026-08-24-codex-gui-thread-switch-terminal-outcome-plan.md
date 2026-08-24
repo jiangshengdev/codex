@@ -8,7 +8,13 @@
 
 确认原文：`确认计划。提交文档。暂不执行`
 
-实施状态：暂缓；按用户要求，本次只提交工作文档，不启动代码、测试、生成或 GUI 验收节点。
+实施状态：执行中；Task C 编辑期间发现 commit proof 与单值 warning 设计缺口，代码后继已暂停，等待本次独立 `DOCS-CORRECTION` 提交后恢复。
+
+纠偏原因：原计划以 coordinator/projection owner 内部 identity 证明 commit 生效，不能覆盖 Redux dispatch 在提交生效前抛错；同时 `ready.warning` 是单值，无法完整表达 `postCommitDegraded` 与 `previousOwnerCleanupFailed` 同时发生。
+
+纠偏选择原文：`A`
+
+纠偏落盘与继续执行确认原文：`确认`
 
 对应已确认设计：
 `docs/superpowers/specs/2026/08/24/2026-08-24-codex-gui-thread-switch-terminal-outcome-design.md`
@@ -18,7 +24,7 @@
 
 ## 目标
 
-把 `ThreadSwitchCoordinator.continueThread()` 收敛为可信的 `ready | unavailable` 终态 interface：只有结果交付时仍存在可用目标 owner 才返回 `ready`；connection generation 在提交前或提交后结束时返回不同的 `connectionLost` 事实；目标 owner 可用但 previous-owner cleanup 或 post-commit 状态同步降级时继续成功并返回准确 warning。随后迁移 history continue 页面、Toast、Lingui catalog 和纵向测试，消除页面对 owner 生命周期的探测与误导航。
+把 `ThreadSwitchCoordinator.continueThread()` 收敛为可信的 `ready | unavailable` 终态 interface：只有结果交付时当前 Provider store 的权威 Redux 状态证明目标 thread 已提交且 owner 仍可用，才返回 `ready`；connection generation 在提交前或提交后结束时返回不同的 `connectionLost` 事实；目标 owner 可用但 previous-owner cleanup 或 post-commit 状态同步降级时继续成功，并在 `warnings` 数组中完整保留所有准确 warning。随后迁移 history continue 页面、Toast、Lingui catalog 和纵向测试，消除页面对 owner 生命周期的探测与误导航。
 
 ## 当前基线与必要性
 
@@ -42,13 +48,18 @@
 
 ## 计划阶段技术校准
 
-反向审计发现并已在设计文档中补齐三项不改变产品决策的技术缺口：
+计划阶段反向审计发现并已在设计文档中补齐三项不改变产品决策的技术缺口：
 
 1. `operationFailed.phase` 增加 `admission`，保证 reserve/release 等 admission 异常也进入总 outcome。
 2. warning 区分 `previousOwnerCleanupFailed` 与 `postCommitDegraded`，避免把 authorization/replay 降级错误展示为“上一任务清理未完成”。
 3. `connectionLost` 保留次级 `cleanupError`，但 connection termination 始终是主因。
 
 实施必须以 coordinator generation/disposed/commit 事实做分类，不能根据 `GUI host WebSocket is not available` 等 Error 文本猜连接状态。GUI host 会先拒绝 pending command，再同步使 commands unavailable 并 dispose coordinator；Promise catch 在后续 microtask 执行时必须重新读取 lifecycle fact。
+
+实施中反向审计又发现两项必须先纠偏的缺口：
+
+1. coordinator 内部 `activeOwner`、projection owner identity 与 publication receipt 都不能证明 Redux dispatch 已把目标 thread 写入当前 Provider store。Bridge 必须提供只读 callback，由 terminal classifier 在结果交付前读取权威 Redux 状态；不修改 `activeThreadOwner.ts`。
+2. 两类 success warning 可能同时发生。`ready` 必须携带 `warnings: readonly ThreadSwitchWarning[]`；页面逐项显示 Toast，组合场景不得合并或丢失诊断。
 
 ## 完整纵向路径
 
@@ -65,9 +76,10 @@ history detail “Continue this task”
        -> previous owner local cleanup
        -> previous projection remote detach (await)
        -> final lifecycle gate
-       -> ready(threadId, warning) | unavailable(failure)
+       -> current Provider store commit proof
+       -> ready(threadId, warnings[]) | unavailable(failure)
   -> ThreadHistoryDetailPage
-       -> ready: optional toast.warning + replace navigation
+       -> ready: one toast.warning per warning + replace navigation
        -> temporary blocker: warning Alert + valid recovery
        -> connectionLost: danger Alert + remain history
        -> operationFailed: phase summary + primary/secondary diagnostic
@@ -88,18 +100,18 @@ WebSocket error / close / cleanup
 
 ## 跨任务硬约束
 
-1. `ready` 是唯一可导航结果，只携带权威 `threadId` 与 nullable warning，不携带 owner。
+1. `ready` 是唯一可导航结果，只携带权威 `threadId` 与 `warnings` 数组，不携带 owner；无降级时数组为空。
 2. unavailable 结果不得携带 owner；页面不得读取 queue readiness、projection owner 或 disposed flag。
 3. `current` 与 `switched` 合并为 `ready`，不保留兼容 alias、overload、adapter 或双路径。
 4. connection lost 必须按 commit fact 区分 `beforeCommit` 与 `afterCommit`；两者都不导航。
 5. connection termination 的分类优先级高于 pending RPC 的 rejection phase；不得从 Error message 猜生命周期。
 6. admission、resume、attach、activate 和 cleanup 的异常全部收敛成 outcome；未预期 throw 的页面 catch 只保留为防御，不构成第二套正常错误协议。
-7. owner publication 与 authorization persistence 必须在内部 seam 上可判定。目标 owner 已发布且可用、只有 authorization persistence 失败时返回 `ready + postCommitDegraded`。
-8. previous owner local dispose 与 remote detach 必须分别尝试；一个失败不得跳过另一个。目标 owner 可用时合并为 `previousOwnerCleanupFailed` warning。
+7. owner publication 与 authorization persistence 必须在内部 seam 上可判定；terminal success 还必须由 Bridge callback 读取当前 Provider store 的权威 active-thread identity 证明 Redux commit 已生效。目标 owner 已发布且可用、只有 authorization persistence 失败时，在 `warnings` 中加入 `postCommitDegraded`。
+8. previous owner local dispose 与 remote detach 必须分别尝试；一个失败不得跳过另一个。目标 owner 可用时在 `warnings` 中加入 `previousOwnerCleanupFailed`。它与 `postCommitDegraded` 独立累积，不得互相覆盖或合并。
 9. cleanup diagnostic 不覆盖主要 failure；connectionLost 和 operationFailed 都保留必要次级诊断。
 10. busy 与 queue blocker 保持暂时可恢复；只有 `currentThreadUnresolved` 携带可导航的 `activeThreadId`。
 11. old connection generation 的 `continueThread` 永久失效。页面只跟随当前 AppCapabilities，不能在本地保存 stale recovery callback。
-12. cleanup warning 使用现有 HeroUI v3 `toast.warning(title, { description })`；不新增 provider、Redux slice、context、event bus 或手写 toast。
+12. 每项 warning 使用现有 HeroUI v3 `toast.warning(title, { description })`；两类同时存在时显示两个 Toast；不新增 provider、Redux slice、context、event bus 或手写 toast。
 13. JSX 文案使用 Lingui `Trans`，Toast 等非 JSX 字符串使用 `useLingui` 的 `t`；catalog 只通过 `messages:extract` 生成结构，再补目标中文翻译。
 14. `ContinueThread` 继续从 coordinator method 机械派生；禁止页面或测试重新声明镜像 union。
 15. 不修改 app-server RPC、wire contract、generated validator、GUI Host allowlist 或 server projection 语义。
@@ -145,7 +157,7 @@ WebSocket error / close / cleanup
 1. 先执行只读 preflight；
 2. 把本计划状态更新为“已确认”，记录确认日期与确认原文；
 3. design 与 plan 形成独立 docs-only 本地提交；
-4. docs commit 成功前不得修改代码、测试或 catalog；
+4. 实施中发现设计缺口时，暂停受影响代码后继；纠偏后的 design 与 plan 形成新的独立 `DOCS-CORRECTION` 本地提交，该提交成功前不得恢复代码修正、格式化、测试、stage 或 commit；
 5. Task C 形成独立行为提交；
 6. Task U 消费 Task C 的稳定 contract，形成独立行为提交；
 7. 对已有提交的任何修正使用新的独立提交，禁止 amend；
@@ -155,7 +167,9 @@ WebSocket error / close / cleanup
 
 ```text
 DOCS commit
-  -> C commit: coordinator/bridge terminal outcome
+  -> initial Task C edits
+       -> DOCS-CORRECTION commit: authoritative commit proof + warnings array
+            -> corrected C commit: coordinator/bridge terminal outcome
        -> U commit: history UI/Toast/i18n + vertical consumers
             -> visible GUI + final audit
 ```
@@ -164,15 +178,16 @@ Task C 的中间提交允许 TypeScript consumer 尚未迁移，因此可能不�
 
 ## Worktree、branch 与 Git index
 
-本计划不创建新 worktree。
+用户已在实施前明确要求并授权创建 worktree；旧计划中的“不创建新 worktree”不构成阻止。当前执行参数已经只读核验：
 
-- execution context：`/Users/jiangsheng/cnb/codex`
-- branch：`dev`
-- Git index：当前 worktree 的唯一共享 index
+- execution context：`/Users/jiangsheng/cnb/codex/.worktrees/gui-thread-switch-terminal-outcome`
+- branch：`codex/gui-thread-switch-terminal-outcome`
+- base：`8756e17177422c4352bfc22c90a4f414b3228e5c`
+- Git index：该 worktree/branch 的独立 index
 - Task C 与 Task U 不并行写：Task U 必须消费 Task C commit 的稳定新 contract，这是真实硬依赖。
 - stage、commit、catalog generation 与 formatter 均由每个 taskBoundary 的唯一 Git owner 执行。
 
-如果实施前分支不再是 `dev`、工作树出现与精确写集合重叠的用户修改，或需要新的 worktree/branch/index，停止并重新确认计划参数。
+如果分支、worktree identity 或独立 index 与上述已核验参数不一致，工作树出现无法安全归属的重叠修改，或需要 force、远程、覆盖、破坏性操作，停止并重新确认；用户已明确授权且已创建的本 worktree 不再触发重复确认。
 
 ## Preflight 命令
 
@@ -201,7 +216,7 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 
 要求：
 
-- branch 仍为 `dev`；HEAD 漂移时重新核对权威定义、全部 consumer、测试路径和脚本，不按旧行号机械实施。
+- branch 必须为 `codex/gui-thread-switch-terminal-outcome`；HEAD 漂移时重新核对权威定义、全部 consumer、测试路径和脚本，不按旧行号机械实施。
 - `pnpm` 不得解析到 `/Users/jiangsheng/.cache/codex-runtimes/`。
 - fnm、pnpm、`node_modules`、本地 Vitest docs、HeroUI docs 或既有浏览器缺失时停止，由用户自行安装；助手不得安装。
 - `package.json` 中必须仍存在 `messages:extract`、`format:oxfmt:fix`、`format:oxfmt`、`lint`、`type-check`、`test:unit`、`test:browser:parallel` 与 `ci`。
@@ -321,49 +336,117 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `replanTriggers`：commit hook 修改文件、提交失败、branch/HEAD 意外变化。
 - `authorizationGate`：A0；只允许本地 commit，不允许远程。
 
+在恢复 C1 前插入以下纠偏门禁；它针对已经开始但尚未 stage/commit 的 Task C mutable diff，不改写既有 D1–D3 历史提交：
+
+### DC1 — 纠偏设计与计划编辑
+
+- `nodeId`：DC1
+- `taskBoundary`：DOCS-CORRECTION。
+- `operationKind`：编辑。
+- `outcome`：design/plan 明确 `warnings` 数组、双 Toast、Provider store 权威 commit proof、既有 Task C 两个 production 文件内的 Bridge callback，以及恢复执行门禁。
+- `estimatedCost`：低。
+- `deferralEvidence`：无。
+- `hardPredecessors`：D3 的既有 docs commit；用户已完成纠偏选择 `A`，并以 `确认` 授权落盘与继续执行。
+- `consumes`：用户纠偏决定、已确认 design/plan、当前未提交 Task C diff 与反向审计证据。
+- `produces`：纠偏后的两个工作文档 diff。
+- `completionEvidence`：结果 contract 不再使用单值 `ready.warning`，也不再以 coordinator/projection owner identity 代替 Redux commit proof；记录确认原文。
+- `readSet`：design、plan、当前 Task C 三文件 diff。
+- `writeSet`：仅 design 与 plan 两个精确路径。
+- `executionContext`：`/Users/jiangsheng/cnb/codex/.worktrees/gui-thread-switch-terminal-outcome`，branch `codex/gui-thread-switch-terminal-outcome`，独立 index 未写。
+- `resourceLocks`：两个文档文件 write；Task C 三文件 read。
+- `owner`：DOCS-CORRECTION 文档编辑 owner。
+- `verification`：`git diff --check -- <design> <plan>`；只读审查两份文档 diff 与 `rg` 残留。
+- `failureDomain`：DC1–DC3 与所有代码后继暂停；既有未提交 Task C diff 保持不动。
+- `replanTriggers`：纠偏需要修改 `activeThreadOwner.ts`、新增 production 文件、改变 UI 文案或 failure taxonomy。
+- `authorizationGate`：已满足；原文 `A` / `确认`。
+
+### DC2 — scoped docs-correction stage
+
+- `nodeId`：DC2
+- `taskBoundary`：DOCS-CORRECTION。
+- `operationKind`：stage。
+- `outcome`：独立 index 中恰好只有本次 design 与 plan 纠偏。
+- `estimatedCost`：低。
+- `deferralEvidence`：无。
+- `hardPredecessors`：DC1；等待文档 diff 审查通过。
+- `consumes`：纠偏后的 design/plan diff。
+- `produces`：docs-correction-only staged snapshot。
+- `completionEvidence`：cached name-only 恰好为两个文档路径；cached check 通过；Task C 三个 mutable code/test 文件未进入 index。
+- `readSet`：design、plan、Git index、worktree status。
+- `writeSet`：本 worktree 独立 Git index，仅两个文档路径。
+- `executionContext`：当前 worktree/branch 的独立 index，独占。
+- `resourceLocks`：canonical worktree Git index write。
+- `owner`：DOCS-CORRECTION Git owner。
+- `verification`：scoped `git add -- <design> <plan>`、cached name/check/full diff。
+- `failureDomain`：DC2、DC3 与所有代码后继暂停；不回退或暂存 Task C mutable diff。
+- `replanTriggers`：staged scope 混入代码、ignored 文件、范围外文档或用户变更。
+- `authorizationGate`：用户已确认纠偏落盘；只允许精确 docs correction stage。
+
+### DC3 — docs-correction commit
+
+- `nodeId`：DC3
+- `taskBoundary`：DOCS-CORRECTION。
+- `operationKind`：commit。
+- `outcome`：创建独立本地纠偏文档提交，成为恢复 Task C 修正的门禁。
+- `estimatedCost`：低。
+- `deferralEvidence`：无。
+- `hardPredecessors`：DC2；等待稳定 staged snapshot。
+- `consumes`：docs-correction-only staged snapshot。
+- `produces`：独立 commit `docs(gui): correct thread switch terminal outcome plan`。
+- `completionEvidence`：本地 commit id；commit tree 只含两个文档路径；Task C 三文件仍为未暂存 mutable diff。
+- `readSet`：Git index、staged diff、worktree status。
+- `writeSet`：本地 Git objects、当前 branch ref 与独立 index。
+- `executionContext`：当前 worktree/branch/index 独占。
+- `resourceLocks`：canonical worktree Git index/ref write。
+- `owner`：DOCS-CORRECTION Git owner。
+- `verification`：`git show --stat --oneline HEAD`、`git status --short --branch`。
+- `failureDomain`：C1 修正及全部代码后继暂停；不得绕过纠偏提交门禁。
+- `replanTriggers`：commit hook 修改文件、提交失败、branch/HEAD 意外变化或代码文件进入提交。
+- `authorizationGate`：已满足；只允许本地 commit，不允许远程或 amend。
+
 ### C1 — coordinator 与 publication receipt 编辑
 
 - `nodeId`：C1
 - `taskBoundary`：C。
 - `operationKind`：编辑。
-- `outcome`：权威 outcome、single terminal classifier、final lifecycle gate、cleanup accumulation 与 bridge publication receipt 完成；不存在旧 success union 或 owner-bearing failure。
+- `outcome`：权威 outcome、`warnings` 数组、single terminal classifier、Provider store commit proof、final lifecycle gate、cleanup accumulation 与 bridge publication receipt 完成；不存在旧 success union、单值 warning 或 owner-bearing failure。
 - `estimatedCost`：中。
 - `deferralEvidence`：无。
-- `hardPredecessors`：D3；工作文档必须先提交。
-- `consumes`：已确认 design、Task C baseline、bridge connection lifecycle。
+- `hardPredecessors`：DC3；纠偏文档必须形成独立稳定提交后才能恢复现有 Task C mutable diff 的修正。
+- `consumes`：纠偏后的 design/plan、现有 Task C mutable diff、bridge connection lifecycle、当前 Provider store 权威状态。
 - `produces`：Task C production diff。
-- `completionEvidence`：静态搜索不再发现生产代码构造 `current|switched|blocked|failed` 旧结果；所有 exit 进入新 classifier。
+- `completionEvidence`：静态搜索不再发现生产代码构造 `current|switched|blocked|failed` 旧结果或单值 `warning`；所有 exit 进入新 classifier，terminal success 调用 Bridge callback 读取当前 Provider store 的目标 thread identity。
 - `readSet`：`threadSwitchCoordinator.ts`、`GuiHostConnectionBridge.tsx`、`activeThreadOwner.ts`、`browserAuthorizationSession.ts`、`guiHostClient.ts`。
 - `writeSet`：`threadSwitchCoordinator.ts`、`GuiHostConnectionBridge.tsx`。
-- `executionContext`：当前 dev worktree，共享 index 未写；Task C production owner 独占两文件。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree，独立 index 未写；Task C production owner 独占两文件。
 - `resourceLocks`：两个 production files write。
 - `owner`：Task C production editor。
-- `verification`：只读 `rg` 核对旧结果、owner-bearing outcome、publish callback 与 detach await；不运行测试。
+- `verification`：只读 `rg` 核对旧结果、单值 warning、owner-bearing outcome、Provider store proof callback、publish callback 与 detach await；不运行测试。
 - `failureDomain`：C1 及 C2–C6 暂停；Task U 尚未解锁。
-- `replanTriggers`：需要修改 `activeThreadOwner.ts`、AppCapabilities、AppShell、协议或写集合外文件；无法形成可判定 publication receipt。
-- `authorizationGate`：A0 + D3；范围限 Task C。
+- `replanTriggers`：需要修改 `activeThreadOwner.ts`、AppCapabilities、AppShell、协议或写集合外文件；Bridge 无法从当前 Provider store 提供权威 proof；warnings 数组要求新全局状态。
+- `authorizationGate`：A0 + DC3；范围限 Task C。
 
 ### C2 — coordinator unit tests 编辑
 
 - `nodeId`：C2
 - `taskBoundary`：C。
 - `operationKind`：编辑。
-- `outcome`：unit tests 覆盖新总 outcome、admission/cleanup exception、同步重入、detach await connection loss、warning 分类与无 owner failure。
+- `outcome`：unit tests 覆盖新总 outcome、admission/cleanup exception、dispatch 提交前抛错、同步重入、detach await connection loss、组合 warnings 与无 owner failure。
 - `estimatedCost`：中。
 - `deferralEvidence`：无。
 - `hardPredecessors`：C1；测试消费稳定的新 contract/implementation diff。
 - `consumes`：C1 production diff、既有 harness。
 - `produces`：Task C unit test diff。
-- `completionEvidence`：测试断言不再固定 `switched + disposed owner`，新增 before/after commit 与 publication/cleanup warning cases。
+- `completionEvidence`：测试断言不再固定 `switched + disposed owner`，新增 dispatch 提交前抛错不会 ready、before/after commit、单类 warning 与两类组合 warnings cases。
 - `readSet`：C1 两个 production files、existing coordinator test/harness。
 - `writeSet`：`threadSwitchCoordinator.test.ts`。
-- `executionContext`：当前 dev worktree，共享 index 未写。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree，独立 index 未写。
 - `resourceLocks`：unit test file write；C1 files read。
 - `owner`：Task C test editor。
 - `verification`：静态审查 test names/assertions；实际运行由 C4。
 - `failureDomain`：C2 及 C3–C6 暂停。
 - `replanTriggers`：需要 test-only production helper、第二 outcome DTO 或新增 fixture 文件。
-- `authorizationGate`：A0 + D3；范围限 Task C。
+- `authorizationGate`：A0 + DC3；范围限 Task C。
 
 ### C3 — Task C formatter
 
@@ -379,7 +462,7 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `completionEvidence`：`format:oxfmt:fix` 后 `format:oxfmt` 通过，实际 diff 仍限 Task C files。
 - `readSet`：整个 `codex-gui` formatter input。
 - `writeSet`：项目入口可触及整个 `codex-gui`；允许保留的 tracked write 仅 Task C 三文件。
-- `executionContext`：当前 dev worktree，formatter exclusive；index 未写。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree，formatter exclusive；独立 index 未写。
 - `resourceLocks`：canonical `codex-gui` formatting write lock。
 - `owner`：Task C Git owner。
 - `verification`：从 `codex-gui` 运行 `/opt/homebrew/bin/fnm exec --using-file pnpm run format:oxfmt:fix`，再运行 `format:oxfmt` 并审查 status/diff。
@@ -401,7 +484,7 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `completionEvidence`：命令退出 0，目标测试无失败。
 - `readSet`：Task C source/tests、Vitest config、node_modules。
 - `writeSet`：ignored `codex-gui/node_modules/.tmp/tsconfig.vitest.tsbuildinfo` 与失败时 test artifacts。
-- `executionContext`：`codex-gui`，shared worktree；test runner exclusive on its tsbuildinfo。
+- `executionContext`：`gui-thread-switch-terminal-outcome/codex-gui`；test runner exclusive on its tsbuildinfo。
 - `resourceLocks`：unit Vitest runner write；`tsconfig.vitest.tsbuildinfo` write。
 - `owner`：Task C verifier。
 - `verification`：`/opt/homebrew/bin/fnm exec --using-file pnpm run test:unit -- src/features/projectionCoordination/__tests__/threadSwitchCoordinator.test.ts`。
@@ -423,7 +506,7 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `completionEvidence`：cached name-only 恰好为 Task C 三路径；cached check 通过；无纯重排混入。
 - `readSet`：Task C files、Git index。
 - `writeSet`：共享 Git index，仅 Task C paths。
-- `executionContext`：current dev index exclusive。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree 的独立 index exclusive。
 - `resourceLocks`：canonical Git index write。
 - `owner`：Task C Git owner。
 - `verification`：scoped `git add --`、cached name/check/full diff。
@@ -445,7 +528,7 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `completionEvidence`：local commit id 与精确 file stat。
 - `readSet`：Git index/staged diff。
 - `writeSet`：local Git objects/refs/index。
-- `executionContext`：current dev branch/index exclusive。
+- `executionContext`：`codex/gui-thread-switch-terminal-outcome` branch/index exclusive。
 - `resourceLocks`：canonical Git index/ref write。
 - `owner`：Task C Git owner。
 - `verification`：`git show --stat --oneline HEAD`、status；不要求中间全项目 type-check。
@@ -458,16 +541,16 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `nodeId`：U1
 - `taskBoundary`：U。
 - `operationKind`：编辑。
-- `outcome`：页面只消费 ready/unavailable；按 failure 分类呈现 Alert/恢复，ready 可发准确 Toast 并按 threadId replace；activeOwner props 链从 history continue 移除。
+- `outcome`：页面只消费 ready/unavailable；按 failure 分类呈现 Alert/恢复，ready 对 `warnings` 数组逐项发出准确 Toast 并按 threadId replace；activeOwner props 链从 history continue 移除。
 - `estimatedCost`：中。
 - `deferralEvidence`：无。
 - `hardPredecessors`：C6；必须消费稳定 Task C contract。
 - `consumes`：C commit、已确认 UI 设计、HeroUI/Lingui local docs。
 - `produces`：ThreadHistoryDetailPage production diff 与稳定英文 msgids。
-- `completionEvidence`：旧 outcome switch 与 owner-based navigation/return 不再存在；Toast 使用 `toast.warning` 和 Lingui `t`。
+- `completionEvidence`：旧 outcome switch 与 owner-based navigation/return 不再存在；页面遍历 `warnings`，每项使用 `toast.warning` 和 Lingui `t`，空数组不显示 Toast。
 - `readSet`：new coordinator contract、AppCapabilities、AppShell Toast setup、page。
 - `writeSet`：`ThreadHistoryDetailPage.tsx`。
-- `executionContext`：current dev worktree/index 未写。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree，独立 index 未写。
 - `resourceLocks`：page file write。
 - `owner`：Task U UI editor。
 - `verification`：静态 exhaustive switch、accessible Alert/Buttons、no stale owner path；实际 Browser 由 U7。
@@ -480,16 +563,16 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `nodeId`：U2
 - `taskBoundary`：U。
 - `operationKind`：编辑。
-- `outcome`：三个 Browser files 完整迁移新 contract，覆盖 UI 文案、无导航、capability replacement、warning 跨导航与真实 App switch 行为。
+- `outcome`：三个 Browser files 完整迁移新 contract，覆盖 UI 文案、无导航、capability replacement、warnings 跨导航、组合双 Toast 与真实 App switch 行为。
 - `estimatedCost`：高。
 - `deferralEvidence`：无。
 - `hardPredecessors`：U1；测试消费稳定页面行为。
 - `consumes`：C commit、U1 diff、existing Browser harness/projection builders。
 - `produces`：Task U Browser/App test diff。
-- `completionEvidence`：旧 outcome fixtures 搜索归零；新增 ready/warning、before/after connectionLost、operation phase、currentThreadUnresolved 与 Toast assertions。
+- `completionEvidence`：旧 outcome fixtures 与单值 warning 搜索归零；新增 ready/warnings、组合双 Toast、before/after connectionLost、operation phase、currentThreadUnresolved 与 Toast assertions。
 - `readSet`：U1 page、C contract/bridge、existing three Browser tests、Vitest local docs。
 - `writeSet`：`ThreadHistoryDetailPage.browser.test.tsx`、`App.browser.test.tsx`、`AppRouting.browser.test.tsx`。
-- `executionContext`：current dev worktree/index 未写。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree，独立 index 未写。
 - `resourceLocks`：three test files write；U1/C files read。
 - `owner`：Task U test editor。
 - `verification`：locators 使用 role/name，异步 DOM 使用 `expect.element`/`expect.poll`；Toast queue 在测试间 `toast.clear()`。
@@ -642,8 +725,8 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `produces`：Task U staged snapshot。
 - `completionEvidence`：cached name-only/check/full diff 满足范围与设计。
 - `readSet`：Task U files、Git index。
-- `writeSet`：shared Git index，仅 Task U paths。
-- `executionContext`：current dev index exclusive。
+- `writeSet`：本 worktree 独立 Git index，仅 Task U paths。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree 的独立 index exclusive。
 - `resourceLocks`：canonical Git index write。
 - `owner`：Task U Git owner。
 - `verification`：scoped `git add --`、cached check/name/full diff；核对 catalogs 无范围外删除。
@@ -665,7 +748,7 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `completionEvidence`：local commit id、精确 file stat、clean task scope。
 - `readSet`：Git index/staged diff。
 - `writeSet`：local Git objects/refs/index。
-- `executionContext`：current dev branch/index exclusive。
+- `executionContext`：`codex/gui-thread-switch-terminal-outcome` branch/index exclusive。
 - `resourceLocks`：canonical Git index/ref write。
 - `owner`：Task U Git owner。
 - `verification`：`git show --stat --oneline HEAD`、status；commit 不修改验证过的 tree content。
@@ -709,7 +792,7 @@ rg -n -e 'type: "current"' -e 'type: "switched"' -e 'type: "blocked"' -e 'type: 
 - `completionEvidence`：`git status --short --branch`、`git log -3 --oneline`、两次 `git show --stat`、最终 design completion checklist 全部核对。
 - `readSet`：Git metadata、commits、design/plan、verification logs。
 - `writeSet`：无。
-- `executionContext`：current dev worktree read-only。
+- `executionContext`：`gui-thread-switch-terminal-outcome` worktree read-only。
 - `resourceLocks`：Git refs/worktree read。
 - `owner`：主协调者。
 - `verification`：不重复运行相同 stable input 上的 CI/Browser；只有提交 hook、修正或基线变化使证据失效时才重跑受影响节点。
@@ -736,10 +819,21 @@ ready = {P0}
 
 ```text
 A0 -> P0 -> D1 -> D2 -> D3
-   -> C1 -> C2 -> C3 -> C4 -> C5 -> C6
+   -> DC1 -> DC2 -> DC3
+   -> corrected C1 -> C2 -> C3 -> C4 -> C5 -> C6
    -> U1 -> fan-out {U2, U3 -> U4 -> U5}
    -> U6 -> ready {U7, U8} (shared runner/cache lock serializes execution)
    -> U9 -> U10 -> V1 -> F1
+```
+
+本次纠偏后的即时状态：
+
+```text
+A0/P0/D1/D2/D3 complete
+Task C mutable diff paused and not staged
+DC1 authorized and running
+ready after DC1 verification = {DC2}
+all C/U/verification successors wait for DC3
 ```
 
 Fan-out/fan-in：
@@ -750,22 +844,23 @@ Fan-out/fan-in：
 - U6 后 U7 与 U8 同时 ready，但共享 frontend typebuild/browser/Vitest caches；一个运行时另一个保持 ready 等待 canonical lock，不添加伪 hard edge。锁释放后同一调度循环立即启动等待节点。
 - U7/U8 在 U9 stage fan-in。
 
-未使用多个 worktree 的原因不是“同一仓库”，而是 Task U 对 Task C 稳定 contract 的真实依赖；同一 taskBoundary 内只有明确不相交的 U2 与 catalog chain 并发写。
+当前使用一个专属 worktree 隔离本任务。Task U 对 Task C 稳定 contract 存在真实依赖；同一 taskBoundary 内只有明确不相交的 U2 与 catalog chain 可按资源锁并发写。
 
 ## Task C 详细行为与测试
 
 ### Coordinator contract
 
 - 用单一 total `ContinueThreadOutcome` 替换旧四分支；所有 caller-visible exit 都返回 outcome。
-- already-current 返回 `ready { threadId, warning: null }`，不返回 owner。
+- already-current 返回 `ready { threadId, warnings: [] }`，不返回 owner。
 - busy、queue blockers 分别返回 `switchInProgress` 与 `currentThreadUnresolved`；后者由 coordinator 捕获当时权威 `activeThreadId`。
 - reserveRelease 或 admission cleanup 抛错返回 `operationFailed.admission`。
 - resume/attach 错误在 coordinator 仍 active 时分别返回 `operationFailed.resume|attach`；若 catch 时 generation 已终止，优先返回 `connectionLost`。
-- commit fact、owner publication fact 与 `disposed` 独立记录；terminal classifier 不从 exception message 推断。
+- commit attempt、owner publication fact 与 `disposed` 独立记录；terminal classifier 不从 exception message 推断，也不把这些内部事实单独当成 Redux commit proof。
 - `publishActiveOwner` 内部 seam 返回可判定 receipt：owner publication 是必需事实，authorization persistence failure 是 post-commit degradation。Bridge 继续先发布 owner，再捕获并报告 persistence error；不把它升级为 owner unavailable。
-- replay/application exception 只有在 final gate 仍证明 owner 可用时转成 `postCommitDegraded`；否则 `operationFailed.activate` 或 `connectionLost`。
-- previous owner local dispose 与 remote detach 都执行；error 累积为 cleanup warning/diagnostic。
-- 在 previous detach await 之后执行 final gate，核验 generation、disposed、active owner identity 与 committed/published facts。
+- replay/application exception 只有在 final gate 通过 Provider store 权威状态证明目标 thread 已提交且 owner 可用时，才在 `warnings` 中加入 `postCommitDegraded`；否则 `operationFailed.activate` 或 `connectionLost`。
+- previous owner local dispose 与 remote detach 都执行；error 独立累积为 `previousOwnerCleanupFailed` warning/diagnostic。
+- 在 previous detach await 之后执行 final gate，核验 generation、disposed、committed/published facts，并通过 Bridge callback 读取当前 Provider store 的权威 active-thread identity。
+- `postCommitDegraded` 与 `previousOwnerCleanupFailed` 独立追加到 `warnings`；组合场景按 lifecycle 顺序返回 `[postCommitDegraded, previousOwnerCleanupFailed]`，不把 error 聚合进同一个 discriminant。
 - 任何 connectionLost、operationFailed 都不携带 owner。
 
 ### Coordinator unit coverage
@@ -774,11 +869,13 @@ Fan-out/fan-in：
 - busy 与 queue blocker → 对应 unavailable；queue blocker 携带权威 activeThreadId。
 - reserveRelease throw → `operationFailed.admission`，不 reject Promise。
 - dispose during resume/attach/candidate cleanup → `connectionLost.beforeCommit`。
-- dispatch/publish synchronous reentry dispose → 非 ready；若 commit fact 已成立则 `afterCommit`。
+- dispatch 在 Redux commit 生效前抛错 → `operationFailed.activate`，即使 coordinator/projection 内部 identity 看似匹配也不得 ready。
+- dispatch/publish synchronous reentry dispose → 非 ready；只有 Provider store 证明 commit 已生效时才把 connection loss 归为 `afterCommit`。
 - previous detach pending 时 connection dispose → `connectionLost.afterCommit`。
 - previous local dispose throw 仍尝试 remote detach；remote detach throw 仍保留已完成 local cleanup。
-- owner 可用 + previous cleanup failure → `ready + previousOwnerCleanupFailed`。
-- owner 可用 + authorization/replay degradation → `ready + postCommitDegraded`，operation 精确。
+- owner 可用 + previous cleanup failure → `ready.warnings` 包含 `previousOwnerCleanupFailed`。
+- owner 可用 + authorization/replay degradation → `ready.warnings` 包含 `postCommitDegraded`，operation 精确。
+- 两类降级同时发生 → `ready.warnings` 依次包含 `postCommitDegraded`、`previousOwnerCleanupFailed`，诊断均保留。
 - commit 未生效/owner publication 不成立 → `operationFailed.activate`。
 - primary failure 与 cleanup diagnostic 保持主次，不用 AggregateError 抹掉分类。
 - disposed coordinator 的后续调用稳定返回 connection lost/unavailable，不恢复。
@@ -788,8 +885,8 @@ Fan-out/fan-in：
 ### ThreadHistoryDetailPage
 
 - `ContinueTaskState` 按 failure taxonomy 分为 temporary blocker 与 unavailable failure，不再复用旧 `blocked|failed` 形状。
-- `ready` 先按 warning discriminant 产生对应 Lingui `toast.warning`，再 replace 到结果 `threadId`。
-- normal ready 没有 Toast。
+- `ready` 遍历 `warnings`，按每项 discriminant 产生对应 Lingui `toast.warning`，再 replace 到结果 `threadId`；两类同时存在时发出两个 Toast。
+- normal ready 的 `warnings` 为空，没有 Toast。
 - `connectionLost.beforeCommit` 留在 history，显示“连接在任务切换完成前中断。重新连接后请重试。”
 - `connectionLost.afterCommit` 留在 history，显示“任务切换已提交，但连接已中断。重新连接后请确认当前任务。”
 - connection lost 不显示“返回当前任务”，也不调用旧 callback。
@@ -801,18 +898,18 @@ Fan-out/fan-in：
 
 - previous cleanup warning：标题 `Task opened`；说明 `The previous task connection could not be fully cleaned up. Later state may be affected.`
 - post-commit degradation：标题 `Task opened`；说明 `The task opened, but some state synchronization did not finish.`
-- 使用 `toast.warning(t`...`, { description: t`...` })`；测试 afterEach 清理 default toast queue。
+- 使用 `toast.warning(t`...`, { description: t`...` })`；每个 warning 调用一次；测试 afterEach 清理 default toast queue。
 
 ### Browser/App coverage
 
-- `ThreadHistoryDetailPage.browser.test.tsx`：完整 failure/UI matrix、transcript 保留、route、按钮、ready + warning Toast、无 warning、new capability replacement。
+- `ThreadHistoryDetailPage.browser.test.tsx`：完整 failure/UI matrix、transcript 保留、route、按钮、ready + warnings Toast、组合双 Toast、空数组无 Toast、new capability replacement。
 - `App.browser.test.tsx`：迁移 switch probe 对旧 union 的直接断言；保留 active owner、queue、projection replay、commands unavailable/unmount 原子性；pending switch teardown 断言 before/after commit fact。
 - `AppRouting.browser.test.tsx`：真实 router + AppShell provider 下验证 ready replace、resume failure 留页，以及 previous cleanup failure 后 current task 可用且 warning Toast 跨详情卸载可见。
 - 使用 role/name locators 与 `expect.element`/`expect.poll`；不锁定颜色、padding、gap、className 等低价值样式数值。
 
 ## Catalog、格式与验证命令
 
-所有 pnpm 命令从 `/Users/jiangsheng/cnb/codex/codex-gui` 运行，并使用 fnm：
+所有 pnpm 命令从 `/Users/jiangsheng/cnb/codex/.worktrees/gui-thread-switch-terminal-outcome/codex-gui` 运行，并使用 fnm：
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run messages:extract
@@ -834,12 +931,12 @@ Fan-out/fan-in：
 
 ## 失败域与计划内修正
 
-- DOCS 失败只阻止所有代码后继；不得绕过 docs commit 门禁。
+- DOCS 或 DOCS-CORRECTION 失败只阻止所有代码后继；不得绕过任一 docs commit 门禁。DC3 完成前保留既有 Task C mutable diff，但不得继续修改、格式化、测试、stage 或 commit。
 - Task C 失败只阻止 Task C 后继和依赖其 contract 的 Task U。
 - Task U Browser 与 CI 失败只阻止 Task U stage/commit；互不依赖的验证可以保留，但修改其读取文件后相应 evidence 失效。
 - visible GUI runtime 不可用不会抹掉 CI/Browser 结果，但最终验收保持未完成。
 - 计划内修正插入失败节点与后继之间，声明精确写集合与失效验证；对已提交 C/U 的修正创建新 commit，禁止 amend。
-- 任何需要修改计划外文件、接口语义、自动重连、安全/数据边界、worktree 或 branch 参数的修正都停止并返回计划确认。
+- 任何需要修改计划外文件、接口语义、自动重连、安全/数据边界或已核验 worktree/branch 参数的修正都停止并返回计划确认；已明确授权并已创建的当前 worktree 不属于计划外变化。
 
 ## 反向审计结果
 
@@ -849,6 +946,8 @@ Fan-out/fan-in：
 - 生产 consumer 只有 history detail；App tests 是直接 test consumer，必须迁移。
 - connection invalidation 的真实 async 可达窗口是 previous detach await，不应只修同步 mock 路径。
 - admission/cleanup throw、publication/persistence 混合与 warning taxonomy 是原设计示意中的三个缺口，已在计划与 design 技术校准中补齐。
+- 实施中确认 coordinator/projection owner identity 不能证明 Redux dispatch 生效；现以 Bridge 的当前 Provider store callback 作为 terminal commit proof，写集合仍限 Task C 两个既有 production 文件。
+- 单值 warning 无法表示两类降级并发；用户选择 `A`，改为 `warnings` 数组并要求组合场景显示两个 Toast。
 - Toast provider、Lingui generator、Vitest parallel config 与 fnm 固化入口当前存在。
 - 无证据要求修改 activeThreadOwner、App、AppShell、Redux、protocol 或 server。
 
@@ -864,11 +963,12 @@ Fan-out/fan-in：
 
 计划执行完成必须同时满足：
 
-- DOCS、C、U 三个独立本地提交存在且范围精确；
+- DOCS、DOCS-CORRECTION、C、U 四个独立本地提交存在且范围精确；
 - `ready` 可靠代表结果交付时可用的目标 owner，且不暴露 owner 给页面；
 - before/after commit connection loss 都不导航并显示不同事实；
 - admission/resume/attach/activate/cleanup 不再绕过 total outcome；
-- previous cleanup 与 post-commit degradation 成功 warning 分类和文案准确；
+- previous cleanup 与 post-commit degradation 成功 warning 分类和文案准确；两类同时发生时数组保留两项并显示两个 Toast；
+- Redux commit 生效由当前 Provider store 权威状态证明；dispatch 提交前抛错不会返回 `ready`；
 - stale capability 不被重试，新 generation capability 可替换；
 - coordinator unit、三个 Browser files、codex-gui CI 和可见 GUI 验收完成；
 - catalogs 只包含本任务真实 extraction 与中文补译；
