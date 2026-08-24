@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Codex GUI',
-  tagline: 'Codex GUI 极简安装与启动指南',
+  tagline: 'Codex GUI 使用与开发文档',
 
   future: {
     v4: true,
@@ -26,7 +26,7 @@ const config: Config = {
       {
         docs: {
           routeBasePath: '/',
-          sidebarPath: false,
+          sidebarPath: './sidebars.ts',
         },
         blog: false,
         theme: {
@@ -44,9 +44,50 @@ const config: Config = {
       title: 'Codex GUI',
       items: [
         {
+          type: 'docSidebar',
+          sidebarId: 'docsSidebar',
+          label: '文档',
+          position: 'left',
+        },
+        {
           href: 'https://github.com/jiangshengdev/codex',
           label: 'GitHub',
           position: 'right',
+        },
+      ],
+    },
+    footer: {
+      style: 'dark',
+      links: [
+        {
+          title: '文档',
+          items: [
+            {
+              label: '首页',
+              to: '/',
+            },
+            {
+              label: '安装与启动',
+              to: '/getting-started',
+            },
+            {
+              label: '从源码启动',
+              to: '/development/getting-started',
+            },
+          ],
+        },
+        {
+          title: '项目',
+          items: [
+            {
+              label: 'GitHub',
+              href: 'https://github.com/jiangshengdev/codex',
+            },
+            {
+              label: 'Docusaurus',
+              href: 'https://docusaurus.io',
+            },
+          ],
         },
       ],
     },

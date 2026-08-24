@@ -1,41 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { InitializeResponse } from "@codex-protocol/InitializeResponse";
 import {
   GuiHostHandshakeController,
   type GuiHostHandshakeCallbacks,
   type GuiHostHandshakeTerminalFailure,
 } from "../guiHostHandshakeController";
 import { GuiHostTransportSession } from "../guiHostTransportSession";
-
-class RecordingSocket {
-  sent: string[] = [];
-  readyState: number = WebSocket.OPEN;
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-  onclose: ((event: CloseEvent) => void) | null = null;
-
-  send(message: string): void {
-    this.sent.push(message);
-  }
-
-  close(): void {
-    this.readyState = WebSocket.CLOSED;
-  }
-}
+import { initializeResponse, RecordingSocket } from "./guiHostTestSupport";
 
 type RpcRequest = {
   jsonrpc: "2.0";
   id: number;
   method: string;
   params: unknown;
-};
-
-const initializeResponse: InitializeResponse = {
-  userAgent: "codex-test",
-  codexHome: "/codex-home",
-  platformFamily: "test",
-  platformOs: "test",
 };
 
 const defaultCallbacks: GuiHostHandshakeCallbacks = {

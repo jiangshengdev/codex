@@ -1,4 +1,5 @@
-import { expect, test, vi } from "vitest";
+import { toast } from "@heroui/react";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -9,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { StrictMode, useSyncExternalStore } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
+import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import type { AppCapabilities, ContinueThread } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import { AppShell } from "@/features/appShell/AppShell";
@@ -40,16 +42,6 @@ const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
   retry: () => false,
 };
 
-const deferred = <T,>() => {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, reject, resolve };
-};
-
 const historyThread = (
   turns: typeof attachResponse.snapshot.thread.turns,
   name = "Historical task",
@@ -68,6 +60,10 @@ const activeOwner = (threadId: string): ActiveThreadOwnerHandle => ({
   queueCoordinator: null as never,
   skillCatalog,
   dispose: () => undefined,
+});
+
+afterEach(() => {
+  toast.clear();
 });
 
 type CapabilitiesStore = Readonly<{
@@ -120,7 +116,7 @@ const renderDetail = async ({
     suppliedContinueThread === undefined
       ? vi
           .fn<ContinueThread>()
-          .mockResolvedValue({ type: "current", activeOwner: activeOwner(detailThreadId) })
+          .mockResolvedValue({ type: "ready", threadId: detailThreadId, warnings: [] })
       : suppliedContinueThread;
   const initialCapabilities: AppCapabilities = {
     activeOwner: suppliedActiveOwner,
@@ -227,6 +223,61 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   expect(readThread).toHaveBeenCalledTimes(2);
   expect(commands.resumeThread).not.toHaveBeenCalled();
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+});
+
+test("rejects a mismatched thread identity and retries the requested detail", async () => {
+  const mismatchedThread = {
+    ...historyThread(
+      [
+        baseTurn("mismatched-history-turn", [
+          userMessage("mismatched-history-user", [textInput("Wrong thread content")]),
+        ]),
+      ],
+      "Wrong historical task",
+    ),
+    id: "00000000-0000-0000-0000-000000000099",
+  };
+  const matchingThread = historyThread(
+    [
+      baseTurn("matching-history-turn", [
+        userMessage("matching-history-user", [textInput("Requested thread content")]),
+      ]),
+    ],
+    "Requested historical task",
+  );
+  const readThread = vi
+    .fn<GuiHostCommands["readThread"]>()
+    .mockResolvedValueOnce({ thread: mismatchedThread })
+    .mockResolvedValueOnce({ thread: matchingThread });
+  const commands = { ...createGuiHostCommands(), readThread };
+  const { screen } = await renderDetail({ commands });
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
+  await expect
+    .element(alert.getByText("thread/read returned a different thread identity", { exact: true }))
+    .toBeVisible();
+  await expect.element(screen.getByText("Wrong thread content")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Continue this task" }))
+    .not.toBeInTheDocument();
+  expect(readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+
+  await alert.getByRole("button", { name: "Retry" }).click();
+
+  await expect.element(screen.getByText("Requested thread content")).toBeVisible();
+  await expect
+    .element(screen.getByRole("heading", { name: "Requested historical task" }))
+    .toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Continue this task" })).toBeVisible();
+  expect(readThread).toHaveBeenCalledTimes(2);
+  expect(readThread).toHaveBeenNthCalledWith(2, {
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
 });
 
 test("settles a deferred read into ready after StrictMode effect replay", async () => {
@@ -446,14 +497,15 @@ test("renders isolated context pages without Composer and keeps the transcript e
     .toBe(true);
 });
 
-test("reports a synchronous queue block without flashing pending and links the action to its reason", async () => {
+test("reports an unresolved current thread without flashing pending and links the action to its reason", async () => {
+  const activeThreadId = "00000000-0000-0000-0000-000000000089";
   const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
-    type: "blocked",
-    reason: {
-      type: "queueReleaseBlocked",
+    type: "unavailable",
+    failure: {
+      type: "currentThreadUnresolved",
       blockers: [{ type: "ordinaryQueued", count: 1 }],
+      activeThreadId,
     },
-    cleanupFailure: null,
   });
   const commands = {
     ...createGuiHostCommands(),
@@ -477,15 +529,18 @@ test("reports a synchronous queue block without flashing pending and links the a
   expect(continueThread).toHaveBeenCalledExactlyOnceWith(detailThreadId);
   const returnAction = alert.getByRole("button", { name: "Return to current task" });
   await expect.element(returnAction).toBeVisible();
-  await expect.element(returnAction).toBeDisabled();
+  await expect.element(returnAction).toBeEnabled();
 });
 
-test("returns a blocked continuation to the canonical active task instead of the viewed detail", async () => {
+test("pushes an unresolved continuation return target and preserves the history detail back stack", async () => {
   const activeThreadId = "00000000-0000-0000-0000-000000000089";
   const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
-    type: "blocked",
-    reason: { type: "busy" },
-    cleanupFailure: null,
+    type: "unavailable",
+    failure: {
+      type: "currentThreadUnresolved",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+      activeThreadId,
+    },
   });
   const commands = {
     ...createGuiHostCommands(),
@@ -493,11 +548,13 @@ test("returns a blocked continuation to the canonical active task instead of the
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
+  const detailUrl = `/history/${detailThreadId}`;
   const { router, screen } = await renderDetail({
-    activeOwner: activeOwner(activeThreadId),
     commands,
     continueThread,
+    initialEntries: ["/origin", detailUrl],
   });
+  const historyLength = router.history.length;
 
   await screen.getByRole("button", { name: "Continue this task" }).click();
   const returnAction = screen.getByRole("button", { name: "Return to current task" });
@@ -508,6 +565,62 @@ test("returns a blocked continuation to the canonical active task instead of the
   expect(router.state.location.pathname).toBe(`/task/${activeThreadId}`);
   expect(router.state.location.search).toEqual({});
   expect(router.state.location.hash).toBe("");
+  expect(router.history.length).toBe(historyLength + 1);
+
+  router.history.back();
+  await expect.element(screen.getByRole("heading", { name: "Historical task" })).toBeVisible();
+  expect(router.state.location.pathname).toBe(detailUrl);
+});
+
+test("does not offer a return action when an unresolved continuation has no current thread", async () => {
+  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    type: "unavailable",
+    failure: {
+      type: "currentThreadUnresolved",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+      activeThreadId: null,
+    },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({ commands, continueThread });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to switch tasks yet")).toBeVisible();
+  await expect
+    .element(alert.getByRole("button", { name: "Return to current task" }))
+    .not.toBeInTheDocument();
+});
+
+test("reports another switch in progress without offering a stale owner route", async () => {
+  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    type: "unavailable",
+    failure: { type: "switchInProgress" },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ commands, continueThread });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  const alert = screen.getByRole("alert");
+  await expect
+    .element(alert.getByText("Another task switch is already in progress. Try again shortly."))
+    .toBeVisible();
+  await expect
+    .element(alert.getByRole("button", { name: "Return to current task" }))
+    .not.toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 
 test("builds QR access for the visible detail instead of a different active owner", async () => {
@@ -560,27 +673,41 @@ test("keeps one continuation in flight while the primary action is pending", asy
 
   const rawFailure = new Error("continuation settled after pending");
   switching.resolve({
-    type: "failed",
-    phase: "resume",
-    error: rawFailure,
-    cleanupFailure: null,
+    type: "unavailable",
+    failure: {
+      type: "operationFailed",
+      phase: "resume",
+      error: rawFailure,
+      cleanupError: null,
+    },
   });
 
   await expect.element(action).not.toHaveAttribute("data-pending");
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
-  await expect.element(screen.getByText(rawFailure.message, { exact: true })).toBeVisible();
+  const alert = screen.getByRole("alert");
+  const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
+  await expect.element(operationDiagnostic).toHaveTextContent(rawFailure.message);
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 
-test.each(["resume", "attach"] as const)(
-  "keeps the read-only detail retryable after a %s failure",
-  async (phase) => {
+test.each([
+  ["admission", "The task switch could not be started."],
+  ["resume", "The task could not be resumed."],
+  ["attach", "The task connection could not be prepared."],
+  ["activate", "The task could not be activated."],
+] as const)(
+  "keeps the read-only detail retryable after an %s operation failure",
+  async (phase, summary) => {
     const rawFailure = new Error(`complete ${phase} failure: request id 88`);
+    const cleanupError = new Error(`cleanup after ${phase} failed`);
     const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
-      type: "failed",
-      phase,
-      error: rawFailure,
-      cleanupFailure: null,
+      type: "unavailable",
+      failure: {
+        type: "operationFailed",
+        phase,
+        error: rawFailure,
+        cleanupError,
+      },
     });
     const commands = {
       ...createGuiHostCommands(),
@@ -594,7 +721,11 @@ test.each(["resume", "attach"] as const)(
     await action.click();
     const alert = screen.getByRole("alert");
     await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
-    await expect.element(alert.getByText(rawFailure.message, { exact: true })).toBeVisible();
+    await expect.element(alert.getByText(summary, { exact: true })).toBeVisible();
+    const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
+    await expect.element(operationDiagnostic).toHaveTextContent(rawFailure.message);
+    const cleanupDiagnostic = alert.getByText("Cleanup diagnostic:", { exact: false });
+    await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
     await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
     await expect.element(action).not.toHaveAttribute("data-pending");
     expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
@@ -604,51 +735,219 @@ test.each(["resume", "attach"] as const)(
   },
 );
 
-test.each(["current", "switched"] as const)(
-  "replaces history with the canonical authoritative task path after a %s outcome",
-  async (outcomeType) => {
-    const authoritativeThreadId =
-      outcomeType === "current"
-        ? "00000000-0000-0000-0000-000000000089"
-        : "00000000-0000-0000-0000-000000000090";
-    const owner = activeOwner(authoritativeThreadId);
-    const outcome: Awaited<ReturnType<ContinueThread>> =
-      outcomeType === "current"
-        ? { type: "current", activeOwner: owner }
-        : { type: "switched", activeOwner: owner, cleanupFailure: null };
-    const continueThread = vi.fn<ContinueThread>().mockResolvedValue(outcome);
+test.each(["beforeCommit", "afterCommit"] as const)(
+  "keeps history visible after a %s connection loss without offering owner navigation",
+  async (progress) => {
+    const cleanupError = new Error(`cleanup after ${progress} failed`);
+    const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+      type: "unavailable",
+      failure: {
+        type: "connectionLost",
+        progress,
+        threadId: detailThreadId,
+        cleanupError,
+      },
+    });
     const commands = {
       ...createGuiHostCommands(),
       readThread: vi
         .fn<GuiHostCommands["readThread"]>()
         .mockResolvedValue({ thread: emptyHistoryThread() }),
     };
-    const detailUrl = `/history/${detailThreadId}`;
-    const { router, screen } = await renderDetail({
-      commands,
-      continueThread,
-      initialEntries: ["/origin", detailUrl],
+    const { router, screen } = await renderDetail({ commands, continueThread });
+
+    await screen.getByRole("button", { name: "Continue this task" }).click();
+
+    const alert = screen.getByRole("alert");
+    await expect
+      .element(
+        alert.getByText(
+          progress === "beforeCommit"
+            ? "The connection was interrupted before the task switch completed. Reconnect and try again."
+            : "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task.",
+          { exact: true },
+        ),
+      )
+      .toBeVisible();
+    const cleanupDiagnostic = alert.getByText("Cleanup diagnostic:", { exact: false });
+    await expect.element(cleanupDiagnostic).toHaveTextContent(cleanupError.message);
+    await expect
+      .element(alert.getByRole("button", { name: "Return to current task" }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+    expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+  },
+);
+
+test("renders a synchronous continuation exception as an unexpected failure", async () => {
+  const rawFailure = new Error("synchronous continuation failure");
+  const continueThread = vi.fn<ContinueThread>(() => {
+    throw rawFailure;
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ commands, continueThread });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  await expect
+    .element(
+      alert.getByText("An unexpected error occurred while continuing the task.", { exact: true }),
+    )
+    .toBeVisible();
+  const diagnostic = alert.getByText("Diagnostic:", { exact: false });
+  await expect.element(diagnostic).toHaveTextContent(rawFailure.message);
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
+test("replaces history with the authoritative ready thread without showing a warning", async () => {
+  const authoritativeThreadId = "00000000-0000-0000-0000-000000000090";
+  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    type: "ready",
+    threadId: authoritativeThreadId,
+    warnings: [],
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const detailUrl = `/history/${detailThreadId}`;
+  const { router, screen } = await renderDetail({
+    commands,
+    continueThread,
+    initialEntries: ["/origin", detailUrl],
+  });
+  const historyLength = router.history.length;
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
+  expect(router.state.location.pathname).toBe(`/task/${authoritativeThreadId}`);
+  expect(router.history.length).toBe(historyLength);
+  await expect.element(screen.getByText("Task opened", { exact: true })).not.toBeInTheDocument();
+
+  router.history.back();
+  await expect.element(screen.getByRole("main", { name: "Origin" })).toBeInTheDocument();
+});
+
+test.each([
+  [
+    { type: "postCommitDegraded", operation: "replay", error: new Error("replay degraded") },
+    "The task opened, but some state synchronization did not finish.",
+  ],
+  [
+    { type: "previousOwnerCleanupFailed", error: new Error("cleanup degraded") },
+    "The previous task connection could not be fully cleaned up. Later state may be affected.",
+  ],
+] as const)(
+  "navigates after a ready warning and keeps its Toast visible",
+  async (warning, message) => {
+    const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+      type: "ready",
+      threadId: detailThreadId,
+      warnings: [warning],
     });
-    const historyLength = router.history.length;
+    const commands = {
+      ...createGuiHostCommands(),
+      readThread: vi
+        .fn<GuiHostCommands["readThread"]>()
+        .mockResolvedValue({ thread: emptyHistoryThread() }),
+    };
+    const { screen } = await renderDetail({ commands, continueThread });
 
     await screen.getByRole("button", { name: "Continue this task" }).click();
 
     await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe(`/task/${authoritativeThreadId}`);
-    expect(router.state.location.search).toEqual({});
-    expect(router.state.location.hash).toBe("");
-    expect(router.history.length).toBe(historyLength);
-
-    router.history.back();
-    await expect.element(screen.getByRole("main", { name: "Origin" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/origin");
-    router.history.forward();
-    await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe(`/task/${authoritativeThreadId}`);
-    expect(router.state.location.search).toEqual({});
-    expect(router.state.location.hash).toBe("");
+    await expect.element(screen.getByText("Task opened", { exact: true })).toBeVisible();
+    await expect.element(screen.getByText(message, { exact: true })).toBeVisible();
   },
 );
+
+test("keeps both warning Toasts visible after navigating away from history", async () => {
+  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    type: "ready",
+    threadId: detailThreadId,
+    warnings: [
+      { type: "postCommitDegraded", operation: "replay", error: new Error("replay degraded") },
+      { type: "previousOwnerCleanupFailed", error: new Error("cleanup degraded") },
+    ],
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { screen } = await renderDetail({ commands, continueThread });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  await expect.element(screen.getByRole("main", { name: "Current task" })).toBeInTheDocument();
+  const postCommitWarning = screen.getByText(
+    "The task opened, but some state synchronization did not finish.",
+    { exact: true },
+  );
+  await expect.element(postCommitWarning).toBeVisible();
+  const cleanupWarning = screen.getByText(
+    "The previous task connection could not be fully cleaned up. Later state may be affected.",
+    { exact: true },
+  );
+  await expect.element(cleanupWarning).toBeVisible();
+  await expect
+    .poll(() => screen.getByText("Task opened", { exact: true }).elements().length)
+    .toBe(2);
+});
+
+test("ignores a stale in-flight capability result and invokes only its replacement", async () => {
+  const staleSwitch = deferred<Awaited<ReturnType<ContinueThread>>>();
+  const staleContinueThread = vi.fn<ContinueThread>().mockReturnValue(staleSwitch.promise);
+  const replacementContinueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    type: "unavailable",
+    failure: { type: "switchInProgress" },
+  });
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { capabilitiesStore, initialCapabilities, router, screen } = await renderDetail({
+    commands,
+    continueThread: staleContinueThread,
+  });
+  const action = screen.getByRole("button", { name: "Continue this task" });
+
+  await action.click();
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    continueThread: null,
+    status: { label: "closed" },
+  });
+  await expect.element(action).toBeDisabled();
+  capabilitiesStore.publish({
+    ...initialCapabilities,
+    continueThread: replacementContinueThread,
+  });
+  await expect.element(action).toBeEnabled();
+
+  staleSwitch.resolve({ type: "ready", threadId: detailThreadId, warnings: [] });
+  await expect.poll(() => router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+
+  await action.click();
+  await expect
+    .element(screen.getByText("Another task switch is already in progress. Try again shortly."))
+    .toBeVisible();
+  expect(staleContinueThread).toHaveBeenCalledOnce();
+  expect(replacementContinueThread).toHaveBeenCalledOnce();
+});
 
 test("preserves detail and list entries across browser back and forward navigation", async () => {
   const commands = {

@@ -1,4 +1,5 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { toast } from "@heroui/react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import {
@@ -14,6 +15,7 @@ import {
   seedBrowserAuthorizationSession,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
+import { createDeferred as deferred } from "./testDeferred";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
 import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -33,16 +35,6 @@ const startGuiHostConnectionMock =
 
 const historyThreadId = "00000000-0000-0000-0000-000000000002";
 const historyThread = attachWithThreadId(attachResponse, historyThreadId).snapshot.thread;
-
-const deferred = <T,>() => {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => {
-    resolve = onResolve;
-    reject = onReject;
-  });
-  return { promise, reject, resolve };
-};
 
 const createHistoryCommands = () => {
   const commands = createGuiHostCommands();
@@ -71,6 +63,10 @@ const expectCanonicalRoute = (href: string, pathname: string, expectedUuidCount:
 
 beforeEach(() => {
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
+});
+
+afterEach(() => {
+  toast.clear();
 });
 
 test("history cards open details and preserve one connection across browser back and forward", async () => {
@@ -458,4 +454,57 @@ test("pure read-only history detail preserves its route when first activation fa
   } finally {
     storageSetItem.mockRestore();
   }
+});
+
+test("opens a historical task and keeps its cleanup warning visible after replacing the detail route", async () => {
+  seedBrowserAuthorizationSession({ token: "detail-secret" });
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+  );
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createHistoryCommands();
+  queueAttachProjectionResponse(commands);
+  initializeHost(options, commands);
+
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
+    .toBeVisible();
+  await expect.poll(() => getAttachProjectionThreadIds(commands)).toEqual([launchThreadId]);
+
+  await router.navigate({
+    to: "/history/$threadId",
+    params: { threadId: historyThreadId },
+  });
+  await expect
+    .element(screen.getByRole("heading", { level: 1, name: "Projection fixture" }))
+    .toBeVisible();
+  expectCanonicalRoute(router.state.location.href, `/history/${historyThreadId}`, 1);
+
+  const candidateAttach = attachWithThreadId(attachResponse, historyThreadId);
+  queueAttachProjectionResponse(commands, candidateAttach);
+  vi.mocked(commands.detachThreadProjection).mockRejectedValueOnce(
+    new Error("previous owner detach failed"),
+  );
+
+  await screen.getByRole("button", { name: "Continue this task", exact: true }).click();
+
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toBeVisible();
+  expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
+  await expect.element(screen.getByText("Task opened", { exact: true })).toBeVisible();
+  await expect
+    .element(
+      screen.getByText(
+        "The previous task connection could not be fully cleaned up. Later state may be affected.",
+        { exact: true },
+      ),
+    )
+    .toBeVisible();
+  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
+  expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
+  expect(commands.attachThreadProjection).toHaveBeenLastCalledWith({ threadId: historyThreadId });
 });

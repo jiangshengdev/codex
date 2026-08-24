@@ -1,10 +1,11 @@
+import type { ThreadItem, ThreadProjectionEventNotification, Turn } from "@codex-protocol/v2";
 import type {
-  ThreadItem,
-  ThreadProjectionEventNotification,
-  Turn,
-  TurnStartParams,
-} from "@codex-protocol/v2";
+  ComposerDraft,
+  ComposerDraftCapture,
+  ComposerDraftRestoreResult,
+} from "@/features/composerEditor/composerDraft";
 import type { ComposerInputPreview } from "./composerInputPreview";
+import type { ReadonlyComposerInputPayload } from "./composerInputPayload";
 import type { InterruptTerminalDisposition } from "./composerInterruptState";
 import type {
   RejectedSteer,
@@ -19,14 +20,25 @@ type NonInterruptedTerminalStatus = Exclude<TerminalStatus, "interrupted">;
 type ObservedClientIdentity = NonNullable<Extract<ThreadItem, { type: "userMessage" }>["clientId"]>;
 
 export type ComposerQueueMessage = Readonly<{
+  type: "recoverable";
   id: string;
-  input: readonly TurnStartParams["input"][number][];
+  draft: ComposerDraft;
+  input: ReadonlyComposerInputPayload;
 }>;
 
 declare const composerPendingInputDisplayKeyBrand: unique symbol;
 declare const composerPendingInputCursorBrand: unique symbol;
 
 export type ComposerPendingInputLane = "ordinary" | "steer";
+
+export type ComposerPendingInputMoveDestination = "earlier" | "later" | "first" | "last";
+
+export type ComposerPendingInputMovement = Readonly<{
+  position: number;
+  count: number;
+  canMoveEarlier: boolean;
+  canMoveLater: boolean;
+}>;
 
 export type ComposerPendingInputDisplayKey = string &
   Readonly<{ [composerPendingInputDisplayKeyBrand]: true }>;
@@ -35,9 +47,24 @@ export type ComposerPendingInputCursor = Readonly<{
   [composerPendingInputCursorBrand]: true;
 }>;
 
+export type ComposerPendingInputOwnerGoneCause = "disposed" | "ownerReplaced";
+
+export type ComposerPendingInputOwnerGoneResult = Readonly<{
+  type: "unavailable";
+  scope: "ownerGone";
+  reason: ComposerPendingInputOwnerGoneCause;
+}>;
+
+export type ComposerPendingInputManagement =
+  | Readonly<{ type: "manageable" }>
+  | Readonly<{ type: "editing" }>
+  | Readonly<{ type: "readOnly"; reason: "deliveryInProgress" }>;
+
 export type ComposerPendingInputPageItem = Readonly<{
   key: ComposerPendingInputDisplayKey;
   lane: ComposerPendingInputLane;
+  management: ComposerPendingInputManagement;
+  movement: ComposerPendingInputMovement | null;
   preview: ComposerInputPreview;
 }>;
 
@@ -56,7 +83,7 @@ export type ComposerPendingInputPageResult =
       nextCursor: ComposerPendingInputCursor | null;
     }>
   | Readonly<{ type: "stale"; revision: number }>
-  | Readonly<{ type: "unavailable" }>;
+  | ComposerPendingInputOwnerGoneResult;
 
 export type ComposerPendingInputDetailRequest = Readonly<{
   key: ComposerPendingInputDisplayKey;
@@ -72,7 +99,95 @@ export type ComposerPendingInputDetailResult =
     }>
   | Readonly<{ type: "missing"; revision: number }>
   | Readonly<{ type: "stale"; revision: number }>
-  | Readonly<{ type: "unavailable" }>;
+  | ComposerPendingInputOwnerGoneResult;
+
+export type ComposerPendingInputManagementRequest = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  revision: number;
+}>;
+
+export type ComposerPendingInputMoveRequest = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  revision: number;
+  destination: ComposerPendingInputMoveDestination;
+}>;
+
+export type ComposerPendingInputDrainIntent = Readonly<{
+  lane: ComposerPendingInputLane;
+}>;
+
+export type ComposerPendingInputEditInvalidation = Readonly<{
+  key: ComposerPendingInputDisplayKey;
+  lane: "steer";
+  reason: "targetInvalidated";
+  targetReason: "activeTurnNotSteerable" | "terminal";
+}>;
+
+export type ComposerPendingInputEditReservation = Readonly<{
+  save(capture: ComposerDraftCapture): ComposerPendingInputEditSaveResult;
+  cancel(): ComposerPendingInputEditCancelResult;
+}>;
+
+type ComposerPendingInputManagementFailure =
+  | Readonly<{ type: "stale"; revision: number }>
+  | Readonly<{ type: "notManageable"; revision: number }>
+  | Readonly<{ type: "conflict"; reason: "editInProgress"; revision: number }>;
+
+export type ComposerPendingInputMovementResult =
+  | Readonly<{
+      type: "movement";
+      revision: number;
+      lane: ComposerPendingInputLane;
+      movement: ComposerPendingInputMovement;
+    }>
+  | ComposerPendingInputManagementFailure;
+
+export type ComposerPendingInputBeginEditResult =
+  | Readonly<{
+      type: "begun";
+      revision: number;
+      reservation: ComposerPendingInputEditReservation;
+    }>
+  | Readonly<{ type: "invalidDraft"; revision: number }>
+  | ComposerPendingInputManagementFailure;
+
+export type ComposerPendingInputEditRestore = (draft: ComposerDraft) => ComposerDraftRestoreResult;
+
+export type ComposerPendingInputEditSaveResult =
+  | Readonly<{
+      type: "saved";
+      revision: number;
+      drainIntent: ComposerPendingInputDrainIntent;
+    }>
+  | Readonly<{ type: "invalidInput"; reason: "emptyInput"; revision: number }>
+  | Readonly<{ type: "unavailable"; reason: "sessionSettled"; revision: number }>;
+
+export type ComposerPendingInputEditCancelResult =
+  | Readonly<{
+      type: "cancelled";
+      revision: number;
+      drainIntent: ComposerPendingInputDrainIntent;
+    }>
+  | Readonly<{ type: "unavailable"; reason: "sessionSettled"; revision: number }>;
+
+export type ComposerPendingInputDeleteResult =
+  | Readonly<{
+      type: "deleted";
+      revision: number;
+      drainIntent: ComposerPendingInputDrainIntent;
+    }>
+  | ComposerPendingInputManagementFailure;
+
+export type ComposerPendingInputMoveResult =
+  | Readonly<{
+      type: "moved";
+      revision: number;
+      lane: ComposerPendingInputLane;
+      position: number;
+      count: number;
+    }>
+  | Readonly<{ type: "noOp"; reason: "alreadyAtDestination"; revision: number }>
+  | ComposerPendingInputManagementFailure;
 
 export type ComposerInterruptedDisposition = InterruptTerminalDisposition;
 
@@ -101,6 +216,7 @@ export type ComposerInputQueueResult =
       type: "applied";
       operation:
         | "observationRecorded"
+        | "pendingInputManagementDrained"
         | "rejectedSteerStartRestored"
         | "startAccepted"
         | "steerAccepted"
@@ -121,7 +237,10 @@ export type ComposerInputQueueResult =
     }>
   | Readonly<{ type: "invalidInput"; reason: "emptyInput" }>
   | Readonly<{ type: "duplicateIdentity"; messageId: string }>
-  | Readonly<{ type: "noOp"; reason: "noActiveTurn" | "ordinaryQueueEmpty" }>
+  | Readonly<{
+      type: "noOp";
+      reason: "noActiveTurn" | "ordinaryQueueEmpty" | "ordinaryQueueBlockedByEdit";
+    }>
   | Readonly<{
       type: "idempotentReplay";
       subject: "runtimeCommit" | "runtimeObservation" | "startSettlement";
@@ -139,6 +258,7 @@ export type ComposerInputQueueResult =
         | "steerClaim"
         | "steerRecoveryTransfer"
         | "interruptedTurn"
+        | "pendingInputEdit"
         | "userStoppedRecovery";
     }>;
 

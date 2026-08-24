@@ -1,5 +1,7 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
+import { createStoreHook } from "react-redux";
 import { useAppDispatch } from "@/app/hooks";
+import type { AppStore } from "@/app/store";
 import type { ContinueThread } from "@/features/appShell/AppCapabilities";
 import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
@@ -9,8 +11,13 @@ import {
   RouteConnectionStartupCoordinator,
   type RouteConnectionStartupOutcome,
 } from "@/features/appShell/routeConnectionStartupCoordinator";
-import { ThreadSwitchCoordinator } from "@/features/projectionCoordination/threadSwitchCoordinator";
+import {
+  ThreadSwitchCoordinator,
+  type ActiveOwnerPublicationReceipt,
+} from "@/features/projectionCoordination/threadSwitchCoordinator";
 import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
+
+const useAppStore = createStoreHook().withTypes<AppStore>();
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
@@ -32,6 +39,7 @@ export function GuiHostConnectionBridge({
   setContinueThread,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
+  const appStore = useAppStore();
   const frozenStartupTarget = useRef(startupTarget);
 
   useEffect(() => {
@@ -74,9 +82,16 @@ export function GuiHostConnectionBridge({
       currentActiveOwner = activeOwner;
       setActiveOwner(activeOwner);
     };
-    const publishActiveOwner = (activeOwner: ActiveThreadOwnerHandle): void => {
+    const publishActiveOwner = (
+      activeOwner: ActiveThreadOwnerHandle,
+    ): ActiveOwnerPublicationReceipt => {
       setCurrentActiveOwner(activeOwner);
-      authorizationSession.commitActiveThread(activeOwner.threadId);
+      try {
+        authorizationSession.commitActiveThread(activeOwner.threadId);
+        return { ownerPublished: true, authorizationPersistenceError: null };
+      } catch (error: unknown) {
+        return { ownerPublished: true, authorizationPersistenceError: error };
+      }
     };
     const disposeOwnerCoordinator = (): void => {
       const currentSwitchCoordinator = switchCoordinator;
@@ -150,6 +165,7 @@ export function GuiHostConnectionBridge({
               activeOwner: outcome.activeOwner,
               commands,
               dispatch,
+              readCommittedActiveThreadId: () => appStore.getState().threadIdentity.launchThreadId,
               publishActiveOwner,
               scheduler,
             });
@@ -192,6 +208,7 @@ export function GuiHostConnectionBridge({
       cleanupConnection?.();
     };
   }, [
+    appStore,
     dispatch,
     setActiveOwner,
     setAuthorizationToken,

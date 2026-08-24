@@ -14,8 +14,8 @@ export function projectComposerInputQueueView(
   detailRevision: number,
 ): ComposerInputQueueView {
   const rejectedSteers = steerOverview.rejectedSteersQueue.map(({ intent, reason }) => ({
-    key: intent.messageId,
-    preview: projectComposerInputPreview(copyComposerInputPayload(intent.input)),
+    key: intent.message.id,
+    preview: projectComposerInputPreview(copyComposerInputPayload(intent.message.input)),
     reason,
   }));
   const blockers: ComposerInputQueueReleaseBlocker[] = [];

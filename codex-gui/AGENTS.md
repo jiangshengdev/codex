@@ -1,5 +1,12 @@
 # codex-gui
 
+## Repository `just fmt` Scope Hard Override
+
+- Run the repository-level `just fmt` command only when the current task modifies at least one file that is actually managed by the live `scripts/format.py` implementation. Its current managed scopes are the repository Justfile, Rust files handled by `cargo fmt`, Bazel/Starlark files handled by buildifier, Python files under `sdk/python`, and Python files under `scripts`.
+- Do not run `just fmt` merely because the task changes another repository file. In particular, changes confined to frontend files under `codex-gui/**`, `docs/**`, Markdown files, or other paths not handled by `scripts/format.py` do not trigger it. Pure frontend formatting must use the applicable scripts defined in `codex-gui/package.json`.
+- If a task changes both unmanaged files and at least one `just fmt`-managed file, run `just fmt`. Treat the live `scripts/format.py` implementation as authoritative if its managed scope changes.
+- This rule explicitly overrides the repository-root `AGENTS.md` requirement to run `just fmt` after making code changes anywhere in the repository.
+
 ## GUI Module Size Override
 
 - Within `codex-gui/**`, the repository-root guidance to target Rust modules under 500 LoC applies only to Rust code. Do not apply it to TypeScript, TSX, or JavaScript files.

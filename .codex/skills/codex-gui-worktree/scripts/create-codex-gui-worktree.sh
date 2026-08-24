@@ -5,8 +5,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 DEFAULT_REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
 DEFAULT_BASE="dev"
 DEFAULT_SPARSE_PATHS=(
+  ".codex/skills"
+  ".agents/skills"
   "codex-gui"
   "codex-rs/app-server-protocol/schema/typescript"
+  "codex-rs/app-server-protocol/schema/json"
+  "codex-rs/gui-host/schema/typescript"
+  "codex-rs/gui-host/schema/json"
+  "docs/superpowers"
 )
 
 usage() {
@@ -180,6 +186,7 @@ cd "$REPO_ROOT"
 
 ACTUAL_ROOT="$(git rev-parse --show-toplevel)"
 [[ "$ACTUAL_ROOT" == "$REPO_ROOT" ]] || die "unexpected repo root: $ACTUAL_ROOT"
+BASE_COMMIT="$(git rev-parse --verify "${BASE}^{commit}" 2>/dev/null)" || die "base does not resolve to a commit: $BASE"
 
 case "$WORKTREE_ROOT/" in
   "$REPO_ROOT"/*)
@@ -195,7 +202,8 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
 fi
 
 for sparse_path in "${SPARSE_PATHS[@]}"; do
-  require_path_exists "$REPO_ROOT/$sparse_path"
+  git cat-file -e "$BASE_COMMIT:$sparse_path" 2>/dev/null \
+    || die "sparse checkout path does not exist in base $BASE: $sparse_path"
 done
 
 require_path_exists "$REPO_ROOT/codex-gui/node_modules"
@@ -207,7 +215,7 @@ if [[ ! -d "$VITEST_ROOT/docs" ]]; then
 fi
 VITEST_ROOT="$(normalize_path_preserving_leaf "$VITEST_ROOT")"
 
-git worktree add --no-checkout "$WORKTREE_PATH" -b "$BRANCH" "$BASE"
+git worktree add --no-checkout "$WORKTREE_PATH" -b "$BRANCH" "$BASE_COMMIT"
 trap print_cleanup_hint ERR
 
 cd "$WORKTREE_PATH"
@@ -226,6 +234,17 @@ ensure_symlink "$REPO_ROOT/codex-gui/.redux-toolkit-docs/toolkit" "$WORKTREE_PAT
 
 ensure_symlink "$VITEST_ROOT" "$WORKTREE_ROOT/vitest"
 
+test -f "$WORKTREE_PATH/AGENTS.md"
+test -f "$WORKTREE_PATH/.codex/skills/codex-gui-toolchain/SKILL.md"
+test -f "$WORKTREE_PATH/.agents/skills/lingui-best-practices/SKILL.md"
+test -d "$WORKTREE_PATH/docs/superpowers"
+test -f "$WORKTREE_PATH/codex-gui/AGENTS.md"
+test -f "$WORKTREE_PATH/codex-rs/app-server-protocol/schema/typescript/index.ts"
+test -d "$WORKTREE_PATH/codex-rs/app-server-protocol/schema/json"
+test -f "$WORKTREE_PATH/codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json"
+test -f "$WORKTREE_PATH/codex-rs/gui-host/schema/typescript/browserContract.ts"
+test -d "$WORKTREE_PATH/codex-rs/gui-host/schema/json"
+test -f "$WORKTREE_PATH/codex-rs/gui-host/schema/json/GuiAuthenticateParams.json"
 test -d "$WORKTREE_PATH/codex-gui/node_modules"
 test -d "$WORKTREE_PATH/codex-gui/.heroui-docs/react/components"
 test -f "$WORKTREE_PATH/codex-gui/.redux-toolkit-docs/redux/style-guide.md"

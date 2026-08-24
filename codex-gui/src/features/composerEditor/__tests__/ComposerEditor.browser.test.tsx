@@ -1,7 +1,6 @@
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
 import { expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
-import { $getSelection, $isRangeSelection } from "lexical";
 
 import { renderWithProviders } from "@/utils/test-utils";
 import type {
@@ -14,8 +13,8 @@ import {
   type ComposerEditorController,
   type ComposerEditorProps,
 } from "../ComposerEditor";
+import type { ComposerDraft } from "../composerDraft";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
-import { compileComposerDraft } from "../compileComposerDraft";
 
 test("opens a capped accessible skill list and keeps editor focus", async () => {
   const candidates = Array.from({ length: 25 }, (_, index) =>
@@ -32,12 +31,196 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
   await expect.element(editor).toHaveAttribute("aria-autocomplete", "list");
   await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(editor).toHaveAttribute("aria-controls", listbox.element().id);
-  await expect.element(editor).toHaveAttribute("aria-activedescendant", "typeahead-item-0");
-  await expect
-    .element(listbox.getByRole("option").first())
-    .toHaveAttribute("aria-selected", "true");
+  const activeOption = listbox.getByRole("option").first();
+  await expect.element(editor).toHaveAttribute("aria-activedescendant", activeOption.element().id);
+  await expect.element(activeOption).toHaveAttribute("aria-selected", "true");
   await expect.element(editor).toHaveFocus();
   expect(getController(controllerRef).getRootElement()).toBe(editor.element());
+});
+
+test("keeps a drawer-placed skill menu inside its dialog and returns focus after selection", async () => {
+  const controllerRef = createRef<ComposerEditorController>();
+  const screen = await renderWithProviders(
+    <DrawerEditorFixture
+      candidates={Array.from({ length: 20 }, (_, index) =>
+        skill(`drawer-${String(index).padStart(2, "0")}`, `/drawer/${String(index)}`),
+      )}
+      controllerRef={controllerRef}
+    />,
+  );
+  const dialog = screen.getByRole("dialog", { name: "Edit pending input" });
+  const editor = dialog.getByRole("combobox", { name: "Pending message" });
+
+  await editor.fill("$drawer-01");
+
+  const menuParent = dialog.getByRole("region", { name: "Skill suggestions" });
+  const listbox = dialog.getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(listbox).toBeVisible();
+  expect(menuParent.element().contains(listbox.element())).toBe(true);
+  const menuSurface = listbox.element().querySelector("[data-skill-menu-surface]");
+  if (!(menuSurface instanceof HTMLElement)) {
+    throw new Error("drawer skill menu surface must render inside its anchor");
+  }
+  await expect
+    .poll(() => {
+      const dialogBounds = dialog.element().getBoundingClientRect();
+      const editorBounds = editor.element().getBoundingClientRect();
+      const hostBounds = menuParent.element().getBoundingClientRect();
+      const anchorBounds = listbox.element().getBoundingClientRect();
+      const menuBounds = menuSurface.getBoundingClientRect();
+      return (
+        anchorBounds.top >= editorBounds.bottom &&
+        anchorBounds.bottom <= hostBounds.bottom &&
+        menuBounds.bottom <= hostBounds.bottom &&
+        hostBounds.bottom <= dialogBounds.bottom
+      );
+    })
+    .toBe(true);
+
+  await listbox.getByRole("option", { name: /drawer-01/ }).click();
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$drawer-01");
+  await expect.element(editor).toHaveFocus();
+});
+
+test("keeps controller, draft, history, composition, and typeahead state independent per editor", async () => {
+  const firstControllerRef = createRef<ComposerEditorController>();
+  const secondControllerRef = createRef<ComposerEditorController>();
+  const firstSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+  const secondSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+  const screen = await renderWithProviders(
+    <IndependentEditorsFixture
+      firstControllerRef={firstControllerRef}
+      firstSubmit={firstSubmit}
+      secondControllerRef={secondControllerRef}
+      secondSubmit={secondSubmit}
+    />,
+  );
+  await expect.poll(() => firstControllerRef.current).not.toBeNull();
+  await expect.poll(() => secondControllerRef.current).not.toBeNull();
+  const firstEditor = screen.getByRole("combobox", { name: "First message" });
+  const secondEditor = screen.getByRole("combobox", { name: "Second message" });
+  const firstController = getController(firstControllerRef);
+  const secondController = getController(secondControllerRef);
+
+  expect(firstController).not.toBe(secondController);
+  expect(firstController.getRootElement()).toBe(firstEditor.element());
+  expect(secondController.getRootElement()).toBe(secondEditor.element());
+
+  await firstEditor.fill("first");
+  await screen.user.keyboard("!");
+  setCollapsedCaret(firstEditor.element(), "first!", 3);
+  await expect.poll(() => collapsedCaretOffset(firstEditor.element())).toBe(3);
+  await secondEditor.fill("second");
+  setCollapsedCaret(secondEditor.element(), "second", 2);
+  await expect.poll(() => collapsedCaretOffset(secondEditor.element())).toBe(2);
+  firstController.focus();
+  await expect.poll(() => collapsedCaretOffset(firstEditor.element())).toBe(3);
+  secondController.focus();
+  await expect.poll(() => collapsedCaretOffset(secondEditor.element())).toBe(2);
+  dispatchHistoryShortcut(firstEditor.element(), "undo");
+  await expect.poll(() => firstController.getSnapshot().textContent).toBe("first");
+  expect(secondController.getSnapshot().textContent).toBe("second");
+
+  await firstEditor.fill("$alp");
+  const firstMenu = screen
+    .getByRole("region", { name: "First skill suggestions" })
+    .getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(firstMenu).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => firstController.getSnapshot().textContent).toBe("$alpha");
+  expect(secondController.getSnapshot().textContent).toBe("second");
+
+  firstEditor.element().dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+  await secondEditor.click();
+  await screen.user.keyboard("{Enter}");
+  expect(firstSubmit).not.toHaveBeenCalled();
+  expect(secondSubmit).toHaveBeenCalledOnce();
+  expect(secondSubmit.mock.calls[0]).toEqual([secondController.capture(), "ordinary"]);
+  firstEditor.element().dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+});
+
+test("keeps simultaneous typeahead ids and keyboard ownership scoped to each editor", async () => {
+  const firstControllerRef = createRef<ComposerEditorController>();
+  const secondControllerRef = createRef<ComposerEditorController>();
+  const screen = await renderWithProviders(
+    <IndependentEditorsFixture
+      firstControllerRef={firstControllerRef}
+      firstSubmit={() => undefined}
+      secondControllerRef={secondControllerRef}
+      secondSubmit={() => undefined}
+    />,
+  );
+  await expect.poll(() => firstControllerRef.current).not.toBeNull();
+  await expect.poll(() => secondControllerRef.current).not.toBeNull();
+  const firstEditor = screen.getByRole("combobox", { name: "First message" });
+  const secondEditor = screen.getByRole("combobox", { name: "Second message" });
+  const firstController = getController(firstControllerRef);
+  const secondController = getController(secondControllerRef);
+
+  await firstEditor.fill("$alp");
+  const firstDraft = firstController.capture().draft;
+  await secondEditor.fill("$alp");
+  expect(firstController.restore(firstDraft)).toEqual({ type: "restored" });
+
+  const firstMenu = screen
+    .getByRole("region", { name: "First skill suggestions" })
+    .getByRole("listbox", { name: "Typeahead menu" });
+  const secondMenu = screen
+    .getByRole("region", { name: "Second skill suggestions" })
+    .getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(firstMenu).toBeVisible();
+  await expect.element(secondMenu).toBeVisible();
+  const firstOption = firstMenu.getByRole("option", { name: /alpha/ });
+  const secondOption = secondMenu.getByRole("option", { name: /alpha/ });
+  await expect.element(firstEditor).toHaveAttribute("aria-controls", firstMenu.element().id);
+  await expect.element(secondEditor).toHaveAttribute("aria-controls", secondMenu.element().id);
+  await expect
+    .element(firstEditor)
+    .toHaveAttribute("aria-activedescendant", firstOption.element().id);
+  await expect
+    .element(secondEditor)
+    .toHaveAttribute("aria-activedescendant", secondOption.element().id);
+  expect(firstMenu.element().id).not.toBe(secondMenu.element().id);
+  expect(firstOption.element().id).not.toBe(secondOption.element().id);
+
+  firstController.focus();
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => firstController.getSnapshot().textContent).toBe("$alpha");
+  await expect.element(firstMenu).not.toBeInTheDocument();
+  await expect.element(secondMenu).toBeVisible();
+  expect(secondController.getSnapshot().textContent).toBe("$alp");
+
+  expect(firstController.restore(firstDraft)).toEqual({ type: "restored" });
+  await expect.element(firstMenu).toBeVisible();
+  secondController.focus();
+  await screen.user.keyboard("{Escape}");
+  await expect.element(secondMenu).not.toBeInTheDocument();
+  await expect.element(firstMenu).toBeVisible();
+  expect(firstController.getSnapshot().textContent).toBe("$alp");
+});
+
+test("consumes typeahead Escape before an enclosing dialog key handler", async () => {
+  const onDialogEscape = vi.fn<() => void>();
+  const screen = await renderWithProviders(
+    <DrawerEditorFixture
+      candidates={[skill("alpha", "/alpha")]}
+      controllerRef={createRef<ComposerEditorController>()}
+      onDialogEscape={onDialogEscape}
+    />,
+  );
+  const editor = screen.getByRole("combobox", { name: "Pending message" });
+
+  await editor.fill("$");
+  await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
+  await screen.user.keyboard("{Escape}");
+
+  await expect
+    .element(screen.getByRole("listbox", { name: "Typeahead menu" }))
+    .not.toBeInTheDocument();
+  expect(onDialogEscape).not.toHaveBeenCalled();
+  await expect.element(editor).toHaveFocus();
 });
 
 test("aligns its placeholder and bounds multiline growth to its own scroll area", async () => {
@@ -119,18 +302,7 @@ test("replaces a query at a middle caret with canonical skill input without subm
   await editor.click();
   await expect.element(editor).toHaveFocus();
   setCollapsedCaret(editor.element(), "before $canonical after", 17);
-  await expect
-    .poll(() =>
-      getController(controllerRef)
-        .getSnapshot()
-        .editorState.read(() => {
-          const selection = $getSelection();
-          return $isRangeSelection(selection) && selection.isCollapsed()
-            ? selection.anchor.offset
-            : null;
-        }),
-    )
-    .toBe(17);
+  await expect.poll(() => collapsedCaretOffset(editor.element())).toBe(17);
   await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
   await screen.user.keyboard("{Enter}");
@@ -139,7 +311,7 @@ test("replaces a query at a middle caret with canonical skill input without subm
   await expect
     .poll(() => getController(controllerRef).getSnapshot().textContent)
     .toBe("before $Friendly after");
-  expect(compileComposerDraft(getController(controllerRef).getSnapshot().editorState)).toEqual([
+  expect(getController(controllerRef).capture().input).toEqual([
     {
       type: "text",
       text: "before $canonical-match after",
@@ -175,7 +347,7 @@ test("uses Tab to choose, Escape to close, and Shift Enter only to add a line br
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("Line\n");
 });
 
-test("submits plain text without letting Enter rewrite the editor snapshot", async () => {
+test("submits a plain-text capture without letting Enter rewrite the editor snapshot", async () => {
   const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor([], { onSubmit });
   const editor = screen.getByRole("combobox", { name: "Message" });
@@ -187,16 +359,14 @@ test("submits plain text without letting Enter rewrite the editor snapshot", asy
   await screen.user.keyboard("{Enter}");
 
   expect(onSubmit).toHaveBeenCalledOnce();
-  const submittedSnapshot = onSubmit.mock.calls[0]?.[0];
-  if (submittedSnapshot == null) {
-    throw new Error("plain text submit must provide an editor snapshot");
+  const submittedCapture = onSubmit.mock.calls[0]?.[0];
+  if (submittedCapture == null) {
+    throw new Error("plain text submit must provide a composer capture");
   }
-  expect(submittedSnapshot).toBe(snapshotBeforeSubmit);
   expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(getController(controllerRef).getSnapshot()).toBe(snapshotBeforeSubmit);
-  expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
-    { type: "text", text: "Hello", text_elements: [] },
-  ]);
+  expect(submittedCapture.textContent).toBe("Hello");
+  expect(submittedCapture.input).toEqual([{ type: "text", text: "Hello", text_elements: [] }]);
 });
 
 test.each([
@@ -225,28 +395,34 @@ test.each([
       await expect
         .poll(() => getController(controllerRef).getSnapshot().textContent)
         .toBe("Guide this");
-      const guideSnapshot = getController(controllerRef).getSnapshot();
       dispatchEnterShortcut(editor.element(), guideModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "guide");
+      const guideCall = onSubmit.mock.calls.at(-1);
+      expect(guideCall?.[0].textContent).toBe("Guide this");
+      expect(guideCall?.[1]).toBe("guide");
 
       onSubmit.mockClear();
       dispatchEnterShortcut(editor.element(), ordinaryModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "ordinary");
+      const ordinaryCall = onSubmit.mock.calls.at(-1);
+      expect(ordinaryCall?.[0].textContent).toBe("Guide this");
+      expect(ordinaryCall?.[1]).toBe("ordinary");
 
       onSubmit.mockClear();
       dispatchEnterShortcut(editor.element(), { ...guideModifiers, altKey: true });
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(guideSnapshot, "ordinary");
+      const modifiedCall = onSubmit.mock.calls.at(-1);
+      expect(modifiedCall?.[0].textContent).toBe("Guide this");
+      expect(modifiedCall?.[1]).toBe("ordinary");
 
       onSubmit.mockClear();
       await editor.fill("");
       await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
-      const emptySnapshot = getController(controllerRef).getSnapshot();
       dispatchEnterShortcut(editor.element(), guideModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
-      expect(onSubmit).toHaveBeenLastCalledWith(emptySnapshot, "guide");
+      const emptyGuideCall = onSubmit.mock.calls.at(-1);
+      expect(emptyGuideCall?.[0].textContent).toBe("");
+      expect(emptyGuideCall?.[1]).toBe("guide");
 
       onSubmit.mockClear();
       await editor.fill("Line");
@@ -506,6 +682,111 @@ test("keeps a skill token atomic across caret navigation, deletion, undo, and re
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
 });
 
+test("does not clear edits made after a composer capture", async () => {
+  const { controllerRef, screen } = await renderEditor([]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("captured");
+  await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("captured");
+  const capture = getController(controllerRef).capture();
+  await screen.user.keyboard(" later");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("captured later");
+
+  expect(getController(controllerRef).clearIfCurrent(capture)).toBe(false);
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("captured later");
+});
+
+test("restores a new editor session with the caret at the end and fresh history", async () => {
+  const selectedSkill = skill(
+    "canonical-restore",
+    "/skills/canonical-restore/SKILL.md",
+    "Restored Skill",
+  );
+  const { controllerRef, screen } = await renderEditor([selectedSkill]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$canonical");
+  await screen.user.keyboard("{Enter}");
+  await screen.user.keyboard(" tail");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+  const capture = getController(controllerRef).capture();
+  await editor.fill("old session");
+  await screen.user.keyboard("!");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("old session!");
+
+  expect(getController(controllerRef).restore(capture.draft)).toEqual({ type: "restored" });
+  await expect.element(screen.getByText("$Restored Skill", { exact: true })).toBeInTheDocument();
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+  expect(getController(controllerRef).getSnapshot().selectedSkillPaths).toEqual([
+    selectedSkill.path,
+  ]);
+  expect(getController(controllerRef).capture().input).toEqual([
+    { type: "text", text: "$canonical-restore tail", text_elements: [] },
+    { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
+  ]);
+  await expect
+    .poll(() => {
+      const root = editor.element();
+      const textElements = root.querySelectorAll<HTMLElement>('[data-lexical-text="true"]');
+      const lastTextNode = textElements.item(textElements.length - 1).firstChild;
+      const selection = root.ownerDocument.getSelection();
+      return (
+        lastTextNode instanceof Text &&
+        selection?.isCollapsed === true &&
+        selection.anchorNode === lastTextNode &&
+        selection.anchorOffset === lastTextNode.length
+      );
+    })
+    .toBe(true);
+
+  dispatchHistoryShortcut(editor.element(), "undo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+
+  await screen.user.keyboard("!");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail!");
+  dispatchHistoryShortcut(editor.element(), "undo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Restored Skill tail");
+});
+
+test("rejects an invalid opaque draft without changing content or clearing history", async () => {
+  const { controllerRef, screen } = await renderEditor([]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("current");
+  await screen.user.keyboard(" draft");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("current draft");
+
+  expect(getController(controllerRef).restore({} as ComposerDraft)).toEqual({
+    type: "invalidDraft",
+  });
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("current draft");
+
+  dispatchHistoryShortcut(editor.element(), "undo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .not.toBe("current draft");
+});
+
 test("blocks query selection and submission during programmatic composition events", async () => {
   const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { screen } = await renderEditor([skill("alpha", "/alpha")], { onSubmit });
@@ -552,15 +833,13 @@ test("consumes only the first Enter immediately following composition end", asyn
   }
   expect(onSubmit.mock.calls.at(0)?.at(1)).toBe("ordinary");
   expect(submittedSnapshot.textContent).toBe("中文");
-  expect(compileComposerDraft(submittedSnapshot.editorState)).toEqual([
-    { type: "text", text: "中文", text_elements: [] },
-  ]);
+  expect(submittedSnapshot.input).toEqual([{ type: "text", text: "中文", text_elements: [] }]);
 });
 
 test("applies composition-end suppression before the guide shortcut intent", async () => {
   await withNavigatorPlatform("MacIntel", async () => {
     const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
-    const { controllerRef, screen } = await renderEditor([], {
+    const { screen } = await renderEditor([], {
       guardCompositionEndEnter: true,
       onSubmit,
     });
@@ -573,10 +852,11 @@ test("applies composition-end suppression before the guide shortcut intent", asy
     dispatchEnterShortcut(root, { metaKey: true });
     expect(onSubmit).not.toHaveBeenCalled();
 
-    const snapshot = getController(controllerRef).getSnapshot();
     dispatchEnterShortcut(root, { metaKey: true });
     expect(onSubmit).toHaveBeenCalledOnce();
-    expect(onSubmit).toHaveBeenLastCalledWith(snapshot, "guide");
+    const guideCall = onSubmit.mock.calls.at(-1);
+    expect(guideCall?.[0].textContent).toBe("中文");
+    expect(guideCall?.[1]).toBe("guide");
   });
 });
 
@@ -743,8 +1023,113 @@ function ComposerEditorFixture(props: Omit<ComposerEditorProps, "skillMenuParent
   );
 }
 
+function DrawerEditorFixture({
+  candidates,
+  controllerRef,
+  onDialogEscape,
+}: Readonly<{
+  candidates: readonly SkillCatalogCandidate[];
+  controllerRef: RefObject<ComposerEditorController | null>;
+  onDialogEscape?: () => void;
+}>) {
+  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
+
+  return (
+    <div
+      aria-label="Edit pending input"
+      className="h-56 w-96 max-w-full overflow-hidden"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          onDialogEscape?.();
+        }
+      }}
+      role="dialog"
+    >
+      <ComposerEditor
+        ariaLabel="Pending message"
+        controllerRef={controllerRef}
+        disabled={false}
+        guardCompositionEndEnter={false}
+        onSubmit={() => undefined}
+        placeholder="Edit pending message"
+        skillCatalog={catalog("ready", candidates)}
+        skillMenuParent={skillMenuParent}
+        skillMenuPlacement="below"
+      />
+      <div
+        aria-label="Skill suggestions"
+        ref={setSkillMenuParent}
+        role="region"
+        style={drawerSkillMenuParentStyle}
+      />
+    </div>
+  );
+}
+
+function IndependentEditorsFixture({
+  firstControllerRef,
+  firstSubmit,
+  secondControllerRef,
+  secondSubmit,
+}: Readonly<{
+  firstControllerRef: RefObject<ComposerEditorController | null>;
+  firstSubmit: ComposerEditorProps["onSubmit"];
+  secondControllerRef: RefObject<ComposerEditorController | null>;
+  secondSubmit: ComposerEditorProps["onSubmit"];
+}>) {
+  const [firstMenuParent, setFirstMenuParent] = useState<HTMLElement | null>(null);
+  const [secondMenuParent, setSecondMenuParent] = useState<HTMLElement | null>(null);
+  const skillCatalog = catalog("ready", [skill("alpha", "/alpha")]);
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <div
+          aria-label="First skill suggestions"
+          ref={setFirstMenuParent}
+          role="region"
+          style={fixtureSkillMenuParentStyle}
+        />
+        <ComposerEditor
+          ariaLabel="First message"
+          controllerRef={firstControllerRef}
+          disabled={false}
+          guardCompositionEndEnter={false}
+          onSubmit={firstSubmit}
+          placeholder="First message"
+          skillCatalog={skillCatalog}
+          skillMenuParent={firstMenuParent}
+        />
+      </div>
+      <div>
+        <div
+          aria-label="Second skill suggestions"
+          ref={setSecondMenuParent}
+          role="region"
+          style={fixtureSkillMenuParentStyle}
+        />
+        <ComposerEditor
+          ariaLabel="Second message"
+          controllerRef={secondControllerRef}
+          disabled={false}
+          guardCompositionEndEnter={false}
+          onSubmit={secondSubmit}
+          placeholder="Second message"
+          skillCatalog={skillCatalog}
+          skillMenuParent={secondMenuParent}
+        />
+      </div>
+    </div>
+  );
+}
+
 const fixtureSkillMenuParentStyle = {
   "--composer-skill-menu-max-height": "18rem",
+} as CSSProperties;
+
+const drawerSkillMenuParentStyle = {
+  "--composer-skill-menu-max-height": "6rem",
+  height: "var(--composer-skill-menu-max-height)",
 } as CSSProperties;
 
 function catalog(
@@ -818,6 +1203,19 @@ function setCollapsedCaret(root: Element, expectedText: string, offset: number):
   selection.removeAllRanges();
   selection.addRange(range);
   root.ownerDocument.dispatchEvent(new Event("selectionchange"));
+}
+
+function collapsedCaretOffset(root: Element): number | null {
+  const selection = root.ownerDocument.getSelection();
+  if (
+    selection == null ||
+    !selection.isCollapsed ||
+    selection.anchorNode == null ||
+    !root.contains(selection.anchorNode)
+  ) {
+    return null;
+  }
+  return selection.anchorOffset;
 }
 
 function firstTextCharacterRect(root: Element): DOMRect {

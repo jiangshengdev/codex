@@ -8,35 +8,11 @@ import {
   type TransportRequestFailure,
   type TransportRequestSettlement,
 } from "../guiHostTransportSession";
-
-class RecordingSocket {
-  sent: string[] = [];
-  closed: { code: number | undefined; reason: string | undefined }[] = [];
-  readyState: number = WebSocket.OPEN;
-  onerror: ((event: Event) => void) | null = null;
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  onopen: ((event: Event) => void) | null = null;
-  onclose: ((event: CloseEvent) => void) | null = null;
-
-  send(message: string): void {
-    this.sent.push(message);
-  }
-
-  close(code?: number, reason?: string): void {
-    this.closed.push({ code, reason });
-  }
-}
+import { initializeResponse, RecordingSocket } from "./guiHostTestSupport";
 
 const initializeParams = {
   clientInfo: { name: "codex-gui", title: null, version: "0.0.0" },
   capabilities: null,
-};
-
-const initializeResponse: InitializeResponse = {
-  userAgent: "codex-test",
-  codexHome: "/codex-home",
-  platformFamily: "test",
-  platformOs: "test",
 };
 
 function createSession(
