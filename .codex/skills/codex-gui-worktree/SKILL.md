@@ -19,6 +19,8 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 - Do not download documentation.
 - This setup skill does not stage or commit. Later nodes may stage or commit in the prepared worktree only when separately authorized by a confirmed plan.
 - Do not overwrite existing branches, worktrees, files, directories, or symlinks.
+- Before creation, confirm that every default sparse checkout path and every
+  `--include` path exists in the selected base's Git tree.
 - Stop on conflicts and print the exact path that blocks progress.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
 
@@ -49,14 +51,26 @@ base branch: dev
 Default sparse checkout paths:
 
 ```text
+.codex/skills
+.agents/skills
+docs/superpowers
 codex-gui
 codex-rs/app-server-protocol/schema/typescript
+codex-rs/app-server-protocol/schema/json
+codex-rs/gui-host/schema/typescript
+codex-rs/gui-host/schema/json
 ```
 
-Add task-specific paths with `--include`, for example:
+These paths form the fixed task control plane for GUI worktrees: they keep the
+repository-local skills, project work documents, GUI sources, and generated
+protocol schemas available without depending on another checkout. The schema
+paths are direct inputs to GUI type-checking, Vite, and protocol validators.
+
+Use `--include` only for additional task-specific source or tool paths outside
+that fixed control plane, for example:
 
 ```text
-docs/superpowers/plans/2026/06/22/2026-06-22-codex-gui-frontend-refactor
+codex-rs/app-server
 ```
 
 ## Script
@@ -68,7 +82,7 @@ bash .codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh \
   --name gui-transcript-state \
   --branch codex/gui-transcript-state \
   --base dev \
-  --include docs/superpowers/plans/2026/06/22/2026-06-22-codex-gui-frontend-refactor
+  --include codex-rs/app-server
 ```
 
 The script creates the sparse worktree, links local dependency and documentation caches, and verifies the result.
@@ -116,6 +130,9 @@ After running the script, report:
 - worktree path
 - branch
 - sparse checkout list
+- readability of the fixed task control plane, including its key skill
+  entrypoints, applicable `AGENTS.md` files, project work documents, and
+  protocol schemas
 - linked resources
 - `git status --short --branch`
 
