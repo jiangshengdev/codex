@@ -3021,8 +3021,8 @@ test("App releases an edited owner only after its marker settles and drains", as
   }
   threadSwitchProbePromise = continueThread(candidateThreadId);
   await expect(threadSwitchProbePromise).resolves.toMatchObject({
-    type: "blocked",
-    reason: { type: "queueReleaseBlocked" },
+    type: "unavailable",
+    failure: { type: "currentThreadUnresolved" },
   });
   await expect.element(oldEditor).toBeVisible();
   expect(oldCoordinator.getReleaseReadiness()).toEqual({
@@ -3054,8 +3054,8 @@ test("App releases an edited owner only after its marker settles and drains", as
 
   threadSwitchProbePromise = continueThread(candidateThreadId);
   await expect(threadSwitchProbePromise).resolves.toMatchObject({
-    type: "blocked",
-    reason: { type: "queueReleaseBlocked" },
+    type: "unavailable",
+    failure: { type: "currentThreadUnresolved" },
   });
   expect(startTurn).not.toHaveBeenCalled();
   await expect.element(oldEditor).toBeVisible();
@@ -3365,7 +3365,11 @@ test("App publishes a completed thread switch atomically across capabilities and
     ),
   ).toBeNull();
   pendingAttach.resolve(candidateAttach);
-  await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({ type: "switched" });
+  await expect(requireThreadSwitchProbePromise()).resolves.toEqual({
+    type: "ready",
+    threadId: candidateThreadId,
+    warnings: [],
+  });
 
   await expect.element(activeThread).toHaveTextContent(candidateThreadId);
   await expect.element(activeQueue).toHaveTextContent(candidateThreadId);
@@ -3434,8 +3438,8 @@ test("App keeps the initial owner when its queue blocks a thread switch", async 
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
-    type: "blocked",
-    reason: { type: "queueReleaseBlocked" },
+    type: "unavailable",
+    failure: { type: "currentThreadUnresolved" },
   });
 
   expect(commands.resumeThread).not.toHaveBeenCalled();
@@ -3461,9 +3465,8 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
-    type: "failed",
-    phase: "attach",
-    error,
+    type: "unavailable",
+    failure: { type: "operationFailed", phase: "attach", error },
   });
 
   expect(commands.resumeThread).toHaveBeenCalledOnce();
@@ -3505,8 +3508,8 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
   expect(getCleanupConnectionCallCount()).toBe(1);
   pendingAttach.resolve(candidateAttach);
   await expect(switching).resolves.toMatchObject({
-    type: "blocked",
-    reason: { type: "disposed" },
+    type: "unavailable",
+    failure: { type: "connectionLost", progress: "beforeCommit" },
   });
 
   expect(createComposerInputQueueCoordinator).toHaveBeenCalledOnce();
@@ -3523,6 +3526,46 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
   });
   expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(launchThreadId);
   expect(screen.store.getState().transcriptState.threadId).toBe(launchThreadId);
+});
+
+test("App reports connection loss after commit when unmounted during previous owner detach", async () => {
+  const initialQueue = createQueueCoordinatorMock(launchThreadId);
+  const candidateQueue = createQueueCoordinatorMock(candidateThreadId);
+  vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
+    threadId === launchThreadId ? initialQueue.coordinator : candidateQueue.coordinator,
+  );
+  const pendingDetach =
+    createDeferred<Awaited<ReturnType<GuiHostCommands["detachThreadProjection"]>>>();
+  const candidateAttach = attachWithThreadId(attachReplacement, candidateThreadId);
+  const commands = createGuiHostCommands();
+  const { continueButton, screen } = await renderThreadSwitchProbe(commands);
+  queueAttachProjectionResponse(commands, candidateAttach);
+  vi.mocked(commands.detachThreadProjection).mockReturnValueOnce(pendingDetach.promise);
+
+  await continueButton.click();
+  const switching = requireThreadSwitchProbePromise();
+  await expect
+    .poll(() => selectThreadIdentityState(screen.store.getState()).attachedThreadId)
+    .toBe(candidateThreadId);
+  await expect.poll(() => vi.mocked(commands.detachThreadProjection).mock.calls.length).toBe(1);
+  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+  });
+
+  await screen.unmount();
+  pendingDetach.resolve({ status: "detached" });
+
+  await expect(switching).resolves.toMatchObject({
+    type: "unavailable",
+    failure: {
+      type: "connectionLost",
+      progress: "afterCommit",
+      threadId: candidateThreadId,
+    },
+  });
+  expect(initialQueue.dispose).toHaveBeenCalledOnce();
+  expect(candidateQueue.dispose).toHaveBeenCalledOnce();
+  expect(getCleanupConnectionCallCount()).toBe(1);
 });
 
 test("App cancels pending projection delta frame dispatch when unmounted", async () => {

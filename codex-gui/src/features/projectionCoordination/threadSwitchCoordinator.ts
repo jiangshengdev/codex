@@ -18,40 +18,51 @@ import {
 } from "./activeThreadOwner";
 import { type ProjectionAnimationFrameScheduler } from "./projectionApplicationCoordinator";
 
-export type ThreadSwitchBlockedReason =
-  | Readonly<{ type: "busy" }>
-  | Readonly<{ type: "disposed" }>
+export type ContinueThreadOutcome =
   | Readonly<{
-      type: "queueReleaseBlocked";
+      type: "ready";
+      threadId: string;
+      warnings: readonly ThreadSwitchWarning[];
+    }>
+  | Readonly<{
+      type: "unavailable";
+      failure: ContinueThreadFailure;
+    }>;
+
+export type ContinueThreadFailure =
+  | Readonly<{ type: "switchInProgress" }>
+  | Readonly<{
+      type: "currentThreadUnresolved";
       blockers: readonly ComposerInputQueueCoordinatorReleaseBlocker[];
-    }>;
-
-export type ThreadSwitchOutcome =
-  | Readonly<{ type: "current"; activeOwner: ActiveThreadOwnerHandle }>
-  | Readonly<{
-      type: "blocked";
-      reason: ThreadSwitchBlockedReason;
-      cleanupFailure: ThreadSwitchCleanupFailure | null;
+      activeThreadId: string | null;
     }>
   | Readonly<{
-      type: "failed";
-      phase: "resume" | "attach";
+      type: "connectionLost";
+      progress: "beforeCommit" | "afterCommit";
+      threadId: string;
+      cleanupError: unknown;
+    }>
+  | Readonly<{
+      type: "operationFailed";
+      phase: "admission" | "resume" | "attach" | "activate";
       error: unknown;
-      cleanupFailure: ThreadSwitchCleanupFailure | null;
-    }>
-  | Readonly<{
-      type: "switched";
-      activeOwner: ActiveThreadOwnerHandle;
-      cleanupFailure: ThreadSwitchCleanupFailure | null;
+      cleanupError: unknown;
     }>;
 
-export type ThreadSwitchCleanupFailure = Readonly<{
-  phase: "detach" | "application";
-  owner?: "candidate" | "previous";
-  operation?: "commit" | "publish" | "replay";
-  threadId?: string;
-  error: unknown;
-}>;
+export type ThreadSwitchWarning =
+  | Readonly<{ type: "previousOwnerCleanupFailed"; error: unknown }>
+  | Readonly<{
+      type: "postCommitDegraded";
+      operation: "publishAuthorization" | "replay";
+      error: unknown;
+    }>;
+
+export type ActiveOwnerPublicationReceipt =
+  | Readonly<{
+      ownerPublished: true;
+      authorizationPersistenceError: unknown;
+    }>
+  | Readonly<{ ownerPublished: false; error: unknown }>;
 
 type ThreadSwitchCommands = Pick<
   GuiHostCommands,
@@ -68,7 +79,8 @@ type ThreadSwitchCoordinatorOptions = Readonly<{
   activeOwner: ActiveThreadOwnerHandle | null;
   commands: ThreadSwitchCommands;
   dispatch: AppDispatch;
-  publishActiveOwner: (activeOwner: ActiveThreadOwnerHandle) => void;
+  readCommittedActiveThreadId: () => string | null;
+  publishActiveOwner: (activeOwner: ActiveThreadOwnerHandle) => ActiveOwnerPublicationReceipt;
   scheduler: ProjectionAnimationFrameScheduler;
 }>;
 
@@ -83,7 +95,8 @@ type CandidateThreadOwner = {
 
 type SwitchAdmission =
   | Readonly<{ type: "candidate"; candidate: CandidateThreadOwner }>
-  | Readonly<{ type: "outcome"; outcome: ThreadSwitchOutcome }>;
+  | Readonly<{ type: "alreadyCurrent"; activeOwner: ActiveThreadOwnerHandle }>
+  | Readonly<{ type: "failure"; failure: TerminalFailure }>;
 
 type CandidatePreparation = Readonly<{
   candidate: CandidateThreadOwner;
@@ -99,23 +112,48 @@ type PreparedActiveOwner = CandidatePreparation &
 
 type ActiveOwnerPreparationResult =
   | Readonly<{ type: "prepared"; preparedOwner: PreparedActiveOwner }>
-  | Readonly<{ type: "failed"; candidate: CandidateThreadOwner; error: unknown }>;
+  | Readonly<{ type: "error"; candidate: CandidateThreadOwner; error: unknown }>;
 
-type CommitReconciliation = Readonly<{
+type ActivationFacts = Readonly<{
   committed: boolean;
-  cleanupFailure: ThreadSwitchCleanupFailure | null;
+  published: boolean;
+  failure: unknown;
+  warnings: readonly Extract<ThreadSwitchWarning, { type: "postCommitDegraded" }>[];
+}>;
+
+type TerminalFailure =
+  | Extract<ContinueThreadFailure, { type: "switchInProgress" | "currentThreadUnresolved" }>
+  | Readonly<{ type: "connectionLost" }>
+  | Readonly<{
+      type: "operationFailed";
+      phase: "admission" | "resume" | "attach" | "activate";
+      error: unknown;
+    }>;
+
+type TerminalFacts = Readonly<{
+  threadId: string;
+  generation: number;
+  activeOwner: ActiveThreadOwnerHandle | null;
+  committed: boolean;
+  published: boolean;
+  failure: TerminalFailure | null;
+  cleanupError: unknown;
+  warnings: readonly ThreadSwitchWarning[];
 }>;
 
 export class ThreadSwitchCoordinator {
   private activeOwner: ActiveThreadOwnerHandle | null;
+  private publishedActiveOwner: ActiveThreadOwnerHandle | null;
   private readonly commands: ThreadSwitchCommands;
   private readonly dispatch: AppDispatch;
-  private readonly publishActiveOwner: (activeOwner: ActiveThreadOwnerHandle) => void;
+  private readonly readCommittedActiveThreadId: ThreadSwitchCoordinatorOptions["readCommittedActiveThreadId"];
+  private readonly publishActiveOwner: ThreadSwitchCoordinatorOptions["publishActiveOwner"];
   private readonly scheduler: ProjectionAnimationFrameScheduler;
   private candidate: CandidateThreadOwner | null = null;
   private transitionGeneration = 0;
   private commitInProgress = false;
   private disposeRequested = false;
+  private disposalError: unknown = null;
   private busy = false;
   private disposed = false;
 
@@ -123,12 +161,15 @@ export class ThreadSwitchCoordinator {
     activeOwner,
     commands,
     dispatch,
+    readCommittedActiveThreadId,
     publishActiveOwner,
     scheduler,
   }: ThreadSwitchCoordinatorOptions) {
     this.activeOwner = activeOwner;
+    this.publishedActiveOwner = activeOwner;
     this.commands = commands;
     this.dispatch = dispatch;
+    this.readCommittedActiveThreadId = readCommittedActiveThreadId;
     this.publishActiveOwner = publishActiveOwner;
     this.scheduler = scheduler;
   }
@@ -137,13 +178,34 @@ export class ThreadSwitchCoordinator {
     return this.activeOwner;
   }
 
-  continueThread = (threadId: string): Promise<ThreadSwitchOutcome> =>
+  continueThread = (threadId: string): Promise<ContinueThreadOutcome> =>
     this.executeThreadSwitch(threadId);
 
-  private async executeThreadSwitch(threadId: string): Promise<ThreadSwitchOutcome> {
+  private async executeThreadSwitch(threadId: string): Promise<ContinueThreadOutcome> {
     const admission = this.reserveCandidate(threadId);
-    if (admission.type === "outcome") {
-      return admission.outcome;
+    if (admission.type === "alreadyCurrent") {
+      return this.classifyTerminal({
+        threadId,
+        generation: this.transitionGeneration,
+        activeOwner: admission.activeOwner,
+        committed: true,
+        published: true,
+        failure: null,
+        cleanupError: null,
+        warnings: [],
+      });
+    }
+    if (admission.type === "failure") {
+      return this.classifyTerminal({
+        threadId,
+        generation: this.transitionGeneration,
+        activeOwner: null,
+        committed: false,
+        published: false,
+        failure: admission.failure,
+        cleanupError: null,
+        warnings: [],
+      });
     }
     const candidate = admission.candidate;
     let resumedThreadId: string;
@@ -154,10 +216,14 @@ export class ThreadSwitchCoordinator {
         throw new Error("thread/resume returned a different thread identity");
       }
     } catch (error: unknown) {
-      return this.finishFailed(candidate, "resume", error);
+      return this.finishUncommitted(candidate, {
+        type: "operationFailed",
+        phase: "resume",
+        error,
+      });
     }
     if (!this.isCurrent(candidate)) {
-      return this.finishBlocked(candidate, "disposed");
+      return this.finishUncommitted(candidate, { type: "connectionLost" });
     }
 
     let attachResponse: CandidatePreparation["attachResponse"];
@@ -169,87 +235,122 @@ export class ThreadSwitchCoordinator {
         throw new Error("thread/projection/attach returned a different thread identity");
       }
     } catch (error: unknown) {
-      return this.finishFailed(candidate, "attach", error);
+      return this.finishUncommitted(candidate, {
+        type: "operationFailed",
+        phase: "attach",
+        error,
+      });
     }
     if (!this.isCurrent(candidate)) {
-      return this.finishBlocked(candidate, "disposed");
+      return this.finishUncommitted(candidate, { type: "connectionLost" });
     }
 
     const activeOwnerPreparation = this.constructActiveOwner({
       candidate,
       attachResponse,
     });
-    if (activeOwnerPreparation.type === "failed") {
-      return this.finishFailed(
-        activeOwnerPreparation.candidate,
-        "attach",
-        activeOwnerPreparation.error,
+    if (activeOwnerPreparation.type === "error") {
+      return this.finishUncommitted(activeOwnerPreparation.candidate, {
+        type: "operationFailed",
+        phase: "attach",
+        error: activeOwnerPreparation.error,
+      });
+    }
+
+    const prepared = activeOwnerPreparation.preparedOwner;
+    const activation = this.activateOwner(prepared);
+    let cleanupError = this.settleDeferredDisposal();
+    if (!activation.committed) {
+      return this.finishUncommitted(
+        candidate,
+        {
+          type: "operationFailed",
+          phase: "activate",
+          error: activation.failure ?? new Error("prepared projection owner could not commit"),
+        },
+        prepared.preparedOwner,
+        cleanupError,
       );
     }
-    const preparedOwner = activeOwnerPreparation.preparedOwner;
-    const reconciliation = this.commitAndReconcileActiveOwner(preparedOwner);
-    let { cleanupFailure } = reconciliation;
-    if (!reconciliation.committed) {
-      preparedOwner.preparedOwner.dispose();
-      return this.finishFailed(
-        preparedOwner.candidate,
-        "attach",
-        cleanupFailure?.error ?? new Error("prepared projection owner could not commit"),
-      );
-    }
-    const replay = this.replayCommittedCandidate(preparedOwner, cleanupFailure);
-    cleanupFailure = this.cleanupPreviousOwner(preparedOwner, replay);
-    if (preparedOwner.previousOwner != null) {
+
+    const warnings: ThreadSwitchWarning[] = [...activation.warnings];
+    if (activation.published && this.isAttemptLive(candidate.generation)) {
       try {
-        await this.commands.detachThreadProjection({
-          threadId: preparedOwner.previousOwner.threadId,
-        });
+        this.replayCandidateNotifications(candidate, prepared.activeOwner);
       } catch (error: unknown) {
-        cleanupFailure =
-          cleanupFailure == null
-            ? {
-                phase: "detach",
-                owner: "previous",
-                threadId: preparedOwner.previousOwner.threadId,
-                error,
-              }
-            : {
-                ...cleanupFailure,
-                error: new AggregateError([cleanupFailure.error, error]),
-              };
+        warnings.push({ type: "postCommitDegraded", operation: "replay", error });
       }
     }
+
+    this.finishCommitted(candidate);
+    let previousOwnerCleanupError: unknown = null;
+    if (prepared.previousOwner != null) {
+      try {
+        prepared.previousOwner.dispose("ownerReplaced");
+      } catch (error: unknown) {
+        previousOwnerCleanupError = appendError(previousOwnerCleanupError, error);
+      }
+    }
+    cleanupError = appendError(cleanupError, this.settleDeferredDisposal());
+    if (prepared.previousOwner != null) {
+      try {
+        await this.commands.detachThreadProjection({ threadId: prepared.previousOwner.threadId });
+      } catch (error: unknown) {
+        previousOwnerCleanupError = appendError(previousOwnerCleanupError, error);
+      }
+    }
+    cleanupError = appendError(cleanupError, this.disposalError);
     this.busy = false;
-    return { type: "switched", activeOwner: preparedOwner.activeOwner, cleanupFailure };
+
+    if (previousOwnerCleanupError != null) {
+      cleanupError = appendError(cleanupError, previousOwnerCleanupError);
+      warnings.push({ type: "previousOwnerCleanupFailed", error: previousOwnerCleanupError });
+    }
+    return this.classifyTerminal({
+      threadId: candidate.threadId,
+      generation: candidate.generation,
+      activeOwner: prepared.activeOwner,
+      committed: activation.committed,
+      published: activation.published,
+      failure:
+        activation.failure == null
+          ? null
+          : { type: "operationFailed", phase: "activate", error: activation.failure },
+      cleanupError,
+      warnings,
+    });
   }
 
   private reserveCandidate(threadId: string): SwitchAdmission {
     if (this.disposed) {
-      return {
-        type: "outcome",
-        outcome: { type: "blocked", reason: { type: "disposed" }, cleanupFailure: null },
-      };
+      return { type: "failure", failure: { type: "connectionLost" } };
     }
     const activeOwner = this.activeOwner;
     if (activeOwner?.threadId === threadId) {
-      return { type: "outcome", outcome: { type: "current", activeOwner } };
+      return { type: "alreadyCurrent", activeOwner };
     }
     if (this.busy) {
-      return {
-        type: "outcome",
-        outcome: { type: "blocked", reason: { type: "busy" }, cleanupFailure: null },
-      };
+      return { type: "failure", failure: { type: "switchInProgress" } };
     }
 
-    const releaseReservation = this.activeOwner?.queueCoordinator.reserveRelease() ?? null;
-    if (releaseReservation?.type === "blocked") {
+    let releaseReservation: ComposerInputQueueCoordinatorReleaseReservation | null;
+    try {
+      const release = activeOwner?.queueCoordinator.reserveRelease() ?? null;
+      if (release?.type === "blocked") {
+        return {
+          type: "failure",
+          failure: {
+            type: "currentThreadUnresolved",
+            blockers: release.blockers,
+            activeThreadId: activeOwner?.threadId ?? null,
+          },
+        };
+      }
+      releaseReservation = release?.reservation ?? null;
+    } catch (error: unknown) {
       return {
-        type: "outcome",
-        outcome: {
-          type: "blocked",
-          reason: { type: "queueReleaseBlocked", blockers: releaseReservation.blockers },
-          cleanupFailure: null,
-        },
+        type: "failure",
+        failure: { type: "operationFailed", phase: "admission", error },
       };
     }
 
@@ -257,7 +358,7 @@ export class ThreadSwitchCoordinator {
     const candidate: CandidateThreadOwner = {
       generation: ++this.transitionGeneration,
       threadId,
-      releaseReservation: releaseReservation?.reservation ?? null,
+      releaseReservation,
       attachedThreadId: null,
       subscriptionId: null,
       notifications: [],
@@ -277,7 +378,7 @@ export class ThreadSwitchCoordinator {
         scheduler: this.scheduler,
       });
     } catch (error: unknown) {
-      return { type: "failed", candidate, error };
+      return { type: "error", candidate, error };
     }
 
     const previousOwner = this.activeOwner;
@@ -292,66 +393,64 @@ export class ThreadSwitchCoordinator {
     };
   }
 
-  private commitAndReconcileActiveOwner(prepared: PreparedActiveOwner): CommitReconciliation {
-    const { activeOwner, attachResponse, candidate } = prepared;
+  private activateOwner(prepared: PreparedActiveOwner): ActivationFacts {
+    const { activeOwner, candidate } = prepared;
     this.commitInProgress = true;
-    let committed: boolean;
-    let applicationOperation: "commit" | "publish" = "commit";
-    let cleanupFailure: ThreadSwitchCleanupFailure | null = null;
+    let committed = false;
+    let published = false;
+    let failure: unknown = null;
+    const warnings: Extract<ThreadSwitchWarning, { type: "postCommitDegraded" }>[] = [];
     try {
-      committed = prepared.preparedOwner.commit();
-      if (committed) {
-        this.activeOwner = activeOwner;
-        applicationOperation = "publish";
-        this.publishActiveOwner(activeOwner);
+      let commitReturned = false;
+      let commitError: unknown = null;
+      try {
+        commitReturned = prepared.preparedOwner.commit();
+      } catch (error: unknown) {
+        commitError = error;
       }
-    } catch (error: unknown) {
-      committed =
-        activeOwner.projectionOwner.ownerThreadId === candidate.threadId &&
-        activeOwner.projectionOwner.ownerSubscriptionId === attachResponse.subscriptionId;
-      cleanupFailure = { phase: "application", operation: applicationOperation, error };
-      if (committed) {
+      try {
+        committed = this.readCommittedActiveThreadId() === candidate.threadId;
+      } catch (error: unknown) {
+        failure = error;
+      }
+      if (failure == null) {
+        if (commitError != null) {
+          if (committed) {
+            warnings.push({ type: "postCommitDegraded", operation: "replay", error: commitError });
+          } else {
+            failure = commitError;
+          }
+        } else if (!commitReturned || !committed) {
+          failure = new Error("prepared projection owner could not commit to the active store");
+        }
+      }
+      if (committed && failure == null) {
         this.activeOwner = activeOwner;
+        if (!this.disposeRequested) {
+          try {
+            const receipt = this.publishActiveOwner(activeOwner);
+            published = receipt.ownerPublished;
+            if (!receipt.ownerPublished) {
+              failure = receipt.error;
+            } else {
+              this.publishedActiveOwner = activeOwner;
+              if (receipt.authorizationPersistenceError != null) {
+                warnings.push({
+                  type: "postCommitDegraded",
+                  operation: "publishAuthorization",
+                  error: receipt.authorizationPersistenceError,
+                });
+              }
+            }
+          } catch (error: unknown) {
+            failure = error;
+          }
+        }
       }
     } finally {
       this.commitInProgress = false;
     }
-    return { committed, cleanupFailure };
-  }
-
-  private replayCommittedCandidate(
-    prepared: PreparedActiveOwner,
-    cleanupFailure: ThreadSwitchCleanupFailure | null,
-  ): Readonly<{
-    cleanupFailure: ThreadSwitchCleanupFailure | null;
-    disposeAfterCommit: boolean;
-  }> {
-    const disposeAfterCommit = this.disposeRequested;
-    this.disposeRequested = false;
-    if (!disposeAfterCommit && cleanupFailure == null && this.isCurrent(prepared.candidate)) {
-      try {
-        this.replayCandidateNotifications(prepared.candidate, prepared.activeOwner);
-      } catch (error: unknown) {
-        cleanupFailure = { phase: "application", operation: "replay", error };
-      }
-    }
-    this.finishCommitted(prepared.candidate);
-    return { cleanupFailure, disposeAfterCommit };
-  }
-
-  private cleanupPreviousOwner(
-    prepared: PreparedActiveOwner,
-    replay: Readonly<{
-      cleanupFailure: ThreadSwitchCleanupFailure | null;
-      disposeAfterCommit: boolean;
-    }>,
-  ): ThreadSwitchCleanupFailure | null {
-    const { previousOwner } = prepared;
-    previousOwner?.dispose("ownerReplaced");
-    if (replay.disposeAfterCommit) {
-      this.disposeActiveOwner();
-    }
-    return replay.cleanupFailure;
+    return { committed, published, failure, warnings };
   }
 
   handleProjectionEvent(notification: ThreadProjectionEventNotification): void {
@@ -395,7 +494,11 @@ export class ThreadSwitchCoordinator {
       this.disposeRequested = true;
       return;
     }
-    this.disposeActiveOwner();
+    try {
+      this.disposeActiveOwner();
+    } catch (error: unknown) {
+      this.disposalError = appendError(this.disposalError, error);
+    }
   }
 
   private bufferCandidateNotification(
@@ -428,39 +531,111 @@ export class ThreadSwitchCoordinator {
     }
   }
 
-  private async finishFailed(
+  private async finishUncommitted(
     candidate: CandidateThreadOwner,
-    phase: "resume" | "attach",
-    error: unknown,
-  ): Promise<ThreadSwitchOutcome> {
-    const cleanupFailure = await this.detachCandidate(candidate);
-    this.finishUncommitted(candidate);
-    return { type: "failed", phase, error, cleanupFailure };
+    failure: TerminalFailure,
+    preparedOwner: PreparedActiveThreadOwner | null = null,
+    initialCleanupError: unknown = null,
+  ): Promise<ContinueThreadOutcome> {
+    let cleanupError = initialCleanupError;
+    if (preparedOwner != null) {
+      try {
+        preparedOwner.dispose();
+      } catch (error: unknown) {
+        cleanupError = appendError(cleanupError, error);
+      }
+    }
+    cleanupError = appendError(cleanupError, await this.detachCandidate(candidate));
+    try {
+      candidate.releaseReservation?.release();
+    } catch (error: unknown) {
+      cleanupError = appendError(cleanupError, error);
+    } finally {
+      if (this.candidate === candidate) {
+        this.candidate = null;
+        this.busy = false;
+      }
+    }
+    cleanupError = appendError(cleanupError, this.settleDeferredDisposal());
+    cleanupError = appendError(cleanupError, this.disposalError);
+    return this.classifyTerminal({
+      threadId: candidate.threadId,
+      generation: candidate.generation,
+      activeOwner: null,
+      committed: false,
+      published: false,
+      failure,
+      cleanupError,
+      warnings: [],
+    });
   }
 
-  private async finishBlocked(
-    candidate: CandidateThreadOwner,
-    type: "disposed",
-  ): Promise<ThreadSwitchOutcome> {
-    const cleanupFailure = await this.detachCandidate(candidate);
-    this.finishUncommitted(candidate);
-    return { type: "blocked", reason: { type }, cleanupFailure };
+  private classifyTerminal(facts: TerminalFacts): ContinueThreadOutcome {
+    if (
+      facts.failure?.type === "switchInProgress" ||
+      facts.failure?.type === "currentThreadUnresolved"
+    ) {
+      return { type: "unavailable", failure: facts.failure };
+    }
+    if (facts.failure?.type === "connectionLost" || !this.isAttemptLive(facts.generation)) {
+      return {
+        type: "unavailable",
+        failure: {
+          type: "connectionLost",
+          progress: facts.committed ? "afterCommit" : "beforeCommit",
+          threadId: facts.threadId,
+          cleanupError: facts.cleanupError,
+        },
+      };
+    }
+    if (facts.failure?.type === "operationFailed") {
+      return {
+        type: "unavailable",
+        failure: { ...facts.failure, cleanupError: facts.cleanupError },
+      };
+    }
+    let committedActiveThreadId: string | null;
+    try {
+      committedActiveThreadId = this.readCommittedActiveThreadId();
+    } catch (error: unknown) {
+      return {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "activate",
+          error,
+          cleanupError: facts.cleanupError,
+        },
+      };
+    }
+    if (
+      !facts.committed ||
+      !facts.published ||
+      facts.activeOwner == null ||
+      this.activeOwner !== facts.activeOwner ||
+      this.publishedActiveOwner !== facts.activeOwner ||
+      facts.activeOwner.threadId !== facts.threadId ||
+      committedActiveThreadId !== facts.threadId
+    ) {
+      return {
+        type: "unavailable",
+        failure: {
+          type: "operationFailed",
+          phase: "activate",
+          error: new Error("thread switch did not publish an available active owner"),
+          cleanupError: facts.cleanupError,
+        },
+      };
+    }
+    return { type: "ready", threadId: facts.threadId, warnings: facts.warnings };
   }
 
   private isCurrent(candidate: CandidateThreadOwner): boolean {
-    return (
-      !this.disposed &&
-      this.candidate === candidate &&
-      candidate.generation === this.transitionGeneration
-    );
+    return this.candidate === candidate && this.isAttemptLive(candidate.generation);
   }
 
-  private finishUncommitted(candidate: CandidateThreadOwner): void {
-    candidate.releaseReservation?.release();
-    if (this.candidate === candidate) {
-      this.candidate = null;
-      this.busy = false;
-    }
+  private isAttemptLive(generation: number): boolean {
+    return !this.disposed && generation === this.transitionGeneration;
   }
 
   private finishCommitted(candidate: CandidateThreadOwner): void {
@@ -469,9 +644,7 @@ export class ThreadSwitchCoordinator {
     }
   }
 
-  private async detachCandidate(
-    candidate: CandidateThreadOwner,
-  ): Promise<ThreadSwitchCleanupFailure | null> {
+  private async detachCandidate(candidate: CandidateThreadOwner): Promise<unknown> {
     if (candidate.attachedThreadId == null) {
       return null;
     }
@@ -479,16 +652,34 @@ export class ThreadSwitchCoordinator {
       await this.commands.detachThreadProjection({ threadId: candidate.attachedThreadId });
       return null;
     } catch (error: unknown) {
-      return {
-        phase: "detach",
-        owner: "candidate",
-        threadId: candidate.attachedThreadId,
-        error,
-      };
+      return error;
+    }
+  }
+
+  private settleDeferredDisposal(): unknown {
+    if (!this.disposeRequested) {
+      return null;
+    }
+    this.disposeRequested = false;
+    try {
+      this.disposeActiveOwner();
+      return null;
+    } catch (error: unknown) {
+      this.disposalError = appendError(this.disposalError, error);
+      return null;
     }
   }
 
   private disposeActiveOwner(): void {
-    this.activeOwner?.dispose();
+    const activeOwner = this.activeOwner;
+    this.activeOwner = null;
+    this.publishedActiveOwner = null;
+    activeOwner?.dispose();
   }
+}
+
+function appendError(current: unknown, error: unknown): unknown {
+  if (error == null) return current;
+  if (current == null) return error;
+  return new AggregateError([current, error], "Multiple thread switch errors");
 }
