@@ -1,5 +1,9 @@
 # codex-gui
 
+## Pure Frontend Formatting Hard Override
+
+- When every change in the current task is confined to pure frontend files under `codex-gui/**`, do not run the repository-level `just fmt` command. This rule explicitly overrides the repository-root `AGENTS.md` requirement to run `just fmt` after making code changes anywhere in the repository. Pure frontend formatting must use the applicable frontend formatting scripts defined in `codex-gui/package.json`. If the current task includes any non-frontend change, this override does not apply, and `just fmt` must still be run as required by the repository-root rules.
+
 ## GUI Module Size Override
 
 - Within `codex-gui/**`, the repository-root guidance to target Rust modules under 500 LoC applies only to Rust code. Do not apply it to TypeScript, TSX, or JavaScript files.
