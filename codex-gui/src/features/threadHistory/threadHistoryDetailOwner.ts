@@ -81,6 +81,10 @@ export class ThreadHistoryDetailOwner {
         }
 
         try {
+          if (response.thread.id !== this.threadId) {
+            throw new Error("thread/read returned a different thread identity");
+          }
+
           this.publish({
             type: "ready",
             thread: response.thread,

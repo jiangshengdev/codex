@@ -49,6 +49,40 @@ describe("ThreadHistoryDetailOwner", () => {
     expect(commands.resumeThread).not.toHaveBeenCalled();
   });
 
+  it("rejects a mismatched thread identity and retries the original thread", async () => {
+    const commands = createGuiHostCommands();
+    vi.mocked(commands.readThread)
+      .mockResolvedValueOnce(response("different-thread"))
+      .mockResolvedValueOnce(response("history-thread"));
+    const { owner } = createOwner(commands);
+
+    owner.start();
+    await Promise.resolve();
+
+    expect(commands.readThread).toHaveBeenNthCalledWith(1, {
+      threadId: "history-thread",
+      includeTurns: true,
+    });
+    expect(owner.getSnapshot()).toStrictEqual({
+      type: "error",
+      error: new Error("thread/read returned a different thread identity"),
+    });
+
+    expect(owner.retry()).toBe(true);
+    await Promise.resolve();
+
+    expect(commands.readThread).toHaveBeenNthCalledWith(2, {
+      threadId: "history-thread",
+      includeTurns: true,
+    });
+    expect(owner.getSnapshot()).toStrictEqual({
+      type: "ready",
+      thread: response("history-thread").thread,
+      transcriptState: buildTranscriptStateFromTurns([]),
+    });
+    expect(commands.resumeThread).not.toHaveBeenCalled();
+  });
+
   it("publishes the complete read error and retries the same thread", async () => {
     const failure = new Error("read raw failure");
     const commands = createGuiHostCommands();
