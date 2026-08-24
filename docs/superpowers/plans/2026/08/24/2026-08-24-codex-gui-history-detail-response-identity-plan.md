@@ -2,7 +2,11 @@
 
 计划日期：2026-08-24
 
-计划状态：待确认
+计划状态：已确认
+
+确认日期：2026-08-24
+
+确认原文：`开始执行`
 
 对应已确认设计：
 `docs/superpowers/specs/2026/08/24/2026-08-24-codex-gui-history-detail-response-identity-design.md`
@@ -18,13 +22,16 @@ transcript 或暴露“继续此任务”；身份匹配时保持现有行为。
 
 ## 当前基线与实施必要性
 
-计划编写时：
+计划确认时：
 
-- 分支：`dev`
-- HEAD：`3d6c46100`（`docs(gui): scope repository formatter trigger`）
-- 本次 design 与 plan 尚未提交；同日期目录还存在由 `866fd4c63` 提交、与本任务无关的
+- worktree：`/Users/jiangsheng/cnb/codex/.worktrees/gui-history-detail-response-identity`
+- 分支：`codex/gui-history-detail-response-identity`
+- HEAD：`a0e46f04191430fc571ebeebe728e98650a80ea9`（`docs(gui): design history detail response identity`）
+- worktree 与独立 Git index 均干净。
+- `a0e46f041` 已是包含本次 design 与 plan 的独立 docs-only 提交；D1-D3 只创建新的 plan-only
+  确认提交，不重复提交 design。同日期目录还存在由 `866fd4c63` 提交、与本任务无关的
   thread-switch design/plan，任何节点都不得修改或重复纳入本任务提交。
-- `codex-gui/AGENTS.md` 已在上述 HEAD 中明确：当前 Task H 与 docs 文件均不属于
+- `codex-gui/AGENTS.md` 已在更早的 `3d6c46100` 中明确：当前 Task H 与 docs 文件均不属于
   `scripts/format.py` 管理范围，因此本计划禁止运行仓库级 `just fmt`。
 
 实施前必须重新核验当前状态，不能把上述 HEAD 和行号当作未来执行时的固定事实。
@@ -67,13 +74,17 @@ history detail route threadId
 7. Browser Mode 异步 DOM 断言使用 locator 与 `expect.element`；不增加 E2E、截图或低价值样式断言。
 8. 行为提交不得夹带 import、声明、函数、分支或其他代码的纯顺序调整。
 9. 不安装依赖、runtime 或浏览器，不操作 Git 远程，不运行后端/原生构建。
-10. 实施开始前，已确认 design 与 plan 必须先形成独立 docs-only 本地提交。
+10. 实施开始前，本次 design 与 plan 的 work-doc 提交及 plan-only 确认提交必须均已成功。
 
 ## 精确写入范围
 
-### DOCS 提交
+### 已有 work-doc 提交
 
 - `docs/superpowers/specs/2026/08/24/2026-08-24-codex-gui-history-detail-response-identity-design.md`
+- `docs/superpowers/plans/2026/08/24/2026-08-24-codex-gui-history-detail-response-identity-plan.md`
+
+### Plan confirmation 提交
+
 - `docs/superpowers/plans/2026/08/24/2026-08-24-codex-gui-history-detail-response-identity-plan.md`
 
 ### Task H：行为与验证
@@ -97,22 +108,22 @@ history detail route threadId
 
 ## Worktree、branch 与 Git index
 
-本计划不创建新 worktree。
+本计划利用已经创建并完成核验的 feature worktree，不再创建其他 worktree。
 
-- execution context：`/Users/jiangsheng/cnb/codex`
-- branch：`dev`
-- Git index：当前 worktree 的唯一共享 index
-- DOCS 与 Task H 存在硬依赖：DOCS commit 成功前禁止编辑代码或测试。
+- execution context：`/Users/jiangsheng/cnb/codex/.worktrees/gui-history-detail-response-identity`
+- branch：`codex/gui-history-detail-response-identity`
+- Git index：该 feature worktree 的独立 index
+- plan confirmation 与 Task H 存在硬依赖：plan-only confirmation commit 成功前禁止编辑代码或测试。
 - Task H 在 D3 后先发布基线源码与测试的只读 Git blob 快照。三个编辑节点只消费该稳定快照，
   不读取彼此正在修改的 working-tree 文件，因此可以在同一 worktree 并行；它们都不得操作 index。
 - formatter、stage 与 commit 分别由 Task H 唯一 owner 在 fan-in 后执行。
 
-如果实施前分支不再是 `dev`、目标写集合出现无法安全避让的用户修改，或需要新的
+如果实施前分支不再是 `codex/gui-history-detail-response-identity`、目标写集合出现无法安全避让的用户修改，或需要新的
 worktree/branch/index，停止并重新确认计划参数。
 
 ## 实施前预检
 
-计划确认后，从仓库根只读核验：
+计划确认后，从 feature worktree 根只读核验：
 
 ```bash
 git status --short --branch
@@ -142,7 +153,7 @@ rg -n -e '"ci"' -e '"format:oxfmt:fix"' -e '"test:unit"' -e '"test:browser:paral
 - fnm、pnpm、node_modules、本地 Vitest docs 或 Browser config 要求的 Chromium、Firefox、WebKit
   任一缺失时停止，由用户自行安装；助手不得安装。
 - P0 必须把完整 dirty/untracked path 集合与 GUI formatter 的真实写集合 `codex-gui/**` 求交。
-  P0 阶段只允许本次 design/plan dirty；三个 Task H 文件只要已经 dirty 或
+  P0 已在干净的 `a0e46f041` 基线上完成；三个 Task H 文件只要在 H1/H2/H3 前已经 dirty 或
   untracked 就是既有用户修改，必须停止。只有 H1/H2/H3 完成后的 F1 才允许这三个本轮产物存在。
   任何其他交集都必须在代码编辑和 formatter 之前停止，不能先格式化再恢复或覆盖用户文件。
 - HEAD 漂移时重新核对 owner、页面消费、协议来源、相邻校验与测试入口；若结论或写集合改变，
@@ -151,7 +162,8 @@ rg -n -e '"ci"' -e '"format:oxfmt:fix"' -e '"test:unit"' -e '"test:browser:paral
 ## 提交拓扑
 
 ```text
-DOCS commit
+existing work-doc commit `a0e46f041`
+  -> plan confirmation commit
   -> stable baseline snapshot
   -> Task H parallel edits
        -> formatter fan-in
@@ -162,7 +174,8 @@ DOCS commit
 
 建议提交信息：
 
-- DOCS：`docs(gui): design history detail response identity`
+- existing work-doc：`docs(gui): design history detail response identity`
+- plan confirmation：`docs(gui): confirm history detail response identity plan`
 - Task H：`fix(gui): reject mismatched history thread reads`
 
 任何针对已创建提交的修正都必须形成新的独立提交，禁止 amend。不得 squash，不得执行 Git 远程操作。
@@ -179,10 +192,13 @@ DOCS commit
    但实际串行获取资源；不再宣称并行运行。
 4. P0 不再豁免尚未由本轮产生的 Task H dirty 文件；H0 和每个编辑节点写入前都比较实际目标文件
    与稳定 Git blob，防止并发漂移。V1/V2 还共同锁定 Browser tsbuildinfo。
-5. 后续提交 `3d6c46100` 把 `just fmt` 触发条件收窄为 `scripts/format.py` 实际管理范围。当前计划只
+5. 提交 `3d6c46100` 把 `just fmt` 触发条件收窄为 `scripts/format.py` 实际管理范围。当前计划只
    修改 GUI frontend 与 Markdown docs，因此删除仓库 formatter 节点及其 Rust/Python/buildifier 预检。
+6. 执行前已创建 feature worktree，且 `a0e46f041` 已提交 design 与 plan；原 D1-D3 的未提交文档
+   假设失效，因此 D1-D3 改为只记录并提交 plan confirmation，H0 依赖该新提交。
 
-以上修正只收紧调度和安全门禁，不改变设计语义、功能文件或提交拓扑。
+以上修正不改变设计语义或功能文件；提交拓扑仅按当前 Git 事实拆为既有 work-doc、plan
+confirmation 与后续 behavior 三个提交。
 
 ## 可调度执行图
 
@@ -191,15 +207,16 @@ DOCS commit
 ### A0 — 计划授权
 
 - `nodeId`：A0
+- `status`：已完成。
 - `taskBoundary`：无提交；授权门禁。
 - `operationKind`：授权。
-- `outcome`：用户明确确认本文件，授权精确 preflight、docs commit、Task H 修改、格式化、验证与本地提交。
+- `outcome`：用户明确确认本文件，授权精确 preflight、plan confirmation commit、Task H 修改、格式化、验证与本地提交。
 - `estimatedCost`：低。
 - `deferralEvidence`：无。
 - `hardPredecessors`：无。
 - `consumes`：本计划实际正文。
 - `produces`：稳定的计划确认事实与确认原文。
-- `completionEvidence`：用户明确回复“确认计划”或等价直接授权。
+- `completionEvidence`：用户于 2026-08-24 明确回复 `开始执行`。
 - `readSet`：本计划。
 - `writeSet`：无。
 - `executionContext`：对话授权状态。
@@ -208,11 +225,12 @@ DOCS commit
 - `verification`：确认对象必须是已落盘的本文件。
 - `failureDomain`：未确认时全图等待，不视为失败。
 - `replanTriggers`：用户修改目标、范围、验证、提交或 worktree 参数。
-- `authorizationGate`：当前未满足。
+- `authorizationGate`：已满足。
 
 ### P0 — 只读 preflight
 
 - `nodeId`：P0
+- `status`：已完成。
 - `taskBoundary`：无提交；实施前调查。
 - `operationKind`：调查。
 - `outcome`：核验 branch、HEAD、dirty scope、工具、脚本、权威边界和全部直接 consumer，输出可执行或漂移报告。
@@ -224,13 +242,13 @@ DOCS commit
 - `completionEvidence`：预检命令成功，branch、dirty scope、工具和脚本约束满足。
 - `readSet`：Git metadata、design/plan、`codex-gui/package.json`、目标源码/测试、本地 Vitest docs、格式化入口。
 - `writeSet`：无。
-- `executionContext`：当前 dev worktree，共享 index 只读。
-- `resourceLocks`：canonical worktree/index read；toolchain path read。
+- `executionContext`：feature worktree，独立 index 只读。
+- `resourceLocks`：feature worktree/index read；toolchain path read。
 - `owner`：主协调者。
 - `verification`：逐条核验命令输出，不用旧 memory 或旧行号代替当前事实。
 - `failureDomain`：P0 及全部后继暂停；不影响其他用户文件。
 - `replanTriggers`：branch、write set、consumer、script、tool 或 docs 路径漂移。
-- `authorizationGate`：A0；不授权安装、构建或远程 Git。
+- `authorizationGate`：A0；不授权安装、构建或远程 Git。已完成。
 
 ### D1 — 写入计划确认元数据
 
@@ -243,10 +261,11 @@ DOCS commit
 - `hardPredecessors`：P0；等待当前基线与确认对象完成核验。
 - `consumes`：A0 确认事实与 P0 evidence。
 - `produces`：已确认状态的 plan。
-- `completionEvidence`：plan header 与用户确认原文一致，diff 只含计划确认元数据。
+- `completionEvidence`：plan header 与用户确认原文一致，diff 只含计划确认元数据及由当前 Git
+  状态直接推出的执行事实校正。
 - `readSet`：design、plan。
 - `writeSet`：plan。
-- `executionContext`：当前 dev worktree，共享 index 未写。
+- `executionContext`：feature worktree，独立 index 未写。
 - `resourceLocks`：plan file write。
 - `owner`：DOCS Git owner。
 - `verification`：scoped `git diff --check`。
@@ -259,42 +278,42 @@ DOCS commit
 - `nodeId`：D2
 - `taskBoundary`：DOCS。
 - `operationKind`：stage。
-- `outcome`：Git index 恰好包含本次 design 与 plan，不含同日期的其他无关文档。
+- `outcome`：Git index 恰好包含本次 plan confirmation，不含 design 或同日期的其他无关文档。
 - `estimatedCost`：低。
 - `deferralEvidence`：无。
 - `hardPredecessors`：D1；等待已确认文档内容。
-- `consumes`：已确认 design/plan diff。
-- `produces`：docs-only staged snapshot。
-- `completionEvidence`：cached name list 只含两个精确路径，`git diff --cached --check` 通过。
-- `readSet`：本次 design、plan、Git index。
-- `writeSet`：共享 Git index，仅两个文档路径。
-- `executionContext`：当前 dev worktree，共享 index 独占。
-- `resourceLocks`：canonical Git index write。
+- `consumes`：已确认 plan diff。
+- `produces`：plan-only staged snapshot。
+- `completionEvidence`：cached name list 只含 plan 精确路径，`git diff --cached --check` 通过。
+- `readSet`：本次 plan、Git index。
+- `writeSet`：feature worktree 独立 Git index，仅 plan 路径。
+- `executionContext`：feature worktree，独立 index 独占。
+- `resourceLocks`：feature Git index write。
 - `owner`：DOCS Git owner。
-- `verification`：scoped `git add -- <design> <plan>` 后审查 cached name/check/diff。
+- `verification`：scoped `git add -- <plan>` 后审查 cached name/check/diff。
 - `failureDomain`：D2、D3 与全部 Task H 后继暂停。
 - `replanTriggers`：staged scope 不精确、ignored match 或用户内容混入。
-- `authorizationGate`：A0 精确授权 docs commit。
+- `authorizationGate`：A0 精确授权 plan confirmation commit。
 
-### D3 — docs-only commit
+### D3 — plan-only confirmation commit
 
 - `nodeId`：D3
 - `taskBoundary`：DOCS。
 - `operationKind`：commit。
-- `outcome`：创建独立本地 docs commit。
+- `outcome`：创建独立本地 plan confirmation commit。
 - `estimatedCost`：低。
 - `deferralEvidence`：无。
 - `hardPredecessors`：D2；等待稳定 staged snapshot。
-- `consumes`：docs-only staged snapshot。
-- `produces`：本地 commit `docs(gui): design history detail response identity`。
-- `completionEvidence`：commit id，且 commit tree 只含两个本次文档路径。
+- `consumes`：plan-only staged snapshot。
+- `produces`：本地 commit `docs(gui): confirm history detail response identity plan`。
+- `completionEvidence`：commit id，且 commit tree 只含本次 plan 路径。
 - `readSet`：Git index、staged diff。
 - `writeSet`：local Git objects/refs/index。
-- `executionContext`：当前 dev branch/index 独占。
-- `resourceLocks`：canonical Git index/ref write。
+- `executionContext`：feature branch/index 独占。
+- `resourceLocks`：feature Git index/ref write。
 - `owner`：DOCS Git owner。
 - `verification`：`git show --stat --oneline HEAD` 与 scoped status。
-- `failureDomain`：所有 Task H 节点暂停；docs commit 门禁不得绕过。
+- `failureDomain`：所有 Task H 节点暂停；plan confirmation commit 门禁不得绕过。
 - `replanTriggers`：hook 修改文件、提交失败、branch/HEAD 意外变化。
 - `authorizationGate`：A0；只允许本地 commit，不允许远程。
 
@@ -306,15 +325,15 @@ DOCS commit
 - `outcome`：记录 D3 commit 中 owner、两个目标测试、页面 consumer、共享 fixture 与相邻身份检查的 Git blob identity，供并行编辑只读消费。
 - `estimatedCost`：低。
 - `deferralEvidence`：无。
-- `hardPredecessors`：D3；快照必须引用 docs commit 后的稳定 Git tree。
+- `hardPredecessors`：D3；快照必须引用 plan confirmation commit 后的稳定 Git tree。
 - `consumes`：D3 commit identity 与目标文件列表。
 - `produces`：带 commit/blob identity 的稳定 baseline snapshot。
 - `completionEvidence`：每个输入均能从 D3 commit 读取，hash 与当前预期文件对应；三个实际目标
   working-tree 文件与对应 D3 blob 内容一致；snapshot 不引用 mutable working tree。
 - `readSet`：D3 Git tree 中的 owner、page、两个测试、共享 fixture、相邻身份检查。
 - `writeSet`：无。
-- `executionContext`：当前 dev worktree；只读 Git object database，不读取后续 mutable diff。
-- `resourceLocks`：canonical Git object database read。
+- `executionContext`：feature worktree；只读 Git object database，不读取后续 mutable diff。
+- `resourceLocks`：repository Git object database read。
 - `owner`：主协调者。
 - `verification`：用 `git rev-parse <commit>:<path>` 与 `git show <commit>:<path>` 核验稳定输入，
   并用 `git diff --quiet <commit> -- <three Task H paths>` 证明实际目标文件尚未漂移。
@@ -337,7 +356,7 @@ DOCS commit
   `canSettle` 后和 transcript 构建前，且处于现有 `try/catch` 内。
 - `readSet`：H0 的 owner、页面 consumer、相邻 startup/thread-switch 身份检查 Git blob snapshot；工作树中只访问自己的目标文件。
 - `writeSet`：`threadHistoryDetailOwner.ts`。
-- `executionContext`：当前 dev worktree，共享 index 未写。
+- `executionContext`：feature worktree，独立 index 未写。
 - `resourceLocks`：working-tree owner file write；H0 Git blobs read。
 - `owner`：Task H production editor。
 - `verification`：写入前运行目标文件相对 H0 commit 的 `git diff --quiet`；随后静态核对顺序、
@@ -361,7 +380,7 @@ DOCS commit
   完整状态与精确调用断言覆盖 mismatch 及恢复，不重建协议 DTO。
 - `readSet`：H0 的 owner 与共享 projection builder Git blobs；工作树中只访问自己的 owner test 文件。
 - `writeSet`：`threadHistoryDetailOwner.test.ts`。
-- `executionContext`：当前 dev worktree，共享 index 未写。
+- `executionContext`：feature worktree，独立 index 未写。
 - `resourceLocks`：working-tree owner test file write；H0 Git blobs read。
 - `owner`：Task H owner-test editor。
 - `verification`：写入前运行目标文件相对 H0 commit 的 `git diff --quiet`；随后静态检查测试命名、
@@ -385,7 +404,7 @@ DOCS commit
   测试使用 `expect.element`，覆盖错误可见、错误内容不可见、Continue 不存在与恢复。
 - `readSet`：H0 的 owner/page Git blobs、本地 Vitest docs；工作树中只访问自己的 Browser test 文件。
 - `writeSet`：`ThreadHistoryDetailPage.browser.test.tsx`。
-- `executionContext`：当前 dev worktree，共享 index 未写。
+- `executionContext`：feature worktree，独立 index 未写。
 - `resourceLocks`：working-tree Browser test file write；H0 Git blobs与本地 Vitest docs read。
 - `owner`：Task H browser-test editor。
 - `verification`：写入前运行目标文件相对 H0 commit 的 `git diff --quiet`；随后静态检查 locator、
@@ -409,7 +428,7 @@ DOCS commit
   formatter 写集合，除三个 Task H 文件外没有 dirty/untracked 交集。
 - `readSet`：三个 Task H 文件及组合 diff。
 - `writeSet`：无。
-- `executionContext`：当前 dev worktree/index 只读。
+- `executionContext`：feature worktree/独立 index 只读。
 - `resourceLocks`：Task H files read。
 - `owner`：Task H Git owner。
 - `verification`：审查身份检查顺序、错误路径、测试边界和文件范围；在 formatter 获取写锁前
@@ -432,8 +451,8 @@ DOCS commit
 - `completionEvidence`：命令成功，检查后最终 diff 仍只含三个 Task H 文件。
 - `readSet`：`codex-gui/**`、package scripts、formatter config。
 - `writeSet`：`codex-gui/**`（formatter 扫描范围）；允许的最终持久 diff 仅三个 Task H 文件。
-- `executionContext`：当前 dev worktree，共享 index 未写。
-- `resourceLocks`：canonical codex-gui formatter/config write；整个 `codex-gui` worktree write。
+- `executionContext`：feature worktree，独立 index 未写。
+- `resourceLocks`：feature worktree codex-gui formatter/config write；整个 `codex-gui` worktree write。
 - `owner`：Task H formatter owner。
 - `verification`：`/opt/homebrew/bin/fnm exec --using-file pnpm run format:oxfmt:fix` 后立即检查 name-only 与 diff。
 - `failureDomain`：M1 及全部验证/commit 后继暂停；不得提交范围外 formatter diff。
@@ -454,8 +473,8 @@ DOCS commit
 - `completionEvidence`：name-only、diff check 与完整 diff 审查通过。
 - `readSet`：整个 worktree status、三个 Task H 文件及 diff。
 - `writeSet`：无。
-- `executionContext`：当前 dev worktree/index 只读。
-- `resourceLocks`：canonical worktree read。
+- `executionContext`：feature worktree/独立 index 只读。
+- `resourceLocks`：feature worktree read。
 - `owner`：Task H Git owner。
 - `verification`：`git status --short`、scoped name-only、`git diff --check`、完整 diff 审查。
 - `failureDomain`：F2 及验证/commit 后继暂停。
@@ -476,8 +495,8 @@ DOCS commit
 - `completionEvidence`：`/opt/homebrew/bin/fnm exec --using-file pnpm run ci` exit 0。
 - `readSet`：`codex-gui/**`、node_modules、tool caches。
 - `writeSet`：测试/工具临时缓存，不允许源码持久修改。
-- `executionContext`：当前 dev worktree；Git index 只读。
-- `resourceLocks`：canonical pnpm runner read；`codex-gui/node_modules/.vite` shared cache write；
+- `executionContext`：feature worktree；独立 Git index 只读。
+- `resourceLocks`：feature worktree pnpm runner read；`codex-gui/node_modules/.vite` shared cache write；
   `codex-gui/node_modules/.tmp/tsconfig.vitest.browser.tsbuildinfo` shared write；lint/type-check/unit tool cache write。
 - `owner`：Task H CI verifier。
 - `verification`：只接受完整命令成功，不扩大豁免、忽略或基线。
@@ -499,8 +518,8 @@ DOCS commit
 - `completionEvidence`：`/opt/homebrew/bin/fnm exec --using-file pnpm run test:browser:parallel -- src/features/threadHistory/__tests__/ThreadHistoryDetailPage.browser.test.tsx` exit 0。
 - `readSet`：目标 Browser test、其 frontend dependencies、node_modules、browser binary。
 - `writeSet`：Browser/Vitest 临时产物，不允许源码持久修改。
-- `executionContext`：当前 dev worktree；Git index 只读。
-- `resourceLocks`：canonical Vitest Browser/Playwright runner read；`codex-gui/node_modules/.vite` shared cache write；
+- `executionContext`：feature worktree；独立 Git index 只读。
+- `resourceLocks`：feature worktree Vitest Browser/Playwright runner read；`codex-gui/node_modules/.vite` shared cache write；
   `codex-gui/node_modules/.tmp/tsconfig.vitest.browser.tsbuildinfo` shared write；browser profile/temp cache write。
 - `owner`：Task H browser verifier。
 - `verification`：使用 package 固化 script 和精确测试文件，不下载浏览器。
@@ -522,8 +541,8 @@ DOCS commit
 - `completionEvidence`：验证 exit 0；`git diff --check` 通过；name-only 仅三个 Task H 文件；无豁免、fallback 或纯重排。
 - `readSet`：Task H files、完整 diff、验证日志、Git status。
 - `writeSet`：无。
-- `executionContext`：当前 dev worktree/index 只读。
-- `resourceLocks`：canonical worktree/index read。
+- `executionContext`：feature worktree/独立 index 只读。
+- `resourceLocks`：feature worktree/index read。
 - `owner`：Task H Git owner。
 - `verification`：逐项核对设计完成标准和计划排除项。
 - `failureDomain`：F3 及 stage/commit 后继暂停。
@@ -543,9 +562,9 @@ DOCS commit
 - `produces`：Task H staged snapshot。
 - `completionEvidence`：cached name list 精确等于三个文件，cached diff check 与 diff 审查通过。
 - `readSet`：三个 Task H 文件、Git index。
-- `writeSet`：共享 Git index，仅三个 Task H 文件。
-- `executionContext`：当前 dev worktree，共享 index 独占。
-- `resourceLocks`：canonical Git index write。
+- `writeSet`：feature worktree 独立 Git index，仅三个 Task H 文件。
+- `executionContext`：feature worktree，独立 index 独占。
+- `resourceLocks`：feature Git index write。
 - `owner`：Task H Git owner。
 - `verification`：scoped `git add -- <three files>` 后检查 cached name/check/diff。
 - `failureDomain`：S1、S2、Z1 暂停。
@@ -566,11 +585,11 @@ DOCS commit
 - `completionEvidence`：commit id，commit tree 只含三个 Task H 文件。
 - `readSet`：Git index、cached diff。
 - `writeSet`：local Git objects/refs/index。
-- `executionContext`：当前 dev branch/index 独占。
-- `resourceLocks`：canonical Git index/ref write。
+- `executionContext`：feature branch/index 独占。
+- `resourceLocks`：feature Git index/ref write。
 - `owner`：Task H Git owner。
 - `verification`：`git show --stat --oneline HEAD` 与 scoped status。
-- `failureDomain`：S2、Z1 暂停；不得 amend DOCS commit。
+- `failureDomain`：S2、Z1 暂停；不得 amend work-doc 或 plan confirmation commit。
 - `replanTriggers`：commit hook 修改文件、提交失败或 branch/HEAD 意外变化。
 - `authorizationGate`：A0；只允许本地 commit，不允许远程。
 
@@ -579,17 +598,17 @@ DOCS commit
 - `nodeId`：Z1
 - `taskBoundary`：无新提交；最终汇合。
 - `operationKind`：审查。
-- `outcome`：DOCS 与 Task H 两个提交边界、验证证据和剩余工作树状态均可解释，任务完成。
+- `outcome`：既有 work-doc、plan confirmation 与 Task H behavior 三个提交边界、验证证据和剩余工作树状态均可解释，任务完成。
 - `estimatedCost`：低。
 - `deferralEvidence`：无。
 - `hardPredecessors`：S2；必须审计最终提交状态。
-- `consumes`：DOCS commit、Task H commit、验证日志、Git status。
+- `consumes`：work-doc commit、plan confirmation commit、Task H behavior commit、验证日志、Git status。
 - `produces`：最终交付证据与未触碰用户文件清单。
-- `completionEvidence`：两个 commit id；Task H 完成标准全部满足；无计划内未提交 diff；其他用户文件保持原状态。
-- `readSet`：Git log/show/status、两个提交、design/plan、Task H files。
+- `completionEvidence`：三个 commit id；Task H 完成标准全部满足；无计划内未提交 diff；其他用户文件保持原状态。
+- `readSet`：Git log/show/status、三个提交、design/plan、Task H files。
 - `writeSet`：无。
-- `executionContext`：当前 dev worktree/index 只读。
-- `resourceLocks`：canonical Git refs/index/worktree read。
+- `executionContext`：feature worktree/独立 index 只读。
+- `resourceLocks`：feature Git refs/index/worktree read。
 - `owner`：主协调者。
 - `verification`：比较提交文件列表、最终 status 与计划初始用户变更基线。
 - `failureDomain`：Z1 失败只阻止完成声明；若需修正已提交代码，插入新的独立修正提交节点。
@@ -598,9 +617,8 @@ DOCS commit
 
 ## 初始 ready set、关键路径与汇合点
 
-计划尚未确认时，初始 ready set 只有 A0。
-
-A0 完成后：
+执行开始时 A0 已由用户原文 `开始执行` 满足，P0 已在干净的 feature worktree 基线上完成；当前
+ready set 为 D1。
 
 ```text
 A0 -> P0 -> D1 -> D2 -> D3
@@ -614,7 +632,7 @@ A0 -> P0 -> D1 -> D2 -> D3
 
 硬串行依据：
 
-- D3 等待 D2 的精确 staged snapshot；H0 等待 docs commit 并发布稳定 Git blob 输入，所有代码编辑等待 H0。
+- D3 等待 D2 的精确 staged snapshot；H0 等待 plan confirmation commit 并发布稳定 Git blob 输入，所有代码编辑等待 H0。
 - F1 等待三个不相交编辑产物汇合；formatter 必须读取完整组合 diff。
 - F2 等待 GUI formatter 释放写锁；验证只能读取 formatter 后稳定 snapshot。
 - V1 与 V2 同时进入 ready set，但共享 `codex-gui/node_modules/.vite` write lock，同一时刻只能有一侧运行；这不是 DAG 依赖。
@@ -641,4 +659,5 @@ A0 -> P0 -> D1 -> D2 -> D3
 3. Retry 仍读取原 route thread ID，并能在匹配响应后恢复。
 4. Browser Mode 证明错误线程内容与 Continue 不可见。
 5. 协议、生成链、gateway、页面结构、Lingui 和 live thread 生命周期没有修改。
-6. DOCS 与 Task H 分别形成独立本地提交，验证全部成功，其他无关文件未被暂存或修改。
+6. 既有 work-doc、plan confirmation 与 Task H behavior 分别形成三个独立本地提交，验证全部成功，
+   其他无关文件未被暂存或修改。

@@ -220,6 +220,61 @@ test("loads with exact read parameters, preserves the complete error, and retrie
   expect(commands.attachThreadProjection).not.toHaveBeenCalled();
 });
 
+test("rejects a mismatched thread identity and retries the requested detail", async () => {
+  const mismatchedThread = {
+    ...historyThread(
+      [
+        baseTurn("mismatched-history-turn", [
+          userMessage("mismatched-history-user", [textInput("Wrong thread content")]),
+        ]),
+      ],
+      "Wrong historical task",
+    ),
+    id: "00000000-0000-0000-0000-000000000099",
+  };
+  const matchingThread = historyThread(
+    [
+      baseTurn("matching-history-turn", [
+        userMessage("matching-history-user", [textInput("Requested thread content")]),
+      ]),
+    ],
+    "Requested historical task",
+  );
+  const readThread = vi
+    .fn<GuiHostCommands["readThread"]>()
+    .mockResolvedValueOnce({ thread: mismatchedThread })
+    .mockResolvedValueOnce({ thread: matchingThread });
+  const commands = { ...createGuiHostCommands(), readThread };
+  const { screen } = await renderDetail({ commands });
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to load task history")).toBeVisible();
+  await expect
+    .element(alert.getByText("thread/read returned a different thread identity", { exact: true }))
+    .toBeVisible();
+  await expect.element(screen.getByText("Wrong thread content")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Continue this task" }))
+    .not.toBeInTheDocument();
+  expect(readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+
+  await alert.getByRole("button", { name: "Retry" }).click();
+
+  await expect.element(screen.getByText("Requested thread content")).toBeVisible();
+  await expect
+    .element(screen.getByRole("heading", { name: "Requested historical task" }))
+    .toBeVisible();
+  await expect.element(screen.getByRole("button", { name: "Continue this task" })).toBeVisible();
+  expect(readThread).toHaveBeenCalledTimes(2);
+  expect(readThread).toHaveBeenNthCalledWith(2, {
+    threadId: detailThreadId,
+    includeTurns: true,
+  });
+});
+
 test("settles a deferred read into ready after StrictMode effect replay", async () => {
   const read = deferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
   const readThread = vi.fn<GuiHostCommands["readThread"]>().mockReturnValue(read.promise);
