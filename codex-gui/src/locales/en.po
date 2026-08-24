@@ -77,17 +77,30 @@ msgstr "Active"
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:412
-msgid "Another task switch is already in progress."
-msgstr "Another task switch is already in progress."
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:408
+msgid "An unexpected error occurred while continuing the task."
+msgstr "An unexpected error occurred while continuing the task."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:170
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:412
+#~ msgid "Another task switch is already in progress."
+#~ msgstr "Another task switch is already in progress."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:489
+msgid "Another task switch is already in progress. Try again shortly."
+msgstr "Another task switch is already in progress. Try again shortly."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:165
 msgid "Back to history"
 msgstr "Back to history"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:666
 msgid "Cancel"
 msgstr "Cancel"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:552
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:576
+msgid "Cleanup diagnostic:"
+msgstr "Cleanup diagnostic:"
 
 #. Collaboration activity showing the raw receiver value of the closed agent
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:280
@@ -153,7 +166,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:395
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:432
 msgid "Continue this task"
 msgstr "Continue this task"
 
@@ -175,6 +188,10 @@ msgstr "Delete"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:987
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:411
+msgid "Diagnostic:"
+msgstr "Diagnostic:"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1076
 msgid "Edit"
@@ -267,7 +284,7 @@ msgid "History context unavailable"
 msgstr "History context unavailable"
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:148
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:143
 msgid "History detail"
 msgstr "History detail"
 
@@ -324,7 +341,7 @@ msgstr "Loading history…"
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:184
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
@@ -436,6 +453,10 @@ msgstr "Not loaded"
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:572
+msgid "Operation diagnostic:"
+msgstr "Operation diagnostic:"
+
 #: src/features/documentTitle/DocumentTitleOwner.tsx:46
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
@@ -507,7 +528,7 @@ msgstr "Queued {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:178
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:173
 msgid "Read-only history"
 msgstr "Read-only history"
 
@@ -538,12 +559,12 @@ msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:441
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:232
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:226
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:208
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:361
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:517
 msgid "Return to current task"
 msgstr "Return to current task"
 
@@ -642,7 +663,20 @@ msgstr "Structured input"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:407
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:264
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:268
+msgid "Task opened"
+msgstr "Task opened"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:533
+msgid "Task switched, but cannot be opened"
+msgstr "Task switched, but cannot be opened"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:539
+msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
+msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:504
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
@@ -658,17 +692,45 @@ msgstr "The pending-message order did not change, and the refreshed order could 
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "The pending-message order did not change. Refresh complete; try again."
 
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:269
+msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
+msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:715
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
-msgid "The task connection is no longer available."
-msgstr "The task connection is no longer available."
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:598
+msgid "The task connection could not be prepared."
+msgstr "The task connection could not be prepared."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:61
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
+#~ msgid "The task connection is no longer available."
+#~ msgstr "The task connection is no longer available."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:63
 msgid "The task connection was closed."
 msgstr "The task connection was closed."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:600
+msgid "The task could not be activated."
+msgstr "The task could not be activated."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:596
+msgid "The task could not be resumed."
+msgstr "The task could not be resumed."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:265
+msgid "The task opened, but some state synchronization did not finish."
+msgstr "The task opened, but some state synchronization did not finish."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:594
+msgid "The task switch could not be started."
+msgstr "The task switch could not be started."
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:544
+msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
+msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:717
 msgid "This message has entered the sending process and can no longer be managed."
@@ -686,7 +748,7 @@ msgstr "This message is being edited."
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:190
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:185
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -700,7 +762,9 @@ msgstr "Transcript context pages"
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:371
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:404
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:531
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:565
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
@@ -708,7 +772,7 @@ msgstr "Unable to continue this task"
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:227
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:221
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -720,12 +784,13 @@ msgstr "Unable to load the current task"
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:343
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:486
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:501
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:148
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:158
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:143
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:153
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:119
 msgid "Untitled task"
 msgstr "Untitled task"

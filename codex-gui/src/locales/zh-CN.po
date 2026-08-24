@@ -77,17 +77,30 @@ msgstr "活动中"
 msgid "Agent spawn failed"
 msgstr "启动智能体失败"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:412
-msgid "Another task switch is already in progress."
-msgstr "另一项任务切换正在进行中。"
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:408
+msgid "An unexpected error occurred while continuing the task."
+msgstr "继续此任务时发生意外错误。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:170
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:412
+#~ msgid "Another task switch is already in progress."
+#~ msgstr "另一项任务切换正在进行中。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:489
+msgid "Another task switch is already in progress. Try again shortly."
+msgstr "另一项任务切换正在进行中。请稍后重试。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:165
 msgid "Back to history"
 msgstr "返回历史记录"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:666
 msgid "Cancel"
 msgstr "取消"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:552
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:576
+msgid "Cleanup diagnostic:"
+msgstr "清理诊断信息："
 
 #. Collaboration activity showing the raw receiver value of the closed agent
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:280
@@ -153,7 +166,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:395
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:432
 msgid "Continue this task"
 msgstr "继续此任务"
 
@@ -175,6 +188,10 @@ msgstr "删除"
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:987
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:411
+msgid "Diagnostic:"
+msgstr "诊断信息："
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:1076
 msgid "Edit"
@@ -267,7 +284,7 @@ msgid "History context unavailable"
 msgstr "历史记录上下文不可用"
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:148
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:143
 msgid "History detail"
 msgstr "历史详情"
 
@@ -324,7 +341,7 @@ msgstr "正在加载历史记录…"
 msgid "Loading skills…"
 msgstr "正在加载技能…"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:184
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:179
 msgid "Loading task history…"
 msgstr "正在加载任务历史…"
 
@@ -436,6 +453,10 @@ msgstr "未加载"
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:572
+msgid "Operation diagnostic:"
+msgstr "操作诊断信息："
+
 #: src/features/documentTitle/DocumentTitleOwner.tsx:46
 #: src/NotFoundPage.tsx:20
 msgid "Page not found"
@@ -507,7 +528,7 @@ msgstr "排队 {ordinaryQueuedCount}"
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "已将已排队消息移到第 {movedPosition} 项，共 {movedCount} 项。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:178
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:173
 msgid "Read-only history"
 msgstr "只读历史记录"
 
@@ -538,12 +559,12 @@ msgid "Resuming {receiver}"
 msgstr "正在恢复 {receiver}"
 
 #: src/features/composerEditor/SkillTypeaheadPlugin.tsx:441
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:232
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:226
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:208
 msgid "Retry"
 msgstr "重试"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:361
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:517
 msgid "Return to current task"
 msgstr "返回当前任务"
 
@@ -642,7 +663,20 @@ msgstr "结构化输入"
 msgid "System error"
 msgstr "系统错误"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:407
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:264
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:268
+msgid "Task opened"
+msgstr "任务已打开"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:533
+msgid "Task switched, but cannot be opened"
+msgstr "任务已切换，但当前无法打开"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:539
+msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
+msgstr "连接在任务切换完成前中断。重新连接后请重试。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:504
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
@@ -658,17 +692,45 @@ msgstr "待处理消息的顺序没有改变，但由于队列持续变化，无
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:269
+msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
+msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:715
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
-msgid "The task connection is no longer available."
-msgstr "任务连接已不可用。"
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:598
+msgid "The task connection could not be prepared."
+msgstr "无法准备任务连接。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:61
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:414
+#~ msgid "The task connection is no longer available."
+#~ msgstr "任务连接已不可用。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:63
 msgid "The task connection was closed."
 msgstr "任务连接已关闭。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:600
+msgid "The task could not be activated."
+msgstr "无法激活任务。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:596
+msgid "The task could not be resumed."
+msgstr "无法恢复任务。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:265
+msgid "The task opened, but some state synchronization did not finish."
+msgstr "任务已打开，但部分状态同步未完成。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:594
+msgid "The task switch could not be started."
+msgstr "无法启动任务切换。"
+
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:544
+msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
+msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:717
 msgid "This message has entered the sending process and can no longer be managed."
@@ -686,7 +748,7 @@ msgstr "这条消息正在编辑。"
 msgid "This pending message cannot be edited."
 msgstr "无法编辑这条待处理消息。"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:190
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:185
 msgid "This task has no messages."
 msgstr "此任务没有消息。"
 
@@ -700,7 +762,9 @@ msgstr "上下文分页"
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:371
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:404
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:531
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:565
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
@@ -708,7 +772,7 @@ msgstr "无法继续此任务"
 msgid "Unable to load history"
 msgstr "无法加载历史记录"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:227
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:221
 msgid "Unable to load task history"
 msgstr "无法加载任务历史"
 
@@ -720,12 +784,13 @@ msgstr "无法加载当前任务"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:343
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:486
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:501
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:148
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:158
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:143
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:153
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:119
 msgid "Untitled task"
 msgstr "未命名任务"
