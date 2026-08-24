@@ -19,7 +19,7 @@ export function selectGuiRouteTarget(matches: readonly GuiRouteMatch[]): GuiRout
     matches.some(
       (match) =>
         match.status !== "success" ||
-        match.globalNotFound === true ||
+        match._notFound === true ||
         match.error != null ||
         match.paramsError != null ||
         match.searchError != null,
