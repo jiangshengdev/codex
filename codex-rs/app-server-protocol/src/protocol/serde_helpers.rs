@@ -90,9 +90,7 @@ where
         format!("OptionalNonNullable_{}", T::schema_name())
     }
 
-    fn json_schema(
-        generator: &mut schemars::r#gen::SchemaGenerator,
-    ) -> schemars::schema::Schema {
+    fn json_schema(generator: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
         generator.subschema_for::<T>()
     }
 

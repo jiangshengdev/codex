@@ -228,9 +228,8 @@ fn assert_response_field_contracts(
         .collect::<BTreeSet<_>>();
 
     for response_schema_id in response_schema_ids {
-        let response_schema = schema_definition(&bundle, response_schema_id).with_context(|| {
-            format!("resolve {view} JSON response schema {response_schema_id}")
-        })?;
+        let response_schema = schema_definition(&bundle, response_schema_id)
+            .with_context(|| format!("resolve {view} JSON response schema {response_schema_id}"))?;
         let Some(properties) = response_schema.get("properties").and_then(Value::as_object) else {
             continue;
         };
@@ -280,9 +279,7 @@ fn assert_response_field_contracts(
                     contract.optional
                 );
                 let property_schema = properties.get(field_name).with_context(|| {
-                    format!(
-                        "missing {view} JSON response field {response_schema_id}.{field_name}"
-                    )
+                    format!("missing {view} JSON response field {response_schema_id}.{field_name}")
                 })?;
                 let json_nullable = schema_accepts_null(property_schema, &bundle)?;
                 assert_eq!(
@@ -318,7 +315,10 @@ fn parse_typescript_object_fields(
         .map(|(_, declaration)| declaration)
         .with_context(|| format!("missing TypeScript declaration {marker:?}"))?;
     let declaration = strip_typescript_comments(declaration);
-    if declaration.trim_start().starts_with("Record<string, never>") {
+    if declaration
+        .trim_start()
+        .starts_with("Record<string, never>")
+    {
         return Ok(BTreeMap::new());
     }
     let object_start = declaration
@@ -363,10 +363,7 @@ fn parse_typescript_object_fields(
             typescript_path,
             &mut BTreeSet::new(),
         )?;
-        let previous = fields.insert(
-            name.clone(),
-            TypeScriptFieldContract { optional, nullable },
-        );
+        let previous = fields.insert(name.clone(), TypeScriptFieldContract { optional, nullable });
         anyhow::ensure!(previous.is_none(), "duplicate TypeScript field {name:?}");
     }
 
