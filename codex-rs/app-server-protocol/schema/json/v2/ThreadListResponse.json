@@ -2451,7 +2451,9 @@
     }
   },
   "required": [
-    "data"
+    "backwardsCursor",
+    "data",
+    "nextCursor"
   ],
   "title": "ThreadListResponse",
   "type": "object"

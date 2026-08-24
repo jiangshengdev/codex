@@ -288,7 +288,8 @@
     }
   },
   "required": [
-    "data"
+    "data",
+    "nextCursor"
   ],
   "title": "AppsListResponse",
   "type": "object"

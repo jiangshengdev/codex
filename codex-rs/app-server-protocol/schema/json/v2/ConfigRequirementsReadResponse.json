@@ -780,6 +780,9 @@
       "description": "Null if no requirements are configured (e.g. no requirements.toml/MDM entries)."
     }
   },
+  "required": [
+    "requirements"
+  ],
   "title": "ConfigRequirementsReadResponse",
   "type": "object"
 }

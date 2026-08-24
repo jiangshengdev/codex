@@ -2726,7 +2726,9 @@
     "cwd",
     "model",
     "modelProvider",
+    "reasoningEffort",
     "sandbox",
+    "serviceTier",
     "thread"
   ],
   "title": "ThreadResumeResponse",
