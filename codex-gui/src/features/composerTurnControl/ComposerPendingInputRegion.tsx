@@ -1,6 +1,6 @@
 import { Button, Chip, Separator, Surface } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
-import { Fragment, type ReactNode, useCallback, useState } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
@@ -8,6 +8,10 @@ import {
   ComposerInputPreviewContent,
   ComposerPendingInputDrawer,
 } from "./ComposerPendingInputDrawer";
+import type {
+  ComposerPendingInputSession,
+  ComposerPendingInputSessionSnapshot,
+} from "./composerPendingInputSession";
 
 export type ComposerPendingInputRegionProps = Readonly<{
   canRecover: boolean;
@@ -21,6 +25,8 @@ export type ComposerPendingInputRegionProps = Readonly<{
   sessionRevision: number;
   skillCatalog: SkillCatalogState;
   snapshot: ComposerInputQueueCoordinatorSnapshot;
+  pendingInputSession: ComposerPendingInputSession;
+  pendingInputSnapshot: ComposerPendingInputSessionSnapshot;
 }>;
 
 export function ComposerPendingInputRegion({
@@ -35,16 +41,18 @@ export function ComposerPendingInputRegion({
   sessionRevision,
   skillCatalog,
   snapshot,
+  pendingInputSession,
+  pendingInputSnapshot,
 }: ComposerPendingInputRegionProps) {
   const { t } = useLingui();
-  const [isDrawerPresent, setIsDrawerPresent] = useState(false);
-  const onDrawerPresenceChange = useCallback((isPresent: boolean): void => {
-    setIsDrawerPresent(isPresent);
-  }, []);
   const groups: { key: string; node: ReactNode }[] = [];
   const hasNormalPending = snapshot.guidingCount > 0 || snapshot.ordinaryQueuedCount > 0;
 
-  if (hasNormalPending || isDrawerPresent) {
+  if (
+    hasNormalPending ||
+    pendingInputSnapshot.phase !== "closed" ||
+    pendingInputSnapshot.effects.length > 0
+  ) {
     groups.push({
       key: "normal",
       node: (
@@ -53,8 +61,9 @@ export function ComposerPendingInputRegion({
           guardCompositionEndEnter={guardCompositionEndEnter}
           mutationsEnabled={mutationsEnabled}
           onFocusComposer={onFocusComposer}
-          onPresenceChange={onDrawerPresenceChange}
           onRetrySkillCatalog={onRetrySkillCatalog}
+          pendingInputSession={pendingInputSession}
+          pendingInputSnapshot={pendingInputSnapshot}
           sessionRevision={sessionRevision}
           skillCatalog={skillCatalog}
           snapshot={snapshot}

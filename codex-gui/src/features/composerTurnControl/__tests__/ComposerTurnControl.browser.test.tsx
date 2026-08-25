@@ -1,7 +1,7 @@
 import { Toast } from "@heroui/react";
 import { afterEach, expect, test, vi, type Mock } from "vitest";
 import { userEvent } from "vitest/browser";
-import { useSyncExternalStore } from "react";
+import { StrictMode, useSyncExternalStore } from "react";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
@@ -504,6 +504,7 @@ async function renderAttached(
   }),
   skillCatalogController: SkillCatalogHarnessController = createSkillCatalogHarness().controller,
   activeTurnId?: string | null,
+  strictMode = false,
 ) {
   const fixtureActiveTurnId =
     eventTurnStarted.event.type === "turnStarted"
@@ -546,16 +547,18 @@ async function renderAttached(
   );
   controller.subscribe(publishActiveSnapshot);
   skillCatalogController.subscribe(publishActiveSnapshot);
-  const result = await renderWithProviders(
+  const app = (
     <>
       <Toast.Provider placement="top" />
       <SessionComposerTurnControl
         guardCompositionEndEnter={guardCompositionEndEnter}
         session={sessionHarness.session}
       />
-    </>,
-    { locale },
+    </>
   );
+  const result = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app, {
+    locale,
+  });
   dispatchReadModelFacts(result, [{ type: "baselineAttached", response: attachResponse }]);
   return { ...result, sessionHarness };
 }
@@ -830,6 +833,44 @@ test("renders the Lexical composer panel and actions", async () => {
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
   expect(actions).toEqual(["Stop", "Send"]);
+});
+
+test("keeps submit and pending-input open available after StrictMode effect replay", async () => {
+  const harness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
+    {
+      ordinary: [
+        pendingInputItem("strict-pending", "ordinary", {
+          type: "text",
+          text: "Strict pending message",
+          truncated: false,
+        }),
+      ],
+      steer: [],
+    },
+  );
+  const screen = await renderAttached(
+    createGuiHostCommands(),
+    false,
+    "en",
+    harness.controller,
+    createSkillCatalogHarness().controller,
+    undefined,
+    true,
+  );
+  const composer = getComposer(screen);
+
+  await composer.fill("Submit after replay");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+
+  expect(harness.submit).toHaveBeenCalledOnce();
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("");
+
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect.element(dialog.getByText("Strict pending message", { exact: true })).toBeVisible();
 });
 
 test("distinguishes hover, pointer focus, and keyboard focus-visible field states", async () => {
@@ -2621,6 +2662,95 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
   await nextTrigger.click();
   const nextDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect.element(nextDialog.getByText("New pending detail", { exact: true })).toBeVisible();
+});
+
+test("replaces an open pending-input owner without leaking its cached view into the new owner", async () => {
+  const queueHarness = createQueueControllerHarness(
+    queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
+    {
+      ordinary: [
+        pendingInputItem("owner-old", "ordinary", {
+          type: "text",
+          text: "Old owner pending message",
+          truncated: false,
+        }),
+      ],
+      steer: [],
+    },
+  );
+  const skillHarness = createSkillCatalogHarness();
+  const firstRevision = 1;
+  const firstOwner = createActiveThreadSessionHarness({
+    composerRole: composerRoleFor(queueHarness.controller, () => firstRevision),
+    skillsRole: skillsRoleFor(skillHarness.controller),
+  });
+  const replacementRevision = 2;
+  const replacementOwner = createActiveThreadSessionHarness({
+    composerRole: composerRoleFor(queueHarness.controller, () => replacementRevision),
+    skillsRole: skillsRoleFor(skillHarness.controller),
+  });
+  const firstSnapshot = firstOwner.activeSnapshot({
+    revision: firstRevision,
+    threadId,
+    subscriptionId: attachResponse.subscriptionId,
+    composer: queueHarness.controller.getSnapshot(),
+    skills: skillHarness.controller.getSnapshot(),
+  });
+  const replacementSnapshot = replacementOwner.activeSnapshot({
+    revision: replacementRevision,
+    threadId,
+    subscriptionId: attachResponse.subscriptionId,
+    composer: queueHarness.controller.getSnapshot(),
+    skills: skillHarness.controller.getSnapshot(),
+  });
+  const renderSnapshot = (snapshot: typeof firstSnapshot) => (
+    <>
+      <Toast.Provider placement="top" />
+      <ComposerTurnControl
+        authorizationToken={null}
+        guardCompositionEndEnter={false}
+        routeTarget={{ type: "currentTask", threadId }}
+        sessionSnapshot={snapshot}
+      />
+    </>
+  );
+  const screen = await renderWithProviders(renderSnapshot(firstSnapshot));
+
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  const oldDialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
+  await expect
+    .element(oldDialog.getByText("Old owner pending message", { exact: true }))
+    .toBeVisible();
+
+  queueHarness.replaceDetails({
+    ordinary: [
+      pendingInputItem("owner-new", "ordinary", {
+        type: "text",
+        text: "Replacement owner pending message",
+        truncated: false,
+      }),
+    ],
+    steer: [],
+  });
+  await screen.rerender(renderSnapshot(replacementSnapshot));
+
+  await expect.element(oldDialog).not.toBeInTheDocument();
+  const replacementTrigger = screen.getByRole("button", {
+    name: "Pending: Queued 1",
+    exact: true,
+  });
+  await expect.element(replacementTrigger).toBeVisible();
+  await replacementTrigger.click();
+  const replacementDialog = screen.getByRole("dialog", {
+    name: "Pending details",
+    exact: true,
+  });
+  await expect
+    .element(replacementDialog.getByText("Replacement owner pending message", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByText("Old owner pending message", { exact: true }))
+    .not.toBeInTheDocument();
 });
 
 test("keeps pending details readable while projection mutations are unavailable", async () => {

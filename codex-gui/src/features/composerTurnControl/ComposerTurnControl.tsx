@@ -18,17 +18,11 @@ import {
   type ComposerEditorSnapshot,
   type ComposerEditorSubmitIntent,
 } from "@/features/composerEditor/ComposerEditor";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import { selectThreadRuntimeTokenUsage } from "@/features/threadRuntime/threadRuntimeSlice";
 import { ContextUsagePopover } from "./ContextUsagePopover";
-import {
-  canRecoverComposerQueue,
-  canSend,
-  composerGuideControlState,
-  composerStopControlState,
-  invalidSelectedSkillPaths,
-} from "./composerTurnControlModel";
+import { createComposerPendingInputSession } from "./composerPendingInputSession";
+import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
@@ -53,15 +47,15 @@ export function ComposerTurnControl({
   const { t } = useLingui();
   const [composerEditorController, setComposerEditorController] =
     useState<ComposerEditorController | null>(null);
-  const [isSending, setIsSending] = useState(false);
-  const isSubmittingRef = useRef(false);
+  const [pendingInputSession] = useState(createComposerPendingInputSession);
+  const [turnApplication] = useState(createComposerTurnApplication);
+  const adapterLifecycleRef = useRef({ generation: 0, mounted: false });
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
   const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
-  const operationsEnabled = sessionSnapshot.phase === "active";
   const {
     activeTurnId,
     composer: queueSnapshot,
@@ -74,45 +68,36 @@ export function ComposerTurnControl({
     composerEditorController?.subscribe ?? subscribeUnavailableEditor,
     composerEditorController?.getSnapshot ?? getUnavailableEditorSnapshot,
   );
-
-  const invalidSkillPaths = useMemo(
-    () => invalidSelectedSkillPaths(skillCatalog, editorSnapshot?.selectedSkillPaths ?? []),
-    [editorSnapshot, skillCatalog],
+  useSyncExternalStore(turnApplication.subscribe, turnApplication.getVersion);
+  const sessionFacts = {
+    activeTurnId,
+    composer: queueSnapshot,
+    composerRole,
+    phase: sessionSnapshot.phase,
+    revision,
+    skills: skillCatalog,
+  } as const;
+  const controlView = turnApplication.project({ session: sessionFacts, editor: editorSnapshot });
+  const pendingFacts = {
+    composerRole,
+    sessionRevision: revision,
+    mutationsEnabled: controlView.operationsEnabled,
+    snapshot: queueSnapshot,
+  } as const;
+  pendingInputSession.project(pendingFacts);
+  const pendingInputSnapshot = useSyncExternalStore(
+    pendingInputSession.subscribe,
+    pendingInputSession.getSnapshot,
   );
   const invalidStatusText = t`Invalid skill`;
   const skillValidity = useMemo(
-    () => ({ invalidPaths: invalidSkillPaths, statusText: invalidStatusText }),
-    [invalidSkillPaths, invalidStatusText],
+    () => ({ invalidPaths: controlView.invalidSelectedSkillPaths, statusText: invalidStatusText }),
+    [controlView.invalidSelectedSkillPaths, invalidStatusText],
   );
-  const sendEnabled = canSend({
-    operationsEnabled,
-    draftText: editorSnapshot?.textContent ?? "",
-    isSending,
-    recoveryCount: queueSnapshot.recoveryCount,
-    selectedSkillsValid: invalidSkillPaths.size === 0,
-  });
-  const guideControl = composerGuideControlState({
-    activeTurnId,
-    operationsEnabled,
-    draftText: editorSnapshot?.textContent ?? "",
-    isSending,
-    recoveryCount: queueSnapshot.recoveryCount,
-    selectedSkillsValid: invalidSkillPaths.size === 0,
-  });
   const guideShortcut = guideShortcutForPlatform(navigator.platform);
-  const stopControl = composerStopControlState({
-    operationsEnabled,
-    interruptPhase: queueSnapshot.interrupt?.phase ?? null,
-    queueCanStop: queueSnapshot.canStop,
-  });
-  const canRecover = canRecoverComposerQueue({
-    operationsEnabled,
-    recoveryCount: queueSnapshot.recoveryCount,
-    isRecovering: queueSnapshot.isRecovering,
-  });
   const focusComposer = useCallback((): void => {
     if (composerEditorController == null) return;
-    if (operationsEnabled) {
+    if (controlView.operationsEnabled) {
       composerEditorController.focus();
       return;
     }
@@ -123,80 +108,43 @@ export function ComposerTurnControl({
     root.focus();
     if (previousTabIndex == null) root.removeAttribute("tabindex");
     else root.setAttribute("tabindex", previousTabIndex);
-  }, [composerEditorController, operationsEnabled]);
+  }, [composerEditorController, controlView.operationsEnabled]);
+
+  useEffect(() => {
+    const lifecycle = adapterLifecycleRef.current;
+    const generation = ++lifecycle.generation;
+    lifecycle.mounted = true;
+    return () => {
+      lifecycle.mounted = false;
+      queueMicrotask(() => {
+        if (lifecycle.mounted || lifecycle.generation !== generation) return;
+        pendingInputSession.dispose();
+        turnApplication.dispose();
+      });
+    };
+  }, [pendingInputSession, turnApplication]);
 
   useRevealComposerOnViewportResize(composerShellRef);
 
   const submit = (
-    requestedCapture?: ComposerDraftCapture,
+    requestedCapture?: ReturnType<ComposerEditorController["capture"]>,
     intent: ComposerEditorSubmitIntent = "ordinary",
   ): void => {
-    const isSubmitting = isSubmittingRef.current;
-    const submittedCapture = requestedCapture ?? composerEditorController?.capture() ?? null;
-    const submittedGuideControl = composerGuideControlState({
-      activeTurnId,
-      operationsEnabled,
-      draftText: submittedCapture?.textContent ?? "",
-      isSending: isSubmitting,
-      recoveryCount: queueSnapshot.recoveryCount,
-      selectedSkillsValid:
-        submittedCapture == null ||
-        invalidSelectedSkillPaths(skillCatalog, submittedCapture.selectedSkillPaths).size === 0,
-    });
-    if (submittedCapture == null || composerEditorController == null || isSubmitting) {
-      return;
-    }
-
-    if (intent === "guide" && submittedCapture.textContent.trim().length === 0) {
-      if (submittedGuideControl.shortcutEnabled) {
-        composerRole.promoteOrdinaryFrontToSteer(revision);
-      }
-      return;
-    }
-
-    const submissionEnabled =
-      intent === "guide"
-        ? submittedGuideControl.shortcutEnabled
-        : canSend({
-            operationsEnabled,
-            draftText: submittedCapture.textContent,
-            isSending: isSubmitting,
-            recoveryCount: queueSnapshot.recoveryCount,
-            selectedSkillsValid:
-              invalidSelectedSkillPaths(skillCatalog, submittedCapture.selectedSkillPaths).size ===
-              0,
-          });
-    if (!submissionEnabled) {
-      return;
-    }
-
-    isSubmittingRef.current = true;
-    setIsSending(true);
-    const result =
-      intent === "guide"
-        ? composerRole.submitSteer(revision, submittedCapture)
-        : composerRole.submit(revision, submittedCapture);
-    if (result.type === "accepted") {
-      composerEditorController.clearIfCurrent(submittedCapture);
-    }
-    queueMicrotask(() => {
-      isSubmittingRef.current = false;
-      setIsSending(false);
+    if (composerEditorController == null) return;
+    turnApplication.submit({
+      session: sessionFacts,
+      controller: composerEditorController,
+      ...(requestedCapture == null ? {} : { capture: requestedCapture }),
+      intent,
     });
   };
 
   const recover = (): void => {
-    if (!canRecover) {
-      return;
-    }
-    composerRole.recover(revision);
+    turnApplication.recover({ session: sessionFacts });
   };
 
   const stop = (): void => {
-    if (!stopControl.enabled) {
-      return;
-    }
-    composerRole.interruptActiveTurn(revision);
+    turnApplication.stop({ session: sessionFacts });
   };
 
   return (
@@ -206,16 +154,16 @@ export function ComposerTurnControl({
       ref={composerShellRef}
     >
       <Surface
-        aria-disabled={!operationsEnabled}
+        aria-disabled={!controlView.operationsEnabled}
         className="composer-panel relative mx-auto grid w-full max-w-3xl gap-2 rounded-field border bg-field p-2 text-field-foreground shadow-field [border-color:var(--field-border)] [border-width:var(--border-width-field)] transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none [&:has([contenteditable]:focus)]:bg-field-focus [&:has([contenteditable]:focus)]:[border-color:var(--field-border-focus)] [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:bg-field-hover [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:[border-color:var(--field-border-hover)] data-[disabled=true]:status-disabled data-[focus-visible=true]:status-focused-field"
-        data-disabled={!operationsEnabled}
+        data-disabled={!controlView.operationsEnabled}
         data-focus-visible={composerFocusVisible}
         variant="default"
       >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
           ariaLabel={t`Message Codex`}
-          disabled={!operationsEnabled}
+          disabled={!controlView.operationsEnabled}
           guardCompositionEndEnter={guardCompositionEndEnter}
           onControllerChange={setComposerEditorController}
           onRetrySkillCatalog={() => {
@@ -228,10 +176,10 @@ export function ComposerTurnControl({
           skillValidity={skillValidity}
         />
         <ComposerPendingInputRegion
-          canRecover={canRecover}
+          canRecover={controlView.recoverEnabled}
           composerRole={composerRole}
           guardCompositionEndEnter={guardCompositionEndEnter}
-          mutationsEnabled={operationsEnabled}
+          mutationsEnabled={controlView.operationsEnabled}
           onFocusComposer={focusComposer}
           onRecover={recover}
           onRetrySkillCatalog={() => {
@@ -241,29 +189,31 @@ export function ComposerTurnControl({
           sessionRevision={revision}
           skillCatalog={skillCatalog}
           snapshot={queueSnapshot}
+          pendingInputSession={pendingInputSession}
+          pendingInputSnapshot={pendingInputSnapshot}
         />
         <div className="flex items-center justify-between gap-2">
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <div className="flex items-center gap-2">
             {contextUsage == null ? null : <ContextUsagePopover usage={contextUsage} />}
-            {stopControl.failed ? (
+            {controlView.stop.failed ? (
               <span className="text-sm text-danger" role="status">
                 <Trans>Stop failed</Trans>
               </span>
             ) : null}
             <Button
-              isDisabled={!stopControl.enabled}
-              isPending={stopControl.pending}
+              isDisabled={!controlView.stop.enabled}
+              isPending={controlView.stop.pending}
               onPress={stop}
               variant="danger-soft"
             >
               <Trans>Stop</Trans>
             </Button>
-            {guideControl.visible ? (
+            {controlView.guide.visible ? (
               <Tooltip delay={0}>
                 <Button
                   aria-keyshortcuts={guideShortcut.aria}
-                  isDisabled={!guideControl.buttonEnabled}
+                  isDisabled={!controlView.guide.buttonEnabled}
                   onPress={() => {
                     submit(undefined, "guide");
                   }}
@@ -275,7 +225,7 @@ export function ComposerTurnControl({
               </Tooltip>
             ) : null}
             <Button
-              isDisabled={!sendEnabled}
+              isDisabled={!controlView.sendEnabled}
               onPress={() => {
                 submit();
               }}
