@@ -8,6 +8,7 @@ import {
   attachReplacement,
   closedBackpressure,
   eventSubscriptionReplacement,
+  eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithThreadId,
@@ -16,7 +17,7 @@ import {
 import type { UnknownAction } from "@reduxjs/toolkit";
 import {
   createActiveThreadSession,
-  type ActiveThreadSession,
+  type ActiveThreadSessionController,
 } from "../activeThreadSession";
 
 const replacementThreadId = "00000000-0000-0000-0000-000000000002";
@@ -46,7 +47,7 @@ const createHarness = (
   const store = makeStore();
   let nextFrameId = 0;
   const frames = new Map<number, () => void>();
-  const session = createActiveThreadSession({
+  const controller = createActiveThreadSession({
     authorizationSession,
     commands,
     dispatch: ((action: UnknownAction) => {
@@ -66,11 +67,11 @@ const createHarness = (
       },
     },
   });
-  return { authorizationSession, commands, frames, session, store };
+  return { authorizationSession, commands, controller, frames, session: controller.session, store };
 };
 
 const activateInitial = async (harness: ReturnType<typeof createHarness>) => {
-  const outcome = await harness.session.activateRecoveryThread();
+  const outcome = await harness.controller.activateRecoveryThread();
   expect(outcome).toEqual({
     type: "ready",
     threadId: attachBaseline.snapshot.thread.id,
@@ -105,6 +106,101 @@ describe("ActiveThreadSession", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("exposes stable revision-gated composer and skills roles through the public snapshot", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const initial = h.session.getSnapshot();
+    if (initial.phase !== "active") throw new Error("expected the initial active session");
+    expect(initial.composerRole.submitSteer(initial.revision, composerCapture(""))).toEqual({
+      type: "rejected",
+      reason: "invalidInput",
+    });
+    expect(initial.composerRole.promoteOrdinaryFrontToSteer(initial.revision)).toBe(false);
+    expect(initial.composerRole.recover(initial.revision)).toBe(false);
+
+    h.controller.handleProjectionEvent(eventTurnStarted);
+    const withTurn = h.session.getSnapshot();
+    if (withTurn.phase !== "active") throw new Error("expected an active turn session");
+    expect(withTurn.composerRole).toBe(initial.composerRole);
+    expect(withTurn.skillsRole).toBe(initial.skillsRole);
+    expect(withTurn.composerRole.interruptActiveTurn(withTurn.revision)).toBe(true);
+
+    h.controller.handleProjectionClosed(closedBackpressure);
+    const unavailable = h.session.getSnapshot();
+    if (unavailable.phase !== "projectionUnavailable") {
+      throw new Error("expected projectionUnavailable");
+    }
+    expect(initial.composerRole.submit(initial.revision, composerCapture("stale"))).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "staleRevision",
+      revision: unavailable.revision,
+    });
+    for (const result of [
+      unavailable.skillsRole.retrySkills(unavailable.revision),
+      unavailable.skillsRole.refreshSkills(unavailable.revision),
+      unavailable.skillsRole.invalidateSkills(unavailable.revision),
+    ]) {
+      expect(result).toEqual({
+        type: "unavailable",
+        scope: "activeThreadSession",
+        reason: "projectionUnavailable",
+        revision: unavailable.revision,
+      });
+    }
+  });
+
+  it("keeps pending-input reads, mutations, and edit capabilities on the public role", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    h.controller.handleProjectionEvent(eventTurnStarted);
+    let snapshot = h.session.getSnapshot();
+    if (snapshot.phase !== "active") throw new Error("expected an active turn session");
+    expect(
+      snapshot.composerRole.submit(
+        snapshot.revision,
+        composerCapture("pending detail ".repeat(100)),
+      ),
+    ).toEqual({ type: "accepted" });
+    snapshot = h.session.getSnapshot();
+    if (snapshot.phase !== "active") throw new Error("expected an active pending-input session");
+    const page = snapshot.composerRole.readPendingInputPage({
+      lane: "ordinary",
+      revision: snapshot.composer.detailRevision,
+      cursor: null,
+      limit: 10,
+    });
+    if (page.type !== "page" || page.items[0] == null) {
+      throw new Error("expected a pending ordinary input");
+    }
+    expect(
+      snapshot.composerRole.readPendingInputDetail({
+        key: page.items[0].key,
+        revision: page.revision,
+      }),
+    ).toMatchObject({ type: "detail", key: page.items[0].key });
+    expect(
+      snapshot.composerRole.movePendingInput(snapshot.revision, {
+        key: page.items[0].key,
+        revision: page.revision,
+        destination: "first",
+      }),
+    ).toMatchObject({ type: "noOp" });
+    snapshot = h.session.getSnapshot();
+    if (snapshot.phase !== "active") throw new Error("expected an active pending-input session");
+    const begun = snapshot.composerRole.beginPendingInputEdit(
+      snapshot.revision,
+      { key: page.items[0].key, revision: snapshot.composer.detailRevision },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected a pending edit capability");
+    h.controller.handleProjectionClosed(closedBackpressure);
+    expect(begun.reservation.save(composerCapture("late edit"))).toMatchObject({
+      type: "unavailable",
+      scope: "activeThreadSession",
+    });
+  });
+
   it("keeps the old live session operable during remote preparation and rejects a changed CAS", async () => {
     const h = createHarness();
     await activateInitial(h);
@@ -113,10 +209,10 @@ describe("ActiveThreadSession", () => {
     queueReplacementActivation(h.commands);
 
     const activation = h.session.activate(replacementThreadId);
-    const oldLive = h.session.getLiveSession();
-    if (oldLive == null) throw new Error("expected the initial live session");
-    const oldRevision = oldLive.getSnapshot().revision;
-    expect(oldLive.submit(oldRevision, composerCapture("still usable"))).toEqual({
+    const oldSnapshot = h.session.getSnapshot();
+    if (oldSnapshot.phase !== "active") throw new Error("expected the initial active session");
+    const oldRevision = oldSnapshot.revision;
+    expect(oldSnapshot.composerRole.submit(oldRevision, composerCapture("still usable"))).toEqual({
       type: "accepted",
     });
     resume.resolve(
@@ -129,11 +225,13 @@ describe("ActiveThreadSession", () => {
       type: "unavailable",
       failure: { type: "currentThreadChanged", expectedRevision: oldRevision },
     });
-    expect(h.session.getLiveSession()).toBe(oldLive);
-    expect(h.session.getSnapshot()).toMatchObject({
+    const retained = h.session.getSnapshot();
+    expect(retained).toMatchObject({
       phase: "active",
       threadId: attachBaseline.snapshot.thread.id,
     });
+    if (retained.phase !== "active") throw new Error("expected the retained active session");
+    expect(retained.composerRole).toBe(oldSnapshot.composerRole);
   });
 
   it("reconciles candidate notifications before one replacement publication", async () => {
@@ -143,16 +241,10 @@ describe("ActiveThreadSession", () => {
     vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
     const listener = vi.fn();
     h.session.subscribe(listener);
-    const oldLive = h.session.getLiveSession();
-    if (oldLive == null) throw new Error("expected the initial live session");
-    const oldSnapshots: ReturnType<typeof oldLive.getSnapshot>[] = [];
-    oldLive.subscribe(() => {
-      oldSnapshots.push(oldLive.getSnapshot());
-    });
 
     const activation = h.session.activate(replacementThreadId);
     await Promise.resolve();
-    h.session.handleProjectionEvent(replacementEvent);
+    h.controller.handleProjectionEvent(replacementEvent);
     attach.resolve(replacementAttach);
 
     await expect(activation).resolves.toEqual({
@@ -167,8 +259,6 @@ describe("ActiveThreadSession", () => {
     });
     expect(h.store.getState().threadRuntime.current?.threadId).toBe(replacementThreadId);
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(oldSnapshots).toHaveLength(1);
-    expect(oldSnapshots[0]?.phase).toBe("disposed");
     expect(h.commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: attachBaseline.snapshot.thread.id,
     });
@@ -178,11 +268,8 @@ describe("ActiveThreadSession", () => {
     let rejectDispatch = false;
     const h = createHarness(() => rejectDispatch);
     await activateInitial(h);
-    const oldLive = h.session.getLiveSession();
-    if (oldLive == null) throw new Error("expected the initial live session");
-    const oldSnapshot = oldLive.getSnapshot();
-    const oldListener = vi.fn();
-    oldLive.subscribe(oldListener);
+    const oldSnapshot = h.session.getSnapshot();
+    if (oldSnapshot.phase !== "active") throw new Error("expected the initial active session");
     const sessionListener = vi.fn();
     h.session.subscribe(sessionListener);
     queueReplacementActivation(h.commands);
@@ -193,24 +280,21 @@ describe("ActiveThreadSession", () => {
       failure: { type: "operationFailed", phase: "activate" },
     });
 
-    expect(h.session.getLiveSession()).toBe(oldLive);
-    expect(oldLive.getSnapshot()).toBe(oldSnapshot);
-    expect(oldLive.getSnapshot().revision).toBe(oldSnapshot.revision);
     expect(h.session.getSnapshot()).toBe(oldSnapshot);
-    expect(oldListener).not.toHaveBeenCalled();
+    expect(h.session.getSnapshot().revision).toBe(oldSnapshot.revision);
     expect(sessionListener).not.toHaveBeenCalled();
   });
 
   it("classifies a non-committed handoff after Redux dispatch as connection loss", async () => {
     let terminateAfterDispatch = false;
-    let session: ActiveThreadSession | null = null;
+    let controller: ActiveThreadSessionController | null = null;
     const h = createHarness(
       () => false,
       () => {
-        if (terminateAfterDispatch) session?.connectionUnavailable();
+        if (terminateAfterDispatch) controller?.connectionUnavailable();
       },
     );
-    session = h.session;
+    controller = h.controller;
     await activateInitial(h);
     queueReplacementActivation(h.commands);
     terminateAfterDispatch = true;
@@ -233,7 +317,7 @@ describe("ActiveThreadSession", () => {
     vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
     const activation = h.session.activate(replacementThreadId);
     await Promise.resolve();
-    h.session.handleProjectionClosed({
+    h.controller.handleProjectionClosed({
       ...closedBackpressure,
       threadId: replacementThreadId,
       subscriptionId: replacementAttach.subscriptionId,
@@ -290,7 +374,7 @@ describe("ActiveThreadSession", () => {
       threadId: replacementThreadId,
     });
     expect(settled).toBe(false);
-    h.session.connectionUnavailable();
+    h.controller.connectionUnavailable();
     detach.resolve({ status: "detached" });
 
     await expect(activation).resolves.toMatchObject({
@@ -309,12 +393,12 @@ describe("ActiveThreadSession", () => {
     const pendingStart = createDeferred<Awaited<ReturnType<GuiHostCommands["startTurn"]>>>();
     vi.mocked(h.commands.startTurn).mockReturnValueOnce(pendingStart.promise);
     await activateInitial(h);
-    const live = h.session.getLiveSession();
-    if (live == null) throw new Error("expected the initial live session");
-    expect(live.submit(live.getSnapshot().revision, composerCapture("pending delivery"))).toEqual({
+    const active = h.session.getSnapshot();
+    if (active.phase !== "active") throw new Error("expected the initial active session");
+    expect(active.composerRole.submit(active.revision, composerCapture("pending delivery"))).toEqual({
       type: "accepted",
     });
-    const revision = live.getSnapshot().revision;
+    const revision = h.session.getSnapshot().revision;
     queueReplacementActivation(h.commands);
 
     await expect(h.session.activate(replacementThreadId)).resolves.toMatchObject({
@@ -325,11 +409,13 @@ describe("ActiveThreadSession", () => {
         blockers: [{ type: "pendingStart" }],
       },
     });
-    expect(h.session.getLiveSession()).toBe(live);
-    expect(h.session.getSnapshot()).toMatchObject({
+    const retained = h.session.getSnapshot();
+    expect(retained).toMatchObject({
       revision,
       threadId: attachBaseline.snapshot.thread.id,
     });
+    if (retained.phase !== "active") throw new Error("expected the retained active session");
+    expect(retained.composerRole).toBe(active.composerRole);
   });
 
   it("rejects a concurrent activation and preserves a resume identity failure", async () => {
@@ -381,7 +467,7 @@ describe("ActiveThreadSession", () => {
 
     const activation = h.session.activate(replacementThreadId);
     await Promise.resolve();
-    h.session.connectionUnavailable();
+    h.controller.connectionUnavailable();
     attach.resolve(replacementAttach);
 
     await expect(activation).resolves.toMatchObject({
@@ -400,7 +486,7 @@ describe("ActiveThreadSession", () => {
     const attachError = new Error("attach failed");
     vi.mocked(h.commands.attachThreadProjection).mockRejectedValueOnce(attachError);
 
-    await expect(h.session.activateRecoveryThread()).resolves.toEqual({
+    await expect(h.controller.activateRecoveryThread()).resolves.toEqual({
       type: "unavailable",
       failure: {
         type: "operationFailed",
@@ -411,7 +497,7 @@ describe("ActiveThreadSession", () => {
     });
     expect(h.session.getSnapshot()).toEqual({ phase: "empty", revision: 0 });
 
-    h.session.connectionUnavailable();
+    h.controller.connectionUnavailable();
     await expect(h.session.activate(attachBaseline.snapshot.thread.id)).resolves.toMatchObject({
       type: "unavailable",
       failure: { type: "connectionLost", progress: "beforeCommit" },

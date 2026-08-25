@@ -101,6 +101,10 @@ describe("LiveActiveThreadSession", () => {
       type: "rejected",
       reason: "releaseReserved",
     });
+    expect(session.reserveRelease(snapshot.revision)).toEqual({
+      type: "blocked",
+      blockers: [{ type: "releaseReserved" }],
+    });
 
     expect(reserved.reservation.release()).toEqual({ type: "released" });
     expect(session.getSnapshot()).toBe(snapshot);

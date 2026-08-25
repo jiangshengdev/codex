@@ -179,7 +179,15 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   reserveRelease: LiveActiveThreadSession["reserveRelease"] = (expectedRevision) => {
     const unavailable = this.operationUnavailable(expectedRevision);
     if (unavailable != null) return unavailable;
-    if (this.releaseHandoff != null) return this.queue.reserveRelease();
+    if (this.releaseHandoff != null) {
+      const nested = this.queue.reserveRelease();
+      switch (nested.type) {
+        case "blocked":
+          return nested;
+        case "reserved":
+          throw new Error("Nested active thread release unexpectedly reserved the child queue");
+      }
+    }
     const handoff: ReleaseHandoff = {
       revision: this.revision,
       generation: this.generation,

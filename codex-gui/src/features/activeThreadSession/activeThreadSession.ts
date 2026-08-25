@@ -37,9 +37,35 @@ export type ActiveThreadSessionScheduler = Readonly<{
   cancelFrame(frameId: number): void;
 }>;
 
+export type ActiveThreadComposerRole = Readonly<
+  Pick<
+    LiveActiveThreadSession,
+    | "beginPendingInputEdit"
+    | "deletePendingInput"
+    | "interruptActiveTurn"
+    | "movePendingInput"
+    | "promoteOrdinaryFrontToSteer"
+    | "readPendingInputDetail"
+    | "readPendingInputPage"
+    | "recover"
+    | "submit"
+    | "submitSteer"
+  >
+>;
+
+export type ActiveThreadSkillsRole = Readonly<
+  Pick<LiveActiveThreadSession, "invalidateSkills" | "refreshSkills" | "retrySkills">
+>;
+
+type ActiveThreadSessionRoles = Readonly<{
+  composerRole: ActiveThreadComposerRole;
+  skillsRole: ActiveThreadSkillsRole;
+}>;
+
 export type ActiveThreadSessionSnapshot =
   | Readonly<{ phase: "empty"; revision: number }>
-  | Exclude<ReturnType<LiveActiveThreadSession["getSnapshot"]>, { phase: "disposed" }>
+  | (Exclude<ReturnType<LiveActiveThreadSession["getSnapshot"]>, { phase: "disposed" }> &
+      ActiveThreadSessionRoles)
   | Readonly<{ phase: "disposed"; revision: number }>;
 
 export type ActiveThreadActivationWarning =
@@ -81,11 +107,22 @@ export type ActiveThreadActivationOutcome =
   | Readonly<{ type: "empty" }>
   | Readonly<{ type: "unavailable"; failure: ActiveThreadActivationFailure }>;
 
+type ActiveThreadActivationFailureBeforeCleanup =
+  | Exclude<
+      ActiveThreadActivationFailure,
+      { type: "connectionLost" } | { type: "operationFailed" }
+    >
+  | Omit<Extract<ActiveThreadActivationFailure, { type: "operationFailed" }>, "cleanupError">
+  | Readonly<{ type: "connectionLost" }>;
+
 export type ActiveThreadSession = Readonly<{
   getSnapshot(): ActiveThreadSessionSnapshot;
-  getLiveSession(): LiveActiveThreadSession | null;
   subscribe(listener: () => void): () => void;
   activate(threadId: string): Promise<ActiveThreadActivationOutcome>;
+}>;
+
+export type ActiveThreadSessionController = Readonly<{
+  session: ActiveThreadSession;
   activateRecoveryThread(): Promise<ActiveThreadActivationOutcome>;
   handleProjectionEvent(notification: ThreadProjectionEventNotification): void;
   handleProjectionDelta(notification: ThreadProjectionDeltaNotification): void;
@@ -118,13 +155,21 @@ type ActivationCandidate = {
   stagedActions: UnknownAction[];
 };
 
-class ActiveThreadSessionImpl implements ActiveThreadSession {
+class ActiveThreadSessionImpl implements ActiveThreadSessionController {
+  readonly session: ActiveThreadSession;
   private readonly authorizationSession: ActiveThreadAuthorizationSession;
   private readonly commands: ActiveThreadSessionCommands;
   private readonly dispatch: AppDispatch;
   private readonly scheduler: ActiveThreadSessionScheduler;
   private readonly listeners = new Set<() => void>();
   private current: LiveActiveThreadSession | null = null;
+  private currentRoles: ActiveThreadSessionRoles | null = null;
+  private currentSnapshotCache: Readonly<{
+    liveSession: LiveActiveThreadSession;
+    source: ReturnType<LiveActiveThreadSession["getSnapshot"]>;
+    roles: ActiveThreadSessionRoles;
+    snapshot: ActiveThreadSessionSnapshot;
+  }> | null = null;
   private unsubscribeCurrent: (() => void) | null = null;
   private candidate: ActivationCandidate | null = null;
   private pendingProjectionFrame: Readonly<{
@@ -142,13 +187,16 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
     this.commands = commands;
     this.dispatch = dispatch;
     this.scheduler = scheduler;
+    this.session = {
+      getSnapshot: this.getSnapshot,
+      subscribe: this.subscribe,
+      activate: this.activate,
+    };
   }
 
-  getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
+  private readonly getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
 
-  getLiveSession = (): LiveActiveThreadSession | null => this.current;
-
-  subscribe = (listener: () => void): (() => void) => {
+  private readonly subscribe = (listener: () => void): (() => void) => {
     if (this.disposed) return () => undefined;
     this.listeners.add(listener);
     return () => {
@@ -162,7 +210,9 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
     return threadId == null ? Promise.resolve({ type: "empty" }) : this.activate(threadId);
   };
 
-  activate = async (threadId: string): Promise<ActiveThreadActivationOutcome> => {
+  private readonly activate = async (
+    threadId: string,
+  ): Promise<ActiveThreadActivationOutcome> => {
     const previous = this.current;
     const previousSnapshot = previous?.getSnapshot() ?? null;
     if (this.disposed) return this.connectionFailure(threadId, "beforeCommit", null);
@@ -327,11 +377,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
     this.unsubscribeCurrent?.();
     this.unsubscribeCurrent = null;
     this.current = next;
+    this.currentRoles = createSessionRoles(next);
     candidate.liveSession = null;
     this.candidate = null;
     this.suppressCurrentPublication = false;
     this.unsubscribeCurrent = next.subscribe(this.handleCurrentPublication);
-    this.snapshot = availableSnapshot(next);
+    this.snapshot = this.availableSnapshot(next, this.currentRoles);
     this.notifyListeners();
 
     const warnings: ActiveThreadActivationWarning[] = [];
@@ -395,7 +446,8 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
 
   private readonly handleCurrentPublication = (): void => {
     if (this.disposed || this.suppressCurrentPublication || this.current == null) return;
-    this.snapshot = availableSnapshot(this.current);
+    if (this.currentRoles == null) return;
+    this.snapshot = this.availableSnapshot(this.current, this.currentRoles);
     this.notifyListeners();
   };
 
@@ -476,9 +528,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
 
   private async finishUncommitted(
     candidate: ActivationCandidate,
-    failure:
-      | Exclude<ActiveThreadActivationFailure, { type: "connectionLost" }>
-      | Readonly<{ type: "connectionLost" }>,
+    failure: ActiveThreadActivationFailureBeforeCleanup,
     releaseReservation: Extract<
       ReturnType<LiveActiveThreadSession["reserveRelease"]>,
       { type: "reserved" }
@@ -507,8 +557,11 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
     this.busy = false;
     if (this.current != null && !this.disposed) {
       const previousSnapshot = this.snapshot;
-      this.snapshot = availableSnapshot(this.current);
-      if (this.snapshot !== previousSnapshot && this.snapshot.revision !== previousSnapshot.revision) {
+      if (this.currentRoles == null) {
+        throw new Error("Current active thread session roles are unavailable");
+      }
+      this.snapshot = this.availableSnapshot(this.current, this.currentRoles);
+      if (this.snapshot !== previousSnapshot) {
         this.notifyListeners();
       }
     }
@@ -540,6 +593,28 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
     return !this.disposed && generation === this.generation;
   }
 
+  private availableSnapshot(
+    liveSession: LiveActiveThreadSession,
+    roles: ActiveThreadSessionRoles,
+  ): ActiveThreadSessionSnapshot {
+    const source = liveSession.getSnapshot();
+    const cached = this.currentSnapshotCache;
+    if (
+      cached != null &&
+      cached.liveSession === liveSession &&
+      cached.source === source &&
+      cached.roles === roles
+    ) {
+      return cached.snapshot;
+    }
+    const snapshot: ActiveThreadSessionSnapshot =
+      source.phase === "disposed"
+        ? { phase: "disposed", revision: source.revision }
+        : { ...source, ...roles };
+    this.currentSnapshotCache = { liveSession, source, roles, snapshot };
+    return snapshot;
+  }
+
   private disposeSession(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -556,6 +631,8 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
     }
     this.candidate = null;
     this.current = null;
+    this.currentRoles = null;
+    this.currentSnapshotCache = null;
     this.snapshot = { phase: "disposed", revision: revision + 1 };
     this.notifyListeners();
     this.listeners.clear();
@@ -566,9 +643,26 @@ class ActiveThreadSessionImpl implements ActiveThreadSession {
   }
 }
 
-function availableSnapshot(liveSession: LiveActiveThreadSession): ActiveThreadSessionSnapshot {
-  const snapshot = liveSession.getSnapshot();
-  return snapshot.phase === "disposed" ? { phase: "disposed", revision: snapshot.revision } : snapshot;
+function createSessionRoles(liveSession: LiveActiveThreadSession): ActiveThreadSessionRoles {
+  return {
+    composerRole: {
+      beginPendingInputEdit: liveSession.beginPendingInputEdit,
+      deletePendingInput: liveSession.deletePendingInput,
+      interruptActiveTurn: liveSession.interruptActiveTurn,
+      movePendingInput: liveSession.movePendingInput,
+      promoteOrdinaryFrontToSteer: liveSession.promoteOrdinaryFrontToSteer,
+      readPendingInputDetail: liveSession.readPendingInputDetail,
+      readPendingInputPage: liveSession.readPendingInputPage,
+      recover: liveSession.recover,
+      submit: liveSession.submit,
+      submitSteer: liveSession.submitSteer,
+    },
+    skillsRole: {
+      invalidateSkills: liveSession.invalidateSkills,
+      refreshSkills: liveSession.refreshSkills,
+      retrySkills: liveSession.retrySkills,
+    },
+  };
 }
 
 function applyProjectionNotification(
@@ -609,6 +703,6 @@ function appendError(current: unknown, error: unknown): unknown {
 
 export function createActiveThreadSession(
   input: CreateActiveThreadSessionInput,
-): ActiveThreadSession {
+): ActiveThreadSessionController {
   return new ActiveThreadSessionImpl(input);
 }
