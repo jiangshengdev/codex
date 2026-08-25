@@ -374,6 +374,75 @@ describe("ComposerPendingInputSession", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
+  test("publishes closing when request-close cancellation loses its owner", () => {
+    const { session, harness, current } = openSession();
+    const currentAfterAttach = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2 }),
+    });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "unavailable" as const,
+        scope: "ownerGone" as const,
+        reason: "ownerReplaced" as const,
+      })),
+    };
+    beginActiveEdit(session, harness, current, reservation);
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+
+    expect(session.requestClose(currentAfterAttach)).toEqual({ type: "ignored" });
+
+    expect(reservation.cancel).toHaveBeenCalledOnce();
+    expect(reservation.save).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledOnce();
+    expect(session.getSnapshot()).toMatchObject({ phase: "closing", view: null });
+  });
+
+  test("publishes a live-session alert when request-close cancellation is invalidated", () => {
+    const { session, harness, current } = openSession();
+    const currentAfterAttach = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2 }),
+    });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 3,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "unavailable" as const,
+        scope: "liveOwner" as const,
+        reason: "sessionInvalidated" as const,
+        revision: 3,
+      })),
+    };
+    beginActiveEdit(session, harness, current, reservation);
+    const editorEffect = session.getSnapshot().effects[0];
+    if (editorEffect?.target.type !== "editor") {
+      throw new Error("active edit must issue an editor focus effect");
+    }
+    session.consumeEffect(editorEffect.id);
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+
+    expect(session.requestClose(currentAfterAttach)).toEqual({ type: "ignored" });
+
+    expect(reservation.cancel).toHaveBeenCalledOnce();
+    expect(reservation.save).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledOnce();
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      alert: "sessionInvalidated",
+      view: { pages: { revision: 3 }, edit: null },
+      effects: [{ target: { type: "drawerHeading" } }],
+    });
+  });
+
   test("ignores a stale detach after a matching invalidation settles the active edit", () => {
     const steerItem = item("one", "steer");
     const harness = createRoleHarness([steerItem]);
@@ -506,6 +575,59 @@ describe("ComposerPendingInputSession", () => {
       [{ lane: "steer", revision: 2, cursor: null, limit: 20 }],
       [{ lane: "ordinary", revision: 2, cursor: null, limit: 20 }],
     ]);
+  });
+
+  test("publishes only when a no-op move clears an existing announcement", () => {
+    const entries = [item("one"), item("two")];
+    const firstEntry = entries[0];
+    const secondEntry = entries[1];
+    if (firstEntry == null || secondEntry == null) {
+      throw new Error("move test requires two initial entries");
+    }
+    const { session, harness, current } = openSession(createRoleHarness(entries));
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(session.moveItem(current, firstEntry, "later")).toEqual({ type: "ignored" });
+    expect(session.getSnapshot().announcement).toBeNull();
+    expect(listener).not.toHaveBeenCalled();
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+
+    harness.setItems([secondEntry, firstEntry]);
+    harness.moveItem.mockReturnValueOnce({
+      type: "moved",
+      revision: 2,
+      lane: "ordinary",
+      position: 2,
+      count: 2,
+    });
+    expect(session.moveItem(current, firstEntry, "later")).toEqual({ type: "applied" });
+    expect(session.getSnapshot().announcement).toEqual({
+      lane: "ordinary",
+      position: 2,
+      count: 2,
+    });
+
+    const currentAfterMove = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2, ordinaryQueuedCount: 2 }),
+    });
+    session.project(currentAfterMove);
+    harness.moveItem.mockReturnValueOnce({
+      type: "noOp",
+      reason: "alreadyAtDestination",
+      revision: 2,
+    });
+    const beforeNoOp = session.getSnapshot();
+    listener.mockClear();
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(session.moveItem(currentAfterMove, firstEntry, "later")).toEqual({ type: "ignored" });
+
+    expect(session.getSnapshot()).toEqual({ ...beforeNoOp, announcement: null });
+    expect(listener).toHaveBeenCalledOnce();
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
   });
 
   test("matches management outcomes by object identity and item key", () => {
