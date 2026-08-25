@@ -73,7 +73,7 @@ describe("LiveActiveThreadSession", () => {
   it("does not publish rejected or no-op queue mutations", () => {
     const { session, startTurn } = createHarness();
     const revision = session.getSnapshot().revision;
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     session.subscribe(listener);
 
     expect(session.submit(revision, composerCapture(""))).toEqual({
@@ -90,7 +90,7 @@ describe("LiveActiveThreadSession", () => {
   it("aborts a synchronous release handoff without changing the public session", () => {
     const { session } = createHarness();
     const snapshot = session.getSnapshot();
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     session.subscribe(listener);
 
     const reserved = session.reserveRelease(snapshot.revision);
@@ -116,7 +116,7 @@ describe("LiveActiveThreadSession", () => {
   it("commits a synchronous release handoff without publishing its frozen state", () => {
     const { session } = createHarness();
     const snapshot = session.getSnapshot();
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     session.subscribe(listener);
 
     const reserved = session.reserveRelease(snapshot.revision);
@@ -184,11 +184,152 @@ describe("LiveActiveThreadSession", () => {
     session.handleProjectionDelta(eventAgentMessageDelta);
     session.flushProjection();
 
-    expect(begun.reservation.save(composerCapture("changed"))).toEqual({
+    const unavailable = begun.reservation.save(composerCapture("changed"));
+    expect(unavailable).toEqual({
       type: "unavailable",
       scope: "activeThreadSession",
       reason: "staleRevision",
-      revision: capabilityRevision + 1,
+      revision: session.getSnapshot().revision,
+    });
+    expect(session.getSnapshot().revision).toBe(capabilityRevision + 2);
+    const restoredSnapshot = session.getSnapshot();
+    if (restoredSnapshot.phase !== "active") throw new Error("expected an active session");
+    const restoredPage = session.readPendingInputPage({
+      lane: "ordinary",
+      revision: restoredSnapshot.composer.detailRevision,
+      cursor: null,
+      limit: 10,
+    });
+    if (restoredPage.type !== "page" || restoredPage.items[0] == null) {
+      throw new Error("expected the original pending input after stale save cleanup");
+    }
+    expect(restoredPage.items[0]).toMatchObject({
+      preview: { type: "text", text: "edit me", truncated: false },
+    });
+    expect(session.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+    });
+    expect(begun.reservation.save(composerCapture("changed again"))).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "staleRevision",
+      revision: session.getSnapshot().revision,
+    });
+    session.dispose();
+    const disposedRevision = session.getSnapshot().revision;
+    expect(begun.reservation.save(composerCapture("after dispose"))).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "disposed",
+      revision: disposedRevision,
+    });
+    expect(begun.reservation.cancel()).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "disposed",
+      revision: disposedRevision,
+    });
+  });
+
+  it("cleans up a pending edit when projection becomes unavailable", () => {
+    const { session } = createHarness();
+    session.handleProjectionEvent(eventTurnStarted);
+    session.submit(session.getSnapshot().revision, composerCapture("keep me"));
+    const active = session.getSnapshot();
+    if (active.phase !== "active") throw new Error("expected an active session");
+    const page = session.readPendingInputPage({
+      lane: "ordinary",
+      revision: active.composer.detailRevision,
+      cursor: null,
+      limit: 10,
+    });
+    if (page.type !== "page" || page.items[0] == null) throw new Error("expected pending input");
+    const begun = session.beginPendingInputEdit(
+      active.revision,
+      { key: page.items[0].key, revision: page.revision },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected pending edit capability");
+
+    session.handleProjectionClosed(closedBackpressure);
+    const unavailable = begun.reservation.save(composerCapture("do not save"));
+
+    expect(unavailable).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "projectionUnavailable",
+      revision: session.getSnapshot().revision,
+    });
+    const revisionAfterCleanup = session.getSnapshot().revision;
+    expect(begun.reservation.cancel()).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "projectionUnavailable",
+      revision: revisionAfterCleanup,
+    });
+    expect(session.getSnapshot().revision).toBe(revisionAfterCleanup);
+    const snapshot = session.getSnapshot();
+    if (snapshot.phase !== "projectionUnavailable") {
+      throw new Error("expected projectionUnavailable");
+    }
+    const restoredPage = session.readPendingInputPage({
+      lane: "ordinary",
+      revision: snapshot.composer.detailRevision,
+      cursor: null,
+      limit: 10,
+    });
+    if (restoredPage.type !== "page" || restoredPage.items[0] == null) {
+      throw new Error("expected restored input");
+    }
+    expect(restoredPage.items[0]).toMatchObject({
+      preview: { type: "text", text: "keep me", truncated: false },
+    });
+    expect(session.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
+    });
+  });
+
+  it("cleans up a stale pending-edit cancel callback only once", () => {
+    const { session } = createHarness();
+    session.handleProjectionEvent(eventTurnStarted);
+    session.submit(session.getSnapshot().revision, composerCapture("cancel me"));
+    const active = session.getSnapshot();
+    if (active.phase !== "active") throw new Error("expected an active session");
+    const page = session.readPendingInputPage({
+      lane: "ordinary",
+      revision: active.composer.detailRevision,
+      cursor: null,
+      limit: 10,
+    });
+    if (page.type !== "page" || page.items[0] == null) throw new Error("expected pending input");
+    const begun = session.beginPendingInputEdit(
+      active.revision,
+      { key: page.items[0].key, revision: page.revision },
+      () => ({ type: "restored" }),
+    );
+    if (begun.type !== "begun") throw new Error("expected pending edit capability");
+    session.handleProjectionDelta(eventAgentMessageDelta);
+    session.flushProjection();
+
+    expect(begun.reservation.cancel()).toMatchObject({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "staleRevision",
+      revision: session.getSnapshot().revision,
+    });
+    const revisionAfterCleanup = session.getSnapshot().revision;
+    expect(begun.reservation.cancel()).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "staleRevision",
+      revision: revisionAfterCleanup,
+    });
+    expect(session.getSnapshot().revision).toBe(revisionAfterCleanup);
+    expect(session.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "ordinaryQueued", count: 1 }],
     });
   });
 
@@ -223,7 +364,7 @@ describe("LiveActiveThreadSession", () => {
   it("disposes child subscriptions and permanently rejects captured capabilities", () => {
     const { session } = createHarness();
     const revision = session.getSnapshot().revision;
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     session.subscribe(listener);
 
     session.dispose();

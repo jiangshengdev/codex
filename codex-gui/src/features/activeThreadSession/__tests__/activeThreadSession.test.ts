@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { makeStore, type AppDispatch } from "@/app/store";
 import { createDeferred, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
+import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
   attachBaseline,
@@ -13,6 +14,9 @@ import {
 import {
   attachWithThreadId,
   eventForThreadOwner,
+  eventWithEnvelope,
+  inProgressTurn,
+  turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import type { UnknownAction } from "@reduxjs/toolkit";
 import {
@@ -26,12 +30,26 @@ const replacementEvent = eventForThreadOwner(eventSubscriptionReplacement, {
   threadId: replacementThreadId,
   subscriptionId: replacementAttach.subscriptionId,
 });
+const postPublicationEvent = eventForThreadOwner(
+  eventWithEnvelope(
+    turnStarted(
+      eventTurnStarted,
+      "commit-post-publication",
+      inProgressTurn("post-publication-turn"),
+    ),
+    { parentCommitId: replacementEvent.commitId },
+  ),
+  {
+    threadId: replacementThreadId,
+    subscriptionId: replacementAttach.subscriptionId,
+  },
+);
 
 const createAuthorizationSession = (activeThreadId: string | null = attachBaseline.snapshot.thread.id) => {
   let currentThreadId = activeThreadId;
   return {
     getSnapshot: () => ({ token: "test-token", activeThreadId: currentThreadId }),
-    commitActiveThread: vi.fn((threadId: string) => {
+    commitActiveThread: vi.fn<BrowserAuthorizationSession["commitActiveThread"]>((threadId) => {
       currentThreadId = threadId;
     }),
   };
@@ -86,7 +104,7 @@ const queueReplacementActivation = (commands: GuiHostCommands) => {
 describe("ActiveThreadSession", () => {
   it("uses the recovery locator for first attach and publishes one complete session", async () => {
     const h = createHarness();
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     h.session.subscribe(listener);
 
     await activateInitial(h);
@@ -239,7 +257,7 @@ describe("ActiveThreadSession", () => {
     await activateInitial(h);
     const attach = createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
     vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     h.session.subscribe(listener);
 
     const activation = h.session.activate(replacementThreadId);
@@ -259,6 +277,25 @@ describe("ActiveThreadSession", () => {
     });
     expect(h.store.getState().threadRuntime.current?.threadId).toBe(replacementThreadId);
     expect(listener).toHaveBeenCalledTimes(1);
+    const published = h.session.getSnapshot();
+    expect(h.store.getState().threadRuntime.sessionRevision).toBe(published.revision);
+
+    h.controller.handleProjectionEvent(postPublicationEvent);
+    const afterEvent = h.session.getSnapshot();
+    expect(afterEvent.revision).toBeGreaterThan(published.revision);
+    expect(h.store.getState().threadRuntime.sessionRevision).toBe(afterEvent.revision);
+    if (afterEvent.phase !== "active") throw new Error("expected the replacement active session");
+    expect(
+      afterEvent.composerRole.submit(
+        afterEvent.revision,
+        composerCapture("post-publication child transition"),
+      ),
+    ).toEqual({ type: "accepted" });
+    const afterChild = h.session.getSnapshot();
+    expect(afterChild.revision).toBeGreaterThan(afterEvent.revision);
+    expect(h.store.getState().threadRuntime.sessionRevision).toBe(
+      afterChild.revision,
+    );
     expect(h.commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: attachBaseline.snapshot.thread.id,
     });
@@ -270,7 +307,7 @@ describe("ActiveThreadSession", () => {
     await activateInitial(h);
     const oldSnapshot = h.session.getSnapshot();
     if (oldSnapshot.phase !== "active") throw new Error("expected the initial active session");
-    const sessionListener = vi.fn();
+    const sessionListener = vi.fn<() => void>();
     h.session.subscribe(sessionListener);
     queueReplacementActivation(h.commands);
     rejectDispatch = true;

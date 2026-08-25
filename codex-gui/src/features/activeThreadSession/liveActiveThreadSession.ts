@@ -154,13 +154,28 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     const capabilityRevision = this.revision;
     const capabilityGeneration = this.generation;
     const childReservation = result.reservation;
+    let cleanupCompleted = false;
+    const unavailableAfterCleanup = (
+      unavailable: ActiveThreadSessionOperationUnavailable,
+    ): ActiveThreadSessionOperationUnavailable => {
+      if (!cleanupCompleted) {
+        cleanupCompleted = true;
+        if (unavailable.reason !== "disposed") {
+          this.runChildTransaction(childReservation.cancel);
+        }
+      }
+      return this.unavailable(unavailable.reason);
+    };
+    const runCapabilityOperation = <Result>(
+      operation: () => Result,
+    ): ActiveThreadSessionOperationResult<Result> => {
+      const unavailable = this.capabilityUnavailable(capabilityRevision, capabilityGeneration);
+      if (unavailable != null) return unavailableAfterCleanup(unavailable);
+      return this.runChildTransaction(operation);
+    };
     const reservation: ActiveThreadPendingInputEditReservation = {
-      save: (capture) =>
-        this.mutateCapability(capabilityRevision, capabilityGeneration, () =>
-          childReservation.save(capture),
-        ),
-      cancel: () =>
-        this.mutateCapability(capabilityRevision, capabilityGeneration, childReservation.cancel),
+      save: (capture) => runCapabilityOperation(() => childReservation.save(capture)),
+      cancel: () => runCapabilityOperation(childReservation.cancel),
     };
     return { ...result, reservation } satisfies ActiveThreadBeginPendingInputEditResult;
   };
@@ -303,6 +318,10 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   ): ActiveThreadSessionOperationResult<Result> {
     const unavailable = this.operationUnavailable(expectedRevision);
     if (unavailable != null) return unavailable;
+    return this.runChildTransaction(operation);
+  }
+
+  private runChildTransaction<Result>(operation: () => Result): Result {
     const outermost = this.transactionDepth === 0;
     const queueCapabilityBefore = outermost ? this.queueCapabilityFingerprint() : null;
     this.transactionDepth += 1;
@@ -319,15 +338,18 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     }
   }
 
-  private mutateCapability<Result>(
+  private capabilityUnavailable(
     expectedRevision: number,
     expectedGeneration: number,
-    operation: () => Result,
-  ): ActiveThreadSessionOperationResult<Result> {
+  ): ActiveThreadSessionOperationUnavailable | null {
+    if (this.disposed) return this.unavailable("disposed");
     if (expectedGeneration !== this.generation) {
-      return this.unavailable(this.disposed ? "disposed" : "staleRevision");
+      return this.unavailable("staleRevision");
     }
-    return this.mutate(expectedRevision, operation);
+    if (this.projectionUnavailableReason != null) {
+      return this.unavailable("projectionUnavailable");
+    }
+    return this.operationUnavailable(expectedRevision);
   }
 
   private operationUnavailable(expectedRevision: number): ActiveThreadSessionOperationUnavailable | null {

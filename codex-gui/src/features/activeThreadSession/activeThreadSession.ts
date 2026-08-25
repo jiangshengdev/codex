@@ -152,8 +152,41 @@ type ActivationCandidate = {
   notifications: ActiveThreadNotification[];
   replayedNotificationCount: number;
   liveSession: LiveActiveThreadSession | null;
-  stagedActions: UnknownAction[];
+  dispatchAdapter: CandidateDispatchAdapter;
 };
+
+class CandidateDispatchAdapter {
+  private readonly stagedActions: UnknownAction[] = [];
+  private activeDispatch: AppDispatch | null = null;
+  private aborted = false;
+
+  readonly dispatch = ((action: UnknownAction) => {
+    if (this.activeDispatch != null) return this.activeDispatch(action);
+    if (!this.aborted) this.stagedActions.push(action);
+    return action;
+  }) as AppDispatch;
+
+  flush(dispatch: AppDispatch): void {
+    if (this.activeDispatch != null || this.aborted) {
+      throw new Error("Candidate dispatch is unavailable");
+    }
+    for (const action of this.stagedActions) dispatch(action);
+  }
+
+  activate(dispatch: AppDispatch): void {
+    if (this.activeDispatch != null || this.aborted) {
+      throw new Error("Candidate dispatch is unavailable");
+    }
+    this.activeDispatch = dispatch;
+    this.stagedActions.length = 0;
+  }
+
+  abort(): void {
+    if (this.activeDispatch != null) return;
+    this.aborted = true;
+    this.stagedActions.length = 0;
+  }
+}
 
 class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   readonly session: ActiveThreadSession;
@@ -230,7 +263,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       notifications: [],
       replayedNotificationCount: 0,
       liveSession: null,
-      stagedActions: [],
+      dispatchAdapter: new CandidateDispatchAdapter(),
     };
     this.candidate = candidate;
     const previousRevision = previousSnapshot?.revision ?? this.snapshot.revision;
@@ -283,16 +316,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         }
         candidate.replayedNotificationCount += 1;
       }
-      const stagedDispatch = ((action: UnknownAction) => {
-        candidate.stagedActions.push(action);
-        return action;
-      }) as AppDispatch;
       candidate.liveSession = createLiveActiveThreadSession({
         sessionRevision: previousRevision + 1,
         attachResponse,
         projection,
         commands: this.commands,
-        dispatch: stagedDispatch,
+        dispatch: candidate.dispatchAdapter.dispatch,
       } satisfies CreateLiveActiveThreadSessionInput);
     } catch (error: unknown) {
       return this.finishUncommitted(candidate, {
@@ -339,7 +368,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     }
 
     try {
-      for (const action of candidate.stagedActions) this.dispatch(action);
+      candidate.dispatchAdapter.flush(this.dispatch);
     } catch (error: unknown) {
       this.suppressCurrentPublication = false;
       return this.finishUncommitted(
@@ -361,18 +390,15 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
           releaseReservation,
         );
       }
-      releaseReservation = null;
     }
 
-    const next = candidate.liveSession;
-    if (next == null) {
+    if (!this.isCurrentCandidate(candidate)) {
       this.suppressCurrentPublication = false;
-      return this.finishUncommitted(
-        candidate,
-        { type: "operationFailed", phase: "activate", error: new Error("Candidate live session was not prepared") },
-        releaseReservation,
-      );
+      return this.finishUncommitted(candidate, { type: "connectionLost" });
     }
+    candidate.dispatchAdapter.activate(this.dispatch);
+
+    const next = candidate.liveSession;
     this.cancelPendingProjectionFrame();
     this.unsubscribeCurrent?.();
     this.unsubscribeCurrent = null;
@@ -455,7 +481,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     if (this.disposed) return null;
     const identity = input.notification;
     const candidate = this.candidate;
-    if (candidate != null && identity.threadId === candidate.threadId) {
+    if (candidate?.threadId === identity.threadId) {
       if (candidate.subscriptionId == null || identity.subscriptionId === candidate.subscriptionId) {
         candidate.notifications.push(input);
       }
@@ -535,6 +561,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     >["reservation"] | null = null,
   ): Promise<ActiveThreadActivationOutcome> {
     let cleanupError: unknown = null;
+    candidate.dispatchAdapter.abort();
     try {
       candidate.liveSession?.dispose();
     } catch (error: unknown) {
@@ -600,8 +627,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     const source = liveSession.getSnapshot();
     const cached = this.currentSnapshotCache;
     if (
-      cached != null &&
-      cached.liveSession === liveSession &&
+      cached?.liveSession === liveSession &&
       cached.source === source &&
       cached.roles === roles
     ) {
@@ -624,6 +650,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     this.unsubscribeCurrent?.();
     this.unsubscribeCurrent = null;
     const revision = this.current?.getSnapshot().revision ?? this.snapshot.revision;
+    this.candidate?.dispatchAdapter.abort();
     try {
       this.candidate?.liveSession?.dispose();
     } finally {
