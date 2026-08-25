@@ -8,6 +8,10 @@
 
 确认原文：确认计划，开始实施
 
+修正确认日期：2026-08-25
+
+修正确认原文：按此执行
+
 对应已确认设计：
 
 - `docs/superpowers/specs/2026/08/25/2026-08-25-codex-gui-composer-application-session-boundary-design.md`
@@ -175,15 +179,23 @@ generation/effect id 单次消费，以及 teardown 不主动 save/cancel reserv
 
 ## Worktree 预配授权
 
-计划确认后，先在当前 `dev` 工作树创建仅包含设计与计划的 docs-only 本地提交。提交成功后，使用项目固化脚本
-从已含该提交的 `dev` 创建以下三个 sparse worktree；在全部创建并核验前不得开始任何 implementation edit：
+原 DOCS 提交 `cfc712620c5cfad58c7d1c9c9b4f54eb720370a1` 已形成。恢复执行前，先把本次计划修正作为新的独立
+docs-only 本地提交落在 `dev`；该修正提交成功前，不得清理部分创建的 W1，也不得创建或继续 W1/W2/W3。
+
+当前共享链接保持不变：`/Users/jiangsheng/cnb/codex/.worktrees/vitest` 的 direct target 是
+`/Users/jiangsheng/cnb/vitest`，fully resolved physical target 是 `/Users/jiangsheng/GitHub/vitest`。两者对本计划的
+Vitest 文档只读资源等效；精确命令使用现有 direct mapping 能接受的 `/Users/jiangsheng/cnb/vitest`，不修改、迁移或
+重建现有共享链接。
+
+计划修正提交成功后，先按恢复节点只处理 W1 的部分创建状态，同时允许 W2/W3 在不冲突时按图调度。使用项目固化
+脚本从已含修正提交的 `dev` 创建以下三个 sparse worktree；在全部创建并核验前不得开始任何 implementation edit：
 
 ```text
-.codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh --name gui-composer-pending-session --branch codex/gui-composer-pending-session --base dev --repo-root /Users/jiangsheng/cnb/codex --worktree-root /Users/jiangsheng/cnb/codex/.worktrees --vitest-root /Users/jiangsheng/GitHub/vitest
+.codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh --name gui-composer-pending-session --branch codex/gui-composer-pending-session --base dev --repo-root /Users/jiangsheng/cnb/codex --worktree-root /Users/jiangsheng/cnb/codex/.worktrees --vitest-root /Users/jiangsheng/cnb/vitest
 
-.codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh --name gui-composer-turn-application --branch codex/gui-composer-turn-application --base dev --repo-root /Users/jiangsheng/cnb/codex --worktree-root /Users/jiangsheng/cnb/codex/.worktrees --vitest-root /Users/jiangsheng/GitHub/vitest
+.codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh --name gui-composer-turn-application --branch codex/gui-composer-turn-application --base dev --repo-root /Users/jiangsheng/cnb/codex --worktree-root /Users/jiangsheng/cnb/codex/.worktrees --vitest-root /Users/jiangsheng/cnb/vitest
 
-.codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh --name gui-composer-application-session-boundary --branch codex/gui-composer-application-session-boundary --base dev --repo-root /Users/jiangsheng/cnb/codex --worktree-root /Users/jiangsheng/cnb/codex/.worktrees --vitest-root /Users/jiangsheng/GitHub/vitest
+.codex/skills/codex-gui-worktree/scripts/create-codex-gui-worktree.sh --name gui-composer-application-session-boundary --branch codex/gui-composer-application-session-boundary --base dev --repo-root /Users/jiangsheng/cnb/codex --worktree-root /Users/jiangsheng/cnb/codex/.worktrees --vitest-root /Users/jiangsheng/cnb/vitest
 ```
 
 固定路径与执行上下文：
@@ -197,6 +209,9 @@ generation/effect id 单次消费，以及 teardown 不主动 save/cancel reserv
 脚本默认 sparse include 已覆盖 `.codex/skills`、`.agents/skills`、`codex-gui`、协议 schema 与
 `docs/superpowers`，本计划不追加 include。三个 worktree 共享主工作树已有的 `node_modules`、HeroUI/Redux/Vitest
 文档链接；不运行 install。
+
+恢复节点不修改共享 Vitest 链接：只读核验 W1 的部分状态后，非强制移除精确 W1 worktree，再普通删除精确 W1
+branch；不使用 force，不访问远程，也不处理 W2/W3 或任何无关 worktree/branch。
 
 ## 执行图
 
@@ -223,7 +238,7 @@ owner 执行。实现阶段每个节点事件后重新计算 ready set。
 - `verification`: 只读检查文档头部与 Git diff。
 - `failureDomain`: D1、D2 及所有 implementation 后继。
 - `replanTriggers`: 用户确认同时改变目标、范围或行为。
-- `authorizationGate`: 当前未满足；用户确认本计划后满足。
+- `authorizationGate`: 已满足；原计划确认已记录。
 
 ### D1 — 工作文档 stage
 
@@ -245,7 +260,7 @@ owner 执行。实现阶段每个节点事件后重新计算 ready set。
 - `verification`: staged name/status/diff/check 四项只读核验。
 - `failureDomain`: D1、D2 及所有 implementation 后继；不改变工作文档内容。
 - `replanTriggers`: staged 出现第三个路径、设计/计划内容在确认后漂移。
-- `authorizationGate`: 当前未满足；用户确认本计划后满足。
+- `authorizationGate`: 已满足；原计划确认已记录。
 
 ### D2 — 工作文档提交
 
@@ -269,39 +284,90 @@ owner 执行。实现阶段每个节点事件后重新计算 ready set。
 - `replanTriggers`: commit hook 产生范围外修改或提交内容不匹配。
 - `authorizationGate`: 计划确认后满足；禁止 amend。
 
+### DC0 / DC1 / DC2 — 计划修正与独立 docs-only 提交
+
+- `nodeId`: DC0；`taskBoundary`: DOCS-CORRECTION；`operationKind`: 编辑；`outcome`: 记录修正确认，并把 worktree
+  参数、恢复节点及调度关系修正为当前可执行状态；`estimatedCost`: S；`deferralEvidence`: 无；
+  `hardPredecessors`: D2；`consumes`: 修正确认原文、现有 Vitest direct/fully resolved mapping、W1 部分状态；
+  `produces`: 本计划单文件 working diff；`completionEvidence`: 不改变产品目标、P/T/I/V/A 写集合或关联 issue；
+  `readSet`: 本计划、固化脚本、Git/worktree/link 状态；`writeSet`: 本计划单文件；`executionContext`: 主 `dev`
+  worktree，index 不变；`resourceLocks`: 本计划文件 write；`owner`: DOCS-CORRECTION owner；`verification`: 文档 diff
+  与 `git diff --check`；`failureDomain`: DC1、DC2、R0-R2、W1-W4 及所有 implementation 后继；
+  `replanTriggers`: 修正需要改变产品目标或计划外文件；`authorizationGate`: 已由“按此执行”满足。
+- `nodeId`: DC1；`taskBoundary`: DOCS-CORRECTION；`operationKind`: stage；`outcome`: 仅本计划文件进入 index；
+  `estimatedCost`: S；`deferralEvidence`: 无；`hardPredecessors`: DC0；`consumes`: 已核验修正 diff；`produces`:
+  scoped staged index；`completionEvidence`: staged name-only 仅本计划且 staged diff-check 通过；`readSet`: 计划 diff/status；
+  `writeSet`: 主 index；`executionContext`: 主 `dev` worktree/index 独占；`resourceLocks`: 主 index write；
+  `owner`: DOCS-CORRECTION Git owner；`verification`: staged name/status/diff/check；`failureDomain`: DC2、R0-R2、W1-W4
+  及所有 implementation 后继；`replanTriggers`: staged 越界；`authorizationGate`: 已满足。
+- `nodeId`: DC2；`taskBoundary`: DOCS-CORRECTION；`operationKind`: commit；`outcome`: 形成只含本计划修正的独立
+  docs-only 本地提交；`estimatedCost`: S；`deferralEvidence`: 无；`hardPredecessors`: DC1；`consumes`: scoped staged
+  index；`produces`: corrected DOCS commit id 与新的 `dev` baseline；`completionEvidence`: commit 只含本计划，parent 为
+  D2 commit，主 worktree scoped clean；`readSet`: staged diff/Git metadata；`writeSet`: `dev` ref、object database/index；
+  `executionContext`: 主 `dev` worktree/index 独占；`resourceLocks`: repository refs/object database + 主 index write；
+  `owner`: DOCS-CORRECTION Git owner；`verification`: commit show/parent/branch/status；`failureDomain`: R0-R2、W1-W4 及
+  所有 implementation 后继；`replanTriggers`: commit 内容漂移；`authorizationGate`: 已满足，禁止 amend。
+
+### R0 / R1 / R2 — W1 部分创建状态恢复
+
+- `nodeId`: R0；`taskBoundary`: RECOVER-W1（无提交）；`operationKind`: 调查；`outcome`: 证明只可安全清理精确 W1
+  部分状态；`estimatedCost`: S；`deferralEvidence`: 无；`hardPredecessors`: DC2；`consumes`: corrected DOCS commit、
+  W1 worktree/branch metadata；`produces`: W1 clean/identity/unused evidence；`completionEvidence`: W1 worktree 与 index
+  clean，worktree/branch HEAD 都等于已落地的原 DOCS baseline `cfc712620c5cfad58c7d1c9c9b4f54eb720370a1`，且没有
+  进程 cwd 位于 W1 路径内；`readSet`: W1 status/HEAD、worktree list、branch ref、process cwd；`writeSet`: 无；
+  `executionContext`: 主协调上下文只读；`resourceLocks`: W1 metadata/process table read；`owner`: RECOVER-W1 owner；
+  `verification`: status、diff、HEAD/ref、worktree list 与 cwd 检查；`failureDomain`: R1、R2、W1/W4 及 P 后继，不暂停
+  W2/W3；`replanTriggers`: W1 dirty、identity 漂移或仍被进程使用；`authorizationGate`: 已满足。
+- `nodeId`: R1；`taskBoundary`: RECOVER-W1（无提交）；`operationKind`: 集成准备；`outcome`: 以非强制
+  `git worktree remove /Users/jiangsheng/cnb/codex/.worktrees/gui-composer-pending-session` 只移除 W1 worktree；
+  `estimatedCost`: S；`deferralEvidence`: 无；`hardPredecessors`: R0；`consumes`: W1 安全清理证据；`produces`: W1 路径
+  与 worktree registry entry 不再存在；`completionEvidence`: 精确 W1 路径/entry 缺失，共享 Vitest link 保持不变；
+  `readSet`: W1 metadata；`writeSet`: W1 路径、repository worktree registry；`executionContext`: 主 worktree；
+  `resourceLocks`: W1 路径 + repository worktree registry write；`owner`: RECOVER-W1 owner；`verification`: worktree list、
+  精确路径与共享链接核验；`failureDomain`: R2、W1/W4 及 P 后继；`replanTriggers`: 普通 remove 拒绝；
+  `authorizationGate`: 已满足；禁止 force、远程或删除共享 Vitest link。
+- `nodeId`: R2；`taskBoundary`: RECOVER-W1（无提交）；`operationKind`: 集成准备；`outcome`: 以普通
+  `git branch -d codex/gui-composer-pending-session` 只删除 W1 branch；`estimatedCost`: S；`deferralEvidence`: 无；
+  `hardPredecessors`: R1；`consumes`: 已移除的 W1 worktree、branch 为 corrected `dev` ancestor 的事实；`produces`:
+  W1 branch ref 不再存在；`completionEvidence`: 精确 branch ref 缺失，其他 refs 不变；`readSet`: branch/ref/ancestry；
+  `writeSet`: 精确 W1 branch ref；`executionContext`: 主 worktree；`resourceLocks`: repository refs write；
+  `owner`: RECOVER-W1 owner；`verification`: show-ref、worktree list；`failureDomain`: W1/W4 及 P 后继；
+  `replanTriggers`: 普通 branch delete 拒绝；`authorizationGate`: 已满足；禁止 `-D`、force 或远程。
+
 ### W1 / W2 / W3 — 三个 sparse worktree 创建
 
 三个节点字段相同，仅参数与 executionContext 不同：
 
 | nodeId | taskBoundary | operationKind | outcome | estimatedCost | hardPredecessors |
 | --- | --- | --- | --- | --- | --- |
-| W1 | PREP-P（无提交） | 集成准备 | pending session worktree/branch 创建并链接资源 | S | D2 的 DOCS commit |
-| W2 | PREP-T（无提交） | 集成准备 | turn application worktree/branch 创建并链接资源 | S | D2 的 DOCS commit |
-| W3 | PREP-I（无提交） | 集成准备 | integration worktree/branch 创建并链接资源 | S | D2 的 DOCS commit |
+| W1 | PREP-P（无提交） | 集成准备 | pending session worktree/branch 创建并链接资源 | S | DC2 的 corrected DOCS commit、R2 的 W1 cleanup |
+| W2 | PREP-T（无提交） | 集成准备 | turn application worktree/branch 创建并链接资源 | S | DC2 的 corrected DOCS commit |
+| W3 | PREP-I（无提交） | 集成准备 | integration worktree/branch 创建并链接资源 | S | DC2 的 corrected DOCS commit |
 
-- `deferralEvidence`: 无；三个脚本目标、branch、index 不相交，D2 后同时 ready。
-- `consumes`: D2 commit、上节精确脚本参数、canonical shared resources。
+- `deferralEvidence`: 无；DC2 后 W2/W3 同时 ready，W1 只等待 R2；创建节点竞争 registry/refs 锁。
+- `consumes`: DC2 commit、上节精确脚本参数、shared resources；W1 额外消费 R2 cleanup evidence。
 - `produces`: 对应 worktree、branch、sparse checkout 与资源 symlink。
-- `completionEvidence`: branch HEAD 等于 D2 commit；sparse list 正确；worktree status clean；五项共享资源链接指向
-  canonical target。
-- `readSet`: 固化脚本、D2 commit、共享 `node_modules` 与本地 docs roots。
+- `completionEvidence`: branch HEAD 等于 DC2 commit；sparse list 正确；worktree status clean；四项 GUI 本地资源链接
+  各自指向计划声明的 direct target；共享 Vitest link 的 direct target 为 `/Users/jiangsheng/cnb/vitest`，fully resolved
+  physical target 为 `/Users/jiangsheng/GitHub/vitest`。
+- `readSet`: 固化脚本、DC2 commit、共享 `node_modules` 与本地 docs roots。
 - `writeSet`: 各自 `.worktrees/<name>`、独立 branch ref 与独立 Git index。
 - `executionContext`: 分别为上表 P/T/I worktree，branch/index 独占。
-- `resourceLocks`: repository worktree registry/refs write，以及
-  `/Users/jiangsheng/cnb/codex/.worktrees/vitest` shared symlink write；脚本执行期间三者均 ready，但按这两个
-  canonical 写锁串行取得和释放，不伪造依赖边。
+- `resourceLocks`: repository worktree registry/refs write；现有
+  `/Users/jiangsheng/cnb/codex/.worktrees/vitest` symlink metadata read。三个创建节点可同时 ready，但竞争 registry/refs
+  canonical 写锁，串行取得和释放，不伪造依赖边。
 - `owner`: 每个 preparation 节点的唯一 worktree owner。
 - `verification`: 固化脚本成功后只读核验 HEAD、branch、status、sparse paths 与 symlink targets。
 - `failureDomain`: 仅失败节点及 W4；已成功的 sibling 保留，不 force 清理。
-- `replanTriggers`: branch/path 已存在、base 不再是 D2、共享资源缺失或 symlink 指向异常。
-- `authorizationGate`: 计划确认后精确授权上述三条命令；当前未满足。
+- `replanTriggers`: branch/path 已存在、base 不再是 DC2、共享资源缺失，或 Vitest direct/fully resolved mapping 漂移。
+- `authorizationGate`: 原计划确认与修正确认已精确授权上述三条命令；已满足。
 
 ### W4 — 统一预配屏障
 
 - `nodeId`: W4
 - `taskBoundary`: PREP-FAN-IN（无提交）
 - `operationKind`: fan-in
-- `outcome`: 三个实现上下文都从同一 D2 基线可用。
+- `outcome`: 三个实现上下文都从同一 DC2 基线可用。
 - `estimatedCost`: S
 - `deferralEvidence`: 无。
 - `hardPredecessors`: W1、W2、W3；等待三个已核验 worktree identities。
@@ -495,7 +561,7 @@ commit 纳为祖先；merge commit 只表达拓扑汇合，不重写 P/T。若�
 
 - `nodeId`: I1T；`taskBoundary`: INTEGRATE-T；`operationKind`: 集成；`outcome`: integration branch 以
   `git merge --ff-only codex/gui-composer-turn-application` 快进到原 T commit；`estimatedCost`: S；
-  `deferralEvidence`: 无；`hardPredecessors`: T4；T4 已传递保证 W4；`consumes`: T commit、D2-based integration branch；
+  `deferralEvidence`: 无；`hardPredecessors`: T4；T4 已传递保证 W4；`consumes`: T commit、DC2-based integration branch；
   `produces`: integration HEAD 等于 T commit id；`completionEvidence`: HEAD identity 相等且 status clean；
   `readSet`: T commit/I branch；`writeSet`: I branch/index/worktree；`executionContext`: I worktree/index 独占；
   `resourceLocks`: I index/worktree + repo refs write；`owner`: I integration Git owner；
@@ -683,14 +749,12 @@ I8 形成稳定集成状态后：
 
 ## 初始 ready set、关键路径与汇合
 
-### 计划确认前
+### 当前恢复 ready set
 
-- ready set 为空：D0 的计划确认授权尚未满足。
-
-### 计划确认后的初始 ready set
-
-- `D0`；D1 等待确认元数据落盘，D2 必须等待 scoped staged index。
-- D2 完成后：`W1`、`W2`、`W3` 同时 ready；脚本仅因 repository worktree registry 的动态写锁短时互斥。
+- 原 `D0 -> D1 -> D2` 已完成；修正确认后从 `DC0 -> DC1 -> DC2` 形成独立计划修正提交。
+- DC2 完成后：`R0`、`W2`、`W3` 同时 ready；W1 等待 `R0 -> R1 -> R2` 完成精确 W1 cleanup。
+- W2/W3 与随后 ready 的 W1 竞争 repository worktree registry/refs 动态写锁；锁释放即重算 ready set，不修改
+  现有 Vitest link。
 - W4 完成后：`P1` 与 `T1` fan-out 并行；integration worktree空闲等待稳定 commits。
 - T4 后 `I1T` 可先快进；`I1P` 等待 I1T 与 P4，再由 I1F 发布稳定 baseline；任一 P/T 分支失败不暂停另一分支。
 - P2/T2 可同时 ready，但对 shared `.vite`/`.tmp` cache 动态互斥；不会阻止另一分支继续其非 runner 后继。
@@ -701,7 +765,7 @@ I8 形成稳定集成状态后：
 粗粒度关键路径：
 
 ```text
-D0 -> D1 -> D2 -> W1/W2/W3 -> W4
+DC0 -> DC1 -> DC2 -> max(R0->R1->R2->W1, registry/refs-lock(W2/W3)) -> W4
   -> max(P1->PF->serialized-cache(P2)->P3->P4, T1->TF->serialized-cache(T2)->T3->T4)
   -> I1T -> I1P -> I1F -> I2 -> I3 -> max(I5L, serialized cache holders I4/I5T/I6) -> I7 -> I8
   -> max(A1, serialized cache holders V1/V2/V3) -> A2
@@ -713,6 +777,8 @@ D0 -> D1 -> D2 -> W1/W2/W3 -> W4
 
 ```text
 DOCS  设计 + 计划（docs-only）
+  |
+DOCS-CORRECTION  计划可执行性修正（docs-only）
   ├─ P  Pending-input application session + unit tests
   └─ T  Turn application + unit tests
        \ /
@@ -736,7 +802,8 @@ squash 或隐藏原提交。
 
 ## 计划完成标准
 
-- DOCS、P、T、I 每个 taskBoundary 都形成独立本地提交，P/T 在隔离 worktree 并行形成且保留 identity；
+- DOCS、DOCS-CORRECTION、P、T、I 每个 taskBoundary 都形成独立本地提交，P/T 在隔离 worktree 并行形成且保留
+  identity；W1 部分状态只经非强制精确 cleanup 恢复，W2/W3 不被伪依赖阻塞；
 - `ComposerPendingInputSession` 统一拥有 Drawer application session，React 不再拥有 reservation/owner/preparation/
   completion/outcome/suppression 状态；
 - `ComposerTurnApplication` 统一拥有 projection、command critical section、capture identity 和 generation-safe unlock；
@@ -746,4 +813,6 @@ squash 或隐藏原提交。
 - 即时 session/revision rejection 仍静默并保留草稿；
 - 最终只存在一条 production application path，无兼容双路径；
 - scoped tests、type-check、lint、full CI、parallel Browser、sequential Browser 与独立反向审计均通过；
+- 现有 Vitest link 保持 direct target `/Users/jiangsheng/cnb/vitest`、fully resolved physical target
+  `/Users/jiangsheng/GitHub/vitest`，未被修改、迁移或删除；
 - 无 Git 远程、force、安装、Rust/native build、范围外修改或未声明提交。
