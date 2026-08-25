@@ -228,6 +228,85 @@ describe("ComposerPendingInputSession", () => {
     expect(harness.beginEdit).not.toHaveBeenCalled();
   });
 
+  test("keeps an attached editor at a synchronously advanced owner revision", () => {
+    const { session, harness, current } = openSession();
+    const revised = facts(harness.role, { snapshot: queueSnapshot({ detailRevision: 2 }) });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 3,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled" as const,
+        revision: 3,
+      })),
+    };
+    const preparation = session.beginEdit(current, item("one"));
+    if (preparation.type !== "preparing") throw new Error("edit must enter preparation");
+    harness.beginEdit.mockImplementationOnce(() => {
+      session.project(revised);
+      return { type: "begun", revision: 2, reservation };
+    });
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(
+      session.attachEditor({
+        facts: current,
+        preparationToken: preparation.preparationToken,
+        itemKey: "one",
+        restore: () => ({ type: "restored" }),
+        capture: () => ({}) as ComposerDraftCapture,
+      }),
+    ).toEqual({ type: "applied" });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      view: {
+        pages: { revision: 2 },
+        edit: { phase: "active", preparationToken: preparation.preparationToken },
+      },
+    });
+    expect(vi.mocked(harness.role.readPendingInputPage).mock.calls).toEqual([
+      [{ lane: "steer", revision: 2, cursor: null, limit: 20 }],
+      [{ lane: "ordinary", revision: 2, cursor: null, limit: 20 }],
+    ]);
+  });
+
+  test("keeps a saved edit at a synchronously advanced owner revision", () => {
+    const { session, harness, current } = openSession();
+    const currentAfterAttach = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2 }),
+    });
+    const revisedDuringSave = facts(harness.role, {
+      sessionRevision: 3,
+      snapshot: queueSnapshot({ detailRevision: 3 }),
+    });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => {
+        session.project(revisedDuringSave);
+        return { type: "saved" as const, revision: 3 };
+      }),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled" as const,
+        revision: 3,
+      })),
+    };
+    const token = beginActiveEdit(session, harness, current, reservation);
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(session.saveEdit(currentAfterAttach, token)).toEqual({ type: "applied" });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      view: { pages: { revision: 3 }, edit: null },
+    });
+    expect(vi.mocked(harness.role.readPendingInputPage).mock.calls).toEqual([
+      [{ lane: "steer", revision: 3, cursor: null, limit: 20 }],
+      [{ lane: "ordinary", revision: 3, cursor: null, limit: 20 }],
+      [{ lane: "steer", revision: 3, cursor: null, limit: 20 }],
+      [{ lane: "ordinary", revision: 3, cursor: null, limit: 20 }],
+    ]);
+  });
+
   test("holds an empty drawer through synchronous delete publication and command settlement", () => {
     const { session, harness, current } = openSession();
     const emptyFacts = facts(harness.role, {
@@ -238,12 +317,61 @@ describe("ComposerPendingInputSession", () => {
       expect(session.project(emptyFacts).phase).toBe("open");
       return { type: "deleted", revision: 2 };
     });
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
 
     expect(session.deleteItem(current, item("one"))).toEqual({ type: "applied" });
-    expect(session.project(emptyFacts)).toMatchObject({
+    expect(session.getSnapshot()).toMatchObject({
       phase: "open",
       view: { pages: { revision: 2, ordinary: { items: [] }, steer: { items: [] } } },
     });
+    expect(vi.mocked(harness.role.readPendingInputPage).mock.calls).toEqual([
+      [{ lane: "steer", revision: 2, cursor: null, limit: 20 }],
+      [{ lane: "ordinary", revision: 2, cursor: null, limit: 20 }],
+      [{ lane: "steer", revision: 2, cursor: null, limit: 20 }],
+      [{ lane: "ordinary", revision: 2, cursor: null, limit: 20 }],
+    ]);
+  });
+
+  test("keeps moved pages at a synchronously advanced owner revision without an extra read", () => {
+    const entries = [item("one"), item("two")];
+    const firstEntry = entries[0];
+    const secondEntry = entries[1];
+    if (firstEntry == null || secondEntry == null) {
+      throw new Error("move test requires two initial entries");
+    }
+    const { session, harness, current } = openSession(createRoleHarness(entries));
+    const revised = facts(harness.role, {
+      snapshot: queueSnapshot({ detailRevision: 2, ordinaryQueuedCount: 2 }),
+    });
+    harness.moveItem.mockImplementationOnce(() => {
+      harness.setItems([secondEntry, firstEntry]);
+      session.project(revised);
+      return {
+        type: "moved",
+        revision: 2,
+        lane: "ordinary",
+        position: 2,
+        count: 2,
+      };
+    });
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(session.moveItem(current, firstEntry, "later")).toEqual({ type: "applied" });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      view: {
+        pages: {
+          revision: 2,
+          ordinary: { items: [secondEntry, firstEntry] },
+        },
+      },
+    });
+    expect(vi.mocked(harness.role.readPendingInputPage).mock.calls).toEqual([
+      [{ lane: "steer", revision: 2, cursor: null, limit: 20 }],
+      [{ lane: "ordinary", revision: 2, cursor: null, limit: 20 }],
+      [{ lane: "steer", revision: 2, cursor: null, limit: 20 }],
+      [{ lane: "ordinary", revision: 2, cursor: null, limit: 20 }],
+    ]);
   });
 
   test("matches management outcomes by object identity and item key", () => {
@@ -315,6 +443,31 @@ describe("ComposerPendingInputSession", () => {
     expect(session.getSnapshot().effects).toEqual([]);
     session.consumeEffect(effect.id);
     expect(session.getSnapshot().effects).toEqual([]);
+  });
+
+  test("consumes one open-session effect without changing the remaining snapshot", () => {
+    const { session, harness, current } = openSession();
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled" as const,
+        revision: 2,
+      })),
+    };
+    beginActiveEdit(session, harness, current, reservation);
+    const before = session.getSnapshot();
+    const effect = before.effects[0];
+    if (effect == null) throw new Error("active edit must issue a focus effect");
+
+    session.consumeEffect(effect.id);
+
+    expect(session.getSnapshot()).toEqual({
+      ...before,
+      effects: before.effects.filter(({ id }) => id !== effect.id),
+    });
   });
 
   test("does not save or cancel a reservation during teardown", () => {

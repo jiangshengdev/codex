@@ -247,6 +247,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   };
 
   requestClose = (facts: ComposerPendingInputCurrentFacts): ComposerPendingInputCommandOutcome => {
+    this.reconcile(facts);
     if (!this.accepts(facts)) return ignored;
     if (this.edit?.phase === "active") {
       const result = this.runManagement(() => this.editActive().reservation.cancel());
@@ -568,7 +569,8 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     const index = this.effects.findIndex(({ id }) => id === effectId);
     if (index < 0) return;
     this.effects = this.effects.filter(({ id }) => id !== effectId);
-    this.publish(null);
+    this.snapshot = { ...this.snapshot, effects: [...this.effects] };
+    for (const listener of this.listeners) listener();
   };
 
   dispose = (): void => {
@@ -747,7 +749,6 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   }
 
   private publish(facts: ComposerPendingInputCurrentFacts | null): void {
-    if (facts != null) this.reconcile(facts);
     this.snapshot = this.createSnapshot(facts);
     for (const listener of this.listeners) listener();
   }
