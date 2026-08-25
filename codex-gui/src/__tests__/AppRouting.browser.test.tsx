@@ -171,38 +171,6 @@ test("history publishes a settled startup failure without entering the empty-con
   await expect.poll(() => router.state.location.pathname).toBe("/history");
 });
 
-test("route sync observes the active thread only after atomic startup publication", async () => {
-  seedBrowserAuthorizationSession({ token: "task-secret", activeThreadId: launchThreadId });
-  const startup = deferred<ActiveThreadActivationOutcome>();
-  const sessionHarness = createActiveThreadSessionHarness({ activate: () => startup.promise });
-  installActiveThreadSessionController(sessionHarness);
-  const router = createAppRouter(
-    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
-  );
-  const initialHistoryLength = router.history.length;
-  const screen = await renderWithProviders(<RouterProvider router={router} />);
-  const options = getHostOptions(startGuiHostConnectionMock);
-
-  initializeHost(options, createGuiHostCommands());
-
-  await expect.poll(() => sessionHarness.activate.mock.calls.length).toBe(1);
-  sessionHarness.publish(sessionHarness.activeSnapshot({ threadId: historyThreadId }));
-
-  await expect.poll(sessionHarness.listenerCount).toBe(0);
-  await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
-  await expect
-    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
-    .not.toBeInTheDocument();
-
-  startup.resolve({ type: "ready", threadId: historyThreadId, warnings: [] });
-
-  await expect.poll(() => router.state.location.pathname).toBe(`/task/${historyThreadId}`);
-  await expect.poll(() => router.history.length).toBe(initialHistoryLength);
-  await expect
-    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
-    .toBeVisible();
-});
-
 test("history cards open details and preserve one connection across browser back and forward", async () => {
   const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   seedBrowserAuthorizationSession({ token: "task-secret" });

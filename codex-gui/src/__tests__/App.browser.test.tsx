@@ -1,14 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import { page } from "vitest/browser";
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRoute,
-  createRouter,
-  RouterProvider,
-  type RouteComponent,
-} from "@tanstack/react-router";
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect } from "react";
 import {
   attachResponse,
   attachWithCommittedMessages,
@@ -32,18 +24,12 @@ import {
   skillsListResponse,
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
-import RootApp from "@/App";
+import { AppBrowserRenderHarness as App } from "./appBrowserRenderHarness";
 import {
   useActiveThreadSession,
   useActiveThreadSessionSnapshot,
 } from "@/features/appShell/AppCapabilities";
 import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
-import {
-  CURRENT_TASK_ROUTE_PATH,
-  HISTORY_DETAIL_ROUTE_PATH,
-  HISTORY_LIST_ROUTE_PATH,
-  type GuiRouteTarget,
-} from "@/features/browserLaunch/guiRouteTarget";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -59,8 +45,6 @@ import type {
   StartGuiHostConnectionOptions,
 } from "@/features/guiHost/guiHostClient";
 import { CurrentTaskPage } from "@/features/currentTask/CurrentTaskPage";
-import { ThreadHistoryDetailPage } from "@/features/threadHistory/ThreadHistoryDetailPage";
-import { ThreadHistoryListPage } from "@/features/threadHistory/ThreadHistoryListPage";
 import {
   attachReplacement,
   closedBackpressure,
@@ -78,8 +62,6 @@ import {
   attachWithThreadId,
   attachWithTurns,
   baseTurn,
-  deltaForThreadOwner,
-  eventForThreadOwner,
   eventWithEnvelope,
   inProgressTurn,
   itemCompleted,
@@ -152,49 +134,6 @@ function ThreadSwitchComposerProbe() {
       <CurrentTaskPage />
     </>
   );
-}
-
-function App({
-  currentTaskComponent = CurrentTaskPage,
-  initialEntry = CURRENT_TASK_ROUTE_PATH.replace("$threadId", launchThreadId),
-  routeTarget = { type: "currentTask", threadId: launchThreadId },
-}: Readonly<{
-  currentTaskComponent?: RouteComponent;
-  initialEntry?: string;
-  routeTarget?: GuiRouteTarget;
-}>) {
-  const [router] = useState(() => {
-    const rootRoute = createRootRoute();
-    const appRoute = createRoute({
-      getParentRoute: () => rootRoute,
-      id: "app",
-      component: () => <RootApp routeTarget={routeTarget} />,
-    });
-    const currentTaskRoute = createRoute({
-      getParentRoute: () => appRoute,
-      path: CURRENT_TASK_ROUTE_PATH,
-      component: currentTaskComponent,
-    });
-    const historyListRoute = createRoute({
-      getParentRoute: () => appRoute,
-      path: HISTORY_LIST_ROUTE_PATH,
-      component: ThreadHistoryListPage,
-    });
-    const historyDetailRoute = createRoute({
-      getParentRoute: () => appRoute,
-      path: HISTORY_DETAIL_ROUTE_PATH,
-      component: ThreadHistoryDetailPage,
-    });
-
-    return createRouter({
-      history: createMemoryHistory({ initialEntries: [initialEntry] }),
-      routeTree: rootRoute.addChildren([
-        appRoute.addChildren([currentTaskRoute, historyListRoute, historyDetailRoute]),
-      ]),
-    });
-  });
-
-  return <RouterProvider router={router} />;
 }
 
 const catalogSkill = (name: string, cwd: string, enabled = true): SkillMetadata => ({
@@ -1272,116 +1211,6 @@ test("App does not publish a late startup session or overwrite a terminal host e
     .element(screen.getByText("late attach failure", { exact: true }))
     .not.toBeInTheDocument();
   expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
-});
-
-test("App sends ordinary Enter through start identity and renders only its live commit", async () => {
-  const text = "Ordinary Enter through App";
-  const startedTurn = inProgressTurn("turn-enter-from-app");
-  const startTurn = vi.fn<GuiHostCommands["startTurn"]>().mockResolvedValue({
-    turn: startedTurn,
-  });
-  const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), startTurn };
-  const { options, screen } = await renderReadyApp(commandHandle);
-  const composer = getAppComposer(screen);
-
-  await composer.fill(text);
-  await composer.click();
-  await screen.user.keyboard("{Enter}");
-
-  await expect.poll(() => startTurn.mock.calls.length).toBe(1);
-  const params = startTurnParamsAt(startTurn, 0);
-  expect(typeof params.clientUserMessageId).toBe("string");
-  expect(startTurn).toHaveBeenCalledExactlyOnceWith({
-    threadId: launchThreadId,
-    clientUserMessageId: params.clientUserMessageId,
-    input: [textInput(text)],
-  });
-  await expect.poll(() => composer.element().textContent.trim()).toBe("");
-  await expect.element(screen.getByText(text, { exact: true })).not.toBeInTheDocument();
-  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
-
-  const started = eventWithEnvelope(
-    turnStarted(eventTurnStarted, "commit-enter-turn-started", startedTurn),
-    { parentCommitId: attachResponse.snapshot.headCommitId },
-  );
-  const committedUserMessage = userMessage(
-    "user-enter-from-app",
-    [textInput(text)],
-    params.clientUserMessageId,
-  );
-  const startedItem = eventWithEnvelope(
-    itemStarted(
-      eventItemStarted,
-      "commit-enter-user-message-started",
-      startedTurn.id,
-      committedUserMessage,
-    ),
-    { parentCommitId: started.commitId },
-  );
-  emitProjectionEvent(options, started);
-  emitProjectionEvent(options, startedItem);
-  expect(
-    selectTranscriptEntry(
-      screen.store.getState(),
-      transcriptEntryIdFor(startedTurn.id, committedUserMessage.id),
-    ),
-  ).toBeNull();
-  await expect.element(screen.getByText(text, { exact: true })).not.toBeInTheDocument();
-
-  const completedItem = eventWithEnvelope(
-    itemCompleted(
-      eventItemCompleted,
-      "commit-enter-user-message-completed",
-      startedTurn.id,
-      committedUserMessage,
-    ),
-    { parentCommitId: startedItem.commitId },
-  );
-  emitProjectionEvent(options, completedItem);
-
-  await expect.element(screen.getByText(text, { exact: true })).toBeVisible();
-  await expect.element(screen.getByText("No committed messages yet.")).not.toBeInTheDocument();
-});
-
-test("App queues during an active turn and starts exactly once after its live terminal event", async () => {
-  const { activeTurn, options, queueCoordinator, screen, startTurn } = await renderActiveApp();
-  const transcript = screen.getByRole("region", { name: "Committed transcript" });
-
-  await getAppComposer(screen).fill("Queued from active turn");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-
-  const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
-  await expect.element(trigger).toBeVisible();
-  expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(1);
-  expect(readPendingTextPreviews(queueCoordinator, "ordinary")).toEqual([
-    "Queued from active turn",
-  ]);
-  await expect
-    .element(transcript.getByText("Queued from active turn", { exact: true }))
-    .not.toBeInTheDocument();
-  expect(startTurn).not.toHaveBeenCalled();
-
-  await trigger.click();
-  const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
-  await expect.element(dialog.getByText("Queued from active turn", { exact: true })).toBeVisible();
-
-  const completed = turnCompleted(eventTurnCompleted, "commit-active-terminal", {
-    ...activeTurn,
-    status: "completed",
-  });
-  emitProjectionEvent(
-    options,
-    eventWithEnvelope(completed, { parentCommitId: attachResponse.snapshot.headCommitId }),
-  );
-
-  expectStartTurnCalledOnceWithText(startTurn, "Queued from active turn");
-  await expect.element(dialog).not.toBeInTheDocument();
-  await expect.element(trigger).not.toBeInTheDocument();
-  expect(queueCoordinator.getSnapshot().ordinaryQueuedCount).toBe(0);
-  await expect
-    .element(transcript.getByText("Queued from active turn", { exact: true }))
-    .not.toBeInTheDocument();
-  await expect.element(screen.getByText("No committed messages yet.")).toBeVisible();
 });
 
 test("App drains ordinary inputs in the authoritative order selected through Pending details", async () => {
@@ -3303,124 +3132,6 @@ test("App owns one live queue under StrictMode and disposes it once", async () =
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
 });
 
-test("App publishes a completed thread switch atomically through one session", async () => {
-  const initialQueue = createQueueCoordinatorMock(launchThreadId);
-  const candidateQueue = createQueueCoordinatorMock(candidateThreadId);
-  vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
-    threadId === launchThreadId ? initialQueue.coordinator : candidateQueue.coordinator,
-  );
-  const pendingAttach =
-    createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
-  const candidateItem = agentMessage("candidate-switch-item", "");
-  const candidateAttach = attachWithThreadId(
-    attachWithTurns(attachReplacement, [inProgressTurn("candidate-switch-turn")]),
-    candidateThreadId,
-  );
-  const commands = createGuiHostCommands();
-  const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
-  vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
-  const activeThread = screen.getByLabelText("Active thread session");
-  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
-
-  await expect.element(activeThread).toHaveTextContent(launchThreadId);
-  await continueButton.click();
-  await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(2);
-  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
-    threadId: candidateThreadId,
-  });
-
-  const candidateOwner = {
-    threadId: candidateThreadId,
-    subscriptionId: candidateAttach.subscriptionId,
-  };
-  const candidateEvent = eventForThreadOwner(
-    eventWithEnvelope(
-      itemStarted(
-        eventItemStarted,
-        "commit-candidate-switch-item",
-        "candidate-switch-turn",
-        candidateItem,
-      ),
-      { parentCommitId: candidateAttach.snapshot.headCommitId },
-    ),
-    candidateOwner,
-  );
-  const candidateDelta = deltaForThreadOwner(
-    agentMessageDelta(
-      eventAgentMessageDelta,
-      "candidate-switch-turn",
-      candidateItem.id,
-      "Candidate notification replayed",
-    ),
-    candidateOwner,
-  );
-  emitProjectionEvent(options, candidateEvent);
-  emitProjectionDelta(options, candidateDelta);
-
-  await expect.element(activeThread).toHaveTextContent(launchThreadId);
-  expect(threadSwitchProbeSession).toBe(activeThreadSession);
-  expect(
-    selectTranscriptEntry(
-      screen.store.getState(),
-      transcriptEntryIdFor("candidate-switch-turn", candidateItem.id),
-    ),
-  ).toBeNull();
-  pendingAttach.resolve(candidateAttach);
-  await expect(requireThreadSwitchProbePromise()).resolves.toEqual({
-    type: "ready",
-    threadId: candidateThreadId,
-    warnings: [],
-  });
-
-  await expect.element(activeThread).toHaveTextContent(candidateThreadId);
-  await expect
-    .poll(() =>
-      selectTranscriptEntry(
-        screen.store.getState(),
-        transcriptEntryIdFor("candidate-switch-turn", candidateItem.id),
-      ),
-    )
-    .toStrictEqual({
-      type: "message",
-      id: candidateItem.id,
-      turnId: "candidate-switch-turn",
-      role: "assistant",
-      rendering: { mode: "streamingMarkdown", source: "Candidate notification replayed" },
-      revision: 1,
-    });
-  await expect
-    .poll(() => {
-      const snapshot = activeThreadSession.getSnapshot();
-      return snapshot.phase === "active" || snapshot.phase === "projectionUnavailable"
-        ? snapshot.threadId
-        : null;
-    })
-    .toBe(candidateThreadId);
-  expect(activeThreadSession.getSnapshot()).toMatchObject({
-    phase: "active",
-    threadId: candidateThreadId,
-    subscriptionId: candidateAttach.subscriptionId,
-    activeTurnId: "candidate-switch-turn",
-  });
-  expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(candidateThreadId);
-  expect(screen.store.getState().transcriptState.threadId).toBe(candidateThreadId);
-  expect(candidateQueue.observeAcceptedEvent).toHaveBeenCalledExactlyOnceWith({
-    notification: candidateEvent,
-    replay: "live",
-  });
-  expect(initialQueue.dispose).toHaveBeenCalledOnce();
-  expect(candidateQueue.dispose).not.toHaveBeenCalled();
-  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
-    threadId: launchThreadId,
-  });
-
-  await screen.unmount();
-
-  expect(initialQueue.dispose).toHaveBeenCalledOnce();
-  expect(candidateQueue.dispose).toHaveBeenCalledOnce();
-  expect(getCleanupConnectionCallCount()).toBe(1);
-});
-
 test("App keeps the initial session when its queue blocks a thread switch", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId, {
     type: "blocked",
@@ -3453,36 +3164,6 @@ test("App keeps the initial session when its queue blocks a thread switch", asyn
   expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
     threadId: candidateThreadId,
   });
-});
-
-test("App keeps the initial session when attaching the switch candidate fails", async () => {
-  const initialQueue = createQueueCoordinatorMock(launchThreadId);
-  vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
-  const error = new Error("candidate attach failed");
-  const commands = createGuiHostCommands();
-  const { continueButton, screen } = await renderThreadSwitchProbe(commands);
-  vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
-  const { session: activeThreadSession, snapshot: initialSnapshot } =
-    await waitForThreadSwitchProbeSession();
-
-  await continueButton.click();
-  await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
-    type: "unavailable",
-    failure: { type: "operationFailed", phase: "attach", error },
-  });
-
-  expect(commands.resumeThread).toHaveBeenCalledOnce();
-  expect(commands.attachThreadProjection).toHaveBeenCalledTimes(2);
-  expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
-    threadId: candidateThreadId,
-  });
-  expect(commands.detachThreadProjection).not.toHaveBeenCalled();
-  expect(activeThreadSession.getSnapshot()).toBe(initialSnapshot);
-  await expect
-    .element(screen.getByLabelText("Active thread session"))
-    .toHaveTextContent(launchThreadId);
-  expect(initialQueue.reservationRelease).not.toHaveBeenCalled();
-  expect(initialQueue.dispose).not.toHaveBeenCalled();
 });
 
 test("App cleans up once on unmount and ignores a late switch candidate completion", async () => {
