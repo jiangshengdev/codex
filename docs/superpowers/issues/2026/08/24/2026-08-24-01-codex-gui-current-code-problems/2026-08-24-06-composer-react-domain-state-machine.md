@@ -1,50 +1,58 @@
 # Composer React 层混杂领域事务与可访问性适配
 
 日期: 2026-08-24
-状态: 🔴 仍需处理
+状态: ✅ 已修复
 范围: `codex-gui` Composer pending-input / turn control React boundary
 优先级: P2
 
 ## 摘要
 
-Composer 的 React 组件同时承担 pending-input 事务状态机、跨 owner/revision 协调、命令编排、焦点恢复和底层可访问性 DOM 适配，领域操作与展示边界没有清晰分离。
+Composer 中真正属于应用会话的 pending-input 事务和 turn 命令编排已经移出 React；React 现在只保留展示生命周期、HeroUI/Lingui、editor attachment、DOM 焦点与 ARIA 等平台适配职责。
 
 ## 问题
 
-`ComposerPendingInputDrawer` 不只是渲染 drawer。它在组件内部保存打开 owner、关闭 session、分页 revision、编辑 reservation、操作完成 hold、失败分类和焦点目标，并直接驱动 save、cancel、delete、move、refresh 等事务。组件因而同时负责领域状态迁移、并发结果解释和用户界面生命周期。
+修复前，`ComposerPendingInputDrawer` 在 React state/ref 中同时维护 owner、reservation、completion hold、结果分类和焦点时序；`ComposerTurnControl` 也直接维护提交重入、capture 结果解释和 microtask 解锁。应用事务与 React 生命周期因此必须一起推理。
 
-`ComposerTurnControl` 又在 React 层交叉读取 Redux runtime、queue external store、skill catalog 和 editor snapshot，重新组合连接可用性、线程身份、提交资格和 active-turn 行为，再直接发起 submit、steer、recover 与 interrupt 命令。`SkillTypeaheadPlugin` 还直接同步 Lexical root、anchor 与 ARIA 属性，并用 DOM listener 和 `MutationObserver` 维持 combobox 适配。
-
-这些职责各自有存在理由，但现在由 React 组件共同承载并彼此耦合。问题不在文件行数，也没有证据表明 HeroUI 使用错误；问题是 operation/session 领域状态、React 展示生命周期和可访问性适配的责任边界混杂。
+原 issue 还把 `SkillTypeaheadPlugin` 的 Lexical/DOM/ARIA 同步列为“领域混杂”证据。后续设计核对确认：这些职责本来就是平台 adapter，不属于应迁出的领域状态。真正需要修复的是 pending-input 会话与 turn command 临界区仍由 React 拥有。
 
 ## 证据
 
-- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:95-114`：组件同时持有 open/close owner、分页、编辑 session、alert、move announcement、revision suppression、completion hold、editor validity 与多组焦点 ref。
-- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:152-183`：渲染过程中派生外部关闭状态，并在组件内维护 management completion 临界区。
-- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:233-280`：组件直接解释 edit reservation 的 save/cancel 结果，分类 owner gone、target invalidated、session invalidated 与 invalid input，并决定刷新、关闭和焦点恢复。
-- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:296-350`：drawer presence 回调和 controller subscription 同时清理 session 状态、追踪 owner 身份与 pending-input 结果，并安排关闭及焦点迁移。
-- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:383-439`：组件拥有 edit 的 preparing/active phase 转换，建立 reservation，并处理 stale、not manageable、invalid draft 与 owner gone。
-- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:450-488`：delete 操作在组件内组合 revision、结果分类、分页刷新、completion hold 与删除后的焦点恢复。
-- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:517-559`：move 操作在组件内组合事务执行、revision refresh、fallback、刷新抑制和失败提示状态。
-- `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:83-123`：同一组件交叉订阅 queue、skill catalog、editor snapshot 与 Redux runtime，并据此重新计算 connection、thread match、skill validity 和 send eligibility。
-- `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:153-214`：submit 路径再次计算资格，区分 ordinary/guide，直接调用 queue controller，并用 React state/ref 与 microtask 管理提交临界区。
-- `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:323-381`：组件内的 focus-visible hook 直接监听 pointer、keyboard 与 focus 事件，维护输入模态和展示状态。
-- `codex-gui/src/features/composerEditor/SkillTypeaheadPlugin.tsx:84-100`：plugin 直接注册 Lexical root listener、维护 composition DOM listener，并切换 combobox root 属性。
-- `codex-gui/src/features/composerEditor/SkillTypeaheadPlugin.tsx:240-289`：菜单通过 DOM 属性同步和 `MutationObserver` 维持 `aria-controls`、`aria-activedescendant` 与 menu id。
-- `codex-gui/src/features/composerEditor/SkillTypeaheadPlugin.tsx:480-505`：plugin 直接设置 `aria-expanded`、`role` 和 `aria-haspopup`，说明可访问性适配也由组件层自行拥有。
-- 本轮未运行测试；以上结论来自当前源码静态核对。
+- `codex-gui/src/features/composerTurnControl/composerPendingInputSession.ts:83-155`：`ComposerPendingInputSession` 暴露可渲染 snapshot 和语义 command，统一拥有 open/closing、编辑、管理操作、presence、effect 与 teardown 边界。
+- `codex-gui/src/features/composerTurnControl/composerTurnApplication.ts:49-72`：`ComposerTurnApplication` 统一投影 Send/Guide/Recover/Stop，并拥有 submit command 临界区与 teardown。
+- `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:50-91`：React 创建并订阅两个 Module，只把当前 session/editor facts 投影为 view。
+- `codex-gui/src/features/composerTurnControl/ComposerTurnControl.tsx:113-139`：React 只负责 adapter 生命周期和转发 submit intent，不再自行解释 command 结果或维护提交锁。
+- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:68-82`：Drawer 把当前事实交给 session，并将 HeroUI presence end 回报给 Module。
+- `codex-gui/src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:99-132`：Module 发出语义 focus effect，React 只负责映射到真实 DOM ref 并消费 effect。
+- `codex-gui/src/features/composerTurnControl/__tests__/composerPendingInputSession.test.ts:153-200`：单测覆盖同 owner 跨 revision、owner replacement，以及 projection unavailable 时浏览只读、编辑关闭且不结算 reservation。
+- `codex-gui/src/features/composerTurnControl/__tests__/composerTurnApplication.test.ts:280-350`：单测覆盖旧 microtask 不得解锁新 owner generation，以及 teardown 后拒绝旧命令。
+- `codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx:846-986`：三浏览器纵向测试覆盖 StrictMode replay 后仍可提交/打开 Drawer，以及真实 unmount 只 teardown 一次且不保存或取消 active reservation。
 
 ## 判断
 
-该结构性问题当前仍成立，适合作为独立重构边界，但现有证据不能推出“整个 Composer 应重写”，也不能把文件长度或 HeroUI 组件选择当作根因。需要先界定哪些 operation/session 状态属于可独立验证的领域 owner，哪些焦点和 ARIA 行为必须继续留在 React/Lexical 适配层。
+该结构性问题已经修复。pending-input 应用会话由 `ComposerPendingInputSession` 拥有，turn 操作编排由 `ComposerTurnApplication` 拥有；React 不再持有原 issue 指出的 reservation、owner、completion、结果分类或 submit latch 状态。
+
+Lexical/DOM/ARIA 同步继续留在 React/Lexical adapter，这是正确边界，不是未修复残留。此次修复也没有引入 Redux mirror、第二套 session identity、兼容双路径或用户可见行为变化。
+
+## 修复记录
+
+- `36a7725d9`：新增 `ComposerTurnApplication`。
+- `123eef1ca`：新增 `ComposerPendingInputSession`。
+- `7672469ea`：React/HeroUI adapter 切换到两个应用 Module。
+- 后续独立修正提交闭环 microtask、session authority、editor attachment/detach、close failure、move status、replay attachment 和真实 unmount 覆盖；最终功能状态为 `dc06b9092081d0d6c070c732a9e6a6f9414b5e08`。
+
+## 验证记录
+
+- `pnpm run ci` 通过：53 个单测文件、780 项测试。
+- `pnpm run test:browser:parallel` 通过：Chromium、Firefox、WebKit 共 54 个文件、810 项测试。
+- `pnpm run test:browser:sequential` 通过：9 个文件、21 项测试。
+- 两次独立代码与边界审计均未发现可操作问题。
 
 ## 影响
 
-- pending-input 的事务正确性、revision 并发、owner 生命周期和焦点行为被绑定在同一组件状态图中，局部修改容易产生跨职责回归。
-- submit/guide/recover/stop 的可用性依赖多个状态来源在 render 时重新组合，增加证明一致性和失败恢复行为的难度。
-- 领域状态迁移与 DOM/可访问性副作用交织，使测试必须跨越 controller、React 生命周期和浏览器行为，降低问题定位与复用能力。
-- 如果仅按文件行数机械拆分，可能把同一状态机分散到更多组件，隐藏而不是消除责任边界问题。
+- pending-input 事务和 turn command 临界区现在可脱离 React 单独验证，owner/revision、旧 callback 和 teardown 失败域更清晰。
+- React 仍负责真实 presence、焦点和 ARIA 平台行为，但只消费语义 view/effect，不再复制应用状态机。
+- 用户可见的提交、引导、恢复、停止、pending-input 管理和静默拒绝语义保持不变。
 
 ## 后续处理
 
-需要单独进入设计阶段，先追踪 pending-input 与 turn-control 的 operation/session 生命周期、权威状态和失败恢复边界，再确定 React 展示层与 Lexical/ARIA 适配层应保留的职责。本 issue 不包含重构设计、实施计划或代码改动。
+本 issue 已完成，无剩余处理项。后续若调整 Composer 产品行为、Lexical/ARIA adapter 或底层 queue/session 权威语义，应作为新的独立问题处理。
