@@ -356,9 +356,9 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     preparationToken: number,
     valid: boolean,
   ): void => {
-    this.reconcile(facts);
     if (!this.accepts(facts)) return;
     if (this.edit?.phase !== "active" || this.edit.preparationToken !== preparationToken) return;
+    if (this.edit.valid === valid) return;
     this.edit = { ...this.edit, valid };
     this.publish(facts);
   };
