@@ -577,6 +577,59 @@ describe("ComposerPendingInputSession", () => {
     ]);
   });
 
+  test("publishes only when a no-op move clears an existing announcement", () => {
+    const entries = [item("one"), item("two")];
+    const firstEntry = entries[0];
+    const secondEntry = entries[1];
+    if (firstEntry == null || secondEntry == null) {
+      throw new Error("move test requires two initial entries");
+    }
+    const { session, harness, current } = openSession(createRoleHarness(entries));
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(session.moveItem(current, firstEntry, "later")).toEqual({ type: "ignored" });
+    expect(session.getSnapshot().announcement).toBeNull();
+    expect(listener).not.toHaveBeenCalled();
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+
+    harness.setItems([secondEntry, firstEntry]);
+    harness.moveItem.mockReturnValueOnce({
+      type: "moved",
+      revision: 2,
+      lane: "ordinary",
+      position: 2,
+      count: 2,
+    });
+    expect(session.moveItem(current, firstEntry, "later")).toEqual({ type: "applied" });
+    expect(session.getSnapshot().announcement).toEqual({
+      lane: "ordinary",
+      position: 2,
+      count: 2,
+    });
+
+    const currentAfterMove = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2, ordinaryQueuedCount: 2 }),
+    });
+    session.project(currentAfterMove);
+    harness.moveItem.mockReturnValueOnce({
+      type: "noOp",
+      reason: "alreadyAtDestination",
+      revision: 2,
+    });
+    const beforeNoOp = session.getSnapshot();
+    listener.mockClear();
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(session.moveItem(currentAfterMove, firstEntry, "later")).toEqual({ type: "ignored" });
+
+    expect(session.getSnapshot()).toEqual({ ...beforeNoOp, announcement: null });
+    expect(listener).toHaveBeenCalledOnce();
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+  });
+
   test("matches management outcomes by object identity and item key", () => {
     const initialOutcome = {
       type: "unavailable" as const,

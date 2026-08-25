@@ -455,6 +455,7 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   ): ComposerPendingInputCommandOutcome => {
     this.reconcile(facts);
     if (!this.accepts(facts) || !facts.mutationsEnabled || this.pages == null) return ignored;
+    const hadAnnouncement = this.announcement != null;
     this.announcement = null;
     const budgets = this.pages.budgets;
     const result = this.runManagement(() =>
@@ -464,7 +465,10 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
         destination,
       }),
     );
-    if (result.type === "noOp") return ignored;
+    if (result.type === "noOp") {
+      if (hadAnnouncement) this.publish(facts);
+      return ignored;
+    }
     if (result.type === "unavailable" && result.scope === "ownerGone") {
       this.closeInvalid();
       this.publish(facts);
