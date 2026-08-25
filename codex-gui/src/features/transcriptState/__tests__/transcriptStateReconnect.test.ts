@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionReadModelFact,
+} from "@/features/activeThreadSession/activeThreadProjection";
 import {
   attachBaseline,
   attachReplacement,
@@ -7,12 +12,6 @@ import {
   eventItemStarted,
   eventReasoningSummaryTextDelta,
 } from "@/features/projection/__tests__/projectionFixtures";
-import {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptContextPage,
@@ -33,6 +32,25 @@ import {
   reasoningItem,
   reasoningSummaryTextDelta,
 } from "@/features/projection/__tests__/projectionTestBuilders";
+
+let sessionRevision = 0;
+const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
+  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) => readModelAction({ type: "baselineAttached", response });
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+  readModelAction({ type: "eventAccepted", payload });
+const threadRuntimeDeltasAccepted = ({
+  notifications,
+}: Pick<Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>, "notifications">) =>
+  readModelAction({ type: "deltasAccepted", notifications });
+const threadRuntimeManualReconnectRequired = (
+  fact: Omit<
+    Extract<ActiveThreadProjectionReadModelFact, { type: "projectionUnavailable" }>,
+    "type"
+  >,
+) => readModelAction({ type: "projectionUnavailable", ...fact });
 
 describe("transcript state reconnect reducer", () => {
   it("rebuilds context pages from reattach without duplicating compaction boundaries", () => {

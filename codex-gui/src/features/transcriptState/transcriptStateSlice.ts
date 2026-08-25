@@ -1,15 +1,8 @@
 import { createAppSlice } from "@/app/createAppSlice";
-import { liveThreadReplacementCommitted } from "@/features/projectionCoordination/liveThreadReplacement";
-import {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
-import { reduceTranscriptInput } from "./transcriptProjection";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { reduceTranscriptReadModelFact } from "./transcriptProjection";
 import {
   initialTranscriptState,
-  resetTranscriptState,
   type TranscriptChunkView,
   type TranscriptContextPage,
   type TranscriptEntryId,
@@ -73,22 +66,17 @@ export const transcriptStateSlice = createAppSlice({
       transcriptState.globalStatus,
   },
   extraReducers: (builder) => {
-    builder
-      .addCase(liveThreadReplacementCommitted, (state, action) => {
-        resetTranscriptState(state, action.payload.transcriptState);
-      })
-      .addCase(threadRuntimeAttached, (state, action) => {
-        reduceTranscriptInput(state, action);
-      })
-      .addCase(threadRuntimeEventBuffered, (state, action) => {
-        reduceTranscriptInput(state, action);
-      })
-      .addCase(threadRuntimeDeltasAccepted, (state, action) => {
-        reduceTranscriptInput(state, action);
-      })
-      .addCase(threadRuntimeManualReconnectRequired, (state, action) => {
-        reduceTranscriptInput(state, action);
-      });
+    builder.addCase(activeThreadReadModelTransitionApplied, (state, action) => {
+      const { facts, sessionRevision } = action.payload;
+      if (sessionRevision <= state.sessionRevision) {
+        return;
+      }
+
+      for (const fact of facts) {
+        reduceTranscriptReadModelFact(state, fact);
+      }
+      state.sessionRevision = sessionRevision;
+    });
   },
 });
 
