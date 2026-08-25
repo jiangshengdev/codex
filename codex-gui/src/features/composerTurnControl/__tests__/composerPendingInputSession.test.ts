@@ -334,6 +334,113 @@ describe("ComposerPendingInputSession", () => {
     ]);
   });
 
+  test("ignores a stale detach after cancellation advances the owner revision", () => {
+    const { session, harness, current } = openSession();
+    const currentAfterAttach = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2 }),
+    });
+    const revisedDuringCancel = facts(harness.role, {
+      sessionRevision: 3,
+      snapshot: queueSnapshot({ detailRevision: 3 }),
+    });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 3,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => {
+        session.project(revisedDuringCancel);
+        return { type: "cancelled" as const, revision: 3 };
+      }),
+    };
+    const token = beginActiveEdit(session, harness, current, reservation);
+
+    expect(session.cancelEdit(currentAfterAttach, token)).toEqual({ type: "applied" });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      view: { pages: { revision: 3 }, edit: null },
+    });
+
+    const afterCancel = session.getSnapshot();
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    session.detachEditor(currentAfterAttach, token);
+
+    expect(session.getSnapshot()).toEqual(afterCancel);
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  test("ignores a stale detach after a matching invalidation settles the active edit", () => {
+    const steerItem = item("one", "steer");
+    const harness = createRoleHarness([steerItem]);
+    const current = facts(harness.role, {
+      snapshot: queueSnapshot({ ordinaryQueuedCount: 0, guidingCount: 1 }),
+    });
+    const session = createComposerPendingInputSession();
+    expect(session.open(current)).toEqual({ type: "applied" });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled" as const,
+        revision: 2,
+      })),
+    };
+    harness.beginEdit.mockReturnValueOnce({ type: "begun", revision: 2, reservation });
+    const preparation = session.beginEdit(current, steerItem);
+    if (preparation.type !== "preparing") throw new Error("edit must enter preparation");
+    expect(
+      session.attachEditor({
+        facts: current,
+        preparationToken: preparation.preparationToken,
+        itemKey: steerItem.key,
+        restore: () => ({ type: "restored" }),
+        capture: () => ({}) as ComposerDraftCapture,
+      }),
+    ).toEqual({ type: "applied" });
+    const token = preparation.preparationToken;
+    const invalidated = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({
+        detailRevision: 2,
+        ordinaryQueuedCount: 0,
+        guidingCount: 1,
+        pendingInputManagementOutcome: {
+          type: "unavailable",
+          scope: "liveOwner",
+          reason: "targetInvalidated",
+          revision: 2,
+          key: steerItem.key,
+          lane: "steer",
+          targetReason: "terminal",
+        },
+      }),
+    });
+
+    expect(session.project(invalidated)).toMatchObject({
+      phase: "open",
+      alert: "targetInvalidated",
+      view: { pages: { revision: 2 }, edit: null },
+    });
+
+    const afterInvalidation = session.getSnapshot();
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    session.detachEditor(current, token);
+
+    expect(session.getSnapshot()).toEqual(afterInvalidation);
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   test("holds an empty drawer through synchronous delete publication and command settlement", () => {
     const { session, harness, current } = openSession();
     const emptyFacts = facts(harness.role, {

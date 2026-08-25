@@ -343,7 +343,6 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
   };
 
   detachEditor = (facts: ComposerPendingInputCurrentFacts, preparationToken: number): void => {
-    this.reconcile(facts);
     if (!this.accepts(facts)) return;
     if (this.edit?.phase === "preparing" && this.edit.preparationToken === preparationToken) {
       this.edit = null;
