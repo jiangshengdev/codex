@@ -49,6 +49,11 @@ import type {
 import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
+import { createComposerPendingInputSession } from "../composerPendingInputSession";
+import { createComposerTurnApplication } from "../composerTurnApplication";
+
+vi.mock(import("../composerPendingInputSession"), { spy: true });
+vi.mock(import("../composerTurnApplication"), { spy: true });
 
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
@@ -634,12 +639,14 @@ type RenderActiveTurnOptions = Readonly<{
   captureEditReservations?: boolean;
   commandHandle?: GuiHostCommands;
   skillCatalogController?: SkillCatalogHarnessController;
+  strictMode?: boolean;
 }>;
 
 const renderActiveTurn = async ({
   captureEditReservations = false,
   commandHandle = createGuiHostCommands(),
   skillCatalogController,
+  strictMode = false,
 }: RenderActiveTurnOptions = {}) => {
   const event = eventTurnStarted;
   if (event.event.type !== "turnStarted") {
@@ -663,6 +670,7 @@ const renderActiveTurn = async ({
     controller,
     skillCatalogController ?? createSkillCatalogHarness().controller,
     turn.id,
+    strictMode,
   );
   return {
     commandHandle,
@@ -871,6 +879,110 @@ test("keeps submit and pending-input open available after StrictMode effect repl
   await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect.element(dialog.getByText("Strict pending message", { exact: true })).toBeVisible();
+});
+
+test("disposes active Composer applications once after a real StrictMode unmount", async () => {
+  const pendingFactory = vi.mocked(createComposerPendingInputSession);
+  const turnFactory = vi.mocked(createComposerTurnApplication);
+  const pendingFactoryStart = pendingFactory.mock.results.length;
+  const turnFactoryStart = turnFactory.mock.results.length;
+  const { composer, reservations, screen } = await renderActiveTurn({
+    captureEditReservations: true,
+    strictMode: true,
+  });
+  const pendingInstances = pendingFactory.mock.results.slice(pendingFactoryStart).map((result) => {
+    if (result.type !== "return")
+      throw new Error("pending session factory must return an instance");
+    return result.value;
+  });
+  const turnInstances = turnFactory.mock.results.slice(turnFactoryStart).map((result) => {
+    if (result.type !== "return")
+      throw new Error("turn application factory must return an instance");
+    return result.value;
+  });
+  const pendingDisposeSpies = pendingInstances.map((instance) => vi.spyOn(instance, "dispose"));
+  const turnDisposeSpies = turnInstances.map((instance) => vi.spyOn(instance, "dispose"));
+
+  await composer.fill("Unmount active pending edit");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect
+    .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
+    .toBeVisible();
+
+  const reservation = reservations.at(0);
+  if (reservation == null) throw new Error("real unmount test must begin a pending edit");
+  const save = vi.spyOn(reservation, "save");
+  const cancel = vi.spyOn(reservation, "cancel");
+  const pendingSnapshotsBeforeUnmount = pendingInstances.map((instance) => instance.getSnapshot());
+  const activePendingIndex = pendingSnapshotsBeforeUnmount.findIndex(
+    (snapshot) => snapshot.view?.edit?.phase === "active",
+  );
+  if (activePendingIndex < 0) throw new Error("one pending session must own the active edit");
+  const activePendingSnapshot = pendingSnapshotsBeforeUnmount[activePendingIndex];
+  if (activePendingSnapshot == null) throw new Error("active pending snapshot must exist");
+  const activeEdit = activePendingSnapshot.view?.edit;
+  if (activeEdit?.phase !== "active") throw new Error("pending edit must be active");
+  const turnVersionsBeforeUnmount = turnInstances.map((instance) => instance.getVersion());
+  const activeSessionSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSessionSnapshot.phase !== "active") throw new Error("expected an active session");
+  const pendingFacts = {
+    composerRole: activeSessionSnapshot.composerRole,
+    sessionRevision: activeSessionSnapshot.revision,
+    mutationsEnabled: true,
+    snapshot: activeSessionSnapshot.composer,
+  } as const;
+  const turnFacts = {
+    activeTurnId: activeSessionSnapshot.activeTurnId,
+    composer: activeSessionSnapshot.composer,
+    composerRole: activeSessionSnapshot.composerRole,
+    phase: activeSessionSnapshot.phase,
+    revision: activeSessionSnapshot.revision,
+    skills: activeSessionSnapshot.skills,
+  } as const;
+
+  await screen.unmount();
+
+  await expect
+    .poll(() => pendingDisposeSpies.reduce((count, spy) => count + spy.mock.calls.length, 0))
+    .toBe(1);
+  await expect
+    .poll(() => turnDisposeSpies.reduce((count, spy) => count + spy.mock.calls.length, 0))
+    .toBe(1);
+  expect(pendingDisposeSpies[activePendingIndex]).toHaveBeenCalledOnce();
+  expect(save).not.toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
+
+  const disposedPending = pendingInstances[activePendingIndex];
+  if (disposedPending == null) throw new Error("disposed pending session must exist");
+  const disposedPendingSnapshot = disposedPending.getSnapshot();
+  expect(disposedPendingSnapshot).toMatchObject({
+    phase: "closed",
+    ownerGeneration: activePendingSnapshot.ownerGeneration + 1,
+    view: null,
+    actionsEnabled: false,
+    alert: null,
+    announcement: null,
+    effects: [],
+  });
+  disposedPending.detachEditor(pendingFacts, activeEdit.preparationToken);
+  disposedPending.consumeEffect(Number.MAX_SAFE_INTEGER);
+  expect(disposedPending.getSnapshot()).toEqual(disposedPendingSnapshot);
+
+  const disposedTurnIndex = turnDisposeSpies.findIndex((spy) => spy.mock.calls.length === 1);
+  if (disposedTurnIndex < 0) throw new Error("one turn application must be disposed");
+  const disposedTurn = turnInstances[disposedTurnIndex];
+  if (disposedTurn == null) throw new Error("disposed turn application must exist");
+  const disposedTurnVersionBeforeUnmount = turnVersionsBeforeUnmount[disposedTurnIndex];
+  if (disposedTurnVersionBeforeUnmount == null) {
+    throw new Error("turn application version before unmount must exist");
+  }
+  expect(disposedTurn.getVersion()).toBe(disposedTurnVersionBeforeUnmount + 1);
+  expect(disposedTurn.project({ session: turnFacts, editor: null }).operationsEnabled).toBe(false);
+  const disposedTurnVersion = disposedTurn.getVersion();
+  expect(disposedTurn.recover({ session: turnFacts })).toEqual({ type: "ignored" });
+  expect(disposedTurn.getVersion()).toBe(disposedTurnVersion);
 });
 
 test("distinguishes hover, pointer focus, and keyboard focus-visible field states", async () => {
