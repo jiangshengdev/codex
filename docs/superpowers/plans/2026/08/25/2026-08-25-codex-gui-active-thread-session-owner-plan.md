@@ -195,15 +195,29 @@ RPC 时，才触发重编图并扩大到对应 coordinator/owner 及测试；计
 - `codex-gui/src/features/threadHistory/ThreadHistoryListPage.tsx`
 - `codex-gui/src/features/threadHistory/ThreadHistoryDetailPage.tsx`
 
+新增 tests/harness：
+
+- `codex-gui/src/features/activeThreadSession/__tests__/activeThreadSessionHarness.ts`
+
 修改 tests/harness：
 
 - `codex-gui/src/__tests__/App.browser.test.tsx`
+- `codex-gui/src/__tests__/AppRouting.browser.test.tsx`
 - `codex-gui/src/__tests__/sequential/composer-viewport.browser.test.tsx`
+- `codex-gui/src/__tests__/sequential/subagent-activity-responsive.browser.test.tsx`
 - `codex-gui/src/features/composerTurnControl/__tests__/ComposerTurnControl.browser.test.tsx`
 - `codex-gui/src/features/composerTurnControl/__tests__/composerTurnControlModel.test.ts`
 - `codex-gui/src/features/appShell/__tests__/AppShellTopBar.browser.test.tsx`
+- `codex-gui/src/features/committedTranscriptSurface/__tests__/CommittedTranscriptSurface.browser.test.tsx`
+- `codex-gui/src/features/committedTranscriptSurface/__tests__/ReasoningTranscriptSurface.browser.test.tsx`
+- `codex-gui/src/features/committedTranscriptSurface/__tests__/TranscriptContextPagination.browser.test.tsx`
 - `codex-gui/src/features/threadHistory/__tests__/ThreadHistoryListPage.browser.test.tsx`
 - `codex-gui/src/features/threadHistory/__tests__/ThreadHistoryDetailPage.browser.test.tsx`
+
+其中 `AppRouting.browser.test.tsx` 覆盖 startup pending、settled empty、settled failure 与 atomic publication 后才进行
+route sync 的回归语义；其余新增识别出的测试 consumer 只把已删除的 Redux projection action fixture 迁到携带
+`sessionRevision` 的 revisioned read-model ingress，不改变原有产品断言。`activeThreadSessionHarness.ts` 是构造合法
+stable session Interface、避免测试重新暴露 raw owner/controller 的共享 harness。
 
 删除：
 
@@ -693,9 +707,17 @@ ready set；节点编号和文档顺序不构成依赖。
 #### C6 — Consumer tests/harness迁移
 
 - `taskBoundary`：CONSUMER；`operationKind`：编辑；`estimatedCost`：高；`deferralEvidence`：无。
-- `outcome`：迁移unit/Browser/sequential harness；非法多owner组合不可构造；不删除文件、不操作index。
+- `outcome`：迁移unit/Browser/sequential harness；补齐 startup pending/settled/failure/atomic publication 回归；将
+  transcript/subagent Browser fixtures 切到 revisioned read-model ingress；非法多owner组合不可构造；不删除文件、
+  不操作index。
 - `hardPredecessors`：C5；`consumes`：稳定production fan-in与A tests；`produces`：完整replacement coverage diff。
-- `completionEvidence`：Task C精确声明的测试全部迁移；`readSet/writeSet`：Task C tests/Task C tests。
+- `completionEvidence`：Task C精确声明的新增/修改 tests/harness 全部迁移；`AppRouting.browser.test.tsx` 覆盖
+  startup pending、settled empty、settled failure 与 atomic publication；其余 revisioned ingress fixture 迁移不改变
+  原测试产品断言。
+- `readSet/writeSet`：Task C tests与session/read-model contracts/Task C精确声明的新增/修改 tests/harness，包括
+  `activeThreadSessionHarness.ts`、`AppRouting.browser.test.tsx`、
+  `sequential/subagent-activity-responsive.browser.test.tsx`、三个 `committedTranscriptSurface` Browser tests及原计划
+  已列 tests/harness。
 - `resourceLocks`：Task C tests write；`owner`：C6 editor；`verification`：`rg` old fixtures与`git diff --check`。
 - `failureDomain`：C7及后继；`replanTriggers`：额外consumer或UI文案；`authorizationGate`：A0。
 
@@ -855,6 +877,99 @@ A0 -> D0 -> D1 -> D2 -> D3 -> W0 -> P1 -> P2 -> P3 -> P4
                                                                                  ├-> V2 ─┼-> I1 -> I2 -> I3 -> FR
                                                                                  └-> V3 ─┘
 ```
+
+## 2026-08-25 执行记录与图变化
+
+V3 source/contract audit 发现两类原计划记录缺口，用户于 2026-08-25 对两个处置决策均明确选择 A：
+
+1. 将实际必须迁移的 5 个测试 consumer 与遗漏的共享 `activeThreadSessionHarness.ts` 补入 Task C 精确范围和
+   C6 write set。5 个 consumer 中，`AppRouting.browser.test.tsx` 包含 startup pending、settled empty、settled
+   failure 与 atomic publication 回归；其余 4 个文件只是 revisioned read-model ingress fixture 迁移，原有产品
+   断言不变。删除这些迁移会重新引入已删除 Redux action 的 TypeScript import failure，或使 Browser fixture 无法
+   向新的 read model 投递 baseline/event/delta/projection-unavailable facts。
+2. 接受实际提交拓扑已经偏离原始 C10 单提交表达：C1 stable capability contract 已形成独立提交
+   `1a995cc60`，其余 Consumer cutover、测试迁移与 legacy deletion 形成 `79da9681b`；formatter 纯格式提交为
+   `9c9ae0a3b`。保留这些提交身份，禁止 amend、squash、reset 或其他历史改写。
+
+V3 还发现 `1a995cc60` 在 `AppCapabilitiesContext.tsx` 中顺带加入了与 capability cutover 无关的 props
+`Readonly` 整理。这是 V3 发现后的计划内审计纠正，将用新的独立 correction commit 恢复该范围外整理；不得改写
+`1a995cc60`。本次图变化
+先提交计划修订，再执行 correction，最后重新取得 final source/contract audit evidence：
+
+```text
+V3(failed evidence)
+  -> REPLAN-DOC-EDIT -> REPLAN-DOC-VERIFY -> REPLAN-DOC-STAGE -> REPLAN-DOC-COMMIT
+  -> CONTEXT-READONLY-RESTORE -> CONTEXT-READONLY-VERIFY -> CONTEXT-READONLY-STAGE
+  -> CONTEXT-READONLY-COMMIT -> V3-RECHECK -> I1
+```
+
+### REPLAN-DOC 节点
+
+- `nodeId`：REPLAN-DOC-EDIT；`taskBoundary`：REPLAN-DOC；`operationKind`：编辑；`outcome`：仅更新本计划的
+  精确范围、C6 write set、实际提交拓扑与图变化记录；`estimatedCost`：低；`deferralEvidence`：无；
+  `hardPredecessors`：V3 failed evidence与2026-08-25用户两项A选择；`consumes`：V3证据、实际commit SHA与用户授权；
+  `produces`：单文件plan diff；`completionEvidence`：只有本计划被修改；`readSet/writeSet`：V3 evidence与本计划/
+  本计划；`executionContext`：implementation worktree；`resourceLocks`：本计划文件write；`owner`：plan editor；
+  `verification`：内容审查；`failureDomain`：REPLAN-DOC-VERIFY及全部新后继；`replanTriggers`：新增代码、issue、
+  design或其他文档范围；`authorizationGate`：用户两项A选择已满足。
+- `nodeId`：REPLAN-DOC-VERIFY；`taskBoundary`：REPLAN-DOC；`operationKind`：验证；`outcome`：plan diff和
+  `git diff --check`通过；`estimatedCost`：低；`deferralEvidence`：无；`hardPredecessors`：REPLAN-DOC-EDIT的稳定
+  单文件diff；`consumes`：plan diff；`produces`：verified plan diff；`completionEvidence`：范围审查与diff check通过；
+  `readSet/writeSet`：本计划/无；`executionContext`：implementation worktree；`resourceLocks`：本计划read；
+  `owner`：plan verifier；`verification`：`git diff --check`；`failureDomain`：REPLAN-DOC-STAGE及全部新后继；
+  `replanTriggers`：diff出现第二文件；`authorizationGate`：用户落盘授权已满足。
+- `nodeId`：REPLAN-DOC-STAGE；`taskBoundary`：REPLAN-DOC；`operationKind`：stage；`outcome`：只暂存本计划；
+  `estimatedCost`：低；`deferralEvidence`：无；`hardPredecessors`：verified plan diff；`consumes`：verified plan diff；
+  `produces`：plan-only index；`completionEvidence`：cached diff只有本计划且check通过；`readSet/writeSet`：本计划/
+  Git index；`executionContext`：implementation worktree；`resourceLocks`：Git index write；`owner`：REPLAN-DOC Git
+  owner；`verification`：cached name/check/diff；`failureDomain`：REPLAN-DOC-COMMIT及全部新后继；
+  `replanTriggers`：index含其他文件；`authorizationGate`：用户确认已满足。
+- `nodeId`：REPLAN-DOC-COMMIT；`taskBoundary`：REPLAN-DOC；`operationKind`：commit；`outcome`：形成独立计划
+  修订提交；`estimatedCost`：低；`deferralEvidence`：无；`hardPredecessors`：plan-only verified index；
+  `consumes`：plan-only index；`produces`：replan commit SHA；`completionEvidence`：commit show只有本计划；
+  `readSet/writeSet`：index/branch；`executionContext`：implementation worktree；`resourceLocks`：Git index/branch write；
+  `owner`：REPLAN-DOC Git owner；`verification`：commit show；`failureDomain`：CONTEXT-READONLY-RESTORE及其后继；
+  `replanTriggers`：commit混入其他路径；`authorizationGate`：用户确认已满足。
+
+### AppCapabilitiesContext correction 节点
+
+- `nodeId`：CONTEXT-READONLY-RESTORE；`taskBoundary`：CONSUMER-CORRECTION；`operationKind`：编辑；
+  `outcome`：仅恢复 `AppCapabilitiesContext.tsx` props 的原始非 `Readonly` 类型表达，不改变 runtime、Context value或
+  session contract；`estimatedCost`：低；`deferralEvidence`：无；`hardPredecessors`：REPLAN-DOC-COMMIT；
+  `consumes`：replan commit与 `1a995cc60` hunk；`produces`：单文件inverse diff；`completionEvidence`：diff只逆转
+  `Readonly`整理；`readSet/writeSet`：`AppCapabilitiesContext.tsx`/同文件；`executionContext`：implementation worktree；
+  `resourceLocks`：该文件write；`owner`：correction editor；`verification`：source/diff review；`failureDomain`：
+  CONTEXT-READONLY-VERIFY及后继；`replanTriggers`：任何runtime、其他类型或其他文件变化；`authorizationGate`：
+  已确认计划的审计纠正范围。
+- `nodeId`：CONTEXT-READONLY-VERIFY；`taskBoundary`：CONSUMER-CORRECTION；`operationKind`：验证；
+  `outcome`：inverse diff、frontend format check、type/full-unit CI与`git diff --check`通过；`estimatedCost`：中；
+  `deferralEvidence`：无；`hardPredecessors`：CONTEXT-READONLY-RESTORE单文件diff；`consumes`：correction diff；
+  `produces`：verified correction diff；`completionEvidence`：`pnpm run format:oxfmt`、`pnpm run ci`与diff check exit 0；
+  `readSet/writeSet`：frontend source与correction diff/runner caches only；`executionContext`：implementation
+  `codex-gui`；`resourceLocks`：frontend runner caches/process write；`owner`：correction verifier；`verification`：项目固化
+  frontend入口；`failureDomain`：CONTEXT-READONLY-STAGE及后继；`replanTriggers`：验证产生tracked diff或发现行为变化；
+  `authorizationGate`：已确认计划的审计纠正范围。
+- `nodeId`：CONTEXT-READONLY-STAGE；`taskBoundary`：CONSUMER-CORRECTION；`operationKind`：stage；
+  `outcome`：只暂存 `AppCapabilitiesContext.tsx` inverse diff；`estimatedCost`：低；`deferralEvidence`：无；
+  `hardPredecessors`：verified correction diff；`consumes`：verified correction diff；`produces`：correction-only index；
+  `completionEvidence`：cached diff只有目标文件且check通过；`readSet/writeSet`：目标文件/Git index；
+  `executionContext`：implementation worktree；`resourceLocks`：Git index write；`owner`：correction Git owner；
+  `verification`：cached name/check/diff；`failureDomain`：CONTEXT-READONLY-COMMIT及后继；`replanTriggers`：index含其他
+  文件；`authorizationGate`：已确认计划的审计纠正范围。
+- `nodeId`：CONTEXT-READONLY-COMMIT；`taskBoundary`：CONSUMER-CORRECTION；`operationKind`：commit；
+  `outcome`：形成独立 correction commit，不改写 `1a995cc60`、`79da9681b` 或 `9c9ae0a3b`；`estimatedCost`：低；
+  `deferralEvidence`：无；`hardPredecessors`：correction-only verified index；`consumes`：correction-only index；
+  `produces`：correction commit SHA；`completionEvidence`：commit show只有目标inverse hunk；`readSet/writeSet`：index/
+  branch；`executionContext`：implementation worktree；`resourceLocks`：Git index/branch write；`owner`：correction Git
+  owner；`verification`：commit show；`failureDomain`：V3-RECHECK及issue后继；`replanTriggers`：commit混入其他变化；
+  `authorizationGate`：已确认计划的审计纠正范围。
+- `nodeId`：V3-RECHECK；`taskBoundary`：无提交；`operationKind`：审查；`outcome`：重新证明最终HEAD满足source/
+  contract、实际提交拓扑、必要consumer范围、纯formatter与独立correction边界；`estimatedCost`：中；
+  `deferralEvidence`：无；`hardPredecessors`：CONTEXT-READONLY-COMMIT；`consumes`：最终source/history与此前V3证据；
+  `produces`：final V3 evidence；`completionEvidence`：targeted rg/git log/show/diff全部通过；`readSet/writeSet`：repo
+  source/history/无；`executionContext`：implementation worktree；`resourceLocks`：source/history read；`owner`：独立
+  reviewer；`verification`：source-backed review；`failureDomain`：I1/FR；`replanTriggers`：仍有遗漏consumer、第二owner、
+  compat/fallback、范围外文件或commit混杂；`authorizationGate`：已确认计划的审计纠正范围。
 
 关键路径是 DOCS → worktree → P → R → L → A → C1 → max(C2/C3/C4) → production fan-in → tests →
 legacy deletion → consumer verification/commit → formatter →
