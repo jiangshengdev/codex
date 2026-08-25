@@ -269,6 +269,33 @@ describe("ComposerPendingInputSession", () => {
       [{ lane: "steer", revision: 2, cursor: null, limit: 20 }],
       [{ lane: "ordinary", revision: 2, cursor: null, limit: 20 }],
     ]);
+
+    const attached = session.getSnapshot();
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+    vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    session.setEditorValidity(current, preparation.preparationToken, true);
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+    expect(session.getSnapshot()).toEqual(attached);
+
+    session.setEditorValidity(current, preparation.preparationToken, false);
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      view: {
+        pages: { revision: 2 },
+        edit: {
+          phase: "active",
+          preparationToken: preparation.preparationToken,
+          valid: false,
+        },
+      },
+    });
   });
 
   test("keeps a saved edit at a synchronously advanced owner revision", () => {
