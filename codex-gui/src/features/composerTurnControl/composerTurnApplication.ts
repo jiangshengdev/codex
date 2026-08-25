@@ -96,7 +96,11 @@ class ComposerTurnApplicationImpl implements ComposerTurnApplication {
   private version = 0;
   private disposed = false;
 
-  constructor({ scheduleMicrotask = queueMicrotask }: ComposerTurnApplicationOptions) {
+  constructor({
+    scheduleMicrotask = (callback) => {
+      queueMicrotask(callback);
+    },
+  }: ComposerTurnApplicationOptions) {
     this.scheduleMicrotask = scheduleMicrotask;
   }
 
