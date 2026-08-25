@@ -485,7 +485,8 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     } else {
       this.exhaustedMoveRefresh = {
         composerRole: facts.composerRole,
-        throughRevision: refreshed.revision,
+        throughRevision:
+          refreshed.type === "ready" ? refreshed.prefixes.revision : refreshed.revision,
       };
       this.pages = null;
     }
