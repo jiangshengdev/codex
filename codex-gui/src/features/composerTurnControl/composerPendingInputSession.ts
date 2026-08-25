@@ -251,9 +251,9 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     if (!this.accepts(facts)) return ignored;
     if (this.edit?.phase === "active") {
       const result = this.runManagement(() => this.editActive().reservation.cancel());
-      if (!this.settleEditResult(facts, result, true)) return ignored;
+      const settled = this.settleEditResult(facts, result, true);
       this.publish(facts);
-      return applied;
+      return settled ? applied : ignored;
     }
     this.edit = null;
     this.beginClosing(hasPendingInputs(facts.snapshot) ? "trigger" : "composer");

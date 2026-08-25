@@ -374,6 +374,75 @@ describe("ComposerPendingInputSession", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
+  test("publishes closing when request-close cancellation loses its owner", () => {
+    const { session, harness, current } = openSession();
+    const currentAfterAttach = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2 }),
+    });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "unavailable" as const,
+        scope: "ownerGone" as const,
+        reason: "ownerReplaced" as const,
+      })),
+    };
+    beginActiveEdit(session, harness, current, reservation);
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+
+    expect(session.requestClose(currentAfterAttach)).toEqual({ type: "ignored" });
+
+    expect(reservation.cancel).toHaveBeenCalledOnce();
+    expect(reservation.save).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledOnce();
+    expect(session.getSnapshot()).toMatchObject({ phase: "closing", view: null });
+  });
+
+  test("publishes a live-session alert when request-close cancellation is invalidated", () => {
+    const { session, harness, current } = openSession();
+    const currentAfterAttach = facts(harness.role, {
+      sessionRevision: 2,
+      snapshot: queueSnapshot({ detailRevision: 2 }),
+    });
+    const reservation = {
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 3,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "unavailable" as const,
+        scope: "liveOwner" as const,
+        reason: "sessionInvalidated" as const,
+        revision: 3,
+      })),
+    };
+    beginActiveEdit(session, harness, current, reservation);
+    const editorEffect = session.getSnapshot().effects[0];
+    if (editorEffect?.target.type !== "editor") {
+      throw new Error("active edit must issue an editor focus effect");
+    }
+    session.consumeEffect(editorEffect.id);
+    const listener = vi.fn<() => void>();
+    session.subscribe(listener);
+
+    expect(session.requestClose(currentAfterAttach)).toEqual({ type: "ignored" });
+
+    expect(reservation.cancel).toHaveBeenCalledOnce();
+    expect(reservation.save).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledOnce();
+    expect(session.getSnapshot()).toMatchObject({
+      phase: "open",
+      alert: "sessionInvalidated",
+      view: { pages: { revision: 3 }, edit: null },
+      effects: [{ target: { type: "drawerHeading" } }],
+    });
+  });
+
   test("ignores a stale detach after a matching invalidation settles the active edit", () => {
     const steerItem = item("one", "steer");
     const harness = createRoleHarness([steerItem]);
