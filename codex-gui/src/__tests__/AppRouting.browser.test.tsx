@@ -22,6 +22,7 @@ import type {
   ActiveThreadSessionController,
 } from "@/features/activeThreadSession/activeThreadSession";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
 import { createAppRouter } from "@/router";
@@ -498,10 +499,16 @@ test("pure read-only history detail activates its first task and replaces the ro
       threadId: historyThreadId,
     });
     expect(commands.detachThreadProjection).not.toHaveBeenCalled();
-    expect(storageSetItem).toHaveBeenCalledExactlyOnceWith(
-      expect.any(String),
-      JSON.stringify({ token: "detail-secret", activeThreadId: historyThreadId }),
-    );
+    expect(storageSetItem).toHaveBeenCalledOnce();
+    const storedSession = consumeBrowserAuthorizationSession({
+      location: new URL("https://codex.test/browser-authorization-session-read"),
+      replaceState: () => undefined,
+      storage: window.sessionStorage,
+    });
+    expect(storedSession.getSnapshot()).toStrictEqual({
+      token: "detail-secret",
+      activeThreadId: historyThreadId,
+    });
     expectCanonicalRoute(router.state.location.href, `/task/${historyThreadId}`, 1);
     expect(router.history.length).toBe(initialHistoryLength);
   } finally {
