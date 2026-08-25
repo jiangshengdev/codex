@@ -74,8 +74,8 @@ const draftCapture = (
   }) as unknown as ComposerDraftCapture;
 
 const editorController = (capture: ComposerDraftCapture): SubmitController => ({
-  capture: vi.fn(() => capture),
-  clearIfCurrent: vi.fn(() => true),
+  capture: vi.fn<SubmitController["capture"]>(() => capture),
+  clearIfCurrent: vi.fn<SubmitController["clearIfCurrent"]>(() => true),
 });
 
 describe("ComposerTurnApplication", () => {
@@ -186,7 +186,7 @@ describe("ComposerTurnApplication", () => {
   });
 
   it("routes non-empty Guide through steer and empty Guide through promotion", () => {
-    const microtasks: Array<() => void> = [];
+    const microtasks: (() => void)[] = [];
     const application = createComposerTurnApplication({
       scheduleMicrotask: (callback) => microtasks.push(callback),
     });
@@ -255,19 +255,18 @@ describe("ComposerTurnApplication", () => {
   });
 
   it("sets the latch before dispatch so synchronous reentry is ignored", () => {
-    const microtasks: Array<() => void> = [];
+    const microtasks: (() => void)[] = [];
     const application = createComposerTurnApplication({
       scheduleMicrotask: (callback) => microtasks.push(callback),
     });
     const capture = draftCapture("One command");
     const controller = editorController(capture);
     let reentryResult: ReturnType<typeof application.submit> | null = null;
-    let session: ComposerTurnSessionFacts;
     const submit = vi.fn<ComposerRole["submit"]>(() => {
       reentryResult = application.submit({ session, controller, capture, intent: "ordinary" });
       return { type: "accepted" };
     });
-    session = sessionFacts({ composerRole: createRole({ submit }) });
+    const session = sessionFacts({ composerRole: createRole({ submit }) });
     application.project({ session, editor: null });
 
     expect(application.submit({ session, controller, capture, intent: "ordinary" })).toEqual({
@@ -279,7 +278,7 @@ describe("ComposerTurnApplication", () => {
   });
 
   it("keeps a new owner generation locked when an old microtask arrives", () => {
-    const microtasks: Array<() => void> = [];
+    const microtasks: (() => void)[] = [];
     const application = createComposerTurnApplication({
       scheduleMicrotask: (callback) => microtasks.push(callback),
     });
@@ -320,11 +319,11 @@ describe("ComposerTurnApplication", () => {
   });
 
   it("invalidates queued callbacks and rejects commands after teardown", () => {
-    const microtasks: Array<() => void> = [];
+    const microtasks: (() => void)[] = [];
     const application = createComposerTurnApplication({
       scheduleMicrotask: (callback) => microtasks.push(callback),
     });
-    const listener = vi.fn();
+    const listener = vi.fn<Parameters<typeof application.subscribe>[0]>();
     application.subscribe(listener);
     const role = createRole();
     const session = sessionFacts({ composerRole: role });
