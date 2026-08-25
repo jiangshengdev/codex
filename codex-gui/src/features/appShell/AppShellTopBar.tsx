@@ -9,13 +9,14 @@ import {
   HISTORY_LIST_ROUTE_PATH,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
-import { useAppCapabilities } from "./AppCapabilities";
+import { useActiveThreadId, useAppCapabilities } from "./AppCapabilities";
 
 export function AppShellTopBar() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const { activeOwner, routeTarget } = useAppCapabilities();
+  const { routeTarget } = useAppCapabilities();
+  const activeThreadId = useActiveThreadId();
   const runtime = useAppSelector(selectThreadRuntimeRecord);
   const isCurrentTask = routeTarget.type === "currentTask";
   const isHistoryList = routeTarget.type === "historyList";
@@ -28,13 +29,13 @@ export function AppShellTopBar() {
   const title = isCurrentTask ? (currentTaskTitle ?? t`Current task`) : t`History`;
 
   const navigateToCurrentTask = (): void => {
-    if (activeOwner == null) {
+    if (activeThreadId == null) {
       return;
     }
     setIsDrawerOpen(false);
     void navigate({
       to: CURRENT_TASK_ROUTE_PATH,
-      params: { threadId: activeOwner.threadId },
+      params: { threadId: activeThreadId },
     });
   };
 
@@ -74,7 +75,7 @@ export function AppShellTopBar() {
                 <Button
                   aria-current={isCurrentTask ? "page" : undefined}
                   className="justify-start"
-                  isDisabled={activeOwner == null}
+                  isDisabled={activeThreadId == null}
                   variant={isCurrentTask ? "secondary" : "tertiary"}
                   onPress={navigateToCurrentTask}
                 >

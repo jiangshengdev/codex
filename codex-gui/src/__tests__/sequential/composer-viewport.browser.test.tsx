@@ -1,68 +1,133 @@
 import { Toast } from "@heroui/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
+import { useSyncExternalStore } from "react";
 import {
   attachResponse,
   createGuiHostCommands,
   launchThreadId,
 } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred } from "@/__tests__/testDeferred";
+import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadComposerRole,
+  ActiveThreadSession,
+  ActiveThreadSkillsRole,
+} from "@/features/activeThreadSession/activeThreadSession";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import {
-  attachedThreadIdObserved,
-  launchThreadIdRecorded,
-} from "@/features/threadIdentity/threadIdentitySlice";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { eventTurnCompleted } from "@/features/projection/__tests__/projectionFixtures";
 import type {
   SkillCatalogCandidate,
   SkillCatalogState,
 } from "@/features/skillCatalog/skillCatalogOwner";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
 
-const initializedStatus: GuiHostStatus = { label: "initialized" };
 const emptySkillCatalogSnapshot = {
   type: "ready",
   candidates: [],
   partialErrorCount: 0,
 } as const;
-const skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"] = {
+type SkillCatalogController = Readonly<{
+  getSnapshot(): SkillCatalogState;
+  subscribe(listener: () => void): () => void;
+  invalidate(): boolean;
+  retry(): boolean;
+}>;
+
+const skillCatalogController: SkillCatalogController = {
   getSnapshot: () => emptySkillCatalogSnapshot,
   subscribe: () => () => undefined,
   invalidate: () => false,
   retry: () => false,
 };
 
+const composerRoleFor = (
+  controller: ComposerInputQueueCoordinator,
+): Partial<ActiveThreadComposerRole> => ({
+  beginPendingInputEdit: (_revision, request, restore) =>
+    controller.beginPendingInputEdit(request, restore),
+  deletePendingInput: (_revision, request) => controller.deletePendingInput(request),
+  interruptActiveTurn: () => controller.interruptActiveTurn(),
+  movePendingInput: (_revision, request) => controller.movePendingInput(request),
+  promoteOrdinaryFrontToSteer: () => controller.promoteOrdinaryFrontToSteer(),
+  readPendingInputDetail: (request) => controller.readPendingInputDetail(request),
+  readPendingInputPage: (request) => controller.readPendingInputPage(request),
+  recover: () => controller.recover(),
+  submit: (_revision, capture) => controller.submit(capture),
+  submitSteer: (_revision, capture) => controller.submitSteer(capture),
+});
+
+const skillsRoleFor = (controller: SkillCatalogController): Partial<ActiveThreadSkillsRole> => ({
+  invalidateSkills: () => controller.invalidate(),
+  refreshSkills: () => controller.invalidate(),
+  retrySkills: () => controller.retry(),
+});
+
+function SessionComposerTurnControl({ session }: Readonly<{ session: ActiveThreadSession }>) {
+  const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
+  return (
+    <ComposerTurnControl
+      authorizationToken={null}
+      guardCompositionEndEnter={false}
+      routeTarget={{ type: "currentTask", threadId: launchThreadId }}
+      sessionSnapshot={snapshot}
+    />
+  );
+}
+
 async function renderAttached(
-  commandHandle: GuiHostCommands | null = createGuiHostCommands(),
-  composerInputQueueController: ComposerInputQueueCoordinator | null = null,
-  activeSkillCatalogController: ActiveThreadOwnerHandle["skillCatalog"] = skillCatalogController,
+  commandHandle: GuiHostCommands = createGuiHostCommands(),
+  composerInputQueueController: ComposerInputQueueCoordinator =
+    createComposerInputQueueCoordinator({
+      threadId: launchThreadId,
+      activeTurnId: null,
+      startTurn: commandHandle.startTurn,
+      steerTurn: commandHandle.steerTurn,
+      interruptTurn: commandHandle.interruptTurn,
+    }),
+  activeSkillCatalogController: SkillCatalogController = skillCatalogController,
 ) {
+  const sessionHarness = createActiveThreadSessionHarness({
+    composerRole: composerRoleFor(composerInputQueueController),
+    skillsRole: skillsRoleFor(activeSkillCatalogController),
+  });
+  let revision = 1;
+  const publish = (): void => {
+    revision += 1;
+    sessionHarness.publish(
+      sessionHarness.activeSnapshot({
+        revision,
+        threadId: launchThreadId,
+        subscriptionId: attachResponse.subscriptionId,
+        activeTurnId: composerInputQueueController.getSnapshot().canStop ? launchThreadId : null,
+        composer: composerInputQueueController.getSnapshot(),
+        skills: activeSkillCatalogController.getSnapshot(),
+      }),
+    );
+  };
+  publish();
+  composerInputQueueController.subscribe(publish);
   const result = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
-      <ComposerTurnControl
-        authorizationToken={null}
-        commands={commandHandle}
-        composerInputQueueController={composerInputQueueController}
-        guardCompositionEndEnter={false}
-        guiHostStatus={initializedStatus}
-        routeTarget={{ type: "currentTask", threadId: launchThreadId }}
-        skillCatalogController={activeSkillCatalogController}
-      />
+      <SessionComposerTurnControl session={sessionHarness.session} />
     </>,
   );
-  result.store.dispatch(launchThreadIdRecorded(launchThreadId));
-  result.store.dispatch(attachedThreadIdObserved(launchThreadId));
-  result.store.dispatch(threadRuntimeAttached(attachResponse));
-  return result;
+  result.store.dispatch(
+    activeThreadReadModelTransitionApplied({
+      sessionRevision: 1,
+      facts: [{ type: "baselineAttached", response: attachResponse }],
+    }),
+  );
+  return { ...result, sessionHarness };
 }
 
 const nextAnimationFrame = (): Promise<void> =>
@@ -256,7 +321,7 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
       candidates: [responsiveSkill],
       partialErrorCount: 0,
     };
-    const responsiveSkillController: ActiveThreadOwnerHandle["skillCatalog"] = {
+    const responsiveSkillController: SkillCatalogController = {
       getSnapshot: () => responsiveSkillSnapshot,
       subscribe: () => () => undefined,
       invalidate: () => false,

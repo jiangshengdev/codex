@@ -16,11 +16,33 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import { createDeferred as deferred } from "./testDeferred";
+import type * as ActiveThreadSessionModule from "@/features/activeThreadSession/activeThreadSession";
+import type {
+  ActiveThreadActivationOutcome,
+  ActiveThreadSessionController,
+} from "@/features/activeThreadSession/activeThreadSession";
+import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
 import type { StartGuiHostConnectionOptions } from "@/features/guiHost/guiHostClient";
 import { attachWithThreadId } from "@/features/projection/__tests__/projectionTestBuilders";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { createAppRouter } from "@/router";
 import { renderWithProviders } from "@/utils/test-utils";
+
+const activeThreadSessionFactoryState: {
+  controller: ActiveThreadSessionController | null;
+} = vi.hoisted(() => ({ controller: null }));
+
+vi.mock("@/features/activeThreadSession/activeThreadSession", async (importOriginal) => {
+  const actual = await importOriginal<typeof ActiveThreadSessionModule>();
+  return {
+    ...actual,
+    createActiveThreadSession: (
+      input: Parameters<typeof ActiveThreadSessionModule.createActiveThreadSession>[0],
+    ) => {
+      const controller = activeThreadSessionFactoryState.controller;
+      return controller ?? actual.createActiveThreadSession(input);
+    },
+  };
+});
 
 const guiHostClientMock = vi.hoisted(() => ({
   startGuiHostConnection: vi.fn<(options: StartGuiHostConnectionOptions) => () => void>(),
@@ -62,11 +84,123 @@ const expectCanonicalRoute = (href: string, pathname: string, expectedUuidCount:
 };
 
 beforeEach(() => {
+  activeThreadSessionFactoryState.controller = null;
   resetAppBrowserTestSupport(startGuiHostConnectionMock);
 });
 
 afterEach(() => {
   toast.clear();
+});
+
+const installActiveThreadSessionController = (
+  sessionHarness: ReturnType<typeof createActiveThreadSessionHarness>,
+  activateRecoveryThread: ActiveThreadSessionController["activateRecoveryThread"] = () =>
+    sessionHarness.activate(launchThreadId),
+): ActiveThreadSessionController => {
+  const controller: ActiveThreadSessionController = {
+    session: sessionHarness.session,
+    activateRecoveryThread:
+      vi.fn<ActiveThreadSessionController["activateRecoveryThread"]>(activateRecoveryThread),
+    handleProjectionEvent: vi.fn<ActiveThreadSessionController["handleProjectionEvent"]>(),
+    handleProjectionDelta: vi.fn<ActiveThreadSessionController["handleProjectionDelta"]>(),
+    handleProjectionClosed: vi.fn<ActiveThreadSessionController["handleProjectionClosed"]>(),
+    handleSkillsChanged: vi.fn<ActiveThreadSessionController["handleSkillsChanged"]>(),
+    connectionUnavailable: vi.fn<ActiveThreadSessionController["connectionUnavailable"]>(),
+    dispose: vi.fn<ActiveThreadSessionController["dispose"]>(),
+  };
+  activeThreadSessionFactoryState.controller = controller;
+  return controller;
+};
+
+test("history waits for startup activation before publishing a settled empty session", async () => {
+  seedBrowserAuthorizationSession({ token: "history-secret" });
+  const startup = deferred<ActiveThreadActivationOutcome>();
+  const sessionHarness = createActiveThreadSessionHarness();
+  const controller = installActiveThreadSessionController(sessionHarness, () => startup.promise);
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createHistoryCommands();
+
+  initializeHost(options, commands);
+
+  await expect.poll(() => vi.mocked(controller.activateRecoveryThread).mock.calls.length).toBe(1);
+  await expect.element(screen.getByText("Loading history…", { exact: true })).toBeVisible();
+  await expect.poll(sessionHarness.listenerCount).toBe(0);
+  await expect.poll(() => router.state.location.pathname).toBe("/history");
+
+  startup.resolve({ type: "empty" });
+
+  const alert = screen.getByRole("main").getByRole("alert");
+  await expect.element(alert).toHaveTextContent("History context unavailable");
+  await expect
+    .element(alert)
+    .toHaveTextContent("Open an active task in this browser tab before viewing its history.");
+  await expect.poll(() => sessionHarness.listenerCount()).toBeGreaterThan(0);
+  await expect.poll(() => vi.mocked(commands.listThreads).mock.calls.length).toBe(0);
+});
+
+test("history publishes a settled startup failure without entering the empty-context branch", async () => {
+  seedBrowserAuthorizationSession({ token: "history-secret" });
+  const sessionHarness = createActiveThreadSessionHarness();
+  installActiveThreadSessionController(sessionHarness, () =>
+    Promise.resolve({
+      type: "unavailable",
+      failure: {
+        type: "operationFailed",
+        phase: "resume",
+        error: new Error("startup recovery failed"),
+        cleanupError: null,
+      },
+    }),
+  );
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/history"] }));
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+  const commands = createHistoryCommands();
+
+  initializeHost(options, commands);
+
+  const alert = screen.getByRole("main").getByRole("alert");
+  await expect.element(alert).toHaveTextContent("Unable to load history");
+  await expect.element(alert).toHaveTextContent("resume: startup recovery failed");
+  await expect
+    .element(alert)
+    .not.toHaveTextContent("Open an active task in this browser tab before viewing its history.");
+  await expect.poll(() => vi.mocked(commands.listThreads).mock.calls.length).toBe(0);
+  await expect.poll(() => router.state.location.pathname).toBe("/history");
+});
+
+test("route sync observes the active thread only after atomic startup publication", async () => {
+  seedBrowserAuthorizationSession({ token: "task-secret", activeThreadId: launchThreadId });
+  const startup = deferred<ActiveThreadActivationOutcome>();
+  const sessionHarness = createActiveThreadSessionHarness({ activate: () => startup.promise });
+  installActiveThreadSessionController(sessionHarness);
+  const router = createAppRouter(
+    createMemoryHistory({ initialEntries: [`/task/${launchThreadId}`] }),
+  );
+  const initialHistoryLength = router.history.length;
+  const screen = await renderWithProviders(<RouterProvider router={router} />);
+  const options = getHostOptions(startGuiHostConnectionMock);
+
+  initializeHost(options, createGuiHostCommands());
+
+  await expect.poll(() => sessionHarness.activate.mock.calls.length).toBe(1);
+  sessionHarness.publish(sessionHarness.activeSnapshot({ threadId: historyThreadId }));
+
+  await expect.poll(sessionHarness.listenerCount).toBe(0);
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${launchThreadId}`);
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .not.toBeInTheDocument();
+
+  startup.resolve({ type: "ready", threadId: historyThreadId, warnings: [] });
+
+  await expect.poll(() => router.state.location.pathname).toBe(`/task/${historyThreadId}`);
+  await expect.poll(() => router.history.length).toBe(initialHistoryLength);
+  await expect
+    .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
+    .toBeVisible();
 });
 
 test("history cards open details and preserve one connection across browser back and forward", async () => {
@@ -97,9 +231,6 @@ test("history cards open details and preserve one connection across browser back
   expectCanonicalRoute(router.state.location.href, `/task/${launchThreadId}`, 1);
   expect(guiHostClientMock.startGuiHostConnection).toHaveBeenCalledTimes(1);
   expect(getCleanupConnectionCallCount()).toBe(0);
-
-  screen.store.dispatch(threadRuntimeAttached(attachWithThreadId(attachResponse, historyThreadId)));
-  await expect.poll(() => document.title).toBe("Current task · Codex");
 
   queueAttachProjectionResponse(commands);
   initializeHost(options, commands);
@@ -394,7 +525,7 @@ test("pure read-only history detail activates its first task and replaces the ro
     await expect
       .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))
       .toBeVisible();
-    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
+    expect(commands.resumeThread).not.toHaveBeenCalled();
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,
     });
@@ -425,7 +556,7 @@ test("pure read-only history detail preserves its route when first activation fa
     const options = getHostOptions(startGuiHostConnectionMock);
     const commands = createHistoryCommands();
     vi.mocked(commands.readThread).mockResolvedValueOnce({ thread: historyThread });
-    vi.mocked(commands.resumeThread).mockRejectedValueOnce(new Error("resume failed"));
+    vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(new Error("attach failed"));
 
     initializeHost(options, commands);
 
@@ -442,9 +573,16 @@ test("pure read-only history detail preserves its route when first activation fa
 
     const alert = screen.getByRole("alert");
     await expect.element(alert).toHaveTextContent("Unable to continue this task");
-    await expect.element(alert).toHaveTextContent("resume failed");
-    expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: historyThreadId });
-    expect(commands.attachThreadProjection).not.toHaveBeenCalled();
+    await expect
+      .element(alert.getByText("The task connection could not be prepared.", { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(alert.getByText("Operation diagnostic:", { exact: false }))
+      .toHaveTextContent("attach failed");
+    expect(commands.resumeThread).not.toHaveBeenCalled();
+    expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+      threadId: historyThreadId,
+    });
     expect(storageSetItem).not.toHaveBeenCalled();
     await expect
       .element(screen.getByRole("combobox", { name: "Message Codex", exact: true }))

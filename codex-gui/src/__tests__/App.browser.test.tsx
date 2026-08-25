@@ -8,12 +8,13 @@ import {
   RouterProvider,
   type RouteComponent,
 } from "@tanstack/react-router";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import {
   attachResponse,
   attachWithCommittedMessages,
   createDeferred,
   createGuiHostCommands,
+  emitRawHostStatus,
   emitSkillsChanged,
   emitProjectionClosed,
   emitProjectionDelta,
@@ -32,7 +33,11 @@ import {
   type StartGuiHostConnectionMock,
 } from "./appBrowserTestSupport";
 import RootApp from "@/App";
-import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
+import {
+  useActiveThreadSession,
+  useActiveThreadSessionSnapshot,
+} from "@/features/appShell/AppCapabilities";
+import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
 import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_DETAIL_ROUTE_PATH,
@@ -84,17 +89,13 @@ import {
   turnStarted,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import type { SkillMetadata, SkillsListResponse } from "@codex-protocol/v2";
-import { selectThreadIdentityState } from "@/features/threadIdentity/threadIdentitySlice";
 import {
   selectTranscriptEntry,
   transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
 import {
-  selectThreadRuntimeEventBuffer,
   selectThreadRuntimeRecord,
-  selectThreadRuntimeSubscription,
 } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 
@@ -111,51 +112,34 @@ const startGuiHostConnectionMock =
   guiHostClientMock.startGuiHostConnection as unknown as StartGuiHostConnectionMock;
 
 const candidateThreadId = "00000000-0000-0000-0000-000000000002";
-let threadSwitchProbeActiveOwner: ActiveThreadOwnerHandle | null = null;
-let threadSwitchProbeContinueThread: ReturnType<typeof useAppCapabilities>["continueThread"] = null;
-let threadSwitchProbePromise: ReturnType<
-  NonNullable<ReturnType<typeof useAppCapabilities>["continueThread"]>
-> | null = null;
-
-const emptySkillCatalogSnapshot = {
-  type: "initialLoading",
-  candidates: [],
-  partialErrorCount: 0,
-} as const;
-const getEmptySkillCatalogSnapshot = () => emptySkillCatalogSnapshot;
-const subscribeToEmptySkillCatalog = () => () => undefined;
+let threadSwitchProbeSession: ActiveThreadSession | null = null;
+let threadSwitchProbePromise: ReturnType<ActiveThreadSession["activate"]> | null = null;
 
 function ThreadSwitchCapabilityProbe() {
-  const { activeOwner, continueThread } = useAppCapabilities();
-  const skillCatalogSnapshot = useSyncExternalStore(
-    activeOwner?.skillCatalog.subscribe ?? subscribeToEmptySkillCatalog,
-    activeOwner?.skillCatalog.getSnapshot ?? getEmptySkillCatalogSnapshot,
-  );
+  const session = useActiveThreadSession();
+  const snapshot = useActiveThreadSessionSnapshot();
+  const available = snapshot.phase === "active" || snapshot.phase === "projectionUnavailable";
   useEffect(() => {
-    threadSwitchProbeActiveOwner = activeOwner;
-    threadSwitchProbeContinueThread = continueThread;
-  }, [activeOwner, continueThread]);
+    threadSwitchProbeSession = session;
+  }, [session]);
 
   return (
     <section aria-label="Thread switch capability probe">
       <button
-        disabled={continueThread == null}
+        disabled={session == null || !available}
         onClick={() => {
-          threadSwitchProbePromise = continueThread?.(candidateThreadId) ?? null;
+          threadSwitchProbePromise = session?.activate(candidateThreadId) ?? null;
         }}
         type="button"
       >
         Continue candidate thread
       </button>
-      <output aria-label="Active thread owner">{activeOwner?.threadId ?? "none"}</output>
-      <output aria-label="Active queue owner">
-        {activeOwner?.queueCoordinator.ownerThreadId ?? "none"}
-      </output>
+      <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
       <output aria-label="Active skill catalog status">
-        {activeOwner == null ? "none" : skillCatalogSnapshot.type}
+        {available ? snapshot.skills.type : "none"}
       </output>
       <output aria-label="Active skill catalog">
-        {skillCatalogSnapshot.candidates.map(({ name }) => name).join(",") || "none"}
+        {available ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none" : "none"}
       </output>
     </section>
   );
@@ -316,11 +300,26 @@ const readPendingTextPreviews = (
     preview.type === "text" ? preview.text : "nonText",
   );
 
-const requireThreadSwitchProbeOwner = (): ActiveThreadOwnerHandle => {
-  if (threadSwitchProbeActiveOwner == null) {
-    throw new Error("thread switch probe must expose an active owner");
+const requireThreadSwitchProbeSession = (): ActiveThreadSession => {
+  if (threadSwitchProbeSession == null) {
+    throw new Error("thread switch probe must expose an active session");
   }
-  return threadSwitchProbeActiveOwner;
+  return threadSwitchProbeSession;
+};
+
+const waitForThreadSwitchProbeSession = async () => {
+  await expect
+    .poll(() => {
+      const snapshot = threadSwitchProbeSession?.getSnapshot();
+      return snapshot?.phase === "active" || snapshot?.phase === "projectionUnavailable";
+    })
+    .toBe(true);
+  const session = requireThreadSwitchProbeSession();
+  const snapshot = session.getSnapshot();
+  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") {
+    throw new Error("thread switch probe session must be available");
+  }
+  return { session, snapshot };
 };
 
 const requireThreadSwitchProbePromise = () => {
@@ -339,7 +338,8 @@ const renderThreadSwitchProbe = async (commands: GuiHostCommands) => {
   initializeHost(options, commands);
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
   await expect.element(continueButton).toBeEnabled();
-  await expect.poll(() => threadSwitchProbeActiveOwner?.threadId).toBe(launchThreadId);
+  const { snapshot } = await waitForThreadSwitchProbeSession();
+  expect(snapshot.threadId).toBe(launchThreadId);
   return { continueButton, options, screen };
 };
 
@@ -427,8 +427,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", `/task/${launchThreadId}#token=secret`);
   vi.mocked(createComposerInputQueueCoordinator).mockRestore();
   vi.mocked(createComposerInputQueueCoordinator).mockClear();
-  threadSwitchProbeActiveOwner = null;
-  threadSwitchProbeContinueThread = null;
+  threadSwitchProbeSession = null;
   threadSwitchProbePromise = null;
 });
 
@@ -816,24 +815,35 @@ test("App keeps the transcript surface flush with the shell padding", async () =
 });
 
 test("App keeps host lifecycle status stable while projection events update runtime", async () => {
-  const screen = await renderWithProviders(<App />);
+  const screen = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchComposerProbe} />,
+  );
   const { store } = screen;
   const options = getHostOptions(startGuiHostConnectionMock);
   const commands = createGuiHostCommands();
 
   queueAttachProjectionResponse(commands);
   initializeHost(options, commands);
+  if (eventTurnStarted.event.type !== "turnStarted") {
+    throw new Error("fixture must contain a turnStarted projection event");
+  }
   await expect
     .poll(() => selectThreadRuntimeRecord(store.getState())?.threadId)
     .toBe(launchThreadId);
+  const { session } = await waitForThreadSwitchProbeSession();
   emitProjectionEvent(options, eventTurnStarted);
 
   await expect
     .element(screen.getByRole("main"))
     .toHaveAttribute("data-gui-host-status", "initialized");
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: eventTurnStarted, replay: "live" },
-  ]);
+  await expect
+    .poll(() => {
+      const snapshot = session.getSnapshot();
+      return snapshot.phase === "active" || snapshot.phase === "projectionUnavailable"
+        ? snapshot.activeTurnId
+        : null;
+    })
+    .toBe(eventTurnStarted.event.notification.turn.id);
 });
 
 test("App exposes the current cwd enabled skill catalog and refreshes it after invalidation", async () => {
@@ -887,7 +897,7 @@ test("App isolates a replacement owner from the previous catalog settlement and 
       skillsListResponse(candidateCwd, [catalogSkill("candidate", candidateCwd)]),
     );
   const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
-  const activeThread = screen.getByLabelText("Active thread owner");
+  const activeThread = screen.getByLabelText("Active thread session");
   const catalogStatus = screen.getByLabelText("Active skill catalog status");
   const catalog = screen.getByLabelText("Active skill catalog", { exact: true });
 
@@ -942,6 +952,9 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   await expect.element(screen.getByRole("main")).toHaveAttribute("data-gui-host-status", "error");
   await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
   await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
+  await expect
+    .element(screen.getByText("Unable to load the current task", { exact: true }))
+    .not.toBeInTheDocument();
   expect(topNotices.classList.contains("sticky")).toBe(true);
   expect(topNotices.classList.contains("z-20")).toBe(true);
   expect(banner.compareDocumentPosition(topNotices) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
@@ -984,8 +997,10 @@ test("App fails closed on history when the authorization session has no active t
   expect(window.location.pathname).toBe("/history");
 });
 
-test("App dispatches accepted host projection payloads into thread runtime", async () => {
-  const { store } = await renderWithProviders(<App />);
+test("App dispatches projection display facts and updates the active session", async () => {
+  const { store } = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
+  );
   const projectionEvent = eventTurnStarted;
   const threadId = attachResponse.snapshot.thread.id;
   if (projectionEvent.event.type !== "turnStarted") {
@@ -999,23 +1014,17 @@ test("App dispatches accepted host projection payloads into thread runtime", asy
   await expect.poll(() => selectThreadRuntimeRecord(store.getState())?.threadId).toBe(threadId);
   emitProjectionEvent(options, projectionEvent);
 
-  expect(selectThreadIdentityState(store.getState())).toStrictEqual({
-    launchThreadId: threadId,
-    attachedThreadId: threadId,
-    attachStatus: "attached",
-  });
-
+  const { snapshot: sessionSnapshot } = await waitForThreadSwitchProbeSession();
+  if (sessionSnapshot.phase !== "active") throw new Error("expected an active session");
+  const { turns: _turns, ...thread } = attachResponse.snapshot.thread;
   const runtime = selectThreadRuntimeRecord(store.getState());
-  expect(runtime?.threadId).toBe(threadId);
-  expect(runtime?.sessionId).toBe(attachResponse.snapshot.thread.sessionId);
-  expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
-  expect(runtime?.activeTurnId).toBe(projectionEvent.event.notification.turn.id);
-  expect(runtime?.eventBuffer).toStrictEqual([
-    { type: "projectionEvent", notification: projectionEvent, replay: "live" },
-  ]);
-  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
-    state: "active",
+  expect(runtime).toStrictEqual({
+    sessionRevision: sessionSnapshot.revision,
+    threadId,
+    thread,
+    tokenUsage: attachResponse.snapshot.tokenUsage,
   });
+  expect(sessionSnapshot.activeTurnId).toBe(projectionEvent.event.notification.turn.id);
 });
 
 test("App batches accepted projection deltas until the next animation frame", async () => {
@@ -1170,7 +1179,9 @@ test("App flushes pending projection deltas before structural projection events"
 });
 
 test("App classifies snapshot-ahead projection events as snapshot duplicate replay", async () => {
-  const { store } = await renderWithProviders(<App />);
+  const { store } = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
+  );
   if (eventTurnStarted.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
@@ -1192,15 +1203,14 @@ test("App classifies snapshot-ahead projection events as snapshot duplicate repl
     .toBe(launchThreadId);
   emitProjectionEvent(options, eventTurnStarted);
 
-  const runtime = selectThreadRuntimeRecord(store.getState());
-  expect(runtime?.snapshotTurns).toStrictEqual([eventTurnStarted.event.notification.turn]);
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: eventTurnStarted, replay: "snapshotDuplicate" },
-  ]);
+  const { snapshot } = await waitForThreadSwitchProbeSession();
+  if (snapshot.phase !== "active") throw new Error("expected an active session");
+  expect(snapshot.activeTurnId).toBe(eventTurnStarted.event.notification.turn.id);
+  expect(selectThreadRuntimeRecord(store.getState())?.threadId).toBe(launchThreadId);
 });
 
 test("App replays startup notifications against the accepted attach baseline", async () => {
-  const { store } = await renderWithProviders(<App />);
+  await renderWithProviders(<App currentTaskComponent={ThreadSwitchCapabilityProbe} />);
   if (eventSubscriptionReplacement.event.type !== "turnStarted") {
     throw new Error("fixture must contain a turnStarted projection event");
   }
@@ -1226,38 +1236,39 @@ test("App replays startup notifications against the accepted attach baseline", a
   pendingAttach.resolve(replacementAttach);
 
   await expect
-    .poll(() => selectThreadRuntimeRecord(store.getState())?.snapshotTurns)
-    .toStrictEqual([replacementTurn]);
-  await expect
-    .poll(() => selectThreadRuntimeEventBuffer(store.getState()))
-    .toStrictEqual([
-      { type: "projectionEvent", notification: oldOnlyEvent, replay: "live" },
-      {
-        type: "projectionEvent",
-        notification: snapshotDuplicateEvent,
-        replay: "snapshotDuplicate",
-      },
-    ]);
+    .poll(() => {
+      const snapshot = threadSwitchProbeSession?.getSnapshot();
+      return snapshot?.phase === "active" ? snapshot.activeTurnId : null;
+    })
+    .toBe(oldOnlyTurn.id);
 });
 
-test("App does not publish a late startup owner after commands become unavailable", async () => {
+test("App does not publish a late startup session or overwrite a terminal host error", async () => {
   const commands = createGuiHostCommands();
   const pendingAttach = queueDeferredAttachProjection(commands);
   const screen = await renderWithProviders(
     <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
   );
   const options = getHostOptions(startGuiHostConnectionMock);
-  const activeThread = screen.getByLabelText("Active thread owner");
+  const activeThread = screen.getByLabelText("Active thread session");
   const continueButton = screen.getByRole("button", { name: "Continue candidate thread" });
 
   initializeHost(options, commands);
   await expect.poll(pendingAttach.getState).toBe("pending");
+  await expect.poll(() => threadSwitchProbeSession).toBeNull();
+  await expect.element(continueButton).toBeDisabled();
   markCommandsUnavailable(options);
-  pendingAttach.resolve();
+  emitRawHostStatus(options, { label: "error", message: "GUI host transport failed" });
+  pendingAttach.reject(new Error("late attach failure"));
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
 
   await expect.element(activeThread).toHaveTextContent("none");
   await expect.element(continueButton).toBeDisabled();
-  await expect.poll(() => threadSwitchProbeActiveOwner).toBeNull();
+  await expect.poll(() => threadSwitchProbeSession).toBeNull();
+  await expect.element(screen.getByText("GUI host transport failed", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByText("late attach failure", { exact: true }))
+    .not.toBeInTheDocument();
   expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
 
@@ -1940,6 +1951,10 @@ test("App defers ordinary management during recovery and sends the successor bef
   await expect.poll(() => queueCoordinator.getSnapshot().recoveryCount).toBe(1);
 
   await screen.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .element(listDialog.getByRole("alert"))
+    .toHaveTextContent("Refresh complete. Try the action again.");
+  await expect.element(pendingEditor).not.toBeInTheDocument();
   expect(startTurn).toHaveBeenCalledOnce();
   expect(queueCoordinator.getSnapshot()).toMatchObject({
     ordinaryQueuedCount: 2,
@@ -1948,7 +1963,7 @@ test("App defers ordinary management during recovery and sends the successor bef
   });
   const recoveryOrderBeforeMove = readPendingTextPreviews(queueCoordinator, "ordinary");
   expect(recoveryOrderBeforeMove).toEqual([
-    "Edited ordinary successor stays first",
+    "Ordinary successor under edit",
     "Second ordinary successor keeps recovery order",
   ]);
   const recoveryMoveTarget = readPendingItems(queueCoordinator, "ordinary").at(1);
@@ -1976,7 +1991,7 @@ test("App defers ordinary management during recovery and sends the successor bef
   expect(startTurnParamsAt(startTurn, 1)).toEqual({
     threadId: launchThreadId,
     clientUserMessageId: startTurnParamsAt(startTurn, 1).clientUserMessageId,
-    input: [textInput("Edited ordinary successor stays first")],
+    input: [textInput("Ordinary successor under edit")],
   });
   expect(queueCoordinator.getSnapshot().isRecovering).toBe(false);
 
@@ -2068,12 +2083,19 @@ test("App defers steer management during recovery and retries the failed identit
   );
   await expect.poll(() => queueCoordinator.getSnapshot().recoveryCount).toBe(1);
   await screen.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .element(listDialog.getByRole("alert"))
+    .toHaveTextContent("Refresh complete. Try the action again.");
+  await expect.element(pendingEditor).not.toBeInTheDocument();
   expect(steerTurn).toHaveBeenCalledOnce();
   expect(queueCoordinator.getSnapshot()).toMatchObject({
     guidingCount: 1,
     recoveryCount: 1,
     isRecovering: false,
   });
+  expect(readPendingTextPreviews(queueCoordinator, "steer")).toEqual([
+    "Steer successor under edit",
+  ]);
   await screen.getByRole("button", { name: "Close", exact: true }).click();
   await screen.getByRole("button", { name: "Continue sending", exact: true }).click();
 
@@ -2085,7 +2107,7 @@ test("App defers steer management during recovery and retries the failed identit
     threadId: launchThreadId,
     expectedTurnId: activeTurn.id,
     clientUserMessageId: steerTurnParamsAt(steerTurn, 2).clientUserMessageId,
-    input: [textInput("Edited steer successor stays behind retry")],
+    input: [textInput("Steer successor under edit")],
   });
   successorSteer.resolve({ turnId: activeTurn.id });
 });
@@ -2862,34 +2884,38 @@ test("App rejects a startup attach that returns a different thread identity", as
   initializeHost(options, commands);
 
   await expect
-    .element(screen.getByRole("alert"))
+    .element(screen.getByRole("main").getByRole("alert"))
     .toHaveTextContent("thread/projection/attach returned a different thread identity");
   expect(selectThreadRuntimeRecord(store.getState())).toBeNull();
   expect(createComposerInputQueueCoordinator).not.toHaveBeenCalled();
 });
 
 test("App stops forwarding runtime events after backpressure requires manual reconnect", async () => {
-  const { store } = await renderWithProviders(<App />);
+  const { store } = await renderWithProviders(
+    <App currentTaskComponent={ThreadSwitchCapabilityProbe} />,
+  );
   const projectionEvent = eventTurnStarted;
   const projectionClosed = closedBackpressure;
 
   const options = getHostOptions(startGuiHostConnectionMock);
   initializeAppWithProjection(options);
+  const { session } = await waitForThreadSwitchProbeSession();
   emitProjectionClosed(options, projectionClosed);
+  await expect.poll(() => session.getSnapshot().phase).toBe("projectionUnavailable");
+  const unavailableSnapshot = session.getSnapshot();
+  if (unavailableSnapshot.phase !== "projectionUnavailable") {
+    throw new Error("expected projectionUnavailable");
+  }
+  const runtimeAfterClose = selectThreadRuntimeRecord(store.getState());
   emitProjectionEvent(options, projectionEvent);
 
-  await expect
-    .poll(() => selectThreadRuntimeSubscription(store.getState())?.state)
-    .toBe("manualReconnectRequired");
-  const runtime = selectThreadRuntimeRecord(store.getState());
-  expect(runtime?.threadId).toBe(launchThreadId);
-  expect(runtime?.snapshotTurns).toStrictEqual(attachResponse.snapshot.thread.turns);
-  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
-    state: "manualReconnectRequired",
+  expect(unavailableSnapshot).toMatchObject({
+    phase: "projectionUnavailable",
     reason: "backpressure",
-    subscriptionId: attachResponse.subscriptionId,
+    recovery: "connectionRestartRequired",
+    threadId: launchThreadId,
   });
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
+  expect(selectThreadRuntimeRecord(store.getState())).toBe(runtimeAfterClose);
 });
 
 test("App disables composer after projection backpressure requires reconnect", async () => {
@@ -2917,22 +2943,22 @@ test("App disables composer when host commands become unavailable", async () => 
 });
 
 test("App records manual reconnect when a projection event breaks the baseline", async () => {
-  const { store } = await renderWithProviders(<App />);
+  await renderWithProviders(<App currentTaskComponent={ThreadSwitchCapabilityProbe} />);
   const projectionEvent = eventItemStarted;
 
   const options = getHostOptions(startGuiHostConnectionMock);
   initializeAppWithProjection(options);
+  const { session } = await waitForThreadSwitchProbeSession();
   emitProjectionEvent(options, projectionEvent);
 
   await expect
-    .poll(() => selectThreadRuntimeSubscription(store.getState())?.state)
-    .toBe("manualReconnectRequired");
-  expect(selectThreadRuntimeSubscription(store.getState())).toStrictEqual({
-    state: "manualReconnectRequired",
-    reason: "commitChainMismatch",
-    subscriptionId: attachResponse.subscriptionId,
-  });
-  expect(selectThreadRuntimeEventBuffer(store.getState())).toStrictEqual([]);
+    .poll(() => session.getSnapshot())
+    .toMatchObject({
+      phase: "projectionUnavailable",
+      reason: "commitChainMismatch",
+      recovery: "connectionRestartRequired",
+      threadId: launchThreadId,
+    });
 });
 
 test("App closes the host connection when unmounted", async () => {
@@ -3015,14 +3041,16 @@ test("App releases an edited owner only after its marker settles and drains", as
     blockers: [{ type: "ordinaryQueued", count: 1 }],
   });
 
-  const continueThread = threadSwitchProbeContinueThread;
-  if (continueThread == null) {
-    throw new Error("thread switch probe must expose continueThread");
-  }
-  threadSwitchProbePromise = continueThread(candidateThreadId);
+  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
+  const blockedCandidateAttach = attachWithThreadId(attachResponse, candidateThreadId);
+  queueAttachProjectionResponse(commands, blockedCandidateAttach);
+  threadSwitchProbePromise = activeThreadSession.activate(candidateThreadId);
   await expect(threadSwitchProbePromise).resolves.toMatchObject({
     type: "unavailable",
     failure: { type: "currentThreadUnresolved" },
+  });
+  expect(commands.detachThreadProjection).toHaveBeenNthCalledWith(1, {
+    threadId: candidateThreadId,
   });
   await expect.element(oldEditor).toBeVisible();
   expect(oldCoordinator.getReleaseReadiness()).toEqual({
@@ -3052,10 +3080,14 @@ test("App releases an edited owner only after its marker settles and drains", as
     blockers: [{ type: "ordinaryQueued", count: 1 }],
   });
 
-  threadSwitchProbePromise = continueThread(candidateThreadId);
+  queueAttachProjectionResponse(commands, blockedCandidateAttach);
+  threadSwitchProbePromise = activeThreadSession.activate(candidateThreadId);
   await expect(threadSwitchProbePromise).resolves.toMatchObject({
     type: "unavailable",
     failure: { type: "currentThreadUnresolved" },
+  });
+  expect(commands.detachThreadProjection).toHaveBeenNthCalledWith(2, {
+    threadId: candidateThreadId,
   });
   expect(startTurn).not.toHaveBeenCalled();
   await expect.element(oldEditor).toBeVisible();
@@ -3103,16 +3135,19 @@ test("App releases an edited owner only after its marker settles and drains", as
     candidateThreadId,
   );
   queueAttachProjectionResponse(commands, candidateAttach);
-  threadSwitchProbePromise = continueThread(candidateThreadId);
+  threadSwitchProbePromise = activeThreadSession.activate(candidateThreadId);
   await threadSwitchProbePromise;
-  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(2);
+  await expect.poll(() => vi.mocked(createComposerInputQueueCoordinator).mock.calls.length).toBe(4);
   await expect.element(composer).toHaveFocus();
   await expect.element(composer).toHaveAttribute("contenteditable", "true");
   await expect
-    .poll(() => selectThreadRuntimeRecord(screen.store.getState())?.snapshotTurns)
-    .toStrictEqual([replacementTurn]);
+    .poll(() => {
+      const snapshot = activeThreadSession.getSnapshot();
+      return snapshot.phase === "active" ? snapshot.activeTurnId : null;
+    })
+    .toBe(replacementTurn.id);
   await expect.element(oldListDialog).not.toBeInTheDocument();
-  const replacementResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(1);
+  const replacementResult = vi.mocked(createComposerInputQueueCoordinator).mock.results.at(-1);
   if (replacementResult?.type !== "return") {
     throw new Error("replacement App owner must create a queue coordinator");
   }
@@ -3157,16 +3192,16 @@ test("App releases an edited owner only after its marker settles and drains", as
   });
   expect(
     oldCoordinator.readPendingInputDetail({ key: oldDetailKey, revision: oldRevision }),
-  ).toEqual({ type: "unavailable", scope: "ownerGone", reason: "ownerReplaced" });
+  ).toEqual({ type: "unavailable", scope: "ownerGone", reason: "disposed" });
   expect(begun.reservation.save(composerDraftCapture("Old owner late save"))).toEqual({
     type: "unavailable",
     scope: "ownerGone",
-    reason: "ownerReplaced",
+    reason: "disposed",
   });
   expect(begun.reservation.cancel()).toEqual({
     type: "unavailable",
     scope: "ownerGone",
-    reason: "ownerReplaced",
+    reason: "disposed",
   });
   expect(save).toHaveBeenCalledOnce();
   expect(cancel).toHaveBeenCalledTimes(2);
@@ -3191,7 +3226,7 @@ test("App releases an edited owner only after its marker settles and drains", as
       revision: oldRevision,
       destination: "first",
     }),
-  ).toEqual({ type: "unavailable", scope: "ownerGone", reason: "ownerReplaced" });
+  ).toEqual({ type: "unavailable", scope: "ownerGone", reason: "disposed" });
   expect(movePendingInput).toHaveBeenCalledOnce();
   expect(readPendingTextPreviews(replacementCoordinator, "ordinary")).toEqual(
     replacementOrderBeforeOldMove,
@@ -3219,8 +3254,12 @@ test("App releases an edited owner only after its marker settles and drains", as
     .not.toBeInTheDocument();
 });
 
-test("App owns one queue coordinator for the matching attached launch thread until cleanup", async () => {
-  const screen = await renderWithProviders(<App />);
+test("App owns one live queue under StrictMode and disposes it once", async () => {
+  const screen = await renderWithProviders(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
   const options = getHostOptions(startGuiHostConnectionMock);
   const commands = createGuiHostCommands();
   const createQueueCoordinator = vi.mocked(createComposerInputQueueCoordinator);
@@ -3253,7 +3292,8 @@ test("App owns one queue coordinator for the matching attached launch thread unt
   await screen.unmount();
 
   expect(queue.dispose).toHaveBeenCalledOnce();
-  expect(getCleanupConnectionCallCount()).toBe(1);
+  expect(getConnectionStartCount(startGuiHostConnectionMock)).toBe(2);
+  expect(getCleanupConnectionCallCount()).toBe(2);
 
   emitProjectionEvent(options, eventTurnStarted);
 
@@ -3261,7 +3301,7 @@ test("App owns one queue coordinator for the matching attached launch thread unt
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
 });
 
-test("App publishes a completed thread switch atomically across capabilities and Redux", async () => {
+test("App publishes a completed thread switch atomically through one session", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId);
   const candidateQueue = createQueueCoordinatorMock(candidateThreadId);
   vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
@@ -3277,35 +3317,16 @@ test("App publishes a completed thread switch atomically across capabilities and
   const commands = createGuiHostCommands();
   const { continueButton, options, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
-  const activeThread = screen.getByLabelText("Active thread owner");
-  const activeQueue = screen.getByLabelText("Active queue owner");
-  const initialOwner = requireThreadSwitchProbeOwner();
-  const initialProjectionDispose = vi.spyOn(initialOwner.projectionOwner, "dispose");
+  const activeThread = screen.getByLabelText("Active thread session");
+  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
 
   await expect.element(activeThread).toHaveTextContent(launchThreadId);
-  await expect.element(activeQueue).toHaveTextContent(launchThreadId);
   await continueButton.click();
   await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(2);
   expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
     threadId: candidateThreadId,
   });
 
-  const oldItem = agentMessage("old-switch-item", "");
-  const oldTurnEvent = turnStarted(
-    eventTurnStarted,
-    "commit-old-switch-turn",
-    inProgressTurn("old-switch-turn"),
-  );
-  const oldItemEvent = eventWithEnvelope(
-    itemStarted(eventItemStarted, "commit-old-switch-item", "old-switch-turn", oldItem),
-    { parentCommitId: oldTurnEvent.commitId },
-  );
-  const oldDelta = agentMessageDelta(
-    eventAgentMessageDelta,
-    "old-switch-turn",
-    oldItem.id,
-    "Old owner stayed live",
-  );
   const candidateOwner = {
     threadId: candidateThreadId,
     subscriptionId: candidateAttach.subscriptionId,
@@ -3331,33 +3352,11 @@ test("App publishes a completed thread switch atomically across capabilities and
     ),
     candidateOwner,
   );
-  emitProjectionEvent(options, oldTurnEvent);
-  emitProjectionEvent(options, oldItemEvent);
-  emitProjectionDelta(options, oldDelta);
   emitProjectionEvent(options, candidateEvent);
   emitProjectionDelta(options, candidateDelta);
 
-  await expect
-    .poll(() =>
-      selectTranscriptEntry(
-        screen.store.getState(),
-        transcriptEntryIdFor("old-switch-turn", oldItem.id),
-      ),
-    )
-    .toStrictEqual({
-      type: "message",
-      id: oldItem.id,
-      turnId: "old-switch-turn",
-      role: "assistant",
-      rendering: { mode: "streamingMarkdown", source: "Old owner stayed live" },
-      revision: 1,
-    });
   await expect.element(activeThread).toHaveTextContent(launchThreadId);
-  expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
-  expect(selectThreadRuntimeEventBuffer(screen.store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: oldTurnEvent, replay: "live" },
-    { type: "projectionEvent", notification: oldItemEvent, replay: "live" },
-  ]);
+  expect(threadSwitchProbeSession).toBe(activeThreadSession);
   expect(
     selectTranscriptEntry(
       screen.store.getState(),
@@ -3372,7 +3371,6 @@ test("App publishes a completed thread switch atomically across capabilities and
   });
 
   await expect.element(activeThread).toHaveTextContent(candidateThreadId);
-  await expect.element(activeQueue).toHaveTextContent(candidateThreadId);
   await expect
     .poll(() =>
       selectTranscriptEntry(
@@ -3388,30 +3386,27 @@ test("App publishes a completed thread switch atomically across capabilities and
       rendering: { mode: "streamingMarkdown", source: "Candidate notification replayed" },
       revision: 1,
     });
-  await expect.poll(() => threadSwitchProbeActiveOwner?.threadId).toBe(candidateThreadId);
-  const activeCandidateOwner = requireThreadSwitchProbeOwner();
-  const candidateProjectionDispose = vi.spyOn(activeCandidateOwner.projectionOwner, "dispose");
-  expect(activeCandidateOwner.queueCoordinator).toBe(candidateQueue.coordinator);
-  expect(activeCandidateOwner.subscriptionId).toBe(candidateAttach.subscriptionId);
-  expect(selectThreadIdentityState(screen.store.getState())).toStrictEqual({
-    launchThreadId: candidateThreadId,
-    attachedThreadId: candidateThreadId,
-    attachStatus: "attached",
+  await expect
+    .poll(() => {
+      const snapshot = activeThreadSession.getSnapshot();
+      return snapshot.phase === "active" || snapshot.phase === "projectionUnavailable"
+        ? snapshot.threadId
+        : null;
+    })
+    .toBe(candidateThreadId);
+  expect(activeThreadSession.getSnapshot()).toMatchObject({
+    phase: "active",
+    threadId: candidateThreadId,
+    subscriptionId: candidateAttach.subscriptionId,
+    activeTurnId: "candidate-switch-turn",
   });
   expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(candidateThreadId);
-  expect(selectThreadRuntimeSubscription(screen.store.getState())).toStrictEqual({
-    state: "active",
-  });
   expect(screen.store.getState().transcriptState.threadId).toBe(candidateThreadId);
-  expect(selectThreadRuntimeEventBuffer(screen.store.getState())).toStrictEqual([
-    { type: "projectionEvent", notification: candidateEvent, replay: "live" },
-  ]);
   expect(candidateQueue.observeAcceptedEvent).toHaveBeenCalledExactlyOnceWith({
     notification: candidateEvent,
     replay: "live",
   });
   expect(initialQueue.dispose).toHaveBeenCalledOnce();
-  expect(initialProjectionDispose).toHaveBeenCalledOnce();
   expect(candidateQueue.dispose).not.toHaveBeenCalled();
   expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
     threadId: launchThreadId,
@@ -3420,21 +3415,27 @@ test("App publishes a completed thread switch atomically across capabilities and
   await screen.unmount();
 
   expect(initialQueue.dispose).toHaveBeenCalledOnce();
-  expect(initialProjectionDispose).toHaveBeenCalledOnce();
   expect(candidateQueue.dispose).toHaveBeenCalledOnce();
-  expect(candidateProjectionDispose).toHaveBeenCalledOnce();
   expect(getCleanupConnectionCallCount()).toBe(1);
 });
 
-test("App keeps the initial owner when its queue blocks a thread switch", async () => {
+test("App keeps the initial session when its queue blocks a thread switch", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId, {
     type: "blocked",
     blockers: [{ type: "ordinaryQueued", count: 1 }],
   });
-  vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
+  const candidateQueue = createQueueCoordinatorMock(candidateThreadId);
+  vi.mocked(createComposerInputQueueCoordinator).mockImplementation(({ threadId }) =>
+    threadId === launchThreadId ? initialQueue.coordinator : candidateQueue.coordinator,
+  );
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
-  const initialOwner = requireThreadSwitchProbeOwner();
+  const { session: activeThreadSession, snapshot: initialSnapshot } =
+    await waitForThreadSwitchProbeSession();
+  queueAttachProjectionResponse(
+    commands,
+    attachWithThreadId(attachReplacement, candidateThreadId),
+  );
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
@@ -3442,26 +3443,28 @@ test("App keeps the initial owner when its queue blocks a thread switch", async 
     failure: { type: "currentThreadUnresolved" },
   });
 
-  expect(commands.resumeThread).not.toHaveBeenCalled();
-  expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
-    threadId: launchThreadId,
-  });
-  expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
+  expect(commands.resumeThread).toHaveBeenCalledExactlyOnceWith({ threadId: candidateThreadId });
+  expect(commands.attachThreadProjection).toHaveBeenCalledTimes(2);
+  expect(activeThreadSession.getSnapshot()).toBe(initialSnapshot);
   await expect
-    .element(screen.getByLabelText("Active thread owner"))
+    .element(screen.getByLabelText("Active thread session"))
     .toHaveTextContent(launchThreadId);
   expect(initialQueue.dispose).not.toHaveBeenCalled();
-  expect(createComposerInputQueueCoordinator).toHaveBeenCalledOnce();
+  expect(candidateQueue.dispose).toHaveBeenCalledOnce();
+  expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
+    threadId: candidateThreadId,
+  });
 });
 
-test("App keeps the initial owner when attaching the switch candidate fails", async () => {
+test("App keeps the initial session when attaching the switch candidate fails", async () => {
   const initialQueue = createQueueCoordinatorMock(launchThreadId);
   vi.mocked(createComposerInputQueueCoordinator).mockReturnValue(initialQueue.coordinator);
   const error = new Error("candidate attach failed");
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockRejectedValueOnce(error);
-  const initialOwner = requireThreadSwitchProbeOwner();
+  const { session: activeThreadSession, snapshot: initialSnapshot } =
+    await waitForThreadSwitchProbeSession();
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({
@@ -3475,11 +3478,11 @@ test("App keeps the initial owner when attaching the switch candidate fails", as
     threadId: candidateThreadId,
   });
   expect(commands.detachThreadProjection).not.toHaveBeenCalled();
-  expect(requireThreadSwitchProbeOwner()).toBe(initialOwner);
+  expect(activeThreadSession.getSnapshot()).toBe(initialSnapshot);
   await expect
-    .element(screen.getByLabelText("Active thread owner"))
+    .element(screen.getByLabelText("Active thread session"))
     .toHaveTextContent(launchThreadId);
-  expect(initialQueue.reservationRelease).toHaveBeenCalledOnce();
+  expect(initialQueue.reservationRelease).not.toHaveBeenCalled();
   expect(initialQueue.dispose).not.toHaveBeenCalled();
 });
 
@@ -3492,9 +3495,6 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
   const commands = createGuiHostCommands();
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   vi.mocked(commands.attachThreadProjection).mockReturnValueOnce(pendingAttach.promise);
-  const initialOwner = requireThreadSwitchProbeOwner();
-  const initialProjectionDispose = vi.spyOn(initialOwner.projectionOwner, "dispose");
-
   await continueButton.click();
   await expect.poll(() => vi.mocked(commands.attachThreadProjection).mock.calls.length).toBe(2);
   expect(commands.attachThreadProjection).toHaveBeenNthCalledWith(2, {
@@ -3504,7 +3504,6 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
   await screen.unmount();
 
   expect(initialQueue.dispose).toHaveBeenCalledOnce();
-  expect(initialProjectionDispose).toHaveBeenCalledOnce();
   expect(getCleanupConnectionCallCount()).toBe(1);
   pendingAttach.resolve(candidateAttach);
   await expect(switching).resolves.toMatchObject({
@@ -3514,15 +3513,9 @@ test("App cleans up once on unmount and ignores a late switch candidate completi
 
   expect(createComposerInputQueueCoordinator).toHaveBeenCalledOnce();
   expect(initialQueue.dispose).toHaveBeenCalledOnce();
-  expect(initialProjectionDispose).toHaveBeenCalledOnce();
   expect(getCleanupConnectionCallCount()).toBe(1);
   expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
     threadId: candidateThreadId,
-  });
-  expect(selectThreadIdentityState(screen.store.getState())).toStrictEqual({
-    launchThreadId,
-    attachedThreadId: launchThreadId,
-    attachStatus: "attached",
   });
   expect(selectThreadRuntimeRecord(screen.store.getState())?.threadId).toBe(launchThreadId);
   expect(screen.store.getState().transcriptState.threadId).toBe(launchThreadId);
@@ -3541,11 +3534,17 @@ test("App reports connection loss after commit when unmounted during previous ow
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   queueAttachProjectionResponse(commands, candidateAttach);
   vi.mocked(commands.detachThreadProjection).mockReturnValueOnce(pendingDetach.promise);
+  const { session: activeThreadSession } = await waitForThreadSwitchProbeSession();
 
   await continueButton.click();
   const switching = requireThreadSwitchProbePromise();
   await expect
-    .poll(() => selectThreadIdentityState(screen.store.getState()).attachedThreadId)
+    .poll(() => {
+      const snapshot = activeThreadSession.getSnapshot();
+      return snapshot.phase === "active" || snapshot.phase === "projectionUnavailable"
+        ? snapshot.threadId
+        : null;
+    })
     .toBe(candidateThreadId);
   await expect.poll(() => vi.mocked(commands.detachThreadProjection).mock.calls.length).toBe(1);
   expect(commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
@@ -3588,20 +3587,9 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
     );
     emitProjectionEvent(options, turnStartedEvent);
     emitProjectionEvent(options, itemStartedEvent);
-    emitProjectionDelta(
-      options,
-      agentMessageDelta(eventAgentMessageDelta, "turn-raf-cleanup", "agent-raf-cleanup", "Lost"),
-    );
 
     const entryId = transcriptEntryIdFor("turn-raf-cleanup", "agent-raf-cleanup");
-    await expect
-      .poll(() => store.getState().transcriptState.entriesById[entryId])
-      .toMatchObject({ type: "live", status: "started" });
-    await screen.unmount();
-    vi.advanceTimersToNextFrame();
-
-    expect(getCleanupConnectionCallCount()).toBe(1);
-    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual({
+    const baselineEntry = {
       type: "live",
       id: "agent-raf-cleanup",
       key: entryId,
@@ -3611,7 +3599,19 @@ test("App cancels pending projection delta frame dispatch when unmounted", async
       initialItem,
       transientText: "",
       revision: 0,
-    });
+    } as const;
+    await expect
+      .poll(() => store.getState().transcriptState.entriesById[entryId])
+      .toStrictEqual(baselineEntry);
+    emitProjectionDelta(
+      options,
+      agentMessageDelta(eventAgentMessageDelta, "turn-raf-cleanup", "agent-raf-cleanup", "Lost"),
+    );
+    await screen.unmount();
+    vi.advanceTimersToNextFrame();
+
+    expect(getCleanupConnectionCallCount()).toBe(1);
+    expect(store.getState().transcriptState.entriesById[entryId]).toStrictEqual(baselineEntry);
     expect(selectTranscriptEntry(store.getState(), entryId)).toBeNull();
   } finally {
     vi.useRealTimers();

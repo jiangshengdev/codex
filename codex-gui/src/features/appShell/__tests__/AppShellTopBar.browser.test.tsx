@@ -7,6 +7,12 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { attachResponse } from "@/__tests__/appBrowserTestSupport";
+import {
+  createActiveThreadSessionHarness,
+  type ActiveThreadSessionHarness,
+} from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
 import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import {
@@ -14,9 +20,6 @@ import {
   HISTORY_LIST_ROUTE_PATH,
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
-import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { AppShellTopBar } from "../AppShellTopBar";
 
@@ -26,55 +29,52 @@ function RoutePlaceholder() {
 
 const currentThreadId = attachResponse.snapshot.thread.id;
 const otherThreadId = "00000000-0000-0000-0000-000000000099";
-const emptySkillCatalogState: SkillCatalogState = {
-  type: "ready",
-  candidates: [],
-  partialErrorCount: 0,
-};
-const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
-  getSnapshot: () => emptySkillCatalogState,
-  subscribe: () => () => undefined,
-  invalidate: () => false,
-  retry: () => false,
-};
-
-const activeOwner = (threadId: string): ActiveThreadOwnerHandle => ({
-  threadId,
-  subscriptionId: `subscription-${threadId}`,
-  projectionOwner: null as never,
-  queueCoordinator: null as never,
-  skillCatalog,
-  dispose: () => undefined,
-});
-
+let sessionRevision = 0;
+const baselineAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) =>
+  activeThreadReadModelTransitionApplied({
+    sessionRevision: ++sessionRevision,
+    facts: [{ type: "baselineAttached", response }],
+  });
 const capabilities = ({
-  owner = activeOwner(currentThreadId),
+  activeThreadSessionHarness,
   routeTarget,
 }: Readonly<{
-  owner?: ActiveThreadOwnerHandle | null;
+  activeThreadSessionHarness: ActiveThreadSessionHarness;
   routeTarget: GuiRouteTarget;
 }>): AppCapabilities => ({
-  activeOwner: owner,
+  activeThreadSession: activeThreadSessionHarness.session,
+  activeThreadStartupError: null,
   authorizationToken: null,
   commands: null,
-  continueThread: null,
   routeTarget,
-  startupOutcome: null,
   status: { label: "initialized" },
 });
 
 const renderTopBar = async ({
   initialEntry,
-  owner,
+  activeThreadId = currentThreadId,
   routeTarget,
 }: Readonly<{
   initialEntry: string;
-  owner?: ActiveThreadOwnerHandle | null;
+  activeThreadId?: string | null;
   routeTarget: GuiRouteTarget;
 }>) => {
+  const activeThreadSessionHarness = createActiveThreadSessionHarness();
+  if (activeThreadId != null) {
+    activeThreadSessionHarness.publish(
+      activeThreadSessionHarness.activeSnapshot({
+        threadId: activeThreadId,
+        subscriptionId: `subscription-${activeThreadId}`,
+      }),
+    );
+  }
   const rootRoute = createRootRoute({
     component: () => (
-      <AppCapabilitiesProvider capabilities={capabilities({ owner, routeTarget })}>
+      <AppCapabilitiesProvider
+        capabilities={capabilities({ activeThreadSessionHarness, routeTarget })}
+      >
         <AppShellTopBar />
       </AppCapabilitiesProvider>
     ),
@@ -131,19 +131,19 @@ test("top bar is a banner and derives the current task title from name, preview,
     .toBeVisible();
 
   screen.store.dispatch(
-    threadRuntimeAttached(runtimeAttach({ name: "Named task", preview: "Preview" })),
+    baselineAttached(runtimeAttach({ name: "Named task", preview: "Preview" })),
   );
   await expect.element(screen.getByRole("heading", { level: 1, name: "Named task" })).toBeVisible();
 
   screen.store.dispatch(
-    threadRuntimeAttached(runtimeAttach({ name: null, preview: "Preview task" })),
+    baselineAttached(runtimeAttach({ name: null, preview: "Preview task" })),
   );
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Preview task" }))
     .toBeVisible();
 
   screen.store.dispatch(
-    threadRuntimeAttached(
+    baselineAttached(
       runtimeAttach({ name: "Stale task", preview: "Stale preview", threadId: otherThreadId }),
     ),
   );
@@ -151,7 +151,7 @@ test("top bar is a banner and derives the current task title from name, preview,
     .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
     .toBeVisible();
 
-  screen.store.dispatch(threadRuntimeAttached(runtimeAttach({ name: null, preview: "" })));
+  screen.store.dispatch(baselineAttached(runtimeAttach({ name: null, preview: "" })));
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Current task" }))
     .toBeVisible();
@@ -199,10 +199,10 @@ test("History navigation uses the canonical list URL and closes the Drawer", asy
   await expect.element(dialog).not.toBeInTheDocument();
 });
 
-test("Current task navigation uses the active owner", async () => {
+test("Current task navigation uses the active thread id", async () => {
   const { router, screen } = await renderTopBar({
     initialEntry: "/history",
-    owner: activeOwner(currentThreadId),
+    activeThreadId: currentThreadId,
     routeTarget: { type: "historyList" },
   });
 
@@ -217,15 +217,15 @@ test("Current task navigation uses the active owner", async () => {
   expect(router.state.location.hash).toBe("");
 });
 
-test("Current task navigation is disabled when no active owner exists", async () => {
+test("Current task navigation is disabled when no active thread id exists", async () => {
   const { router, screen } = await renderTopBar({
     initialEntry: "/history",
-    owner: null,
+    activeThreadId: null,
     routeTarget: { type: "historyList" },
   });
 
   screen.store.dispatch(
-    threadRuntimeAttached(runtimeAttach({ name: "Stale task", preview: "Stale preview" })),
+    baselineAttached(runtimeAttach({ name: "Stale task", preview: "Stale preview" })),
   );
   await expect.element(screen.getByRole("heading", { level: 1, name: "History" })).toBeVisible();
   await screen.getByRole("button", { name: "Menu" }).click();

@@ -1,6 +1,8 @@
 import { Alert, Button, Chip, Disclosure, Drawer, Dropdown, Label, Separator } from "@heroui/react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
+import type { ActiveThreadPendingInputEditReservation } from "@/features/activeThreadSession/activeThreadSessionContracts";
 import type { ComposerEditorController } from "@/features/composerEditor/ComposerEditor";
 import type {
   ComposerPendingInputDetailResult,
@@ -9,11 +11,7 @@ import type {
   ComposerPendingInputPageItem,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
 import type { ComposerInputPreview } from "@/features/composerInputQueue/composerInputPreview";
-import type {
-  ComposerInputQueueCoordinator,
-  ComposerInputQueueCoordinatorSnapshot,
-  ComposerPendingInputCoordinatorEditReservation,
-} from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { ComposerPendingInputEditor } from "./ComposerPendingInputEditor";
 import {
@@ -27,7 +25,7 @@ import {
 
 type PendingInputPages = ComposerPendingInputPrefixes &
   Readonly<{
-    controller: ComposerInputQueueCoordinator;
+    composerRole: ActiveThreadComposerRole;
   }>;
 
 type EditSession =
@@ -40,12 +38,16 @@ type EditSession =
       phase: "active";
       item: ComposerPendingInputPageItem;
       outcomeAtBegin: ComposerInputQueueCoordinatorSnapshot["pendingInputManagementOutcome"];
-      reservation: ComposerPendingInputCoordinatorEditReservation;
+      reservation: ActiveThreadPendingInputEditReservation;
     }>;
 
 type OpenedOwner = Readonly<{
-  controller: ComposerInputQueueCoordinator;
-  threadId: string;
+  composerRole: ActiveThreadComposerRole;
+}>;
+
+type ClosingSession = Readonly<{
+  owner: OpenedOwner;
+  focusTarget?: "composer" | "trigger";
 }>;
 
 type DrawerAlert =
@@ -66,26 +68,30 @@ type MoveAnnouncement = Readonly<{
 }>;
 
 type ExhaustedMoveRefresh = Readonly<{
-  controller: ComposerInputQueueCoordinator;
+  composerRole: ActiveThreadComposerRole;
   throughRevision: number;
 }>;
 
 export type ComposerPendingInputDrawerProps = Readonly<{
-  controller: ComposerInputQueueCoordinator | null;
+  composerRole: ActiveThreadComposerRole;
   guardCompositionEndEnter: boolean;
+  mutationsEnabled: boolean;
   onFocusComposer: () => void;
   onPresenceChange: (isPresent: boolean) => void;
   onRetrySkillCatalog: () => void;
+  sessionRevision: number;
   skillCatalog: SkillCatalogState;
   snapshot: ComposerInputQueueCoordinatorSnapshot;
 }>;
 
 export function ComposerPendingInputDrawer({
-  controller,
+  composerRole,
   guardCompositionEndEnter,
+  mutationsEnabled,
   onFocusComposer,
   onPresenceChange,
   onRetrySkillCatalog,
+  sessionRevision,
   skillCatalog,
   snapshot,
 }: ComposerPendingInputDrawerProps) {
@@ -94,7 +100,7 @@ export function ComposerPendingInputDrawer({
     snapshot;
   const [isOpen, setIsOpen] = useState(false);
   const [openedOwner, setOpenedOwner] = useState<OpenedOwner | null>(null);
-  const [closingSession, setClosingSession] = useState<OpenedOwner | null>(null);
+  const [closingSession, setClosingSession] = useState<ClosingSession | null>(null);
   const [pages, setPages] = useState<PendingInputPages | null>(null);
   const [editSession, setEditSession] = useState<EditSession | null>(null);
   const [alert, setAlert] = useState<DrawerAlert | null>(null);
@@ -112,45 +118,47 @@ export function ComposerPendingInputDrawer({
   const pendingEditorControllerRef = useRef<ComposerEditorController | null>(null);
   const itemFocusTargetsRef = useRef(new Map<string, HTMLElement>());
   const laneHeadingRefs = useRef(new Map<ComposerPendingInputLane, HTMLHeadingElement>());
-  const hasPendingInputs = controller != null && (guidingCount > 0 || ordinaryQueuedCount > 0);
-  const ownerMatches =
-    openedOwner == null ||
-    (controller === openedOwner.controller && controller.ownerThreadId === openedOwner.threadId);
+  const hasPendingInputs = guidingCount > 0 || ordinaryQueuedCount > 0;
+  const ownerMatches = openedOwner == null || composerRole === openedOwner.composerRole;
   const matchingManagementOutcome =
     isOpen &&
     editSession != null &&
     pendingInputManagementOutcome != null &&
     pendingInputManagementOutcome !== editSession.outcomeAtBegin &&
     pendingInputManagementOutcome.key === editSession.item.key;
-  const displayedEditSession = matchingManagementOutcome ? null : editSession;
+  const displayedEditSession = matchingManagementOutcome || !mutationsEnabled ? null : editSession;
   const displayedAlert = matchingManagementOutcome ? "targetInvalidated" : alert;
   const completionHold = managementCompletionHold || matchingManagementOutcome;
   const moveRefreshIsSuppressed =
-    exhaustedMoveRefresh?.controller === controller &&
+    exhaustedMoveRefresh?.composerRole === composerRole &&
     detailRevision <= exhaustedMoveRefresh.throughRevision;
   const projectedPages =
-    isOpen && ownerMatches && controller != null
+    isOpen && ownerMatches
       ? moveRefreshIsSuppressed
         ? null
-        : pages?.controller === controller && pages.revision === detailRevision
+        : pages?.composerRole === composerRole && pages.revision === detailRevision
           ? pages
-          : readInitialPages(controller, detailRevision)
+          : readInitialPages(composerRole, detailRevision)
       : null;
   const pagesUnavailable =
     isOpen &&
     ownerMatches &&
-    controller != null &&
     !moveRefreshIsSuppressed &&
     projectedPages == null;
+  const unavailableEditMustClose = !mutationsEnabled && editSession != null;
   const shouldCloseExternally =
     isOpen &&
     (!ownerMatches ||
-      controller == null ||
       pagesUnavailable ||
+      unavailableEditMustClose ||
       (!matchingManagementOutcome && !completionHold && !hasPendingInputs));
-  const sessionIsClosing = openedOwner != null && closingSession === openedOwner;
+  const sessionIsClosing = openedOwner != null && closingSession?.owner === openedOwner;
   if (shouldCloseExternally && openedOwner != null && !sessionIsClosing) {
-    setClosingSession(openedOwner);
+    setClosingSession(
+      unavailableEditMustClose
+        ? { owner: openedOwner, focusTarget: "composer" }
+        : { owner: openedOwner },
+    );
   }
   const externallyClosed = shouldCloseExternally || sessionIsClosing;
   const displayedIsOpen = isOpen && !externallyClosed;
@@ -185,24 +193,23 @@ export function ComposerPendingInputDrawer({
   const refreshPages = useCallback(
     (
       revision: number,
-      budgets: ComposerPendingInputLoadBudgets = pages?.controller === controller
+      budgets: ComposerPendingInputLoadBudgets = pages?.composerRole === composerRole
         ? pages.budgets
         : createComposerPendingInputLoadBudgets(),
     ): PendingInputPages | null => {
-      if (controller == null) return null;
-      const result = refreshComposerPendingInputPrefixes(controller, revision, budgets);
+      const result = refreshComposerPendingInputPrefixes(composerRole, revision, budgets);
       if (result.type === "unavailable") {
         closeInvalidDrawer();
         return null;
       }
       const nextPrefixes = result.type === "ready" ? result.prefixes : result.fallback;
       if (nextPrefixes == null) return null;
-      const nextPages = { controller, ...nextPrefixes };
+      const nextPages = { composerRole, ...nextPrefixes };
       setExhaustedMoveRefresh(null);
       setPages(nextPages);
       return nextPages;
     },
-    [closeInvalidDrawer, controller, pages],
+    [closeInvalidDrawer, composerRole, pages],
   );
 
   const closeAfterExplicitRequest = useCallback((): void => {
@@ -233,8 +240,8 @@ export function ComposerPendingInputDrawer({
   const settleResult = useCallback(
     (
       result:
-        | ReturnType<ComposerPendingInputCoordinatorEditReservation["save"]>
-        | ReturnType<ComposerPendingInputCoordinatorEditReservation["cancel"]>,
+        | ReturnType<ActiveThreadPendingInputEditReservation["save"]>
+        | ReturnType<ActiveThreadPendingInputEditReservation["cancel"]>,
       closeAfterSettlement: boolean,
       focusKey: string,
     ): boolean => {
@@ -296,7 +303,7 @@ export function ComposerPendingInputDrawer({
   const onDrawerPresenceRef = useCallback(
     (element: HTMLSpanElement | null): void => {
       if (element != null) return;
-      const focusTarget = focusAfterCloseRef.current;
+      const focusTarget = closingSession?.focusTarget ?? focusAfterCloseRef.current;
       if (focusTarget == null && triggerRef.current != null) return;
       focusAfterCloseRef.current = null;
       setIsOpen(false);
@@ -319,35 +326,36 @@ export function ComposerPendingInputDrawer({
         }
       });
     },
-    [onFocusComposer, onPresenceChange],
+    [closingSession, onFocusComposer, onPresenceChange],
   );
 
   useEffect(() => {
-    if (!isOpen || openedOwner == null || controller == null) return;
-    return controller.subscribe(() => {
-      const nextSnapshot = controller.getSnapshot();
-      const nextOutcome = nextSnapshot.pendingInputManagementOutcome;
-      const nextOutcomeMatches =
-        editSession != null &&
-        nextOutcome != null &&
-        nextOutcome !== editSession.outcomeAtBegin &&
-        nextOutcome.key === editSession.item.key;
-      const nextOwnerMatches =
-        controller === openedOwner.controller && controller.ownerThreadId === openedOwner.threadId;
-      const nextHasPendingInputs =
-        nextSnapshot.guidingCount > 0 || nextSnapshot.ordinaryQueuedCount > 0;
-      if (
-        !nextOwnerMatches ||
-        (!nextOutcomeMatches &&
-          !completionHold &&
-          !managementCompletionPendingRef.current &&
-          !nextHasPendingInputs)
-      ) {
-        if (!nextOwnerMatches) setExhaustedMoveRefresh(null);
-        setClosingSession((current) => current ?? openedOwner);
-      }
-    });
-  }, [completionHold, controller, editSession, isOpen, openedOwner]);
+    if (!isOpen || openedOwner == null) return;
+    const nextOutcome = pendingInputManagementOutcome;
+    const nextOutcomeMatches =
+      editSession != null &&
+      nextOutcome != null &&
+      nextOutcome !== editSession.outcomeAtBegin &&
+      nextOutcome.key === editSession.item.key;
+    const nextOwnerMatches = composerRole === openedOwner.composerRole;
+    if (
+      !nextOwnerMatches ||
+      (!nextOutcomeMatches &&
+        !completionHold &&
+        !managementCompletionPendingRef.current &&
+        !hasPendingInputs)
+    ) {
+      setClosingSession((current) => current ?? { owner: openedOwner });
+    }
+  }, [
+    completionHold,
+    composerRole,
+    editSession,
+    hasPendingInputs,
+    isOpen,
+    openedOwner,
+    pendingInputManagementOutcome,
+  ]);
 
   useEffect(() => {
     if (matchingManagementOutcome) headingRef.current?.focus();
@@ -355,9 +363,9 @@ export function ComposerPendingInputDrawer({
 
   const openDrawer = (): void => {
     if (!hasPendingInputs) return;
-    const nextPages = readInitialPages(controller, detailRevision);
+    const nextPages = readInitialPages(composerRole, detailRevision);
     if (nextPages == null) return;
-    setOpenedOwner({ controller, threadId: controller.ownerThreadId });
+    setOpenedOwner({ composerRole });
     setClosingSession(null);
     setPages(nextPages);
     preparingEditRef.current = null;
@@ -381,7 +389,7 @@ export function ComposerPendingInputDrawer({
   };
 
   const beginEdit = (item: ComposerPendingInputPageItem): void => {
-    if (displayedEditSession != null || preparingEditRef.current != null) return;
+    if (!mutationsEnabled || displayedEditSession != null || preparingEditRef.current != null) return;
     const preparingSession: Extract<EditSession, { phase: "preparing" }> = {
       phase: "preparing",
       item,
@@ -401,8 +409,9 @@ export function ComposerPendingInputDrawer({
       return;
     }
     const currentEditSession = preparingEditRef.current;
-    if (currentEditSession == null || controller == null) return;
-    const result = controller.beginPendingInputEdit(
+    if (currentEditSession == null || !mutationsEnabled) return;
+    const result = composerRole.beginPendingInputEdit(
+      sessionRevision,
       { key: currentEditSession.item.key, revision: visiblePages?.revision ?? detailRevision },
       editor.restore,
     );
@@ -448,14 +457,14 @@ export function ComposerPendingInputDrawer({
   };
 
   const deleteItem = (item: ComposerPendingInputPageItem): boolean => {
-    if (controller == null || visiblePages == null) return false;
+    if (!mutationsEnabled || visiblePages == null) return false;
     setMoveAnnouncement(null);
     const visibleKeys = visiblePages[item.lane].items.map(({ key }) => key);
     const deletedIndex = visibleKeys.indexOf(item.key);
     const focusKey =
       visibleKeys[deletedIndex + 1] ?? (deletedIndex > 0 ? visibleKeys[deletedIndex - 1] : null);
     const result = runManagementCompletion(() =>
-      controller.deletePendingInput({
+      composerRole.deletePendingInput(sessionRevision, {
         key: item.key,
         revision: visiblePages.revision,
       }),
@@ -501,7 +510,11 @@ export function ComposerPendingInputDrawer({
 
   const showMore = (lane: ComposerPendingInputLane): void => {
     if (visiblePages == null) return;
-    const result = showMoreComposerPendingInputLane(visiblePages.controller, visiblePages, lane);
+    const result = showMoreComposerPendingInputLane(
+      visiblePages.composerRole,
+      visiblePages,
+      lane,
+    );
     if (result.type === "unavailable") {
       closeInvalidDrawer();
       return;
@@ -511,18 +524,22 @@ export function ComposerPendingInputDrawer({
       return;
     }
     setExhaustedMoveRefresh(null);
-    setPages({ controller: visiblePages.controller, ...result.prefixes });
+    setPages({ composerRole: visiblePages.composerRole, ...result.prefixes });
   };
 
   const moveItem = (
     item: ComposerPendingInputPageItem,
     destination: ComposerPendingInputMoveDestination,
   ): void => {
-    if (controller == null || visiblePages == null) return;
+    if (!mutationsEnabled || visiblePages == null) return;
     setMoveAnnouncement(null);
     const budgets = visiblePages.budgets;
     const result = runManagementCompletion(() =>
-      controller.movePendingInput({ key: item.key, revision: visiblePages.revision, destination }),
+      composerRole.movePendingInput(sessionRevision, {
+        key: item.key,
+        revision: visiblePages.revision,
+        destination,
+      }),
     );
     if (result.type === "noOp") return;
     if (result.type === "unavailable" && result.scope === "ownerGone") {
@@ -531,7 +548,7 @@ export function ComposerPendingInputDrawer({
     }
 
     const revision = result.revision;
-    const refreshed = refreshComposerPendingInputPrefixes(controller, revision, budgets);
+    const refreshed = refreshComposerPendingInputPrefixes(composerRole, revision, budgets);
     if (refreshed.type === "unavailable") {
       closeInvalidDrawer();
       return;
@@ -539,9 +556,9 @@ export function ComposerPendingInputDrawer({
     const nextPrefixes = refreshed.type === "ready" ? refreshed.prefixes : refreshed.fallback;
     if (nextPrefixes != null) {
       setExhaustedMoveRefresh(null);
-      setPages({ controller, ...nextPrefixes });
+      setPages({ composerRole, ...nextPrefixes });
     } else if (refreshed.type === "stale") {
-      setExhaustedMoveRefresh({ controller, throughRevision: refreshed.revision });
+      setExhaustedMoveRefresh({ composerRole, throughRevision: refreshed.revision });
     }
 
     if (result.type !== "moved") {
@@ -628,7 +645,7 @@ export function ComposerPendingInputDrawer({
               )}
               {displayedEditSession?.phase !== "active" ? (
                 <PendingInputList
-                  actionsDisabled={displayedEditSession?.phase === "preparing"}
+                  actionsDisabled={!mutationsEnabled || displayedEditSession?.phase === "preparing"}
                   deleteItem={deleteItem}
                   guidingCount={guidingCount}
                   onBeginEdit={beginEdit}
@@ -768,7 +785,7 @@ function PendingInputList({
       {guidingCount > 0 ? (
         <PendingInputGroup
           actionsDisabled={actionsDisabled}
-          controller={pages.controller}
+          composerRole={pages.composerRole}
           count={guidingCount}
           items={pages.steer.items}
           lane="steer"
@@ -787,7 +804,7 @@ function PendingInputList({
       {ordinaryQueuedCount > 0 ? (
         <PendingInputGroup
           actionsDisabled={actionsDisabled}
-          controller={pages.controller}
+          composerRole={pages.composerRole}
           count={ordinaryQueuedCount}
           items={pages.ordinary.items}
           lane="ordinary"
@@ -808,7 +825,7 @@ function PendingInputList({
 
 function PendingInputGroup({
   actionsDisabled,
-  controller,
+  composerRole,
   count,
   items,
   lane,
@@ -823,7 +840,7 @@ function PendingInputGroup({
   revision,
 }: Readonly<{
   actionsDisabled: boolean;
-  controller: ComposerInputQueueCoordinator;
+  composerRole: ActiveThreadComposerRole;
   count: number;
   items: readonly ComposerPendingInputPageItem[];
   lane: ComposerPendingInputLane;
@@ -862,7 +879,7 @@ function PendingInputGroup({
           <li className="min-w-0" key={`${String(revision)}:${item.key}`}>
             <PendingInputItem
               actionsDisabled={actionsDisabled}
-              controller={controller}
+              composerRole={composerRole}
               item={item}
               onBeginEdit={onBeginEdit}
               onDetailFailure={onDetailFailure}
@@ -893,7 +910,7 @@ function PendingInputGroup({
 
 function PendingInputItem({
   actionsDisabled,
-  controller,
+  composerRole,
   item,
   onBeginEdit,
   onDetailFailure,
@@ -903,7 +920,7 @@ function PendingInputItem({
   revision,
 }: Readonly<{
   actionsDisabled: boolean;
-  controller: ComposerInputQueueCoordinator;
+  composerRole: ActiveThreadComposerRole;
   item: ComposerPendingInputPageItem;
   onBeginEdit: (item: ComposerPendingInputPageItem) => void;
   onDetailFailure: (result: Exclude<ComposerPendingInputDetailResult, { type: "detail" }>) => void;
@@ -927,7 +944,7 @@ function PendingInputItem({
       setDetailText(null);
       return;
     }
-    const detail = controller.readPendingInputDetail({ key: item.key, revision });
+    const detail = composerRole.readPendingInputDetail({ key: item.key, revision });
     if (detail.type !== "detail") {
       setIsExpanded(false);
       setDetailText(null);
@@ -1130,11 +1147,11 @@ export function ComposerInputPreviewContent({
 }
 
 function readInitialPages(
-  controller: ComposerInputQueueCoordinator,
+  composerRole: ActiveThreadComposerRole,
   revision: number,
 ): PendingInputPages | null {
-  const result = readInitialComposerPendingInputPrefixes(controller, revision);
-  return result.type === "ready" ? { controller, ...result.prefixes } : null;
+  const result = readInitialComposerPendingInputPrefixes(composerRole, revision);
+  return result.type === "ready" ? { composerRole, ...result.prefixes } : null;
 }
 
 function pendingInputPagesAreEmpty(pages: PendingInputPages): boolean {

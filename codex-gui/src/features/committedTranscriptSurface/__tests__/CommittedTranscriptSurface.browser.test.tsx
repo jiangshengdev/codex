@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
 import { makeStore } from "@/app/store";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionReadModelFact,
+} from "@/features/activeThreadSession/activeThreadProjection";
 import {
   agentMessage,
   agentMessageDelta,
@@ -26,12 +31,6 @@ import {
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
-import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptEntry,
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
@@ -39,6 +38,27 @@ import {
 } from "@/features/transcriptState/transcriptStateSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
+
+let sessionRevision = 0;
+const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
+  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) => readModelAction({ type: "baselineAttached", response });
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+  readModelAction({ type: "eventAccepted", payload });
+const threadRuntimeDeltasAccepted = ({
+  notifications,
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
+const threadRuntimeManualReconnectRequired = (
+  input: Omit<
+    Extract<ActiveThreadProjectionReadModelFact, { type: "projectionUnavailable" }>,
+    "type"
+  >,
+) => readModelAction({ type: "projectionUnavailable", ...input });
 
 const quotaErrorMessage = [
   "unexpected status 403 Forbidden: token quota is not enough, token remain quota: ¥0.064714, need quota: ¥0.072198 (request id: 202608140209338062200938268d9d60dAEpcHp), url:",

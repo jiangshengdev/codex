@@ -12,6 +12,7 @@ export type AppCapabilities = Readonly<{
   commands: GuiHostCommands | null;
   routeTarget: GuiRouteTarget;
   activeThreadSession: ActiveThreadSession | null;
+  activeThreadStartupError: string | null;
 }>;
 
 export const AppCapabilitiesContext = createContext<AppCapabilities | null>(null);

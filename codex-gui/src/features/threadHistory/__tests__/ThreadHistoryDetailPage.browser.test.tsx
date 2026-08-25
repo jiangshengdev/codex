@@ -11,7 +11,12 @@ import {
 import { StrictMode, useSyncExternalStore } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
-import type { AppCapabilities, ContinueThread } from "@/features/appShell/AppCapabilities";
+import {
+  createActiveThreadSessionHarness,
+  type ActiveThreadSessionHarnessOptions,
+} from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
+import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import { AppShell } from "@/features/appShell/AppShell";
 import { CURRENT_TASK_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
@@ -24,23 +29,10 @@ import {
   textInput,
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
-import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ThreadHistoryDetailPage } from "../ThreadHistoryDetailPage";
 
 const detailThreadId = "00000000-0000-0000-0000-000000000088";
-const emptySkillCatalogState: SkillCatalogState = {
-  type: "ready",
-  candidates: [],
-  partialErrorCount: 0,
-};
-const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
-  getSnapshot: () => emptySkillCatalogState,
-  subscribe: () => () => undefined,
-  invalidate: () => false,
-  retry: () => false,
-};
 
 const historyThread = (
   turns: typeof attachResponse.snapshot.thread.turns,
@@ -52,15 +44,6 @@ const historyThread = (
 });
 
 const emptyHistoryThread = () => historyThread([]);
-
-const activeOwner = (threadId: string): ActiveThreadOwnerHandle => ({
-  threadId,
-  subscriptionId: `subscription-${threadId}`,
-  projectionOwner: null as never,
-  queueCoordinator: null as never,
-  skillCatalog,
-  dispose: () => undefined,
-});
 
 afterEach(() => {
   toast.clear();
@@ -93,44 +76,38 @@ const createCapabilitiesStore = (initial: AppCapabilities): CapabilitiesStore =>
 };
 
 type RenderDetailOptions = Readonly<{
-  activeOwner?: ActiveThreadOwnerHandle | null;
+  activate?: ActiveThreadSessionHarnessOptions["activate"];
+  activeThreadSession?: ActiveThreadSession | null;
   authorizationToken?: string | null;
   commands?: GuiHostCommands | null;
-  continueThread?: ContinueThread | null;
   initialEntries?: string[];
   status?: AppCapabilities["status"];
   strictMode?: boolean;
 }>;
 
 const renderDetail = async ({
-  activeOwner: suppliedActiveOwner = null,
+  activate,
+  activeThreadSession: suppliedActiveThreadSession,
   authorizationToken = "retained-secret",
   commands: suppliedCommands,
-  continueThread: suppliedContinueThread,
   initialEntries = [`/history/${detailThreadId}`],
   status = { label: "initialized" },
   strictMode = false,
 }: RenderDetailOptions = {}) => {
   const commands = suppliedCommands === undefined ? createGuiHostCommands() : suppliedCommands;
-  const continueThread =
-    suppliedContinueThread === undefined
-      ? vi
-          .fn<ContinueThread>()
-          .mockResolvedValue({ type: "ready", threadId: detailThreadId, warnings: [] })
-      : suppliedContinueThread;
+  const activeThreadSessionHarness = createActiveThreadSessionHarness({
+    activate: activate ?? { type: "ready", threadId: detailThreadId, warnings: [] },
+  });
+  const activeThreadSession =
+    suppliedActiveThreadSession === undefined
+      ? activeThreadSessionHarness.session
+      : suppliedActiveThreadSession;
   const initialCapabilities: AppCapabilities = {
-    activeOwner: suppliedActiveOwner,
+    activeThreadSession,
+    activeThreadStartupError: null,
     authorizationToken,
     commands,
-    continueThread,
     routeTarget: { type: "historyDetail", threadId: detailThreadId },
-    startupOutcome: {
-      type: "ready",
-      target: { type: "historyDetail", threadId: detailThreadId },
-      activeOwner: suppliedActiveOwner,
-      cleanupFailure: null,
-      postCommitFailure: null,
-    },
     status,
   };
   const capabilitiesStore = createCapabilitiesStore(initialCapabilities);
@@ -187,9 +164,9 @@ const renderDetail = async ({
   const app = <RouterProvider router={router} />;
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
   return {
+    activeThreadSessionHarness,
     capabilitiesStore,
     commands,
-    continueThread,
     initialCapabilities,
     router,
     screen,
@@ -325,8 +302,8 @@ test("settles a deferred read into error after StrictMode effect replay", async 
 
 test("shows a terminal connection error without an invalid Retry before commands exist", async () => {
   const { screen } = await renderDetail({
+    activeThreadSession: null,
     commands: null,
-    continueThread: null,
     status: { label: "closed" },
   });
 
@@ -359,8 +336,8 @@ test("retains a loaded read-only snapshot when commands later become unavailable
   await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
   capabilitiesStore.publish({
     ...initialCapabilities,
+    activeThreadSession: null,
     commands: null,
-    continueThread: null,
     status: { label: "closed" },
   });
 
@@ -499,7 +476,7 @@ test("renders isolated context pages without Composer and keeps the transcript e
 
 test("reports an unresolved current thread without flashing pending and links the action to its reason", async () => {
   const activeThreadId = "00000000-0000-0000-0000-000000000089";
-  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
     type: "unavailable",
     failure: {
       type: "currentThreadUnresolved",
@@ -513,7 +490,7 @@ test("reports an unresolved current thread without flashing pending and links th
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const { screen } = await renderDetail({ commands, continueThread });
+  const { screen } = await renderDetail({ activate, commands });
   const action = screen.getByRole("button", { name: "Continue this task" });
 
   await expect.element(action).toBeEnabled();
@@ -526,7 +503,7 @@ test("reports an unresolved current thread without flashing pending and links th
   await expect.element(alert.getByText(reason, { exact: true })).toBeVisible();
   await expect.element(action).not.toHaveAttribute("data-pending");
   await expect.element(action).toHaveAccessibleDescription(reason);
-  expect(continueThread).toHaveBeenCalledExactlyOnceWith(detailThreadId);
+  expect(activate).toHaveBeenCalledExactlyOnceWith(detailThreadId);
   const returnAction = alert.getByRole("button", { name: "Return to current task" });
   await expect.element(returnAction).toBeVisible();
   await expect.element(returnAction).toBeEnabled();
@@ -534,7 +511,7 @@ test("reports an unresolved current thread without flashing pending and links th
 
 test("pushes an unresolved continuation return target and preserves the history detail back stack", async () => {
   const activeThreadId = "00000000-0000-0000-0000-000000000089";
-  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
     type: "unavailable",
     failure: {
       type: "currentThreadUnresolved",
@@ -550,8 +527,8 @@ test("pushes an unresolved continuation return target and preserves the history 
   };
   const detailUrl = `/history/${detailThreadId}`;
   const { router, screen } = await renderDetail({
+    activate,
     commands,
-    continueThread,
     initialEntries: ["/origin", detailUrl],
   });
   const historyLength = router.history.length;
@@ -572,13 +549,14 @@ test("pushes an unresolved continuation return target and preserves the history 
   expect(router.state.location.pathname).toBe(detailUrl);
 });
 
-test("does not offer a return action when an unresolved continuation has no current thread", async () => {
-  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+test("does not offer a return action when the current thread changed to empty", async () => {
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
     type: "unavailable",
     failure: {
-      type: "currentThreadUnresolved",
-      blockers: [{ type: "ordinaryQueued", count: 1 }],
+      type: "currentThreadChanged",
       activeThreadId: null,
+      expectedRevision: 1,
+      actualRevision: 2,
     },
   });
   const commands = {
@@ -587,19 +565,20 @@ test("does not offer a return action when an unresolved continuation has no curr
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const { screen } = await renderDetail({ commands, continueThread });
+  const { screen } = await renderDetail({ activate, commands });
 
   await screen.getByRole("button", { name: "Continue this task" }).click();
 
   const alert = screen.getByRole("alert");
-  await expect.element(alert.getByText("Unable to switch tasks yet")).toBeVisible();
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  await expect.element(alert.getByText("The task could not be activated.")).toBeVisible();
   await expect
     .element(alert.getByRole("button", { name: "Return to current task" }))
     .not.toBeInTheDocument();
 });
 
 test("reports another switch in progress without offering a stale owner route", async () => {
-  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
     type: "unavailable",
     failure: { type: "switchInProgress" },
   });
@@ -609,7 +588,7 @@ test("reports another switch in progress without offering a stale owner route", 
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const { router, screen } = await renderDetail({ commands, continueThread });
+  const { router, screen } = await renderDetail({ activate, commands });
 
   await screen.getByRole("button", { name: "Continue this task" }).click();
 
@@ -623,8 +602,15 @@ test("reports another switch in progress without offering a stale owner route", 
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 
-test("builds QR access for the visible detail instead of a different active owner", async () => {
+test("builds QR access for the visible detail instead of a different active thread", async () => {
   const activeThreadId = "00000000-0000-0000-0000-000000000089";
+  const activeThreadSessionHarness = createActiveThreadSessionHarness();
+  activeThreadSessionHarness.publish(
+    activeThreadSessionHarness.activeSnapshot({
+      threadId: activeThreadId,
+      subscriptionId: `subscription-${activeThreadId}`,
+    }),
+  );
   const commands = {
     ...createGuiHostCommands(),
     readThread: vi
@@ -632,7 +618,7 @@ test("builds QR access for the visible detail instead of a different active owne
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
   const { screen } = await renderDetail({
-    activeOwner: activeOwner(activeThreadId),
+    activeThreadSession: activeThreadSessionHarness.session,
     authorizationToken: "retained-secret",
     commands,
   });
@@ -651,15 +637,15 @@ test("builds QR access for the visible detail instead of a different active owne
 });
 
 test("keeps one continuation in flight while the primary action is pending", async () => {
-  const switching = deferred<Awaited<ReturnType<ContinueThread>>>();
-  const continueThread = vi.fn<ContinueThread>().mockReturnValue(switching.promise);
+  const switching = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockReturnValue(switching.promise);
   const commands = {
     ...createGuiHostCommands(),
     readThread: vi
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const { router, screen } = await renderDetail({ commands, continueThread });
+  const { router, screen } = await renderDetail({ activate, commands });
   const action = screen.getByRole("button", { name: "Continue this task" });
 
   await action.click();
@@ -669,7 +655,7 @@ test("keeps one continuation in flight while the primary action is pending", asy
     throw new Error("Expected the pending continuation action to be a button");
   }
   pendingActionElement.click();
-  expect(continueThread).toHaveBeenCalledExactlyOnceWith(detailThreadId);
+  expect(activate).toHaveBeenCalledExactlyOnceWith(detailThreadId);
 
   const rawFailure = new Error("continuation settled after pending");
   switching.resolve({
@@ -690,17 +676,35 @@ test("keeps one continuation in flight while the primary action is pending", asy
   expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 });
 
+test("keeps the read-only detail visible when activation returns empty", async () => {
+  const commands = {
+    ...createGuiHostCommands(),
+    readThread: vi
+      .fn<GuiHostCommands["readThread"]>()
+      .mockResolvedValue({ thread: emptyHistoryThread() }),
+  };
+  const { router, screen } = await renderDetail({ activate: { type: "empty" }, commands });
+
+  await screen.getByRole("button", { name: "Continue this task" }).click();
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to continue this task")).toBeVisible();
+  await expect.element(alert.getByText("The task could not be activated.")).toBeVisible();
+  await expect.element(screen.getByText("This task has no messages.")).toBeVisible();
+  expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
+});
+
 test.each([
-  ["admission", "The task switch could not be started."],
   ["resume", "The task could not be resumed."],
   ["attach", "The task connection could not be prepared."],
+  ["prepare", "The task connection could not be prepared."],
   ["activate", "The task could not be activated."],
 ] as const)(
   "keeps the read-only detail retryable after an %s operation failure",
   async (phase, summary) => {
     const rawFailure = new Error(`complete ${phase} failure: request id 88`);
     const cleanupError = new Error(`cleanup after ${phase} failed`);
-    const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
       type: "unavailable",
       failure: {
         type: "operationFailed",
@@ -715,7 +719,7 @@ test.each([
         .fn<GuiHostCommands["readThread"]>()
         .mockResolvedValue({ thread: emptyHistoryThread() }),
     };
-    const { router, screen } = await renderDetail({ commands, continueThread });
+    const { router, screen } = await renderDetail({ activate, commands });
     const action = screen.getByRole("button", { name: "Continue this task" });
 
     await action.click();
@@ -731,15 +735,15 @@ test.each([
     expect(router.state.location.pathname).toBe(`/history/${detailThreadId}`);
 
     await action.click();
-    expect(continueThread).toHaveBeenCalledTimes(2);
+    expect(activate).toHaveBeenCalledTimes(2);
   },
 );
 
 test.each(["beforeCommit", "afterCommit"] as const)(
-  "keeps history visible after a %s connection loss without offering owner navigation",
+  "keeps history visible after a %s connection loss without offering active-thread navigation",
   async (progress) => {
     const cleanupError = new Error(`cleanup after ${progress} failed`);
-    const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
       type: "unavailable",
       failure: {
         type: "connectionLost",
@@ -754,7 +758,7 @@ test.each(["beforeCommit", "afterCommit"] as const)(
         .fn<GuiHostCommands["readThread"]>()
         .mockResolvedValue({ thread: emptyHistoryThread() }),
     };
-    const { router, screen } = await renderDetail({ commands, continueThread });
+    const { router, screen } = await renderDetail({ activate, commands });
 
     await screen.getByRole("button", { name: "Continue this task" }).click();
 
@@ -779,9 +783,9 @@ test.each(["beforeCommit", "afterCommit"] as const)(
   },
 );
 
-test("renders a synchronous continuation exception as an unexpected failure", async () => {
-  const rawFailure = new Error("synchronous continuation failure");
-  const continueThread = vi.fn<ContinueThread>(() => {
+test("renders a synchronous activation exception as an unexpected failure", async () => {
+  const rawFailure = new Error("synchronous activation failure");
+  const activate = vi.fn<ActiveThreadSession["activate"]>(() => {
     throw rawFailure;
   });
   const commands = {
@@ -790,7 +794,7 @@ test("renders a synchronous continuation exception as an unexpected failure", as
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const { router, screen } = await renderDetail({ commands, continueThread });
+  const { router, screen } = await renderDetail({ activate, commands });
 
   await screen.getByRole("button", { name: "Continue this task" }).click();
 
@@ -808,7 +812,7 @@ test("renders a synchronous continuation exception as an unexpected failure", as
 
 test("replaces history with the authoritative ready thread without showing a warning", async () => {
   const authoritativeThreadId = "00000000-0000-0000-0000-000000000090";
-  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
     type: "ready",
     threadId: authoritativeThreadId,
     warnings: [],
@@ -821,8 +825,8 @@ test("replaces history with the authoritative ready thread without showing a war
   };
   const detailUrl = `/history/${detailThreadId}`;
   const { router, screen } = await renderDetail({
+    activate,
     commands,
-    continueThread,
     initialEntries: ["/origin", detailUrl],
   });
   const historyLength = router.history.length;
@@ -840,7 +844,7 @@ test("replaces history with the authoritative ready thread without showing a war
 
 test.each([
   [
-    { type: "postCommitDegraded", operation: "replay", error: new Error("replay degraded") },
+    { type: "authorizationPersistenceFailed", error: new Error("persistence degraded") },
     "The task opened, but some state synchronization did not finish.",
   ],
   [
@@ -850,7 +854,7 @@ test.each([
 ] as const)(
   "navigates after a ready warning and keeps its Toast visible",
   async (warning, message) => {
-    const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+    const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
       type: "ready",
       threadId: detailThreadId,
       warnings: [warning],
@@ -861,7 +865,7 @@ test.each([
         .fn<GuiHostCommands["readThread"]>()
         .mockResolvedValue({ thread: emptyHistoryThread() }),
     };
-    const { screen } = await renderDetail({ commands, continueThread });
+    const { screen } = await renderDetail({ activate, commands });
 
     await screen.getByRole("button", { name: "Continue this task" }).click();
 
@@ -872,11 +876,11 @@ test.each([
 );
 
 test("keeps both warning Toasts visible after navigating away from history", async () => {
-  const continueThread = vi.fn<ContinueThread>().mockResolvedValue({
+  const activate = vi.fn<ActiveThreadSession["activate"]>().mockResolvedValue({
     type: "ready",
     threadId: detailThreadId,
     warnings: [
-      { type: "postCommitDegraded", operation: "replay", error: new Error("replay degraded") },
+      { type: "authorizationPersistenceFailed", error: new Error("persistence degraded") },
       { type: "previousOwnerCleanupFailed", error: new Error("cleanup degraded") },
     ],
   });
@@ -886,7 +890,7 @@ test("keeps both warning Toasts visible after navigating away from history", asy
       .fn<GuiHostCommands["readThread"]>()
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
-  const { screen } = await renderDetail({ commands, continueThread });
+  const { screen } = await renderDetail({ activate, commands });
 
   await screen.getByRole("button", { name: "Continue this task" }).click();
 
@@ -907,11 +911,15 @@ test("keeps both warning Toasts visible after navigating away from history", asy
 });
 
 test("ignores a stale in-flight capability result and invokes only its replacement", async () => {
-  const staleSwitch = deferred<Awaited<ReturnType<ContinueThread>>>();
-  const staleContinueThread = vi.fn<ContinueThread>().mockReturnValue(staleSwitch.promise);
-  const replacementContinueThread = vi.fn<ContinueThread>().mockResolvedValue({
-    type: "unavailable",
-    failure: { type: "switchInProgress" },
+  const staleSwitch = deferred<Awaited<ReturnType<ActiveThreadSession["activate"]>>>();
+  const staleSessionHarness = createActiveThreadSessionHarness({
+    activate: () => staleSwitch.promise,
+  });
+  const replacementSessionHarness = createActiveThreadSessionHarness({
+    activate: {
+      type: "unavailable",
+      failure: { type: "switchInProgress" },
+    },
   });
   const commands = {
     ...createGuiHostCommands(),
@@ -920,21 +928,21 @@ test("ignores a stale in-flight capability result and invokes only its replaceme
       .mockResolvedValue({ thread: emptyHistoryThread() }),
   };
   const { capabilitiesStore, initialCapabilities, router, screen } = await renderDetail({
+    activeThreadSession: staleSessionHarness.session,
     commands,
-    continueThread: staleContinueThread,
   });
   const action = screen.getByRole("button", { name: "Continue this task" });
 
   await action.click();
   capabilitiesStore.publish({
     ...initialCapabilities,
-    continueThread: null,
+    activeThreadSession: null,
     status: { label: "closed" },
   });
   await expect.element(action).toBeDisabled();
   capabilitiesStore.publish({
     ...initialCapabilities,
-    continueThread: replacementContinueThread,
+    activeThreadSession: replacementSessionHarness.session,
   });
   await expect.element(action).toBeEnabled();
 
@@ -945,8 +953,8 @@ test("ignores a stale in-flight capability result and invokes only its replaceme
   await expect
     .element(screen.getByText("Another task switch is already in progress. Try again shortly."))
     .toBeVisible();
-  expect(staleContinueThread).toHaveBeenCalledOnce();
-  expect(replacementContinueThread).toHaveBeenCalledOnce();
+  expect(staleSessionHarness.activate).toHaveBeenCalledOnce();
+  expect(replacementSessionHarness.activate).toHaveBeenCalledOnce();
 });
 
 test("preserves detail and list entries across browser back and forward navigation", async () => {

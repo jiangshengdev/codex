@@ -1,4 +1,9 @@
 import { expect, test } from "vitest";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionReadModelFact,
+} from "@/features/activeThreadSession/activeThreadProjection";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -18,17 +23,27 @@ import {
   reasoningTextDelta,
   subAgentActivity,
 } from "@/features/projection/__tests__/projectionTestBuilders";
-import {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-} from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import { CommittedTranscriptSurface } from "../CommittedTranscriptSurface";
 
 type SurfaceRender = Awaited<ReturnType<typeof renderWithProviders>>;
 type SurfaceStore = SurfaceRender["store"];
-type ProjectionEvent = Parameters<typeof threadRuntimeEventBuffered>[0]["notification"];
+type ProjectionEvent = ActiveThreadProjectionAcceptedQueueFact["notification"];
+
+let sessionRevision = 0;
+const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
+  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) => readModelAction({ type: "baselineAttached", response });
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+  readModelAction({ type: "eventAccepted", payload });
+const threadRuntimeDeltasAccepted = ({
+  notifications,
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
 
 const renderSurface = async () => {
   const result = await renderWithProviders(<CommittedTranscriptSurface />);

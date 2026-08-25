@@ -11,12 +11,13 @@ import {
 import { StrictMode } from "react";
 import { attachResponse, createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
+import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import type { ActiveThreadSession } from "@/features/activeThreadSession/activeThreadSession";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
 import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
-import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 import type { Thread, ThreadListResponse } from "@codex-protocol/v2";
 import { ThreadHistoryListPage } from "../ThreadHistoryListPage";
@@ -36,6 +37,15 @@ const response = (data: Thread[], nextCursor: string | null): ThreadListResponse
   nextCursor,
   backwardsCursor: null,
 });
+
+let sessionRevision = 0;
+const baselineAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) =>
+  activeThreadReadModelTransitionApplied({
+    sessionRevision: ++sessionRevision,
+    facts: [{ type: "baselineAttached", response }],
+  });
 
 const historyCards = (container: HTMLElement): HTMLElement[] =>
   Array.from(container.querySelectorAll<HTMLElement>('[role="article"]'));
@@ -75,65 +85,45 @@ const fitsWithinOwnWidth = (element: HTMLElement): boolean =>
   element.scrollWidth <= element.clientWidth + 1;
 
 const HistoryDetailPlaceholder = () => <main aria-label="History detail" />;
-const emptySkillCatalogState: SkillCatalogState = {
-  type: "ready",
-  candidates: [],
-  partialErrorCount: 0,
-};
-const skillCatalog: ActiveThreadOwnerHandle["skillCatalog"] = {
-  getSnapshot: () => emptySkillCatalogState,
-  subscribe: () => () => undefined,
-  invalidate: () => false,
-  retry: () => false,
-};
 
 type RenderHistoryOptions = {
+  activeThreadSession?: ActiveThreadSession | null;
+  activeThreadStartupError?: string | null;
   commandsAvailable?: boolean;
-  historyContextAvailable?: boolean;
   initialEntry?: string;
+  runtimeThreadId?: string | null;
   strictMode?: boolean;
 };
-
-const activeOwner = (): ActiveThreadOwnerHandle => ({
-  threadId: attachResponse.snapshot.thread.id,
-  subscriptionId: attachResponse.subscriptionId,
-  projectionOwner: null as never,
-  queueCoordinator: null as never,
-  skillCatalog,
-  dispose: () => undefined,
-});
 
 const renderHistory = async (
   listThreads: GuiHostCommands["listThreads"],
   {
+    activeThreadSession: suppliedActiveThreadSession,
+    activeThreadStartupError = null,
     commandsAvailable = true,
-    historyContextAvailable = true,
     initialEntry = "/history",
+    runtimeThreadId = attachResponse.snapshot.thread.id,
     strictMode = false,
   }: RenderHistoryOptions = {},
 ) => {
-  const owner = historyContextAvailable ? activeOwner() : null;
+  const activeThreadSessionHarness = createActiveThreadSessionHarness();
+  activeThreadSessionHarness.publish(
+    activeThreadSessionHarness.activeSnapshot({
+      threadId: attachResponse.snapshot.thread.id,
+      subscriptionId: attachResponse.subscriptionId,
+    }),
+  );
+  const activeThreadSession =
+    suppliedActiveThreadSession === undefined
+      ? activeThreadSessionHarness.session
+      : suppliedActiveThreadSession;
   const target = { type: "historyList" } as const;
   const capabilities: AppCapabilities = {
-    activeOwner: owner,
+    activeThreadSession,
+    activeThreadStartupError,
     authorizationToken: null,
     commands: commandsAvailable ? { ...createGuiHostCommands(), listThreads } : null,
-    continueThread: null,
     routeTarget: target,
-    startupOutcome: historyContextAvailable
-      ? {
-          type: "ready",
-          target,
-          activeOwner: owner,
-          cleanupFailure: null,
-          postCommitFailure: null,
-        }
-      : {
-          type: "historyContextUnavailable",
-          target,
-          activeOwner: null,
-          cleanupFailure: null,
-        },
     status: { label: "initialized" },
   };
   const Root = () => (
@@ -158,8 +148,16 @@ const renderHistory = async (
   });
   const app = <RouterProvider router={router} />;
   const screen = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app);
-  if (historyContextAvailable) {
-    screen.store.dispatch(threadRuntimeAttached(attachResponse));
+  if (runtimeThreadId != null) {
+    screen.store.dispatch(
+      baselineAttached({
+        ...attachResponse,
+        snapshot: {
+          ...attachResponse.snapshot,
+          thread: { ...attachResponse.snapshot.thread, id: runtimeThreadId },
+        },
+      }),
+    );
   }
   return { router, screen };
 };
@@ -181,9 +179,21 @@ test("settles the initial history request and renders its result under StrictMod
   });
 });
 
-test("fails closed with the complete context error when active recovery is unavailable", async () => {
+test("keeps loading while the active thread session is pending publication", async () => {
   const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
-  const { screen } = await renderHistory(listThreads, { historyContextAvailable: false });
+  const { screen } = await renderHistory(listThreads, { activeThreadSession: null });
+
+  await expect.element(screen.getByText("Loading history…")).toBeVisible();
+  await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
+  expect(listThreads).not.toHaveBeenCalled();
+});
+
+test("fails closed with the complete context error when the settled session is empty", async () => {
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+  const emptySession = createActiveThreadSessionHarness();
+  const { screen } = await renderHistory(listThreads, {
+    activeThreadSession: emptySession.session,
+  });
 
   const alert = screen.getByRole("alert");
   await expect
@@ -198,6 +208,32 @@ test("fails closed with the complete context error when active recovery is unava
     .toBeVisible();
   await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
   await expect.element(screen.getByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  expect(listThreads).not.toHaveBeenCalled();
+});
+
+test("shows the startup activation error only after the session settles empty", async () => {
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+  const emptySession = createActiveThreadSessionHarness();
+  const startupError = "Startup activation failed";
+  const { screen } = await renderHistory(listThreads, {
+    activeThreadSession: emptySession.session,
+    activeThreadStartupError: startupError,
+  });
+
+  const alert = screen.getByRole("alert");
+  await expect.element(alert.getByText("Unable to load history", { exact: true })).toBeVisible();
+  await expect.element(alert.getByText(startupError, { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Loading history…")).not.toBeInTheDocument();
+  expect(listThreads).not.toHaveBeenCalled();
+});
+
+test("requires the runtime cwd to belong to the active thread id", async () => {
+  const listThreads = vi.fn<GuiHostCommands["listThreads"]>();
+  const { screen } = await renderHistory(listThreads, { runtimeThreadId: "different-thread" });
+
+  await expect
+    .element(screen.getByRole("alert").getByText("Unable to load history", { exact: true }))
+    .toBeVisible();
   expect(listThreads).not.toHaveBeenCalled();
 });
 
@@ -499,7 +535,7 @@ test("removes cards from the previous cwd before the replacement cwd request set
   await expect.element(screen.getByRole("article", { name: "Old cwd task" })).toBeVisible();
 
   screen.store.dispatch(
-    threadRuntimeAttached({
+    baselineAttached({
       ...attachResponse,
       snapshot: {
         ...attachResponse.snapshot,

@@ -1,5 +1,7 @@
 import { expect, test } from "vitest";
 import { page } from "vitest/browser";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
 import {
   attachWithTurns,
   baseTurn,
@@ -7,8 +9,16 @@ import {
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
+
+let sessionRevision = 0;
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) =>
+  activeThreadReadModelTransitionApplied({
+    sessionRevision: ++sessionRevision,
+    facts: [{ type: "baselineAttached", response }],
+  });
 
 const fitsWithinOwnWidth = (element: Element): boolean =>
   element.scrollWidth <= element.clientWidth + 1;

@@ -1,8 +1,17 @@
 import { Toast } from "@heroui/react";
 import { afterEach, expect, test, vi, type Mock } from "vitest";
 import { userEvent } from "vitest/browser";
+import { useSyncExternalStore } from "react";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
 import { createDeferred as deferred } from "@/__tests__/testDeferred";
+import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadComposerRole,
+  ActiveThreadSession,
+  ActiveThreadSkillsRole,
+} from "@/features/activeThreadSession/activeThreadSession";
 import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
@@ -19,9 +28,9 @@ import type {
   ComposerPendingInputPageRequest,
   ComposerPendingInputPageResult,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
+import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import {
   attachBaseline,
   attachReplacement,
@@ -37,20 +46,10 @@ import type {
   SkillCatalogCandidate,
   SkillCatalogState,
 } from "@/features/skillCatalog/skillCatalogOwner";
-import {
-  attachedThreadIdObserved,
-  launchThreadIdRecorded,
-} from "@/features/threadIdentity/threadIdentitySlice";
-import {
-  threadRuntimeAttached,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
 import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
-const initializedStatus: GuiHostStatus = { label: "initialized" };
 const attachResponse = attachBaseline;
 const threadId = attachResponse.snapshot.thread.id;
 const readyEmptySkillCatalog: SkillCatalogState = {
@@ -130,7 +129,6 @@ const createQueueControllerHarness = (
     ordinary: [...initialDetails.ordinary],
     steer: [...initialDetails.steer],
   };
-  let ownerThreadId = threadId;
   let movementBlocked = false;
   const listeners = new Set<() => void>();
   const pageReadOverrides: PendingInputPageReadOverride[] = [];
@@ -241,9 +239,6 @@ const createQueueControllerHarness = (
   const movePendingInput = vi
     .fn<ComposerInputQueueCoordinator["movePendingInput"]>()
     .mockImplementation((request) => {
-      if (ownerThreadId !== threadId) {
-        return { type: "unavailable", scope: "ownerGone", reason: "ownerReplaced" };
-      }
       if (request.revision !== snapshot.detailRevision) {
         return { type: "stale", scope: "liveOwner", revision: snapshot.detailRevision };
       }
@@ -323,9 +318,7 @@ const createQueueControllerHarness = (
       };
     });
   const controller = {
-    get ownerThreadId() {
-      return ownerThreadId;
-    },
+    ownerThreadId: threadId,
     submit,
     submitSteer,
     promoteOrdinaryFrontToSteer,
@@ -382,13 +375,15 @@ const createQueueControllerHarness = (
     clearPageReadFallbackOverride(): void {
       pageReadFallbackOverride = null;
     },
-    replaceOwnerThreadId(next: string): void {
-      ownerThreadId = next;
-      snapshot = { ...snapshot };
-      for (const listener of listeners) listener();
-    },
   };
 };
+
+type SkillCatalogHarnessController = Readonly<{
+  getSnapshot(): SkillCatalogState;
+  subscribe(listener: () => void): () => void;
+  invalidate(): boolean;
+  retry(): boolean;
+}>;
 
 const createSkillCatalogHarness = (initial: SkillCatalogState = readyEmptySkillCatalog) => {
   let snapshot = initial;
@@ -399,11 +394,9 @@ const createSkillCatalogHarness = (initial: SkillCatalogState = readyEmptySkillC
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    invalidate: vi
-      .fn<ActiveThreadOwnerHandle["skillCatalog"]["invalidate"]>()
-      .mockReturnValue(true),
-    retry: vi.fn<ActiveThreadOwnerHandle["skillCatalog"]["retry"]>().mockReturnValue(true),
-  } satisfies ActiveThreadOwnerHandle["skillCatalog"];
+    invalidate: vi.fn<SkillCatalogHarnessController["invalidate"]>().mockReturnValue(true),
+    retry: vi.fn<SkillCatalogHarnessController["retry"]>().mockReturnValue(true),
+  } satisfies SkillCatalogHarnessController;
 
   return {
     controller,
@@ -427,42 +420,151 @@ const capturePendingInputEditReservations = (
   return reservations;
 };
 
+const composerRoleFor = (
+  controller: ComposerInputQueueCoordinator,
+  getRevision: () => number,
+): Partial<ActiveThreadComposerRole> => ({
+  beginPendingInputEdit: (revision, request, restore) =>
+    revision === getRevision()
+      ? controller.beginPendingInputEdit(request, restore)
+      : staleSessionOperation(getRevision()),
+  deletePendingInput: (revision, request) =>
+    revision === getRevision()
+      ? controller.deletePendingInput(request)
+      : staleSessionOperation(getRevision()),
+  interruptActiveTurn: (revision) =>
+    revision === getRevision() ? controller.interruptActiveTurn() : staleSessionOperation(getRevision()),
+  movePendingInput: (revision, request) =>
+    revision === getRevision()
+      ? controller.movePendingInput(request)
+      : staleSessionOperation(getRevision()),
+  promoteOrdinaryFrontToSteer: (revision) =>
+    revision === getRevision()
+      ? controller.promoteOrdinaryFrontToSteer()
+      : staleSessionOperation(getRevision()),
+  readPendingInputDetail: (request) => controller.readPendingInputDetail(request),
+  readPendingInputPage: (request) => controller.readPendingInputPage(request),
+  recover: (revision) =>
+    revision === getRevision() ? controller.recover() : staleSessionOperation(getRevision()),
+  submit: (revision, capture) =>
+    revision === getRevision() ? controller.submit(capture) : staleSessionOperation(getRevision()),
+  submitSteer: (revision, capture) =>
+    revision === getRevision()
+      ? controller.submitSteer(capture)
+      : staleSessionOperation(getRevision()),
+});
+
+const staleSessionOperation = (revision: number) =>
+  ({
+    type: "unavailable",
+    scope: "activeThreadSession",
+    reason: "staleRevision",
+    revision,
+  }) as const;
+
+const skillsRoleFor = (
+  controller: SkillCatalogHarnessController,
+): Partial<ActiveThreadSkillsRole> => ({
+  invalidateSkills: () => controller.invalidate(),
+  refreshSkills: () => controller.invalidate(),
+  retrySkills: () => controller.retry(),
+});
+
+function SessionComposerTurnControl({
+  guardCompositionEndEnter,
+  session,
+}: Readonly<{
+  guardCompositionEndEnter: boolean;
+  session: ActiveThreadSession;
+}>) {
+  const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
+  return (
+    <ComposerTurnControl
+      authorizationToken={null}
+      guardCompositionEndEnter={guardCompositionEndEnter}
+      routeTarget={{ type: "currentTask", threadId }}
+      sessionSnapshot={snapshot}
+    />
+  );
+}
+
 async function renderAttached(
-  commandHandle: GuiHostCommands | null = createGuiHostCommands(),
+  commandHandle: GuiHostCommands = createGuiHostCommands(),
   guardCompositionEndEnter = false,
   locale: AppLocale = "en",
-  controller: ComposerInputQueueCoordinator | null = commandHandle == null
-    ? null
-    : createComposerInputQueueCoordinator({
-        threadId,
-        activeTurnId: null,
-        startTurn: commandHandle.startTurn,
-        steerTurn: commandHandle.steerTurn,
-        interruptTurn: commandHandle.interruptTurn,
-      }),
-  skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"] = createSkillCatalogHarness()
-    .controller,
+  controller: ComposerInputQueueCoordinator = createComposerInputQueueCoordinator({
+    threadId,
+    activeTurnId: null,
+    startTurn: commandHandle.startTurn,
+    steerTurn: commandHandle.steerTurn,
+    interruptTurn: commandHandle.interruptTurn,
+  }),
+  skillCatalogController: SkillCatalogHarnessController = createSkillCatalogHarness().controller,
+  activeTurnId?: string | null,
 ) {
+  const fixtureActiveTurnId =
+    eventTurnStarted.event.type === "turnStarted"
+      ? eventTurnStarted.event.notification.turn.id
+      : null;
+  const sessionActiveTurnId =
+    activeTurnId === undefined && controller.getSnapshot().canStop
+      ? fixtureActiveTurnId
+      : (activeTurnId ?? null);
+  let revision = 1;
+  const sessionHarness = createActiveThreadSessionHarness({
+    composerRole: composerRoleFor(controller, () => revision),
+    skillsRole: skillsRoleFor(skillCatalogController),
+  });
+  sessionHarness.session.subscribe(() => {
+    revision = sessionHarness.session.getSnapshot().revision;
+  });
+  const publishActiveSnapshot = (): void => {
+    revision += 1;
+    sessionHarness.publish(
+      sessionHarness.activeSnapshot({
+        revision,
+        threadId,
+        subscriptionId: attachResponse.subscriptionId,
+        activeTurnId: sessionActiveTurnId,
+        composer: controller.getSnapshot(),
+        skills: skillCatalogController.getSnapshot(),
+      }),
+    );
+  };
+  sessionHarness.publish(
+    sessionHarness.activeSnapshot({
+      revision,
+      threadId,
+      subscriptionId: attachResponse.subscriptionId,
+      activeTurnId: sessionActiveTurnId,
+      composer: controller.getSnapshot(),
+      skills: skillCatalogController.getSnapshot(),
+    }),
+  );
+  controller.subscribe(publishActiveSnapshot);
+  skillCatalogController.subscribe(publishActiveSnapshot);
   const result = await renderWithProviders(
     <>
       <Toast.Provider placement="top" />
-      <ComposerTurnControl
-        authorizationToken={null}
-        commands={commandHandle}
-        composerInputQueueController={controller}
+      <SessionComposerTurnControl
         guardCompositionEndEnter={guardCompositionEndEnter}
-        guiHostStatus={initializedStatus}
-        routeTarget={{ type: "currentTask", threadId }}
-        skillCatalogController={skillCatalogController}
+        session={sessionHarness.session}
       />
     </>,
     { locale },
   );
-  result.store.dispatch(launchThreadIdRecorded(threadId));
-  result.store.dispatch(attachedThreadIdObserved(threadId));
-  result.store.dispatch(threadRuntimeAttached(attachResponse));
-  return result;
+  dispatchReadModelFacts(result, [{ type: "baselineAttached", response: attachResponse }]);
+  return { ...result, sessionHarness };
 }
+
+const dispatchReadModelFacts = (
+  screen: Pick<Awaited<ReturnType<typeof renderWithProviders>>, "store">,
+  facts: readonly ActiveThreadProjectionReadModelFact[],
+): void => {
+  const sessionRevision = screen.store.getState().threadRuntime.sessionRevision + 1;
+  screen.store.dispatch(activeThreadReadModelTransitionApplied({ sessionRevision, facts }));
+};
 
 const expectComposerDisabled = async (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
@@ -526,7 +628,7 @@ const dispatchComposition = (element: Element, data: string): void => {
 type RenderActiveTurnOptions = Readonly<{
   captureEditReservations?: boolean;
   commandHandle?: GuiHostCommands;
-  skillCatalogController?: ActiveThreadOwnerHandle["skillCatalog"];
+  skillCatalogController?: SkillCatalogHarnessController;
 }>;
 
 const renderActiveTurn = async ({
@@ -555,8 +657,8 @@ const renderActiveTurn = async ({
     "en",
     controller,
     skillCatalogController ?? createSkillCatalogHarness().controller,
+    turn.id,
   );
-  screen.store.dispatch(threadRuntimeEventBuffered({ notification: event, replay: "live" }));
   return {
     commandHandle,
     composer: getComposer(screen),
@@ -587,42 +689,38 @@ async function beginPendingStop(draft: string) {
   return { composer, controller, interruptTurn, pending, screen, stopButton };
 }
 
-test("disables controls before attach", async () => {
+test("disables controls while the projection is unavailable", async () => {
   expect.hasAssertions();
-
-  const screen = await renderWithProviders(
-    <>
-      <Toast.Provider placement="top" />
-      <ComposerTurnControl
-        authorizationToken={null}
-        commands={createGuiHostCommands()}
-        composerInputQueueController={null}
-        guardCompositionEndEnter={false}
-        guiHostStatus={{ label: "connecting" }}
-        routeTarget={{ type: "currentTask", threadId }}
-        skillCatalogController={createSkillCatalogHarness().controller}
-      />
-    </>,
+  const screen = await renderAttached();
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  screen.sessionHarness.publish(
+    screen.sessionHarness.projectionUnavailableSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
+      reason: "backpressure",
+    }),
   );
 
   const composerPanel = getComposerPanel(screen);
-  const disabledVisualSignature = composerPanelVisualSignature(composerPanel);
 
   await expect.element(composerPanel).toHaveAttribute("aria-disabled", "true");
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "true");
   await expectComposerDisabled(screen);
-  expect(screen.container.querySelector('[aria-label^="Context usage details"]')).toBeNull();
+  await expect
+    .element(screen.getByRole("button", { name: "Context usage details, 0% used, 120 of 258k tokens" }))
+    .toBeVisible();
 
-  screen.store.dispatch(launchThreadIdRecorded(threadId));
-  screen.store.dispatch(attachedThreadIdObserved(threadId));
-  screen.store.dispatch(threadRuntimeAttached(attachResponse));
+  screen.sessionHarness.publish(
+    screen.sessionHarness.activeSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 2,
+    }),
+  );
 
   await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
   await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "true");
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(disabledVisualSignature);
 });
 
 test("shows attached context usage and opens its details", async () => {
@@ -657,12 +755,15 @@ test("updates context usage from live runtime events", async () => {
     modelContextWindow: 258_000,
   };
 
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({
-      notification: tokenUsageUpdated(eventTokenUsageUpdated, nextTokenUsage),
-      replay: "live",
-    }),
-  );
+  dispatchReadModelFacts(screen, [
+    {
+      type: "eventAccepted",
+      payload: {
+        notification: tokenUsageUpdated(eventTokenUsageUpdated, nextTokenUsage),
+        replay: "live",
+      },
+    },
+  ]);
 
   const contextUsageButton = screen.getByRole("button", {
     name: "Context usage details, 58% used, 149k of 258k tokens",
@@ -686,7 +787,7 @@ test("clears context usage when a replacement attach has no usage", async () => 
   });
   await expect.element(contextUsageButton).toBeVisible();
 
-  screen.store.dispatch(threadRuntimeAttached(attachReplacement));
+  dispatchReadModelFacts(screen, [{ type: "baselineAttached", response: attachReplacement }]);
 
   await expect
     .poll(() => screen.container.querySelector('[aria-label^="Context usage details"]'))
@@ -778,31 +879,38 @@ test("submits a non-empty draft through the queue controller and clears it when 
     .toBe("");
 });
 
-test("requires the queue controller owner to match the Redux current thread for operations", async () => {
+test("gates operations by the active session phase", async () => {
   const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
   const composer = getComposer(screen);
   const send = screen.getByRole("button", { name: "Send", exact: true });
   const stop = screen.getByRole("button", { name: "Stop" });
 
-  screen.store.dispatch(
-    threadRuntimeAttached({
-      ...attachResponse,
-      snapshot: {
-        ...attachResponse.snapshot,
-        thread: { ...attachResponse.snapshot.thread, id: "different-current-thread" },
-      },
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  await composer.fill("Identity-gated draft");
+  screen.sessionHarness.publish(
+    screen.sessionHarness.projectionUnavailableSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
+      reason: "backpressure",
     }),
   );
-  await composer.fill("Identity-gated draft");
   await expect.element(send).toBeDisabled();
   await expect.element(stop).toBeDisabled();
-  await composer.click();
   await screen.user.keyboard("{Enter}");
+  const stopElement = stop.element();
+  if (!(stopElement instanceof HTMLButtonElement)) throw new Error("Stop must be a button");
+  stopElement.click();
   expect(harness.submit).not.toHaveBeenCalled();
   expect(harness.interruptActiveTurn).not.toHaveBeenCalled();
 
-  screen.store.dispatch(threadRuntimeAttached(attachResponse));
+  screen.sessionHarness.publish(
+    screen.sessionHarness.activeSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 2,
+    }),
+  );
   await expect.element(send).toBeEnabled();
   await expect.element(stop).toBeEnabled();
   await stop.click();
@@ -1093,9 +1201,6 @@ test("shows Guide only for an active turn and submits an accepted draft as steer
 
   const harness = createQueueControllerHarness(queueSnapshot({ canStop: true }));
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   const composer = getComposer(screen);
   const guide = screen.getByRole("button", { name: "Guide", exact: true });
 
@@ -1149,9 +1254,6 @@ test("routes guide shortcuts by draft presence while ordinary Enter stays ordina
   );
   harness.promoteOrdinaryFrontToSteer.mockReturnValue(true);
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   const composer = getComposer(screen);
 
   await composer.fill("Explicit guide");
@@ -1255,9 +1357,6 @@ test("renders one bounded pending-input Drawer while keeping exceptional states 
     { ordinary: ordinaryItems, steer: steerItems },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
   const trigger = region.getByRole("button", {
     name: "Pending: Guide 21, Queued 21",
@@ -1404,9 +1503,6 @@ test("moves pending messages through the authoritative owner and preserves menu 
     { ordinary, steer },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   await screen.getByRole("button", { name: "Pending: Guide 2, Queued 4", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -1577,9 +1673,6 @@ test("re-reads independent lane budgets after a move and does not locate an item
     { ordinary, steer },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   await screen.getByRole("button", { name: "Pending: Guide 21, Queued 41", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -1651,9 +1744,6 @@ test("does not announce or refresh when an accepted move action is a no-op", asy
     { ordinary, steer: [] },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   const pageReadCount = harness.readPendingInputPage.mock.calls.length;
@@ -1714,9 +1804,6 @@ test("restarts an atomic two-lane refresh once and falls back with an alert afte
     { ordinary, steer },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   await screen.getByRole("button", { name: "Pending: Guide 2, Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
 
@@ -1806,9 +1893,6 @@ test("stops chasing continuous stale pages and resumes after a newer revision", 
     { ordinary, steer: [] },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.setPageReadFallbackOverride((request) => {
@@ -1907,9 +1991,6 @@ test("hides move actions for owner-projected blockers and while delete confirmat
     },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   await screen.getByRole("button", { name: "Pending: Guide 3, Queued 3", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect
@@ -2023,7 +2104,7 @@ test("hides move actions for owner-projected blockers and while delete confirmat
   expect(preparationExcludedMoveActions).toBe(true);
 });
 
-test("keeps move failures in the Drawer and closes it when the queue owner disappears", async () => {
+test("keeps move failures in the Drawer and rejects a stale session callback", async () => {
   const items = ["A", "B"].map((label) =>
     pendingInputItem(`move-failure-${label}`, "ordinary", {
       type: "text",
@@ -2036,9 +2117,6 @@ test("keeps move failures in the Drawer and closes it when the queue owner disap
     { ordinary: items, steer: [] },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.movePendingInput.mockReturnValueOnce({
@@ -2061,17 +2139,17 @@ test("keeps move failures in the Drawer and closes it when the queue owner disap
     )
     .toBeVisible();
 
-  harness.movePendingInput.mockReturnValueOnce({
-    type: "unavailable",
-    scope: "ownerGone",
-    reason: "ownerReplaced",
-  });
+  vi.spyOn(screen.sessionHarness.composerRole, "movePendingInput").mockReturnValueOnce(
+    staleSessionOperation(52),
+  );
   await dialog
     .getByRole("group", { name: "Move failure A", exact: true })
     .getByRole("button", { name: "Move down pending message: Move failure A", exact: true })
     .click();
-  await expect.element(dialog).not.toBeInTheDocument();
-  await expect.element(getComposer(screen)).toHaveFocus();
+  await expect.element(dialog).toBeVisible();
+  await expect
+    .element(dialog.getByText("Pending message was not reordered", { exact: true }))
+    .toBeVisible();
 });
 
 test("keeps a terminal stale non-move failure in the Drawer when counts reach zero", async () => {
@@ -2087,9 +2165,6 @@ test("keeps a terminal stale non-move failure in the Drawer when counts reach ze
     { ordinary: items, steer: [] },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   await screen.getByRole("button", { name: "Pending: Queued 2", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   harness.movePendingInput.mockImplementationOnce(() => {
@@ -2260,9 +2335,6 @@ test("keeps live-owner management failures in the Drawer as an alert", async () 
     },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -2335,10 +2407,10 @@ test("keeps a last unsent steer target invalidation in the Drawer without settli
   expect(cancel).not.toHaveBeenCalled();
 });
 
-test("tears down an active edit without settling the old reservation when its owner is disposed", async () => {
+test("tears down an active edit without settling its reservation when projection is unavailable", async () => {
   const commandHandle = createGuiHostCommands();
   const skillCatalog = createSkillCatalogHarness();
-  const { composer, controller, reservations, screen } = await renderActiveTurn({
+  const { composer, reservations, screen } = await renderActiveTurn({
     captureEditReservations: true,
     commandHandle,
     skillCatalogController: skillCatalog.controller,
@@ -2356,20 +2428,14 @@ test("tears down an active edit without settling the old reservation when its ow
   const save = vi.spyOn(reservation, "save");
   const cancel = vi.spyOn(reservation, "cancel");
 
-  controller.dispose("ownerReplaced");
-  await screen.rerender(
-    <>
-      <Toast.Provider placement="top" />
-      <ComposerTurnControl
-        authorizationToken={null}
-        commands={commandHandle}
-        composerInputQueueController={null}
-        guardCompositionEndEnter={false}
-        guiHostStatus={initializedStatus}
-        routeTarget={{ type: "currentTask", threadId }}
-        skillCatalogController={skillCatalog.controller}
-      />
-    </>,
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  screen.sessionHarness.publish(
+    screen.sessionHarness.projectionUnavailableSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
+      reason: "backpressure",
+    }),
   );
 
   await expect
@@ -2412,9 +2478,6 @@ test("keeps the Drawer open when a pending-input detail is missing", async () =>
     { ordinary: [], steer: [item] },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -2453,9 +2516,6 @@ test("uses one pending trigger for either lane and hides it when both lanes are 
     },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
   const region = screen.getByRole("region", { name: "Pending messages", exact: true });
 
   const guideTrigger = region.getByRole("button", {
@@ -2494,9 +2554,6 @@ test("closes and clears pending details when counts become empty", async () => {
     },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
@@ -2531,9 +2588,6 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
     },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   const trigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
   await trigger.click();
@@ -2543,6 +2597,7 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
     .toBeVisible();
 
   harness.publish(queueSnapshot({ detailRevision: 2, canStop: true }));
+  await expect.element(closingDialog).not.toBeInTheDocument();
   harness.replaceDetails({
     ordinary: [
       pendingInputItem("ordinary-new", "ordinary", {
@@ -2555,7 +2610,6 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
   });
   harness.publish(queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 3, canStop: true }));
 
-  await expect.element(closingDialog).not.toBeInTheDocument();
   const nextTrigger = screen.getByRole("button", { name: "Pending: Queued 1", exact: true });
   await expect.element(nextTrigger).toBeVisible();
   expect(screen.getByText("New pending detail", { exact: true }).query()).toBeNull();
@@ -2565,7 +2619,7 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
   await expect.element(nextDialog.getByText("New pending detail", { exact: true })).toBeVisible();
 });
 
-test("closes and clears pending details when the queue owner is replaced", async () => {
+test("keeps pending details readable while projection mutations are unavailable", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({ guidingCount: 1, detailRevision: 1, canStop: true }),
     {
@@ -2573,28 +2627,63 @@ test("closes and clears pending details when the queue owner is replaced", async
       steer: [
         pendingInputItem("steer-owner", "steer", {
           type: "text",
-          text: "Old owner detail",
+          text: "Unavailable projection detail",
           truncated: false,
         }),
       ],
     },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   await screen.getByRole("button", { name: "Pending: Guide 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
-  await expect.element(dialog.getByText("Old owner detail", { exact: true })).toBeVisible();
-
-  harness.replaceOwnerThreadId("replacement-thread");
-
-  await expect.element(dialog).not.toBeInTheDocument();
   await expect
-    .element(screen.getByText("Old owner detail", { exact: true }))
-    .not.toBeInTheDocument();
-  await expect.element(getComposer(screen)).toHaveFocus();
+    .element(dialog.getByText("Unavailable projection detail", { exact: true }))
+    .toBeVisible();
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  screen.sessionHarness.publish(
+    screen.sessionHarness.projectionUnavailableSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
+      reason: "backpressure",
+    }),
+  );
+
+  await expect.element(dialog).toBeVisible();
+  await expect
+    .element(dialog.getByText("Unavailable projection detail", { exact: true }))
+    .toBeVisible();
+  await expect.element(dialog.getByRole("button", { name: "Edit", exact: true })).toBeDisabled();
+});
+
+test("rejects a mutation callback captured from an older session revision", async () => {
+  const queueHarness = createQueueControllerHarness(queueSnapshot());
+  const screen = await renderAttached(
+    createGuiHostCommands(),
+    false,
+    "en",
+    queueHarness.controller,
+  );
+  const capturedSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (capturedSnapshot.phase !== "active") throw new Error("expected an active session");
+
+  queueHarness.publish({ ...queueHarness.controller.getSnapshot() });
+  const currentSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (currentSnapshot.phase !== "active") throw new Error("expected an active session");
+
+  expect(
+    capturedSnapshot.composerRole.submit(
+      capturedSnapshot.revision,
+      composerDraftCapture("stale callback"),
+    ),
+  ).toEqual({
+    type: "unavailable",
+    scope: "activeThreadSession",
+    reason: "staleRevision",
+    revision: currentSnapshot.revision,
+  });
+  expect(queueHarness.submit).not.toHaveBeenCalled();
 });
 
 test("renders Simplified Chinese guide and pending-input copy", async () => {
@@ -2636,9 +2725,6 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
     },
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "zh-CN", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeEventBuffered({ notification: eventTurnStarted, replay: "live" }),
-  );
 
   await expect.element(screen.getByRole("button", { name: "引导", exact: true })).toBeDisabled();
   const region = screen.getByRole("region", { name: "待处理消息", exact: true });
@@ -2683,11 +2769,13 @@ test("manual reconnect disables composer operations", async () => {
   expect.hasAssertions();
 
   const screen = await renderAttached(createGuiHostCommands());
-  screen.store.dispatch(
-    threadRuntimeManualReconnectRequired({
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  screen.sessionHarness.publish(
+    screen.sessionHarness.projectionUnavailableSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
       reason: "backpressure",
-      threadId,
-      subscriptionId: attachResponse.subscriptionId,
     }),
   );
 
@@ -2769,21 +2857,6 @@ test("recovery disables send, keeps the editor editable, and prevents duplicate 
     .toBe("Draft while recovering");
 });
 
-test("guards recovery when commands are unavailable", async () => {
-  const harness = createQueueControllerHarness(
-    queueSnapshot({
-      recoveryCount: 2,
-      recovery: { reason: "startDefinitelyNotAccepted", count: 2 },
-    }),
-  );
-  const screen = await renderAttached(null, false, "en", harness.controller);
-  const composer = getComposer(screen);
-  const recoverButton = screen.getByRole("button", { name: "Continue sending" });
-
-  await expect.element(composer).toHaveAttribute("contenteditable", "false");
-  await expect.element(recoverButton).toBeDisabled();
-});
-
 test("guards recovery while manual reconnect is required", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({
@@ -2792,11 +2865,13 @@ test("guards recovery while manual reconnect is required", async () => {
     }),
   );
   const screen = await renderAttached(createGuiHostCommands(), false, "en", harness.controller);
-  screen.store.dispatch(
-    threadRuntimeManualReconnectRequired({
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  screen.sessionHarness.publish(
+    screen.sessionHarness.projectionUnavailableSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
       reason: "backpressure",
-      threadId,
-      subscriptionId: attachResponse.subscriptionId,
     }),
   );
   const composer = getComposer(screen);

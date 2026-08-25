@@ -3,7 +3,11 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
-import type { ContinueThread } from "@/features/appShell/AppCapabilities";
+import type {
+  ActiveThreadActivationFailure,
+  ActiveThreadActivationWarning,
+  ActiveThreadSession,
+} from "@/features/activeThreadSession/activeThreadSession";
 import {
   CURRENT_TASK_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
@@ -13,10 +17,6 @@ import { ReadOnlyCommittedTranscriptSurface } from "@/features/committedTranscri
 import { formatTaskDocumentTitle } from "@/features/documentTitle/documentTitle";
 import { HistoryDetailDocumentTitleFactPublisher } from "@/features/documentTitle/DocumentTitleOwner";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import type {
-  ContinueThreadFailure,
-  ThreadSwitchWarning,
-} from "@/features/projectionCoordination/threadSwitchCoordinator";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
 import type { Thread } from "@codex-protocol/v2";
 import {
@@ -33,8 +33,9 @@ type RetainedThreadHistoryDetailCapability = Readonly<{
 export function ThreadHistoryDetailPage() {
   const { threadId } = useParams({ from: "/app/history/$threadId" });
   const { t } = useLingui();
-  const { authorizationToken, commands, continueThread, routeTarget, status } =
+  const { activeThreadSession, authorizationToken, commands, routeTarget, status } =
     useAppCapabilities();
+  const activateThread = activeThreadSession?.activate ?? null;
   const [retainedCapability, setRetainedCapability] =
     useState<RetainedThreadHistoryDetailCapability | null>(() =>
       commands == null ? null : { readThread: commands.readThread },
@@ -68,7 +69,7 @@ export function ThreadHistoryDetailPage() {
       {retainedCapability == null ? (
         <ThreadHistoryDetailContent
           authorizationToken={authorizationToken}
-          continueThread={continueThread}
+          activateThread={activateThread}
           retry={null}
           routeTarget={routeTarget}
           state={unavailableState}
@@ -77,7 +78,7 @@ export function ThreadHistoryDetailPage() {
       ) : (
         <ThreadHistoryDetailOwnerBound
           authorizationToken={authorizationToken}
-          continueThread={continueThread}
+          activateThread={activateThread}
           readThread={retainedCapability.readThread}
           routeTarget={routeTarget}
           threadId={threadId}
@@ -88,16 +89,16 @@ export function ThreadHistoryDetailPage() {
 }
 
 type ThreadHistoryDetailOwnerBoundProps = Readonly<{
+  activateThread: ActiveThreadSession["activate"] | null;
   authorizationToken: string | null;
-  continueThread: ContinueThread | null;
   readThread: GuiHostCommands["readThread"];
   routeTarget: GuiRouteTarget;
   threadId: string;
 }>;
 
 function ThreadHistoryDetailOwnerBound({
+  activateThread,
   authorizationToken,
-  continueThread,
   readThread,
   routeTarget,
   threadId,
@@ -110,8 +111,8 @@ function ThreadHistoryDetailOwnerBound({
 
   return (
     <ThreadHistoryDetailContent
+      activateThread={activateThread}
       authorizationToken={authorizationToken}
-      continueThread={continueThread}
       retry={owner.retry}
       routeTarget={routeTarget}
       state={state}
@@ -121,8 +122,8 @@ function ThreadHistoryDetailOwnerBound({
 }
 
 type ThreadHistoryDetailContentProps = Readonly<{
+  activateThread: ActiveThreadSession["activate"] | null;
   authorizationToken: string | null;
-  continueThread: ContinueThread | null;
   retry: (() => boolean | undefined) | null;
   routeTarget: GuiRouteTarget;
   state: ThreadHistoryDetailState;
@@ -130,8 +131,8 @@ type ThreadHistoryDetailContentProps = Readonly<{
 }>;
 
 function ThreadHistoryDetailContent({
+  activateThread,
   authorizationToken,
-  continueThread,
   retry,
   routeTarget,
   state,
@@ -193,8 +194,8 @@ function ThreadHistoryDetailContent({
       ) : null}
       {state.type === "ready" ? (
         <ContinueTaskAction
+          activateThread={activateThread}
           authorizationToken={authorizationToken}
-          continueThread={continueThread}
           key={state.thread.id}
           routeTarget={routeTarget}
           threadId={threadId}
@@ -234,10 +235,11 @@ function HistoryDetailError({
 type ContinueTaskState =
   | Readonly<{ type: "idle" }>
   | Readonly<{ type: "pending"; capabilityToken: symbol }>
+  | Readonly<{ type: "empty"; capabilityToken: symbol }>
   | Readonly<{
       type: "unavailable";
       capabilityToken: symbol;
-      failure: ContinueThreadFailure;
+      failure: ActiveThreadActivationFailure;
     }>
   | Readonly<{ type: "unexpectedFailure"; capabilityToken: symbol; error: unknown }>;
 
@@ -246,21 +248,21 @@ type ContinueTaskRequest = Readonly<{
 }>;
 
 function ContinueTaskAction({
+  activateThread,
   authorizationToken,
-  continueThread,
   routeTarget,
   threadId,
 }: Readonly<{
+  activateThread: ActiveThreadSession["activate"] | null;
   authorizationToken: string | null;
-  continueThread: ContinueThread | null;
   routeTarget: GuiRouteTarget;
   threadId: string;
 }>) {
   const { t } = useLingui();
   const navigate = useNavigate();
   const unavailableDescriptionId = useId();
-  const warningMessages: ThreadSwitchWarningMessages = {
-    postCommitDegraded: {
+  const warningMessages: ActivationWarningMessages = {
+    authorizationPersistenceFailed: {
       title: t`Task opened`,
       description: t`The task opened, but some state synchronization did not finish.`,
     },
@@ -270,8 +272,8 @@ function ContinueTaskAction({
     },
   };
   const capability = useMemo(
-    () => ({ continueThread, token: Symbol("continueThread capability") }),
-    [continueThread],
+    () => ({ activateThread, token: Symbol("activeThreadSession.activate capability") }),
+    [activateThread],
   );
   const capabilityToken = capability.token;
   const currentCapabilityTokenRef = useRef(capabilityToken);
@@ -321,7 +323,7 @@ function ContinueTaskAction({
 
   const handleContinue = async (): Promise<void> => {
     if (
-      capability.continueThread == null ||
+      capability.activateThread == null ||
       inFlightRef.current?.capabilityToken === capabilityToken
     ) {
       return;
@@ -332,7 +334,7 @@ function ContinueTaskAction({
     inFlightRef.current = request;
 
     try {
-      const switching = capability.continueThread(threadId);
+      const switching = capability.activateThread(threadId);
       let settled = false;
       void switching.then(
         () => {
@@ -365,12 +367,15 @@ function ContinueTaskAction({
       switch (outcome.type) {
         case "ready":
           for (const warning of outcome.warnings) {
-            showThreadSwitchWarning(warning, warningMessages);
+            showActivationWarning(warning, warningMessages);
           }
           navigateToReadyTask(outcome.threadId);
           return;
         case "unavailable":
           setState({ type: "unavailable", capabilityToken, failure: outcome.failure });
+          return;
+        case "empty":
+          setState({ type: "empty", capabilityToken });
           return;
       }
 
@@ -414,6 +419,19 @@ function ContinueTaskAction({
           </Alert.Content>
         </Alert>
       ) : null}
+      {visibleState.type === "empty" ? (
+        <Alert role="alert" status="danger">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              <Trans>Unable to continue this task</Trans>
+            </Alert.Title>
+            <Alert.Description>
+              <Trans>The task could not be activated.</Trans>
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      ) : null}
       <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-2">
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
@@ -422,7 +440,7 @@ function ContinueTaskAction({
               visibleState.type === "unavailable" ? unavailableDescriptionId : undefined
             }
             className="flex-1"
-            isDisabled={capability.continueThread == null}
+            isDisabled={capability.activateThread == null}
             isPending={visibleState.type === "pending"}
             onPress={() => {
               void handleContinue();
@@ -437,9 +455,9 @@ function ContinueTaskAction({
   );
 }
 
-type ThreadSwitchWarningMessages = Readonly<
+type ActivationWarningMessages = Readonly<
   Record<
-    ThreadSwitchWarning["type"],
+    ActiveThreadActivationWarning["type"],
     Readonly<{
       title: string;
       description: string;
@@ -447,14 +465,14 @@ type ThreadSwitchWarningMessages = Readonly<
   >
 >;
 
-function showThreadSwitchWarning(
-  warning: ThreadSwitchWarning,
-  messages: ThreadSwitchWarningMessages,
+function showActivationWarning(
+  warning: ActiveThreadActivationWarning,
+  messages: ActivationWarningMessages,
 ): void {
   switch (warning.type) {
-    case "postCommitDegraded":
-      toast.warning(messages.postCommitDegraded.title, {
-        description: messages.postCommitDegraded.description,
+    case "authorizationPersistenceFailed":
+      toast.warning(messages.authorizationPersistenceFailed.title, {
+        description: messages.authorizationPersistenceFailed.description,
       });
       return;
     case "previousOwnerCleanupFailed":
@@ -473,7 +491,7 @@ function ContinueTaskUnavailableAlert({
   navigateToCurrentTask,
 }: Readonly<{
   descriptionId: string;
-  failure: ContinueThreadFailure;
+  failure: ActiveThreadActivationFailure;
   navigateToCurrentTask: (threadId: string) => void;
 }>) {
   switch (failure.type) {
@@ -491,6 +509,33 @@ function ContinueTaskUnavailableAlert({
           </Alert.Content>
         </Alert>
       );
+    case "currentThreadChanged": {
+      const activeThreadId = failure.activeThreadId;
+      return (
+        <Alert role="alert" status="warning">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              <Trans>Unable to continue this task</Trans>
+            </Alert.Title>
+            <Alert.Description id={descriptionId}>
+              <Trans>The task could not be activated.</Trans>
+            </Alert.Description>
+            {activeThreadId == null ? null : (
+              <Button
+                className="mt-3"
+                onPress={() => {
+                  navigateToCurrentTask(activeThreadId);
+                }}
+                variant="secondary"
+              >
+                <Trans>Return to current task</Trans>
+              </Button>
+            )}
+          </Alert.Content>
+        </Alert>
+      );
+    }
     case "currentThreadUnresolved": {
       const activeThreadId = failure.activeThreadId;
       return (
@@ -506,17 +551,15 @@ function ContinueTaskUnavailableAlert({
                 switching.
               </Trans>
             </Alert.Description>
-            {activeThreadId == null ? null : (
-              <Button
-                className="mt-3"
-                onPress={() => {
-                  navigateToCurrentTask(activeThreadId);
-                }}
-                variant="secondary"
-              >
-                <Trans>Return to current task</Trans>
-              </Button>
-            )}
+            <Button
+              className="mt-3"
+              onPress={() => {
+                navigateToCurrentTask(activeThreadId);
+              }}
+              variant="secondary"
+            >
+              <Trans>Return to current task</Trans>
+            </Button>
           </Alert.Content>
         </Alert>
       );
@@ -588,13 +631,15 @@ function ContinueTaskUnavailableAlert({
 
 function OperationFailureSummary({
   phase,
-}: Readonly<{ phase: Extract<ContinueThreadFailure, { type: "operationFailed" }>["phase"] }>) {
+}: Readonly<{
+  phase: Extract<ActiveThreadActivationFailure, { type: "operationFailed" }>["phase"];
+}>) {
   switch (phase) {
-    case "admission":
-      return <Trans>The task switch could not be started.</Trans>;
     case "resume":
       return <Trans>The task could not be resumed.</Trans>;
     case "attach":
+      return <Trans>The task connection could not be prepared.</Trans>;
+    case "prepare":
       return <Trans>The task connection could not be prepared.</Trans>;
     case "activate":
       return <Trans>The task could not be activated.</Trans>;
