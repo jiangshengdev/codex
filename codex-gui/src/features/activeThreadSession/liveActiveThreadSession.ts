@@ -61,6 +61,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   >["reason"] | null = null;
   private transactionDepth = 0;
   private childChanged = false;
+  private releaseHandoff: ReleaseHandoff | null = null;
   private disposed = false;
 
   constructor({
@@ -176,17 +177,52 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.queue.getReleaseReadiness();
 
   reserveRelease: LiveActiveThreadSession["reserveRelease"] = (expectedRevision) => {
-    const result = this.mutate(expectedRevision, () => this.queue.reserveRelease());
-    if (isSessionUnavailable(result) || result.type !== "reserved") return result;
-    const capabilityRevision = this.revision;
-    const capabilityGeneration = this.generation;
+    const unavailable = this.operationUnavailable(expectedRevision);
+    if (unavailable != null) return unavailable;
+    if (this.releaseHandoff != null) return this.queue.reserveRelease();
+    const handoff: ReleaseHandoff = {
+      revision: this.revision,
+      generation: this.generation,
+      snapshot: this.snapshot,
+      queueCapability: this.queueCapabilityFingerprint(),
+      settled: false,
+    };
+    this.transactionDepth += 1;
+    let result: ReturnType<ComposerInputQueueCoordinator["reserveRelease"]>;
+    try {
+      result = this.queue.reserveRelease();
+    } catch (error: unknown) {
+      this.transactionDepth -= 1;
+      this.childChanged = false;
+      throw error;
+    }
+    if (result.type !== "reserved") {
+      this.transactionDepth -= 1;
+      this.childChanged = false;
+      return result;
+    }
+    this.releaseHandoff = handoff;
     const childReservation = result.reservation;
     const reservation = {
-      release: () =>
-        this.mutateCapability(capabilityRevision, capabilityGeneration, () => {
+      release: () => {
+        const blocked = this.releaseHandoffUnavailable(handoff);
+        if (blocked != null) return blocked;
+        try {
           childReservation.release();
-          return { type: "released" } as const;
-        }),
+        } finally {
+          this.closeReleaseHandoff(handoff);
+        }
+        if (this.queueCapabilityFingerprint() !== handoff.queueCapability) {
+          throw new Error("Aborted active thread release did not restore queue capability");
+        }
+        return { type: "released" } as const;
+      },
+      commit: () => {
+        const blocked = this.releaseHandoffUnavailable(handoff);
+        if (blocked != null) return blocked;
+        this.closeReleaseHandoff(handoff);
+        return { type: "committed" } as const;
+      },
     };
     return { type: "reserved", reservation } satisfies ActiveThreadReserveReleaseResult;
   };
@@ -228,6 +264,9 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     if (this.disposed) return;
     this.disposed = true;
     this.generation += 1;
+    this.releaseHandoff = null;
+    this.transactionDepth = 0;
+    this.childChanged = false;
     this.unsubscribeQueue();
     this.unsubscribeSkills();
     try {
@@ -301,6 +340,33 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       snapshot: this.queue.getSnapshot(),
       releaseReadiness: this.queue.getReleaseReadiness(),
     });
+  }
+
+  private releaseHandoffUnavailable(
+    handoff: ReleaseHandoff,
+  ): ActiveThreadSessionOperationUnavailable | null {
+    if (this.disposed || handoff.generation !== this.generation) {
+      return this.unavailable("disposed");
+    }
+    if (
+      handoff.settled ||
+      this.releaseHandoff !== handoff ||
+      handoff.revision !== this.revision
+    ) {
+      return this.unavailable("staleRevision");
+    }
+    if (this.projectionUnavailableReason != null) {
+      return this.unavailable("projectionUnavailable");
+    }
+    return null;
+  }
+
+  private closeReleaseHandoff(handoff: ReleaseHandoff): void {
+    handoff.settled = true;
+    if (this.releaseHandoff === handoff) this.releaseHandoff = null;
+    this.transactionDepth -= 1;
+    this.childChanged = false;
+    this.snapshot = handoff.snapshot;
   }
 
   private applyProjectionBatch(batch: ActiveThreadProjectionStagedBatch): void {
@@ -389,6 +455,14 @@ function isSessionUnavailable(
 ): result is ActiveThreadSessionOperationUnavailable {
   return result.type === "unavailable" && result.scope === "activeThreadSession";
 }
+
+type ReleaseHandoff = {
+  revision: number;
+  generation: number;
+  snapshot: LiveActiveThreadSessionSnapshot;
+  queueCapability: string;
+  settled: boolean;
+};
 
 export function createLiveActiveThreadSession(
   input: CreateLiveActiveThreadSessionInput,

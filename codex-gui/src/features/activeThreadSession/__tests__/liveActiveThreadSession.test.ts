@@ -87,6 +87,73 @@ describe("LiveActiveThreadSession", () => {
     expect(startTurn).not.toHaveBeenCalled();
   });
 
+  it("aborts a synchronous release handoff without changing the public session", () => {
+    const { session } = createHarness();
+    const snapshot = session.getSnapshot();
+    const listener = vi.fn();
+    session.subscribe(listener);
+
+    const reserved = session.reserveRelease(snapshot.revision);
+    if (reserved.type !== "reserved") throw new Error("expected a release reservation");
+    expect(session.getSnapshot()).toBe(snapshot);
+    expect(listener).not.toHaveBeenCalled();
+    expect(session.submit(snapshot.revision, composerCapture("blocked"))).toEqual({
+      type: "rejected",
+      reason: "releaseReserved",
+    });
+
+    expect(reserved.reservation.release()).toEqual({ type: "released" });
+    expect(session.getSnapshot()).toBe(snapshot);
+    expect(session.getSnapshot().revision).toBe(snapshot.revision);
+    expect(listener).not.toHaveBeenCalled();
+    expect(session.getReleaseReadiness()).toEqual({ type: "safe" });
+  });
+
+  it("commits a synchronous release handoff without publishing its frozen state", () => {
+    const { session } = createHarness();
+    const snapshot = session.getSnapshot();
+    const listener = vi.fn();
+    session.subscribe(listener);
+
+    const reserved = session.reserveRelease(snapshot.revision);
+    if (reserved.type !== "reserved") throw new Error("expected a release reservation");
+    expect(reserved.reservation.commit()).toEqual({ type: "committed" });
+
+    expect(session.getSnapshot()).toBe(snapshot);
+    expect(session.getSnapshot().revision).toBe(snapshot.revision);
+    expect(listener).not.toHaveBeenCalled();
+    expect(session.getReleaseReadiness()).toEqual({
+      type: "blocked",
+      blockers: [{ type: "releaseReserved" }],
+    });
+  });
+
+  it("rejects settled and disposed release handoff closures", () => {
+    const releasedHarness = createHarness();
+    const releasedRevision = releasedHarness.session.getSnapshot().revision;
+    const released = releasedHarness.session.reserveRelease(releasedRevision);
+    if (released.type !== "reserved") throw new Error("expected a release reservation");
+    expect(released.reservation.release()).toEqual({ type: "released" });
+    expect(released.reservation.commit()).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "staleRevision",
+      revision: releasedRevision,
+    });
+
+    const disposedHarness = createHarness();
+    const disposedRevision = disposedHarness.session.getSnapshot().revision;
+    const disposed = disposedHarness.session.reserveRelease(disposedRevision);
+    if (disposed.type !== "reserved") throw new Error("expected a release reservation");
+    disposedHarness.session.dispose();
+    expect(disposed.reservation.release()).toEqual({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "disposed",
+      revision: disposedRevision + 1,
+    });
+  });
+
   it("invalidates a captured pending-edit closure when the session revision advances", () => {
     const { session } = createHarness();
     session.handleProjectionEvent(eventTurnStarted);

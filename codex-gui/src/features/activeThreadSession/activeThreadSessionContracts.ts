@@ -64,6 +64,7 @@ export type ActiveThreadBeginPendingInputEditResult =
 
 export type ActiveThreadReleaseReservation = Readonly<{
   release(): ActiveThreadSessionOperationResult<Readonly<{ type: "released" }>>;
+  commit(): ActiveThreadSessionOperationResult<Readonly<{ type: "committed" }>>;
 }>;
 
 export type ActiveThreadReserveReleaseResult =
