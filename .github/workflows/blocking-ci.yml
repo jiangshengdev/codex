@@ -30,6 +30,11 @@ jobs:
     uses: ./.github/workflows/codespell.yml
     secrets: inherit
 
+  codex-gui:
+    name: Codex GUI
+    uses: ./.github/workflows/codex-gui.yml
+    secrets: inherit
+
   repo-checks:
     name: repo-checks
     uses: ./.github/workflows/repo-checks.yml
@@ -55,6 +60,7 @@ jobs:
       - blob-size-policy
       - cargo-deny
       - codespell
+      - codex-gui
       - repo-checks
       - rust-ci
       - sdk
