@@ -24,6 +24,10 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 - Stop on conflicts and print the exact path that blocks progress.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
 
+## Plan-authoring Preflight
+
+Before writing any exact worktree command into a plan, inspect `$WORKTREE_ROOT/vitest`. If it is already a symlink, record the requested Vitest path, its direct `readlink` target, and its fully resolved physical target separately. Choose `--vitest-root` using the script's `normalize_path_preserving_leaf` and `ensure_symlink` semantics. When multiple paths resolve to the same directory but the script decides compatibility from the direct mapping, the plan must use a parameter that the existing mapping accepts. Resolve any mismatch before requesting plan confirmation; do not defer it to execution. Plan to change the existing link only when the user explicitly requests that migration.
+
 ## Pre-execution Disclosure Gate
 
 This disclosure is a durable informed record, not a second confirmation gate. When the current direct request or a matching confirmed plan already authorizes the operation, invoke the script after emitting the complete disclosure in the same turn.
