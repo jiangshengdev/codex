@@ -60,27 +60,28 @@ function createRoleHarness(
   let pageResult:
     | ((request: ComposerPendingInputPageRequest) => ComposerPendingInputPageResult)
     | null = null;
-  const readPendingInputPage = vi.fn((request: ComposerPendingInputPageRequest) =>
-    pageResult == null
-      ? {
-          type: "page" as const,
-          revision: request.revision,
-          items: items.filter(({ lane }) => lane === request.lane),
-          nextCursor: null,
-        }
-      : pageResult(request),
+  const readPendingInputPage = vi.fn<ActiveThreadComposerRole["readPendingInputPage"]>(
+    (request: ComposerPendingInputPageRequest) =>
+      pageResult == null
+        ? {
+            type: "page" as const,
+            revision: request.revision,
+            items: items.filter(({ lane }) => lane === request.lane),
+            nextCursor: null,
+          }
+        : pageResult(request),
   );
-  const beginEdit = vi.fn(() => ({
+  const beginEdit = vi.fn<ActiveThreadComposerRole["beginPendingInputEdit"]>(() => ({
     type: "notManageable" as const,
     scope: "liveOwner" as const,
     revision: 1,
   }));
-  const deleteItem = vi.fn(() => ({
+  const deleteItem = vi.fn<ActiveThreadComposerRole["deletePendingInput"]>(() => ({
     type: "notManageable" as const,
     scope: "liveOwner" as const,
     revision: 1,
   }));
-  const moveItem = vi.fn(() => ({
+  const moveItem = vi.fn<ActiveThreadComposerRole["movePendingInput"]>(() => ({
     type: "noOp" as const,
     reason: "alreadyAtDestination" as const,
     revision: 1,
@@ -179,8 +180,14 @@ describe("ComposerPendingInputSession", () => {
 
     const editing = openSession();
     const reservation = {
-      save: vi.fn(() => ({ type: "saved" as const, revision: 2 })),
-      cancel: vi.fn(() => ({ type: "cancelled" as const, revision: 2 })),
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled" as const,
+        revision: 2,
+      })),
     };
     beginActiveEdit(editing.session, editing.harness, editing.current, reservation);
 
@@ -313,8 +320,14 @@ describe("ComposerPendingInputSession", () => {
   test("does not save or cancel a reservation during teardown", () => {
     const { session, harness, current } = openSession();
     const reservation = {
-      save: vi.fn(() => ({ type: "saved" as const, revision: 2 })),
-      cancel: vi.fn(() => ({ type: "cancelled" as const, revision: 2 })),
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
+        type: "saved" as const,
+        revision: 2,
+      })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled" as const,
+        revision: 2,
+      })),
     };
     beginActiveEdit(session, harness, current, reservation);
 
@@ -327,12 +340,15 @@ describe("ComposerPendingInputSession", () => {
   test("classifies invalid save and preserves the active edit", () => {
     const { session, harness, current } = openSession();
     const reservation = {
-      save: vi.fn(() => ({
+      save: vi.fn<ActiveThreadPendingInputEditReservation["save"]>(() => ({
         type: "invalidInput" as const,
         reason: "emptyInput" as const,
         revision: 1,
       })),
-      cancel: vi.fn(() => ({ type: "cancelled" as const, revision: 2 })),
+      cancel: vi.fn<ActiveThreadPendingInputEditReservation["cancel"]>(() => ({
+        type: "cancelled" as const,
+        revision: 2,
+      })),
     };
     const token = beginActiveEdit(session, harness, current, reservation);
 
@@ -346,6 +362,8 @@ describe("ComposerPendingInputSession", () => {
 
   test("suppresses exhausted move refresh until a newer revision can be read", () => {
     const entries = [item("one"), item("two")];
+    const firstEntry = entries[0];
+    if (firstEntry == null) throw new Error("move test requires an initial entry");
     const { session, harness, current } = openSession(createRoleHarness(entries));
     harness.moveItem.mockReturnValueOnce({
       type: "moved",
@@ -356,7 +374,7 @@ describe("ComposerPendingInputSession", () => {
     });
     harness.setPageResult((request) => ({ type: "stale", revision: request.revision + 1 }));
 
-    expect(session.moveItem(current, entries[0]!, "later")).toEqual({ type: "applied" });
+    expect(session.moveItem(current, firstEntry, "later")).toEqual({ type: "applied" });
     expect(session.getSnapshot()).toMatchObject({
       phase: "open",
       alert: "moveRefreshFailed",
