@@ -285,6 +285,16 @@ class ComposerPendingInputSessionImpl implements ComposerPendingInputSession {
     attachment: ComposerPendingInputEditorAttachment,
   ): ComposerPendingInputCommandOutcome => {
     const { facts } = attachment;
+    const candidate = this.edit;
+    if (
+      !this.accepts(facts) ||
+      candidate?.phase !== "preparing" ||
+      candidate.preparationToken !== attachment.preparationToken ||
+      candidate.ownerGeneration !== this.ownerGeneration ||
+      candidate.item.key !== attachment.itemKey
+    ) {
+      return ignored;
+    }
     this.reconcile(facts);
     const preparing = this.edit;
     if (

@@ -247,17 +247,16 @@ describe("ComposerPendingInputSession", () => {
       session.project(revised);
       return { type: "begun", revision: 2, reservation };
     });
+    const attachment = {
+      facts: current,
+      preparationToken: preparation.preparationToken,
+      itemKey: "one",
+      restore: () => ({ type: "restored" as const }),
+      capture: () => ({}) as ComposerDraftCapture,
+    };
     vi.mocked(harness.role.readPendingInputPage).mockClear();
 
-    expect(
-      session.attachEditor({
-        facts: current,
-        preparationToken: preparation.preparationToken,
-        itemKey: "one",
-        restore: () => ({ type: "restored" }),
-        capture: () => ({}) as ComposerDraftCapture,
-      }),
-    ).toEqual({ type: "applied" });
+    expect(session.attachEditor(attachment)).toEqual({ type: "applied" });
     expect(session.getSnapshot()).toMatchObject({
       phase: "open",
       view: {
@@ -274,6 +273,12 @@ describe("ComposerPendingInputSession", () => {
     const listener = vi.fn<() => void>();
     session.subscribe(listener);
     vi.mocked(harness.role.readPendingInputPage).mockClear();
+
+    expect(session.attachEditor(attachment)).toEqual({ type: "ignored" });
+    expect(harness.beginEdit).toHaveBeenCalledOnce();
+    expect(vi.mocked(harness.role.readPendingInputPage)).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+    expect(session.getSnapshot()).toEqual(attached);
 
     session.setEditorValidity(current, preparation.preparationToken, true);
 
