@@ -1,4 +1,6 @@
 import { vi } from "vitest";
+import { TOKEN_FRAGMENT_KEY } from "@codex-gui-host-contract";
+import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type {
   GuiHostCommands,
   GuiHostStatus,
@@ -34,7 +36,6 @@ export type StartGuiHostConnectionMock = {
 export const attachResponse: ThreadProjectionAttachResponse = attachBaseline;
 export const launchThreadId = attachResponse.snapshot.thread.id;
 
-const authorizationSessionStorageKey = "codex-gui.browserAuthorizationSession.v1";
 const testSupportResetErrorMessage = "Test support reset discarded projection attach";
 
 let cleanupConnectionCallCount = 0;
@@ -215,7 +216,6 @@ export const resetAppBrowserTestSupport = (
   activeDeferredAttachProjections.clear();
   deferredAttachProjections = new WeakMap();
   cleanupConnectionCallCount = 0;
-  window.sessionStorage.removeItem(authorizationSessionStorageKey);
   if (authorizationSession != null) {
     seedBrowserAuthorizationSession(authorizationSession);
   }
@@ -240,8 +240,16 @@ export const seedBrowserAuthorizationSession = ({
   token,
   activeThreadId = null,
 }: BrowserAuthorizationSessionSeed): void => {
-  const stored = activeThreadId == null ? { token } : { token, activeThreadId };
-  window.sessionStorage.setItem(authorizationSessionStorageKey, JSON.stringify(stored));
+  const location = new URL("https://codex.test/browser-authorization-session-seed");
+  location.hash = new URLSearchParams({ [TOKEN_FRAGMENT_KEY]: token }).toString();
+  const session = consumeBrowserAuthorizationSession({
+    location,
+    replaceState: () => undefined,
+    storage: window.sessionStorage,
+  });
+  if (activeThreadId != null) {
+    session.commitActiveThread(activeThreadId);
+  }
 };
 
 export const getCleanupConnectionCallCount = (): number => cleanupConnectionCallCount;
