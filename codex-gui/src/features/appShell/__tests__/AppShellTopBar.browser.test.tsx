@@ -135,9 +135,7 @@ test("top bar is a banner and derives the current task title from name, preview,
   );
   await expect.element(screen.getByRole("heading", { level: 1, name: "Named task" })).toBeVisible();
 
-  screen.store.dispatch(
-    baselineAttached(runtimeAttach({ name: null, preview: "Preview task" })),
-  );
+  screen.store.dispatch(baselineAttached(runtimeAttach({ name: null, preview: "Preview task" })));
   await expect
     .element(screen.getByRole("heading", { level: 1, name: "Preview task" }))
     .toBeVisible();

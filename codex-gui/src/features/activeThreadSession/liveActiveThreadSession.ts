@@ -55,10 +55,9 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private revision: number;
   private generation = 0;
   private activeTurnId: Turn["id"] | null;
-  private projectionUnavailableReason: Extract<
-    LiveActiveThreadSessionSnapshot,
-    { phase: "projectionUnavailable" }
-  >["reason"] | null = null;
+  private projectionUnavailableReason:
+    | Extract<LiveActiveThreadSessionSnapshot, { phase: "projectionUnavailable" }>["reason"]
+    | null = null;
   private transactionDepth = 0;
   private childChanged = false;
   private releaseHandoff: ReleaseHandoff | null = null;
@@ -180,10 +179,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     return { ...result, reservation } satisfies ActiveThreadBeginPendingInputEditResult;
   };
 
-  deletePendingInput: LiveActiveThreadSession["deletePendingInput"] = (
-    expectedRevision,
-    request,
-  ) => this.mutate(expectedRevision, () => this.queue.deletePendingInput(request));
+  deletePendingInput: LiveActiveThreadSession["deletePendingInput"] = (expectedRevision, request) =>
+    this.mutate(expectedRevision, () => this.queue.deletePendingInput(request));
 
   movePendingInput: LiveActiveThreadSession["movePendingInput"] = (expectedRevision, request) =>
     this.mutate(expectedRevision, () => this.queue.movePendingInput(request));
@@ -352,7 +349,9 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     return this.operationUnavailable(expectedRevision);
   }
 
-  private operationUnavailable(expectedRevision: number): ActiveThreadSessionOperationUnavailable | null {
+  private operationUnavailable(
+    expectedRevision: number,
+  ): ActiveThreadSessionOperationUnavailable | null {
     if (this.disposed) return this.unavailable("disposed");
     if (expectedRevision !== this.revision) return this.unavailable("staleRevision");
     if (this.projectionUnavailableReason != null) return this.unavailable("projectionUnavailable");
@@ -378,11 +377,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     if (this.disposed || handoff.generation !== this.generation) {
       return this.unavailable("disposed");
     }
-    if (
-      handoff.settled ||
-      this.releaseHandoff !== handoff ||
-      handoff.revision !== this.revision
-    ) {
+    if (handoff.settled || this.releaseHandoff !== handoff || handoff.revision !== this.revision) {
       return this.unavailable("staleRevision");
     }
     if (this.projectionUnavailableReason != null) {
@@ -480,9 +475,10 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
 const activeTurnIdFromTurns = (turns: Turn[]): Turn["id"] | null =>
   turns.toReversed().find((turn) => turn.status === "inProgress")?.id ?? null;
 
-function isSessionUnavailable(
-  result: { type: string; scope?: string },
-): result is ActiveThreadSessionOperationUnavailable {
+function isSessionUnavailable(result: {
+  type: string;
+  scope?: string;
+}): result is ActiveThreadSessionOperationUnavailable {
   return result.type === "unavailable" && result.scope === "activeThreadSession";
 }
 

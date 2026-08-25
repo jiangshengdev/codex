@@ -85,14 +85,15 @@ function SessionComposerTurnControl({ session }: Readonly<{ session: ActiveThrea
 
 async function renderAttached(
   commandHandle: GuiHostCommands = createGuiHostCommands(),
-  composerInputQueueController: ComposerInputQueueCoordinator =
-    createComposerInputQueueCoordinator({
+  composerInputQueueController: ComposerInputQueueCoordinator = createComposerInputQueueCoordinator(
+    {
       threadId: launchThreadId,
       activeTurnId: null,
       startTurn: commandHandle.startTurn,
       steerTurn: commandHandle.steerTurn,
       interruptTurn: commandHandle.interruptTurn,
-    }),
+    },
+  ),
   activeSkillCatalogController: SkillCatalogController = skillCatalogController,
 ) {
   const sessionHarness = createActiveThreadSessionHarness({

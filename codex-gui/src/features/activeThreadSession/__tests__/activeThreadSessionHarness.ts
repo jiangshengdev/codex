@@ -104,9 +104,7 @@ const createComposerRole = (
     .fn<ActiveThreadComposerRole["readPendingInputPage"]>()
     .mockReturnValue(ownerGone),
   recover: vi.fn<ActiveThreadComposerRole["recover"]>().mockReturnValue(false),
-  submit: vi
-    .fn<ActiveThreadComposerRole["submit"]>()
-    .mockReturnValue({ type: "accepted" }),
+  submit: vi.fn<ActiveThreadComposerRole["submit"]>().mockReturnValue({ type: "accepted" }),
   submitSteer: vi
     .fn<ActiveThreadComposerRole["submitSteer"]>()
     .mockReturnValue({ type: "accepted" }),
@@ -116,9 +114,7 @@ const createComposerRole = (
 const createSkillsRole = (
   overrides: Partial<ActiveThreadSkillsRole> = {},
 ): ActiveThreadSkillsRole => ({
-  invalidateSkills: vi
-    .fn<ActiveThreadSkillsRole["invalidateSkills"]>()
-    .mockReturnValue(false),
+  invalidateSkills: vi.fn<ActiveThreadSkillsRole["invalidateSkills"]>().mockReturnValue(false),
   refreshSkills: vi.fn<ActiveThreadSkillsRole["refreshSkills"]>().mockReturnValue(false),
   retrySkills: vi.fn<ActiveThreadSkillsRole["retrySkills"]>().mockReturnValue(false),
   ...overrides,

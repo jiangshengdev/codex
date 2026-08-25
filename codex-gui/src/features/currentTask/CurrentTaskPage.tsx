@@ -19,21 +19,12 @@ function isMacAppleWebKitRuntime(): boolean {
 }
 
 export function CurrentTaskPage() {
-  const {
-    activeThreadSession,
-    activeThreadStartupError,
-    authorizationToken,
-    routeTarget,
-    status,
-  } = useAppCapabilities();
+  const { activeThreadSession, activeThreadStartupError, authorizationToken, routeTarget, status } =
+    useAppCapabilities();
   const sessionPhase = useActiveThreadSessionPhase();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
 
-  if (
-    activeThreadSession != null &&
-    sessionPhase === "empty" &&
-    activeThreadStartupError != null
-  ) {
+  if (activeThreadSession != null && sessionPhase === "empty" && activeThreadStartupError != null) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-6" data-gui-host-status={status.label}>
         <Alert role="alert" status="danger">
@@ -42,18 +33,14 @@ export function CurrentTaskPage() {
             <Alert.Title>
               <Trans>Unable to load the current task</Trans>
             </Alert.Title>
-        <Alert.Description>{activeThreadStartupError}</Alert.Description>
+            <Alert.Description>{activeThreadStartupError}</Alert.Description>
           </Alert.Content>
         </Alert>
       </main>
     );
   }
 
-  if (
-    activeThreadSession == null ||
-    sessionPhase === "empty" ||
-    sessionPhase === "disposed"
-  ) {
+  if (activeThreadSession == null || sessionPhase === "empty" || sessionPhase === "disposed") {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-6" data-gui-host-status={status.label} />
     );

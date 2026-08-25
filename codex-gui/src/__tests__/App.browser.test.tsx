@@ -94,9 +94,7 @@ import {
   selectTranscriptEntry,
   transcriptEntryIdFor,
 } from "@/features/transcriptState/transcriptStateSlice";
-import {
-  selectThreadRuntimeRecord,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
 import { renderWithProviders } from "@/utils/test-utils";
 
 const guiHostClientMock = vi.hoisted(() => ({
@@ -139,7 +137,9 @@ function ThreadSwitchCapabilityProbe() {
         {available ? snapshot.skills.type : "none"}
       </output>
       <output aria-label="Active skill catalog">
-        {available ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none" : "none"}
+        {available
+          ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none"
+          : "none"}
       </output>
     </section>
   );
@@ -1265,7 +1265,9 @@ test("App does not publish a late startup session or overwrite a terminal host e
   await expect.element(activeThread).toHaveTextContent("none");
   await expect.element(continueButton).toBeDisabled();
   await expect.poll(() => threadSwitchProbeSession).toBeNull();
-  await expect.element(screen.getByText("GUI host transport failed", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByText("GUI host transport failed", { exact: true }))
+    .toBeVisible();
   await expect
     .element(screen.getByText("late attach failure", { exact: true }))
     .not.toBeInTheDocument();
@@ -3432,10 +3434,7 @@ test("App keeps the initial session when its queue blocks a thread switch", asyn
   const { continueButton, screen } = await renderThreadSwitchProbe(commands);
   const { session: activeThreadSession, snapshot: initialSnapshot } =
     await waitForThreadSwitchProbeSession();
-  queueAttachProjectionResponse(
-    commands,
-    attachWithThreadId(attachReplacement, candidateThreadId),
-  );
+  queueAttachProjectionResponse(commands, attachWithThreadId(attachReplacement, candidateThreadId));
 
   await continueButton.click();
   await expect(requireThreadSwitchProbePromise()).resolves.toMatchObject({

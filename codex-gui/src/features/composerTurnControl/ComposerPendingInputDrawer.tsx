@@ -141,10 +141,7 @@ export function ComposerPendingInputDrawer({
           : readInitialPages(composerRole, detailRevision)
       : null;
   const pagesUnavailable =
-    isOpen &&
-    ownerMatches &&
-    !moveRefreshIsSuppressed &&
-    projectedPages == null;
+    isOpen && ownerMatches && !moveRefreshIsSuppressed && projectedPages == null;
   const unavailableEditMustClose = !mutationsEnabled && editSession != null;
   const shouldCloseExternally =
     isOpen &&
@@ -389,7 +386,8 @@ export function ComposerPendingInputDrawer({
   };
 
   const beginEdit = (item: ComposerPendingInputPageItem): void => {
-    if (!mutationsEnabled || displayedEditSession != null || preparingEditRef.current != null) return;
+    if (!mutationsEnabled || displayedEditSession != null || preparingEditRef.current != null)
+      return;
     const preparingSession: Extract<EditSession, { phase: "preparing" }> = {
       phase: "preparing",
       item,
@@ -510,11 +508,7 @@ export function ComposerPendingInputDrawer({
 
   const showMore = (lane: ComposerPendingInputLane): void => {
     if (visiblePages == null) return;
-    const result = showMoreComposerPendingInputLane(
-      visiblePages.composerRole,
-      visiblePages,
-      lane,
-    );
+    const result = showMoreComposerPendingInputLane(visiblePages.composerRole, visiblePages, lane);
     if (result.type === "unavailable") {
       closeInvalidDrawer();
       return;

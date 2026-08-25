@@ -38,8 +38,10 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueue
   readModelAction({ type: "eventAccepted", payload });
 const threadRuntimeDeltasAccepted = ({
   notifications,
-}: Pick<Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>, "notifications">) =>
-  readModelAction({ type: "deltasAccepted", notifications });
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
 
 describe("transcript state live item lifecycle reducer", () => {
   it("keeps itemStarted slot order stable and ignores duplicate live slot insertion", () => {
@@ -78,9 +80,10 @@ describe("transcript state live item lifecycle reducer", () => {
     expect(afterDuplicateState.sessionRevision).toBeGreaterThan(
       beforeDuplicateState.sessionRevision,
     );
-    expect({ ...afterDuplicateState, sessionRevision: beforeDuplicateState.sessionRevision }).toStrictEqual(
-      beforeDuplicateState,
-    );
+    expect({
+      ...afterDuplicateState,
+      sessionRevision: beforeDuplicateState.sessionRevision,
+    }).toStrictEqual(beforeDuplicateState);
 
     store.dispatch(
       threadRuntimeEventBuffered({
@@ -171,9 +174,10 @@ describe("transcript state live item lifecycle reducer", () => {
     expect(afterDuplicateState.sessionRevision).toBeGreaterThan(
       beforeDuplicateState.sessionRevision,
     );
-    expect({ ...afterDuplicateState, sessionRevision: beforeDuplicateState.sessionRevision }).toStrictEqual(
-      beforeDuplicateState,
-    );
+    expect({
+      ...afterDuplicateState,
+      sessionRevision: beforeDuplicateState.sessionRevision,
+    }).toStrictEqual(beforeDuplicateState);
     store.dispatch(
       threadRuntimeEventBuffered({
         notification: itemCompleted(

@@ -45,8 +45,10 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueue
   readModelAction({ type: "eventAccepted", payload });
 const threadRuntimeDeltasAccepted = ({
   notifications,
-}: Pick<Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>, "notifications">) =>
-  readModelAction({ type: "deltasAccepted", notifications });
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
 
 describe("transcript state scroll signals", () => {
   it("sets the committed scroll commit key from accepted attach snapshots", () => {

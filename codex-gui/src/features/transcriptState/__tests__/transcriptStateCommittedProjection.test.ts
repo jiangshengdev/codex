@@ -55,8 +55,10 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueue
   readModelAction({ type: "eventAccepted", payload });
 const threadRuntimeDeltasAccepted = ({
   notifications,
-}: Pick<Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>, "notifications">) =>
-  readModelAction({ type: "deltasAccepted", notifications });
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
 
 describe("transcript state committed projection reducer", () => {
   it("ignores token usage updates before transcript dedupe and scroll commits", () => {

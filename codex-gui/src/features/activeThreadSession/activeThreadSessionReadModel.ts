@@ -7,10 +7,9 @@ export type ActiveThreadReadModelTransition = Readonly<{
   facts: readonly ActiveThreadProjectionReadModelFact[];
 }>;
 
-export const activeThreadReadModelTransitionApplied =
-  createAction<ActiveThreadReadModelTransition>(
-    "activeThreadSession/readModelTransitionApplied",
-  );
+export const activeThreadReadModelTransitionApplied = createAction<ActiveThreadReadModelTransition>(
+  "activeThreadSession/readModelTransitionApplied",
+);
 
 export function buildActiveThreadCandidateReadModelTransition(
   sessionRevision: number,

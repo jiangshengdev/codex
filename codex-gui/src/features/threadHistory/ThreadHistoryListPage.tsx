@@ -16,8 +16,7 @@ import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHis
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
 export function ThreadHistoryListPage() {
-  const { activeThreadSession, activeThreadStartupError, commands, status } =
-    useAppCapabilities();
+  const { activeThreadSession, activeThreadStartupError, commands, status } = useAppCapabilities();
   const activeThreadId = useActiveThreadId();
   const activeThreadSessionPhase = useActiveThreadSessionPhase();
   const runtime = useAppSelector(selectThreadRuntimeRecord);

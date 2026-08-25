@@ -433,7 +433,9 @@ const composerRoleFor = (
       ? controller.deletePendingInput(request)
       : staleSessionOperation(getRevision()),
   interruptActiveTurn: (revision) =>
-    revision === getRevision() ? controller.interruptActiveTurn() : staleSessionOperation(getRevision()),
+    revision === getRevision()
+      ? controller.interruptActiveTurn()
+      : staleSessionOperation(getRevision()),
   movePendingInput: (revision, request) =>
     revision === getRevision()
       ? controller.movePendingInput(request)
@@ -708,7 +710,9 @@ test("disables controls while the projection is unavailable", async () => {
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "true");
   await expectComposerDisabled(screen);
   await expect
-    .element(screen.getByRole("button", { name: "Context usage details, 0% used, 120 of 258k tokens" }))
+    .element(
+      screen.getByRole("button", { name: "Context usage details, 0% used, 120 of 258k tokens" }),
+    )
     .toBeVisible();
 
   screen.sessionHarness.publish(

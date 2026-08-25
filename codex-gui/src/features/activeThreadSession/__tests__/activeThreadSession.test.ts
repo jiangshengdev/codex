@@ -45,7 +45,9 @@ const postPublicationEvent = eventForThreadOwner(
   },
 );
 
-const createAuthorizationSession = (activeThreadId: string | null = attachBaseline.snapshot.thread.id) => {
+const createAuthorizationSession = (
+  activeThreadId: string | null = attachBaseline.snapshot.thread.id,
+) => {
   let currentThreadId = activeThreadId;
   return {
     getSnapshot: () => ({ token: "test-token", activeThreadId: currentThreadId }),
@@ -118,9 +120,7 @@ describe("ActiveThreadSession", () => {
       threadId: attachBaseline.snapshot.thread.id,
       subscriptionId: attachBaseline.subscriptionId,
     });
-    expect(h.store.getState().threadRuntime.sessionRevision).toBe(
-      h.session.getSnapshot().revision,
-    );
+    expect(h.store.getState().threadRuntime.sessionRevision).toBe(h.session.getSnapshot().revision);
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
@@ -293,9 +293,7 @@ describe("ActiveThreadSession", () => {
     ).toEqual({ type: "accepted" });
     const afterChild = h.session.getSnapshot();
     expect(afterChild.revision).toBeGreaterThan(afterEvent.revision);
-    expect(h.store.getState().threadRuntime.sessionRevision).toBe(
-      afterChild.revision,
-    );
+    expect(h.store.getState().threadRuntime.sessionRevision).toBe(afterChild.revision);
     expect(h.commands.detachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: attachBaseline.snapshot.thread.id,
     });
@@ -432,7 +430,9 @@ describe("ActiveThreadSession", () => {
     await activateInitial(h);
     const active = h.session.getSnapshot();
     if (active.phase !== "active") throw new Error("expected the initial active session");
-    expect(active.composerRole.submit(active.revision, composerCapture("pending delivery"))).toEqual({
+    expect(
+      active.composerRole.submit(active.revision, composerCapture("pending delivery")),
+    ).toEqual({
       type: "accepted",
     });
     const revision = h.session.getSnapshot().revision;

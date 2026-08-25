@@ -62,8 +62,13 @@ export function ComposerTurnControl({
   const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
   const operationsEnabled = sessionSnapshot.phase === "active";
-  const { activeTurnId, composer: queueSnapshot, composerRole, revision, skills: skillCatalog } =
-    sessionSnapshot;
+  const {
+    activeTurnId,
+    composer: queueSnapshot,
+    composerRole,
+    revision,
+    skills: skillCatalog,
+  } = sessionSnapshot;
   const { skillsRole } = sessionSnapshot;
   const editorSnapshot = useSyncExternalStore<ComposerEditorSnapshot | null>(
     composerEditorController?.subscribe ?? subscribeUnavailableEditor,

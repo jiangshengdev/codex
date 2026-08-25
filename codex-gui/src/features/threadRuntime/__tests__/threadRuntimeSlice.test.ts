@@ -82,9 +82,7 @@ describe("thread runtime derived read model", () => {
       },
     ]);
 
-    expect(state.current?.tokenUsage).toBe(
-      eventTokenUsageUpdated.event.notification.tokenUsage,
-    );
+    expect(state.current?.tokenUsage).toBe(eventTokenUsageUpdated.event.notification.tokenUsage);
     expect(selectThreadRuntimeTokenUsage(runtimeRoot(state))).toBe(
       eventTokenUsageUpdated.event.notification.tokenUsage,
     );

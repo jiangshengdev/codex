@@ -45,8 +45,10 @@ const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueue
   readModelAction({ type: "eventAccepted", payload });
 const threadRuntimeDeltasAccepted = ({
   notifications,
-}: Pick<Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>, "notifications">) =>
-  readModelAction({ type: "deltasAccepted", notifications });
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
 
 const startReasoning = (turnId: string, itemId: string) => {
   const store = makeStore();

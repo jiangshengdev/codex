@@ -1,10 +1,7 @@
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { ActiveThreadSession } from "./features/activeThreadSession/activeThreadSession";
-import {
-  type AppCapabilities,
-  useActiveThreadId,
-} from "./features/appShell/AppCapabilities";
+import { type AppCapabilities, useActiveThreadId } from "./features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "./features/appShell/AppCapabilitiesContext";
 import { AppShell } from "./features/appShell/AppShell";
 import { GuiHostConnectionBridge } from "./features/appShell/GuiHostConnectionBridge";

@@ -55,12 +55,8 @@ export type ActiveThreadProjectionInputOutcome =
 export type ActiveThreadProjection = Readonly<{
   threadId: string;
   subscriptionId: string;
-  handleEvent(
-    notification: ThreadProjectionEventNotification,
-  ): ActiveThreadProjectionInputOutcome;
-  handleDelta(
-    notification: ThreadProjectionDeltaNotification,
-  ): ActiveThreadProjectionInputOutcome;
+  handleEvent(notification: ThreadProjectionEventNotification): ActiveThreadProjectionInputOutcome;
+  handleDelta(notification: ThreadProjectionDeltaNotification): ActiveThreadProjectionInputOutcome;
   handleClosed(
     notification: ThreadProjectionClosedNotification,
   ): ActiveThreadProjectionInputOutcome;
@@ -100,9 +96,7 @@ class ActiveThreadProjectionImpl implements ActiveThreadProjection {
     ];
   }
 
-  handleEvent(
-    notification: ThreadProjectionEventNotification,
-  ): ActiveThreadProjectionInputOutcome {
+  handleEvent(notification: ThreadProjectionEventNotification): ActiveThreadProjectionInputOutcome {
     const outcome = this.ingress.handleEvent(notification);
     switch (outcome.type) {
       case "eventAccepted": {
@@ -125,9 +119,7 @@ class ActiveThreadProjectionImpl implements ActiveThreadProjection {
     }
   }
 
-  handleDelta(
-    notification: ThreadProjectionDeltaNotification,
-  ): ActiveThreadProjectionInputOutcome {
+  handleDelta(notification: ThreadProjectionDeltaNotification): ActiveThreadProjectionInputOutcome {
     const outcome = this.ingress.handleDelta(notification);
     switch (outcome.type) {
       case "deltaAccepted":

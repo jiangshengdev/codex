@@ -39,7 +39,8 @@ export type LiveActiveThreadSessionSnapshot =
       phase: "projectionUnavailable";
       reason: ProjectionManualReconnectReason;
       recovery: "connectionRestartRequired";
-    }> & ActiveSnapshotContents)
+    }> &
+      ActiveSnapshotContents)
   | Readonly<{ phase: "disposed"; revision: number }>;
 
 type QueueBeginEditResult = ReturnType<ComposerInputQueueCoordinator["beginPendingInputEdit"]>;
@@ -49,9 +50,7 @@ export type ActiveThreadPendingInputEditReservation = Readonly<{
   save(
     capture: ComposerDraftCapture,
   ): ActiveThreadSessionOperationResult<ReturnType<QueueEditBegun["reservation"]["save"]>>;
-  cancel(): ActiveThreadSessionOperationResult<
-    ReturnType<QueueEditBegun["reservation"]["cancel"]>
-  >;
+  cancel(): ActiveThreadSessionOperationResult<ReturnType<QueueEditBegun["reservation"]["cancel"]>>;
 }>;
 
 export type ActiveThreadBeginPendingInputEditResult =

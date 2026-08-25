@@ -108,10 +108,7 @@ export type ActiveThreadActivationOutcome =
   | Readonly<{ type: "unavailable"; failure: ActiveThreadActivationFailure }>;
 
 type ActiveThreadActivationFailureBeforeCleanup =
-  | Exclude<
-      ActiveThreadActivationFailure,
-      { type: "connectionLost" } | { type: "operationFailed" }
-    >
+  | Exclude<ActiveThreadActivationFailure, { type: "connectionLost" } | { type: "operationFailed" }>
   | Omit<Extract<ActiveThreadActivationFailure, { type: "operationFailed" }>, "cleanupError">
   | Readonly<{ type: "connectionLost" }>;
 
@@ -215,7 +212,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   private suppressCurrentPublication = false;
   private disposed = false;
 
-  constructor({ authorizationSession, commands, dispatch, scheduler }: CreateActiveThreadSessionInput) {
+  constructor({
+    authorizationSession,
+    commands,
+    dispatch,
+    scheduler,
+  }: CreateActiveThreadSessionInput) {
     this.authorizationSession = authorizationSession;
     this.commands = commands;
     this.dispatch = dispatch;
@@ -239,17 +241,20 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
 
   activateRecoveryThread = (): Promise<ActiveThreadActivationOutcome> => {
     const threadId = this.authorizationSession.getSnapshot().activeThreadId;
-    if (this.disposed) return Promise.resolve(this.connectionFailure(threadId, "beforeCommit", null));
+    if (this.disposed)
+      return Promise.resolve(this.connectionFailure(threadId, "beforeCommit", null));
     return threadId == null ? Promise.resolve({ type: "empty" }) : this.activate(threadId);
   };
 
-  private readonly activate = async (
-    threadId: string,
-  ): Promise<ActiveThreadActivationOutcome> => {
+  private readonly activate = async (threadId: string): Promise<ActiveThreadActivationOutcome> => {
     const previous = this.current;
     const previousSnapshot = previous?.getSnapshot() ?? null;
     if (this.disposed) return this.connectionFailure(threadId, "beforeCommit", null);
-    if (previousSnapshot != null && previousSnapshot.phase !== "disposed" && previousSnapshot.threadId === threadId) {
+    if (
+      previousSnapshot != null &&
+      previousSnapshot.phase !== "disposed" &&
+      previousSnapshot.threadId === threadId
+    ) {
       return { type: "ready", threadId, warnings: [] };
     }
     if (this.busy) return { type: "unavailable", failure: { type: "switchInProgress" } };
@@ -336,10 +341,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       return this.finishUncommitted(candidate, changed);
     }
 
-    let releaseReservation: Extract<
-      ReturnType<LiveActiveThreadSession["reserveRelease"]>,
-      { type: "reserved" }
-    >["reservation"] | null = null;
+    let releaseReservation:
+      | Extract<
+          ReturnType<LiveActiveThreadSession["reserveRelease"]>,
+          { type: "reserved" }
+        >["reservation"]
+      | null = null;
     if (previous != null) {
       this.suppressCurrentPublication = true;
       const release = previous.reserveRelease(previousRevision);
@@ -351,14 +358,20 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         this.suppressCurrentPublication = false;
         return this.finishUncommitted(candidate, {
           type: "currentThreadUnresolved",
-          activeThreadId: previousSnapshot?.phase === "disposed" ? threadId : previousSnapshot?.threadId ?? threadId,
+          activeThreadId:
+            previousSnapshot?.phase === "disposed"
+              ? threadId
+              : (previousSnapshot?.threadId ?? threadId),
           blockers: release.blockers,
         });
       }
       releaseReservation = release.reservation;
     }
 
-    if (!this.isCurrentCandidate(candidate) || candidate.notifications.length !== candidate.replayedNotificationCount) {
+    if (
+      !this.isCurrentCandidate(candidate) ||
+      candidate.notifications.length !== candidate.replayedNotificationCount
+    ) {
       this.suppressCurrentPublication = false;
       return this.finishUncommitted(
         candidate,
@@ -426,7 +439,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         cleanupError = appendError(cleanupError, error);
       }
       try {
-        await this.commands.detachThreadProjection({ threadId: previousSnapshot?.phase === "disposed" ? threadId : previousSnapshot?.threadId ?? threadId });
+        await this.commands.detachThreadProjection({
+          threadId:
+            previousSnapshot?.phase === "disposed"
+              ? threadId
+              : (previousSnapshot?.threadId ?? threadId),
+        });
       } catch (error: unknown) {
         cleanupError = appendError(cleanupError, error);
       }
@@ -482,7 +500,10 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     const identity = input.notification;
     const candidate = this.candidate;
     if (candidate?.threadId === identity.threadId) {
-      if (candidate.subscriptionId == null || identity.subscriptionId === candidate.subscriptionId) {
+      if (
+        candidate.subscriptionId == null ||
+        identity.subscriptionId === candidate.subscriptionId
+      ) {
         candidate.notifications.push(input);
       }
       return null;
@@ -514,7 +535,8 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   }
 
   private cancelProjectionFrameForCurrent(): void {
-    if (this.pendingProjectionFrame?.liveSession === this.current) this.cancelPendingProjectionFrame();
+    if (this.pendingProjectionFrame?.liveSession === this.current)
+      this.cancelPendingProjectionFrame();
   }
 
   private cancelPendingProjectionFrame(): void {
@@ -555,10 +577,12 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   private async finishUncommitted(
     candidate: ActivationCandidate,
     failure: ActiveThreadActivationFailureBeforeCleanup,
-    releaseReservation: Extract<
-      ReturnType<LiveActiveThreadSession["reserveRelease"]>,
-      { type: "reserved" }
-    >["reservation"] | null = null,
+    releaseReservation:
+      | Extract<
+          ReturnType<LiveActiveThreadSession["reserveRelease"]>,
+          { type: "reserved" }
+        >["reservation"]
+      | null = null,
   ): Promise<ActiveThreadActivationOutcome> {
     let cleanupError: unknown = null;
     candidate.dispatchAdapter.abort();
@@ -626,11 +650,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
   ): ActiveThreadSessionSnapshot {
     const source = liveSession.getSnapshot();
     const cached = this.currentSnapshotCache;
-    if (
-      cached?.liveSession === liveSession &&
-      cached.source === source &&
-      cached.roles === roles
-    ) {
+    if (cached?.liveSession === liveSession && cached.source === source && cached.roles === roles) {
       return cached.snapshot;
     }
     const snapshot: ActiveThreadSessionSnapshot =
