@@ -28,6 +28,12 @@
 - Compatible upstream additions that are not consumed locally do not need artificial failures. Do not suppress genuine incompatibilities that affect existing consumers.
 - Designs, plans, and reviews must identify the authoritative source and derivation path for affected contracts. If a proposal duplicates a contract or interrupts compile-time failure propagation, stop and redesign before implementation.
 
+## Frontend Evidence Closure
+
+- Before planning a high-risk GUI change, trace the real production and mount entrypoints, public exports, direct and indirect consumers, state lifecycle and failure recovery, DOM/ARIA selectors, fixtures, and the verification layer that exercises the behavior.
+- For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the existing authoritative contract, runtime validator, and generation path instead of inventing parallel frontend definitions.
+- Do not proceed while a missing link could change the root-cause conclusion, affected scope, or verification strategy.
+
 ## Frontend State and Runtime Defense Invariants
 
 - Treat typed, in-process frontend modules as trusted TypeScript boundaries by default. Use `Readonly` to express non-mutating contracts and copy caller-owned inputs when alias isolation is required.
