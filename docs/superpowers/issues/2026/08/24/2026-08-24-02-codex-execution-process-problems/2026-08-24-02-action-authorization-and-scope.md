@@ -1,13 +1,13 @@
 # 动作授权与范围状态不稳定
 
 日期: 2026-08-24
-状态: 🔴 仍需处理
+状态: 🟡 部分完成，仍缺工具级强制与最终人工验收
 范围: Codex 目标确认、动作授权、文件与行为范围控制
 优先级: P0
 
 ## 摘要
 
-Codex 未能稳定区分目标确认、当前动作授权和允许触及的文件与行为范围，既会越权执行，也会在已有局部授权下重复设门。
+提示词层已建立统一的动作授权 owner、阶段路由和子代理能力信封，并通过六类自动场景验证；工具级强制和最终人工新会话验收仍未完成，因此 P0 风险尚未关闭。
 
 ## 问题
 
@@ -25,7 +25,23 @@ Codex 未能稳定区分目标确认、当前动作授权和允许触及的文�
 
 ## 判断
 
-该问题仍成立，且同时包含过度放行和过度设门。继续增加自然语言门禁不足以保证状态安全，因为已有事故正是规则被错误套用或被错误确认覆盖。
+该问题已在提示词层部分缓解：目标、动作、范围、副作用和子代理能力不再由多份规则平行定义，而是路由到中央 `$action-authorization` skill。当前证据仍不能证明工具调用前存在 capability enforcement，也不能保证模型在所有入口和所有会话中必然选择并遵守该 skill；因此不能标记为已修复。
+
+## 修复记录
+
+- 设计与执行计划由提交 `1a00557703f18b4906662b1230f941baddbb3b4e` 落盘：`docs/superpowers/specs/2026/08/26/2026-08-26-action-authorization-prompt-governance-design.md` 与 `docs/superpowers/plans/2026/08/26/2026-08-26-action-authorization-prompt-governance-plan.md`。
+- `codex-config` 提交 `c24bbb1976b8a9972f2364f59e0fd8f1fda74bc1` 新增中央 `skills/action-authorization/**`，集中维护动作族、授权记录、canonical target、special approval、事故验收案例和子代理能力信封。
+- 提交 `8e0dcae6fb693d708147f491af4fcc28705fa61b` 将 `managing-work-stages` 路由到中央授权 owner；提交 `f0fa2a540cc3a8fe47fc601a4306c57271c10a07` 为 `delegating-micro-stages` 与执行图补充最小能力信封。
+- 在用户完成受保护文件专门确认后，提交 `44041a9db45eaf7cc09676a29777ca03d5865fe2` 将全局 `AGENTS.md` 的详细平行规则收敛为五条简洁公理和中央 skill 路由。
+- `/Users/jiangsheng/.codex/skills/action-authorization` 已安装为指向 `/Users/jiangsheng/cnb/codex-config/skills/action-authorization` 的符号链接；未修改 GUI、Rust 产品逻辑、upstream base prompt、Default collaboration prompt 或动作专用 skills。
+
+## 验证记录
+
+- `action-authorization`、`managing-work-stages`、`delegating-micro-stages` 均通过 `skill-creator` 的 `quick_validate.py`；canonical 配置仓库在验证后保持干净。
+- `codex debug prompt-input` 已确认全局五条规则和 `action-authorization` catalog metadata 进入新会话模型输入。该检查不证明 skill 正文必然被选择或实际遵守。
+- FWD-01 至 FWD-06 自动场景通过，覆盖排除范围反转、分析升级为实施、批评被当作授权、只读子代理写入、限定任务附带动作扩张和 symlink 绕过受保护目标。FWD-02 与 FWD-05 的负向会话首次因临时执行输出中断而缺少 `turn.completed`，在不扩大目录和动作范围的重试后通过。
+- `codex exec --ephemeral` 启动阶段出现插件目录网络尝试和状态库维护警告；这些不是模型发起的工具调用，但意味着自动场景不能证明进程在隔离目录外绝无内部副作用。
+- FWD-07 仍待用户在全新 root 会话中完成三轮局部授权、撤销和冲突隔离验收，当前不能声称所有入口行为已经实测一致。
 
 ## 影响
 
@@ -33,4 +49,4 @@ Codex 未能稳定区分目标确认、当前动作授权和允许触及的文�
 
 ## 后续处理
 
-需要为目标确认、当前动作授权、允许触及的文件与行为范围以及子代理能力边界单独进入设计阶段；设计确认后再编写独立计划。本 issue 不定义具体状态机或 implementation plan。
+先完成 FWD-07 人工验收和最终只读 fan-in 审计；即使通过，也只确认本轮提示词治理完成。若要关闭本 P0，需要另行设计并实现工具调用前的 capability enforcement，并验证 GUI、CLI、TUI、普通 session 与子代理入口的统一执行语义。本 issue 不承载该后续 implementation plan。
