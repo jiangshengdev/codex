@@ -1,48 +1,64 @@
 # GUI Browser 验证缺少快速反馈入口
 
 日期: 2026-08-24
-状态: 🔴 仍需处理
+状态: ✅ 已修复
 范围: `codex-gui` CI、Browser Mode 与测试架构
 优先级: P2
 
 ## 摘要
 
-默认 `ci` 不执行 Browser Mode 或 E2E，而完整 Browser Mode 又需要依次运行两套三浏览器配置；当前缺少既能进入默认反馈链、又能保留完整覆盖的快速交互验证入口。
+默认 `ci` 现已包含 Chromium Browser smoke，完整 Browser Mode 仍保留 parallel、sequential 与 Chromium、Firefox、WebKit 三浏览器覆盖；跨域总成和 session storage 测试契约也已按 owner 与生产 API 收敛。
 
 ## 问题
 
-GUI 的交互、路由、浏览器存储、projection、Composer queue 和线程切换等行为主要由 Browser Mode 总成测试覆盖，但默认 `ci` 只运行协议检查、格式、lint、类型检查和 unit tests。开发者只执行默认入口时，交互回归不会被这条链路发现。
-
-现有完整 Browser Mode 入口依次运行 parallel 和 sequential 两套配置，每套都启用 Chromium、Firefox、WebKit 并执行 Browser Mode typecheck。这些配置分别服务可并行与必须串行的测试，三浏览器覆盖也具有跨浏览器验证价值；问题不是这些覆盖“不该存在”，而是没有更快的分层入口承担日常反馈。
-
-同时，`App.browser.test.tsx` 已成为跨路由、连接、projection、transcript、Composer queue 和线程切换的总成测试面。部分 test support 还手写生产 session storage key 和序列化 shape，形成测试基础设施与生产实现之间的漂移风险。
+修复前，默认 `ci` 不运行 Browser Mode，交互回归只能通过完整的两套三浏览器矩阵发现；`App.browser.test.tsx` 同时覆盖多个 owner，测试支持层还复制了生产 session storage key 和序列化 shape，导致反馈慢、失败定位面宽，并存在契约漂移风险。
 
 ## 证据
 
-- `codex-gui/package.json:8-26`：默认 `ci` 仅运行 `protocol:check-validators`、格式、lint、`type-check` 和 `test:unit`，未包含 `test:browser` 或 `test:e2e`；`test:browser` 又按顺序执行 `test:browser:parallel` 与 `test:browser:sequential`。
-- `codex-gui/vitest.browser.parallel.config.ts:15-27`：parallel 配置包含普通 `*.browser.test.*`，启用 Browser Mode typecheck，并在 Chromium、Firefox、WebKit 三个实例运行。
-- `codex-gui/vitest.browser.sequential.config.ts:15-29`：sequential 配置关闭文件并行、限定 sequential 目录，同样启用 Browser Mode typecheck 和三浏览器实例。
-- `codex-gui/src/__tests__/App.browser.test.tsx:88-108`：该测试直接接入 thread identity、transcript、thread runtime、Redux provider、GUI Host connection 与 Composer queue mock。
-- `codex-gui/src/__tests__/App.browser.test.tsx:173-214`：测试内组装 RootApp、current task、history list、history detail 和 router，覆盖应用路由总成。
-- `codex-gui/src/__tests__/App.browser.test.tsx:1264-1372`：同一总成测试覆盖普通发送、live commit、active turn 排队和 terminal event 后启动。
-- `codex-gui/src/__tests__/App.browser.test.tsx:3264-3423`：同一总成测试还覆盖线程切换期间 capabilities、Redux、projection、queue owner 和清理的一致性。
-- `codex-gui/src/__tests__/appBrowserTestSupport.ts:37,207-245`：测试支持层手写 `codex-gui.browserAuthorizationSession.v1`、清理逻辑以及 `{ token, activeThreadId }` 的存储 shape。
-- `codex-gui/src/features/browserLaunch/browserAuthorizationSession.ts:4,40-65,76-120,129-140`：生产代码独立拥有同一 storage key、消费流程、解析校验和序列化 shape；测试 helper 没有机械复用这些定义。
-- 本轮未运行测试；结论来自当前配置与测试源码静态核对。
+- `codex-gui/package.json:10,23-26`：默认 `ci` 已包含 `test:browser:smoke`；完整 `test:browser` 仍依次运行 parallel 与 sequential。
+- `codex-gui/vitest.browser.smoke.config.ts:4-13`：smoke 入口只收集 smoke 目录，并只运行 Chromium。
+- `codex-gui/vitest.browser.parallel.config.ts:6-18`：parallel 入口保留 Browser Mode typecheck 和 Chromium、Firefox、WebKit 三浏览器。
+- `codex-gui/vitest.browser.sequential.config.ts:5-19`：sequential 入口保留 Browser Mode typecheck、三浏览器以及 `fileParallelism: false`。
+- `.github/workflows/codex-gui.yml:9-84`：quick 与 full 两个 job 无相互依赖，分别执行默认 `ci` 与完整 Browser Mode。
+- `.github/workflows/blocking-ci.yml:33-36,53-66`：GUI reusable workflow 已接入阻塞 CI，并进入 `required.needs`。
+- `codex-gui/src/__tests__/appBrowserTestSupport.ts:239-252`：Browser session seed 复用生产 `TOKEN_FRAGMENT_KEY`、`consumeBrowserAuthorizationSession` 和 `commitActiveThread`。
+- `codex-gui/src/__tests__/AppRouting.browser.test.tsx:502-511`：routing 测试通过生产 consumer 的 `getSnapshot()` 验证持久化结果，不再复制原始 JSON shape。
+- 原 `App.browser.test.tsx` 的职责已拆分到 `AppShell.browser.test.tsx`、`AppProjectionTranscript.browser.test.tsx`、`AppComposerQueue.browser.test.tsx` 和 `AppActiveThreadSession.browser.test.tsx`；routing 由 `AppRouting.browser.test.tsx` 独立负责。
+- 五个 smoke 用例集中在三个 `src/__tests__/smoke/*.browser.test.tsx` 文件中，且没有重复保留在完整套件中。
 
 ## 判断
 
-问题仍需处理，但不能据此删除 parallel/sequential 分层或三浏览器覆盖。串行配置保护不能安全并发的测试，三浏览器矩阵用于发现浏览器差异，均有现实依据。
+该问题已修复。当前验证拓扑同时具备默认链路中的快速 Chromium 交互反馈和独立的完整三浏览器覆盖；sequential 的串行约束未被削弱，测试职责与生产 session 契约的漂移风险也已消除。
 
-当前缺口是验证拓扑没有同时提供快速反馈与完整覆盖：默认 `ci` 漏掉交互行为，完整 Browser Mode 是两套三浏览器矩阵，而跨域总成与手写 test support 又提高了维护和定位成本。
+## 修复记录
+
+- `dac149c6c14a3571aa9518165bf77eafd2a6c7e1`：测试 session seed 复用生产 API。
+- `ddd151654fb93babe969c1562b9e649c3bc073f5`：迁移五个 smoke 用例。
+- `72b397382ed4224f6b779075abefbe96094e112a`：按 owner 拆分 App Browser 测试。
+- `f4b5b342abef74e2c2b32b924e26d3c50b735482`：统一 Browser Mode 配置来源。
+- `f73289a2579dcc009519f7f8f63812e0ca1e749a`：新增 Chromium smoke 默认入口。
+- `5d1e7ef4d60af01c557df7c6498ebbe7f0d3072b`：新增阻塞 GUI workflow。
+- `3760c3a8c4217cb7f63edcdd510028654a578dce`：routing 测试改由生产 session reader 验证。
+
+## 验证记录
+
+- `pnpm run ci` 通过：53 个 unit 文件、780 个 unit 测试，以及 3 个 smoke 文件、5 个 smoke 测试全部通过。
+- `pnpm run test:browser` 通过：parallel 为 72 个文件、810 个测试；sequential 为 9 个文件、21 个测试；两套均覆盖 Chromium、Firefox、WebKit，且无 type errors。
+- 独立最终审计通过；`git diff base..HEAD --check` 通过，最终代码工作树干净。
+- 仓库根 `pnpm run format` 因预存的 `AGENTS.md` 内容触发 Prettier bug 而失败：代码示例字符串中的两个前导空格被改成一个，破坏了示例语义。该文件与失败均非本次修复引入。
 
 ## 影响
 
-- 只运行默认 `ci` 时，浏览器交互、路由、真实 DOM 行为和跨 owner 协调回归可能未被发现。
-- 为获得现有 Browser Mode 覆盖，需要进入完整矩阵，缺少低成本的日常反馈层。
-- 跨域总成失败时，受影响边界较宽，定位根因需要同时排查多个 owner 和基础设施层。
-- 测试支持层复制生产 session storage contract，生产 key 或 shape 演进时可能造成 fixture 漂移或误判。
+- 默认 `ci` 现在能够发现关键浏览器交互、路由和 owner 协调回归。
+- 完整三浏览器矩阵继续承担跨浏览器与串行场景验证，没有用缩减覆盖换取速度。
+- App Browser 测试按 owner 分离，失败定位范围更窄。
+- 测试 session fixture 与生产 API 共用契约，避免 key 或 shape 双份维护。
 
 ## 后续处理
 
-需要单独进入测试架构设计，明确快速 Browser 验证入口、默认 CI 与完整三浏览器矩阵的分层职责，并复核总成测试与生产 test support 契约的边界。后续不得以删除跨浏览器覆盖或把必须串行的测试改为并行为默认解决方式；具体调整与验证应在独立修复任务中处理。
+无需继续修改代码。首次真实 GitHub PR 运行可补充远端 runner 证据；当前仅完成了 workflow 结构、脚本入口和本地执行验证，这不影响本 issue 的已修复判定。
+
+## 历史记录
+
+- 2026-08-24：静态核对确认默认 `ci` 未包含 Browser Mode，完整入口需要依次运行 parallel 与 sequential 两套三浏览器配置。
+- 2026-08-24：原 `App.browser.test.tsx` 横跨路由、连接、projection、transcript、Composer queue 和线程切换；`appBrowserTestSupport.ts` 同时手写生产 storage key 与 `{ token, activeThreadId }` shape。
