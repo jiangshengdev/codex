@@ -8,6 +8,27 @@ description: "Use when working in codex-gui before running pnpm commands, writin
 Use this skill for `codex-gui` package-manager and script workflow.
 It does not replace GUI feature skills such as `gui-launch`, `debug-responsive-gui`, `heroui-react`, `redux-toolkit`, or `vitest-react-browser-docs`.
 
+## Command Planning Check
+
+Before writing a frontend command in a plan, verification step, or implementation note:
+
+1. Read the live `codex-gui/package.json` and any repository-owned fixed entrypoint or recipe required by the applicable instructions or confirmed plan.
+2. Confirm the named script or fixed entrypoint exists and that its target or discovery rules include the intended file, package, test, or generated target.
+3. Use the repository-owned entrypoint when one exists. Do not reconstruct or bypass it with an equivalent lower-level command.
+
+## Execution Preflight
+
+Immediately before running a frontend command:
+
+1. Repeat the command planning check against the current worktree.
+2. Confirm the intended repository and `codex-gui` working directory. Do not rely on an earlier command's directory.
+3. Verify the active Node and `pnpm` come from the user's fnm environment as described below.
+4. Verify every required tool already exists. If one is missing, stop, name the missing tool, and suggest the command the user can run to install it; do not install it.
+5. Resolve the command's actual inputs. This includes referenced paths, generated schemas or validators, and other tracked or generated inputs required by the selected target.
+6. Confirm again that the command actually exercises the intended target. A successful command that skipped the target is not verification.
+
+If an input is absent because a sparse worktree may be incomplete, use `codex-gui-worktree` only to inspect it. Repair it only when the user's current request or a confirmed plan explicitly authorizes that repair; otherwise stop and report the missing input. Do not duplicate the worktree skill's path list or setup procedure here.
+
 ## pnpm Environment
 
 Before running `pnpm` in `codex-gui`, initialize the user's fnm environment for zsh:
@@ -16,9 +37,9 @@ Before running `pnpm` in `codex-gui`, initialize the user's fnm environment for 
 /opt/homebrew/bin/fnm env --shell zsh
 ```
 
-Then verify the active `pnpm` before running any command that could install, delete, rebuild, or otherwise modify dependencies.
+Then verify the active `pnpm` before running any project command.
 
-If `pnpm` resolves under `/Users/<user>/.cache/codex-runtimes/`, stop and do not continue with dependency-changing commands.
+If `pnpm` resolves under `/Users/<user>/.cache/codex-runtimes/`, stop and do not run the project command.
 
 Known good invocation style on this machine:
 
@@ -26,26 +47,26 @@ Known good invocation style on this machine:
 /opt/homebrew/bin/fnm exec --using-file pnpm --version
 ```
 
-Use the same fnm-backed shape for project commands when practical:
+Use the same fnm-backed shape for project commands:
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm run type-check
 ```
 
-## No Install Without Permission
+## No Installation
 
-Do not add, remove, install, rebuild, or update dependencies unless the user explicitly authorized that operation.
-This includes `pnpm add`, `pnpm install`, package manager self-updates, browser downloads, and generated runtime installs.
+Never add, remove, install, rebuild, or update dependencies, runtimes, tools, or browser binaries.
+This includes `pnpm add`, `pnpm install`, package manager self-updates, browser downloads, and generated runtime installs. If anything is missing, stop and suggest the user-run installation command; later permission does not authorize the assistant to install it.
 
 ## Script Existence Check
 
-Before writing or running any frontend command in a plan, verification step, or implementation note:
+As part of the command planning check:
 
 1. Read `codex-gui/package.json`.
 2. Confirm the script exists.
 3. Use the exact current script name.
 
-If no script exists, use an explicit equivalent command such as:
+If no script, repository-owned fixed entrypoint, or recipe exists, use an explicit direct command such as:
 
 ```bash
 /opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run <path>
