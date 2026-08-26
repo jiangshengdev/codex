@@ -7,3 +7,7 @@ pnpm-lock.yaml
 
 # Rust-generated projection fixtures:
 src/features/projection/__fixtures__/
+
+# Protocol validator artifacts:
+src/generated/appServerProtocol/
+src/generated/guiHostContract/
