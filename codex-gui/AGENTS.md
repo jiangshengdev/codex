@@ -30,9 +30,8 @@
 
 ## Frontend Evidence Closure
 
-- Before planning a high-risk GUI change, trace the real production and mount entrypoints, public exports, direct and indirect consumers, state lifecycle and failure recovery, DOM/ARIA selectors, fixtures, and the verification layer that exercises the behavior.
-- For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the existing authoritative contract, runtime validator, and generation path instead of inventing parallel frontend definitions.
-- Do not proceed while a missing link could change the root-cause conclusion, affected scope, or verification strategy.
+- For high-risk GUI changes, apply the general evidence-closure rules in `$managing-work-stages`; additionally trace real production and mount entrypoints, public and barrel exports, path aliases, dynamic registrations and their indirect consumers, DOM/ARIA selectors, test fixtures, Browser Mode and E2E verification, and applicable mount/unmount, reset, resume, reconnect, retry, rollback, and partial failure lifecycle and recovery paths.
+- For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the authoritative TypeScript contract, runtime validator, schema inputs, generated artifacts, and generated fixtures instead of inventing parallel frontend definitions.
 
 ## Frontend State and Runtime Defense Invariants
 
