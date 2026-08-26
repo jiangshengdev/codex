@@ -69,7 +69,8 @@
     }
   },
   "required": [
-    "contents"
+    "contents",
+    "originCallId"
   ],
   "title": "McpResourceReadResponse",
   "type": "object"

@@ -38,7 +38,8 @@
     "pluginId",
     "pluginName",
     "pluginPath",
-    "remotePluginId"
+    "remotePluginId",
+    "remoteVersion"
   ],
   "title": "PluginShareCheckoutResponse",
   "type": "object"

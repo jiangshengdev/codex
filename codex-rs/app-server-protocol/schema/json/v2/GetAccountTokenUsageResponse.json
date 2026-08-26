@@ -180,6 +180,7 @@
     }
   },
   "required": [
+    "dailyUsageBuckets",
     "summary"
   ],
   "title": "GetAccountTokenUsageResponse",

@@ -45,6 +45,10 @@ pub struct ProjectListParams {
 #[ts(export_to = "v2/")]
 pub struct ProjectListResponse {
     pub data: Vec<Project>,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 

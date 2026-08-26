@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionReadModelFact,
+} from "@/features/activeThreadSession/activeThreadProjection";
 import {
   attachBaseline,
   attachReplacement,
@@ -21,10 +26,6 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
-  threadRuntimeAttached,
-  threadRuntimeEventBuffered,
-} from "@/features/threadRuntime/threadRuntimeSlice";
-import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptContextPage,
@@ -33,6 +34,15 @@ import {
   selectTranscriptTurn,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
+
+let sessionRevision = 0;
+const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
+  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) => readModelAction({ type: "baselineAttached", response });
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+  readModelAction({ type: "eventAccepted", payload });
 
 describe("transcript state replay and event dedup", () => {
   it("keeps a snapshot compaction boundary idempotent across duplicate completed replay", () => {

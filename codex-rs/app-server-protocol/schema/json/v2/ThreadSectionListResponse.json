@@ -67,7 +67,8 @@
     }
   },
   "required": [
-    "data"
+    "data",
+    "nextCursor"
   ],
   "title": "ThreadSectionListResponse",
   "type": "object"

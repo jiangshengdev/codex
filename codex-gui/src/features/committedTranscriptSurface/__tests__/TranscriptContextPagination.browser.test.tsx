@@ -1,5 +1,10 @@
 import { expect, test } from "vitest";
 import { makeStore } from "@/app/store";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionReadModelFact,
+} from "@/features/activeThreadSession/activeThreadProjection";
 import {
   attachWithTurns,
   baseTurn,
@@ -17,16 +22,21 @@ import {
   eventItemCompleted,
   eventTurnCompleted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import {
-  threadRuntimeAttached,
-  threadRuntimeEventBuffered,
-} from "@/features/threadRuntime/threadRuntimeSlice";
 import { buildTranscriptStateFromTurns } from "@/features/transcriptState/transcriptStateImplementation";
 import { renderWithProviders } from "@/utils/test-utils";
 import {
   CommittedTranscriptSurface,
   ReadOnlyCommittedTranscriptSurface,
 } from "../CommittedTranscriptSurface";
+
+let sessionRevision = 0;
+const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
+  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) => readModelAction({ type: "baselineAttached", response });
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+  readModelAction({ type: "eventAccepted", payload });
 
 const boundaryOnlyFailure = {
   message: "The request failed after context compaction",

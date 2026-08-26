@@ -169,6 +169,10 @@ pub struct MockExperimentalMethodParams {
 #[ts(export_to = "v2/")]
 pub struct MockExperimentalMethodResponse {
     /// Echoes the input `value`.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub echoed: Option<String>,
 }
 
@@ -179,6 +183,10 @@ pub struct ThreadStartResponse {
     pub thread: Thread,
     pub model: String,
     pub model_provider: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub service_tier: Option<String>,
     pub cwd: AbsolutePathBuf,
     /// Thread-scoped runtime workspace roots used to materialize
@@ -199,8 +207,15 @@ pub struct ThreadStartResponse {
     /// Named or implicit built-in profile that produced the active
     /// permissions, when known.
     #[experimental("thread/start.activePermissionProfile")]
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_active_permission_profile_schema"
+    )]
     pub active_permission_profile: Option<ActivePermissionProfile>,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_reasoning_effort_schema"
+    )]
     pub reasoning_effort: Option<ReasoningEffort>,
     /// @deprecated Always `explicitRequestOnly`. Use `reasoningEffort` for Ultra behavior.
     #[experimental("thread/start.multiAgentMode")]
@@ -412,6 +427,10 @@ pub struct ThreadResumeResponse {
     pub thread: Thread,
     pub model: String,
     pub model_provider: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub service_tier: Option<String>,
     pub cwd: AbsolutePathBuf,
     /// Thread-scoped runtime workspace roots used to materialize
@@ -432,8 +451,15 @@ pub struct ThreadResumeResponse {
     /// Named or implicit built-in profile that produced the active
     /// permissions, when known.
     #[experimental("thread/resume.activePermissionProfile")]
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_active_permission_profile_schema"
+    )]
     pub active_permission_profile: Option<ActivePermissionProfile>,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_reasoning_effort_schema"
+    )]
     pub reasoning_effort: Option<ReasoningEffort>,
     /// @deprecated Always `explicitRequestOnly`. Use `reasoningEffort` for Ultra behavior.
     #[experimental("thread/resume.multiAgentMode")]
@@ -441,21 +467,30 @@ pub struct ThreadResumeResponse {
     pub multi_agent_mode: MultiAgentMode,
     /// `thread/turns/list` page returned when requested by `initialTurnsPage`.
     #[experimental("thread/resume.initialTurnsPage")]
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_turns_page_schema"
+    )]
     pub initial_turns_page: Option<TurnsPage>,
     /// Opaque cursor for hydrating paginated turns backwards.
     ///
     /// Pass this as `cursor` to `thread/turns/list` with
     /// `sortDirection: "desc"`. The first page includes the turn identified by the cursor.
     #[experimental("thread/resume.turnsBackwardsCursor")]
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub turns_backwards_cursor: Option<String>,
     /// Opaque cursor for hydrating paginated items backwards.
     ///
     /// Pass this as `cursor` to `thread/items/list` with
     /// `sortDirection: "desc"`. The first page includes the item identified by the cursor.
     #[experimental("thread/resume.itemsBackwardsCursor")]
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub items_backwards_cursor: Option<String>,
 }
 
@@ -604,6 +639,10 @@ pub struct ThreadForkResponse {
     pub thread: Thread,
     pub model: String,
     pub model_provider: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub service_tier: Option<String>,
     pub cwd: AbsolutePathBuf,
     /// Thread-scoped runtime workspace roots used to materialize
@@ -624,8 +663,15 @@ pub struct ThreadForkResponse {
     /// Named or implicit built-in profile that produced the active
     /// permissions, when known.
     #[experimental("thread/fork.activePermissionProfile")]
-    #[serde(default)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_active_permission_profile_schema"
+    )]
     pub active_permission_profile: Option<ActivePermissionProfile>,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_reasoning_effort_schema"
+    )]
     pub reasoning_effort: Option<ReasoningEffort>,
     /// @deprecated Always `explicitRequestOnly`. Use `reasoningEffort` for Ultra behavior.
     #[experimental("thread/fork.multiAgentMode")]
@@ -846,6 +892,10 @@ pub struct ThreadGoalGetParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadGoalGetResponse {
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_thread_goal_schema"
+    )]
     pub goal: Option<ThreadGoal>,
 }
 
@@ -907,6 +957,10 @@ pub struct ThreadQueueListParams {
 pub struct ThreadQueueListResponse {
     pub data: Vec<QueuedSubmission>,
     /// Opaque cursor for the next page, or `null` when no submissions remain.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -1192,6 +1246,10 @@ pub struct ThreadBackgroundTerminalsListResponse {
     pub data: Vec<ThreadBackgroundTerminal>,
     /// Opaque cursor to pass to the next call to continue after the last item.
     /// If None, there are no more items to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -1258,11 +1316,19 @@ pub struct ThreadRevertResponse {
     ///
     /// Pass this as `cursor` to `thread/turns/list` with
     /// `sortDirection: "desc"`. The first page includes the turn identified by the cursor.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub turns_backwards_cursor: Option<String>,
     /// Opaque cursor for hydrating paginated items backwards.
     ///
     /// Pass this as `cursor` to `thread/items/list` with
     /// `sortDirection: "desc"`. The first page includes the item identified by the cursor.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub items_backwards_cursor: Option<String>,
 }
 
@@ -1286,6 +1352,10 @@ pub struct ThreadSectionListParams {
 pub struct ThreadSectionListResponse {
     pub data: Vec<ThreadSection>,
     /// Opaque cursor for the next page, or `null` when no sections remain.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -1512,11 +1582,19 @@ pub struct ThreadListResponse {
     pub data: Vec<Thread>,
     /// Opaque cursor to pass to the next call to continue after the last item.
     /// if None, there are no more items to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
     /// Opaque cursor to pass as `cursor` when reversing `sortDirection`.
     /// This is only populated when the page contains at least one thread.
     /// Use it with the opposite `sortDirection`; for timestamp sorts it anchors
     /// at the start of the page timestamp so same-second updates are not skipped.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub backwards_cursor: Option<String>,
 }
 
@@ -1535,11 +1613,19 @@ pub struct ThreadSearchResponse {
     pub data: Vec<ThreadSearchResult>,
     /// Opaque cursor to pass to the next call to continue after the last item.
     /// if None, there are no more items to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
     /// Opaque cursor to pass as `cursor` when reversing `sortDirection`.
     /// This is only populated when the page contains at least one thread.
     /// Use it with the opposite `sortDirection`; for timestamp sorts it anchors
     /// at the start of the page timestamp so same-second updates are not skipped.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub backwards_cursor: Option<String>,
 }
 
@@ -1592,6 +1678,10 @@ pub struct ThreadSearchOccurrencesResponse {
     /// Occurrences in chronological message order.
     pub data: Vec<ThreadSearchOccurrence>,
     /// Opaque cursor to continue after the last returned occurrence.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -1615,6 +1705,10 @@ pub struct ThreadLoadedListResponse {
     pub data: Vec<String>,
     /// Opaque cursor to pass to the next call to continue after the last item.
     /// if None, there are no more items to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -1698,11 +1792,19 @@ pub struct ThreadTurnsListResponse {
     pub data: Vec<Turn>,
     /// Opaque cursor to pass to the next call to continue after the last turn.
     /// if None, there are no more turns to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
     /// Opaque cursor to pass as `cursor` when reversing `sortDirection`.
     /// This is only populated when the page contains at least one turn.
     /// Use it with the opposite `sortDirection` to include the anchor turn again
     /// and catch updates to that turn.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub backwards_cursor: Option<String>,
 }
 
@@ -1741,9 +1843,17 @@ pub struct ThreadItemsListResponse {
     pub data: Vec<ThreadItemEntry>,
     /// Opaque cursor to pass to the next call to continue after the last item.
     /// if None, there are no more items to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
     /// Opaque cursor to pass as `cursor` when reversing `sortDirection`.
     /// This is only populated when the page contains at least one item.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub backwards_cursor: Option<String>,
 }
 

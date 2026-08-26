@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useAppSelector } from "@/app/hooks";
+import type { ActiveThreadSessionSnapshot } from "@/features/activeThreadSession/activeThreadSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import {
   ComposerEditor,
@@ -17,30 +18,11 @@ import {
   type ComposerEditorSnapshot,
   type ComposerEditorSubmitIntent,
 } from "@/features/composerEditor/ComposerEditor";
-import type { ComposerDraftCapture } from "@/features/composerEditor/composerDraft";
-import type {
-  ComposerInputQueueCoordinator,
-  ComposerInputQueueCoordinatorSnapshot,
-} from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
-import { selectCanAdvanceThreadIdentity } from "@/features/threadIdentity/threadIdentitySlice";
-import {
-  selectThreadRuntimeSubscriptionState,
-  selectThreadRuntimeActiveTurnId,
-  selectThreadRuntimeThreadId,
-  selectThreadRuntimeTokenUsage,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import { selectThreadRuntimeTokenUsage } from "@/features/threadRuntime/threadRuntimeSlice";
 import { ContextUsagePopover } from "./ContextUsagePopover";
-import {
-  canRecoverComposerQueue,
-  canSend,
-  composerGuideControlState,
-  composerStopControlState,
-  invalidSelectedSkillPaths,
-  isConnectionUsable,
-} from "./composerTurnControlModel";
+import { createComposerPendingInputSession } from "./composerPendingInputSession";
+import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
@@ -48,185 +30,121 @@ import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewport
 
 export type ComposerTurnControlProps = {
   authorizationToken: string | null;
-  commands: GuiHostCommands | null;
-  composerInputQueueController?: ComposerInputQueueCoordinator | null;
   guardCompositionEndEnter: boolean;
-  guiHostStatus: GuiHostStatus;
   routeTarget: GuiRouteTarget;
-  skillCatalogController: ActiveThreadOwnerHandle["skillCatalog"];
+  sessionSnapshot: Extract<
+    ActiveThreadSessionSnapshot,
+    { phase: "active" | "projectionUnavailable" }
+  >;
 };
 
 export function ComposerTurnControl({
   authorizationToken,
-  commands,
-  composerInputQueueController = null,
   guardCompositionEndEnter,
-  guiHostStatus,
   routeTarget,
-  skillCatalogController,
+  sessionSnapshot,
 }: ComposerTurnControlProps) {
   const { t } = useLingui();
   const [composerEditorController, setComposerEditorController] =
     useState<ComposerEditorController | null>(null);
-  const [isSending, setIsSending] = useState(false);
-  const isSubmittingRef = useRef(false);
+  const [pendingInputSession] = useState(createComposerPendingInputSession);
+  const [turnApplication] = useState(createComposerTurnApplication);
+  const adapterLifecycleRef = useRef({ generation: 0, mounted: false });
   const recoveryDescriptionId = useId();
   const composerShellRef = useRef<HTMLElement | null>(null);
   const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
   const composerFocusVisible = useComposerFocusVisible(composerShellRef);
-  const canAdvanceThreadIdentity = useAppSelector(selectCanAdvanceThreadIdentity);
-  const activeTurnId = useAppSelector(selectThreadRuntimeActiveTurnId);
-  const threadId = useAppSelector(selectThreadRuntimeThreadId);
-  const subscriptionState = useAppSelector(selectThreadRuntimeSubscriptionState);
   const tokenUsage = useAppSelector(selectThreadRuntimeTokenUsage);
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
-  const queueSnapshot = useSyncExternalStore(
-    composerInputQueueController?.subscribe ?? subscribeUnavailableQueue,
-    composerInputQueueController?.getSnapshot ?? getUnavailableQueueSnapshot,
-  );
-  const skillCatalog = useSyncExternalStore(
-    skillCatalogController.subscribe,
-    skillCatalogController.getSnapshot,
-  );
+  const {
+    activeTurnId,
+    composer: queueSnapshot,
+    composerRole,
+    revision,
+    skills: skillCatalog,
+  } = sessionSnapshot;
+  const { skillsRole } = sessionSnapshot;
   const editorSnapshot = useSyncExternalStore<ComposerEditorSnapshot | null>(
     composerEditorController?.subscribe ?? subscribeUnavailableEditor,
     composerEditorController?.getSnapshot ?? getUnavailableEditorSnapshot,
   );
-
-  const connectionUsable =
-    commands != null &&
-    isConnectionUsable({
-      canAdvanceThreadIdentity,
-      guiHostStatus,
-      threadId,
-      subscriptionState,
-    });
-  const controllerMatchesCurrentThread =
-    composerInputQueueController != null &&
-    threadId != null &&
-    composerInputQueueController.ownerThreadId === threadId;
-  const invalidSkillPaths = useMemo(
-    () => invalidSelectedSkillPaths(skillCatalog, editorSnapshot?.selectedSkillPaths ?? []),
-    [editorSnapshot, skillCatalog],
+  useSyncExternalStore(turnApplication.subscribe, turnApplication.getVersion);
+  const sessionFacts = {
+    activeTurnId,
+    composer: queueSnapshot,
+    composerRole,
+    phase: sessionSnapshot.phase,
+    revision,
+    skills: skillCatalog,
+  } as const;
+  const controlView = turnApplication.project({ session: sessionFacts, editor: editorSnapshot });
+  const pendingFacts = {
+    composerRole,
+    sessionRevision: revision,
+    mutationsEnabled: controlView.operationsEnabled,
+    snapshot: queueSnapshot,
+  } as const;
+  pendingInputSession.project(pendingFacts);
+  const pendingInputSnapshot = useSyncExternalStore(
+    pendingInputSession.subscribe,
+    pendingInputSession.getSnapshot,
   );
   const invalidStatusText = t`Invalid skill`;
   const skillValidity = useMemo(
-    () => ({ invalidPaths: invalidSkillPaths, statusText: invalidStatusText }),
-    [invalidSkillPaths, invalidStatusText],
+    () => ({ invalidPaths: controlView.invalidSelectedSkillPaths, statusText: invalidStatusText }),
+    [controlView.invalidSelectedSkillPaths, invalidStatusText],
   );
-  const sendEnabled = canSend({
-    connectionUsable,
-    controllerReady: controllerMatchesCurrentThread,
-    draftText: editorSnapshot?.textContent ?? "",
-    isSending,
-    recoveryCount: queueSnapshot.recoveryCount,
-    selectedSkillsValid: invalidSkillPaths.size === 0,
-  });
-  const guideControl = composerGuideControlState({
-    activeTurnId,
-    connectionUsable,
-    controllerMatchesCurrentThread,
-    draftText: editorSnapshot?.textContent ?? "",
-    isSending,
-    recoveryCount: queueSnapshot.recoveryCount,
-    selectedSkillsValid: invalidSkillPaths.size === 0,
-  });
   const guideShortcut = guideShortcutForPlatform(navigator.platform);
-  const stopControl = composerStopControlState({
-    connectionUsable,
-    controllerMatchesCurrentThread,
-    interruptPhase: queueSnapshot.interrupt?.phase ?? null,
-    queueCanStop: queueSnapshot.canStop,
-  });
-  const canRecover = canRecoverComposerQueue({
-    connectionUsable,
-    controllerReady: controllerMatchesCurrentThread,
-    recoveryCount: queueSnapshot.recoveryCount,
-    isRecovering: queueSnapshot.isRecovering,
-  });
   const focusComposer = useCallback((): void => {
-    composerEditorController?.focus();
-  }, [composerEditorController]);
+    if (composerEditorController == null) return;
+    if (controlView.operationsEnabled) {
+      composerEditorController.focus();
+      return;
+    }
+    const root = composerEditorController.getRootElement();
+    if (root == null) return;
+    const previousTabIndex = root.getAttribute("tabindex");
+    root.tabIndex = -1;
+    root.focus();
+    if (previousTabIndex == null) root.removeAttribute("tabindex");
+    else root.setAttribute("tabindex", previousTabIndex);
+  }, [composerEditorController, controlView.operationsEnabled]);
+
+  useEffect(() => {
+    const lifecycle = adapterLifecycleRef.current;
+    const generation = ++lifecycle.generation;
+    lifecycle.mounted = true;
+    return () => {
+      lifecycle.mounted = false;
+      queueMicrotask(() => {
+        if (lifecycle.mounted || lifecycle.generation !== generation) return;
+        pendingInputSession.dispose();
+        turnApplication.dispose();
+      });
+    };
+  }, [pendingInputSession, turnApplication]);
 
   useRevealComposerOnViewportResize(composerShellRef);
 
   const submit = (
-    requestedCapture?: ComposerDraftCapture,
+    requestedCapture?: ReturnType<ComposerEditorController["capture"]>,
     intent: ComposerEditorSubmitIntent = "ordinary",
   ): void => {
-    const isSubmitting = isSubmittingRef.current;
-    const submittedCapture = requestedCapture ?? composerEditorController?.capture() ?? null;
-    const submittedGuideControl = composerGuideControlState({
-      activeTurnId,
-      connectionUsable,
-      controllerMatchesCurrentThread,
-      draftText: submittedCapture?.textContent ?? "",
-      isSending: isSubmitting,
-      recoveryCount: queueSnapshot.recoveryCount,
-      selectedSkillsValid:
-        submittedCapture == null ||
-        invalidSelectedSkillPaths(skillCatalog, submittedCapture.selectedSkillPaths).size === 0,
-    });
-    if (
-      submittedCapture == null ||
-      composerEditorController == null ||
-      composerInputQueueController == null ||
-      isSubmitting
-    ) {
-      return;
-    }
-
-    if (intent === "guide" && submittedCapture.textContent.trim().length === 0) {
-      if (submittedGuideControl.shortcutEnabled) {
-        composerInputQueueController.promoteOrdinaryFrontToSteer();
-      }
-      return;
-    }
-
-    const submissionEnabled =
-      intent === "guide"
-        ? submittedGuideControl.shortcutEnabled
-        : canSend({
-            connectionUsable,
-            controllerReady: controllerMatchesCurrentThread,
-            draftText: submittedCapture.textContent,
-            isSending: isSubmitting,
-            recoveryCount: queueSnapshot.recoveryCount,
-            selectedSkillsValid:
-              invalidSelectedSkillPaths(skillCatalog, submittedCapture.selectedSkillPaths).size ===
-              0,
-          });
-    if (!submissionEnabled) {
-      return;
-    }
-
-    isSubmittingRef.current = true;
-    setIsSending(true);
-    const result =
-      intent === "guide"
-        ? composerInputQueueController.submitSteer(submittedCapture)
-        : composerInputQueueController.submit(submittedCapture);
-    if (result.type === "accepted") {
-      composerEditorController.clearIfCurrent(submittedCapture);
-    }
-    queueMicrotask(() => {
-      isSubmittingRef.current = false;
-      setIsSending(false);
+    if (composerEditorController == null) return;
+    turnApplication.submit({
+      session: sessionFacts,
+      controller: composerEditorController,
+      ...(requestedCapture == null ? {} : { capture: requestedCapture }),
+      intent,
     });
   };
 
   const recover = (): void => {
-    if (!canRecover) {
-      return;
-    }
-    composerInputQueueController?.recover();
+    turnApplication.recover({ session: sessionFacts });
   };
 
   const stop = (): void => {
-    if (!stopControl.enabled) {
-      return;
-    }
-    composerInputQueueController?.interruptActiveTurn();
+    turnApplication.stop({ session: sessionFacts });
   };
 
   return (
@@ -236,19 +154,21 @@ export function ComposerTurnControl({
       ref={composerShellRef}
     >
       <Surface
-        aria-disabled={!connectionUsable}
+        aria-disabled={!controlView.operationsEnabled}
         className="composer-panel relative mx-auto grid w-full max-w-3xl gap-2 rounded-field border bg-field p-2 text-field-foreground shadow-field [border-color:var(--field-border)] [border-width:var(--border-width-field)] transition-[background-color,border-color,box-shadow,opacity] duration-150 motion-reduce:transition-none [&:has([contenteditable]:focus)]:bg-field-focus [&:has([contenteditable]:focus)]:[border-color:var(--field-border-focus)] [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:bg-field-hover [&:hover:not([data-disabled=true]):not(:has([contenteditable]:focus))]:[border-color:var(--field-border-hover)] data-[disabled=true]:status-disabled data-[focus-visible=true]:status-focused-field"
-        data-disabled={!connectionUsable}
+        data-disabled={!controlView.operationsEnabled}
         data-focus-visible={composerFocusVisible}
         variant="default"
       >
         <ComposerSkillMenuLayer onPortalParentChange={setSkillMenuParent} />
         <ComposerEditor
           ariaLabel={t`Message Codex`}
-          disabled={!connectionUsable}
+          disabled={!controlView.operationsEnabled}
           guardCompositionEndEnter={guardCompositionEndEnter}
           onControllerChange={setComposerEditorController}
-          onRetrySkillCatalog={skillCatalogController.retry}
+          onRetrySkillCatalog={() => {
+            skillsRole.retrySkills(revision);
+          }}
           onSubmit={submit}
           placeholder={t`Message Codex`}
           skillCatalog={skillCatalog}
@@ -256,38 +176,44 @@ export function ComposerTurnControl({
           skillValidity={skillValidity}
         />
         <ComposerPendingInputRegion
-          canRecover={canRecover}
-          controller={controllerMatchesCurrentThread ? composerInputQueueController : null}
+          canRecover={controlView.recoverEnabled}
+          composerRole={composerRole}
           guardCompositionEndEnter={guardCompositionEndEnter}
+          mutationsEnabled={controlView.operationsEnabled}
           onFocusComposer={focusComposer}
           onRecover={recover}
-          onRetrySkillCatalog={skillCatalogController.retry}
+          onRetrySkillCatalog={() => {
+            skillsRole.retrySkills(revision);
+          }}
           recoveryDescriptionId={recoveryDescriptionId}
+          sessionRevision={revision}
           skillCatalog={skillCatalog}
           snapshot={queueSnapshot}
+          pendingInputSession={pendingInputSession}
+          pendingInputSnapshot={pendingInputSnapshot}
         />
         <div className="flex items-center justify-between gap-2">
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <div className="flex items-center gap-2">
             {contextUsage == null ? null : <ContextUsagePopover usage={contextUsage} />}
-            {stopControl.failed ? (
+            {controlView.stop.failed ? (
               <span className="text-sm text-danger" role="status">
                 <Trans>Stop failed</Trans>
               </span>
             ) : null}
             <Button
-              isDisabled={!stopControl.enabled}
-              isPending={stopControl.pending}
+              isDisabled={!controlView.stop.enabled}
+              isPending={controlView.stop.pending}
               onPress={stop}
               variant="danger-soft"
             >
               <Trans>Stop</Trans>
             </Button>
-            {guideControl.visible ? (
+            {controlView.guide.visible ? (
               <Tooltip delay={0}>
                 <Button
                   aria-keyshortcuts={guideShortcut.aria}
-                  isDisabled={!guideControl.buttonEnabled}
+                  isDisabled={!controlView.guide.buttonEnabled}
                   onPress={() => {
                     submit(undefined, "guide");
                   }}
@@ -299,7 +225,7 @@ export function ComposerTurnControl({
               </Tooltip>
             ) : null}
             <Button
-              isDisabled={!sendEnabled}
+              isDisabled={!controlView.sendEnabled}
               onPress={() => {
                 submit();
               }}
@@ -394,21 +320,5 @@ function useComposerFocusVisible(composerShellRef: {
   return isFocusVisible;
 }
 
-const unavailableQueueSnapshot: ComposerInputQueueCoordinatorSnapshot = {
-  ordinaryQueuedCount: 0,
-  guidingCount: 0,
-  detailRevision: 0,
-  recoveryCount: 0,
-  recovery: null,
-  isRecovering: false,
-  rejectedSteers: [],
-  hasUnknownSteer: false,
-  canStop: false,
-  interrupt: null,
-  pendingInputManagementOutcome: null,
-};
-const subscribeUnavailableQueue = (): (() => void) => () => undefined;
-const getUnavailableQueueSnapshot = (): ComposerInputQueueCoordinatorSnapshot =>
-  unavailableQueueSnapshot;
 const subscribeUnavailableEditor = (): (() => void) => () => undefined;
 const getUnavailableEditorSnapshot = (): null => null;

@@ -3,7 +3,11 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, type ReactNode } from "react";
 import { useAppSelector } from "@/app/hooks";
-import { useAppCapabilities } from "@/features/appShell/AppCapabilities";
+import {
+  useActiveThreadId,
+  useActiveThreadSessionPhase,
+  useAppCapabilities,
+} from "@/features/appShell/AppCapabilities";
 import { HISTORY_DETAIL_ROUTE_PATH } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import { selectThreadRuntimeRecord } from "@/features/threadRuntime/threadRuntimeSlice";
@@ -12,13 +16,23 @@ import { ThreadHistoryListOwner, type ThreadHistoryListState } from "./threadHis
 import { useStrictModeSafeOwner } from "./useStrictModeSafeOwner";
 
 export function ThreadHistoryListPage() {
-  const { activeOwner, commands, startupOutcome } = useAppCapabilities();
+  const { activeThreadSession, activeThreadStartupError, commands, status } = useAppCapabilities();
+  const activeThreadId = useActiveThreadId();
+  const activeThreadSessionPhase = useActiveThreadSessionPhase();
   const runtime = useAppSelector(selectThreadRuntimeRecord);
   const cwd =
-    activeOwner != null && runtime?.thread.id === activeOwner.threadId ? runtime.thread.cwd : null;
+    activeThreadId != null && runtime?.thread.id === activeThreadId ? runtime.thread.cwd : null;
   const historyContextUnavailable =
-    startupOutcome?.type === "historyContextUnavailable" ||
-    (startupOutcome?.type === "ready" && startupOutcome.activeOwner == null);
+    activeThreadSession != null &&
+    commands != null &&
+    status.label !== "error" &&
+    status.label !== "closed" &&
+    activeThreadSessionPhase === "empty" &&
+    activeThreadId == null;
+  const startupActivationFailed =
+    activeThreadSession != null &&
+    activeThreadSessionPhase === "empty" &&
+    activeThreadStartupError != null;
 
   useEffect(() => {
     window.scrollTo({ left: 0, top: 0 });
@@ -26,7 +40,11 @@ export function ThreadHistoryListPage() {
 
   return (
     <main className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 content-start gap-4 px-4 py-6">
-      {historyContextUnavailable ? (
+      {startupActivationFailed ? (
+        <HistoryError error={activeThreadStartupError} />
+      ) : activeThreadSession == null && status.label !== "error" && status.label !== "closed" ? (
+        renderHistoryMessage(<Trans>Loading history…</Trans>)
+      ) : historyContextUnavailable ? (
         <HistoryContextUnavailable />
       ) : commands != null && cwd != null ? (
         <ThreadHistoryListOwnerBound commands={commands} cwd={cwd} />
@@ -187,7 +205,7 @@ const renderHistoryMessage = (message: ReactNode) => (
 );
 
 type HistoryErrorProps =
-  | { error: unknown; retry: () => boolean | undefined }
+  | { error: unknown; retry?: () => boolean | undefined }
   | { error?: never; retry?: never };
 
 function HistoryError(props: HistoryErrorProps) {

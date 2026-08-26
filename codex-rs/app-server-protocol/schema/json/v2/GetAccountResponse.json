@@ -107,6 +107,7 @@
     }
   },
   "required": [
+    "account",
     "requiresOpenaiAuth"
   ],
   "title": "GetAccountResponse",

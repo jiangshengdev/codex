@@ -242,7 +242,8 @@
     }
   },
   "required": [
-    "data"
+    "data",
+    "nextCursor"
   ],
   "title": "ListMcpServerStatusResponse",
   "type": "object"

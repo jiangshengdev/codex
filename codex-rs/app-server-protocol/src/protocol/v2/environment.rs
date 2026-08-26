@@ -42,6 +42,10 @@ pub struct EnvironmentInfoParams {
 pub struct EnvironmentInfoResponse {
     pub shell: EnvironmentShellInfo,
     /// Default working directory reported by the environment, as a canonical file URI.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_path_uri_schema"
+    )]
     pub cwd: Option<PathUri>,
 }
 
@@ -63,6 +67,7 @@ pub struct EnvironmentStatusResponse {
     pub status: EnvironmentStatusKind,
     /// Human-readable detail for `disconnected` and `unknown`; omitted for other statuses.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "crate::protocol::serde_helpers::OptionalNonNullableSchema<String>")]
     #[ts(optional)]
     pub error: Option<String>,
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionReadModelFact,
+} from "@/features/activeThreadSession/activeThreadProjection";
 import {
   attachBaseline,
   eventAgentMessageDelta,
@@ -22,11 +27,6 @@ import {
   reasoningTextDelta,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-} from "@/features/threadRuntime/threadRuntimeSlice";
-import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
   selectTranscriptEntry,
@@ -34,6 +34,21 @@ import {
   selectTranscriptTurn,
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
+
+let sessionRevision = 0;
+const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
+  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) => readModelAction({ type: "baselineAttached", response });
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+  readModelAction({ type: "eventAccepted", payload });
+const threadRuntimeDeltasAccepted = ({
+  notifications,
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
 
 const startReasoning = (turnId: string, itemId: string) => {
   const store = makeStore();
@@ -220,7 +235,11 @@ describe("transcript state live streaming reducer", () => {
       summaryText(turnId, wrongTarget.id, "wrong item type", 0),
       summaryPart(turnId, "missing-reasoning-entry", 1),
     );
-    expect(store.getState().transcriptState).toBe(beforeState);
+    const afterState = store.getState().transcriptState;
+    expect(afterState.sessionRevision).toBeGreaterThan(beforeState.sessionRevision);
+    expect({ ...afterState, sessionRevision: beforeState.sessionRevision }).toStrictEqual(
+      beforeState,
+    );
     expect(liveReasoningSnapshot(store, turnId, itemId)).toStrictEqual(expected);
   });
 
@@ -278,7 +297,11 @@ describe("transcript state live streaming reducer", () => {
       summaryPart(turnId, itemId, 1),
       reasoningTextDelta(eventReasoningTextDelta, turnId, itemId, "late raw", 0),
     );
-    expect(store.getState().transcriptState).toBe(beforeLateDeltas);
+    const afterLateDeltas = store.getState().transcriptState;
+    expect(afterLateDeltas.sessionRevision).toBeGreaterThan(beforeLateDeltas.sessionRevision);
+    expect({ ...afterLateDeltas, sessionRevision: beforeLateDeltas.sessionRevision }).toStrictEqual(
+      beforeLateDeltas,
+    );
     expect(liveReasoningSnapshot(store, turnId, itemId)).toStrictEqual(expected);
   });
 
@@ -759,7 +782,11 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(store.getState().transcriptState).toBe(beforeState);
+    const afterState = store.getState().transcriptState;
+    expect(afterState.sessionRevision).toBeGreaterThan(beforeState.sessionRevision);
+    expect({ ...afterState, sessionRevision: beforeState.sessionRevision }).toStrictEqual(
+      beforeState,
+    );
   });
 
   it("ignores accepted agent message delta batches when the middle live payload is missing", () => {
@@ -787,7 +814,11 @@ describe("transcript state live streaming reducer", () => {
       }),
     );
 
-    expect(store.getState().transcriptState).toBe(beforeState);
+    const afterState = store.getState().transcriptState;
+    expect(afterState.sessionRevision).toBeGreaterThan(beforeState.sessionRevision);
+    expect({ ...afterState, sessionRevision: beforeState.sessionRevision }).toStrictEqual(
+      beforeState,
+    );
   });
 
   it("ignores wrong-thread and unsupported delta notifications in accepted delta batches", () => {

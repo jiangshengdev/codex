@@ -7433,7 +7433,8 @@
           }
         },
         "required": [
-          "data"
+          "data",
+          "nextCursor"
         ],
         "title": "AppsListResponse",
         "type": "object"
@@ -8995,10 +8996,7 @@
             "items": {
               "$ref": "#/definitions/v2/ConfigLayer"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "origins": {
             "additionalProperties": {
@@ -9224,6 +9222,9 @@
             "description": "Null if no requirements are configured (e.g. no requirements.toml/MDM entries)."
           }
         },
+        "required": [
+          "requirements"
+        ],
         "title": "ConfigRequirementsReadResponse",
         "type": "object"
       },
@@ -9328,6 +9329,7 @@
         },
         "required": [
           "filePath",
+          "overriddenMetadata",
           "status",
           "version"
         ],
@@ -10127,7 +10129,8 @@
           }
         },
         "required": [
-          "data"
+          "data",
+          "nextCursor"
         ],
         "title": "ExperimentalFeatureListResponse",
         "type": "object"
@@ -11596,7 +11599,9 @@
           }
         },
         "required": [
-          "rateLimits"
+          "rateLimitResetCredits",
+          "rateLimits",
+          "rateLimitsByLimitId"
         ],
         "title": "GetAccountRateLimitsResponse",
         "type": "object"
@@ -11619,6 +11624,7 @@
           }
         },
         "required": [
+          "account",
           "requiresOpenaiAuth"
         ],
         "title": "GetAccountResponse",
@@ -11665,6 +11671,7 @@
           }
         },
         "required": [
+          "dailyUsageBuckets",
           "summary"
         ],
         "title": "GetAccountTokenUsageResponse",
@@ -12807,7 +12814,8 @@
           }
         },
         "required": [
-          "data"
+          "data",
+          "nextCursor"
         ],
         "title": "ListMcpServerStatusResponse",
         "type": "object"
@@ -13333,6 +13341,7 @@
           }
         },
         "required": [
+          "installedRoot",
           "marketplaceName"
         ],
         "title": "MarketplaceRemoveResponse",
@@ -13460,7 +13469,8 @@
           }
         },
         "required": [
-          "contents"
+          "contents",
+          "originCallId"
         ],
         "title": "McpResourceReadResponse",
         "type": "object"
@@ -13763,10 +13773,7 @@
             "type": "array"
           },
           "isError": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": "boolean"
           },
           "structuredContent": true
         },
@@ -14193,7 +14200,8 @@
           }
         },
         "required": [
-          "data"
+          "data",
+          "nextCursor"
         ],
         "title": "ModelListResponse",
         "type": "object"
@@ -14758,7 +14766,8 @@
           }
         },
         "required": [
-          "data"
+          "data",
+          "nextCursor"
         ],
         "title": "PermissionProfileListResponse",
         "type": "object"
@@ -15473,7 +15482,8 @@
           "pluginId",
           "pluginName",
           "pluginPath",
-          "remotePluginId"
+          "remotePluginId",
+          "remoteVersion"
         ],
         "title": "PluginShareCheckoutResponse",
         "type": "object"
@@ -15690,7 +15700,6 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
           "canPublishToWorkspace": {
-            "default": null,
             "type": [
               "boolean",
               "null"
@@ -15704,6 +15713,7 @@
           }
         },
         "required": [
+          "canPublishToWorkspace",
           "remotePluginId",
           "shareUrl"
         ],
@@ -15819,6 +15829,9 @@
             ]
           }
         },
+        "required": [
+          "contents"
+        ],
         "title": "PluginSkillReadResponse",
         "type": "object"
       },
@@ -19613,7 +19626,9 @@
           "cwd",
           "model",
           "modelProvider",
+          "reasoningEffort",
           "sandbox",
+          "serviceTier",
           "thread"
         ],
         "title": "ThreadForkResponse",
@@ -19731,6 +19746,9 @@
             ]
           }
         },
+        "required": [
+          "goal"
+        ],
         "title": "ThreadGoalGetResponse",
         "type": "object"
       },
@@ -20808,7 +20826,9 @@
           }
         },
         "required": [
-          "data"
+          "backwardsCursor",
+          "data",
+          "nextCursor"
         ],
         "title": "ThreadListResponse",
         "type": "object"
@@ -20855,7 +20875,8 @@
           }
         },
         "required": [
-          "data"
+          "data",
+          "nextCursor"
         ],
         "title": "ThreadLoadedListResponse",
         "type": "object"
@@ -21826,7 +21847,9 @@
           "cwd",
           "model",
           "modelProvider",
+          "reasoningEffort",
           "sandbox",
+          "serviceTier",
           "thread"
         ],
         "title": "ThreadResumeResponse",
@@ -22059,7 +22082,8 @@
           }
         },
         "required": [
-          "data"
+          "data",
+          "nextCursor"
         ],
         "title": "ThreadSectionListResponse",
         "type": "object"
@@ -22503,7 +22527,9 @@
           "cwd",
           "model",
           "modelProvider",
+          "reasoningEffort",
           "sandbox",
+          "serviceTier",
           "thread"
         ],
         "title": "ThreadStartResponse",

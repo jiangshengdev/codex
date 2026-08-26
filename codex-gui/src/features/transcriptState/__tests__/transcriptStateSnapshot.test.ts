@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
-import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
-import { threadRuntimeAttached } from "@/features/threadRuntime/threadRuntimeSlice";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
+import {
+  attachBaseline,
+  eventTurnStarted,
+} from "@/features/projection/__tests__/projectionFixtures";
 import {
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
@@ -30,6 +34,15 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 
+let sessionRevision = 0;
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) =>
+  activeThreadReadModelTransitionApplied({
+    sessionRevision: ++sessionRevision,
+    facts: [{ type: "baselineAttached", response }],
+  });
+
 describe("transcript state snapshot reducer", () => {
   it("registers transcript state in the app store", () => {
     const store = makeStore();
@@ -54,6 +67,7 @@ describe("transcript state snapshot reducer", () => {
     const transcriptState = buildTranscriptStateFromTurns(turns);
 
     expect(transcriptState).toStrictEqual({
+      sessionRevision: 0,
       threadId: null,
       subscriptionId: null,
       committedScrollCommitKey: null,
@@ -125,14 +139,63 @@ describe("transcript state snapshot reducer", () => {
 
     const attach = attachWithTurns(attachBaseline, turns);
     const store = makeStore();
-    store.dispatch(threadRuntimeAttached(attach));
+    const action = threadRuntimeAttached(attach);
+    store.dispatch(action);
 
     expect(store.getState().transcriptState).toStrictEqual({
       ...transcriptState,
+      sessionRevision: action.payload.sessionRevision,
       threadId: attach.snapshot.thread.id,
       subscriptionId: attach.subscriptionId,
       committedScrollCommitKey: `attach:${attach.snapshot.thread.id}:${attach.subscriptionId}:${attach.snapshot.headCommitId ?? "none"}`,
     });
+  });
+
+  it("rejects equal and stale read-model transitions", () => {
+    const store = makeStore();
+    const current = threadRuntimeAttached(attachBaseline);
+    store.dispatch(current);
+    const before = store.getState().transcriptState;
+    const staleFacts: readonly ActiveThreadProjectionReadModelFact[] = [
+      { type: "baselineAttached", response: attachWithTurns(attachBaseline, []) },
+    ];
+
+    store.dispatch(
+      activeThreadReadModelTransitionApplied({
+        sessionRevision: current.payload.sessionRevision,
+        facts: staleFacts,
+      }),
+    );
+    expect(store.getState().transcriptState).toBe(before);
+
+    store.dispatch(
+      activeThreadReadModelTransitionApplied({
+        sessionRevision: current.payload.sessionRevision - 1,
+        facts: staleFacts,
+      }),
+    );
+    expect(store.getState().transcriptState).toBe(before);
+  });
+
+  it("applies a session transition's baseline and accepted facts in FIFO order", () => {
+    const store = makeStore();
+    const revision = ++sessionRevision;
+
+    store.dispatch(
+      activeThreadReadModelTransitionApplied({
+        sessionRevision: revision,
+        facts: [
+          { type: "baselineAttached", response: attachWithTurns(attachBaseline, []) },
+          {
+            type: "eventAccepted",
+            payload: { notification: eventTurnStarted, replay: "live" },
+          },
+        ],
+      }),
+    );
+
+    expect(store.getState().transcriptState.sessionRevision).toBe(revision);
+    expect(selectTranscriptTurnIds(store.getState())).toStrictEqual(["turn-in-progress"]);
   });
 
   it("rebuilds committed transcript chunks from an accepted attach snapshot", () => {

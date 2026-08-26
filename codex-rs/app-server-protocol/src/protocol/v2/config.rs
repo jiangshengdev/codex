@@ -339,6 +339,10 @@ pub struct ConfigWriteResponse {
     pub version: String,
     /// Canonical path to the config file that was written.
     pub file_path: AbsolutePathBuf,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_overridden_metadata_schema"
+    )]
     pub overridden_metadata: Option<OverriddenMetadata>,
 }
 
@@ -376,6 +380,8 @@ pub struct ConfigReadResponse {
     pub config: Config,
     pub origins: HashMap<String, ConfigLayerMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "crate::protocol::serde_helpers::OptionalConfigLayersSchema")]
+    #[ts(optional)]
     pub layers: Option<Vec<ConfigLayer>>,
 }
 
@@ -625,6 +631,10 @@ pub enum ResidencyRequirement {
 pub struct ConfigRequirementsReadResponse {
     /// Null if no requirements are configured (e.g. no requirements.toml/MDM entries).
     #[experimental(nested)]
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_config_requirements_schema"
+    )]
     pub requirements: Option<ConfigRequirements>,
 }
 

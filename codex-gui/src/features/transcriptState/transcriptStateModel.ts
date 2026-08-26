@@ -327,6 +327,7 @@ export type TranscriptChunkView = {
 };
 
 export type TranscriptState = {
+  sessionRevision: number;
   threadId: string | null;
   subscriptionId: string | null;
   committedScrollCommitKey: string | null;
@@ -354,6 +355,7 @@ export const createEmptyTranscriptState = (): TranscriptState => {
     turnFragmentIds: [],
   };
   return {
+    sessionRevision: 0,
     threadId: null,
     subscriptionId: null,
     committedScrollCommitKey: null,

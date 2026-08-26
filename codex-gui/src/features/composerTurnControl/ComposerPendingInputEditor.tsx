@@ -43,6 +43,7 @@ export function ComposerPendingInputEditor({
     () => ({ invalidPaths, statusText: invalidStatusText }),
     [invalidPaths, invalidStatusText],
   );
+  const valid = invalidPaths.size === 0;
   const handleControllerChange = useCallback(
     (nextController: ComposerEditorController | null): void => {
       setController(nextController);
@@ -52,8 +53,8 @@ export function ComposerPendingInputEditor({
   );
 
   useEffect(() => {
-    onValidityChange(invalidPaths.size === 0);
-  }, [invalidPaths, onValidityChange]);
+    onValidityChange(valid);
+  }, [onValidityChange, valid]);
 
   return (
     <div className="relative grid min-w-0 gap-3">
@@ -72,7 +73,7 @@ export function ComposerPendingInputEditor({
           onControllerChange={handleControllerChange}
           onRetrySkillCatalog={onRetrySkillCatalog}
           onSubmit={(capture) => {
-            if (invalidPaths.size === 0) onSave(capture);
+            if (valid) onSave(capture);
           }}
           placeholder={t`Edit pending message`}
           skillCatalog={skillCatalog}

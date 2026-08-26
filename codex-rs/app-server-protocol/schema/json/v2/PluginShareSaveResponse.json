@@ -2,7 +2,6 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "canPublishToWorkspace": {
-      "default": null,
       "type": [
         "boolean",
         "null"
@@ -16,6 +15,7 @@
     }
   },
   "required": [
+    "canPublishToWorkspace",
     "remotePluginId",
     "shareUrl"
   ],

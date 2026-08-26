@@ -884,10 +884,7 @@
       "items": {
         "$ref": "#/definitions/ConfigLayer"
       },
-      "type": [
-        "array",
-        "null"
-      ]
+      "type": "array"
     },
     "origins": {
       "additionalProperties": {

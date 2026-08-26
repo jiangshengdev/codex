@@ -76,6 +76,10 @@ pub struct ListMcpServerStatusResponse {
     pub data: Vec<McpServerStatus>,
     /// Opaque cursor to pass to the next call to continue after the last item.
     /// If None, there are no more items to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 
@@ -100,6 +104,10 @@ pub struct McpResourceReadParams {
 pub struct McpResourceReadResponse {
     pub contents: Vec<McpResourceContent>,
     /// Originating call when the server applied app-specific resource scoping.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub origin_call_id: Option<String>,
 }
 
@@ -127,6 +135,7 @@ pub struct McpServerToolCallResponse {
     #[ts(optional)]
     pub structured_content: Option<JsonValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "crate::protocol::serde_helpers::OptionalNonNullableSchema<bool>")]
     #[ts(optional)]
     pub is_error: Option<bool>,
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]

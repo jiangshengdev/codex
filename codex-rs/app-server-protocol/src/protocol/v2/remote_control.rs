@@ -41,6 +41,10 @@ pub struct RemoteControlEnableResponse {
     pub status: RemoteControlConnectionStatus,
     pub server_name: String,
     pub installation_id: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub environment_id: Option<String>,
 }
 
@@ -51,6 +55,10 @@ pub struct RemoteControlDisableResponse {
     pub status: RemoteControlConnectionStatus,
     pub server_name: String,
     pub installation_id: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub environment_id: Option<String>,
 }
 
@@ -61,6 +69,10 @@ pub struct RemoteControlStatusReadResponse {
     pub status: RemoteControlConnectionStatus,
     pub server_name: String,
     pub installation_id: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub environment_id: Option<String>,
 }
 
@@ -77,6 +89,10 @@ pub struct RemoteControlPairingStartParams {
 #[ts(export_to = "v2/")]
 pub struct RemoteControlPairingStartResponse {
     pub pairing_code: String,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub manual_pairing_code: Option<String>,
     pub environment_id: String,
     pub expires_at: i64,
@@ -125,6 +141,10 @@ pub enum RemoteControlClientsListOrder {
 #[ts(export_to = "v2/")]
 pub struct RemoteControlClientsListResponse {
     pub data: Vec<RemoteControlClient>,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 
