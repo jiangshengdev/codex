@@ -43,5 +43,9 @@ pub struct PluginSearchResult {
 #[ts(export_to = "v2/")]
 pub struct PluginSearchResponse {
     pub data: Vec<PluginSearchResult>,
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }

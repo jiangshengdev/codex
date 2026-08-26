@@ -1,9 +1,4 @@
-import {
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-  threadRuntimeManualReconnectRequired,
-} from "@/features/threadRuntime/threadRuntimeSlice";
+import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
 import {
   appendStartedTranscriptItem,
   applyAcceptedProjectionDeltaBatch,
@@ -17,25 +12,22 @@ import {
 import { hasAppliedTranscriptEvent, recordAppliedTranscriptEvent } from "./transcriptEventDedup";
 import type { TranscriptState } from "./transcriptStateModel";
 
-type TranscriptInput =
-  | ReturnType<typeof threadRuntimeAttached>
-  | ReturnType<typeof threadRuntimeDeltasAccepted>
-  | ReturnType<typeof threadRuntimeEventBuffered>
-  | ReturnType<typeof threadRuntimeManualReconnectRequired>;
-
-export const reduceTranscriptInput = (state: TranscriptState, action: TranscriptInput): void => {
-  switch (action.type) {
-    case threadRuntimeAttached.type:
+export const reduceTranscriptReadModelFact = (
+  state: TranscriptState,
+  fact: ActiveThreadProjectionReadModelFact,
+): void => {
+  switch (fact.type) {
+    case "baselineAttached":
       rebuildTranscriptFromSnapshot(
         state,
-        action.payload.snapshot.thread.id,
-        action.payload.subscriptionId,
-        action.payload.snapshot.headCommitId,
-        action.payload.snapshot.thread.turns,
+        fact.response.snapshot.thread.id,
+        fact.response.subscriptionId,
+        fact.response.snapshot.headCommitId,
+        fact.response.snapshot.thread.turns,
       );
       return;
-    case threadRuntimeEventBuffered.type: {
-      const { notification, replay } = action.payload;
+    case "eventAccepted": {
+      const { notification, replay } = fact.payload;
       if (replay === "snapshotDuplicate") {
         return;
       }
@@ -90,27 +82,27 @@ export const reduceTranscriptInput = (state: TranscriptState, action: Transcript
       notification.event satisfies never;
       return;
     }
-    case threadRuntimeDeltasAccepted.type:
-      applyAcceptedProjectionDeltaBatch(state, action.payload.notifications);
+    case "deltasAccepted":
+      applyAcceptedProjectionDeltaBatch(state, [...fact.notifications]);
       return;
-    case threadRuntimeManualReconnectRequired.type:
-      if (state.threadId !== action.payload.threadId) {
+    case "projectionUnavailable":
+      if (state.threadId !== fact.threadId) {
         return;
       }
 
       if (clearAllStreamingReasoning(state)) {
-        state.committedScrollCommitKey = `reconnect:${action.payload.threadId}:${action.payload.subscriptionId ?? "none"}:${action.payload.reason}`;
+        state.committedScrollCommitKey = `reconnect:${fact.threadId}:${fact.subscriptionId ?? "none"}:${fact.reason}`;
       }
 
       state.globalStatus = [
         {
-          id: `subscriptionInterrupted:${action.payload.threadId}:${action.payload.subscriptionId ?? "none"}:${action.payload.reason}`,
+          id: `subscriptionInterrupted:${fact.threadId}:${fact.subscriptionId ?? "none"}:${fact.reason}`,
           status: "subscriptionInterrupted",
-          reason: action.payload.reason,
-          subscriptionId: action.payload.subscriptionId,
+          reason: fact.reason,
+          subscriptionId: fact.subscriptionId,
         },
       ];
       return;
   }
-  action satisfies never;
+  fact satisfies never;
 };

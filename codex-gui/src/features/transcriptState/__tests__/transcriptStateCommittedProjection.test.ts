@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { makeStore } from "@/app/store";
+import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import type {
+  ActiveThreadProjectionAcceptedQueueFact,
+  ActiveThreadProjectionReadModelFact,
+} from "@/features/activeThreadSession/activeThreadProjection";
 import {
   attachBaseline,
   eventItemCompleted,
@@ -31,12 +36,6 @@ import {
   userMessage,
 } from "@/features/projection/__tests__/projectionTestBuilders";
 import {
-  selectThreadRuntimeActiveTurnId,
-  threadRuntimeAttached,
-  threadRuntimeDeltasAccepted,
-  threadRuntimeEventBuffered,
-} from "@/features/threadRuntime/threadRuntimeSlice";
-import {
   TARGET_TRANSCRIPT_CHUNK_ENTRY_LIMIT,
   selectCommittedTranscriptScrollCommitKey,
   selectTranscriptChunk,
@@ -46,21 +45,34 @@ import {
   transcriptEntryIdFor,
 } from "../transcriptStateSlice";
 
+let sessionRevision = 0;
+const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
+  activeThreadReadModelTransitionApplied({ sessionRevision: ++sessionRevision, facts });
+const threadRuntimeAttached = (
+  response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
+) => readModelAction({ type: "baselineAttached", response });
+const threadRuntimeEventBuffered = (payload: ActiveThreadProjectionAcceptedQueueFact) =>
+  readModelAction({ type: "eventAccepted", payload });
+const threadRuntimeDeltasAccepted = ({
+  notifications,
+}: Pick<
+  Extract<ActiveThreadProjectionReadModelFact, { type: "deltasAccepted" }>,
+  "notifications"
+>) => readModelAction({ type: "deltasAccepted", notifications });
+
 describe("transcript state committed projection reducer", () => {
   it("ignores token usage updates before transcript dedupe and scroll commits", () => {
     const store = makeStore();
 
     store.dispatch(threadRuntimeAttached(attachBaseline));
-    const transcriptBefore = store.getState().transcriptState;
-    const activeTurnIdBefore = selectThreadRuntimeActiveTurnId(store.getState());
+    const revisionBefore = store.getState().transcriptState.sessionRevision;
     const scrollCommitKeyBefore = selectCommittedTranscriptScrollCommitKey(store.getState());
 
     store.dispatch(
       threadRuntimeEventBuffered({ notification: eventTokenUsageUpdated, replay: "live" }),
     );
 
-    expect(store.getState().transcriptState).toBe(transcriptBefore);
-    expect(selectThreadRuntimeActiveTurnId(store.getState())).toBe(activeTurnIdBefore);
+    expect(store.getState().transcriptState.sessionRevision).toBeGreaterThan(revisionBefore);
     expect(selectCommittedTranscriptScrollCommitKey(store.getState())).toBe(scrollCommitKeyBefore);
   });
 

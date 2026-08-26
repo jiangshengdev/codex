@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import {
   canRecoverComposerQueue,
@@ -7,12 +6,7 @@ import {
   composerGuideControlState,
   composerStopControlState,
   invalidSelectedSkillPaths,
-  isConnectionUsable,
 } from "../composerTurnControlModel";
-
-const initializedStatus: GuiHostStatus = {
-  label: "initialized",
-};
 
 const skillCandidate = (path: string): SkillCatalogState["candidates"][number] => ({
   name: path,
@@ -22,58 +16,10 @@ const skillCandidate = (path: string): SkillCatalogState["candidates"][number] =
 });
 
 describe("composerTurnControlModel", () => {
-  it("requires attached identity, active subscription, thread id, and usable host status", () => {
-    expect(
-      isConnectionUsable({
-        canAdvanceThreadIdentity: true,
-        guiHostStatus: initializedStatus,
-        threadId: "thread-1",
-        subscriptionState: "active",
-      }),
-    ).toBe(true);
-
-    expect(
-      isConnectionUsable({
-        canAdvanceThreadIdentity: false,
-        guiHostStatus: initializedStatus,
-        threadId: "thread-1",
-        subscriptionState: "active",
-      }),
-    ).toBe(false);
-
-    expect(
-      isConnectionUsable({
-        canAdvanceThreadIdentity: true,
-        guiHostStatus: initializedStatus,
-        threadId: null,
-        subscriptionState: "active",
-      }),
-    ).toBe(false);
-
-    expect(
-      isConnectionUsable({
-        canAdvanceThreadIdentity: true,
-        guiHostStatus: initializedStatus,
-        threadId: "thread-1",
-        subscriptionState: "manualReconnectRequired",
-      }),
-    ).toBe(false);
-
-    expect(
-      isConnectionUsable({
-        canAdvanceThreadIdentity: true,
-        guiHostStatus: { label: "error", message: "boom" },
-        threadId: "thread-1",
-        subscriptionState: "active",
-      }),
-    ).toBe(false);
-  });
-
   it("derives send availability", () => {
     expect(
       canSend({
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
@@ -82,8 +28,7 @@ describe("composerTurnControlModel", () => {
     ).toBe(true);
     expect(
       canSend({
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         draftText: "   ",
         isSending: false,
         recoveryCount: 0,
@@ -92,8 +37,7 @@ describe("composerTurnControlModel", () => {
     ).toBe(false);
     expect(
       canSend({
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
@@ -102,8 +46,7 @@ describe("composerTurnControlModel", () => {
     ).toBe(true);
     expect(
       canSend({
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         draftText: "Hello",
         isSending: true,
         recoveryCount: 0,
@@ -112,8 +55,7 @@ describe("composerTurnControlModel", () => {
     ).toBe(false);
     expect(
       canSend({
-        connectionUsable: true,
-        controllerReady: false,
+        operationsEnabled: false,
         draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
@@ -122,8 +64,7 @@ describe("composerTurnControlModel", () => {
     ).toBe(false);
     expect(
       canSend({
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         draftText: "Hello",
         isSending: false,
         recoveryCount: 2,
@@ -132,8 +73,7 @@ describe("composerTurnControlModel", () => {
     ).toBe(false);
     expect(
       canSend({
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         draftText: "Hello",
         isSending: false,
         recoveryCount: 0,
@@ -147,8 +87,7 @@ describe("composerTurnControlModel", () => {
       caseName: "idle",
       input: {
         activeTurnId: null,
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         draftText: "Guide this",
         isSending: false,
         recoveryCount: 0,
@@ -160,8 +99,7 @@ describe("composerTurnControlModel", () => {
       caseName: "active with an empty draft",
       input: {
         activeTurnId: "turn-active",
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         draftText: "  ",
         isSending: false,
         recoveryCount: 0,
@@ -173,8 +111,7 @@ describe("composerTurnControlModel", () => {
       caseName: "active with a non-empty draft",
       input: {
         activeTurnId: "turn-active",
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         draftText: "Guide this",
         isSending: false,
         recoveryCount: 0,
@@ -184,14 +121,9 @@ describe("composerTurnControlModel", () => {
     },
     ...[
       {
-        blockedBy: "connection",
-        patch: { connectionUsable: false },
+        blockedBy: "session phase",
+        patch: { operationsEnabled: false },
         visible: true,
-      },
-      {
-        blockedBy: "owner identity",
-        patch: { controllerMatchesCurrentThread: false },
-        visible: false,
       },
       { blockedBy: "submission", patch: { isSending: true }, visible: true },
       { blockedBy: "recovery", patch: { recoveryCount: 1 }, visible: true },
@@ -204,8 +136,7 @@ describe("composerTurnControlModel", () => {
       caseName: `active but blocked by ${blockedBy}`,
       input: {
         activeTurnId: "turn-active",
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         draftText: "Guide this",
         isSending: false,
         recoveryCount: 0,
@@ -222,38 +153,25 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "available",
       input: {
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         interruptPhase: null,
         queueCanStop: true,
       },
       expected: { enabled: true, failed: false, pending: false },
     },
     {
-      caseName: "connection unavailable",
+      caseName: "projection unavailable",
       input: {
-        connectionUsable: false,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: false,
         interruptPhase: null,
         queueCanStop: true,
       },
       expected: { enabled: false, failed: false, pending: false },
     },
     {
-      caseName: "controller identity mismatch",
-      input: {
-        connectionUsable: true,
-        controllerMatchesCurrentThread: false,
-        interruptPhase: "issuing",
-        queueCanStop: false,
-      },
-      expected: { enabled: false, failed: false, pending: false },
-    },
-    {
       caseName: "queue cannot stop",
       input: {
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         interruptPhase: null,
         queueCanStop: false,
       },
@@ -262,8 +180,7 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "issuing",
       input: {
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         interruptPhase: "issuing",
         queueCanStop: false,
       },
@@ -272,8 +189,7 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "accepted",
       input: {
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         interruptPhase: "accepted",
         queueCanStop: false,
       },
@@ -282,8 +198,7 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "delivery unknown",
       input: {
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         interruptPhase: "unknown",
         queueCanStop: false,
       },
@@ -292,8 +207,7 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "definitely not accepted",
       input: {
-        connectionUsable: true,
-        controllerMatchesCurrentThread: true,
+        operationsEnabled: true,
         interruptPhase: "definitelyNotAccepted",
         queueCanStop: true,
       },
@@ -354,10 +268,9 @@ describe("composerTurnControlModel", () => {
 
   it.each([
     {
-      caseName: "commands unavailable",
+      caseName: "empty session",
       input: {
-        connectionUsable: false,
-        controllerReady: true,
+        operationsEnabled: false,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -366,8 +279,7 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "manual reconnect required",
       input: {
-        connectionUsable: false,
-        controllerReady: true,
+        operationsEnabled: false,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -376,8 +288,7 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "no recovery batch",
       input: {
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         recoveryCount: 0,
         isRecovering: false,
       },
@@ -386,18 +297,16 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "recovery already running",
       input: {
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         recoveryCount: 2,
         isRecovering: true,
       },
       expected: false,
     },
     {
-      caseName: "controller unavailable",
+      caseName: "disposed session",
       input: {
-        connectionUsable: true,
-        controllerReady: false,
+        operationsEnabled: false,
         recoveryCount: 2,
         isRecovering: false,
       },
@@ -406,8 +315,7 @@ describe("composerTurnControlModel", () => {
     {
       caseName: "recovery available",
       input: {
-        connectionUsable: true,
-        controllerReady: true,
+        operationsEnabled: true,
         recoveryCount: 2,
         isRecovering: false,
       },

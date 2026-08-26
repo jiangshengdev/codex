@@ -2,7 +2,12 @@ import { Alert, Surface } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { CommittedTranscriptSurface } from "@/features/committedTranscriptSurface/CommittedTranscriptSurface";
 import { ComposerTurnControl } from "@/features/composerTurnControl/ComposerTurnControl";
-import { type AppCapabilities, useAppCapabilities } from "@/features/appShell/AppCapabilities";
+import {
+  type AppCapabilities,
+  useActiveThreadSessionPhase,
+  useActiveThreadSessionSnapshot,
+  useAppCapabilities,
+} from "@/features/appShell/AppCapabilities";
 import { useCommittedTranscriptStickyBottom } from "@/features/appShell/useCommittedTranscriptStickyBottom";
 
 function isMacAppleWebKitRuntime(): boolean {
@@ -14,11 +19,12 @@ function isMacAppleWebKitRuntime(): boolean {
 }
 
 export function CurrentTaskPage() {
-  const { activeOwner, authorizationToken, commands, routeTarget, startupOutcome, status } =
+  const { activeThreadSession, activeThreadStartupError, authorizationToken, routeTarget, status } =
     useAppCapabilities();
+  const sessionPhase = useActiveThreadSessionPhase();
   const guardCompositionEndEnter = isMacAppleWebKitRuntime();
 
-  if (startupOutcome?.type === "failed") {
+  if (activeThreadSession != null && sessionPhase === "empty" && activeThreadStartupError != null) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-6" data-gui-host-status={status.label}>
         <Alert role="alert" status="danger">
@@ -27,14 +33,14 @@ export function CurrentTaskPage() {
             <Alert.Title>
               <Trans>Unable to load the current task</Trans>
             </Alert.Title>
-            <Alert.Description>{errorText(startupOutcome.error)}</Alert.Description>
+            <Alert.Description>{activeThreadStartupError}</Alert.Description>
           </Alert.Content>
         </Alert>
       </main>
     );
   }
 
-  if (startupOutcome?.type !== "ready" || activeOwner == null) {
+  if (activeThreadSession == null || sessionPhase === "empty" || sessionPhase === "disposed") {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-6" data-gui-host-status={status.label} />
     );
@@ -42,9 +48,7 @@ export function CurrentTaskPage() {
 
   return (
     <CurrentTaskReady
-      activeOwner={activeOwner}
       authorizationToken={authorizationToken}
-      commands={commands}
       guardCompositionEndEnter={guardCompositionEndEnter}
       routeTarget={routeTarget}
       status={status}
@@ -53,18 +57,14 @@ export function CurrentTaskPage() {
 }
 
 type CurrentTaskReadyProps = Readonly<{
-  activeOwner: NonNullable<AppCapabilities["activeOwner"]>;
   authorizationToken: AppCapabilities["authorizationToken"];
-  commands: AppCapabilities["commands"];
   guardCompositionEndEnter: boolean;
   routeTarget: AppCapabilities["routeTarget"];
   status: AppCapabilities["status"];
 }>;
 
 function CurrentTaskReady({
-  activeOwner,
   authorizationToken,
-  commands,
   guardCompositionEndEnter,
   routeTarget,
   status,
@@ -84,19 +84,32 @@ function CurrentTaskReady({
         className="committed-transcript-bottom-sentinel h-px w-full"
         ref={transcriptBottomRef}
       />
-      <ComposerTurnControl
+      <CurrentTaskComposer
         authorizationToken={authorizationToken}
-        commands={commands}
-        composerInputQueueController={activeOwner.queueCoordinator}
         guardCompositionEndEnter={guardCompositionEndEnter}
-        guiHostStatus={status}
         routeTarget={routeTarget}
-        skillCatalogController={activeOwner.skillCatalog}
       />
     </main>
   );
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function CurrentTaskComposer({
+  authorizationToken,
+  guardCompositionEndEnter,
+  routeTarget,
+}: Readonly<{
+  authorizationToken: AppCapabilities["authorizationToken"];
+  guardCompositionEndEnter: boolean;
+  routeTarget: AppCapabilities["routeTarget"];
+}>) {
+  const snapshot = useActiveThreadSessionSnapshot();
+  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
+  return (
+    <ComposerTurnControl
+      authorizationToken={authorizationToken}
+      guardCompositionEndEnter={guardCompositionEndEnter}
+      routeTarget={routeTarget}
+      sessionSnapshot={snapshot}
+    />
+  );
 }

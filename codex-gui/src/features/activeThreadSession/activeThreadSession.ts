@@ -1,0 +1,755 @@
+import type { AppDispatch } from "@/app/store";
+import type { BrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
+import type { ComposerInputQueueCoordinatorReleaseBlocker } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import type {
+  ThreadProjectionAttachResponse,
+  ThreadProjectionClosedNotification,
+  ThreadProjectionDeltaNotification,
+  ThreadProjectionEventNotification,
+} from "@codex-protocol/v2";
+import type { UnknownAction } from "@reduxjs/toolkit";
+import { createActiveThreadProjection } from "./activeThreadProjection";
+import type { LiveActiveThreadSession } from "./activeThreadSessionContracts";
+import {
+  createLiveActiveThreadSession,
+  type CreateLiveActiveThreadSessionInput,
+} from "./liveActiveThreadSession";
+
+type ActiveThreadSessionCommands = Pick<
+  GuiHostCommands,
+  | "attachThreadProjection"
+  | "detachThreadProjection"
+  | "interruptTurn"
+  | "listSkills"
+  | "resumeThread"
+  | "startTurn"
+  | "steerTurn"
+>;
+
+type ActiveThreadAuthorizationSession = Pick<
+  BrowserAuthorizationSession,
+  "commitActiveThread" | "getSnapshot"
+>;
+
+export type ActiveThreadSessionScheduler = Readonly<{
+  requestFrame(callback: () => void): number;
+  cancelFrame(frameId: number): void;
+}>;
+
+export type ActiveThreadComposerRole = Readonly<
+  Pick<
+    LiveActiveThreadSession,
+    | "beginPendingInputEdit"
+    | "deletePendingInput"
+    | "interruptActiveTurn"
+    | "movePendingInput"
+    | "promoteOrdinaryFrontToSteer"
+    | "readPendingInputDetail"
+    | "readPendingInputPage"
+    | "recover"
+    | "submit"
+    | "submitSteer"
+  >
+>;
+
+export type ActiveThreadSkillsRole = Readonly<
+  Pick<LiveActiveThreadSession, "invalidateSkills" | "refreshSkills" | "retrySkills">
+>;
+
+type ActiveThreadSessionRoles = Readonly<{
+  composerRole: ActiveThreadComposerRole;
+  skillsRole: ActiveThreadSkillsRole;
+}>;
+
+export type ActiveThreadSessionSnapshot =
+  | Readonly<{ phase: "empty"; revision: number }>
+  | (Exclude<ReturnType<LiveActiveThreadSession["getSnapshot"]>, { phase: "disposed" }> &
+      ActiveThreadSessionRoles)
+  | Readonly<{ phase: "disposed"; revision: number }>;
+
+export type ActiveThreadActivationWarning =
+  | Readonly<{ type: "authorizationPersistenceFailed"; error: unknown }>
+  | Readonly<{ type: "previousOwnerCleanupFailed"; error: unknown }>;
+
+export type ActiveThreadActivationFailure =
+  | Readonly<{ type: "switchInProgress" }>
+  | Readonly<{
+      type: "currentThreadChanged";
+      activeThreadId: string | null;
+      expectedRevision: number;
+      actualRevision: number;
+    }>
+  | Readonly<{
+      type: "currentThreadUnresolved";
+      activeThreadId: string;
+      blockers: readonly ComposerInputQueueCoordinatorReleaseBlocker[];
+    }>
+  | Readonly<{
+      type: "connectionLost";
+      progress: "beforeCommit" | "afterCommit";
+      threadId: string | null;
+      cleanupError: unknown;
+    }>
+  | Readonly<{
+      type: "operationFailed";
+      phase: "resume" | "attach" | "prepare" | "activate";
+      error: unknown;
+      cleanupError: unknown;
+    }>;
+
+export type ActiveThreadActivationOutcome =
+  | Readonly<{
+      type: "ready";
+      threadId: string;
+      warnings: readonly ActiveThreadActivationWarning[];
+    }>
+  | Readonly<{ type: "empty" }>
+  | Readonly<{ type: "unavailable"; failure: ActiveThreadActivationFailure }>;
+
+type ActiveThreadActivationFailureBeforeCleanup =
+  | Exclude<ActiveThreadActivationFailure, { type: "connectionLost" } | { type: "operationFailed" }>
+  | Omit<Extract<ActiveThreadActivationFailure, { type: "operationFailed" }>, "cleanupError">
+  | Readonly<{ type: "connectionLost" }>;
+
+export type ActiveThreadSession = Readonly<{
+  getSnapshot(): ActiveThreadSessionSnapshot;
+  subscribe(listener: () => void): () => void;
+  activate(threadId: string): Promise<ActiveThreadActivationOutcome>;
+}>;
+
+export type ActiveThreadSessionController = Readonly<{
+  session: ActiveThreadSession;
+  activateRecoveryThread(): Promise<ActiveThreadActivationOutcome>;
+  handleProjectionEvent(notification: ThreadProjectionEventNotification): void;
+  handleProjectionDelta(notification: ThreadProjectionDeltaNotification): void;
+  handleProjectionClosed(notification: ThreadProjectionClosedNotification): void;
+  handleSkillsChanged(): void;
+  connectionUnavailable(): void;
+  dispose(): void;
+}>;
+
+export type CreateActiveThreadSessionInput = Readonly<{
+  authorizationSession: ActiveThreadAuthorizationSession;
+  commands: ActiveThreadSessionCommands;
+  dispatch: AppDispatch;
+  scheduler: ActiveThreadSessionScheduler;
+}>;
+
+type ActiveThreadNotification =
+  | Readonly<{ type: "event"; notification: ThreadProjectionEventNotification }>
+  | Readonly<{ type: "delta"; notification: ThreadProjectionDeltaNotification }>
+  | Readonly<{ type: "closed"; notification: ThreadProjectionClosedNotification }>;
+
+type ActivationCandidate = {
+  generation: number;
+  threadId: string;
+  subscriptionId: string | null;
+  attachedThreadId: string | null;
+  notifications: ActiveThreadNotification[];
+  replayedNotificationCount: number;
+  liveSession: LiveActiveThreadSession | null;
+  dispatchAdapter: CandidateDispatchAdapter;
+};
+
+class CandidateDispatchAdapter {
+  private readonly stagedActions: UnknownAction[] = [];
+  private activeDispatch: AppDispatch | null = null;
+  private aborted = false;
+
+  readonly dispatch = ((action: UnknownAction) => {
+    if (this.activeDispatch != null) return this.activeDispatch(action);
+    if (!this.aborted) this.stagedActions.push(action);
+    return action;
+  }) as AppDispatch;
+
+  flush(dispatch: AppDispatch): void {
+    if (this.activeDispatch != null || this.aborted) {
+      throw new Error("Candidate dispatch is unavailable");
+    }
+    for (const action of this.stagedActions) dispatch(action);
+  }
+
+  activate(dispatch: AppDispatch): void {
+    if (this.activeDispatch != null || this.aborted) {
+      throw new Error("Candidate dispatch is unavailable");
+    }
+    this.activeDispatch = dispatch;
+    this.stagedActions.length = 0;
+  }
+
+  abort(): void {
+    if (this.activeDispatch != null) return;
+    this.aborted = true;
+    this.stagedActions.length = 0;
+  }
+}
+
+class ActiveThreadSessionImpl implements ActiveThreadSessionController {
+  readonly session: ActiveThreadSession;
+  private readonly authorizationSession: ActiveThreadAuthorizationSession;
+  private readonly commands: ActiveThreadSessionCommands;
+  private readonly dispatch: AppDispatch;
+  private readonly scheduler: ActiveThreadSessionScheduler;
+  private readonly listeners = new Set<() => void>();
+  private current: LiveActiveThreadSession | null = null;
+  private currentRoles: ActiveThreadSessionRoles | null = null;
+  private currentSnapshotCache: Readonly<{
+    liveSession: LiveActiveThreadSession;
+    source: ReturnType<LiveActiveThreadSession["getSnapshot"]>;
+    roles: ActiveThreadSessionRoles;
+    snapshot: ActiveThreadSessionSnapshot;
+  }> | null = null;
+  private unsubscribeCurrent: (() => void) | null = null;
+  private candidate: ActivationCandidate | null = null;
+  private pendingProjectionFrame: Readonly<{
+    liveSession: LiveActiveThreadSession;
+    frameId: number;
+  }> | null = null;
+  private snapshot: ActiveThreadSessionSnapshot = { phase: "empty", revision: 0 };
+  private generation = 0;
+  private busy = false;
+  private suppressCurrentPublication = false;
+  private disposed = false;
+
+  constructor({
+    authorizationSession,
+    commands,
+    dispatch,
+    scheduler,
+  }: CreateActiveThreadSessionInput) {
+    this.authorizationSession = authorizationSession;
+    this.commands = commands;
+    this.dispatch = dispatch;
+    this.scheduler = scheduler;
+    this.session = {
+      getSnapshot: this.getSnapshot,
+      subscribe: this.subscribe,
+      activate: this.activate,
+    };
+  }
+
+  private readonly getSnapshot = (): ActiveThreadSessionSnapshot => this.snapshot;
+
+  private readonly subscribe = (listener: () => void): (() => void) => {
+    if (this.disposed) return () => undefined;
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+
+  activateRecoveryThread = (): Promise<ActiveThreadActivationOutcome> => {
+    const threadId = this.authorizationSession.getSnapshot().activeThreadId;
+    if (this.disposed)
+      return Promise.resolve(this.connectionFailure(threadId, "beforeCommit", null));
+    return threadId == null ? Promise.resolve({ type: "empty" }) : this.activate(threadId);
+  };
+
+  private readonly activate = async (threadId: string): Promise<ActiveThreadActivationOutcome> => {
+    const previous = this.current;
+    const previousSnapshot = previous?.getSnapshot() ?? null;
+    if (this.disposed) return this.connectionFailure(threadId, "beforeCommit", null);
+    if (
+      previousSnapshot != null &&
+      previousSnapshot.phase !== "disposed" &&
+      previousSnapshot.threadId === threadId
+    ) {
+      return { type: "ready", threadId, warnings: [] };
+    }
+    if (this.busy) return { type: "unavailable", failure: { type: "switchInProgress" } };
+
+    this.busy = true;
+    const candidate: ActivationCandidate = {
+      generation: ++this.generation,
+      threadId,
+      subscriptionId: null,
+      attachedThreadId: null,
+      notifications: [],
+      replayedNotificationCount: 0,
+      liveSession: null,
+      dispatchAdapter: new CandidateDispatchAdapter(),
+    };
+    this.candidate = candidate;
+    const previousRevision = previousSnapshot?.revision ?? this.snapshot.revision;
+
+    if (previous != null) {
+      let resumedThreadId: string;
+      try {
+        const response = await this.commands.resumeThread({ threadId });
+        resumedThreadId = response.thread.id;
+        if (resumedThreadId !== threadId) {
+          throw new Error("thread/resume returned a different thread identity");
+        }
+      } catch (error: unknown) {
+        return this.finishUncommitted(candidate, {
+          type: "operationFailed",
+          phase: "resume",
+          error,
+        });
+      }
+      if (!this.isCurrentCandidate(candidate)) {
+        return this.finishUncommitted(candidate, { type: "connectionLost" });
+      }
+    }
+
+    let attachResponse: ThreadProjectionAttachResponse;
+    try {
+      attachResponse = await this.commands.attachThreadProjection({ threadId });
+      candidate.attachedThreadId = threadId;
+      candidate.subscriptionId = attachResponse.subscriptionId;
+      if (attachResponse.snapshot.thread.id !== threadId) {
+        throw new Error("thread/projection/attach returned a different thread identity");
+      }
+    } catch (error: unknown) {
+      return this.finishUncommitted(candidate, {
+        type: "operationFailed",
+        phase: "attach",
+        error,
+      });
+    }
+    if (!this.isCurrentCandidate(candidate)) {
+      return this.finishUncommitted(candidate, { type: "connectionLost" });
+    }
+
+    try {
+      const projection = createActiveThreadProjection({ threadId, attachResponse });
+      for (const input of candidate.notifications) {
+        const outcome = applyProjectionNotification(projection, input);
+        if (outcome.type === "projectionUnavailable") {
+          throw new Error("Candidate projection became unavailable before publication");
+        }
+        candidate.replayedNotificationCount += 1;
+      }
+      candidate.liveSession = createLiveActiveThreadSession({
+        sessionRevision: previousRevision + 1,
+        attachResponse,
+        projection,
+        commands: this.commands,
+        dispatch: candidate.dispatchAdapter.dispatch,
+      } satisfies CreateLiveActiveThreadSessionInput);
+    } catch (error: unknown) {
+      return this.finishUncommitted(candidate, {
+        type: "operationFailed",
+        phase: "prepare",
+        error,
+      });
+    }
+
+    const changed = this.currentRevisionChanged(previous, previousRevision, candidate);
+    if (changed != null) {
+      return this.finishUncommitted(candidate, changed);
+    }
+
+    let releaseReservation:
+      | Extract<
+          ReturnType<LiveActiveThreadSession["reserveRelease"]>,
+          { type: "reserved" }
+        >["reservation"]
+      | null = null;
+    if (previous != null) {
+      this.suppressCurrentPublication = true;
+      const release = previous.reserveRelease(previousRevision);
+      if (release.type === "unavailable") {
+        this.suppressCurrentPublication = false;
+        return this.finishUncommitted(candidate, this.currentChangedFailure(previousRevision));
+      }
+      if (release.type === "blocked") {
+        this.suppressCurrentPublication = false;
+        return this.finishUncommitted(candidate, {
+          type: "currentThreadUnresolved",
+          activeThreadId:
+            previousSnapshot?.phase === "disposed"
+              ? threadId
+              : (previousSnapshot?.threadId ?? threadId),
+          blockers: release.blockers,
+        });
+      }
+      releaseReservation = release.reservation;
+    }
+
+    if (
+      !this.isCurrentCandidate(candidate) ||
+      candidate.notifications.length !== candidate.replayedNotificationCount
+    ) {
+      this.suppressCurrentPublication = false;
+      return this.finishUncommitted(
+        candidate,
+        this.currentChangedFailure(previousRevision),
+        releaseReservation,
+      );
+    }
+
+    try {
+      candidate.dispatchAdapter.flush(this.dispatch);
+    } catch (error: unknown) {
+      this.suppressCurrentPublication = false;
+      return this.finishUncommitted(
+        candidate,
+        { type: "operationFailed", phase: "activate", error },
+        releaseReservation,
+      );
+    }
+
+    if (releaseReservation != null) {
+      const handoffCommit = releaseReservation.commit();
+      if (handoffCommit.type !== "committed") {
+        this.suppressCurrentPublication = false;
+        return this.finishUncommitted(
+          candidate,
+          handoffCommit.reason === "disposed" || !this.isAttemptLive(candidate.generation)
+            ? { type: "connectionLost" }
+            : this.currentChangedFailure(previousRevision),
+          releaseReservation,
+        );
+      }
+    }
+
+    if (!this.isCurrentCandidate(candidate)) {
+      this.suppressCurrentPublication = false;
+      return this.finishUncommitted(candidate, { type: "connectionLost" });
+    }
+    candidate.dispatchAdapter.activate(this.dispatch);
+
+    const next = candidate.liveSession;
+    this.cancelPendingProjectionFrame();
+    this.unsubscribeCurrent?.();
+    this.unsubscribeCurrent = null;
+    this.current = next;
+    this.currentRoles = createSessionRoles(next);
+    candidate.liveSession = null;
+    this.candidate = null;
+    this.suppressCurrentPublication = false;
+    this.unsubscribeCurrent = next.subscribe(this.handleCurrentPublication);
+    this.snapshot = this.availableSnapshot(next, this.currentRoles);
+    this.notifyListeners();
+
+    const warnings: ActiveThreadActivationWarning[] = [];
+    try {
+      this.authorizationSession.commitActiveThread(threadId);
+    } catch (error: unknown) {
+      warnings.push({ type: "authorizationPersistenceFailed", error });
+    }
+
+    let cleanupError: unknown = null;
+    if (previous != null) {
+      try {
+        previous.dispose();
+      } catch (error: unknown) {
+        cleanupError = appendError(cleanupError, error);
+      }
+      try {
+        await this.commands.detachThreadProjection({
+          threadId:
+            previousSnapshot?.phase === "disposed"
+              ? threadId
+              : (previousSnapshot?.threadId ?? threadId),
+        });
+      } catch (error: unknown) {
+        cleanupError = appendError(cleanupError, error);
+      }
+    }
+    this.busy = false;
+
+    if (!this.isAttemptLive(candidate.generation)) {
+      return this.connectionFailure(threadId, "afterCommit", cleanupError);
+    }
+    if (cleanupError != null) {
+      warnings.push({ type: "previousOwnerCleanupFailed", error: cleanupError });
+    }
+    return { type: "ready", threadId, warnings };
+  };
+
+  handleProjectionEvent = (notification: ThreadProjectionEventNotification): void => {
+    this.routeNotification({ type: "event", notification });
+  };
+
+  handleProjectionDelta = (notification: ThreadProjectionDeltaNotification): void => {
+    const owner = this.routeNotification({ type: "delta", notification });
+    if (owner === this.current && owner != null) this.scheduleProjectionFlush(owner);
+  };
+
+  handleProjectionClosed = (notification: ThreadProjectionClosedNotification): void => {
+    this.cancelProjectionFrameForCurrent();
+    this.routeNotification({ type: "closed", notification });
+  };
+
+  handleSkillsChanged = (): void => {
+    const current = this.current;
+    if (current == null) return;
+    current.invalidateSkills(current.getSnapshot().revision);
+  };
+
+  connectionUnavailable = (): void => {
+    this.disposeSession();
+  };
+
+  dispose = (): void => {
+    this.disposeSession();
+  };
+
+  private readonly handleCurrentPublication = (): void => {
+    if (this.disposed || this.suppressCurrentPublication || this.current == null) return;
+    if (this.currentRoles == null) return;
+    this.snapshot = this.availableSnapshot(this.current, this.currentRoles);
+    this.notifyListeners();
+  };
+
+  private routeNotification(input: ActiveThreadNotification): LiveActiveThreadSession | null {
+    if (this.disposed) return null;
+    const identity = input.notification;
+    const candidate = this.candidate;
+    if (candidate?.threadId === identity.threadId) {
+      if (
+        candidate.subscriptionId == null ||
+        identity.subscriptionId === candidate.subscriptionId
+      ) {
+        candidate.notifications.push(input);
+      }
+      return null;
+    }
+    const current = this.current;
+    const snapshot = current?.getSnapshot();
+    if (
+      current == null ||
+      snapshot == null ||
+      snapshot.phase === "disposed" ||
+      identity.threadId !== snapshot.threadId ||
+      identity.subscriptionId !== snapshot.subscriptionId
+    ) {
+      return null;
+    }
+    if (input.type !== "delta") this.cancelProjectionFrameForCurrent();
+    applyLiveNotification(current, input);
+    return current;
+  }
+
+  private scheduleProjectionFlush(liveSession: LiveActiveThreadSession): void {
+    if (this.pendingProjectionFrame != null) return;
+    const frameId = this.scheduler.requestFrame(() => {
+      if (this.pendingProjectionFrame?.liveSession !== liveSession) return;
+      this.pendingProjectionFrame = null;
+      if (!this.disposed && this.current === liveSession) liveSession.flushProjection();
+    });
+    this.pendingProjectionFrame = { liveSession, frameId };
+  }
+
+  private cancelProjectionFrameForCurrent(): void {
+    if (this.pendingProjectionFrame?.liveSession === this.current)
+      this.cancelPendingProjectionFrame();
+  }
+
+  private cancelPendingProjectionFrame(): void {
+    const pending = this.pendingProjectionFrame;
+    if (pending == null) return;
+    this.pendingProjectionFrame = null;
+    this.scheduler.cancelFrame(pending.frameId);
+  }
+
+  private currentRevisionChanged(
+    previous: LiveActiveThreadSession | null,
+    previousRevision: number,
+    candidate: ActivationCandidate,
+  ): Extract<ActiveThreadActivationFailure, { type: "currentThreadChanged" }> | null {
+    if (
+      !this.isCurrentCandidate(candidate) ||
+      this.current !== previous ||
+      candidate.notifications.length !== candidate.replayedNotificationCount ||
+      (previous != null && previous.getSnapshot().revision !== previousRevision)
+    ) {
+      return this.currentChangedFailure(previousRevision);
+    }
+    return null;
+  }
+
+  private currentChangedFailure(
+    expectedRevision: number,
+  ): Extract<ActiveThreadActivationFailure, { type: "currentThreadChanged" }> {
+    const snapshot = this.current?.getSnapshot();
+    return {
+      type: "currentThreadChanged",
+      activeThreadId: snapshot == null || snapshot.phase === "disposed" ? null : snapshot.threadId,
+      expectedRevision,
+      actualRevision: snapshot?.revision ?? this.snapshot.revision,
+    };
+  }
+
+  private async finishUncommitted(
+    candidate: ActivationCandidate,
+    failure: ActiveThreadActivationFailureBeforeCleanup,
+    releaseReservation:
+      | Extract<
+          ReturnType<LiveActiveThreadSession["reserveRelease"]>,
+          { type: "reserved" }
+        >["reservation"]
+      | null = null,
+  ): Promise<ActiveThreadActivationOutcome> {
+    let cleanupError: unknown = null;
+    candidate.dispatchAdapter.abort();
+    try {
+      candidate.liveSession?.dispose();
+    } catch (error: unknown) {
+      cleanupError = appendError(cleanupError, error);
+    }
+    try {
+      releaseReservation?.release();
+    } catch (error: unknown) {
+      cleanupError = appendError(cleanupError, error);
+    }
+    if (candidate.attachedThreadId != null) {
+      try {
+        await this.commands.detachThreadProjection({ threadId: candidate.attachedThreadId });
+      } catch (error: unknown) {
+        cleanupError = appendError(cleanupError, error);
+      }
+    }
+    if (this.candidate === candidate) this.candidate = null;
+    this.suppressCurrentPublication = false;
+    this.busy = false;
+    if (this.current != null && !this.disposed) {
+      const previousSnapshot = this.snapshot;
+      if (this.currentRoles == null) {
+        throw new Error("Current active thread session roles are unavailable");
+      }
+      this.snapshot = this.availableSnapshot(this.current, this.currentRoles);
+      if (this.snapshot !== previousSnapshot) {
+        this.notifyListeners();
+      }
+    }
+    if (failure.type === "connectionLost" || !this.isAttemptLive(candidate.generation)) {
+      return this.connectionFailure(candidate.threadId, "beforeCommit", cleanupError);
+    }
+    if (failure.type === "operationFailed") {
+      return { type: "unavailable", failure: { ...failure, cleanupError } };
+    }
+    return { type: "unavailable", failure };
+  }
+
+  private connectionFailure(
+    threadId: string | null,
+    progress: "beforeCommit" | "afterCommit",
+    cleanupError: unknown,
+  ): ActiveThreadActivationOutcome {
+    return {
+      type: "unavailable",
+      failure: { type: "connectionLost", progress, threadId, cleanupError },
+    };
+  }
+
+  private isCurrentCandidate(candidate: ActivationCandidate): boolean {
+    return this.candidate === candidate && this.isAttemptLive(candidate.generation);
+  }
+
+  private isAttemptLive(generation: number): boolean {
+    return !this.disposed && generation === this.generation;
+  }
+
+  private availableSnapshot(
+    liveSession: LiveActiveThreadSession,
+    roles: ActiveThreadSessionRoles,
+  ): ActiveThreadSessionSnapshot {
+    const source = liveSession.getSnapshot();
+    const cached = this.currentSnapshotCache;
+    if (cached?.liveSession === liveSession && cached.source === source && cached.roles === roles) {
+      return cached.snapshot;
+    }
+    const snapshot: ActiveThreadSessionSnapshot =
+      source.phase === "disposed"
+        ? { phase: "disposed", revision: source.revision }
+        : { ...source, ...roles };
+    this.currentSnapshotCache = { liveSession, source, roles, snapshot };
+    return snapshot;
+  }
+
+  private disposeSession(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.busy = false;
+    this.generation += 1;
+    this.cancelPendingProjectionFrame();
+    this.unsubscribeCurrent?.();
+    this.unsubscribeCurrent = null;
+    const revision = this.current?.getSnapshot().revision ?? this.snapshot.revision;
+    this.candidate?.dispatchAdapter.abort();
+    try {
+      this.candidate?.liveSession?.dispose();
+    } finally {
+      this.current?.dispose();
+    }
+    this.candidate = null;
+    this.current = null;
+    this.currentRoles = null;
+    this.currentSnapshotCache = null;
+    this.snapshot = { phase: "disposed", revision: revision + 1 };
+    this.notifyListeners();
+    this.listeners.clear();
+  }
+
+  private notifyListeners(): void {
+    for (const listener of this.listeners) listener();
+  }
+}
+
+function createSessionRoles(liveSession: LiveActiveThreadSession): ActiveThreadSessionRoles {
+  return {
+    composerRole: {
+      beginPendingInputEdit: liveSession.beginPendingInputEdit,
+      deletePendingInput: liveSession.deletePendingInput,
+      interruptActiveTurn: liveSession.interruptActiveTurn,
+      movePendingInput: liveSession.movePendingInput,
+      promoteOrdinaryFrontToSteer: liveSession.promoteOrdinaryFrontToSteer,
+      readPendingInputDetail: liveSession.readPendingInputDetail,
+      readPendingInputPage: liveSession.readPendingInputPage,
+      recover: liveSession.recover,
+      submit: liveSession.submit,
+      submitSteer: liveSession.submitSteer,
+    },
+    skillsRole: {
+      invalidateSkills: liveSession.invalidateSkills,
+      refreshSkills: liveSession.refreshSkills,
+      retrySkills: liveSession.retrySkills,
+    },
+  };
+}
+
+function applyProjectionNotification(
+  projection: ReturnType<typeof createActiveThreadProjection>,
+  input: ActiveThreadNotification,
+) {
+  switch (input.type) {
+    case "event":
+      return projection.handleEvent(input.notification);
+    case "delta":
+      return projection.handleDelta(input.notification);
+    case "closed":
+      return projection.handleClosed(input.notification);
+  }
+}
+
+function applyLiveNotification(
+  liveSession: LiveActiveThreadSession,
+  input: ActiveThreadNotification,
+): void {
+  switch (input.type) {
+    case "event":
+      liveSession.handleProjectionEvent(input.notification);
+      return;
+    case "delta":
+      liveSession.handleProjectionDelta(input.notification);
+      return;
+    case "closed":
+      liveSession.handleProjectionClosed(input.notification);
+  }
+}
+
+function appendError(current: unknown, error: unknown): unknown {
+  if (error == null) return current;
+  if (current == null) return error;
+  return new AggregateError([current, error], "Multiple active thread activation errors");
+}
+
+export function createActiveThreadSession(
+  input: CreateActiveThreadSessionInput,
+): ActiveThreadSessionController {
+  return new ActiveThreadSessionImpl(input);
+}

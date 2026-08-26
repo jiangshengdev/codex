@@ -1,32 +1,25 @@
-import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
-import { createStoreHook } from "react-redux";
+import { useEffect, useRef } from "react";
 import { useAppDispatch } from "@/app/hooks";
-import type { AppStore } from "@/app/store";
-import type { ContinueThread } from "@/features/appShell/AppCapabilities";
+import {
+  createActiveThreadSession,
+  type ActiveThreadActivationFailure,
+  type ActiveThreadActivationOutcome,
+  type ActiveThreadActivationWarning,
+  type ActiveThreadSession,
+  type ActiveThreadSessionController,
+} from "@/features/activeThreadSession/activeThreadSession";
 import { consumeBrowserAuthorizationSession } from "@/features/browserLaunch/browserAuthorizationSession";
 import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostCommands, GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { startGuiHostConnection } from "@/features/guiHost/guiHostClient";
-import {
-  RouteConnectionStartupCoordinator,
-  type RouteConnectionStartupOutcome,
-} from "@/features/appShell/routeConnectionStartupCoordinator";
-import {
-  ThreadSwitchCoordinator,
-  type ActiveOwnerPublicationReceipt,
-} from "@/features/projectionCoordination/threadSwitchCoordinator";
-import type { ActiveThreadOwnerHandle } from "@/features/projectionCoordination/activeThreadOwner";
-
-const useAppStore = createStoreHook().withTypes<AppStore>();
 
 export type GuiHostConnectionBridgeProps = {
   setStatus: (status: GuiHostStatus) => void;
   setCommands: (commands: GuiHostCommands | null) => void;
   startupTarget: GuiRouteTarget;
   setAuthorizationToken: (token: string | null) => void;
-  setStartupOutcome: (outcome: RouteConnectionStartupOutcome | null) => void;
-  setActiveOwner: (activeOwner: ActiveThreadOwnerHandle | null) => void;
-  setContinueThread: Dispatch<SetStateAction<ContinueThread | null>>;
+  setActiveThreadSession: (session: ActiveThreadSession | null) => void;
+  setActiveThreadStartupError: (error: string | null) => void;
 };
 
 export function GuiHostConnectionBridge({
@@ -34,26 +27,17 @@ export function GuiHostConnectionBridge({
   setCommands,
   startupTarget,
   setAuthorizationToken,
-  setStartupOutcome,
-  setActiveOwner,
-  setContinueThread,
+  setActiveThreadSession,
+  setActiveThreadStartupError,
 }: GuiHostConnectionBridgeProps) {
   const dispatch = useAppDispatch();
-  const appStore = useAppStore();
   const frozenStartupTarget = useRef(startupTarget);
 
   useEffect(() => {
     let isMounted = true;
     let cleanupConnection: (() => void) | undefined;
-    let startupCoordinator: RouteConnectionStartupCoordinator | null = null;
-    let switchCoordinator: ThreadSwitchCoordinator | null = null;
-    let notificationCoordinator:
-      | RouteConnectionStartupCoordinator
-      | ThreadSwitchCoordinator
-      | null = null;
-    let currentActiveOwner: ActiveThreadOwnerHandle | null = null;
-    let startupOwnsActiveOwner = true;
-    let startupGeneration = 0;
+    let activeThreadController: ActiveThreadSessionController | null = null;
+    let activationGeneration = 0;
     const scheduler = {
       requestFrame: (callback: () => void) => window.requestAnimationFrame(callback),
       cancelFrame: (frameId: number) => {
@@ -75,46 +59,16 @@ export function GuiHostConnectionBridge({
       return () => {
         isMounted = false;
         setAuthorizationToken(null);
+        setActiveThreadSession(null);
+        setActiveThreadStartupError(null);
       };
     }
     setAuthorizationToken(authorizationSession.getSnapshot().token);
-    const setCurrentActiveOwner = (activeOwner: ActiveThreadOwnerHandle | null): void => {
-      currentActiveOwner = activeOwner;
-      setActiveOwner(activeOwner);
-    };
-    const publishActiveOwner = (
-      activeOwner: ActiveThreadOwnerHandle,
-    ): ActiveOwnerPublicationReceipt => {
-      setCurrentActiveOwner(activeOwner);
-      try {
-        authorizationSession.commitActiveThread(activeOwner.threadId);
-        return { ownerPublished: true, authorizationPersistenceError: null };
-      } catch (error: unknown) {
-        return { ownerPublished: true, authorizationPersistenceError: error };
-      }
-    };
-    const disposeOwnerCoordinator = (): void => {
-      const currentSwitchCoordinator = switchCoordinator;
-      const currentStartupCoordinator = startupCoordinator;
-      const shouldDisposeStartup = startupOwnsActiveOwner;
-      switchCoordinator = null;
-      startupCoordinator = null;
-      notificationCoordinator = null;
-      startupOwnsActiveOwner = false;
-      if (currentSwitchCoordinator != null) {
-        currentSwitchCoordinator.dispose();
-      } else if (shouldDisposeStartup) {
-        currentStartupCoordinator?.dispose();
-      }
-    };
-    const invalidateCommandsAndOwner = (): void => {
-      startupGeneration += 1;
-      currentActiveOwner = null;
-      disposeOwnerCoordinator();
-      setCommands(null);
-      setStartupOutcome(null);
-      setCurrentActiveOwner(null);
-      setContinueThread(null);
+
+    const connectionUnavailable = (): void => {
+      activationGeneration += 1;
+      activeThreadController?.connectionUnavailable();
+      if (isMounted) setCommands(null);
     };
 
     try {
@@ -123,124 +77,127 @@ export function GuiHostConnectionBridge({
         token: authorizationSession.getSnapshot().token,
         onStatus: setStatus,
         onProjectionEvent: (notification) => {
-          notificationCoordinator?.handleProjectionEvent(notification);
+          activeThreadController?.handleProjectionEvent(notification);
         },
         onProjectionDelta: (notification) => {
-          notificationCoordinator?.handleProjectionDelta(notification);
+          activeThreadController?.handleProjectionDelta(notification);
         },
         onProjectionClosed: (notification) => {
-          notificationCoordinator?.handleProjectionClosed(notification);
+          activeThreadController?.handleProjectionClosed(notification);
         },
         onSkillsChanged: () => {
-          currentActiveOwner?.skillCatalog.invalidate();
+          activeThreadController?.handleSkillsChanged();
         },
         onCommandsReady: (commands) => {
+          if (!isMounted) return;
           setCommands(commands);
-          const generation = ++startupGeneration;
-          const coordinator = new RouteConnectionStartupCoordinator({
-            target: frozenStartupTarget.current,
+          setActiveThreadStartupError(null);
+          const controller = createActiveThreadSession({
             authorizationSession,
             commands,
             dispatch,
             scheduler,
           });
-          startupCoordinator = coordinator;
-          notificationCoordinator = coordinator;
-          void coordinator.start().then((outcome) => {
+          activeThreadController = controller;
+          const generation = ++activationGeneration;
+          const target = frozenStartupTarget.current;
+          const activation =
+            target.type === "currentTask"
+              ? controller.session.activate(target.threadId)
+              : controller.activateRecoveryThread();
+          void activation.then((outcome) => {
             if (
               !isMounted ||
-              generation !== startupGeneration ||
-              startupCoordinator !== coordinator
+              activationGeneration !== generation ||
+              activeThreadController !== controller
             ) {
               return;
             }
-            setStartupOutcome(outcome);
-            if (outcome.type !== "ready") {
-              if (outcome.type === "failed") {
-                setStatus({ label: "error", message: startupFailureText(outcome) });
-              }
-              return;
-            }
-            const nextSwitchCoordinator = new ThreadSwitchCoordinator({
-              activeOwner: outcome.activeOwner,
-              commands,
-              dispatch,
-              readCommittedActiveThreadId: () => appStore.getState().threadIdentity.launchThreadId,
-              publishActiveOwner,
-              scheduler,
-            });
-            startupCoordinator = null;
-            switchCoordinator = nextSwitchCoordinator;
-            notificationCoordinator = nextSwitchCoordinator;
-            if (outcome.activeOwner != null) {
-              startupOwnsActiveOwner = false;
-              setCurrentActiveOwner(outcome.activeOwner);
-            }
-            setContinueThread(() => nextSwitchCoordinator.continueThread);
-            if (outcome.postCommitFailure != null) {
-              setStatus({
-                label: "error",
-                message: postCommitFailureText(outcome.postCommitFailure.failures),
-              });
-            }
+            setActiveThreadSession(controller.session);
+            const activationError = startupActivationError(outcome);
+            setActiveThreadStartupError(activationError);
+            const warning = activationWarning(outcome);
+            const statusError = activationError ?? warning;
+            if (statusError != null) setStatus({ label: "error", message: statusError });
           });
         },
-        onCommandsUnavailable: invalidateCommandsAndOwner,
+        onCommandsUnavailable: connectionUnavailable,
       });
     } catch (error: unknown) {
       queueMicrotask(() => {
-        if (!isMounted) {
-          return;
-        }
-
-        setCommands(null);
-        setStatus({
-          label: "error",
-          message: error instanceof Error ? error.message : String(error),
-        });
+        if (!isMounted) return;
+        connectionUnavailable();
+        setStatus({ label: "error", message: errorText(error) });
       });
     }
 
     return () => {
       isMounted = false;
-      invalidateCommandsAndOwner();
+      activationGeneration += 1;
+      activeThreadController?.dispose();
+      activeThreadController = null;
+      setCommands(null);
       setAuthorizationToken(null);
+      setActiveThreadSession(null);
+      setActiveThreadStartupError(null);
       cleanupConnection?.();
     };
   }, [
-    appStore,
     dispatch,
-    setActiveOwner,
+    setActiveThreadSession,
+    setActiveThreadStartupError,
     setAuthorizationToken,
     setCommands,
-    setContinueThread,
-    setStartupOutcome,
     setStatus,
   ]);
 
   return null;
 }
 
+function startupActivationError(outcome: ActiveThreadActivationOutcome): string | null {
+  switch (outcome.type) {
+    case "empty":
+    case "ready":
+      return null;
+    case "unavailable":
+      return activationFailureText(outcome.failure);
+  }
+}
+
+function activationWarning(outcome: ActiveThreadActivationOutcome): string | null {
+  if (outcome.type !== "ready" || outcome.warnings.length === 0) return null;
+  return outcome.warnings.map(activationWarningText).join("; ");
+}
+
+function activationWarningText(warning: ActiveThreadActivationWarning): string {
+  switch (warning.type) {
+    case "authorizationPersistenceFailed":
+      return `authorizationSession: ${errorText(warning.error)}`;
+    case "previousOwnerCleanupFailed":
+      return `previousOwnerCleanup: ${errorText(warning.error)}`;
+  }
+}
+
+function activationFailureText(failure: ActiveThreadActivationFailure): string {
+  switch (failure.type) {
+    case "switchInProgress":
+      return "Active thread activation is already in progress";
+    case "currentThreadChanged":
+      return `Active thread changed during activation (expected revision ${String(failure.expectedRevision)}, actual revision ${String(failure.actualRevision)})`;
+    case "currentThreadUnresolved":
+      return `Active thread could not be released: ${failure.blockers.map(({ type }) => type).join(", ")}`;
+    case "connectionLost":
+      return "GUI host connection was lost during active thread activation";
+    case "operationFailed": {
+      const failures = [`${failure.phase}: ${errorText(failure.error)}`];
+      if (failure.cleanupError != null) {
+        failures.push(`cleanup: ${errorText(failure.cleanupError)}`);
+      }
+      return failures.join("; ");
+    }
+  }
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function startupFailureText(
-  outcome: Extract<RouteConnectionStartupOutcome, { type: "failed" }>,
-): string {
-  const failures = [`${outcome.phase}: ${errorText(outcome.error)}`];
-  if (outcome.cleanupFailure != null) {
-    failures.push(
-      `${outcome.cleanupFailure.phase} (${outcome.cleanupFailure.threadId}): ${errorText(outcome.cleanupFailure.error)}`,
-    );
-  }
-  return failures.join("; ");
-}
-
-function postCommitFailureText(
-  failures: NonNullable<
-    Extract<RouteConnectionStartupOutcome, { type: "ready" }>["postCommitFailure"]
-  >["failures"],
-): string {
-  return failures.map((failure) => `${failure.phase}: ${errorText(failure.error)}`).join("; ");
 }

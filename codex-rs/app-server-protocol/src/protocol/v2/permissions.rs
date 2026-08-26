@@ -419,6 +419,10 @@ pub struct PermissionProfileListResponse {
     pub data: Vec<PermissionProfileSummary>,
     /// Opaque cursor to pass to the next call to continue after the last item.
     /// If None, there are no more items to return.
+    #[schemars(
+        required,
+        schema_with = "crate::protocol::serde_helpers::nullable_string_schema"
+    )]
     pub next_cursor: Option<String>,
 }
 

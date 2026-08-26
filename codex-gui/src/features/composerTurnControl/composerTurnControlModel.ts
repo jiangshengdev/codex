@@ -1,36 +1,15 @@
-import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import type { ThreadRuntimeSubscription } from "@/features/threadRuntime/threadRuntimeSlice";
-
-export type ComposerAvailabilityInput = {
-  canAdvanceThreadIdentity: boolean;
-  guiHostStatus: GuiHostStatus;
-  threadId: string | null;
-  subscriptionState: ThreadRuntimeSubscription["state"] | null;
-};
-
-export function isConnectionUsable(input: ComposerAvailabilityInput): boolean {
-  return (
-    input.canAdvanceThreadIdentity &&
-    input.threadId != null &&
-    input.subscriptionState === "active" &&
-    input.guiHostStatus.label !== "error" &&
-    input.guiHostStatus.label !== "closed"
-  );
-}
 
 export function canSend(input: {
-  connectionUsable: boolean;
-  controllerReady: boolean;
+  operationsEnabled: boolean;
   draftText: string;
   isSending: boolean;
   recoveryCount: number;
   selectedSkillsValid: boolean;
 }): boolean {
   return (
-    input.connectionUsable &&
-    input.controllerReady &&
+    input.operationsEnabled &&
     input.draftText.trim().length > 0 &&
     !input.isSending &&
     input.recoveryCount === 0 &&
@@ -46,16 +25,15 @@ export type ComposerGuideControlState = Readonly<{
 
 export function composerGuideControlState(input: {
   activeTurnId: string | null;
-  connectionUsable: boolean;
-  controllerMatchesCurrentThread: boolean;
+  operationsEnabled: boolean;
   draftText: string;
   isSending: boolean;
   recoveryCount: number;
   selectedSkillsValid: boolean;
 }): ComposerGuideControlState {
-  const visible = input.activeTurnId != null && input.controllerMatchesCurrentThread;
+  const visible = input.activeTurnId != null;
   const operationEnabled =
-    visible && input.connectionUsable && !input.isSending && input.recoveryCount === 0;
+    visible && input.operationsEnabled && !input.isSending && input.recoveryCount === 0;
   const hasDraft = input.draftText.trim().length > 0;
   return {
     visible,
@@ -85,17 +63,11 @@ export function invalidSelectedSkillPaths(
 }
 
 export function canRecoverComposerQueue(input: {
-  connectionUsable: boolean;
-  controllerReady: boolean;
+  operationsEnabled: boolean;
   recoveryCount: number;
   isRecovering: boolean;
 }): boolean {
-  return (
-    input.connectionUsable &&
-    input.controllerReady &&
-    input.recoveryCount > 0 &&
-    !input.isRecovering
-  );
+  return input.operationsEnabled && input.recoveryCount > 0 && !input.isRecovering;
 }
 
 type ComposerInterruptPhase = NonNullable<
@@ -109,19 +81,16 @@ type ComposerStopControlState = Readonly<{
 }>;
 
 export function composerStopControlState(input: {
-  connectionUsable: boolean;
-  controllerMatchesCurrentThread: boolean;
+  operationsEnabled: boolean;
   interruptPhase: ComposerInterruptPhase | null;
   queueCanStop: boolean;
 }): ComposerStopControlState {
   return {
-    enabled: input.connectionUsable && input.controllerMatchesCurrentThread && input.queueCanStop,
-    failed:
-      input.controllerMatchesCurrentThread && input.interruptPhase === "definitelyNotAccepted",
+    enabled: input.operationsEnabled && input.queueCanStop,
+    failed: input.interruptPhase === "definitelyNotAccepted",
     pending:
-      input.controllerMatchesCurrentThread &&
-      (input.interruptPhase === "issuing" ||
-        input.interruptPhase === "accepted" ||
-        input.interruptPhase === "unknown"),
+      input.interruptPhase === "issuing" ||
+      input.interruptPhase === "accepted" ||
+      input.interruptPhase === "unknown",
   };
 }

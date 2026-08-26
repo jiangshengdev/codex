@@ -1,31 +1,19 @@
 import path from "node:path";
-import { defineConfig, configDefaults, mergeConfig } from "vitest/config";
-import { playwright } from "@vitest/browser-playwright";
+import { configDefaults } from "vitest/config";
 import packageJson from "./package.json" with { type: "json" };
-import viteConfig from "./vite.config.ts";
+import { defineBrowserConfig } from "./vitest.browser.shared.config.js";
 
-const browserViteConfig = { ...viteConfig, server: {} };
-
-export default mergeConfig(
-  browserViteConfig,
-  defineConfig({
-    test: {
-      root: import.meta.dirname,
-      name: `${packageJson.name}-browser-parallel`,
-      include: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
-      exclude: [...configDefaults.exclude, "e2e/**", "src/__tests__/sequential/**"],
-      typecheck: {
-        enabled: true,
-        tsconfig: path.join(import.meta.dirname, "tsconfig.vitest.browser.json"),
-      },
-      watch: false,
-      browser: {
-        enabled: true,
-        headless: true,
-        provider: playwright(),
-        // https://vitest.dev/config/browser/playwright
-        instances: [{ browser: "chromium" }, { browser: "firefox" }, { browser: "webkit" }],
-      },
-    },
-  }),
-);
+export default defineBrowserConfig({
+  name: `${packageJson.name}-browser-parallel`,
+  include: ["src/**/*.browser.test.ts", "src/**/*.browser.test.tsx"],
+  exclude: [...configDefaults.exclude, "e2e/**", "src/__tests__/sequential/**"],
+  typecheck: {
+    enabled: true,
+    tsconfig: path.join(import.meta.dirname, "tsconfig.vitest.browser.json"),
+  },
+  browser: {
+    enabled: true,
+    // https://vitest.dev/config/browser/playwright
+    instances: [{ browser: "chromium" }, { browser: "firefox" }, { browser: "webkit" }],
+  },
+});

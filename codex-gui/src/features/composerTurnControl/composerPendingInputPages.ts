@@ -4,7 +4,7 @@ import type {
   ComposerPendingInputOwnerGoneResult,
   ComposerPendingInputPageItem,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
-import type { ComposerInputQueueCoordinator } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 
 export const COMPOSER_PENDING_INPUT_PAGE_SIZE = 20;
 
@@ -22,7 +22,7 @@ export type ComposerPendingInputPrefixes = Readonly<{
   steer: ComposerPendingInputLanePrefix;
 }>;
 
-type ComposerPendingInputPageReader = Pick<ComposerInputQueueCoordinator, "readPendingInputPage">;
+type ComposerPendingInputPageReader = Pick<ActiveThreadComposerRole, "readPendingInputPage">;
 
 export type ComposerPendingInputPrefixReadResult =
   | Readonly<{ type: "ready"; prefixes: ComposerPendingInputPrefixes }>

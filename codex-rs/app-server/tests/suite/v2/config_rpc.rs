@@ -1,3 +1,4 @@
+use anyhow::Context;
 use anyhow::Result;
 use app_test_support::TestAppServer;
 use app_test_support::test_path_buf_with_windows;
@@ -33,6 +34,7 @@ use codex_protocol::config_types::WebSearchToolConfig;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
+use serde_json::Value;
 use serde_json::json;
 use tempfile::TempDir;
 use tokio::time::timeout;
@@ -211,6 +213,58 @@ statusMessage = "Scanning file"
             },
         ]
     );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn config_read_layers_wire_contract() -> Result<()> {
+    let codex_home = TempDir::new()?;
+    let mut app_server = TestAppServer::builder()
+        .with_codex_home(codex_home.path())
+        .without_auto_env()
+        .build_initialized_with_timeout(DEFAULT_READ_TIMEOUT)
+        .await?;
+
+    let without_layers_id = app_server
+        .send_config_read_request(ConfigReadParams {
+            include_layers: false,
+            cwd: None,
+        })
+        .await?;
+    let without_layers = timeout(
+        DEFAULT_READ_TIMEOUT,
+        app_server.read_stream_until_response_message(RequestId::Integer(without_layers_id)),
+    )
+    .await??;
+    let without_layers = without_layers
+        .result
+        .as_object()
+        .context("config/read result should be an object")?;
+    assert!(
+        !without_layers.contains_key("layers"),
+        "includeLayers=false must omit the layers key"
+    );
+
+    let with_layers_id = app_server
+        .send_config_read_request(ConfigReadParams {
+            include_layers: true,
+            cwd: None,
+        })
+        .await?;
+    let with_layers = timeout(
+        DEFAULT_READ_TIMEOUT,
+        app_server.read_stream_until_response_message(RequestId::Integer(with_layers_id)),
+    )
+    .await??;
+    let with_layers = with_layers
+        .result
+        .as_object()
+        .context("config/read result should be an object")?;
+    with_layers
+        .get("layers")
+        .and_then(Value::as_array)
+        .context("includeLayers=true must return layers as an array")?;
+
     Ok(())
 }
 

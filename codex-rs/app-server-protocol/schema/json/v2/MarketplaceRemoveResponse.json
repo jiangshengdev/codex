@@ -22,6 +22,7 @@
     }
   },
   "required": [
+    "installedRoot",
     "marketplaceName"
   ],
   "title": "MarketplaceRemoveResponse",
