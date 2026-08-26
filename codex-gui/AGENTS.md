@@ -6,14 +6,15 @@
 - Do not run `just fmt` merely because the task changes another repository file. In particular, changes confined to frontend files under `codex-gui/**`, `docs/**`, Markdown files, or other paths not handled by `scripts/format.py` do not trigger it. Pure frontend formatting must use the applicable scripts defined in `codex-gui/package.json`.
 - If a task changes both unmanaged files and at least one `just fmt`-managed file, run `just fmt`. Treat the live `scripts/format.py` implementation as authoritative if its managed scope changes.
 - This rule explicitly overrides the repository-root `AGENTS.md` requirement to run `just fmt` after making code changes anywhere in the repository.
+- Before selecting a frontend formatter or verification entrypoint, trace the live CI and consumer chain and directly verify that it supports the target file type. Existing scripts, configuration, and history are evidence, not proof of authority; overlapping formatters must have one authoritative owner and must not impose conflicting gates.
 
-## GUI Module Size Override
+## Frontend Engineering Constraints
 
-- Within `codex-gui/**`, the repository-root guidance to target Rust modules under 500 LoC applies only to Rust code. Do not apply it to TypeScript, TSX, or JavaScript files.
-- The repository-root guidance that complex logic changes should stay under 500 changed lines is change-size review guidance. It is not a per-file LoC limit and must not be converted into a hard stop based on `wc -l`.
-- Do not add or enforce a GUI plan, completion criterion, or implementation gate that fails solely because a TypeScript, TSX, or JavaScript file reaches an exact line count such as 500. Any existing project work document that does so is overridden for files under `codex-gui/**`.
-- Do not impose per-file line-count limits on frontend test code anywhere in the workflow. This includes unit, Browser Mode, and end-to-end tests, files under `__tests__/**`, test fixtures, and test helpers. Do not split, compress, weaken, or remove test coverage merely to satisfy a file-length target.
-- Evaluate GUI module extraction using responsibilities, state ownership, coupling, function scope, testability, and reviewability. File length is only supporting evidence; it does not decide the result by itself.
+- Within `codex-gui/**`, Rust module LoC, changed lines, and TypeScript, TSX, or JavaScript file length measure different objects. Do not convert one into another or use any of them alone as a hard stop.
+- Evaluate frontend structure by responsibilities, state ownership, coupling, function scope, testability, and reviewability. A small public interface or short file does not justify concentrating multiple operations or state-transition families in one function, factory, or closure.
+- Do not split, compress, weaken, or remove frontend tests merely to satisfy a length signal. Add style tests only for stable, user-visible product constraints with a concrete regression risk.
+- Typed in-process boundaries should default to types, ownership, copying, and encapsulation. Runtime defense requires a documented actor, supported path, and failure impact that those boundaries cannot address; do not lock the defensive mechanism into tests unless runtime resistance is itself a product or security requirement.
+- When a metric, historical implementation, or claim that something is “safer” would determine stopping, splitting, defensive machinery, or test scope, use `$evaluating-engineering-constraints`.
 
 ## Authoritative Contract Invariants
 
@@ -33,18 +34,6 @@
 - For high-risk GUI changes, apply the general evidence-closure rules in `$managing-work-stages`; additionally trace real production and mount entrypoints, public and barrel exports, path aliases, dynamic registrations and their indirect consumers, DOM/ARIA selectors, test fixtures, Browser Mode and E2E verification, and applicable mount/unmount, reset, resume, reconnect, retry, rollback, and partial failure lifecycle and recovery paths.
 - For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the authoritative TypeScript contract, runtime validator, schema inputs, generated artifacts, and generated fixtures instead of inventing parallel frontend definitions.
 
-## Frontend State and Runtime Defense Invariants
-
-- Treat typed, in-process frontend modules as trusted TypeScript boundaries by default. Use `Readonly` to express non-mutating contracts and copy caller-owned inputs when alias isolation is required.
-- Do not add `Object.freeze`, deep-freeze utilities, proxies, runtime immutability wrappers, or equivalent defensive machinery unless a documented, realistic mutation path crosses an untrusted JavaScript or external boundary.
-- Do not freeze module-internal state, transition records, effects, or other newly allocated return values merely because they are conceptually immutable. Runtime hardening must address a concrete failure that `Readonly`, ownership, copying, or encapsulation cannot address.
-- Existing runtime immutability patterns are evidence to investigate, not precedent to copy. Before adding a runtime guard, identify who can trigger the guarded mutation through a supported path and what invariant would otherwise fail.
-- Do not assert `Object.isFrozen` or otherwise lock runtime immutability implementation details in tests unless runtime tamper resistance is an explicit product or security requirement.
-- A small public interface does not justify concentrating the implementation in one large factory or closure. Factories should construct instances, not contain an entire multi-operation state machine.
-- When one instance owns shared mutable state across multiple public operations, prefer a non-exported implementation class or explicit state-transition functions. Keep input validation, ownership transitions, fact classification/reconciliation, and effect construction in separately named methods or functions.
-- Review function scope independently from file size. A module remaining below its line limit does not excuse a function that accumulates many nested helpers, state owners, transition families, or unrelated responsibilities.
-- Use TypeScript `private` for ordinary in-process encapsulation. Add `#private` fields or runtime enforcement only when the same concrete threat-model test above demonstrates that compile-time privacy is insufficient.
-
 ## HeroUI Design System Invariants
 
 - UI design, implementation plans, and code changes in `codex-gui` should default to HeroUI v3 as the component system. Prefer `@heroui/react` components for interactive controls, overlays, feedback, layout primitives, and typography before creating custom HTML/CSS controls.
@@ -58,7 +47,7 @@
 - Transcript rendering must preserve chunk-level performance boundaries. Do not flatten all entries for a turn in render paths, selectors, or display grouping unless the design explicitly justifies the bounded cost.
 - UI-only features such as grouping, collapse, disclosure, or labels must not turn chunked transcript data back into full-turn arrays, and must not render every hidden entry while collapsed.
 - Prefer chunk-level selectors and chunk-level React components for transcript hot paths. Unchanged chunks should keep stable selector results and avoid re-rendering old entries when new entries append to later chunks.
-- Changes to transcript rendering or grouping must include regression coverage or an issue-note update that explains the performance impact.
+- Performance verification must target a measurable risk. Regression coverage should encode a stable constraint; the existence of a test or issue note does not by itself establish that the rendering path is performant.
 
 ## Test Fixture Invariants
 
