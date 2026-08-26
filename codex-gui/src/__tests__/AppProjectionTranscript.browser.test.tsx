@@ -676,62 +676,98 @@ test("App keeps the document pinned to the bottom after a live assistant delta",
 });
 
 test("App does not force the document to the bottom after a live assistant delta when the user scrolled up", async () => {
-  const screen = await renderWithProviders(<App />);
-  const options = getHostOptions(startGuiHostConnectionMock);
+  const nativeIntersectionObserverDescriptor = Object.getOwnPropertyDescriptor(
+    window,
+    "IntersectionObserver",
+  );
+  if (nativeIntersectionObserverDescriptor == null) {
+    throw new Error("window.IntersectionObserver descriptor must be available");
+  }
 
-  initializeAppWithProjection(
-    options,
-    attachWithTurns(attachResponse, [
-      baseTurn("turn-scroll-live-delta-away-history", [
-        agentMessage(
-          "agent-scroll-live-delta-away-existing",
-          longTranscriptText("Readable delta transcript"),
-        ),
+  const NativeIntersectionObserver = window.IntersectionObserver;
+  const delayedNonIntersectingCallbacks: (() => void)[] = [];
+
+  // IntersectionObserver notifications use a separate task source, so hold the non-intersecting
+  // callback to exercise that valid delayed schedule.
+  class DelayedNonIntersectingIntersectionObserver extends NativeIntersectionObserver {
+    constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      super((entries, observer) => {
+        if (entries.some((entry) => !entry.isIntersecting)) {
+          delayedNonIntersectingCallbacks.push(() => {
+            callback(entries, observer);
+          });
+          return;
+        }
+
+        callback(entries, observer);
+      }, options);
+    }
+  }
+
+  Object.defineProperty(window, "IntersectionObserver", {
+    ...nativeIntersectionObserverDescriptor,
+    value: DelayedNonIntersectingIntersectionObserver,
+  });
+
+  try {
+    const screen = await renderWithProviders(<App />);
+    const options = getHostOptions(startGuiHostConnectionMock);
+
+    initializeAppWithProjection(
+      options,
+      attachWithTurns(attachResponse, [
+        baseTurn("turn-scroll-live-delta-away-history", [
+          agentMessage(
+            "agent-scroll-live-delta-away-existing",
+            longTranscriptText("Readable delta transcript"),
+          ),
+        ]),
       ]),
-    ]),
-  );
-  await expect.element(screen.getByText("Readable delta transcript line 96")).toBeVisible();
+    );
+    await expect.element(screen.getByText("Readable delta transcript line 96")).toBeVisible();
 
-  const turnStartedEvent = turnStarted(
-    eventTurnStarted,
-    "commit-scroll-live-delta-away-turn",
-    inProgressTurn("turn-scroll-live-delta-away"),
-  );
-  const itemStartedEvent = eventWithEnvelope(
-    itemStarted(
-      eventItemStarted,
-      "commit-scroll-live-delta-away-started",
-      "turn-scroll-live-delta-away",
-      agentMessage("agent-scroll-live-delta-away", ""),
-    ),
-    { parentCommitId: turnStartedEvent.commitId },
-  );
+    const turnStartedEvent = turnStarted(
+      eventTurnStarted,
+      "commit-scroll-live-delta-away-turn",
+      inProgressTurn("turn-scroll-live-delta-away"),
+    );
+    const itemStartedEvent = eventWithEnvelope(
+      itemStarted(
+        eventItemStarted,
+        "commit-scroll-live-delta-away-started",
+        "turn-scroll-live-delta-away",
+        agentMessage("agent-scroll-live-delta-away", ""),
+      ),
+      { parentCommitId: turnStartedEvent.commitId },
+    );
 
-  emitProjectionEvent(options, eventWithEnvelope(turnStartedEvent, { parentCommitId: null }));
-  emitProjectionEvent(options, itemStartedEvent);
-  scrollToDocumentBottom();
-  await waitForBrowserFrame();
+    emitProjectionEvent(options, eventWithEnvelope(turnStartedEvent, { parentCommitId: null }));
+    emitProjectionEvent(options, itemStartedEvent);
+    scrollToDocumentBottom();
+    await waitForBrowserFrame();
 
-  const scroller = documentScroller();
-  scrollToDocumentTop();
-  await waitForBrowserFrame();
-  await waitForBrowserFrame();
-  const scrollTopBeforeDelta = scroller.scrollTop;
-  expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
+    const scroller = documentScroller();
+    scrollToDocumentTop();
+    const scrollTopBeforeDelta = scroller.scrollTop;
+    expect(distanceFromDocumentBottom()).toBeGreaterThan(40);
 
-  emitProjectionDelta(
-    options,
-    agentMessageDelta(
-      eventAgentMessageDelta,
-      "turn-scroll-live-delta-away",
-      "agent-scroll-live-delta-away",
-      longTranscriptText("Streaming while reading history"),
-    ),
-  );
-  await waitForBrowserFrame();
+    emitProjectionDelta(
+      options,
+      agentMessageDelta(
+        eventAgentMessageDelta,
+        "turn-scroll-live-delta-away",
+        "agent-scroll-live-delta-away",
+        longTranscriptText("Streaming while reading history"),
+      ),
+    );
+    await waitForBrowserFrame();
 
-  await expect.element(screen.getByText("Streaming while reading history line 96")).toBeVisible();
-  await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeDelta + 4);
+    await expect.element(screen.getByText("Streaming while reading history line 96")).toBeVisible();
+    await expectDocumentScrollStaysAwayFromBottom(scrollTopBeforeDelta + 4);
+  } finally {
+    delayedNonIntersectingCallbacks.length = 0;
+    Object.defineProperty(window, "IntersectionObserver", nativeIntersectionObserverDescriptor);
+  }
 });
 
 test("App rejects a startup attach that returns a different thread identity", async () => {
