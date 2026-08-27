@@ -34,6 +34,12 @@
 - For high-risk GUI changes, apply the general evidence-closure rules in `$managing-work-stages`; additionally trace real production and mount entrypoints, public and barrel exports, path aliases, dynamic registrations and their indirect consumers, DOM/ARIA selectors, test fixtures, Browser Mode and E2E verification, and applicable mount/unmount, reset, resume, reconnect, retry, rollback, and partial failure lifecycle and recovery paths.
 - For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the authoritative TypeScript contract, runtime validator, schema inputs, generated artifacts, and generated fixtures instead of inventing parallel frontend definitions.
 
+## Real GUI Acceptance
+
+- Require real GUI acceptance with `$debug-responsive-gui` when a change can affect user-visible layout or responsive geometry; overlays, opening direction, occlusion, clipping, or scrolling; pointer or keyboard interaction and focus flow; component visual states such as default, hover, disabled, invalid, or `focus-visible`; or integration behavior provable only against real Codex state.
+- Pure type changes, generated artifacts, invisible internal logic, and frontend changes with none of those effects do not trigger real GUI acceptance merely because they are under `codex-gui/**`.
+- Opening a page, preparing the browser environment, screenshots, DOM or event assertions, and automated test success do not substitute for acceptance of the affected real GUI scenarios. If all triggered scenarios have not passed, report `Real GUI not validated` and do not claim complete completion or verification.
+
 ## HeroUI Design System Invariants
 
 - UI design, implementation plans, and code changes in `codex-gui` should default to HeroUI v3 as the component system. Prefer `@heroui/react` components for interactive controls, overlays, feedback, layout primitives, and typography before creating custom HTML/CSS controls.
