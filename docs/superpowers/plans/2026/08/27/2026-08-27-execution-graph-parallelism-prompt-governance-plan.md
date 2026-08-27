@@ -2,7 +2,7 @@
 
 日期：2026-08-27
 
-状态：计划已落盘，待确认
+状态：计划已落盘，待重新确认
 
 设计依据：`docs/superpowers/specs/2026/08/27/2026-08-27-execution-graph-parallelism-prompt-governance-design.md`
 
@@ -18,10 +18,11 @@
 
 ## 当前基线与授权边界
 
-- 主仓库：`/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH`，`dev@01df60d6b5c0c9eb7e92590e83669689332e6182`；设计与本计划两份文档当前均已存在且未跟踪，没有其他已知变更。
-- 配置仓库：`/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config`，`main@90875016160bfb69cc5d1cb48c37f19bb134fcaf`；工作树干净。
-- `~/.codex/AGENTS.md` 直接链接到 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config/AGENTS.md`；两个 changed skill 目录也分别直接链接到 codex-config 源目录。修改规范 checkout 后会直接改变 live 规则，不需要同步或安装。
-- `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config/install.zsh` 会遍历全部 managed targets，且在不匹配时执行 backup-and-relink；本计划禁止运行它。
+- 主仓库：`/Users/jiangsheng/cnb/codex`，`dev@5d48d9a3eca54061a790060a5a18f79e9fe3d98d`；工作树在本次计划更新前干净，设计与原计划已由该 HEAD 的独立文档提交落盘。
+- 配置仓库：`/Users/jiangsheng/cnb/codex-config`，`main@0f6f434e826ca9cedf87928633ec7f79b6b16858`；工作树干净。
+- `~/.codex/AGENTS.md` 直接链接到 `/Users/jiangsheng/cnb/codex-config/AGENTS.md`；`~/.codex/skills/managing-work-stages` 与 `~/.codex/skills/delegating-micro-stages` 分别直接链接到 `/Users/jiangsheng/cnb/codex-config/skills/managing-work-stages` 与 `/Users/jiangsheng/cnb/codex-config/skills/delegating-micro-stages`。修改规范 checkout 后会直接改变 live 规则，不需要同步或安装。
+- `/Users/jiangsheng/cnb/codex-config/install.zsh` 会遍历全部 managed targets，且在不匹配时执行 backup-and-relink；本计划禁止运行它。
+- `0f6f434e826ca9cedf87928633ec7f79b6b16858` 已在三个目标 skill 文件中加入“执行图只用描述式 DAG 表达、禁止 Mermaid、ASCII 连线图、流程图、时序图及其他可视化”的现行规则；本次实施必须保留这些规则，本计划自身不因该规则重写既有结构。
 - 本轮计划前已完整读取 `$skill-creator`：窄更新必须保留现有 metadata 与 reference 路由，避免无关 scaffold；每个 changed skill 使用规定的隔离 `uv` 命令运行 `quick_validate.py`，并以独立合成场景补充行为审查。实施中的 `SKILL-PREFLIGHT` 只做防漂移复核，不把适用 owner 留为未知。
 - 计划确认将授权本文精确列出的文档提交、一个本地 worktree/branch、两个 skill 入口文件与一个 reference 的编辑和验证、一个配置提交、本地 fast-forward 集成、合成行为验收和非 force 清理；不授权 Git 远程、force、amend、squash、安装程序、issue 更新或计划外修复。
 - 计划确认不授权修改 canonical protected target `~/.codex/AGENTS.md` 或任何准备写入该目标的 `AGENTS.md` 分支副本。`GLOBAL-APPROVAL` 必须重新展示本文精确替换文本，并取得用户明确回复“确认写入”“确认允许写入”或等价直接授权。
@@ -31,11 +32,10 @@
 
 ### DOC：工作文档提交
 
-提交消息：`docs: add execution graph prompt governance plan`
+提交消息：`docs: update execution graph governance plan baseline`
 
 只包含：
 
-- `docs/superpowers/specs/2026/08/27/2026-08-27-execution-graph-parallelism-prompt-governance-design.md`
 - `docs/superpowers/plans/2026/08/27/2026-08-27-execution-graph-parallelism-prompt-governance-plan.md`
 
 不更新设计文档状态，不修改 issue。
@@ -64,7 +64,7 @@
 - 每个计划任务保持独立提交，禁止 squash、合并任务提交或等待无依赖任务。节点失败、修正插图、失败范围和重新调度按 `$delegating-micro-stages` 的执行图契约处理；只有共享前提、共享状态、安全或授权边界受到影响时，才扩大暂停范围。
 ```
 
-`GLOBAL-APPROVAL` 必须在实施回合中把以上文本原样展示给用户，并说明最终 fast-forward 会更新 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config/AGENTS.md`，从而立即改变 `~/.codex/AGENTS.md`。未获得专门确认时，`GLOBAL-EDIT`、CONFIG stage、commit 与 merge 均保持未授权；skill 编辑和只读验证可以继续。
+`GLOBAL-APPROVAL` 必须在实施回合中把以上文本原样展示给用户，并说明最终 fast-forward 会更新 `/Users/jiangsheng/cnb/codex-config/AGENTS.md`，从而立即改变 `~/.codex/AGENTS.md`。未获得专门确认时，`GLOBAL-EDIT`、CONFIG stage、commit 与 merge 均保持未授权；skill 编辑和只读验证可以继续。
 
 ## Skill 修改契约
 
@@ -75,6 +75,7 @@
 - 计划文档自身是否必须包含执行图继续由现有项目文档规则决定；本设计不把计划文件编写升级为新的执行期调度触发条件。
 - 执行阶段的漏并行审计和动态调度只在执行已落盘计划文件时强制生效；普通调研、设计、聊天计划或计划文件编写不因此建图。
 - 完成检查同步采用相同触发边界，不保留“复杂计划”“所有已确认计划”等第二套入口。
+- 保留 `0f6f434e826ca9cedf87928633ec7f79b6b16858` 新增的描述式 DAG 与禁止可视化规则，不因收窄触发边界而删除、改写或弱化。
 
 ### `delegating-micro-stages`
 
@@ -83,6 +84,7 @@
 - 普通调研、设计和未落盘计划中的委派可以按真实独立性并行，但不强制维护完整节点 schema、动态 `ready set` 或最终三项并行证据。
 - 把范围变化、失败和完成检查中的“更新执行图”改为条件语义；未命中落盘计划边界时仍需重新拆分与核验，但不凭空建立执行图。
 - 主文件只保留触发、职责和 reference 路由；删除与 reference 重复的字段级状态机、锁和 fan-in 完成检查。
+- 保留 `0f6f434e826ca9cedf87928633ec7f79b6b16858` 新增的描述式 DAG 与禁止可视化规则，不因调整 reference 路由而删除、改写或弱化。
 
 ### `execution-graph.md`
 
@@ -91,6 +93,7 @@
 - 明确“有实际价值”的最低条件：节点具有独立且必要、或能够解锁后继的稳定产出；并行收益没有被当前可核验的冲突或协调成本抵消。暂缓必须形成完整 `deferralEvidence`，不能仅用该词主观搁置 ready 节点。
 - 在运行记录、成功完成和失败、拒绝、受阻等所有执行终态中，增加最终用户可见的固定最小证据：`实际并行`、`关键路径`、`未启动 ready 节点`。没有内容时明确写“无”，不能用代理数量、任务标签或 `parallelizable` 代替。
 - 计划文件保持权威结构；动态运行状态由唯一协调 owner 管理，不要求执行期间回写计划正文。
+- 保留 `0f6f434e826ca9cedf87928633ec7f79b6b16858` 新增的“执行图只指 DAG 数据模型”及禁止 Mermaid、ASCII 连线图、流程图、时序图和其他可视化的完整规则；本次只补充调度语义，不重写当前计划的既有结构。
 
 ## 明确排除范围
 
@@ -106,7 +109,7 @@
 文档提交完成后，在配置仓库创建一个隔离实施 worktree：
 
 ```bash
-git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config worktree add -b codex/execution-graph-parallelism-prompt-governance /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism 90875016160bfb69cc5d1cb48c37f19bb134fcaf
+git -C /Users/jiangsheng/cnb/codex-config worktree add -b codex/execution-graph-parallelism-prompt-governance /Users/jiangsheng/cnb/codex-config-execution-graph-parallelism 0f6f434e826ca9cedf87928633ec7f79b6b16858
 ```
 
 计划编写时分支和路径均不存在，配置仓库规范 checkout 干净。执行时先重新核验：分支不存在；路径同时不存在且不是 symlink；`main` 仍为上述 HEAD 且工作树干净。任何漂移、同名资源或覆盖风险都触发重编图，不覆盖现有资源。
@@ -114,14 +117,14 @@ git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config wo
 所有 CONFIG 编辑、验证、stage 和 commit 在该 worktree/branch/index 内进行。完成提交后，规范 checkout 只有在 `main` 仍为声明基线且干净时执行：
 
 ```bash
-git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config merge --ff-only codex/execution-graph-parallelism-prompt-governance
+git -C /Users/jiangsheng/cnb/codex-config merge --ff-only codex/execution-graph-parallelism-prompt-governance
 ```
 
 行为验收通过且提交已成为 `main` 祖先后，执行非 force 清理：
 
 ```bash
-git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config worktree remove /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism
-git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config branch -d codex/execution-graph-parallelism-prompt-governance
+git -C /Users/jiangsheng/cnb/codex-config worktree remove /Users/jiangsheng/cnb/codex-config-execution-graph-parallelism
+git -C /Users/jiangsheng/cnb/codex-config branch -d codex/execution-graph-parallelism-prompt-governance
 ```
 
 不运行 `install.zsh`；live 链接只读核验。
@@ -154,7 +157,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 
 初始 ready set：计划确认后，`DOC-STAGE` 与只产生对话确认状态的 `GLOBAL-APPROVAL` 同时就绪；文档 stage 是第一项有状态操作。`DOC-COMMIT` 完成后，`WT-CONFIG` 与只读的 `SKILL-PREFLIGHT` 同时就绪。两者完成后，三个 skill 编辑节点立即 fan-out；它们不等待 `GLOBAL-APPROVAL`。`WT-CONFIG` 完成且 approval 已为 `approved` 时，`EDIT-GLOBAL` 立即就绪，不等待 `SKILL-PREFLIGHT` 或任何 skill wave。CONFIG 的 stage、commit、merge 等消费受保护内容的后继继续等待专门确认。
 
-三个 skill 编辑节点只读取 `90875016160bfb69cc5d1cb48c37f19bb134fcaf` commit tree 中各自目标文件的不可变 baseline、已确认设计和本文修改契约，不读取兄弟节点正在修改的 mutable 文件；因此可在同一 task boundary 和 worktree 中并行。跨文件一致性只在 `VALIDATE-DELEGATING` 与 `COMBINED-REVIEW` fan-in 后检查。两个 validator 共享 canonical `/Users/jiangsheng/.cache/uv` write 资源，运行时以动态锁短时串行，不形成 DAG 边。
+三个 skill 编辑节点只读取 `0f6f434e826ca9cedf87928633ec7f79b6b16858` commit tree 中各自目标文件的不可变 baseline、已确认设计和本文修改契约，不读取兄弟节点正在修改的 mutable 文件；因此可在同一 task boundary 和 worktree 中并行。跨文件一致性只在 `VALIDATE-DELEGATING` 与 `COMBINED-REVIEW` fan-in 后检查。两个 validator 共享 canonical `/Users/jiangsheng/.cache/uv` write 资源，运行时以动态锁短时串行，不形成 DAG 边。
 
 关键路径通常为 `DOC → max(max(WT-CONFIG, SKILL-PREFLIGHT) → 最慢 skill 编辑/验证, max(WT-CONFIG, GLOBAL-APPROVAL) → EDIT-GLOBAL) → COMBINED-REVIEW → CONFIG-COMMIT → 最慢盲测案例 → CASE-ORACLE-REVIEW → CONFIG-MERGE → LIVE-STRUCTURE → FINAL-AUDIT`。如果受保护文件确认迟到，global 分支动态成为关键路径；skill 分支不等待它。盲测案例消费 CONFIG commit tree，在 live merge 之前并行完成，再由独立 oracle owner 对照验收矩阵，避免先发布后发现语义失败。
 
@@ -162,7 +165,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 
 所有节点共同遵守：`owner` 不产生授权；`subdelegation=false`；失败只暂停本节点和传递后继；节点完成、失败、撤销、替换或前提失效时能力到期；writeSet、命令、目标 identity、触发边界、用户可见证据或验证入口改变时触发重编图。
 
-- `AUTH-DOC`：`grantSource=计划确认`；`grantedOperation=两份精确文档的 stage 与单一 commit`；`parameterBounds=DOC-STAGE 与 DOC-COMMIT 的 cwd、allowlist 和 commit message`；`status=pending`；`requiredApprovalIds=[]`。无编辑、其他 stage、远程或 force。
+- `AUTH-DOC`：`grantSource=计划确认`；`grantedOperation=本计划更新文件的 stage 与单一 commit`；`parameterBounds=DOC-STAGE 与 DOC-COMMIT 的 cwd、单文件 allowlist 和 commit message`；`status=pending`；`requiredApprovalIds=[]`。无编辑、其他 stage、远程或 force。
 - `AUTH-WT`：`grantSource=计划确认`；`grantedOperation=本文精确 worktree add、identity 核验和非 force cleanup`；`parameterBounds=声明 branch、base、path 与两条 cleanup 命令`；`status=pending`；`requiredApprovalIds=[]`。禁止覆盖、其他 branch/worktree、远程或 force。
 - `AUTH-SKILL-WRITE`：`grantSource=计划确认`；`grantedOperation=使用 apply_patch 编辑两个 skill 入口文件与一个 reference`；`parameterBounds=三个 EDIT 节点的绝对 writeSet`；`status=pending`；`requiredApprovalIds=[]`。不允许 AGENTS 编辑、验证、stage、commit 或 installer。
 - `AUTH-ASK-GLOBAL`：`grantSource=计划确认`；`grantedOperation=原样展示本文四条文本并等待专门确认`；`parameterBounds=本文精确 Markdown 与 canonical target 说明`；`status=pending`；`requiredApprovalIds=[]`。不写文件。
@@ -176,10 +179,10 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 
 ### DOC-STAGE
 
-- `taskBoundary / operationKind / outcome / estimatedCost`：DOC / stage / 主 index 中只有设计与计划 / 低。
-- `hardPredecessors`：计划明确确认；`consumes / produces`：两份文档 → staged snapshot；`completionEvidence`：cached allowlist 与 `git diff --cached --check` 通过。
-- `readSet / writeSet / stateEffects`：两份文档、主仓库状态 / codex 主 index / 仅 stage 两份文档。
-- `commandScope`：在 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH` 执行 `git add -- docs/superpowers/specs/2026/08/27/2026-08-27-execution-graph-parallelism-prompt-governance-design.md docs/superpowers/plans/2026/08/27/2026-08-27-execution-graph-parallelism-prompt-governance-plan.md`，随后执行 scoped cached name-only、完整 cached diff 与 `git diff --cached --check`。
+- `taskBoundary / operationKind / outcome / estimatedCost`：DOC / stage / 主 index 中只有本计划更新 / 低。
+- `hardPredecessors`：计划明确确认；`consumes / produces`：本计划更新 → staged snapshot；`completionEvidence`：cached allowlist 与 `git diff --cached --check` 通过。
+- `readSet / writeSet / stateEffects`：本计划文件、主仓库状态 / codex 主 index / 仅 stage 本计划文件。
+- `commandScope`：在 `/Users/jiangsheng/cnb/codex` 执行 `git add -- docs/superpowers/plans/2026/08/27/2026-08-27-execution-graph-parallelism-prompt-governance-plan.md`，随后执行 scoped cached name-only、完整 cached diff 与 `git diff --cached --check`。
 - `executionContext / resourceLocks / owner`：codex dev 主 checkout / 主 index write / DOC 唯一 Git owner。
 - `verification`：staged 文件与 allowlist 完全一致；`authorizationGate`：`AUTH-DOC`。
 
@@ -188,9 +191,9 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `taskBoundary / operationKind / outcome / estimatedCost`：DOC / commit / 一个纯文档本地提交 / 低。
 - `hardPredecessors`：DOC-STAGE；`consumes / produces`：staged snapshot → commit id；`completionEvidence`：commit tree 与 snapshot 一致。
 - `readSet / writeSet / stateEffects`：staged snapshot / dev ref 与 index / 创建一个本地提交。
-- `commandScope`：`git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH commit -m 'docs: add execution graph prompt governance plan'`，随后 scoped `git show` 和 status 核验。
+- `commandScope`：`git -C /Users/jiangsheng/cnb/codex commit -m 'docs: update execution graph governance plan baseline'`，随后 scoped `git show` 和 status 核验。
 - `executionContext / resourceLocks / owner`：codex dev 主 checkout / dev ref + 主 index write / DOC Git owner。
-- `verification`：提交只含两份文档；`authorizationGate`：`AUTH-DOC`。
+- `verification`：提交只含本计划更新文件，设计文件不进入 stage；`authorizationGate`：`AUTH-DOC`。
 
 ### GLOBAL-APPROVAL
 
@@ -208,7 +211,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `readSet / writeSet / stateEffects`：config main ref、目标路径 / config worktree metadata、branch ref、目标路径与 index / 一个本地 branch 与 worktree。
 - `commandScope`：先只读复核 main HEAD/status、branch 不存在、目标路径同时不存在且不是 symlink；随后只执行本文 `git worktree add` 及 identity/status 核验。
 - `executionContext / resourceLocks / owner`：config 规范 checkout / `.git` worktree metadata + branch/path/index write / CONFIG Git owner。
-- `verification`：新 worktree 干净且 HEAD 为 `90875016160bfb69cc5d1cb48c37f19bb134fcaf`；`authorizationGate`：`AUTH-WT`。
+- `verification`：新 worktree 干净且 HEAD 为 `0f6f434e826ca9cedf87928633ec7f79b6b16858`；`authorizationGate`：`AUTH-WT`。
 
 ### SKILL-PREFLIGHT
 
@@ -223,35 +226,35 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / edit / 阶段 skill 只在落盘计划边界强制建图 / 中。
 - `hardPredecessors`：WT-CONFIG、SKILL-PREFLIGHT；`consumes / produces`：设计、本文修改契约、baseline commit 中的目标文件 → 修改后的 `managing-work-stages/SKILL.md`；`completionEvidence`：执行触发与完成检查使用同一边界，计划文档规则保持独立。
-- `readSet / writeSet / stateEffects`：设计、本文、`90875016160bfb69cc5d1cb48c37f19bb134fcaf:skills/managing-work-stages/SKILL.md` immutable blob / worktree `skills/managing-work-stages/SKILL.md` / 未暂存 Markdown diff。
-- `commandScope`：先只读执行 `git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config show 90875016160bfb69cc5d1cb48c37f19bb134fcaf:skills/managing-work-stages/SKILL.md` 取得 immutable baseline，再只用 `apply_patch` 编辑 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism/skills/managing-work-stages/SKILL.md`。
+- `readSet / writeSet / stateEffects`：设计、本文、`0f6f434e826ca9cedf87928633ec7f79b6b16858:skills/managing-work-stages/SKILL.md` immutable blob / worktree `skills/managing-work-stages/SKILL.md` / 未暂存 Markdown diff。
+- `commandScope`：先只读执行 `git -C /Users/jiangsheng/cnb/codex-config show 0f6f434e826ca9cedf87928633ec7f79b6b16858:skills/managing-work-stages/SKILL.md` 取得 immutable baseline，再只用 `apply_patch` 编辑 `/Users/jiangsheng/cnb/codex-config-execution-graph-parallelism/skills/managing-work-stages/SKILL.md`。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / managing file write / 独立编辑 owner。
-- `verification`：保留事实闭包、授权、文档提交和 worktree 直接请求语义；`authorizationGate`：`AUTH-SKILL-WRITE`。
+- `verification`：保留事实闭包、授权、文档提交、worktree 直接请求以及描述式 DAG/禁止可视化语义；`authorizationGate`：`AUTH-SKILL-WRITE`。
 
 ### EDIT-DELEGATING
 
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / edit / 委派 skill 区分普通委派与落盘计划执行 / 中。
 - `hardPredecessors`：WT-CONFIG、SKILL-PREFLIGHT；`consumes / produces`：设计、本文接口契约、baseline commit 中的目标文件 → 修改后的主 `SKILL.md`；`completionEvidence`：普通委派约束保留，完整图只在执行已落盘计划时强制。
-- `readSet / writeSet / stateEffects`：设计、本文、`90875016160bfb69cc5d1cb48c37f19bb134fcaf:skills/delegating-micro-stages/SKILL.md` immutable blob / worktree `skills/delegating-micro-stages/SKILL.md` / 未暂存 Markdown diff。
-- `commandScope`：先只读执行 `git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config show 90875016160bfb69cc5d1cb48c37f19bb134fcaf:skills/delegating-micro-stages/SKILL.md` 取得 immutable baseline，再只用 `apply_patch` 编辑 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism/skills/delegating-micro-stages/SKILL.md`。
+- `readSet / writeSet / stateEffects`：设计、本文、`0f6f434e826ca9cedf87928633ec7f79b6b16858:skills/delegating-micro-stages/SKILL.md` immutable blob / worktree `skills/delegating-micro-stages/SKILL.md` / 未暂存 Markdown diff。
+- `commandScope`：先只读执行 `git -C /Users/jiangsheng/cnb/codex-config show 0f6f434e826ca9cedf87928633ec7f79b6b16858:skills/delegating-micro-stages/SKILL.md` 取得 immutable baseline，再只用 `apply_patch` 编辑 `/Users/jiangsheng/cnb/codex-config-execution-graph-parallelism/skills/delegating-micro-stages/SKILL.md`。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / delegating main file write / 独立编辑 owner。
-- `verification`：能力信封、越界、返回格式、主代理判断等通用约束未丢失；`authorizationGate`：`AUTH-SKILL-WRITE`。
+- `verification`：能力信封、越界、返回格式、主代理判断以及描述式 DAG/禁止可视化语义未丢失；`authorizationGate`：`AUTH-SKILL-WRITE`。
 
 ### EDIT-GRAPH
 
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / edit / reference 成为完整且可审计的唯一调度 owner / 中。
 - `hardPredecessors`：WT-CONFIG、SKILL-PREFLIGHT；`consumes / produces`：设计、本文接口契约、baseline commit 中的目标 reference → 修改后的 execution graph reference；`completionEvidence`：执行触发、价值判定和最终三项证据完整。
-- `readSet / writeSet / stateEffects`：设计、本文、`90875016160bfb69cc5d1cb48c37f19bb134fcaf:skills/delegating-micro-stages/references/execution-graph.md` immutable blob / worktree `skills/delegating-micro-stages/references/execution-graph.md` / 未暂存 Markdown diff。
-- `commandScope`：先只读执行 `git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config show 90875016160bfb69cc5d1cb48c37f19bb134fcaf:skills/delegating-micro-stages/references/execution-graph.md` 取得 immutable baseline，再只用 `apply_patch` 编辑 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism/skills/delegating-micro-stages/references/execution-graph.md`。
+- `readSet / writeSet / stateEffects`：设计、本文、`0f6f434e826ca9cedf87928633ec7f79b6b16858:skills/delegating-micro-stages/references/execution-graph.md` immutable blob / worktree `skills/delegating-micro-stages/references/execution-graph.md` / 未暂存 Markdown diff。
+- `commandScope`：先只读执行 `git -C /Users/jiangsheng/cnb/codex-config show 0f6f434e826ca9cedf87928633ec7f79b6b16858:skills/delegating-micro-stages/references/execution-graph.md` 取得 immutable baseline，再只用 `apply_patch` 编辑 `/Users/jiangsheng/cnb/codex-config-execution-graph-parallelism/skills/delegating-micro-stages/references/execution-graph.md`。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / execution-graph reference write / 独立编辑 owner。
-- `verification`：现有节点字段、锁、fan-in、失败域和运行记录不削弱；`authorizationGate`：`AUTH-SKILL-WRITE`。
+- `verification`：现有节点字段、锁、fan-in、失败域、运行记录以及描述式 DAG/禁止可视化语义不削弱；`authorizationGate`：`AUTH-SKILL-WRITE`。
 
 ### EDIT-GLOBAL
 
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / edit / 全局只保留本文四条精确规则 / 低。
 - `hardPredecessors`：WT-CONFIG、GLOBAL-APPROVAL；`consumes / produces`：本文精确文本、当前 AGENTS → 修改后的 branch `AGENTS.md`；`completionEvidence`：只替换目标四条，独立门禁与其他规则未移动。
 - `readSet / writeSet / stateEffects`：本文、当前 AGENTS / branch `AGENTS.md` / 未暂存 Markdown diff。
-- `commandScope`：只用 `apply_patch` 编辑 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism/AGENTS.md`。
+- `commandScope`：只用 `apply_patch` 编辑 `/Users/jiangsheng/cnb/codex-config-execution-graph-parallelism/AGENTS.md`。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / branch AGENTS write / GLOBAL edit owner。
 - `verification`：精确文本与审批内容逐字一致；`authorizationGate`：`AUTH-GLOBAL-WRITE`。
 
@@ -260,7 +263,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / verification / managing skill 结构有效 / 低。
 - `hardPredecessors`：EDIT-MANAGING；`consumes / produces`：修改后 skill → validator 证据；`completionEvidence`：命令成功并真实命中该目录。
 - `readSet / writeSet / stateEffects`：managing skill 目录、validator / uv 临时 cache / 验证输出与隔离临时依赖状态。
-- `commandScope`：在 CONFIG worktree 执行 `uv run --no-project --with pyyaml python /Users/jiangsheng/.codex/skills/.system/skill-creator/scripts/quick_validate.py /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism/skills/managing-work-stages`。
+- `commandScope`：在 CONFIG worktree 执行 `uv run --no-project --with pyyaml python /Users/jiangsheng/.codex/skills/.system/skill-creator/scripts/quick_validate.py /Users/jiangsheng/cnb/codex-config-execution-graph-parallelism/skills/managing-work-stages`。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / canonical `/Users/jiangsheng/.cache/uv` write + managing directory read / 验证 owner。
 - `verification`：退出成功且输出目标正确；`authorizationGate`：`AUTH-VERIFY`。
 
@@ -269,7 +272,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / verification / delegating skill 与 reference 结构有效 / 低。
 - `hardPredecessors`：EDIT-DELEGATING、EDIT-GRAPH；`consumes / produces`：修改后 skill 目录 → validator 证据；`completionEvidence`：命令成功、reference 链接可解析。
 - `readSet / writeSet / stateEffects`：delegating skill 目录、validator / uv 临时 cache / 验证输出与隔离临时依赖状态。
-- `commandScope`：在 CONFIG worktree 执行 `uv run --no-project --with pyyaml python /Users/jiangsheng/.codex/skills/.system/skill-creator/scripts/quick_validate.py /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism/skills/delegating-micro-stages`，并只读核验 `references/execution-graph.md` 存在且被主文件路由。
+- `commandScope`：在 CONFIG worktree 执行 `uv run --no-project --with pyyaml python /Users/jiangsheng/.codex/skills/.system/skill-creator/scripts/quick_validate.py /Users/jiangsheng/cnb/codex-config-execution-graph-parallelism/skills/delegating-micro-stages`，并只读核验 `references/execution-graph.md` 存在且被主文件路由。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / canonical `/Users/jiangsheng/.cache/uv` write + delegating directory read / 验证 owner。该 write 锁只动态串行两个 validator，释放后立即重算 ready set，不形成 DAG 边。
 - `verification`：退出成功且输出目标正确；`authorizationGate`：`AUTH-VERIFY`。
 
@@ -278,7 +281,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / review / 完整 diff 满足设计且无遗漏或范围外修改 / 中。
 - `hardPredecessors`：EDIT-GLOBAL、VALIDATE-MANAGING、VALIDATE-DELEGATING；`consumes / produces`：四文件 diff 与验证证据 → 可 stage 的稳定 snapshot；`completionEvidence`：触发矩阵、全局精简、保留语义、最终证据和 allowlist 全通过。
 - `readSet / writeSet / stateEffects`：四文件、设计、计划、Git diff / 无 / 只读审查结果。
-- `commandScope`：`git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism diff --check -- AGENTS.md skills/managing-work-stages skills/delegating-micro-stages`；`git diff --name-only`；搜索残留的 `复杂计划`、`长计划`、对所有委派强制执行图等旧触发表达；完整阅读四文件 diff。
+- `commandScope`：`git -C /Users/jiangsheng/cnb/codex-config-execution-graph-parallelism diff --check -- AGENTS.md skills/managing-work-stages skills/delegating-micro-stages`；`git diff --name-only`；搜索残留的 `复杂计划`、`长计划`、对所有委派强制执行图等旧触发表达；完整阅读四文件 diff。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / diff read / 独立 review owner。
 - `verification`：只修改 allowlist，`project-doc-workflow`、普通能力信封、直接 worktree 授权和提交门禁未削弱；`authorizationGate`：`AUTH-VERIFY`。
 
@@ -296,7 +299,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / commit / 一个语义一致的配置治理提交 / 低。
 - `hardPredecessors`：CONFIG-STAGE；`consumes / produces`：staged snapshot → CONFIG commit id；`completionEvidence`：commit tree 与 snapshot 一致。
 - `readSet / writeSet / stateEffects`：CONFIG index / branch ref 与 index / 一个本地提交。
-- `commandScope`：`git -C /var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config-execution-graph-parallelism commit -m 'instructions: scope execution graph governance'`，随后 scoped `git show` 与 status 核验。
+- `commandScope`：`git -C /Users/jiangsheng/cnb/codex-config-execution-graph-parallelism commit -m 'instructions: scope execution graph governance'`，随后 scoped `git show` 与 status 核验。
 - `executionContext / resourceLocks / owner`：CONFIG worktree / CONFIG index + branch ref write / CONFIG Git owner。
 - `verification`：提交只含四个 allowlist 文件；`authorizationGate`：`AUTH-CONFIG-GIT`。
 
@@ -305,7 +308,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / integration / config `main` fast-forward 到 CONFIG commit / 低。
 - `hardPredecessors`：CONFIG-COMMIT、CASE-ORACLE-REVIEW；`consumes / produces`：已通过独立 oracle 行为审查的 CONFIG commit、干净未漂移 main → 更新后的 main；`completionEvidence`：`main` HEAD 等于 CONFIG commit 且工作树干净。
 - `readSet / writeSet / stateEffects`：规范 checkout、main ref、CONFIG commit / main ref 与规范工作树 / 本地 fast-forward，立即更新 live AGENTS 与 skills。
-- `commandScope`：先核验 config main 仍为 `90875016160bfb69cc5d1cb48c37f19bb134fcaf` 且干净，随后只执行本文 `git merge --ff-only` 与 scoped status/show。
+- `commandScope`：先核验 config main 仍为 `0f6f434e826ca9cedf87928633ec7f79b6b16858` 且干净，随后只执行本文 `git merge --ff-only` 与 scoped status/show。
 - `executionContext / resourceLocks / owner`：config 规范 checkout / main ref + worktree write / CONFIG integration owner。
 - `verification`：无 merge commit、无冲突、无额外文件；`authorizationGate`：`AUTH-CONFIG-GIT`。
 
@@ -314,7 +317,7 @@ CONFIG-COMMIT + CASE-ORACLE-REVIEW
 - `taskBoundary / operationKind / outcome / estimatedCost`：CONFIG / verification / live links 与两个 changed skill 结构有效 / 低。
 - `hardPredecessors`：CONFIG-MERGE；`consumes / produces`：更新后 main 与 links → live 结构证据；`completionEvidence`：links 指向预期源，两个 quick validators 成功。
 - `readSet / writeSet / stateEffects`：live links、main skill 目录、validator / uv 临时 cache / 只读结果与隔离临时依赖状态。
-- `commandScope`：只读 `readlink` 核验 `~/.codex/AGENTS.md`、两个 skill links；在 `/var/folders/x7/7d55d2z55012f5_h3jbfdjj40000gn/T/tmp.xHZfTk2RTH-config` 对两个 changed skill 运行与前述相同的 `uv run --no-project --with pyyaml python ... quick_validate.py` 命令；不运行 installer。
+- `commandScope`：只读 `readlink` 核验 `~/.codex/AGENTS.md`、两个 skill links；在 `/Users/jiangsheng/cnb/codex-config` 对两个 changed skill 运行与前述相同的 `uv run --no-project --with pyyaml python ... quick_validate.py` 命令；不运行 installer。
 - `executionContext / resourceLocks / owner`：config 规范 checkout / canonical `/Users/jiangsheng/.cache/uv` write + live files read / final structure owner。
 - `verification`：目标命中且命令成功；`authorizationGate`：`AUTH-VERIFY`。
 
@@ -405,7 +408,7 @@ codex-config/main:
 
 - **权威入口**：全局入口是 `codex-config/AGENTS.md`；阶段触发 owner 是 `managing-work-stages`；委派入口是 `delegating-micro-stages`；完整协议 owner 是 `references/execution-graph.md`；计划文档结构由 `project-doc-workflow` 消费。
 - **已追踪链路**：全局规则 → “执行已落盘计划”触发 → 委派入口 → 详细节点/调度/运行记录 → 最终用户证据；计划文档自身结构继续由独立的项目文档规则决定，live 文件通过符号链接直接消费规范 checkout。
-- **修改范围**：只改四个 CONFIG 文件；每个文件分别对应简洁触发、阶段边界、委派边界和详细协议。设计与计划仅在 codex 文档提交中落盘。
+- **修改范围**：只改四个 CONFIG 文件；每个文件分别对应简洁触发、阶段边界、委派边界和详细协议。设计与原计划已在 `5d48d9a3eca54061a790060a5a18f79e9fe3d98d` 落盘；本次只把更新后的计划文件创建为新的独立 codex 文档提交。
 - **验证映射**：两个 changed skill 分别运行规定的 `uv` quick validator；组合 diff/链接检查覆盖结构与范围；六个不携带预期答案的独立盲测案例覆盖执行落盘计划、聊天计划、计划文件编写、普通委派、无并行空间和非成功终态；独立 oracle review 对照验收矩阵，最终 Git 审计覆盖提交与 live 状态。
 - **排除项**：前端提示词、`project-doc-workflow`、授权 skill、installer、产品代码、issue 与远程 Git 均有 owner 或无直接缺口，不进入修改范围。
 - **剩余未知**：当前无关键未知。非关键未知是模型行为验证只能证明合成上下文中的提示词表现，不能形成工具级 enforcement；该限制不改变修改或验证范围。
