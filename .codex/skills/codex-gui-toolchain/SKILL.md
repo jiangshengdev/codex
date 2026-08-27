@@ -61,13 +61,7 @@ Use the same fnm-backed shape for project commands:
 Never add, remove, install, rebuild, or update dependencies, runtimes, tools, or browser binaries.
 This includes `pnpm add`, `pnpm install`, package manager self-updates, browser downloads, and generated runtime installs. If anything is missing, stop and suggest the user-run installation command; later permission does not authorize the assistant to install it.
 
-## Script Existence Check
-
-As part of the command planning check:
-
-1. Read `codex-gui/package.json`.
-2. Confirm the script exists.
-3. Use the exact current script name.
+## Direct Command Fallback
 
 If no script, repository-owned fixed entrypoint, or recipe exists, use the explicit direct command defined by the applicable frontend owner. For Vitest, this skill defines the following direct command shape:
 
@@ -76,6 +70,15 @@ If no script, repository-owned fixed entrypoint, or recipe exists, use the expli
 ```
 
 Do not copy `pnpm run <script>` from old plans or memory without checking the live `package.json`.
+
+## Local Frontend Dependency Docs
+
+Before using local HeroUI, Redux Toolkit, or Vitest documentation, read
+[Local frontend dependency docs](references/local-frontend-dependency-docs.md)
+for the shared offline navigation contract. The applicable feature skill remains
+the owner of its exact documentation root, preferred subtrees, search terms, and
+domain API rules. `codex-gui-worktree` owns provisioning those local resources;
+this skill does not create or repair their links.
 
 ## Scope
 

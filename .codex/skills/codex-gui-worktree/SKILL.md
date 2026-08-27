@@ -11,13 +11,12 @@ Use this skill to create or prepare sparse `codex-gui` worktrees for parallel fr
 
 - Before printing paths, resolve the worktree path plus every symlink path and target with the same physical-path and root-directory resolution semantics used by the bundled script.
 - Before executing the creation command, print the complete command unchanged, the canonical worktree target path, and every symlink the script will actually create as an exact canonical `link path -> target` mapping. If a requested path alias differs from its resolved path, print the requested alias alongside the actual canonical path or mapping.
-- A direct user request to create, prepare, bootstrap, or repair a `codex-gui` worktree authorizes that operation. After the required pre-execution disclosure, execute it without another confirmation; an earlier plan that omitted the worktree or said not to create one does not override the current request.
-- A confirmed plan that lists the worktree's exact name, branch, base, target path, include scope, and command also authorizes execution without another confirmation. It never waives the pre-execution disclosure.
-- Wait for confirmation only when the user is discussing rather than requesting the operation, the assistant proposed it, a required parameter cannot be inferred safely, or the target path, branch, file, directory, or symlink conflicts with existing state or risks an overwrite. Parameter drift beyond the current direct request or confirmed plan also requires confirmation.
-- When a confirmed plan declares multiple worktrees, the coordinating agent must create and verify all of them before any implementation edit, generation, artifact verification, or task commit begins.
+- Use `$action-authorization` to determine whether the current direct request or confirmed plan authorizes the exact worktree operation, whether later instructions update an earlier plan, and whether target, parameter, side-effect, or overwrite risk requires another confirmation. This skill consumes that conclusion and does not redefine authorization sources.
+- Once the exact operation is authorized, emit the required pre-execution disclosure and execute without a second confirmation. Authorization never waives the disclosure gate.
+- Follow `$managing-work-stages` for plan sequencing and any pre-implementation worktree preparation barrier; this skill owns only the project-specific creation and verification mechanism.
 - Do not install dependencies.
 - Do not download documentation.
-- This setup skill does not stage or commit. Later nodes may stage or commit in the prepared worktree only when separately authorized by a confirmed plan.
+- The setup operation ends after creation, link setup, and verification. Staging or committing in the prepared worktree is a separate action whose authorization is determined by `$action-authorization`.
 - Do not overwrite existing branches, worktrees, files, directories, or symlinks.
 - Before creation, confirm that every default sparse checkout path and every
   `--include` path exists in the selected base's Git tree.
@@ -30,7 +29,7 @@ Before writing any exact worktree command into a plan, inspect `$WORKTREE_ROOT/v
 
 ## Pre-execution Disclosure Gate
 
-This disclosure is a durable informed record, not a second confirmation gate. When the current direct request or a matching confirmed plan already authorizes the operation, invoke the script after emitting the complete disclosure in the same turn.
+This disclosure is a durable informed record, not a second confirmation gate. When `$action-authorization` concludes that the exact operation is authorized, invoke the script after emitting the complete disclosure in the same turn.
 
 For each worktree, before any tool call that can create the worktree or a symlink, emit one complete, durable disclosure record containing:
 

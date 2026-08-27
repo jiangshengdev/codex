@@ -5,7 +5,7 @@ description: Use when working on React tests or guidance involving Vitest Browse
 
 # Vitest React Browser Docs
 
-This is a documentation-navigation skill. Do not copy Vitest docs into this skill or rely on memory for Browser Mode API details. Use the local docs as the source of truth.
+This is a documentation-navigation skill. Read and apply the shared [local frontend dependency documentation contract](../codex-gui-toolchain/references/local-frontend-dependency-docs.md). Do not copy Vitest docs into this skill or rely on memory for Browser Mode API details. Use the local docs as the source of truth.
 
 ## Documentation Root
 
@@ -21,8 +21,8 @@ from a package or other nested working directory.
 
 ## Workflow
 
-1. Resolve `<vitest-docs-root>` from the Git repository root and verify it exists.
-2. Search the docs with `rg` before answering, reviewing, or editing React Browser Mode tests.
+1. Resolve `<vitest-docs-root>` from the Git repository root, then apply the shared local documentation contract to it.
+2. Search the docs before answering, reviewing, or editing React Browser Mode tests.
 3. Prefer searching these subtrees first:
    - `<vitest-docs-root>/api/browser`
    - `<vitest-docs-root>/config/browser`

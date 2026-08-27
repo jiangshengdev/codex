@@ -5,28 +5,19 @@ description: "Use when working with @reduxjs/toolkit in codex-gui, including con
 
 # Redux Toolkit
 
-Use this skill for `@reduxjs/toolkit` work in `codex-gui`. Keep context small: search local docs, then read only the files needed for the API, pattern, or architectural question.
+Use this skill for `@reduxjs/toolkit` work in `codex-gui`.
 
 ## Offline Rule
 
-- Do not browse the web.
-- Do not run scripts that fetch remote Redux or Redux Toolkit docs.
-- Use only local repository files, primarily `./codex-gui/.redux-toolkit-docs/` relative to the repository root.
-- If `./codex-gui/.redux-toolkit-docs/` is missing, report an error and stop.
-- If the relevant local docs are incomplete, report the gap instead of fetching remote docs.
+Read and apply the shared [local frontend dependency documentation contract](../codex-gui-toolchain/references/local-frontend-dependency-docs.md). For Redux Toolkit, use `./codex-gui/.redux-toolkit-docs/` relative to the repository root as the documentation root.
 
 ## Workflow
 
-1. Confirm `./codex-gui/.redux-toolkit-docs/` exists; if it does not, stop with an error.
-2. Search targeted terms with `rg`; do not load broad documentation trees into context.
+1. Apply the shared local documentation contract to `./codex-gui/.redux-toolkit-docs/`.
+2. Search the task's Redux Toolkit API or architecture terms.
 3. Read the relevant RTK usage guide or API reference, plus the Redux style guide when making architecture or review decisions.
 4. Implement using Redux Toolkit patterns and the existing `codex-gui` conventions.
-5. After code changes, run checks from `codex-gui`:
-
-   ```bash
-   pnpm run lint
-   pnpm run type-check
-   ```
+5. After code changes, use `codex-gui-toolchain` to resolve and run the current lint and type-check entrypoints; both checks remain required.
 
 ## Local Docs
 

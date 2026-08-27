@@ -117,11 +117,7 @@ Do not interpret "重启 GUI" as restarting the `codex-gui` Vite frontend by def
 
 If the page still shows `Codex GUI dev server unavailable` after calling `launch_gui` again and opening the URL, then confirm or start the Vite dev server and refresh the same `launch_gui` URL.
 
-If a `launch_gui` URL returns HTTP 502, it usually means the proxied `codex-gui` Vite dev server is not running or is unreachable. First check whether the default Vite dev server port, or the port specified by `CODEX_GUI_VITE_PORT`, is already listening. If the user already started Vite and kept it running, do not start another one. If nothing is listening, start a foreground session from the repo's `codex-gui` directory:
-
-```bash
-pnpm run dev
-```
+If a `launch_gui` URL returns HTTP 502, it usually means the proxied `codex-gui` Vite dev server is not running or is unreachable. First check whether the default Vite dev server port, or the port specified by `CODEX_GUI_VITE_PORT`, is already listening. If the user already started Vite and kept it running, do not start another one. If nothing is listening, use `$codex-gui-toolchain` from the repository's `codex-gui` directory to resolve and run the current repository-owned frontend dev-server entrypoint in a foreground session with the required fnm-backed Node and `pnpm` environment.
 
 Keep that Vite session running, then refresh the same `launch_gui` URL. Do not treat the `debug-responsive-gui` automation script as a Vite lifecycle manager; it only opens and verifies the GUI. Do not use `nohup` or a background shell to keep Vite alive by default unless the user explicitly asks for a background daemon approach and accepts the extra verification.
 
