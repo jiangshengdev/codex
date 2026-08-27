@@ -38,7 +38,7 @@
 
 - Require real GUI acceptance with `$debug-responsive-gui` when a change can affect user-visible layout or responsive geometry; overlays, opening direction, occlusion, clipping, or scrolling; pointer or keyboard interaction and focus flow; component visual states such as default, hover, disabled, invalid, or `focus-visible`; or integration behavior provable only against real Codex state.
 - Pure type changes, generated artifacts, invisible internal logic, and frontend changes with none of those effects do not trigger real GUI acceptance merely because they are under `codex-gui/**`.
-- Opening a page, preparing the browser environment, screenshots, DOM or event assertions, and automated test success do not substitute for acceptance of the affected real GUI scenarios. If all triggered scenarios have not passed, report `真实 GUI 未验收` and do not claim complete completion or verification.
+- Opening a page, preparing the browser environment, screenshots, DOM or event assertions, and automated test success do not substitute for acceptance of the affected real GUI scenarios. If all triggered scenarios have not passed, report `Real GUI not validated` and do not claim complete completion or verification.
 
 ## HeroUI Design System Invariants
 
