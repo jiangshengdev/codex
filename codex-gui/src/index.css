@@ -6,6 +6,21 @@
 @source "../node_modules/@streamdown/code/dist/*.js";
 @source "../node_modules/@streamdown/cjk/dist/*.js";
 
+[data-app-shell-content-layout="reading"] {
+  --app-shell-content-max-width: var(--container-3xl);
+}
+
+[data-app-shell-content-layout="wide"] {
+  --app-shell-content-max-width: var(--container-6xl);
+}
+
+.app-shell-content-boundary {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--app-shell-content-max-width);
+  padding-inline: calc(var(--spacing) * 4);
+}
+
 .committed-transcript-entry-markdown p {
   white-space: pre-wrap;
 }
