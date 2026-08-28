@@ -5,9 +5,6 @@ description: "Use when working in codex-gui before running pnpm commands, writin
 
 # Codex GUI Toolchain
 
-Use this skill for `codex-gui` package-manager and script workflow.
-It does not replace GUI feature skills such as `gui-launch`, `debug-responsive-gui`, `heroui-react`, `redux-toolkit`, or `vitest-react-browser-docs`.
-
 Apply the general execution-environment preflight in `$managing-work-stages` and its
 `references/execution-environment-preflight.md` first. Treat the checks below as the
 frontend-specific delta; they do not replace or duplicate the general contract.
@@ -17,18 +14,17 @@ frontend-specific delta; they do not replace or duplicate the general contract.
 Before writing a frontend command in a plan, verification step, or implementation note:
 
 1. Read the live `codex-gui/package.json` and any repository-owned fixed entrypoint or recipe required by the applicable instructions or confirmed plan.
-2. Confirm the named script or fixed entrypoint exists and that its target or discovery rules include the intended file, package, test, or generated target.
+2. Trace the live CI and consumer chain, then confirm the named script or fixed entrypoint exists and that its target or discovery rules include the intended file, package, test, or generated target. Existing scripts, configuration, and history are evidence, not proof of authority; overlapping formatters must have one authoritative owner and must not impose conflicting gates.
 3. Use the repository-owned entrypoint when one exists. Do not reconstruct or bypass it with an equivalent lower-level command.
 
 ## Execution Preflight
 
-Immediately before running a frontend command:
+Immediately before running a frontend command, apply the general preflight and repeat the command planning check against the current worktree. Then:
 
-1. Apply the general execution-environment preflight, then repeat the command planning check against the current worktree.
-2. Confirm the intended repository and `codex-gui` working directory. Do not rely on an earlier command's directory.
-3. Verify the active Node and `pnpm` come from the user's fnm environment as described below.
-4. Resolve the frontend-specific inputs. This includes referenced paths, generated schemas, validators, schema fixtures, and other tracked or generated inputs required by the selected target.
-5. For Vitest Browser Mode, Playwright, or another frontend verification entrypoint, confirm that discovery actually collects and exercises the intended target and that output is written to the expected location. A successful command that skipped the target is not verification.
+1. Confirm the intended repository and `codex-gui` working directory. Do not rely on an earlier command's directory.
+2. Verify the active Node and `pnpm` come from the user's fnm environment as described below.
+3. Resolve the frontend-specific inputs, including referenced paths, generated schemas, validators, schema fixtures, and other tracked or generated inputs required by the selected target.
+4. For Vitest Browser Mode, Playwright, or another frontend verification entrypoint, confirm that discovery actually collects and exercises the intended target and that output is written to the expected location. A successful command that skipped the target is not verification.
 
 If an input is absent because a sparse worktree may be incomplete, use `codex-gui-worktree` only to inspect it. Repair it only when the user's current request or a confirmed plan explicitly authorizes that repair; otherwise stop and report the missing input. Do not duplicate the worktree skill's path list or setup procedure here.
 
@@ -80,9 +76,10 @@ the owner of its exact documentation root, preferred subtrees, search terms, and
 domain API rules. `codex-gui-worktree` owns provisioning those local resources;
 this skill does not create or repair their links.
 
-## Scope
+## Related Skills
 
 - Use `gui-launch` for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only requests.
 - Use `debug-responsive-gui` for visible browser debugging, screenshots, responsive checks, and reproducible browser-control traces.
 - Use `heroui-react` when changing HeroUI components, variants, tokens, or local HeroUI docs.
+- Use `redux-toolkit` for Redux Toolkit APIs, architecture, or local Redux documentation.
 - Use `vitest-react-browser-docs` for Vitest Browser Mode APIs and React browser tests.

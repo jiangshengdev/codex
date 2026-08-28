@@ -5,22 +5,14 @@ description: Create and prepare lightweight sparse git worktrees for codex-gui p
 
 # codex-gui Worktree
 
-Use this skill to create or prepare sparse `codex-gui` worktrees for parallel frontend work in the current Codex checkout.
+## Boundaries
 
-## Rules
-
-- Before printing paths, resolve the worktree path plus every symlink path and target with the same physical-path and root-directory resolution semantics used by the bundled script.
-- Before executing the creation command, print the complete command unchanged, the canonical worktree target path, and every symlink the script will actually create as an exact canonical `link path -> target` mapping. If a requested path alias differs from its resolved path, print the requested alias alongside the actual canonical path or mapping.
-- Use `$action-authorization` to determine whether the current direct request or confirmed plan authorizes the exact worktree operation, whether later instructions update an earlier plan, and whether target, parameter, side-effect, or overwrite risk requires another confirmation. This skill consumes that conclusion and does not redefine authorization sources.
-- Once the exact operation is authorized, emit the required pre-execution disclosure and execute without a second confirmation. Authorization never waives the disclosure gate.
-- Follow `$managing-work-stages` for plan sequencing and any pre-implementation worktree preparation barrier; this skill owns only the project-specific creation and verification mechanism.
-- Do not install dependencies.
+- Use `$action-authorization` for action scope, `$managing-work-stages` for sequencing and the preparation barrier, and the applicable `AGENTS.md` for installation policy. This skill owns only project-specific worktree creation and verification.
 - Do not download documentation.
-- The setup operation ends after creation, link setup, and verification. Staging or committing in the prepared worktree is a separate action whose authorization is determined by `$action-authorization`.
-- Do not overwrite existing branches, worktrees, files, directories, or symlinks.
+- Setup ends after creation, link setup, and verification; staging and committing are outside this skill.
 - Before creation, confirm that every default sparse checkout path and every
   `--include` path exists in the selected base's Git tree.
-- Stop on conflicts and print the exact path that blocks progress.
+- Do not overwrite existing branches, worktrees, files, directories, or symlinks. Stop on conflicts and print the exact blocking path.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
 
 ## Plan-authoring Preflight
@@ -29,14 +21,16 @@ Before writing any exact worktree command into a plan, inspect `$WORKTREE_ROOT/v
 
 ## Pre-execution Disclosure Gate
 
-This disclosure is a durable informed record, not a second confirmation gate. When `$action-authorization` concludes that the exact operation is authorized, invoke the script after emitting the complete disclosure in the same turn.
+This disclosure is a durable informed record, not a second confirmation gate. Once authorization is active, emit it and invoke the script in the same turn.
+
+Before printing paths, resolve the worktree path plus every symlink path and target with the bundled script's physical-path and root-directory semantics. If a requested alias differs from its resolved path, record both.
 
 For each worktree, before any tool call that can create the worktree or a symlink, emit one complete, durable disclosure record containing:
 
-- the complete command verbatim
+- the complete command unchanged
 - every requested path alias
 - the canonical worktree path
-- every canonical `link path -> target` mapping the script will actually create, including the shared Vitest link
+- every exact canonical `link path -> target` mapping the script will actually create, including the shared Vitest link
 
 If any field is missing, stop and do not invoke the script. Record each planned worktree separately. Output produced after execution cannot backfill or replace this preflight record.
 

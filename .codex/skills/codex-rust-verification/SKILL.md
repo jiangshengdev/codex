@@ -5,12 +5,10 @@ description: "Use when choosing, writing, or running Rust verification commands 
 
 # Codex Rust Verification
 
-Use this skill to choose narrow Rust validation for Codex repository changes.
-It does not allow installs, full Rust test suites, full lint sweeps, or git remote operations unless the user explicitly authorizes the forbidden scope.
-For regular Rust formatting, fix, dependency, schema, snapshot, and app-server validation rules, read the project `AGENTS.md`.
-Apply the general execution-environment preflight in `$managing-work-stages` and
-its `references/execution-environment-preflight.md` before choosing, writing, or
-running a Rust verification command. The rules below are the Rust-specific delta.
+Before choosing, writing, or running a Rust verification command, apply
+`$managing-work-stages` and its `references/execution-environment-preflight.md`.
+Use the project `AGENTS.md` for regular Rust formatting, fix, dependency, schema,
+snapshot, and app-server validation rules. The rules below are the Rust-specific delta.
 
 ## Hard Limits
 
