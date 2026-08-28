@@ -17,6 +17,7 @@ const skill = (name: string, overrides: Partial<SkillMetadata> = {}): SkillMetad
   path: `${cwd}/skills/${name}/SKILL.md`,
   scope: "repo",
   enabled: true,
+  pluginId: null,
   ...overrides,
 });
 
