@@ -1,6 +1,6 @@
 ---
 name: redux-toolkit
-description: "Use when working with @reduxjs/toolkit in codex-gui, including configuring Redux stores, writing createSlice reducers, typing Redux Toolkit code with TypeScript, using Immer reducer patterns, choosing createAsyncThunk or createListenerMiddleware, managing normalized data with createEntityAdapter, using RTK Query, or reviewing Redux Toolkit architecture. Offline only: use local repository files and do not browse or fetch remote Redux docs."
+description: "Use when working with @reduxjs/toolkit in codex-gui, including configuring Redux stores, writing createSlice reducers, typing Redux Toolkit code with TypeScript, using Immer reducer patterns, choosing createAsyncThunk or createListenerMiddleware, managing normalized data with createEntityAdapter, using RTK Query, or reviewing Redux Toolkit architecture. For ordinary documentation lookup, use local repository files and do not browse or fetch remote Redux docs ad hoc; an explicit cache-refresh request may use the bundled updater."
 ---
 
 # Redux Toolkit
