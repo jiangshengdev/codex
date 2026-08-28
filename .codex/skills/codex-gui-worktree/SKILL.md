@@ -5,41 +5,19 @@ description: Create and prepare lightweight sparse git worktrees for codex-gui p
 
 # codex-gui Worktree
 
-Use this skill to create or prepare sparse `codex-gui` worktrees for parallel frontend work in the current Codex checkout.
+## Boundaries
 
-## Rules
-
-- Before printing paths, resolve the worktree path plus every symlink path and target with the same physical-path and root-directory resolution semantics used by the bundled script.
-- Before executing the creation command, print the complete command unchanged, the canonical worktree target path, and every symlink the script will actually create as an exact canonical `link path -> target` mapping. If a requested path alias differs from its resolved path, print the requested alias alongside the actual canonical path or mapping.
-- A direct user request to create, prepare, bootstrap, or repair a `codex-gui` worktree authorizes that operation. After the required pre-execution disclosure, execute it without another confirmation; an earlier plan that omitted the worktree or said not to create one does not override the current request.
-- A confirmed plan that lists the worktree's exact name, branch, base, target path, include scope, and command also authorizes execution without another confirmation. It never waives the pre-execution disclosure.
-- Wait for confirmation only when the user is discussing rather than requesting the operation, the assistant proposed it, a required parameter cannot be inferred safely, or the target path, branch, file, directory, or symlink conflicts with existing state or risks an overwrite. Parameter drift beyond the current direct request or confirmed plan also requires confirmation.
-- When a confirmed plan declares multiple worktrees, the coordinating agent must create and verify all of them before any implementation edit, generation, artifact verification, or task commit begins.
-- Do not install dependencies.
+- Use `$action-authorization` for action scope, `$managing-work-stages` for sequencing and the preparation barrier, and the applicable `AGENTS.md` for installation policy. This skill owns only project-specific worktree creation and verification.
 - Do not download documentation.
-- This setup skill does not stage or commit. Later nodes may stage or commit in the prepared worktree only when separately authorized by a confirmed plan.
-- Do not overwrite existing branches, worktrees, files, directories, or symlinks.
+- Setup ends after creation, link setup, and verification; staging and committing are outside this skill.
 - Before creation, confirm that every default sparse checkout path and every
   `--include` path exists in the selected base's Git tree.
-- Stop on conflicts and print the exact path that blocks progress.
+- Do not overwrite existing branches, worktrees, files, directories, or symlinks. Stop on conflicts and print the exact blocking path.
 - Creating a worktree from `dev` uses only committed content from the selected base. Uncommitted changes in the current `dev` checkout or any other worktree are not carried into the new worktree and should not be treated as blockers.
 
 ## Plan-authoring Preflight
 
 Before writing any exact worktree command into a plan, inspect `$WORKTREE_ROOT/vitest`. If it is already a symlink, record the requested Vitest path, its direct `readlink` target, and its fully resolved physical target separately. Choose `--vitest-root` using the script's `normalize_path_preserving_leaf` and `ensure_symlink` semantics. When multiple paths resolve to the same directory but the script decides compatibility from the direct mapping, the plan must use a parameter that the existing mapping accepts. Resolve any mismatch before requesting plan confirmation; do not defer it to execution. Plan to change the existing link only when the user explicitly requests that migration.
-
-## Pre-execution Disclosure Gate
-
-This disclosure is a durable informed record, not a second confirmation gate. When the current direct request or a matching confirmed plan already authorizes the operation, invoke the script after emitting the complete disclosure in the same turn.
-
-For each worktree, before any tool call that can create the worktree or a symlink, emit one complete, durable disclosure record containing:
-
-- the complete command verbatim
-- every requested path alias
-- the canonical worktree path
-- every canonical `link path -> target` mapping the script will actually create, including the shared Vitest link
-
-If any field is missing, stop and do not invoke the script. Record each planned worktree separately. Output produced after execution cannot backfill or replace this preflight record.
 
 ## Default Layout
 

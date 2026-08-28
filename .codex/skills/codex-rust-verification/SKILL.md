@@ -5,9 +5,10 @@ description: "Use when choosing, writing, or running Rust verification commands 
 
 # Codex Rust Verification
 
-Use this skill to choose narrow Rust validation for Codex repository changes.
-It does not allow installs, full Rust test suites, full lint sweeps, or git remote operations unless the user explicitly authorizes the forbidden scope.
-For regular Rust formatting, fix, dependency, schema, snapshot, and app-server validation rules, read the project `AGENTS.md`.
+Before choosing, writing, or running a Rust verification command, apply
+`$managing-work-stages` and its `references/execution-environment-preflight.md`.
+Use the project `AGENTS.md` for regular Rust formatting, fix, dependency, schema,
+snapshot, and app-server validation rules. The rules below are the Rust-specific delta.
 
 ## Hard Limits
 
@@ -34,5 +35,6 @@ just argument-comment-lint
 
 ## Planning Verification Steps
 
-When writing plan or verification commands, first inspect the live `justfile`, `Cargo.toml`, or project docs that define the command.
-Do not copy command names from old plans or memory without checking that they still exist.
+After the general preflight, use the live `justfile`, relevant `Cargo.toml`, or
+project documentation to resolve the Rust-specific entrypoint and filter, then
+apply the Hard Limits above.

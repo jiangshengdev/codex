@@ -7,8 +7,7 @@ description: Ordinary Codex GUI launch URL printing. Use when the user says `GUI
 
 ## Core Rules
 
-- This is the ordinary GUI launch flow; behavior must match CLI `/gui`.
-- Only call the outer Codex `launch_gui` tool and print the returned URL list.
+- Match CLI `/gui`: only call the outer Codex `launch_gui` tool and print the returned URL list.
 - Do not run `.codex/skills/debug-responsive-gui/scripts/debug-responsive-gui.mjs`.
 - Do not start or control a browser, use Playwright, enter responsive mode, take screenshots, or verify the page.
 - Do not start, stop, or manage the `codex-gui` Vite dev server.

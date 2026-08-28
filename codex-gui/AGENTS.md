@@ -6,7 +6,13 @@
 - Do not run `just fmt` merely because the task changes another repository file. In particular, changes confined to frontend files under `codex-gui/**`, `docs/**`, Markdown files, or other paths not handled by `scripts/format.py` do not trigger it. Pure frontend formatting must use the applicable scripts defined in `codex-gui/package.json`.
 - If a task changes both unmanaged files and at least one `just fmt`-managed file, run `just fmt`. Treat the live `scripts/format.py` implementation as authoritative if its managed scope changes.
 - This rule explicitly overrides the repository-root `AGENTS.md` requirement to run `just fmt` after making code changes anywhere in the repository.
-- Before selecting a frontend formatter or verification entrypoint, trace the live CI and consumer chain and directly verify that it supports the target file type. Existing scripts, configuration, and history are evidence, not proof of authority; overlapping formatters must have one authoritative owner and must not impose conflicting gates.
+
+Use `$codex-gui-toolchain` to select and run frontend formatters, package scripts, and verification entrypoints.
+
+## Skill Routing
+
+- Use `$gui-launch` for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only requests. Real GUI debugging and acceptance are routed below.
+- Use `$heroui-react` for HeroUI v3 documentation, package, and API details, and `$redux-toolkit` for Redux Toolkit documentation, API, and architecture rules.
 
 ## Frontend Engineering Constraints
 
@@ -38,7 +44,7 @@
 
 - Require real GUI acceptance with `$debug-responsive-gui` when a change can affect user-visible layout or responsive geometry; overlays, opening direction, occlusion, clipping, or scrolling; pointer or keyboard interaction and focus flow; component visual states such as default, hover, disabled, invalid, or `focus-visible`; or integration behavior provable only against real Codex state.
 - Pure type changes, generated artifacts, invisible internal logic, and frontend changes with none of those effects do not trigger real GUI acceptance merely because they are under `codex-gui/**`.
-- Opening a page, preparing the browser environment, screenshots, DOM or event assertions, and automated test success do not substitute for acceptance of the affected real GUI scenarios. If all triggered scenarios have not passed, report `Real GUI not validated` and do not claim complete completion or verification.
+- Opening a page, preparing the browser environment, screenshots, DOM or event assertions, and automated test success do not substitute for acceptance of the affected real GUI scenarios. If all triggered scenarios have not passed, do not claim complete completion or verification.
 
 ## HeroUI Design System Invariants
 
