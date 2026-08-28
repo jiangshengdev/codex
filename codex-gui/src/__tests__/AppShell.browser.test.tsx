@@ -99,6 +99,7 @@ const catalogSkill = (name: string, cwd: string, enabled = true): SkillMetadata 
   path: `${cwd}/skills/${name}/SKILL.md`,
   scope: "repo",
   enabled,
+  pluginId: null,
 });
 
 const requireThreadSwitchProbeSession = (): ActiveThreadSession => {

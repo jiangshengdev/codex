@@ -219,6 +219,114 @@ describe("transcript state committed projection reducer", () => {
     });
   });
 
+  it("appends completed activity without rewriting its earlier started activity", () => {
+    const turnId = "turn-sub-agent-started-then-completed";
+    const started = subAgentActivity(
+      "activity-sub-agent-started",
+      "started",
+      "agents/implementer",
+      { agentThreadId: "agent-thread-implementer" },
+    );
+    const completed = subAgentActivity(
+      "activity-sub-agent-completed",
+      "completed",
+      "agents/implementer",
+      { agentThreadId: "agent-thread-implementer" },
+    );
+    const snapshotStore = makeStore();
+    const completedOnlyStore = makeStore();
+
+    snapshotStore.dispatch(
+      threadRuntimeAttached(
+        attachWithTurns(attachBaseline, [baseTurn(turnId, [started, completed])]),
+      ),
+    );
+    completedOnlyStore.dispatch(threadRuntimeAttached(attachWithTurns(attachBaseline, [])));
+    completedOnlyStore.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-sub-agent-started-activity",
+          turnId,
+          started,
+        ),
+        replay: "live",
+      }),
+    );
+
+    const startedEntryId = transcriptEntryIdFor(turnId, started.id);
+    const completedEntryId = transcriptEntryIdFor(turnId, completed.id);
+    const startedStoredBeforeCompletion =
+      completedOnlyStore.getState().transcriptState.entriesById[startedEntryId];
+    const startedViewBeforeCompletion = selectTranscriptEntry(
+      completedOnlyStore.getState(),
+      startedEntryId,
+    );
+
+    completedOnlyStore.dispatch(
+      threadRuntimeEventBuffered({
+        notification: itemCompleted(
+          eventItemCompleted,
+          "commit-sub-agent-completed-activity",
+          turnId,
+          completed,
+        ),
+        replay: "live",
+      }),
+    );
+
+    expect(completedOnlyStore.getState().transcriptState.entriesById[startedEntryId]).toBe(
+      startedStoredBeforeCompletion,
+    );
+    expect(selectTranscriptEntry(completedOnlyStore.getState(), startedEntryId)).toBe(
+      startedViewBeforeCompletion,
+    );
+    expect(
+      completedOnlyStore.getState().transcriptState.entriesById[completedEntryId],
+    ).toMatchObject({
+      id: completed.id,
+      activityKind: "completed",
+      revision: 0,
+    });
+
+    const completedOnlyEntries = selectTranscriptChunk(
+      completedOnlyStore.getState(),
+      `${turnId}:chunk:0`,
+    )?.entries;
+    expect(completedOnlyEntries).toStrictEqual([
+      {
+        type: "subAgentActivity",
+        id: started.id,
+        turnId,
+        title: {
+          kind: "agentStarted",
+          agentThreadId: "agent-thread-implementer",
+          agentPath: "agents/implementer",
+        },
+        details: [],
+        revision: 0,
+      },
+      {
+        type: "subAgentActivity",
+        id: completed.id,
+        turnId,
+        title: {
+          kind: "agentCompleted",
+          agentThreadId: "agent-thread-implementer",
+          agentPath: "agents/implementer",
+        },
+        details: [],
+        revision: 0,
+      },
+    ]);
+    expect(completedOnlyEntries).toStrictEqual(
+      selectTranscriptChunk(snapshotStore.getState(), `${turnId}:chunk:0`)?.entries,
+    );
+    expect(selectTranscriptTurn(completedOnlyStore.getState(), turnId)).toMatchObject({
+      middleEntryCount: 2,
+    });
+  });
+
   it("projects completed-only and snapshot terminal collab activity to the same middle view", () => {
     const turnId = "turn-collab-settled-equivalence";
     const leading = userMessage("user-collab-settled", [textInput("Delegate")]);

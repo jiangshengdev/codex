@@ -300,6 +300,13 @@ const createTranscriptEntryView = (entry: TranscriptStoredEntry): TranscriptEntr
             agentPath: entry.agentPath,
           };
           break;
+        case "completed":
+          title = {
+            kind: "agentCompleted",
+            agentThreadId: entry.agentThreadId,
+            agentPath: entry.agentPath,
+          };
+          break;
         default: {
           const exhaustiveActivityKind: never = entry.activityKind;
           return exhaustiveActivityKind;

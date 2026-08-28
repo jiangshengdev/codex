@@ -120,6 +120,7 @@ describe("generated app-server protocol", () => {
                 path: "/workspace/project/skills/grill-me/SKILL.md",
                 scope: "repo",
                 enabled: true,
+                pluginId: null,
               },
             ],
             errors: [],

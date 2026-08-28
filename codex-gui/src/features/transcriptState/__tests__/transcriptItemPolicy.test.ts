@@ -185,6 +185,14 @@ describe("transcript item policy", () => {
         agentPath: "agents/planner",
       },
     ],
+    [
+      "completed",
+      {
+        kind: "agentCompleted",
+        agentThreadId: "agent-thread-completed",
+        agentPath: "agents/planner",
+      },
+    ],
   ] as const)("projects completed sub-agent %s activity", (kind, title) => {
     const turnId = `turn-${kind}`;
     const item = subAgentActivity(`activity-${kind}`, kind, "agents/planner", {
@@ -223,6 +231,27 @@ describe("transcript item policy", () => {
       revision: 0,
     });
   });
+
+  it.each(["sendMessage", "followupTask", "interruptAgent", "listAgents"] as const)(
+    "ignores %s in started and terminal collaboration policies",
+    (tool) => {
+      expect(
+        projectStartedTranscriptItem(
+          collabAgentToolCall(`started-${tool}`, tool, "inProgress"),
+          "turn-ignored-collab",
+        ),
+      ).toStrictEqual({ kind: "ignore" });
+
+      for (const status of ["completed", "failed", "interrupted"] as const) {
+        expect(
+          projectCompletedTranscriptItem(
+            collabAgentToolCall(`terminal-${tool}-${status}`, tool, status),
+            "turn-ignored-collab",
+          ),
+        ).toStrictEqual({ kind: "ignore" });
+      }
+    },
+  );
 
   it.each([
     [

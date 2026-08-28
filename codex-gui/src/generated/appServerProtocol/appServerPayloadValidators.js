@@ -125,7 +125,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 var validateV2SkillsListResponse = validate15;
-var schema21 = { "properties": { "dependencies": { "anyOf": [{ "$ref": "#/definitions/v2/SkillDependencies" }, { "type": "null" }] }, "description": { "type": "string" }, "enabled": { "type": "boolean" }, "interface": { "anyOf": [{ "$ref": "#/definitions/v2/SkillInterface" }, { "type": "null" }] }, "name": { "type": "string" }, "path": { "$ref": "#/definitions/v2/AbsolutePathBuf" }, "scope": { "$ref": "#/definitions/v2/SkillScope" }, "shortDescription": { "description": "Legacy short_description from SKILL.md. Prefer SKILL.json interface.short_description.", "type": ["string", "null"] } }, "required": ["description", "enabled", "name", "path", "scope"], "type": "object" };
+var schema21 = { "properties": { "dependencies": { "anyOf": [{ "$ref": "#/definitions/v2/SkillDependencies" }, { "type": "null" }] }, "description": { "type": "string" }, "enabled": { "type": "boolean" }, "interface": { "anyOf": [{ "$ref": "#/definitions/v2/SkillInterface" }, { "type": "null" }] }, "name": { "type": "string" }, "path": { "$ref": "#/definitions/v2/AbsolutePathBuf" }, "pluginId": { "description": "Owning plugin ID, matching `PluginSummary.id`, when known.", "type": ["string", "null"] }, "scope": { "$ref": "#/definitions/v2/SkillScope" }, "shortDescription": { "description": "Legacy short_description from SKILL.md. Prefer SKILL.json interface.short_description.", "type": ["string", "null"] } }, "required": ["description", "enabled", "name", "path", "scope"], "type": "object" };
 var schema28 = { "enum": ["user", "repo", "system", "admin"], "type": "string" };
 var schema23 = { "properties": { "command": { "type": ["string", "null"] }, "description": { "type": ["string", "null"] }, "transport": { "type": ["string", "null"] }, "type": { "type": "string" }, "url": { "type": ["string", "null"] }, "value": { "type": "string" } }, "required": ["type", "value"], "type": "object" };
 function validate19(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
@@ -616,15 +616,11 @@ function validate18(data, { instancePath = "", parentData, parentDataProperty, r
                     var valid0 = true;
                   }
                   if (valid0) {
-                    if (data.scope !== void 0) {
-                      let data6 = data.scope;
+                    if (data.pluginId !== void 0) {
+                      let data6 = data.pluginId;
                       const _errs20 = errors;
-                      if (typeof data6 !== "string") {
-                        validate18.errors = [{ instancePath: instancePath + "/scope", schemaPath: "#/definitions/v2/SkillScope/type", keyword: "type", params: { type: "string" } }];
-                        return false;
-                      }
-                      if (!(data6 === "user" || data6 === "repo" || data6 === "system" || data6 === "admin")) {
-                        validate18.errors = [{ instancePath: instancePath + "/scope", schemaPath: "#/definitions/v2/SkillScope/enum", keyword: "enum", params: { allowedValues: schema28.enum } }];
+                      if (typeof data6 !== "string" && data6 !== null) {
+                        validate18.errors = [{ instancePath: instancePath + "/pluginId", schemaPath: "#/properties/pluginId/type", keyword: "type", params: { type: schema21.properties.pluginId.type } }];
                         return false;
                       }
                       var valid0 = _errs20 === errors;
@@ -632,16 +628,33 @@ function validate18(data, { instancePath = "", parentData, parentDataProperty, r
                       var valid0 = true;
                     }
                     if (valid0) {
-                      if (data.shortDescription !== void 0) {
-                        let data7 = data.shortDescription;
-                        const _errs23 = errors;
-                        if (typeof data7 !== "string" && data7 !== null) {
-                          validate18.errors = [{ instancePath: instancePath + "/shortDescription", schemaPath: "#/properties/shortDescription/type", keyword: "type", params: { type: schema21.properties.shortDescription.type } }];
+                      if (data.scope !== void 0) {
+                        let data7 = data.scope;
+                        const _errs22 = errors;
+                        if (typeof data7 !== "string") {
+                          validate18.errors = [{ instancePath: instancePath + "/scope", schemaPath: "#/definitions/v2/SkillScope/type", keyword: "type", params: { type: "string" } }];
                           return false;
                         }
-                        var valid0 = _errs23 === errors;
+                        if (!(data7 === "user" || data7 === "repo" || data7 === "system" || data7 === "admin")) {
+                          validate18.errors = [{ instancePath: instancePath + "/scope", schemaPath: "#/definitions/v2/SkillScope/enum", keyword: "enum", params: { allowedValues: schema28.enum } }];
+                          return false;
+                        }
+                        var valid0 = _errs22 === errors;
                       } else {
                         var valid0 = true;
+                      }
+                      if (valid0) {
+                        if (data.shortDescription !== void 0) {
+                          let data8 = data.shortDescription;
+                          const _errs25 = errors;
+                          if (typeof data8 !== "string" && data8 !== null) {
+                            validate18.errors = [{ instancePath: instancePath + "/shortDescription", schemaPath: "#/properties/shortDescription/type", keyword: "type", params: { type: schema21.properties.shortDescription.type } }];
+                            return false;
+                          }
+                          var valid0 = _errs25 === errors;
+                        } else {
+                          var valid0 = true;
+                        }
                       }
                     }
                   }
@@ -2380,9 +2393,9 @@ var schema66 = { "properties": { "actionName": { "type": ["string", "null"] }, "
 var schema69 = { "enum": ["inProgress", "completed", "failed"], "type": "string" };
 var schema70 = { "oneOf": [{ "properties": { "text": { "type": "string" }, "type": { "enum": ["inputText"], "title": "InputTextDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["text", "type"], "title": "InputTextDynamicToolCallOutputContentItem", "type": "object" }, { "properties": { "imageUrl": { "type": "string" }, "type": { "enum": ["inputImage"], "title": "InputImageDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["imageUrl", "type"], "title": "InputImageDynamicToolCallOutputContentItem", "type": "object" }, { "properties": { "audioUrl": { "type": "string" }, "type": { "enum": ["inputAudio"], "title": "InputAudioDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["audioUrl", "type"], "title": "InputAudioDynamicToolCallOutputContentItem", "type": "object" }] };
 var schema71 = { "enum": ["inProgress", "completed", "failed"], "type": "string" };
-var schema75 = { "enum": ["inProgress", "completed", "failed"], "type": "string" };
-var schema76 = { "enum": ["spawnAgent", "sendInput", "resumeAgent", "wait", "closeAgent"], "type": "string" };
-var schema77 = { "enum": ["started", "interacted", "interrupted"], "type": "string" };
+var schema75 = { "enum": ["inProgress", "completed", "failed", "interrupted"], "type": "string" };
+var schema76 = { "enum": ["spawnAgent", "sendInput", "resumeAgent", "wait", "closeAgent", "sendMessage", "followupTask", "interruptAgent", "listAgents"], "type": "string" };
+var schema77 = { "enum": ["started", "interacted", "interrupted", "completed"], "type": "string" };
 var schema78 = { "oneOf": [{ "properties": { "queries": { "items": { "type": "string" }, "type": ["array", "null"] }, "query": { "type": ["string", "null"] }, "type": { "enum": ["search"], "title": "SearchWebSearchActionType", "type": "string" } }, "required": ["type"], "title": "SearchWebSearchAction", "type": "object" }, { "properties": { "type": { "enum": ["openPage"], "title": "OpenPageWebSearchActionType", "type": "string" }, "url": { "type": ["string", "null"] } }, "required": ["type"], "title": "OpenPageWebSearchAction", "type": "object" }, { "properties": { "pattern": { "type": ["string", "null"] }, "type": { "enum": ["findInPage"], "title": "FindInPageWebSearchActionType", "type": "string" }, "url": { "type": ["string", "null"] } }, "required": ["type"], "title": "FindInPageWebSearchAction", "type": "object" }, { "properties": { "type": { "enum": ["other"], "title": "OtherWebSearchActionType", "type": "string" } }, "required": ["type"], "title": "OtherWebSearchAction", "type": "object" }] };
 var schema80 = { "oneOf": [{ "properties": { "limitId": { "type": "string" }, "resetsAt": { "format": "int64", "type": ["integer", "null"] }, "type": { "enum": ["usageLimitExceeded"], "title": "UsageLimitExceededImageGenerationFailureType", "type": "string" } }, "required": ["limitId", "type"], "title": "UsageLimitExceededImageGenerationFailure", "type": "object" }] };
 var schema48 = { "oneOf": [{ "properties": { "text": { "type": "string" }, "text_elements": { "default": [], "description": "UI-defined spans within `text` used to render or persist special elements.", "items": { "$ref": "#/definitions/v2/TextElement" }, "type": "array" }, "type": { "enum": ["text"], "title": "TextUserInputType", "type": "string" } }, "required": ["text", "type"], "title": "TextUserInput", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }], "default": null }, "type": { "enum": ["image"], "title": "ImageUserInputType", "type": "string" }, "url": { "type": "string" } }, "required": ["type", "url"], "title": "ImageUserInput", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }], "default": null }, "path": { "type": "string" }, "type": { "enum": ["localImage"], "title": "LocalImageUserInputType", "type": "string" } }, "required": ["path", "type"], "title": "LocalImageUserInput", "type": "object" }, { "properties": { "type": { "enum": ["audio"], "title": "AudioUserInputType", "type": "string" }, "url": { "type": "string" } }, "required": ["type", "url"], "title": "AudioUserInput", "type": "object" }, { "properties": { "path": { "type": "string" }, "type": { "enum": ["localAudio"], "title": "LocalAudioUserInputType", "type": "string" } }, "required": ["path", "type"], "title": "LocalAudioUserInput", "type": "object" }, { "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "type": { "enum": ["skill"], "title": "SkillUserInputType", "type": "string" } }, "required": ["name", "path", "type"], "title": "SkillUserInput", "type": "object" }, { "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "type": { "enum": ["mention"], "title": "MentionUserInputType", "type": "string" } }, "required": ["name", "path", "type"], "title": "MentionUserInput", "type": "object" }] };
@@ -6615,7 +6628,7 @@ function validate42(data, { instancePath = "", parentData, parentDataProperty, r
                                           }
                                           errors++;
                                         }
-                                        if (!(data88 === "inProgress" || data88 === "completed" || data88 === "failed")) {
+                                        if (!(data88 === "inProgress" || data88 === "completed" || data88 === "failed" || data88 === "interrupted")) {
                                           const err150 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CollabAgentToolCallStatus/enum", keyword: "enum", params: { allowedValues: schema75.enum } };
                                           if (vErrors === null) {
                                             vErrors = [err150];
@@ -6641,7 +6654,7 @@ function validate42(data, { instancePath = "", parentData, parentDataProperty, r
                                             }
                                             errors++;
                                           }
-                                          if (!(data89 === "spawnAgent" || data89 === "sendInput" || data89 === "resumeAgent" || data89 === "wait" || data89 === "closeAgent")) {
+                                          if (!(data89 === "spawnAgent" || data89 === "sendInput" || data89 === "resumeAgent" || data89 === "wait" || data89 === "closeAgent" || data89 === "sendMessage" || data89 === "followupTask" || data89 === "interruptAgent" || data89 === "listAgents")) {
                                             const err152 = { instancePath: instancePath + "/tool", schemaPath: "#/definitions/v2/CollabAgentTool/enum", keyword: "enum", params: { allowedValues: schema76.enum } };
                                             if (vErrors === null) {
                                               vErrors = [err152];
@@ -6782,7 +6795,7 @@ function validate42(data, { instancePath = "", parentData, parentDataProperty, r
                                     }
                                     errors++;
                                   }
-                                  if (!(data94 === "started" || data94 === "interacted" || data94 === "interrupted")) {
+                                  if (!(data94 === "started" || data94 === "interacted" || data94 === "interrupted" || data94 === "completed")) {
                                     const err161 = { instancePath: instancePath + "/kind", schemaPath: "#/definitions/v2/SubAgentActivityKind/enum", keyword: "enum", params: { allowedValues: schema77.enum } };
                                     if (vErrors === null) {
                                       vErrors = [err161];

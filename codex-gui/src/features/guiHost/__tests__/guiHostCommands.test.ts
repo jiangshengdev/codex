@@ -59,6 +59,7 @@ const skillsListResponse: RequestResponse<"skills/list"> = {
           path: "/workspace/project/skills/grill-me/SKILL.md",
           scope: "repo",
           enabled: true,
+          pluginId: null,
         },
       ],
       errors: [],
