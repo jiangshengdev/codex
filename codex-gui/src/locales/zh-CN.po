@@ -43,7 +43,7 @@ msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# 个技能} other {# 个技能}}"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:759
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:767
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {中间更新 · # 项} other {中间更新 · # 项}}"
 
@@ -119,7 +119,7 @@ msgstr "已提交的对话记录"
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:137
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:848
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:856
 msgid "Completed"
 msgstr "已完成"
 
@@ -127,6 +127,11 @@ msgstr "已完成"
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:141
 msgid "Completed - {messagePreview}"
 msgstr "已完成：{messagePreview}"
+
+#. Activity showing sub-agents that completed work and any omitted count
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:465
+msgid "Completed <0/> <1/>"
+msgstr "以下子代理已完成工作：<0/> <1/>"
 
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:92
 msgid "Connection interrupted. Reconnect required."
@@ -232,12 +237,12 @@ msgid "Expand pending message: {previewText}"
 msgstr "展开待处理消息：{previewText}"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:858
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:866
 msgid "Failed"
 msgstr "失败"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:546
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:554
 msgid "Failed."
 msgstr "失败。"
 
@@ -289,7 +294,7 @@ msgid "Idle"
 msgstr "空闲"
 
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:863
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:871
 msgid "In progress"
 msgstr "进行中"
 
@@ -301,7 +306,7 @@ msgstr "已与 <0/> <1/>交互"
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:128
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:853
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:861
 msgid "Interrupted"
 msgstr "已中断"
 
@@ -311,7 +316,7 @@ msgid "Interrupted <0/> <1/>"
 msgstr "已中断 <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:540
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:548
 msgid "Interrupted."
 msgstr "已中断。"
 
@@ -541,7 +546,7 @@ msgstr "正在刷新技能…"
 msgid "Remove or replace invalid skills before saving."
 msgstr "保存前请移除或替换无效技能。"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:811
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:819
 msgid "Request failed"
 msgstr "请求失败"
 
@@ -751,7 +756,7 @@ msgid "Transcript context pages"
 msgstr "上下文分页"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:874
+#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:882
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 

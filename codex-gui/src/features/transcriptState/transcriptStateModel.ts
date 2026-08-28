@@ -109,10 +109,15 @@ type TranscriptCollabAgentStoredEntryBase = {
   revision: number;
 };
 
+type TranscriptCollabAgentTerminalTool = Exclude<
+  TranscriptCollabAgentItem["tool"],
+  "sendMessage" | "followupTask" | "interruptAgent" | "listAgents"
+>;
+
 export type TranscriptCollabAgentStoredEntry = TranscriptCollabAgentStoredEntryBase &
   (
     | {
-        tool: TranscriptCollabAgentItem["tool"];
+        tool: TranscriptCollabAgentTerminalTool;
         toolStatus: Exclude<TranscriptCollabAgentItem["status"], "inProgress">;
       }
     | {
@@ -236,6 +241,11 @@ export type TranscriptActivityCopy =
     }
   | {
       kind: "agentInterrupted";
+      agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
+      agentPath: TranscriptSubAgentActivityItem["agentPath"];
+    }
+  | {
+      kind: "agentCompleted";
       agentThreadId: TranscriptSubAgentActivityItem["agentThreadId"];
       agentPath: TranscriptSubAgentActivityItem["agentPath"];
     }

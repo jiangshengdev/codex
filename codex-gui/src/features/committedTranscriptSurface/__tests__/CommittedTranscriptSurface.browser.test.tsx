@@ -192,6 +192,7 @@ test.each([
     "Interacted with Gui composer surface",
   ],
   ["interrupted", "/root/gui_usage_ingress", "Gui usage ingress", "Interrupted Gui usage ingress"],
+  ["completed", "/root/gui_test_run", "Gui test run", "Completed Gui test run"],
 ] as const)(
   "formats the %s sub-agent activity action",
   async (kind, agentPath, taskName, accessibleName) => {
@@ -265,6 +266,78 @@ test.each([1, 2, 3, 4])("aggregates %s adjacent started activities in order", as
     }
     expect(previous.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   }
+});
+
+test("keeps started and completed rows separate and limits completed chips", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />);
+  const turnId = "turn-started-completed-row-boundary";
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(turnId, [
+          subAgentActivity("activity-started", "started", "/root/starter"),
+          ...["a", "b", "c", "d"].map((agentName) =>
+            subAgentActivity(
+              `activity-completed-${agentName}`,
+              "completed",
+              `/root/agent_${agentName}`,
+            ),
+          ),
+        ]),
+      ]),
+    ),
+  );
+
+  const turn = screen.getByRole("article", { name: `Turn ${turnId}`, exact: true });
+  const startedActivity = turn.getByRole("article", { name: "Started Starter", exact: true });
+  const completedActivity = turn.getByRole("article", {
+    name: "Completed Agent a Agent b Agent c and 1 more sub-agent",
+    exact: true,
+  });
+  await expect.element(startedActivity).toBeVisible();
+  await expect.element(completedActivity).toBeVisible();
+  for (const label of ["Agent a", "Agent b", "Agent c"]) {
+    await expect.element(completedActivity.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect.element(turn.getByText("Agent d", { exact: true })).not.toBeInTheDocument();
+  expect(
+    startedActivity.element().compareDocumentPosition(completedActivity.element()) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).not.toBe(0);
+});
+
+test("localizes completed sub-agent activity with an omitted count", async () => {
+  const { store, ...screen } = await renderWithProviders(<CommittedTranscriptSurface />, {
+    locale: "zh-CN",
+  });
+
+  store.dispatch(
+    threadRuntimeAttached(
+      attachWithTurns(attachBaseline, [
+        baseTurn(
+          "turn-omitted-completed-zh-cn",
+          ["a", "b", "c", "d"].map((agentName) =>
+            subAgentActivity(
+              `activity-omitted-completed-${agentName}`,
+              "completed",
+              `/root/${agentName}`,
+            ),
+          ),
+        ),
+      ]),
+    ),
+  );
+
+  const activity = screen.getByRole("article", {
+    name: "以下子代理已完成工作：A B C 及其他 1 个子代理",
+    exact: true,
+  });
+  await expect.element(activity).toBeVisible();
+  for (const visibleAgent of ["A", "B", "C"]) {
+    await expect.element(activity.getByText(visibleAgent, { exact: true })).toBeVisible();
+  }
+  await expect.element(screen.getByText("D", { exact: true })).not.toBeInTheDocument();
 });
 
 test("localizes omitted interacted sub-agent activity in natural order", async () => {
@@ -398,7 +471,14 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
   const spawnedTitle = "Spawned agents/browser-reviewer (gpt-5 high)";
   const interactedTitle = "Interacted with Browser reviewer Browser reviewer";
   const interruptedTitle = "Interrupted Browser worker";
-  const activityTitles = [startedTitle, spawnedTitle, interactedTitle, interruptedTitle];
+  const completedTitle = "Completed Browser finisher";
+  const activityTitles = [
+    startedTitle,
+    spawnedTitle,
+    interactedTitle,
+    interruptedTitle,
+    completedTitle,
+  ];
 
   store.dispatch(
     threadRuntimeAttached(
@@ -431,6 +511,11 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
             "interrupted",
             "/root/browser_worker",
           ),
+          subAgentActivity(
+            "activity-sub-agent-completed-surface",
+            "completed",
+            "/root/browser_finisher",
+          ),
         ]),
       ]),
     ),
@@ -443,7 +528,17 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
     name: interruptedTitle,
     exact: true,
   });
-  const activities = [startedActivity, spawnedActivity, interactedActivity, interruptedActivity];
+  const completedActivity = screen.getByRole("article", {
+    name: completedTitle,
+    exact: true,
+  });
+  const activities = [
+    startedActivity,
+    spawnedActivity,
+    interactedActivity,
+    interruptedActivity,
+    completedActivity,
+  ];
   for (const activity of activities) {
     await expect.element(activity).toBeVisible();
     await expect.element(activity).not.toHaveAccessibleDescription();
@@ -467,6 +562,9 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
   );
   await expect
     .element(interruptedActivity.getByText("Browser worker", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(completedActivity.getByText("Browser finisher", { exact: true }))
     .toBeVisible();
   await expect.element(spawnedActivity.getByText("Review browser activity")).toBeVisible();
   for (const activity of [startedActivity, interactedActivity, interruptedActivity]) {
