@@ -192,6 +192,14 @@ const projectStartedCollabAgentItem = (
     case "sendInput":
     case "closeAgent":
       return { kind: "ignore" };
+    case "sendMessage":
+      return { kind: "ignore" };
+    case "followupTask":
+      return { kind: "ignore" };
+    case "interruptAgent":
+      return { kind: "ignore" };
+    case "listAgents":
+      return { kind: "ignore" };
   }
 
   const exhaustiveTool: never = item.tool;
@@ -217,6 +225,14 @@ const projectCompletedCollabAgentItem = (
         return { kind: "remove" };
       }
       break;
+    case "sendMessage":
+      return { kind: "ignore" };
+    case "followupTask":
+      return { kind: "ignore" };
+    case "interruptAgent":
+      return { kind: "ignore" };
+    case "listAgents":
+      return { kind: "ignore" };
     default: {
       const exhaustiveTool: never = item.tool;
       return exhaustiveTool;

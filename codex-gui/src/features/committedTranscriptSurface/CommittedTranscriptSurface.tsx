@@ -460,6 +460,14 @@ const SubAgentActivityRow = ({
         </Trans>
       );
       break;
+    case "agentCompleted":
+      title = (
+        <Trans comment="Activity showing sub-agents that completed work and any omitted count">
+          Completed <SubAgentActivityChips presentation={presentation} />{" "}
+          <SubAgentOmittedCount omittedCount={presentation.omittedCount} />
+        </Trans>
+      );
+      break;
   }
 
   return <ActivityEntryRow details={[]} title={title} />;
