@@ -19,21 +19,6 @@ description: Create and prepare lightweight sparse git worktrees for codex-gui p
 
 Before writing any exact worktree command into a plan, inspect `$WORKTREE_ROOT/vitest`. If it is already a symlink, record the requested Vitest path, its direct `readlink` target, and its fully resolved physical target separately. Choose `--vitest-root` using the script's `normalize_path_preserving_leaf` and `ensure_symlink` semantics. When multiple paths resolve to the same directory but the script decides compatibility from the direct mapping, the plan must use a parameter that the existing mapping accepts. Resolve any mismatch before requesting plan confirmation; do not defer it to execution. Plan to change the existing link only when the user explicitly requests that migration.
 
-## Pre-execution Disclosure Gate
-
-This disclosure is a durable informed record, not a second confirmation gate. Once authorization is active, emit it and invoke the script in the same turn.
-
-Before printing paths, resolve the worktree path plus every symlink path and target with the bundled script's physical-path and root-directory semantics. If a requested alias differs from its resolved path, record both.
-
-For each worktree, before any tool call that can create the worktree or a symlink, emit one complete, durable disclosure record containing:
-
-- the complete command unchanged
-- every requested path alias
-- the canonical worktree path
-- every exact canonical `link path -> target` mapping the script will actually create, including the shared Vitest link
-
-If any field is missing, stop and do not invoke the script. Record each planned worktree separately. Output produced after execution cannot backfill or replace this preflight record.
-
 ## Default Layout
 
 Defaults:
