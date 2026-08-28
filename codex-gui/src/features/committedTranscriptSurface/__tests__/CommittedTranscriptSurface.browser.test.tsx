@@ -330,7 +330,7 @@ test("localizes completed sub-agent activity with an omitted count", async () =>
   );
 
   const activity = screen.getByRole("article", {
-    name: "以下子代理已完成工作：A B C 及其他 1 个子代理",
+    name: "以下子代理已完成工作： A B C 及其他 1 个子代理",
     exact: true,
   });
   await expect.element(activity).toBeVisible();
@@ -571,7 +571,7 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
     await expect.element(activity.getByText("Review browser activity")).not.toBeInTheDocument();
   }
   await expect
-    .element(screen.getByRole("button", { name: "Intermediate updates · 5 items" }))
+    .element(screen.getByRole("button", { name: "Intermediate updates · 6 items" }))
     .toBeDisabled();
 
   store.dispatch(
@@ -591,7 +591,7 @@ test("renders non-interactive aggregated sub-agent activity and folds it after t
     await expect.element(activity).not.toBeInTheDocument();
   }
 
-  const trigger = screen.getByRole("button", { name: "Intermediate updates · 5 items" });
+  const trigger = screen.getByRole("button", { name: "Intermediate updates · 6 items" });
   await expect.element(trigger).toBeEnabled();
   await trigger.click();
 
