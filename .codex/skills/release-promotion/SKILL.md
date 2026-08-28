@@ -5,7 +5,7 @@ description: Promote local codex branches from dev to test without docs/superpow
 
 # Release Promotion
 
-Use this skill when the user asks to automate or run the local release-promotion flow:
+Promote local Codex branches with the bundled scripts:
 
 1. Merge `dev` into `test` while excluding `docs/superpowers/**`.
 2. Merge `test` into `release` while preserving the release branch version in `codex-rs/Cargo.toml`.
@@ -13,11 +13,11 @@ Use this skill when the user asks to automate or run the local release-promotion
 
 ## Safety Boundaries
 
-- These scripts operate only on local branches.
+- Use `$action-authorization` before running or resuming a phase; this skill does not redefine authorization.
+- These scripts operate only on local branches and require a clean worktree before starting a new phase.
 - They do not run `git fetch`, `git pull`, `git push`, or `git remote`.
 - They do not tag releases.
 - They do not run tests, formatters, installs, or publish commands.
-- They require a clean worktree before starting a new phase.
 - If a non-excluded merge conflict occurs, they stop in the conflict state for manual resolution.
 - They never run `git reset --hard`.
 
@@ -47,10 +47,7 @@ Run one phase:
 
 ## Conflict Recovery
 
-If a phase stops with conflicts:
-1. Resolve conflicts manually.
-2. Stage the resolved files with `git add`.
-3. Run the same phase script with `--continue`.
+If a phase stops with conflicts, leave it in the conflict state and use `$resolving-merge-conflicts` to resolve and stage files with `git add`. Then run the same phase script with `--continue`.
 
 For example:
 ```bash

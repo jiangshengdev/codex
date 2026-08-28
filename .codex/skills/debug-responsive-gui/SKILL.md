@@ -7,7 +7,6 @@ description: Use when debugging or validating affected Codex GUI behavior with p
 
 ## Core Rules
 
-- Use `gui-launch` for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only requests. Use this skill for explicit debugging, responsive checks, screenshots, browser opening, visual verification, reproducible browser-control traces, or when `codex-gui/AGENTS.md` requires real GUI acceptance for an affected scenario.
 - Prefer `playwright-cli` for browser lifecycle control.
 - Use `Google Chrome for Testing` for debugging, not the system `Google Chrome`.
 - Keep the browser visible; launch it with `--headed`.
@@ -15,12 +14,11 @@ description: Use when debugging or validating affected Codex GUI behavior with p
 - Do not click by coordinates.
 - Do not automatically choose or verify a specific device model.
 - Use AppleScript only to activate `Google Chrome for Testing`, query windows, move windows, close recognizable restore dialogs, send the allowed `Command+Shift+M` shortcut in the DevTools window, and drive IME keyboard actions through `ime-control.mjs`.
-- Query state or take a screenshot when the visual state is unclear. Do not guess.
+- Query state or take a screenshot when the visual state is unclear; do not guess.
 
 ## Real GUI Acceptance Contract
 
 - Derive the smallest acceptance scenario set from the changed behavior. Do not run an unrelated fixed exhaustive checklist.
-- Record Codex runtime availability, GUI URL acquisition, visible-browser environment readiness, automated regression results, and affected real GUI scenario results separately. None substitutes for another.
 - A screenshot is supporting evidence only; it does not prove acceptance without the relevant interaction and state checks.
 - If every triggered scenario has not passed, do not claim that real GUI acceptance or the overall task is complete. When the environment is unavailable or the user explicitly prohibits validation, report `真实 GUI 未验收`.
 
@@ -88,13 +86,11 @@ Read `/tmp/codex-ime-control/<session-id>/latest-candidate.json` first. Open `ca
 
 ## Workflow
 
-- After completing the Codex runtime handoff, use the complete current GUI URL from `/gui` or outer `launch_gui`.
 - Select URLs in this order by default: VPN -> LAN -> Local. If `launch_gui` returns a VPN URL, pass that VPN URL to `--gui-url`. Use the LAN URL only when no VPN URL exists, the VPN URL is explicitly unavailable, or the user explicitly asks for a LAN address. Use the Local URL only when no VPN/LAN URL exists, VPN/LAN is explicitly unavailable, or the user explicitly asks for a local address.
 - Preserve the full `threadId` and `token` in the URL. Do not hand-write, guess, or splice URLs from old values.
 - The entrypoint script runs discovery, CFT start/reuse, GUI navigation, window layout, responsive mode, reload, and metrics verification in order by default.
 - Each step checks the real current state first. If the target state is already satisfied, it prints `skip` and exits 0; otherwise it performs that step.
 - The state file is `/tmp/codex-debug-responsive-gui/current.json`.
-- Always use the full URL returned by the current `launch_gui` call. Default to VPN -> LAN -> Local; use Local only as a fallback or when explicitly requested by the user.
 
 ## Scenario Acceptance
 
@@ -111,17 +107,13 @@ For each affected scenario:
 
 ## Restarting Or Recovering The GUI
 
-When the user says "重启 GUI", "重启后端", or "GUI 不可用", or when the page shows `Codex GUI dev server unavailable`, first call outer `launch_gui` again to get the current GUI URL. Then choose the URL in VPN -> LAN -> Local order. Use the Local URL only when no VPN/LAN URL exists, VPN/LAN is explicitly unavailable, or the user explicitly asks for a local address.
+When the user says "重启 GUI", "重启后端", or "GUI 不可用", or when the page shows `Codex GUI dev server unavailable`, first call outer `launch_gui` again to get the current GUI URL, then apply the Workflow URL order above.
 
 Do not interpret "重启 GUI" as restarting the `codex-gui` Vite frontend by default. Do not start by killing `codex app-server`, inspecting processes, or restarting the Codex App. `launch_gui` is the recovery entrypoint for the GUI backend/proxy.
 
 If the page still shows `Codex GUI dev server unavailable` after calling `launch_gui` again and opening the URL, then confirm or start the Vite dev server and refresh the same `launch_gui` URL.
 
-If a `launch_gui` URL returns HTTP 502, it usually means the proxied `codex-gui` Vite dev server is not running or is unreachable. First check whether the default Vite dev server port, or the port specified by `CODEX_GUI_VITE_PORT`, is already listening. If the user already started Vite and kept it running, do not start another one. If nothing is listening, start a foreground session from the repo's `codex-gui` directory:
-
-```bash
-pnpm run dev
-```
+If a `launch_gui` URL returns HTTP 502, it usually means the proxied `codex-gui` Vite dev server is not running or is unreachable. First check whether the default Vite dev server port, or the port specified by `CODEX_GUI_VITE_PORT`, is already listening. If the user already started Vite and kept it running, do not start another one. If nothing is listening, use `$codex-gui-toolchain` from the repository's `codex-gui` directory to resolve and run the current repository-owned frontend dev-server entrypoint in a foreground session with the required fnm-backed Node and `pnpm` environment.
 
 Keep that Vite session running, then refresh the same `launch_gui` URL. Do not treat the `debug-responsive-gui` automation script as a Vite lifecycle manager; it only opens and verifies the GUI. Do not use `nohup` or a background shell to keep Vite alive by default unless the user explicitly asks for a background daemon approach and accepts the extra verification.
 
@@ -169,12 +161,13 @@ The script does not verify:
 
 Report these separately:
 
+- Codex runtime availability and GUI URL acquisition.
 - Automated regression results.
 - Visible-browser environment status.
 - Each executed real GUI scenario and its result.
 - Every acceptance item not executed because of environment, authorization, or an explicit user restriction.
 
-Only report real GUI acceptance as passed when every triggered scenario has passed.
+None of these results substitutes for another.
 
 ## Common Validation Commands
 

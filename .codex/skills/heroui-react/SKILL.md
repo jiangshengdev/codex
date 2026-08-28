@@ -5,30 +5,9 @@ description: "Use when working with HeroUI React v3 in codex-gui, including addi
 
 # HeroUI React v3
 
-Use this skill for HeroUI work in `codex-gui`. Keep context small: search local docs, then read only the files needed for the component or topic.
+## Authoritative Documentation
 
-## Offline Rule
-
-- Do not browse the web.
-- Do not run scripts that fetch remote HeroUI docs.
-- Use only local repository files, primarily `./codex-gui/.heroui-docs/react/` relative to the repository root.
-- If `./codex-gui/.heroui-docs/react/` is missing, report an error and stop.
-- If the relevant local docs are incomplete, report the gap instead of fetching remote docs.
-
-## Workflow
-
-1. Confirm `./codex-gui/.heroui-docs/react/` exists; if it does not, stop with an error.
-2. Search targeted terms with `rg`; do not load generated all-docs indexes.
-3. Read the relevant component guide and, when useful, one or two matching demo files.
-4. Implement using HeroUI v3 patterns and the existing `codex-gui` conventions.
-5. After code changes, run checks from `codex-gui`:
-
-   ```bash
-   pnpm run lint
-   pnpm run type-check
-   ```
-
-## Local Docs
+Read and apply the shared [local frontend dependency documentation contract](../codex-gui-toolchain/references/local-frontend-dependency-docs.md). For HeroUI, use `./codex-gui/.heroui-docs/react/` relative to the repository root as the documentation root. Do not run scripts that fetch remote HeroUI docs.
 
 Useful roots:
 
@@ -38,23 +17,13 @@ Useful roots:
 ./codex-gui/.heroui-docs/react/getting-started/
 ```
 
-Search examples:
+## Minimal Lookup
 
-```bash
-rg "Button" ./codex-gui/.heroui-docs/react
-rg "onPress" ./codex-gui/.heroui-docs/react
-rg "Card.Header" ./codex-gui/.heroui-docs/react
-```
+1. Search the task's HeroUI component or API terms.
+2. Read the relevant component guide and, when useful, one or two matching demo files.
+3. Base recommendations and code changes on the local docs and existing `codex-gui` conventions.
 
-Prefer direct component docs when the path is known, for example:
-
-```text
-./codex-gui/.heroui-docs/react/components/(buttons)/button.mdx
-./codex-gui/.heroui-docs/react/components/(layout)/card.mdx
-./codex-gui/.heroui-docs/react/components/(overlays)/modal.mdx
-```
-
-## HeroUI v3 Rules
+## Domain Rules
 
 - Use `@heroui/react` for components and `@heroui/styles` for styles.
 - Do not add HeroUI v2 patterns such as `HeroUIProvider`.
@@ -70,6 +39,6 @@ Prefer direct component docs when the path is known, for example:
 - Prefer `onPress` for HeroUI interactive components when supported by the component docs.
 - Use semantic variants such as `primary`, `secondary`, `tertiary`, `danger`, `ghost`, and `outline`; avoid one-off hardcoded colors unless the local design requires them.
 
-## Scope
+## Handoff
 
-This skill is only HeroUI guidance. For broader frontend app structure, state management, routing, browser testing, or React performance work, use the relevant project conventions and other applicable skills.
+Follow `codex-gui/AGENTS.md` for product-level HeroUI design invariants. After code changes, use `$codex-gui-toolchain` to resolve and run the current lint and type-check entrypoints; both checks remain required.
