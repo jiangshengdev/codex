@@ -171,6 +171,22 @@ const expectHorizontalAlignment = (first: Element, second: Element): void => {
   expect(Math.abs(firstBounds.right - secondBounds.right)).toBeLessThanOrEqual(1);
 };
 
+const historyPageSpacingPx = 12;
+
+const expectHistoryPagePadding = (main: Element): void => {
+  const style = getComputedStyle(main);
+  expect(Number.parseFloat(style.paddingTop)).toBe(historyPageSpacingPx);
+  expect(Number.parseFloat(style.paddingBottom)).toBe(historyPageSpacingPx);
+};
+
+const expectHistoryVerticalSpacing = (before: Element, after: Element): void => {
+  const beforeBounds = before.getBoundingClientRect();
+  const afterBounds = after.getBoundingClientRect();
+  expect(
+    Math.abs(afterBounds.top - beforeBounds.bottom - historyPageSpacingPx),
+  ).toBeLessThanOrEqual(1);
+};
+
 const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
   screen.getByRole("combobox", { name: "Message Codex", exact: true });
 
@@ -574,6 +590,45 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
 });
 
+test("App keeps normal history content at the shared page spacing", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+
+  try {
+    window.history.replaceState({}, "", "/history");
+    seedBrowserAuthorizationSession({ token: "history-secret", activeThreadId: launchThreadId });
+    const commands = createGuiHostCommands();
+    vi.mocked(commands.listThreads).mockResolvedValue({
+      data: [attachResponse.snapshot.thread],
+      nextCursor: null,
+      backwardsCursor: null,
+    });
+    const screen = await renderWithProviders(
+      <App initialEntry="/history" routeTarget={{ type: "historyList" }} />,
+    );
+    const options = getHostOptions(startGuiHostConnectionMock);
+
+    queueAttachProjectionResponse(commands);
+    initializeHost(options, commands);
+
+    const banner = screen.getByRole("banner").element();
+    const historyMain = screen.getByRole("main").element();
+    const historyCard = screen.getByRole("article");
+    await expect.element(historyCard).toBeVisible();
+
+    for (const [width, height] of [
+      [400, 900],
+      [900, 900],
+    ] as const) {
+      await page.viewport(width, height);
+
+      expectHistoryPagePadding(historyMain);
+      expectHistoryVerticalSpacing(banner, historyCard.element());
+    }
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
 test("App aligns history startup errors with their responsive shell owners", async () => {
   const originalViewport = { height: window.innerHeight, width: window.innerWidth };
 
@@ -619,6 +674,9 @@ test("App aligns history startup errors with their responsive shell owners", asy
       expectHorizontalAlignment(bannerContent, topNoticeContent);
       expectHorizontalAlignment(topNoticeContent, historyMain);
       expectHorizontalAlignment(topNoticeAlert, historyAlert);
+      expectHistoryPagePadding(historyMain);
+      expectHistoryVerticalSpacing(screen.getByRole("banner").element(), topNoticeAlert);
+      expectHistoryVerticalSpacing(topNoticeAlert, historyAlert);
 
       const scroller = documentScroller();
       expect(scroller.scrollWidth).toBeLessThanOrEqual(scroller.clientWidth + 1);
