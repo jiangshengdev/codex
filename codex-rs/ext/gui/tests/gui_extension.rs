@@ -4,6 +4,7 @@ use codex_extension_api::FunctionCallError;
 use codex_extension_api::NoopTurnItemEmitter;
 use codex_extension_api::ThreadStartInput;
 use codex_extension_api::ToolCall;
+use codex_extension_api::ToolCallSource;
 use codex_extension_api::ToolExecutor;
 use codex_extension_api::ToolName;
 use codex_extension_api::ToolOutput;
@@ -270,6 +271,7 @@ impl TestLaunchGuiTool {
                 model: "test-model".to_string(),
                 codex_turn_metadata: None,
                 truncation_policy: TruncationPolicy::Bytes(4096),
+                source: ToolCallSource::Direct,
                 environments: Vec::new(),
                 conversation_history: codex_extension_api::ConversationHistory::default(),
                 turn_item_emitter: Arc::new(NoopTurnItemEmitter),
