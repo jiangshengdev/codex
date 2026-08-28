@@ -4,14 +4,32 @@
     "enhanced-message-context": {
       "source": "lingui/skills",
       "sourceType": "github",
-      "skillPath": "enhanced-message-context/SKILL.md",
-      "computedHash": "84d0a3d209e678781fe5aa7152e108cfb91ff7c6b7a1c39e15fccd5d8dcdf4c8"
+      "skillPath": "skills/enhanced-message-context/SKILL.md",
+      "computedHash": "fa80968cb618507071a0f9f3b77e779fa2f0147b41fb27f9388c6c403cbd6372"
+    },
+    "find-unwrapped-strings": {
+      "source": "lingui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-unwrapped-strings/SKILL.md",
+      "computedHash": "b22e320a8edc46a3d1f1f3e95f1fb1d6aac97918384a7bff95dc2b37775ffe06"
     },
     "lingui-best-practices": {
       "source": "lingui/skills",
       "sourceType": "github",
-      "skillPath": "lingui-best-practices/SKILL.md",
-      "computedHash": "e8d118460a9f7198b5c18cd8bfd9ef8e12904b7cc14d6f56e972cede4beab4e2"
+      "skillPath": "skills/lingui-best-practices/SKILL.md",
+      "computedHash": "c68883e005dfe6ca5a8620c62b456319717689a327043e9e68112b6b3728421f"
+    },
+    "lingui-framework-setup": {
+      "source": "lingui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/lingui-framework-setup/SKILL.md",
+      "computedHash": "49f3ba8f38a678081c082f0e819f9a6146238f38a2a3f9f4594d3021c37fa0fa"
+    },
+    "migrate-i18next-to-lingui": {
+      "source": "lingui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/migrate-i18next-to-lingui/SKILL.md",
+      "computedHash": "aadf9a1cb3fcc89a5b56a5c0eb4c3b1e3ee2065f528c6ad6ab2281cb990b4e3c"
     },
     "playwright-cli": {
       "source": "microsoft/playwright-cli",
@@ -23,7 +41,13 @@
       "source": "vercel/streamdown",
       "sourceType": "github",
       "skillPath": "skills/streamdown/SKILL.md",
-      "computedHash": "c842552c75b80abb74ef8f92481d34684c709884dd2df22c2ab3b183aee582fe"
+      "computedHash": "2f8292ddf03ef22a271acb22c852f06ea9105d05d000adbbf2d21b4bd71c7447"
+    },
+    "swc-plugin-compatibility": {
+      "source": "lingui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/swc-plugin-compatibility/SKILL.md",
+      "computedHash": "efb4366f616bd230f12dd75fc3c530cdb54546aa3ef4a5f1403ce88f57db4d05"
     }
   }
 }
