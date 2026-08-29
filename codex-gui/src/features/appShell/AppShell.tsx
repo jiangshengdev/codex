@@ -2,6 +2,7 @@ import { Alert, Toast } from "@heroui/react";
 import { Trans } from "@lingui/react/macro";
 import { useRouterState } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import type { GuiRouteTarget } from "@/features/browserLaunch/guiRouteTarget";
 import type { GuiHostStatus } from "@/features/guiHost/guiHostClient";
 import { useAppCapabilities } from "./AppCapabilities";
 import { AppShellTopBar } from "./AppShellTopBar";
@@ -29,19 +30,22 @@ function GuiHostErrorAlert({ status }: { status: GuiHostStatus }) {
 function AppShellTopNotices({ children }: { children: ReactNode }) {
   return (
     <div className="sticky top-14 z-20" data-app-shell-top-notices="">
-      <div className="mx-auto grid w-full max-w-3xl gap-2 pt-3">{children}</div>
+      <div className="app-shell-content-boundary grid gap-2 pt-3">{children}</div>
     </div>
   );
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const { status } = useAppCapabilities();
+  const { routeTarget, status } = useAppCapabilities();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const hasTopNotice = status.label === "error";
   const hasFixedBottomAction = pathname.startsWith("/history/");
 
   return (
-    <div className="flex min-h-svh w-full flex-col bg-background text-foreground">
+    <div
+      className="flex min-h-svh w-full flex-col bg-background text-foreground"
+      data-app-shell-content-layout={contentLayoutForRouteTarget(routeTarget)}
+    >
       <Toast.Provider placement="top" />
       <AppShellTopBar />
       <div aria-hidden="true" className="h-14 shrink-0" />
@@ -56,4 +60,16 @@ export function AppShell({ children }: AppShellProps) {
       ) : null}
     </div>
   );
+}
+
+function contentLayoutForRouteTarget(routeTarget: GuiRouteTarget): "reading" | "wide" {
+  switch (routeTarget.type) {
+    case "currentTask":
+    case "historyDetail":
+      return "reading";
+    case "historyList":
+      return "wide";
+  }
+
+  routeTarget satisfies never;
 }

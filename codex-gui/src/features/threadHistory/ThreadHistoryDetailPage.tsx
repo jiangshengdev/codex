@@ -65,7 +65,7 @@ export function ThreadHistoryDetailPage() {
         : initialThreadHistoryDetailState;
 
   return (
-    <main className="mx-auto grid min-h-0 w-full max-w-3xl flex-1 content-start gap-6 px-4 py-6">
+    <main className="app-shell-content-boundary grid min-h-0 flex-1 content-start gap-6 py-6">
       {retainedCapability == null ? (
         <ThreadHistoryDetailContent
           authorizationToken={authorizationToken}

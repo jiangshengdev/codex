@@ -602,9 +602,20 @@ const composerPanelVisualSignature = (composerPanel: HTMLElement) => {
   return {
     backgroundColor: style.backgroundColor,
     borderColor: style.borderColor,
+    borderWidth: style.borderWidth,
     boxShadow: style.boxShadow,
     cursor: style.cursor,
     opacity: style.opacity,
+  };
+};
+
+const elementGeometry = (element: Element) => {
+  const rect = element.getBoundingClientRect();
+  return {
+    height: rect.height,
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
   };
 };
 
@@ -830,6 +841,7 @@ test("renders the Lexical composer panel and actions", async () => {
   expect(composerShell.classList.contains("bottom-0")).toBe(true);
   expect(composerShell.classList.contains("fixed")).toBe(false);
   expect(composerShell.classList.contains("inset-x-0")).toBe(false);
+  expect(composerShell.classList.contains("px-3")).toBe(true);
   expect(composerShell.classList.contains("px-4")).toBe(false);
   expect(composerShell.classList.contains("pb-0")).toBe(false);
   expect(composerShell.classList.contains("pb-3")).toBe(true);
@@ -998,6 +1010,8 @@ test("distinguishes hover, pointer focus, and keyboard focus-visible field state
     .poll(() => composerPanelVisualSignature(composerPanel))
     .not.toEqual(restingVisualSignature);
   const hoverVisualSignature = composerPanelVisualSignature(composerPanel);
+  const panelGeometryBeforeFocus = elementGeometry(composerPanel);
+  const composerGeometryBeforeFocus = elementGeometry(composer.element());
 
   await userEvent.click(composer);
   await expect.element(composer).toHaveFocus();
@@ -1006,6 +1020,9 @@ test("distinguishes hover, pointer focus, and keyboard focus-visible field state
     .poll(() => composerPanelVisualSignature(composerPanel))
     .not.toEqual(hoverVisualSignature);
   const pointerFocusVisualSignature = composerPanelVisualSignature(composerPanel);
+  expect(pointerFocusVisualSignature.borderWidth).toBe(hoverVisualSignature.borderWidth);
+  expect(elementGeometry(composerPanel)).toEqual(panelGeometryBeforeFocus);
+  expect(elementGeometry(composer.element())).toEqual(composerGeometryBeforeFocus);
 
   await userEvent.keyboard("x");
   await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");

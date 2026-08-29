@@ -164,6 +164,29 @@ const expectElementBottomAlignedWithViewport = (element: HTMLElement): void => {
   expect(Math.abs(window.innerHeight - bottom)).toBeLessThanOrEqual(1);
 };
 
+const expectHorizontalAlignment = (first: Element, second: Element): void => {
+  const firstBounds = first.getBoundingClientRect();
+  const secondBounds = second.getBoundingClientRect();
+  expect(Math.abs(firstBounds.left - secondBounds.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(firstBounds.right - secondBounds.right)).toBeLessThanOrEqual(1);
+};
+
+const historyPageSpacingPx = 12;
+
+const expectHistoryPagePadding = (main: Element): void => {
+  const style = getComputedStyle(main);
+  expect(Number.parseFloat(style.paddingTop)).toBe(historyPageSpacingPx);
+  expect(Number.parseFloat(style.paddingBottom)).toBe(historyPageSpacingPx);
+};
+
+const expectHistoryVerticalSpacing = (before: Element, after: Element): void => {
+  const beforeBounds = before.getBoundingClientRect();
+  const afterBounds = after.getBoundingClientRect();
+  expect(
+    Math.abs(afterBounds.top - beforeBounds.bottom - historyPageSpacingPx),
+  ).toBeLessThanOrEqual(1);
+};
+
 const getAppComposer = (screen: Awaited<ReturnType<typeof renderWithProviders>>) =>
   screen.getByRole("combobox", { name: "Message Codex", exact: true });
 
@@ -565,6 +588,111 @@ test("App displays GUI host startup errors in the sticky top notices region", as
   expect(topNotices.contains(errorTitle)).toBe(true);
   expect(topNotices.contains(errorMessage)).toBe(true);
   await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
+});
+
+test("App keeps normal history content at the shared page spacing", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+
+  try {
+    window.history.replaceState({}, "", "/history");
+    seedBrowserAuthorizationSession({ token: "history-secret", activeThreadId: launchThreadId });
+    const commands = createGuiHostCommands();
+    vi.mocked(commands.listThreads).mockResolvedValue({
+      data: [attachResponse.snapshot.thread],
+      nextCursor: null,
+      backwardsCursor: null,
+    });
+    const screen = await renderWithProviders(
+      <App initialEntry="/history" routeTarget={{ type: "historyList" }} />,
+    );
+    const options = getHostOptions(startGuiHostConnectionMock);
+
+    queueAttachProjectionResponse(commands);
+    initializeHost(options, commands);
+
+    const banner = screen.getByRole("banner").element();
+    const historyMain = screen.getByRole("main").element();
+    const historyCard = screen.getByRole("article");
+    await expect.element(historyCard).toBeVisible();
+
+    for (const [width, height] of [
+      [400, 900],
+      [900, 900],
+    ] as const) {
+      await page.viewport(width, height);
+
+      expectHistoryPagePadding(historyMain);
+      expectHistoryVerticalSpacing(banner, historyCard.element());
+    }
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
+});
+
+test("App aligns history startup errors with their responsive shell owners", async () => {
+  const originalViewport = { height: window.innerHeight, width: window.innerWidth };
+
+  try {
+    startGuiHostConnectionMock.mockImplementation(() => {
+      throw new Error("Missing launch token fragment");
+    });
+
+    const screen = await renderWithProviders(
+      <App initialEntry="/history" routeTarget={{ type: "historyList" }} />,
+    );
+    const bannerContent = screen.getByRole("banner").element().firstElementChild;
+    const historyMain = screen.getByRole("main").element();
+    const historyAlert = screen
+      .getByText("Unable to load history", { exact: true })
+      .element()
+      .closest('[role="alert"]');
+    const topNoticeTitle = screen.getByText("Unable to start Codex GUI").element();
+    const topNoticeAlert = topNoticeTitle.parentElement?.parentElement;
+    const topNoticeContent = topNoticeAlert?.parentElement;
+
+    if (
+      !(bannerContent instanceof HTMLElement) ||
+      !(historyAlert instanceof HTMLElement) ||
+      !(topNoticeAlert instanceof HTMLElement) ||
+      !(topNoticeContent instanceof HTMLElement)
+    ) {
+      throw new Error("responsive history error layout owners must render");
+    }
+
+    await expect.element(screen.getByText("Unable to start Codex GUI")).toBeVisible();
+    await expect.element(screen.getByText("Missing launch token fragment")).toBeVisible();
+    await expect.element(historyAlert).toHaveTextContent("Unable to load history");
+    await expect.element(getAppComposer(screen)).not.toBeInTheDocument();
+
+    for (const [width, height] of [
+      [400, 900],
+      [800, 900],
+      [900, 900],
+    ] as const) {
+      await page.viewport(width, height);
+
+      expectHorizontalAlignment(bannerContent, topNoticeContent);
+      expectHorizontalAlignment(topNoticeContent, historyMain);
+      expectHorizontalAlignment(topNoticeAlert, historyAlert);
+      expectHistoryPagePadding(historyMain);
+      expectHistoryVerticalSpacing(screen.getByRole("banner").element(), topNoticeAlert);
+      expectHistoryVerticalSpacing(topNoticeAlert, historyAlert);
+
+      const scroller = documentScroller();
+      expect(scroller.scrollWidth).toBeLessThanOrEqual(scroller.clientWidth + 1);
+      for (const element of [
+        bannerContent,
+        topNoticeContent,
+        historyMain,
+        topNoticeAlert,
+        historyAlert,
+      ]) {
+        expect(element.scrollWidth).toBeLessThanOrEqual(element.clientWidth + 1);
+      }
+    }
+  } finally {
+    await page.viewport(originalViewport.width, originalViewport.height);
+  }
 });
 
 test("App localizes the GUI host startup error title without translating its details", async () => {

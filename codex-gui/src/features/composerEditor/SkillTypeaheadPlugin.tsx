@@ -1,5 +1,6 @@
-import { Button, ScrollShadow, Separator, Surface } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
+import { Button } from "@heroui/react";
+import { listboxItemVariants, listboxVariants, selectVariants } from "@heroui/styles";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   LexicalTypeaheadMenuPlugin,
@@ -42,6 +43,11 @@ export type SkillTypeaheadPluginProps = Readonly<{
 }>;
 
 const SKILL_TRIGGER = /(^|\s|\()(\$([^\s$]{0,75}))$/u;
+const SKILL_MENU_POPOVER_CLASS_NAME = selectVariants().popover();
+const SKILL_MENU_LISTBOX_CLASS_NAME = listboxVariants({ variant: "default" });
+const SKILL_MENU_LISTBOX_ITEM_CLASS_NAME = listboxItemVariants({
+  variant: "default",
+}).item();
 
 export function SkillTypeaheadPlugin({
   isComposingRef,
@@ -224,18 +230,12 @@ function SkillMenu({
   setHighlightedIndex: (index: number) => void;
   skillCatalog: SkillCatalogState;
 }>) {
-  const activeDetailsId = useId();
-  const [hoveredOptionKey, setHoveredOptionKey] = useState<string | null>(null);
+  const { t } = useLingui();
   const showNoResults =
     options.length === 0 &&
     skillCatalog.type !== "initialLoading" &&
     skillCatalog.type !== "failed";
   const activeOption = selectedIndex == null ? null : (options[selectedIndex] ?? null);
-  const hoveredOption =
-    hoveredOptionKey == null
-      ? null
-      : (options.find((option) => option.key === hoveredOptionKey) ?? null);
-  const previewOption = hoveredOption ?? activeOption;
 
   useEffect(() => {
     const anchorElement = anchorElementRef.current;
@@ -284,13 +284,11 @@ function SkillMenu({
   }, [activeOption]);
 
   return createPortal(
-    <Surface
-      className={`pointer-events-auto flex w-full ${skillMenuSurfaceMaxHeightClassName(placement)} flex-col overflow-hidden rounded-xl border border-separator shadow-lg`}
+    <div
+      className={`${SKILL_MENU_POPOVER_CLASS_NAME} pointer-events-auto w-full ${skillMenuSurfaceMaxHeightClassName(placement)} overflow-x-hidden scrollbar-thin`}
+      data-scrollbar="thin"
+      data-skill-menu-scroll-region
       data-skill-menu-surface
-      onPointerLeave={() => {
-        setHoveredOptionKey(null);
-      }}
-      variant="secondary"
     >
       <SkillCatalogStatus onRetry={onRetry} skillCatalog={skillCatalog} />
       {showNoResults ? (
@@ -298,102 +296,92 @@ function SkillMenu({
           <Trans>No matching skills</Trans>
         </p>
       ) : null}
-      <ScrollShadow
-        className="min-h-0 flex-1"
-        data-scrollbar="thin"
-        data-skill-menu-scroll-region
-        hideScrollBar={false}
-        orientation="vertical"
-        visibility="auto"
-      >
-        <ul className="p-1" role="presentation">
-          {options.map((option, index) => {
-            const isSelected = selectedIndex === index;
-            const isHovered = hoveredOptionKey === option.key;
-            const { candidate, disambiguatingParentPath, displayName, sourceLabel } = option.result;
-            const description = (
-              candidate.interface?.shortDescription ??
-              candidate.shortDescription ??
-              candidate.description
-            ).trim();
-            return (
-              <li
-                aria-describedby={isSelected ? activeDetailsId : undefined}
-                aria-selected={isSelected}
-                className={`min-h-11 cursor-default rounded-lg border-l-2 px-3 py-2 outline-none [overflow-wrap:anywhere] ${
-                  isSelected
-                    ? "border-accent bg-accent-soft text-accent-soft-foreground"
-                    : isHovered
-                      ? "border-transparent bg-surface-hover text-foreground ring-1 ring-inset ring-separator"
-                      : "border-transparent text-foreground"
-                }`}
-                data-active={isSelected || undefined}
-                data-hovered={isHovered || undefined}
-                id={skillMenuOptionId(menuId, index)}
-                key={option.key}
-                onPointerDown={(event) => {
-                  if (event.button !== 0) {
-                    return;
-                  }
-                  event.preventDefault();
-                  setHighlightedIndex(index);
-                  selectOptionAndCleanUp(option);
-                }}
-                onPointerEnter={() => {
-                  setHoveredOptionKey(option.key);
-                }}
-                onPointerLeave={() => {
-                  setHoveredOptionKey((currentKey) =>
-                    currentKey === option.key ? null : currentKey,
-                  );
-                }}
-                ref={(element) => {
-                  option.setRefElement(element);
-                }}
-                role="option"
-              >
-                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <ul className={SKILL_MENU_LISTBOX_CLASS_NAME} data-slot="list-box" role="presentation">
+        {options.map((option, index) => {
+          const isSelected = selectedIndex === index;
+          const { candidate, disambiguatingParentPath, displayName } = option.result;
+          const localizedSourceLabel = ((): string => {
+            switch (candidate.scope) {
+              case "user":
+                return t({
+                  comment: "Source label for a skill installed by the current user",
+                  message: "User",
+                });
+              case "repo":
+                return t({
+                  comment: "Source label for a skill provided by the current repository",
+                  message: "Repository",
+                });
+              case "system":
+                return t({
+                  comment: "Source label for a skill provided by the Codex system",
+                  message: "System",
+                });
+              case "admin":
+                return t({
+                  comment: "Source label for a skill installed by an administrator",
+                  message: "Admin",
+                });
+            }
+            candidate.scope satisfies never;
+          })();
+          const description = (
+            candidate.interface?.shortDescription ??
+            candidate.shortDescription ??
+            candidate.description
+          ).trim();
+          return (
+            <li
+              aria-selected={isSelected}
+              className={`${SKILL_MENU_LISTBOX_ITEM_CLASS_NAME} min-w-0 flex-col! items-stretch! gap-0.5! text-foreground [overflow-wrap:anywhere] data-[active=true]:bg-default data-[active=true]:status-focused`}
+              data-active={isSelected || undefined}
+              data-slot="list-box-item"
+              id={skillMenuOptionId(menuId, index)}
+              key={option.key}
+              onPointerDown={(event) => {
+                if (event.button !== 0) {
+                  return;
+                }
+                event.preventDefault();
+                setHighlightedIndex(index);
+                selectOptionAndCleanUp(option);
+              }}
+              ref={(element) => {
+                option.setRefElement(element);
+              }}
+              role="option"
+            >
+              <div className="flex min-w-0 items-baseline gap-2">
+                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
                     {displayName}
                   </span>
-                  <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                    ${candidate.name}
-                  </span>
-                  <span className="ml-auto min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                    {sourceLabel}
-                    {disambiguatingParentPath == null ? null : <> · {disambiguatingParentPath}</>}
-                  </span>
+                  {displayName === candidate.name ? null : (
+                    <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
+                      ${candidate.name}
+                    </span>
+                  )}
                 </div>
-                {description.length === 0 ? null : (
-                  <div
-                    className="line-clamp-2 whitespace-normal text-sm text-muted [overflow-wrap:anywhere]"
-                    data-skill-description
-                  >
-                    {description}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </ScrollShadow>
-      {activeOption == null || previewOption == null ? null : (
-        <>
-          <Separator variant="tertiary" />
-          <div
-            className="max-h-24 min-w-0 shrink-0 overflow-y-auto px-3 py-2 text-xs text-muted [overflow-wrap:anywhere]"
-            data-skill-menu-details
-          >
-            <span className="sr-only" id={activeDetailsId}>
-              {skillOptionDetails(activeOption)}
-            </span>
-            <div aria-hidden="true" data-skill-menu-detail-preview>
-              {skillOptionDetails(previewOption)}
-            </div>
-          </div>
-        </>
-      )}
-    </Surface>,
+                <span className="shrink-0 text-xs text-muted">{localizedSourceLabel}</span>
+              </div>
+              {disambiguatingParentPath == null ? null : (
+                <div className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
+                  {disambiguatingParentPath}
+                </div>
+              )}
+              {description.length === 0 ? null : (
+                <div
+                  className="line-clamp-1 whitespace-normal text-sm text-muted [overflow-wrap:anywhere]"
+                  data-skill-description
+                >
+                  {description}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>,
     anchorElement,
   );
 }
@@ -406,10 +394,6 @@ function skillMenuSurfaceMaxHeightClassName(placement: SkillTypeaheadPlacement):
   return placement === "below"
     ? "max-h-[calc(var(--composer-skill-menu-max-height)-0.5rem)]"
     : "max-h-[var(--composer-skill-menu-max-height)]";
-}
-
-function skillOptionDetails(option: SkillMenuOption): string {
-  return `${option.result.sourceLabel} · ${option.result.candidate.path}`;
 }
 
 function SkillCatalogStatus({
