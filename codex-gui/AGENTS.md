@@ -40,11 +40,13 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 - For high-risk GUI changes, apply the general evidence-closure rules in `$managing-work-stages`; additionally trace real production and mount entrypoints, public and barrel exports, path aliases, dynamic registrations and their indirect consumers, DOM/ARIA selectors, test fixtures, Browser Mode and E2E verification, and applicable mount/unmount, reset, resume, reconnect, retry, rollback, and partial failure lifecycle and recovery paths.
 - For contract-bearing changes, apply the Authoritative Contract Invariants above and trace the authoritative TypeScript contract, runtime validator, schema inputs, generated artifacts, and generated fixtures instead of inventing parallel frontend definitions.
 
-## Real GUI Acceptance
+## GUI Acceptance Levels
 
-- Require real GUI acceptance with `$debug-responsive-gui` when a change can affect user-visible layout or responsive geometry; overlays, opening direction, occlusion, clipping, or scrolling; pointer or keyboard interaction and focus flow; component visual states such as default, hover, disabled, invalid, or `focus-visible`; or integration behavior provable only against real Codex state.
-- Pure type changes, generated artifacts, invisible internal logic, and frontend changes with none of those effects do not trigger real GUI acceptance merely because they are under `codex-gui/**`.
-- Opening a page, preparing the browser environment, screenshots, DOM or event assertions, and automated test success do not substitute for acceptance of the affected real GUI scenarios. If all triggered scenarios have not passed, do not claim complete completion or verification.
+- Level 1 is automated regression in an isolated or test environment. It covers browser tests, DOM and event assertions, accessibility, screenshots, and geometry checks, but does not substitute for real Codex integration when that integration is affected.
+- Level 2 is headless real-application acceptance against the current Codex runtime, target route, and required real state. Use it for affected layout and responsive geometry; overlays, opening direction, occlusion, clipping, and scrolling; pointer and keyboard interaction and focus flow; component states such as default, hover, disabled, invalid, and `focus-visible`; and other integration behavior observable without a visible desktop window.
+- Level 3 is visible-desktop acceptance and applies only when the result itself depends on operating-system windows, desktop or cross-application focus, DevTools, system IME UI, or another behavior that headless automation cannot prove. Route it to `$debug-responsive-gui`, and obtain separate explicit authorization for the visible-window impact before opening or reusing any visible browser or desktop window.
+- Plans and final reports must record each level's applicability and result separately. When all applicable Level 1 and Level 2 scenarios pass and Level 3 is not applicable, the GUI change may be reported as completely verified. When Level 3 applies but is not executed, report `可见桌面验收未执行` and do not claim complete completion or verification.
+- Pure type changes, generated artifacts, invisible internal logic, and frontend changes with none of these effects do not trigger GUI acceptance merely because they are under `codex-gui/**`.
 
 ## HeroUI Design System Invariants
 

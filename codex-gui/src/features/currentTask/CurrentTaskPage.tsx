@@ -26,7 +26,7 @@ export function CurrentTaskPage() {
 
   if (activeThreadSession != null && sessionPhase === "empty" && activeThreadStartupError != null) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-6" data-gui-host-status={status.label}>
+      <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label}>
         <Alert role="alert" status="danger">
           <Alert.Indicator />
           <Alert.Content>
@@ -41,9 +41,7 @@ export function CurrentTaskPage() {
   }
 
   if (activeThreadSession == null || sessionPhase === "empty" || sessionPhase === "disposed") {
-    return (
-      <main className="mx-auto w-full max-w-3xl px-4 py-6" data-gui-host-status={status.label} />
-    );
+    return <main className="app-shell-content-boundary py-6" data-gui-host-status={status.label} />;
   }
 
   return (

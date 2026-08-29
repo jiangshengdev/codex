@@ -1,9 +1,31 @@
 ---
 name: heroui-react
-description: "Use when working with HeroUI React v3 in codex-gui, including adding or changing @heroui/react components, styling with @heroui/styles and Tailwind CSS v4, reading local HeroUI docs or demos, or avoiding HeroUI v2 patterns. Offline only: use local repository files and do not browse or fetch remote HeroUI docs."
+description: "Use when working with HeroUI React v3 in codex-gui, including adding or changing @heroui/react components, styling with @heroui/styles and Tailwind CSS v4, reading local HeroUI source, docs, or demos, or avoiding HeroUI v2 patterns. Offline only: use local repository files and do not browse or fetch remote HeroUI material."
 ---
 
 # HeroUI React v3
+
+## Authoritative Local Sources
+
+Run `git rev-parse --show-toplevel` as a standalone command to identify the Codex repository root. Resolve the HeroUI source repository as its sibling path:
+
+```text
+<git-repository-root>/../heroui
+```
+
+Treat the resolved absolute path as `<heroui-source-root>`. Do not resolve `../heroui` from `codex-gui` or another nested working directory.
+
+Use the source repository for implementation and styling behavior. Search these roots first:
+
+```text
+<heroui-source-root>/packages/react/src/components/
+<heroui-source-root>/packages/styles/components/
+<heroui-source-root>/packages/styles/src/components/
+<heroui-source-root>/packages/styles/themes/
+<heroui-source-root>/packages/styles/utilities/
+```
+
+Verify that `<heroui-source-root>` is a Git repository and that its `@heroui/react` and `@heroui/styles` package versions match the versions resolved by `codex-gui`. If they do not match, report the mismatch and stop using that checkout as exact implementation evidence. Do not fall back to `codex-gui/node_modules/@heroui/**` for HeroUI source inspection.
 
 ## Authoritative Documentation
 
@@ -19,9 +41,10 @@ Useful roots:
 
 ## Minimal Lookup
 
-1. Search the task's HeroUI component or API terms.
-2. Read the relevant component guide and, when useful, one or two matching demo files.
-3. Base recommendations and code changes on the local docs and existing `codex-gui` conventions.
+1. Resolve and verify `<heroui-source-root>` and the documentation root.
+2. Search the task's HeroUI component or API terms in the source repository before making implementation claims.
+3. Read the relevant component guide and, when useful, one or two matching demo files for usage guidance.
+4. Base recommendations and code changes on the matching local source, local docs, and existing `codex-gui` conventions.
 
 ## Domain Rules
 

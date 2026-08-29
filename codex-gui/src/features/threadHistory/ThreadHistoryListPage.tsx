@@ -39,7 +39,7 @@ export function ThreadHistoryListPage() {
   }, []);
 
   return (
-    <main className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 content-start gap-4 px-4 py-6">
+    <main className="app-shell-content-boundary grid min-h-0 flex-1 content-start gap-4 py-3">
       {startupActivationFailed ? (
         <HistoryError error={activeThreadStartupError} />
       ) : activeThreadSession == null && status.label !== "error" && status.label !== "closed" ? (

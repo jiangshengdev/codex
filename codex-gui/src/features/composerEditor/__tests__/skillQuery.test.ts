@@ -99,7 +99,7 @@ describe("querySkills", () => {
     );
   });
 
-  it("computes full parent paths for case-insensitive duplicate display names and labels their scopes", () => {
+  it("does not add parent paths when display names match but canonical names differ", () => {
     const userSkill = candidate("user-skill", {
       interface: skillInterface("Shared Display"),
       path: "/user/shared/SKILL.md",
@@ -122,23 +122,71 @@ describe("querySkills", () => {
     ).toEqual([
       {
         name: "repository-skill",
-        disambiguatingParentPath: "repo/shared",
+        disambiguatingParentPath: null,
         sourceLabel: "Repository",
       },
       {
         name: "user-skill",
-        disambiguatingParentPath: "user/shared",
+        disambiguatingParentPath: null,
         sourceLabel: "User",
       },
     ]);
   });
 
+  it("computes parent paths when canonical names and display names match but paths differ", () => {
+    const userSkill = candidate("shared-skill", {
+      interface: skillInterface("Shared Display"),
+      path: "/user/shared/SKILL.md",
+      scope: "user",
+    });
+    const repositorySkill = candidate("shared-skill", {
+      interface: skillInterface("Shared Display"),
+      path: "/repo/shared/SKILL.md",
+      scope: "repo",
+    });
+
+    const results = querySkills([userSkill, repositorySkill], "shared");
+
+    expect(
+      results.map(({ candidate: result, disambiguatingParentPath }) => ({
+        path: result.path,
+        disambiguatingParentPath,
+      })),
+    ).toEqual([
+      { path: "/repo/shared/SKILL.md", disambiguatingParentPath: "repo/shared" },
+      { path: "/user/shared/SKILL.md", disambiguatingParentPath: "user/shared" },
+    ]);
+  });
+
+  it("computes parent paths when canonical names match but display names differ", () => {
+    const first = candidate("shared-skill", {
+      interface: skillInterface("First Display"),
+      path: "/first/shared/SKILL.md",
+    });
+    const second = candidate("shared-skill", {
+      interface: skillInterface("Second Display"),
+      path: "/second/shared/SKILL.md",
+    });
+
+    const results = querySkills([first, second], "shared");
+
+    expect(
+      results.map(({ displayName, disambiguatingParentPath }) => ({
+        displayName,
+        disambiguatingParentPath,
+      })),
+    ).toEqual([
+      { displayName: "First Display", disambiguatingParentPath: "first/shared" },
+      { displayName: "Second Display", disambiguatingParentPath: "second/shared" },
+    ]);
+  });
+
   it("uses the shortest unique POSIX parent suffix despite a long common prefix", () => {
-    const first = candidate("first", {
+    const first = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "/workspace/with/a/long/common/prefix/first/SKILL.md",
     });
-    const second = candidate("second", {
+    const second = candidate("shared-skill", {
       interface: skillInterface("shared display"),
       path: "/workspace/with/a/long/common/prefix/second/SKILL.md",
     });
@@ -147,21 +195,27 @@ describe("querySkills", () => {
 
     expect(
       results.map(({ candidate: result, disambiguatingParentPath }) => ({
-        name: result.name,
+        path: result.path,
         disambiguatingParentPath,
       })),
     ).toEqual([
-      { name: "first", disambiguatingParentPath: "first" },
-      { name: "second", disambiguatingParentPath: "second" },
+      {
+        path: "/workspace/with/a/long/common/prefix/first/SKILL.md",
+        disambiguatingParentPath: "first",
+      },
+      {
+        path: "/workspace/with/a/long/common/prefix/second/SKILL.md",
+        disambiguatingParentPath: "second",
+      },
     ]);
   });
 
   it("uses another parent segment when one POSIX parent is the other's suffix", () => {
-    const first = candidate("first", {
+    const first = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "/shared/SKILL.md",
     });
-    const second = candidate("second", {
+    const second = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "/workspace/shared/SKILL.md",
     });
@@ -175,11 +229,11 @@ describe("querySkills", () => {
   });
 
   it("supports Windows separators and keeps only the unique parent suffix", () => {
-    const first = candidate("first", {
+    const first = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "C:\\skills\\team-one\\shared\\SKILL.md",
     });
-    const second = candidate("second", {
+    const second = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "C:\\skills\\team-two\\shared\\SKILL.md",
     });
@@ -193,11 +247,11 @@ describe("querySkills", () => {
   });
 
   it("preserves drive roots when the complete Windows parent path is required", () => {
-    const first = candidate("first", {
+    const first = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "C:\\skills\\shared\\SKILL.md",
     });
-    const second = candidate("second", {
+    const second = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "D:\\skills\\shared\\SKILL.md",
     });
@@ -211,11 +265,11 @@ describe("querySkills", () => {
   });
 
   it("preserves Windows drive-root parent separators", () => {
-    const first = candidate("first", {
+    const first = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "C:\\SKILL.md",
     });
-    const second = candidate("second", {
+    const second = candidate("shared-skill", {
       interface: skillInterface("Shared Display"),
       path: "D:\\SKILL.md",
     });
@@ -229,16 +283,16 @@ describe("querySkills", () => {
   });
 
   it("does not disambiguate repeated entries from the same path", () => {
-    const first = candidate("first", {
-      interface: skillInterface("Same Display"),
+    const first = candidate("shared-skill", {
+      interface: skillInterface("First Display"),
       path: "/shared/SKILL.md",
     });
-    const second = candidate("second", {
-      interface: skillInterface("same display"),
+    const second = candidate("shared-skill", {
+      interface: skillInterface("Second Display"),
       path: "/shared/SKILL.md",
     });
 
-    const results = querySkills([first, second], "same");
+    const results = querySkills([first, second], "shared");
 
     expect(results.map(({ disambiguatingParentPath }) => disambiguatingParentPath)).toEqual([
       null,
@@ -246,7 +300,7 @@ describe("querySkills", () => {
     ]);
   });
 
-  it("does not add a parent path to a unique display name", () => {
+  it("does not add a parent path to a unique canonical name", () => {
     const result = querySkills([candidate("unique")], "unique");
 
     expect(result[0]?.disambiguatingParentPath).toBeNull();

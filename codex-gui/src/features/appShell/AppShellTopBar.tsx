@@ -19,7 +19,6 @@ export function AppShellTopBar() {
   const activeThreadId = useActiveThreadId();
   const runtime = useAppSelector(selectThreadRuntimeRecord);
   const isCurrentTask = routeTarget.type === "currentTask";
-  const isHistoryList = routeTarget.type === "historyList";
   const currentTaskTitle =
     isCurrentTask && runtime?.threadId === routeTarget.threadId
       ? [runtime.thread.name, runtime.thread.preview].find(
@@ -46,9 +45,7 @@ export function AppShellTopBar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 h-14 border-b border-separator bg-surface text-foreground">
-      <div
-        className={`mx-auto flex h-full w-full items-center gap-3 px-4 ${isHistoryList ? "max-w-6xl" : "max-w-3xl"}`}
-      >
+      <div className="app-shell-content-boundary flex h-full items-center gap-3">
         <Button
           variant="secondary"
           onPress={() => {
