@@ -1,5 +1,5 @@
-import { Button, ScrollShadow, Surface } from "@heroui/react";
-import { listboxItemVariants, listboxVariants } from "@heroui/styles";
+import { Button } from "@heroui/react";
+import { listboxItemVariants, listboxVariants, selectVariants } from "@heroui/styles";
 import { Trans } from "@lingui/react/macro";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
@@ -43,6 +43,7 @@ export type SkillTypeaheadPluginProps = Readonly<{
 }>;
 
 const SKILL_TRIGGER = /(^|\s|\()(\$([^\s$]{0,75}))$/u;
+const SKILL_MENU_POPOVER_CLASS_NAME = selectVariants().popover();
 const SKILL_MENU_LISTBOX_CLASS_NAME = listboxVariants({ variant: "default" });
 const SKILL_MENU_LISTBOX_ITEM_CLASS_NAME = listboxItemVariants({
   variant: "default",
@@ -282,10 +283,11 @@ function SkillMenu({
   }, [activeOption]);
 
   return createPortal(
-    <Surface
-      className={`pointer-events-auto flex w-full ${skillMenuSurfaceMaxHeightClassName(placement)} flex-col overflow-hidden rounded-xl border border-separator shadow-lg`}
+    <div
+      className={`${SKILL_MENU_POPOVER_CLASS_NAME} pointer-events-auto w-full ${skillMenuSurfaceMaxHeightClassName(placement)} overflow-x-hidden scrollbar-thin`}
+      data-scrollbar="thin"
+      data-skill-menu-scroll-region
       data-skill-menu-surface
-      variant="secondary"
     >
       <SkillCatalogStatus onRetry={onRetry} skillCatalog={skillCatalog} />
       {showNoResults ? (
@@ -293,72 +295,62 @@ function SkillMenu({
           <Trans>No matching skills</Trans>
         </p>
       ) : null}
-      <ScrollShadow
-        className="min-h-0 flex-1"
-        data-scrollbar="thin"
-        data-skill-menu-scroll-region
-        hideScrollBar={false}
-        orientation="vertical"
-        visibility="auto"
-      >
-        <ul className={SKILL_MENU_LISTBOX_CLASS_NAME} role="presentation">
-          {options.map((option, index) => {
-            const isSelected = selectedIndex === index;
-            const { candidate, disambiguatingParentPath, displayName, sourceLabel } = option.result;
-            const description = (
-              candidate.interface?.shortDescription ??
-              candidate.shortDescription ??
-              candidate.description
-            ).trim();
-            return (
-              <li
-                aria-selected={isSelected}
-                className={`${SKILL_MENU_LISTBOX_ITEM_CLASS_NAME} min-w-0 flex-col! items-stretch! gap-0.5! text-foreground [overflow-wrap:anywhere] data-[active=true]:bg-accent-soft data-[active=true]:text-accent-soft-foreground`}
-                data-active={isSelected || undefined}
-                id={skillMenuOptionId(menuId, index)}
-                key={option.key}
-                onPointerDown={(event) => {
-                  if (event.button !== 0) {
-                    return;
-                  }
-                  event.preventDefault();
-                  setHighlightedIndex(index);
-                  selectOptionAndCleanUp(option);
-                }}
-                ref={(element) => {
-                  option.setRefElement(element);
-                }}
-                role="option"
-              >
-                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
-                    {displayName}
+      <ul className={SKILL_MENU_LISTBOX_CLASS_NAME} data-slot="list-box" role="presentation">
+        {options.map((option, index) => {
+          const isSelected = selectedIndex === index;
+          const { candidate, disambiguatingParentPath, displayName, sourceLabel } = option.result;
+          const description = (
+            candidate.interface?.shortDescription ??
+            candidate.shortDescription ??
+            candidate.description
+          ).trim();
+          return (
+            <li
+              aria-selected={isSelected}
+              className={`${SKILL_MENU_LISTBOX_ITEM_CLASS_NAME} min-w-0 flex-col! items-stretch! gap-0.5! text-foreground [overflow-wrap:anywhere] data-[active=true]:bg-default data-[active=true]:status-focused`}
+              data-active={isSelected || undefined}
+              data-slot="list-box-item"
+              id={skillMenuOptionId(menuId, index)}
+              key={option.key}
+              onPointerDown={(event) => {
+                if (event.button !== 0) {
+                  return;
+                }
+                event.preventDefault();
+                setHighlightedIndex(index);
+                selectOptionAndCleanUp(option);
+              }}
+              ref={(element) => {
+                option.setRefElement(element);
+              }}
+              role="option"
+            >
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{displayName}</span>
+                {displayName === candidate.name ? null : (
+                  <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
+                    ${candidate.name}
                   </span>
-                  {displayName === candidate.name ? null : (
-                    <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                      ${candidate.name}
-                    </span>
-                  )}
+                )}
+              </div>
+              {disambiguatingParentPath == null ? null : (
+                <div className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
+                  {sourceLabel} · {disambiguatingParentPath}
                 </div>
-                {disambiguatingParentPath == null ? null : (
-                  <div className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                    {sourceLabel} · {disambiguatingParentPath}
-                  </div>
-                )}
-                {description.length === 0 ? null : (
-                  <div
-                    className="line-clamp-1 whitespace-normal text-sm text-muted [overflow-wrap:anywhere]"
-                    data-skill-description
-                  >
-                    {description}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </ScrollShadow>
-    </Surface>,
+              )}
+              {description.length === 0 ? null : (
+                <div
+                  className="line-clamp-1 whitespace-normal text-sm text-muted [overflow-wrap:anywhere]"
+                  data-skill-description
+                >
+                  {description}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>,
     anchorElement,
   );
 }

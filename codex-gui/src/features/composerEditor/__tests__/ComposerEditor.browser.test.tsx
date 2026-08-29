@@ -37,13 +37,112 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
     throw new Error("skill options must use the HeroUI listbox styles");
   }
   expect(styledListbox.classList).toContain("list-box--default");
+  expect(styledListbox.getAttribute("data-slot")).toBe("list-box");
   await expect.element(activeOption).toHaveClass("list-box-item", "list-box-item--default");
+  await expect.element(activeOption).toHaveAttribute("data-slot", "list-box-item");
   await expect.element(editor).toHaveAttribute("aria-activedescendant", activeOption.element().id);
   await expect.element(activeOption).toHaveAttribute("aria-selected", "true");
   await expect.element(activeOption).toHaveAttribute("data-active", "true");
   await expect.element(activeOption).not.toHaveAttribute("data-focus-visible");
   await expect.element(editor).toHaveFocus();
   expect(getController(controllerRef).getRootElement()).toBe(editor.element());
+});
+
+test("uses one unmasked Select popover scroll owner without open or close animation", async () => {
+  const candidates = Array.from({ length: 20 }, (_, index) =>
+    skill(`skill-${String(index).padStart(2, "0")}`, `/skills/${String(index)}`),
+  );
+  const { screen } = await renderEditor(candidates);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$");
+
+  const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+  const menuSurface = listbox.element().querySelector("[data-skill-menu-surface]");
+  if (!(menuSurface instanceof HTMLElement)) {
+    throw new Error("skill menu must render a popover surface");
+  }
+  const scrollRegions = listbox.element().querySelectorAll("[data-skill-menu-scroll-region]");
+  expect(scrollRegions).toHaveLength(1);
+  expect(scrollRegions.item(0)).toBe(menuSurface);
+  expect(menuSurface.classList).toContain("select__popover");
+  expect(menuSurface.getAttribute("data-scrollbar")).toBe("thin");
+
+  const scrollOwners = [menuSurface, ...menuSurface.querySelectorAll<HTMLElement>("*")].filter(
+    (element) => ["auto", "scroll"].includes(getComputedStyle(element).overflowY),
+  );
+  expect(scrollOwners).toEqual([menuSurface]);
+
+  const styledListbox = menuSurface.querySelector('[data-slot="list-box"]');
+  const styledItem = menuSurface.querySelector('[data-slot="list-box-item"]');
+  if (!(styledListbox instanceof HTMLUListElement) || !(styledItem instanceof HTMLLIElement)) {
+    throw new Error("skill menu must expose Select listbox styling slots");
+  }
+
+  const overlayProbe = document.createElement("div");
+  overlayProbe.className = "rounded-3xl bg-overlay";
+  overlayProbe.style.boxShadow = "var(--shadow-overlay)";
+  document.body.append(overlayProbe);
+  const menuStyle = getComputedStyle(menuSurface);
+  const overlayStyle = getComputedStyle(overlayProbe);
+  expect(menuStyle.backgroundColor).toBe(overlayStyle.backgroundColor);
+  expect(menuStyle.boxShadow).toBe(overlayStyle.boxShadow);
+  expect(menuStyle.borderRadius).toBe(overlayStyle.borderRadius);
+  expect(menuStyle.borderTopWidth).toBe("0px");
+  expect(menuStyle.borderRightWidth).toBe("0px");
+  expect(menuStyle.borderBottomWidth).toBe("0px");
+  expect(menuStyle.borderLeftWidth).toBe("0px");
+  expect(menuStyle.overflowY).toBe("auto");
+  expect(menuStyle.overscrollBehaviorY).toBe("contain");
+  const scrollbarProbe = document.createElement("div");
+  scrollbarProbe.className = "scrollbar-thin";
+  scrollbarProbe.setAttribute("data-scrollbar", "thin");
+  document.body.append(scrollbarProbe);
+  const scrollbarProbeStyle = getComputedStyle(scrollbarProbe);
+  expect(menuStyle.getPropertyValue("--scrollbar-width").trim()).toBe("thin");
+  expect(menuStyle.scrollbarWidth).toBe(scrollbarProbeStyle.scrollbarWidth);
+  scrollbarProbe.remove();
+  expect(menuStyle.animationName).toBe("none");
+  expect(menuStyle.animationDuration).toBe("0s");
+  expect(menuStyle.transitionDuration).toBe("0s");
+  overlayProbe.remove();
+
+  const listboxStyle = getComputedStyle(styledListbox);
+  const itemStyle = getComputedStyle(styledItem);
+  expect(listboxStyle.paddingTop).toBe("6px");
+  expect(listboxStyle.paddingRight).toBe("6px");
+  expect(listboxStyle.paddingBottom).toBe("6px");
+  expect(listboxStyle.paddingLeft).toBe("6px");
+  expect(itemStyle.paddingRight).toBe("10px");
+  expect(itemStyle.paddingLeft).toBe("10px");
+  expect(menuSurface.hasAttribute("data-entering")).toBe(false);
+  expect(menuSurface.hasAttribute("data-exiting")).toBe(false);
+
+  const expectNoMask = (): void => {
+    const style = getComputedStyle(menuSurface);
+    expect(style.maskImage).toBe("none");
+    const webkitMaskImage = style.getPropertyValue("-webkit-mask-image");
+    expect(["", "none"]).toContain(webkitMaskImage);
+  };
+  await expect.poll(() => menuSurface.scrollHeight > menuSurface.clientHeight).toBe(true);
+  const maximumScrollTop = menuSurface.scrollHeight - menuSurface.clientHeight;
+  menuSurface.scrollTop = 0;
+  await expect.poll(() => menuSurface.scrollTop).toBe(0);
+  expectNoMask();
+  menuSurface.scrollTop = maximumScrollTop / 2;
+  await expect
+    .poll(() => Math.abs(menuSurface.scrollTop - maximumScrollTop / 2))
+    .toBeLessThanOrEqual(1);
+  expectNoMask();
+  menuSurface.scrollTop = maximumScrollTop;
+  await expect
+    .poll(() => Math.abs(menuSurface.scrollTop - maximumScrollTop))
+    .toBeLessThanOrEqual(1);
+  expectNoMask();
+
+  await screen.user.keyboard("{Escape}");
+  await expect.element(listbox).not.toBeInTheDocument();
+  expect(screen.container.querySelector("[data-skill-menu-surface]")).toBeNull();
 });
 
 test("keeps a drawer-placed skill menu inside its dialog and returns focus after selection", async () => {
@@ -607,6 +706,18 @@ test("keeps HeroUI hover visual-only and active styling stronger than hover", as
     .toBe(true);
   const defaultBackground = getComputedStyle(alphaOption).backgroundColor;
   const activeBackground = getComputedStyle(betaOption).backgroundColor;
+  const neutralBackgroundProbe = document.createElement("div");
+  neutralBackgroundProbe.className = "bg-default";
+  document.body.append(neutralBackgroundProbe);
+  expect(activeBackground).toBe(getComputedStyle(neutralBackgroundProbe).backgroundColor);
+  neutralBackgroundProbe.remove();
+  const focusRingProbe = document.createElement("div");
+  focusRingProbe.className = "status-focused";
+  document.body.append(focusRingProbe);
+  const expectedActiveRing = getComputedStyle(focusRingProbe).boxShadow;
+  focusRingProbe.remove();
+  expect(expectedActiveRing).not.toBe("none");
+  await expect.poll(() => getComputedStyle(betaOption).boxShadow).toBe(expectedActiveRing);
   await expect.element(alphaOption).not.toHaveAttribute("data-hovered");
   await expect.element(betaOption).not.toHaveAttribute("data-hovered");
 
@@ -615,7 +726,8 @@ test("keeps HeroUI hover visual-only and active styling stronger than hover", as
     .poll(() => getComputedStyle(alphaOption).backgroundColor)
     .not.toBe(defaultBackground);
   const hoverBackground = getComputedStyle(alphaOption).backgroundColor;
-  expect(hoverBackground).not.toBe(activeBackground);
+  expect(hoverBackground).toBe(activeBackground);
+  expect(getComputedStyle(alphaOption).boxShadow).toBe("none");
   await expect.element(alphaOption).not.toHaveAttribute("data-hovered");
   await expect.element(alphaOption).toHaveAttribute("aria-selected", "false");
   await expect.element(betaOption).toHaveAttribute("aria-selected", "true");
@@ -623,6 +735,7 @@ test("keeps HeroUI hover visual-only and active styling stronger than hover", as
 
   await userEvent.hover(betaOption);
   await expect.poll(() => getComputedStyle(betaOption).backgroundColor).toBe(activeBackground);
+  await expect.poll(() => getComputedStyle(betaOption).boxShadow).toBe(expectedActiveRing);
   await expect.element(betaOption).not.toHaveAttribute("data-focus-visible");
   expect(screen.container.querySelector("[data-skill-menu-detail-preview]")).toBeNull();
   await screen.user.keyboard("{Enter}");
