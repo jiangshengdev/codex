@@ -32,8 +32,16 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
   await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(editor).toHaveAttribute("aria-controls", listbox.element().id);
   const activeOption = listbox.getByRole("option").first();
+  const styledListbox = listbox.element().querySelector("ul.list-box");
+  if (!(styledListbox instanceof HTMLUListElement)) {
+    throw new Error("skill options must use the HeroUI listbox styles");
+  }
+  expect(styledListbox.classList).toContain("list-box--default");
+  await expect.element(activeOption).toHaveClass("list-box-item", "list-box-item--default");
   await expect.element(editor).toHaveAttribute("aria-activedescendant", activeOption.element().id);
   await expect.element(activeOption).toHaveAttribute("aria-selected", "true");
+  await expect.element(activeOption).toHaveAttribute("data-active", "true");
+  await expect.element(activeOption).not.toHaveAttribute("data-focus-visible");
   await expect.element(editor).toHaveFocus();
   expect(getController(controllerRef).getRootElement()).toBe(editor.element());
 });
@@ -451,31 +459,79 @@ test("keeps the typeahead Enter owner ahead of the guide shortcut", async () => 
   });
 });
 
-test("shows authoritative source labels for every candidate and parent paths for duplicate display names", async () => {
+test("progressively discloses canonical names and only collision paths", async () => {
   const { screen } = await renderEditor([
-    skill("first", "/user/shared/SKILL.md", "Shared", "first description", "user"),
-    skill("second", "/repo/shared/SKILL.md", "Shared", "second description", "repo"),
-    skill("unique", "/unique/SKILL.md", "Unique", "unique description", "system"),
+    skill("plain", "/unique/plain/SKILL.md", "plain", "plain description", "system"),
+    skill("friendly", "/unique/friendly/SKILL.md", "Friendly", "friendly description", "user"),
+    skill("shared", "/user/shared/SKILL.md", "Shared", "user shared description", "user"),
+    skill("shared", "/repo/shared/SKILL.md", "Shared", "repo shared description", "repo"),
+    skill("review", "/first/review/SKILL.md", "First Review", "first review description", "repo"),
+    skill(
+      "review",
+      "/second/review/SKILL.md",
+      "Second Review",
+      "second review description",
+      "user",
+    ),
   ]);
   const editor = screen.getByRole("combobox", { name: "Message" });
 
-  await editor.fill("$sh");
+  await editor.fill("$");
 
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
-  await expect.element(listbox.getByText(/User · user\/shared/)).toBeVisible();
-  await expect.element(listbox.getByText(/Repository · repo\/shared/)).toBeVisible();
-  await editor.fill("$unique");
-  await expect.element(listbox.getByRole("option", { name: /Unique/ })).toBeVisible();
-  await expect.element(listbox.getByText("System", { exact: true })).toBeVisible();
+  const plainOption = listbox.getByRole("option", { name: /plain description/ }).element();
+  const friendlyOption = listbox.getByRole("option", { name: /friendly description/ }).element();
+  const userSharedOption = listbox
+    .getByRole("option", { name: /user shared description/ })
+    .element();
+  const repoSharedOption = listbox
+    .getByRole("option", { name: /repo shared description/ })
+    .element();
+  const firstReviewOption = listbox
+    .getByRole("option", { name: /first review description/ })
+    .element();
+  const secondReviewOption = listbox
+    .getByRole("option", { name: /second review description/ })
+    .element();
+
+  expect(plainOption.textContent).not.toContain("$plain");
+  expect(plainOption.textContent).not.toContain("System");
+  expect(plainOption.textContent).not.toContain("unique/plain");
+  expect(friendlyOption.textContent).toContain("$friendly");
+  expect(friendlyOption.textContent).not.toContain("User");
+  expect(userSharedOption.textContent).toContain("User · user/shared");
+  expect(repoSharedOption.textContent).toContain("Repository · repo/shared");
+  expect(firstReviewOption.textContent).toContain("Repository · first/review");
+  expect(secondReviewOption.textContent).toContain("User · second/review");
+  expect(listbox.element().outerHTML).not.toContain("SKILL.md");
+  expect(listbox.element().querySelector("[aria-describedby]")).toBeNull();
+  expect(screen.container.querySelector("[data-skill-menu-details]")).toBeNull();
+  expect(screen.container.querySelector("[data-skill-menu-detail-preview]")).toBeNull();
 });
 
-test("lays out candidate identity and clamps natural description wrapping without horizontal overflow", async () => {
+test("lays out one-line descriptions and collision paths without horizontal overflow", async () => {
   const longDisplayName = `Friendly ${"unbroken".repeat(20)}`;
   const longDescription = "A naturally wrapping description with useful detail. ".repeat(12);
   const longPath = `/skills/${"path-token".repeat(30)}/SKILL.md`;
+  const firstCollisionParent = `first-${"collision".repeat(20)}`;
+  const secondCollisionParent = `second-${"collision".repeat(20)}`;
   const { screen } = await renderEditor([
     skill("a-canonical-skill", longPath, longDisplayName, longDescription, "user"),
     skill("z-empty", "/skills/empty/SKILL.md", "Empty description", "   ", "system"),
+    skill(
+      "collision",
+      `/skills/${firstCollisionParent}/shared/SKILL.md`,
+      "First Collision",
+      "first collision description",
+      "user",
+    ),
+    skill(
+      "collision",
+      `/skills/${secondCollisionParent}/shared/SKILL.md`,
+      "Second Collision",
+      "second collision description",
+      "repo",
+    ),
   ]);
   const editor = screen.getByRole("combobox", { name: "Message" });
 
@@ -484,10 +540,15 @@ test("lays out candidate identity and clamps natural description wrapping withou
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
   const longOptionLocator = listbox.getByRole("option", { name: /a-canonical-skill/ });
   const emptyOptionLocator = listbox.getByRole("option", { name: /z-empty/ });
+  const collisionOptionLocator = listbox.getByRole("option", {
+    name: /first collision description/,
+  });
   await expect.element(longOptionLocator).toBeVisible();
   await expect.element(emptyOptionLocator).toBeVisible();
+  await expect.element(collisionOptionLocator).toBeVisible();
   const longOption = longOptionLocator.element();
   const emptyOption = emptyOptionLocator.element();
+  const collisionOption = collisionOptionLocator.element();
   const description = longOption.querySelector("[data-skill-description]");
   if (!(description instanceof HTMLElement)) {
     throw new Error("long skill description must render");
@@ -497,33 +558,32 @@ test("lays out candidate identity and clamps natural description wrapping withou
 
   await expect.element(listbox.getByText(longDisplayName, { exact: true })).toBeVisible();
   await expect.element(listbox.getByText("$a-canonical-skill", { exact: true })).toBeVisible();
-  await expect.element(listbox.getByText("User", { exact: true })).toBeVisible();
-  expect(description.getBoundingClientRect().height).toBeGreaterThan(lineHeight);
-  expect(description.getBoundingClientRect().height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+  expect(longOption.textContent).not.toContain("User");
+  expect(longOption.outerHTML).not.toContain(longPath);
+  expect(description.getBoundingClientRect().height).toBeLessThanOrEqual(lineHeight + 1);
   expect(emptyOption.querySelector("[data-skill-description]")).toBeNull();
+  expect(collisionOption.textContent).toContain(`User · ${firstCollisionParent}/shared`);
+  expect(collisionOption.outerHTML).not.toContain("SKILL.md");
   await expect
     .poll(() => listbox.element().scrollWidth <= listbox.element().clientWidth + 1)
     .toBe(true);
   await expect.poll(() => longOption.scrollWidth <= longOption.clientWidth + 1).toBe(true);
-  const details = screen.container.querySelector("[data-skill-menu-details]");
-  const detailPreview = screen.container.querySelector("[data-skill-menu-detail-preview]");
+  await expect
+    .poll(() => collisionOption.scrollWidth <= collisionOption.clientWidth + 1)
+    .toBe(true);
   const scrollRegion = screen.container.querySelector("[data-skill-menu-scroll-region]");
-  if (
-    !(details instanceof HTMLElement) ||
-    !(detailPreview instanceof HTMLElement) ||
-    !(scrollRegion instanceof HTMLElement)
-  ) {
-    throw new Error("skill scroll region and active details must render");
+  if (!(scrollRegion instanceof HTMLElement)) {
+    throw new Error("skill scroll region must render");
   }
-  expect(scrollRegion.contains(details)).toBe(false);
   expect(getComputedStyle(scrollRegion).overflowY).toBe("auto");
   expect(scrollRegion.getAttribute("data-scrollbar")).toBe("thin");
-  expect(detailPreview.textContent).toBe(`User · ${longPath}`);
-  await expect.element(screen.getByRole("separator")).toBeVisible();
-  await expect.poll(() => details.scrollWidth <= details.clientWidth + 1).toBe(true);
+  await expect.poll(() => scrollRegion.scrollWidth <= scrollRegion.clientWidth + 1).toBe(true);
+  expect(screen.container.querySelector("[data-skill-menu-details]")).toBeNull();
+  expect(listbox.element().querySelector('[role="separator"]')).toBeNull();
 });
 
-test("previews pointer hover without changing the keyboard active candidate or its description", async () => {
+test("keeps HeroUI hover visual-only and active styling stronger than hover", async () => {
+  await userEvent.unhover(document.body);
   const { controllerRef, screen } = await renderEditor([
     skill("alpha", "/skills/alpha/SKILL.md", "Alpha", "Alpha description", "user"),
     skill("beta", "/skills/beta/SKILL.md", "Beta", "Beta description", "repo"),
@@ -536,48 +596,42 @@ test("previews pointer hover without changing the keyboard active candidate or i
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
   const alphaOption = listbox.getByRole("option", { name: /Alpha/ }).element();
   const betaOption = listbox.getByRole("option", { name: /Beta/ }).element();
-  const preview = screen.container.querySelector("[data-skill-menu-detail-preview]");
-  if (!(preview instanceof HTMLElement)) {
-    throw new Error("skill detail preview must render");
-  }
-  await userEvent.unhover(alphaOption);
-  await expect.element(alphaOption).not.toHaveAttribute("data-hovered");
-  await expect.element(betaOption).not.toHaveAttribute("data-hovered");
-  await expect.element(betaOption).toHaveAttribute("aria-selected", "true");
-  expect(preview.textContent).toBe("Repository · /skills/beta/SKILL.md");
-
-  alphaOption.dispatchEvent(
-    new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }),
-  );
-  await expect.element(alphaOption).toHaveAttribute("data-hovered", "true");
   await expect.element(alphaOption).toHaveAttribute("aria-selected", "false");
   await expect.element(betaOption).toHaveAttribute("aria-selected", "true");
-  await expect.poll(() => preview.textContent).toBe("User · /skills/alpha/SKILL.md");
-  expect(getComputedStyle(alphaOption).boxShadow).not.toBe("none");
-
-  const activeDetailsId = betaOption.getAttribute("aria-describedby");
-  const activeDetails = activeDetailsId == null ? null : document.getElementById(activeDetailsId);
-  expect(activeDetails?.textContent).toBe("Repository · /skills/beta/SKILL.md");
-
-  alphaOption.dispatchEvent(
-    new PointerEvent("pointerout", {
-      bubbles: true,
-      pointerType: "mouse",
-      relatedTarget: document.body,
-    }),
-  );
+  await expect
+    .poll(
+      () =>
+        getComputedStyle(betaOption).backgroundColor !==
+        getComputedStyle(alphaOption).backgroundColor,
+    )
+    .toBe(true);
+  const defaultBackground = getComputedStyle(alphaOption).backgroundColor;
+  const activeBackground = getComputedStyle(betaOption).backgroundColor;
   await expect.element(alphaOption).not.toHaveAttribute("data-hovered");
-  await expect.poll(() => preview.textContent).toBe("Repository · /skills/beta/SKILL.md");
+  await expect.element(betaOption).not.toHaveAttribute("data-hovered");
 
-  alphaOption.dispatchEvent(
-    new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }),
-  );
-  await expect.poll(() => preview.textContent).toBe("User · /skills/alpha/SKILL.md");
+  await userEvent.hover(alphaOption);
+  await expect
+    .poll(() => getComputedStyle(alphaOption).backgroundColor)
+    .not.toBe(defaultBackground);
+  const hoverBackground = getComputedStyle(alphaOption).backgroundColor;
+  expect(hoverBackground).not.toBe(activeBackground);
+  await expect.element(alphaOption).not.toHaveAttribute("data-hovered");
+  await expect.element(alphaOption).toHaveAttribute("aria-selected", "false");
+  await expect.element(betaOption).toHaveAttribute("aria-selected", "true");
+  await expect.element(editor).toHaveFocus();
+
+  await userEvent.hover(betaOption);
+  await expect.poll(() => getComputedStyle(betaOption).backgroundColor).toBe(activeBackground);
+  await expect.element(betaOption).not.toHaveAttribute("data-focus-visible");
+  expect(screen.container.querySelector("[data-skill-menu-detail-preview]")).toBeNull();
   await screen.user.keyboard("{Enter}");
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("$Beta");
+  await userEvent.unhover(document.body);
 });
 
-test("does not scroll back to an offscreen active candidate when pointer hover previews a visible option", async () => {
+test("does not scroll back to an offscreen active candidate on pointer hover", async () => {
+  await userEvent.unhover(document.body);
   const candidates = Array.from({ length: 20 }, (_, index) =>
     skill(
       `skill-${String(index).padStart(2, "0")}`,
@@ -593,9 +647,8 @@ test("does not scroll back to an offscreen active candidate when pointer hover p
   const activeOption = listbox.getByRole("option", { name: /skill-00/ }).element();
   const hoveredOption = listbox.getByRole("option", { name: /skill-19/ }).element();
   const scrollRegion = screen.container.querySelector("[data-skill-menu-scroll-region]");
-  const preview = screen.container.querySelector("[data-skill-menu-detail-preview]");
-  if (!(scrollRegion instanceof HTMLElement) || !(preview instanceof HTMLElement)) {
-    throw new Error("skill scroll region and detail preview must render");
+  if (!(scrollRegion instanceof HTMLElement)) {
+    throw new Error("skill scroll region must render");
   }
 
   scrollRegion.scrollTop = scrollRegion.scrollHeight;
@@ -609,11 +662,8 @@ test("does not scroll back to an offscreen active candidate when pointer hover p
     .toBe(true);
   const scrollTopBeforeHover = scrollRegion.scrollTop;
 
-  hoveredOption.dispatchEvent(
-    new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }),
-  );
-  await expect.element(hoveredOption).toHaveAttribute("data-hovered", "true");
-  await expect.poll(() => preview.textContent).toBe("Repository · /skills/19/SKILL.md");
+  await userEvent.hover(hoveredOption);
+  await expect.element(hoveredOption).not.toHaveAttribute("data-hovered");
   await expect
     .poll(() => Math.abs(scrollRegion.scrollTop - scrollTopBeforeHover))
     .toBeLessThanOrEqual(1);
@@ -622,6 +672,7 @@ test("does not scroll back to an offscreen active candidate when pointer hover p
 
   await screen.user.keyboard("{Enter}");
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("$skill-00");
+  await userEvent.unhover(document.body);
 });
 
 test("uses the same replacement for pointer selection and retains editor focus", async () => {
@@ -632,7 +683,10 @@ test("uses the same replacement for pointer selection and retains editor focus",
   const editor = screen.getByRole("combobox", { name: "Message" });
 
   await editor.fill("$poi");
-  await screen.getByRole("option", { name: /pointer/ }).click();
+  const option = screen.getByRole("option", { name: /pointer/ });
+  await expect.element(option).toHaveClass("list-box-item", "list-box-item--default");
+  expect(getComputedStyle(option.element()).transitionProperty).toContain("transform");
+  await option.click();
 
   expect(onSubmit).not.toHaveBeenCalled();
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("$pointer");

@@ -57,7 +57,7 @@ export function querySkills(
       sourceLabel: skillSourceLabel(candidate),
       score,
       disambiguatingParentPath:
-        disambiguatingParentPaths.get(displayName.toLowerCase())?.get(candidate.path) ?? null,
+        disambiguatingParentPaths.get(candidate.name)?.get(candidate.path) ?? null,
     });
   }
 
@@ -74,28 +74,30 @@ export function querySkills(
 function collectDisambiguatingParentPaths(
   candidates: readonly SkillQueryCandidate[],
 ): Map<string, Map<string, string | null>> {
-  const pathsByDisplayName = new Map<string, Set<string>>();
+  const pathsByCanonicalName = new Map<string, Set<string>>();
   for (const candidate of candidates) {
-    const displayName = skillDisplayName(candidate).toLowerCase();
-    const paths = pathsByDisplayName.get(displayName) ?? new Set<string>();
+    const paths = pathsByCanonicalName.get(candidate.name) ?? new Set<string>();
     paths.add(candidate.path);
-    pathsByDisplayName.set(displayName, paths);
+    pathsByCanonicalName.set(candidate.name, paths);
   }
 
   const disambiguatingParentPaths = new Map<string, Map<string, string | null>>();
-  for (const [displayName, paths] of pathsByDisplayName) {
-    const pathsForDisplayName = new Map<string, string | null>();
+  for (const [canonicalName, paths] of pathsByCanonicalName) {
+    const pathsForCanonicalName = new Map<string, string | null>();
     if (paths.size < 2) {
       for (const path of paths) {
-        pathsForDisplayName.set(path, null);
+        pathsForCanonicalName.set(path, null);
       }
     } else {
       const parentPaths = Array.from(paths, parseParentPath);
       for (const parentPath of parentPaths) {
-        pathsForDisplayName.set(parentPath.path, shortestUniqueParentPath(parentPath, parentPaths));
+        pathsForCanonicalName.set(
+          parentPath.path,
+          shortestUniqueParentPath(parentPath, parentPaths),
+        );
       }
     }
-    disambiguatingParentPaths.set(displayName, pathsForDisplayName);
+    disambiguatingParentPaths.set(canonicalName, pathsForCanonicalName);
   }
   return disambiguatingParentPaths;
 }
