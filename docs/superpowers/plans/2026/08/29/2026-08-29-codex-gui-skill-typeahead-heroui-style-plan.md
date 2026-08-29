@@ -2,7 +2,7 @@
 
 日期：2026-08-29
 
-状态：待确认
+状态：已确认并执行；用户选择 B 的验收边界修订已确认生效
 
 ## 目标与设计来源
 
@@ -414,13 +414,13 @@ feat(gui): refine skill typeahead styling
 - `nodeId`: `V6`
 - `taskBoundary`: `STYLE`
 - `operationKind`: 验证
-- `outcome`: 真实 Codex GUI 中受影响视觉与交互场景全部通过，并分别记录证据。
+- `outcome`: 分别记录真实 Codex GUI 中可达场景的 passed 证据与不可达场景的 `UNEXECUTED` 证据，不用自动测试替代真实 GUI 验收。
 - `estimatedCost`: M
 - `deferralEvidence`: 无；若 runtime 未启动则 authorization/prerequisite gate 保持等待，不伪造硬依赖
 - `hardPredecessors`: `F1`
 - `consumes`: STYLE working tree、当次 GUI URL、真实 skill catalog、visible Chrome for Testing
-- `produces`: desktop/narrow/dark/drawer/interaction 的真实 GUI 验收记录
-- `completionEvidence`: 唯一候选、不同 canonical name、当前真实 `code-review` canonical name 碰撞（包括 `Code Review` 与 `code-review` 两种主标签）、keyboard active、pointer hover、active+hover、选择、滚动、窄屏、dark mode、drawer、keyboard `focus-visible` 与 reduced-motion 均有 passed 记录；底部 footer 不存在且行内 path 不闪烁
+- `produces`: desktop/narrow/dark/drawer/interaction 的真实 GUI 验收记录，其中 passed 与 `UNEXECUTED` 分开记录
+- `completionEvidence`: 当次真实 GUI 中所有可达的候选信息层级、当前真实 `code-review` canonical name 碰撞、keyboard active、pointer hover、active+hover、选择、滚动、窄屏、dark mode、keyboard `focus-visible`、reduced-motion、无底部 footer 与行内 path 不闪烁场景均有 passed 记录；另有且仅有两项 `UNEXECUTED`：（a）82 个真实 candidates 中没有“同主标签、不同 canonical name”样本；（b）当前任务无 active turn，pending-input drawer 不可达。两项必须保留原因为不可达，不得改写为 passed
 - `readSet`: 运行中的 GUI、DOM/AX/geometry/computed styles
 - `writeSet`: `/tmp/codex-debug-responsive-gui/current.json` 等临时调试状态；browser session state
 - `stateEffects`: headed Chrome for Testing、临时 debug state、用户可见浏览器交互；不写 repository source
@@ -429,9 +429,9 @@ feat(gui): refine skill typeahead styling
 - `executionContext`: 当前 checkout 对应 runtime；visible Google Chrome for Testing
 - `resourceLocks`: visible Google Chrome for Testing app/session exclusive；`/tmp/codex-debug-responsive-gui/current.json` write
 - `owner`: V6 GUI 验收执行者
-- `verification`: 自动环境就绪、自动测试和每个真实 GUI 场景分开记录；截图不单独构成通过
-- `failureDomain`: 阻塞 `R1`；自动验证分支不因此停止
-- `replanTriggers`: 无当前 GUI URL、当前真实 `code-review` canonical name 碰撞不再存在、visual state 与设计不符、需要写入 fixture、修改 geometry 或 runtime
+- `verification`: 自动环境就绪、自动测试、真实 GUI passed 与 `UNEXECUTED` 分开记录；截图不单独构成通过，自动测试不得补写或替代两项 `UNEXECUTED` 的真实 GUI 结论
+- `failureDomain`: 可达真实场景失败、证据冲突或出现两项之外的 `UNEXECUTED` 时阻塞 `R1`；上述两项已记录原因的 `UNEXECUTED` 不阻塞 `R1` 或 STYLE 提交，自动验证分支不因此停止
+- `replanTriggers`: 无当前 GUI URL、当前真实 `code-review` canonical name 碰撞不再存在、visual state 与设计不符、需要写入 fixture、修改 geometry 或 runtime；82 个真实 candidates 缺少“同主标签、不同 canonical name”样本以及当前任务无 active turn 导致 pending-input drawer 不可达，按用户选择 B 记录为 `UNEXECUTED`，不单独触发重新计划
 - `authorizationGate`: `pending`；计划确认后激活真实 GUI 操作；若缺 runtime，等待用户运行精确 `j c`
 
 ### R1 — STYLE fan-in 审查
@@ -439,13 +439,13 @@ feat(gui): refine skill typeahead styling
 - `nodeId`: `R1`
 - `taskBoundary`: `STYLE`
 - `operationKind`: fan-in
-- `outcome`: 四文件组合 diff 与全部验证证据共同证明设计已完整实现，无范围外改动。
+- `outcome`: 四文件组合 diff、全部自动验证与真实 GUI 的 passed/`UNEXECUTED` 分离证据共同证明设计已实现且无范围外改动，并形成带“真实 GUI 未完整验收”限定的可提交结论。
 - `estimatedCost`: S
 - `deferralEvidence`: 无
-- `hardPredecessors`: `V1`、`V2`、`V3`、`V4`、`V5`、`V6`；分别等待 format、unit、Browser、lint、type-check、真实 GUI 稳定证据
-- `consumes`: STYLE diff、六个验证节点证据
+- `hardPredecessors`: `V1`、`V2`、`V3`、`V4`、`V5`、`V6`；分别等待 format、unit、Browser、lint、type-check，以及包含可达场景 passed 与两项允许 `UNEXECUTED` 的真实 GUI 稳定记录
+- `consumes`: STYLE diff、五个自动验证节点的 passed 证据、V6 的真实 GUI passed/`UNEXECUTED` 分离记录
 - `produces`: 可提交 STYLE 审查结论
-- `completionEvidence`: diff allowlist、设计验收映射、无 reorder、所有验证 passed
+- `completionEvidence`: diff allowlist、设计验收映射、无 reorder、五个自动验证节点 passed、V6 所有可达场景 passed，且 V6 仅保留已确认的两项 `UNEXECUTED`；审查结论明确写“真实 GUI 未完整验收”，不得把自动测试作为这两项的替代证据
 - `readSet`: 四个 STYLE 文件、完整 working diff、验证输出
 - `writeSet`: 空
 - `stateEffects`: 只读审查结果
@@ -454,7 +454,7 @@ feat(gui): refine skill typeahead styling
 - `executionContext`: 当前 checkout
 - `resourceLocks`: STYLE working tree read
 - `owner`: 主协调者
-- `verification`: 每项设计完成标准映射到代码、自动测试与真实 GUI 证据
+- `verification`: 每项设计完成标准分别映射到代码、自动测试、真实 GUI passed 或允许的 `UNEXECUTED`；自动测试证据与真实 GUI 证据保持不同类别，本次计划文档修订不要求重跑自动测试
 - `failureDomain`: 阻塞 `C1`；失败插入最小修正节点并仅重跑受影响验证
 - `replanTriggers`: 写集合扩大、接口/geometry/数据语义变化、独立 reorder、验证证据冲突
 - `authorizationGate`: `pending`；计划确认后激活只读 fan-in 审查
@@ -514,13 +514,13 @@ feat(gui): refine skill typeahead styling
 - `nodeId`: `Z1`
 - `taskBoundary`: 无提交的最终审查节点
 - `operationKind`: 审查
-- `outcome`: DOCS 与 STYLE commits、验证证据和工作树状态满足计划终态。
+- `outcome`: DOCS 与 STYLE commits、验证证据和工作树状态满足允许两项真实 GUI `UNEXECUTED` 的计划终态，并如实报告验收不完整。
 - `estimatedCost`: S
 - `deferralEvidence`: 无
 - `hardPredecessors`: `C2`；等待 STYLE commit id
-- `consumes`: DOCS/STYLE commit ids、全部验证证据、最终 worktree/index
+- `consumes`: DOCS/STYLE commit ids、自动验证 passed 证据、V6 passed/`UNEXECUTED` 分离记录、最终 worktree/index
 - `produces`: 终态报告
-- `completionEvidence`: 两个 commit 可审计；index 无任务残留；范围外用户改动保持原状；无 remote 操作
+- `completionEvidence`: 两个 commit 可审计；index 无任务残留；范围外用户改动保持原状；无 remote 操作；终态报告固定写“真实 GUI 未完整验收”，并逐项列出（a）82 个真实 candidates 中没有“同主标签、不同 canonical name”样本、（b）当前任务无 active turn，pending-input drawer 不可达
 - `readSet`: Git log/show/status、验证记录
 - `writeSet`: 空
 - `stateEffects`: 只读终态报告
@@ -529,7 +529,7 @@ feat(gui): refine skill typeahead styling
 - `executionContext`: 当前 checkout
 - `resourceLocks`: Git metadata read
 - `owner`: 主协调者
-- `verification`: 计划完成标准与固定终态证据逐项核对
+- `verification`: 计划完成标准、自动验证 passed、真实 GUI passed/`UNEXECUTED` 分离记录与固定终态措辞逐项核对；不得用自动测试把 `UNEXECUTED` 提升为 passed
 - `failureDomain`: 终止位置；发现已提交问题时创建独立修正节点/提交，不 amend
 - `replanTriggers`: 任务未完成、commit/diff/验证证据不一致
 - `authorizationGate`: `pending`；计划确认后激活只读终态审查
@@ -540,9 +540,9 @@ feat(gui): refine skill typeahead styling
 - 文档门禁链：`P0 → D1 → D2`。`D2` 的 DOCS commit 是所有实现节点的稳定前提。
 - 实现链：`D2 → E1 → E2 → F1`。`E2` 等待 E1 的 query 展示语义；`F1` 等待完整四文件 working tree。
 - 验证 fan-out：`F1` 完成后，`V1`、`V2`、`V3`、`V4`、`V5`、`V6` 同时进入 ready set；`V2`、`V3`、`V5` 因写入 Vitest/tsbuildinfo cache 形成最小动态互斥域，只能由其中一个持锁运行，另两个保持 ready 等待锁；V1、V4、V6 无该冲突时继续并行，不制造硬依赖。
-- 验证 fan-in：`R1` 等待六个验证分支的稳定证据。单一自动测试或截图不能提前解锁。
+- 验证 fan-in：`R1` 等待六个验证分支的稳定证据；V1–V5 必须 passed，V6 必须提交可达场景 passed 与两项允许 `UNEXECUTED` 的分离记录。两项允许的 `UNEXECUTED` 不阻塞 fan-in，单一自动测试或截图不能把它们提升为真实 GUI passed。
 - 提交链：`R1 → C1 → C2 → Z1`。
-- 粗粒度关键路径：文档 commit → query 语义 → 组件/Browser tests → format → 最慢验证分支（通常为真实 GUI 或三浏览器 Browser Mode）→ fan-in → STYLE commit → 终态审查。
+- 粗粒度关键路径：文档 commit → query 语义 → 组件/Browser tests → format → 最慢验证分支（通常为真实 GUI 或三浏览器 Browser Mode）→ fan-in（接受 V6 精确两项 `UNEXECUTED`）→ STYLE commit → 带“真实 GUI 未完整验收”结论的终态审查。
 
 ## 资源与并行审计
 
@@ -560,6 +560,7 @@ feat(gui): refine skill typeahead styling
 - 发现需要修改 Rust、protocol、catalog、geometry、Composer 外壳、package、依赖、测试配置或范围外文件时，停止受影响节点并重新计划。
 - 工具或 browser binary 缺失时停止相应节点，告知用户需要自行安装的组件与建议命令；助手不得安装。
 - 真实 GUI runtime 缺失时只暂停 V6 及其 fan-in 后继，要求用户运行精确 `j c`；自动验证继续。
+- 用户选择 B 只豁免 V6 已记录的两项不可达场景：82 个真实 candidates 中没有“同主标签、不同 canonical name”样本，以及当前任务无 active turn 导致 pending-input drawer 不可达。它们不阻塞 R1、C1、C2，但必须传递到 Z1 并固定报告“真实 GUI 未完整验收”；其他真实 GUI 失败或不可达仍按原失败域处理。
 - 禁止通过放宽断言、删除覆盖、提高阈值、关闭检查、隐藏 overflow、增加 fallback 或修改基线解决失败。
 
 ## 完成标准
@@ -570,7 +571,8 @@ feat(gui): refine skill typeahead styling
 - canonical name 相同且 canonical path 不同时显示 scope 与最短唯一父路径，不显示完整 `SKILL.md` path，不折叠合法候选。
 - footer、Separator、hidden path description、hover preview 与 React hover owner 完整删除。
 - HeroUI listbox base、hover、pressed 生效；Lexical active 清晰且覆盖 hover。
-- unit、三浏览器 Browser Mode、format、lint、type-check 与全部真实 GUI 场景通过。
+- unit、三浏览器 Browser Mode、format、lint 与 type-check 通过；真实 GUI 所有可达场景通过，且仅允许（a）82 个真实 candidates 中没有“同主标签、不同 canonical name”样本、（b）当前任务无 active turn，pending-input drawer 不可达这两项保持 `UNEXECUTED`。
+- STYLE 可以在上述两项 `UNEXECUTED` 下提交，但最终报告必须明确写“真实 GUI 未完整验收”；自动测试不得替代、覆盖或提升这两项真实 GUI 状态。
 - 最终报告分别列出实际并行、关键路径和未启动 ready 节点；无 Git remote 操作。
 
-本文仅完成计划落盘。用户明确确认本计划前，不得 stage、commit、实现、格式化、测试或启动真实 GUI 验收。
+原计划已确认并进入执行；用户选择 B 的验收边界修订已确认生效，可按本文条件继续 R1 与 STYLE 提交，但不得引入选择 B 之外的新范围。
