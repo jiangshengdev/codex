@@ -3,6 +3,7 @@ import { expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { renderWithProviders } from "@/utils/test-utils";
+import type { AppLocale } from "@/i18n";
 import type {
   SkillCatalogCandidate,
   SkillCatalogState,
@@ -558,6 +559,64 @@ test("keeps the typeahead Enter owner ahead of the guide shortcut", async () => 
   });
 });
 
+test.each([
+  {
+    labels: { admin: "Admin", repo: "Repository", system: "System", user: "User" },
+    locale: "en" as const,
+  },
+  {
+    labels: { admin: "管理员", repo: "仓库", system: "系统", user: "用户" },
+    locale: "zh-CN" as const,
+  },
+])("always shows localized source labels in $locale", async ({ labels, locale }) => {
+  const candidates = [
+    skill("admin-skill", "/hidden/admin-parent/SKILL.md", "Admin skill", undefined, "admin"),
+    skill("repo-skill", "/hidden/repo-parent/SKILL.md", "Repo skill", undefined, "repo"),
+    skill("system-skill", "/hidden/system-parent/SKILL.md", "System skill", undefined, "system"),
+    skill("user-skill", "/hidden/user-parent/SKILL.md", "User skill", undefined, "user"),
+  ];
+  const { controllerRef, screen } = await renderEditor(candidates, { locale });
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$");
+
+  const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+  for (const candidate of candidates) {
+    const label = labels[candidate.scope];
+    const displayName = candidate.interface?.displayName ?? candidate.name;
+    const description = candidate.description;
+    const option = listbox.getByRole("option", { name: new RegExp(displayName) });
+    await expect.element(option).toBeVisible();
+    await expect
+      .element(option)
+      .toHaveAccessibleName(new RegExp(`${displayName}.*${label}.*${description}`));
+
+    const mainRow = option.element().firstElementChild;
+    const sourceLabel = mainRow?.lastElementChild;
+    if (!(mainRow instanceof HTMLDivElement) || !(sourceLabel instanceof HTMLSpanElement)) {
+      throw new Error("skill option must place its source label in the main row");
+    }
+    expect(sourceLabel.textContent).toBe(label);
+    expect(sourceLabel.classList).toContain("shrink-0");
+    expect(sourceLabel.classList).toContain("text-xs");
+    expect(sourceLabel.classList).toContain("text-muted");
+    expect(option.element().textContent).not.toContain(candidate.path);
+    expect(option.element().outerHTML).not.toContain("hidden/");
+  }
+
+  await screen.user.keyboard("{Enter}");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().textContent)
+    .toBe("$Admin skill");
+  expect(getController(controllerRef).getSnapshot().selectedSkillPaths).toEqual([
+    "/hidden/admin-parent/SKILL.md",
+  ]);
+  expect(getController(controllerRef).capture().input).toEqual([
+    { type: "text", text: "$admin-skill", text_elements: [] },
+    { type: "skill", name: "admin-skill", path: "/hidden/admin-parent/SKILL.md" },
+  ]);
+});
+
 test("progressively discloses canonical names and only collision paths", async () => {
   const { screen } = await renderEditor([
     skill("plain", "/unique/plain/SKILL.md", "plain", "plain description", "system"),
@@ -594,14 +653,21 @@ test("progressively discloses canonical names and only collision paths", async (
     .element();
 
   expect(plainOption.textContent).not.toContain("$plain");
-  expect(plainOption.textContent).not.toContain("System");
+  expect(plainOption.firstElementChild?.textContent).toContain("System");
   expect(plainOption.textContent).not.toContain("unique/plain");
   expect(friendlyOption.textContent).toContain("$friendly");
-  expect(friendlyOption.textContent).not.toContain("User");
-  expect(userSharedOption.textContent).toContain("User · user/shared");
-  expect(repoSharedOption.textContent).toContain("Repository · repo/shared");
-  expect(firstReviewOption.textContent).toContain("Repository · first/review");
-  expect(secondReviewOption.textContent).toContain("User · second/review");
+  expect(friendlyOption.firstElementChild?.textContent).toContain("User");
+  for (const [option, sourceLabel, path] of [
+    [userSharedOption, "User", "user/shared"],
+    [repoSharedOption, "Repository", "repo/shared"],
+    [firstReviewOption, "Repository", "first/review"],
+    [secondReviewOption, "User", "second/review"],
+  ] as const) {
+    expect(option.firstElementChild?.textContent).toContain(sourceLabel);
+    expect(option.firstElementChild?.textContent).not.toContain(path);
+    expect(option.children.item(1)?.textContent).toBe(path);
+    expect(option.children.item(1)?.textContent).not.toContain(sourceLabel);
+  }
   expect(listbox.element().outerHTML).not.toContain("SKILL.md");
   expect(listbox.element().querySelector("[aria-describedby]")).toBeNull();
   expect(screen.container.querySelector("[data-skill-menu-details]")).toBeNull();
@@ -615,7 +681,7 @@ test("lays out one-line descriptions and collision paths without horizontal over
   const firstCollisionParent = `first-${"collision".repeat(20)}`;
   const secondCollisionParent = `second-${"collision".repeat(20)}`;
   const { screen } = await renderEditor([
-    skill("a-canonical-skill", longPath, longDisplayName, longDescription, "user"),
+    skill("a-canonical-skill", longPath, longDisplayName, longDescription, "repo"),
     skill("z-empty", "/skills/empty/SKILL.md", "Empty description", "   ", "system"),
     skill(
       "collision",
@@ -657,12 +723,36 @@ test("lays out one-line descriptions and collision paths without horizontal over
 
   await expect.element(listbox.getByText(longDisplayName, { exact: true })).toBeVisible();
   await expect.element(listbox.getByText("$a-canonical-skill", { exact: true })).toBeVisible();
-  expect(longOption.textContent).not.toContain("User");
+  const longMainRow = longOption.firstElementChild;
+  const longNameRegion = longMainRow?.firstElementChild;
+  const longSourceLabel = longMainRow?.lastElementChild;
+  if (
+    !(longMainRow instanceof HTMLDivElement) ||
+    !(longNameRegion instanceof HTMLDivElement) ||
+    !(longSourceLabel instanceof HTMLSpanElement)
+  ) {
+    throw new Error("long skill option must retain its main-row source layout");
+  }
+  expect(longNameRegion.classList).toContain("min-w-0");
+  expect(longNameRegion.classList).toContain("flex-1");
+  expect(longSourceLabel.textContent).toBe("Repository");
+  expect(longSourceLabel.classList).toContain("shrink-0");
   expect(longOption.outerHTML).not.toContain(longPath);
   expect(description.getBoundingClientRect().height).toBeLessThanOrEqual(lineHeight + 1);
   expect(emptyOption.querySelector("[data-skill-description]")).toBeNull();
-  expect(collisionOption.textContent).toContain(`User · ${firstCollisionParent}/shared`);
+  expect(collisionOption.firstElementChild?.textContent).toContain("User");
+  expect(collisionOption.children.item(1)?.textContent).toBe(`${firstCollisionParent}/shared`);
+  expect(collisionOption.firstElementChild?.textContent).not.toContain(firstCollisionParent);
   expect(collisionOption.outerHTML).not.toContain("SKILL.md");
+  await expect.poll(() => longOption.getBoundingClientRect().width).toBeLessThanOrEqual(384);
+  await expect
+    .poll(() => {
+      const optionBounds = longOption.getBoundingClientRect();
+      const sourceBounds = longSourceLabel.getBoundingClientRect();
+      return sourceBounds.width > 0 && sourceBounds.right <= optionBounds.right + 1;
+    })
+    .toBe(true);
+  await expect.poll(() => longMainRow.scrollWidth <= longMainRow.clientWidth + 1).toBe(true);
   await expect
     .poll(() => listbox.element().scrollWidth <= listbox.element().clientWidth + 1)
     .toBe(true);
@@ -1151,12 +1241,17 @@ test("shows invalid token text only when a complete ready catalog confirms its p
 
 type RenderEditorOptions = Readonly<{
   guardCompositionEndEnter?: boolean;
+  locale?: AppLocale;
   onSubmit?: ComposerEditorProps["onSubmit"];
 }>;
 
 async function renderEditor(
   candidates: readonly SkillCatalogCandidate[],
-  { guardCompositionEndEnter = false, onSubmit = () => undefined }: RenderEditorOptions = {},
+  {
+    guardCompositionEndEnter = false,
+    locale = "en",
+    onSubmit = () => undefined,
+  }: RenderEditorOptions = {},
 ) {
   const controllerRef = createRef<ComposerEditorController>();
   const skillCatalog: SkillCatalogState = {
@@ -1174,6 +1269,7 @@ async function renderEditor(
       placeholder="Message Codex"
       skillCatalog={skillCatalog}
     />,
+    { locale },
   );
   await expect.poll(() => controllerRef.current).not.toBeNull();
   return { controllerRef, screen };

@@ -1,6 +1,6 @@
 import { Button } from "@heroui/react";
 import { listboxItemVariants, listboxVariants, selectVariants } from "@heroui/styles";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   LexicalTypeaheadMenuPlugin,
@@ -230,6 +230,7 @@ function SkillMenu({
   setHighlightedIndex: (index: number) => void;
   skillCatalog: SkillCatalogState;
 }>) {
+  const { t } = useLingui();
   const showNoResults =
     options.length === 0 &&
     skillCatalog.type !== "initialLoading" &&
@@ -298,7 +299,32 @@ function SkillMenu({
       <ul className={SKILL_MENU_LISTBOX_CLASS_NAME} data-slot="list-box" role="presentation">
         {options.map((option, index) => {
           const isSelected = selectedIndex === index;
-          const { candidate, disambiguatingParentPath, displayName, sourceLabel } = option.result;
+          const { candidate, disambiguatingParentPath, displayName } = option.result;
+          const localizedSourceLabel = ((): string => {
+            switch (candidate.scope) {
+              case "user":
+                return t({
+                  comment: "Source label for a skill installed by the current user",
+                  message: "User",
+                });
+              case "repo":
+                return t({
+                  comment: "Source label for a skill provided by the current repository",
+                  message: "Repository",
+                });
+              case "system":
+                return t({
+                  comment: "Source label for a skill provided by the Codex system",
+                  message: "System",
+                });
+              case "admin":
+                return t({
+                  comment: "Source label for a skill installed by an administrator",
+                  message: "Admin",
+                });
+            }
+            candidate.scope satisfies never;
+          })();
           const description = (
             candidate.interface?.shortDescription ??
             candidate.shortDescription ??
@@ -325,17 +351,22 @@ function SkillMenu({
               }}
               role="option"
             >
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{displayName}</span>
-                {displayName === candidate.name ? null : (
-                  <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                    ${candidate.name}
+              <div className="flex min-w-0 items-baseline gap-2">
+                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
+                    {displayName}
                   </span>
-                )}
+                  {displayName === candidate.name ? null : (
+                    <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
+                      ${candidate.name}
+                    </span>
+                  )}
+                </div>
+                <span className="shrink-0 text-xs text-muted">{localizedSourceLabel}</span>
               </div>
               {disambiguatingParentPath == null ? null : (
                 <div className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                  {sourceLabel} · {disambiguatingParentPath}
+                  {disambiguatingParentPath}
                 </div>
               )}
               {description.length === 0 ? null : (
