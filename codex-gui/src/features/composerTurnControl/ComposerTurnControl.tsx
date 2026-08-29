@@ -150,7 +150,7 @@ export function ComposerTurnControl({
   return (
     <section
       aria-label={t`Message composer`}
-      className="composer-shell sticky bottom-0 z-10 pb-3"
+      className="composer-shell sticky bottom-0 z-10 px-3 pb-3"
       ref={composerShellRef}
     >
       <Surface

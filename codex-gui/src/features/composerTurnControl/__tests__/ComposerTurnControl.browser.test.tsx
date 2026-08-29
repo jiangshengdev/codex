@@ -841,6 +841,7 @@ test("renders the Lexical composer panel and actions", async () => {
   expect(composerShell.classList.contains("bottom-0")).toBe(true);
   expect(composerShell.classList.contains("fixed")).toBe(false);
   expect(composerShell.classList.contains("inset-x-0")).toBe(false);
+  expect(composerShell.classList.contains("px-3")).toBe(true);
   expect(composerShell.classList.contains("px-4")).toBe(false);
   expect(composerShell.classList.contains("pb-0")).toBe(false);
   expect(composerShell.classList.contains("pb-3")).toBe(true);
