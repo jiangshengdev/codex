@@ -1,12 +1,15 @@
 ---
 name: debug-responsive-gui
-description: Use when debugging or validating affected Codex GUI behavior with playwright-cli in a visible Google Chrome for Testing browser, including real GUI acceptance, DevTools, responsive layout checks, screenshots, browser opening, visual verification, or reproducible browser-control traces. Do not use for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only output; use gui-launch for those.
+description: Use only for tier-three visible desktop acceptance or explicitly requested headed Codex GUI debugging with playwright-cli, including Google Chrome for Testing and DevTools window behavior, visible responsive-window checks, macOS IME, or reproducible visible browser-control traces. Do not use for tier-one automated regression, tier-two headless real-application acceptance, ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only output; use the applicable headless owner or gui-launch instead.
 ---
 
 # Debug Responsive GUI
 
 ## Core Rules
 
+- Use this skill only when the result depends on visible desktop state that headless browser automation cannot observe or prove equivalently, or when the user directly requests headed debugging for the current task.
+- Before starting or reusing any visible browser, DevTools, or related desktop window, confirm that the user explicitly authorized the visible impact for this instance. A current direct request for headed debugging can provide that authorization; plan confirmation, design confirmation, a general request to continue, or an existing acceptance requirement cannot.
+- Without that authorization, do not call this skill's automation entrypoint or any other command that starts or reuses visible desktop windows. Report `可见桌面验收未执行` and identify the blocked tier-three scenarios; continue only work that does not depend on them.
 - Prefer `playwright-cli` for browser lifecycle control.
 - Use `Google Chrome for Testing` for debugging, not the system `Google Chrome`.
 - Keep the browser visible; launch it with `--headed`.
@@ -16,11 +19,11 @@ description: Use when debugging or validating affected Codex GUI behavior with p
 - Use AppleScript only to activate `Google Chrome for Testing`, query windows, move windows, close recognizable restore dialogs, send the allowed `Command+Shift+M` shortcut in the DevTools window, and drive IME keyboard actions through `ime-control.mjs`.
 - Query state or take a screenshot when the visual state is unclear; do not guess.
 
-## Real GUI Acceptance Contract
+## Tier-Three Visible Desktop Acceptance Contract
 
-- Derive the smallest acceptance scenario set from the changed behavior. Do not run an unrelated fixed exhaustive checklist.
-- A screenshot is supporting evidence only; it does not prove acceptance without the relevant interaction and state checks.
-- If every triggered scenario has not passed, do not claim that real GUI acceptance or the overall task is complete. When the environment is unavailable or the user explicitly prohibits validation, report `真实 GUI 未验收`.
+- Derive the smallest tier-three scenario set from behavior that actually depends on visible desktop state. Do not route tier-one automated regression or tier-two headless real-application acceptance through this skill, and do not run an unrelated fixed exhaustive checklist.
+- Browser or DevTools environment readiness, screenshots, and DOM assertions are supporting evidence only; none proves a tier-three scenario without the relevant visible desktop interaction and state checks.
+- If every triggered tier-three scenario has not passed, do not claim that visible desktop acceptance or the overall task is complete. When authorization or the environment is unavailable, report `可见桌面验收未执行` and the blocked scenarios.
 
 ## Codex Runtime Handoff
 
@@ -92,9 +95,9 @@ Read `/tmp/codex-ime-control/<session-id>/latest-candidate.json` first. Open `ca
 - Each step checks the real current state first. If the target state is already satisfied, it prints `skip` and exits 0; otherwise it performs that step.
 - The state file is `/tmp/codex-debug-responsive-gui/current.json`.
 
-## Scenario Acceptance
+## Tier-Three Scenario Acceptance
 
-For each affected scenario:
+For each affected tier-three scenario:
 
 - Enter the real target route and establish the state required to exercise the changed behavior.
 - Use representative desktop or narrow viewports only when those geometries are affected; do not require a named device model.
@@ -164,10 +167,10 @@ Report these separately:
 - Codex runtime availability and GUI URL acquisition.
 - Automated regression results.
 - Visible-browser environment status.
-- Each executed real GUI scenario and its result.
-- Every acceptance item not executed because of environment, authorization, or an explicit user restriction.
+- Each executed tier-three visible desktop scenario and its result.
+- Every tier-three acceptance item not executed because of environment, authorization, or an explicit user restriction, using `可见桌面验收未执行` when any applicable scenario remains blocked.
 
-None of these results substitutes for another.
+None of these results substitutes for another, and no environment-ready, screenshot, or DOM result substitutes for tier-three visible desktop acceptance.
 
 ## Common Validation Commands
 

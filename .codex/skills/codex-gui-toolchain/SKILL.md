@@ -1,6 +1,6 @@
 ---
 name: codex-gui-toolchain
-description: "Use when working in codex-gui before running pnpm commands, writing GUI verification steps, adding or changing package scripts, checking frontend tool versions, or ensuring the user's fnm-managed Node and pnpm are used instead of Codex runtime shims."
+description: "Use when working in codex-gui before running pnpm commands, planning or running browser verification, performing headless acceptance against a real Codex runtime, adding or changing package scripts, checking frontend tool versions, or ensuring the user's fnm-managed Node and pnpm are used instead of Codex runtime shims."
 ---
 
 # Codex GUI Toolchain
@@ -27,6 +27,44 @@ Immediately before running a frontend command, apply the general preflight and r
 4. For Vitest Browser Mode, Playwright, or another frontend verification entrypoint, confirm that discovery actually collects and exercises the intended target and that output is written to the expected location. A successful command that skipped the target is not verification.
 
 If an input is absent because a sparse worktree may be incomplete, use `codex-gui-worktree` only to inspect it. Repair it only when the user's current request or a confirmed plan explicitly authorizes that repair; otherwise stop and report the missing input. Do not duplicate the worktree skill's path list or setup procedure here.
+
+## Headless GUI Verification
+
+Browser verification performed while executing a confirmed plan defaults to headless operation. Classify each required scenario by what it must prove; do not choose a visible browser merely because the behavior is user-facing.
+
+### Level 1: Automated Regression
+
+Level 1 covers isolated or test-environment browser automation such as Playwright E2E and Vitest Browser Mode. Use the repository-owned headless entrypoint verified by the command planning check. For Playwright Test, set `PLAYWRIGHT_HTML_OPEN=never` so the HTML reporter cannot open a window:
+
+```bash
+PLAYWRIGHT_HTML_OPEN=never /opt/homebrew/bin/fnm exec --using-file pnpm run test:e2e
+```
+
+Do not automatically open an HTML report or trace viewer. Record the collected target and its result; a successful command that collected no intended target is not Level 1 evidence.
+
+### Level 2: Real Codex Runtime Acceptance
+
+Level 2 uses a headless browser against the real Codex runtime. Obtain the complete current GUI URL from `/gui` or outer `launch_gui`; preserve its route, thread identifier, and token, and do not guess, splice, or reuse an old URL. When no repository-owned Level 2 entrypoint exists and the execution preflight permits a direct command, open that URL without `--headed`:
+
+```bash
+playwright-cli open '<complete current GUI URL>'
+playwright-cli list --json
+```
+
+After opening, use the actual `list --json` output to identify the controlled session and verify that it is explicitly non-headed. A missing or ambiguous headed-state field is not proof of headless execution. Then establish and record all of the following:
+
+- the usable Codex runtime and current full URL;
+- the intended route and real application state;
+- the relevant pointer, keyboard, focus, accessibility, layout, scrolling, overflow, or integration interactions;
+- each required scenario's observed result.
+
+Opening the page, taking a screenshot, exercising an isolated fixture, or passing Level 1 tests does not by itself prove Level 2 acceptance.
+
+### Failure And Level 3 Routing
+
+If the required headless entrypoint, current URL, runtime, session-state evidence, target discovery, or scenario evidence is unavailable, mark the affected level or scenario `unexecuted`. Do not silently switch to `test:e2e:headed`, add `--headed`, open a report or trace viewer, or invoke `$debug-responsive-gui` as a fallback.
+
+Route to `$debug-responsive-gui` only when evidence shows that the result itself depends on visible desktop state, such as operating-system windows, cross-application desktop focus, DevTools window behavior, or a system IME. That Level 3 skill owns its separate visible-window authorization and acceptance workflow.
 
 ## pnpm Environment
 
@@ -79,7 +117,7 @@ this skill does not create or repair their links.
 ## Related Skills
 
 - Use `gui-launch` for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only requests.
-- Use `debug-responsive-gui` for visible browser debugging, screenshots, responsive checks, and reproducible browser-control traces.
+- Use `debug-responsive-gui` only for Level 3 visible-desktop acceptance or explicitly requested visible debugging, screenshots, responsive checks, and reproducible browser-control traces.
 - Use `heroui-react` when changing HeroUI components, variants, tokens, or local HeroUI docs.
 - Use `redux-toolkit` for Redux Toolkit APIs, architecture, or local Redux documentation.
 - Use `vitest-react-browser-docs` for Vitest Browser Mode APIs and React browser tests.
