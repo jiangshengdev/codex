@@ -49,7 +49,7 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
   expect(getController(controllerRef).getRootElement()).toBe(editor.element());
 });
 
-test("uses one unmasked Select popover scroll owner without open or close animation", async () => {
+test("uses a clipped Select popover surface with one nested scroll owner", async () => {
   const candidates = Array.from({ length: 20 }, (_, index) =>
     skill(`skill-${String(index).padStart(2, "0")}`, `/skills/${String(index)}`),
   );
@@ -65,14 +65,19 @@ test("uses one unmasked Select popover scroll owner without open or close animat
   }
   const scrollRegions = listbox.element().querySelectorAll("[data-skill-menu-scroll-region]");
   expect(scrollRegions).toHaveLength(1);
-  expect(scrollRegions.item(0)).toBe(menuSurface);
+  const scrollRegion = scrollRegions.item(0);
+  if (!(scrollRegion instanceof HTMLElement)) {
+    throw new Error("skill menu must render a nested scroll region");
+  }
+  expect(scrollRegion).not.toBe(menuSurface);
+  expect(menuSurface.contains(scrollRegion)).toBe(true);
   expect(menuSurface.classList).toContain("select__popover");
-  expect(menuSurface.getAttribute("data-scrollbar")).toBe("thin");
+  expect(scrollRegion.getAttribute("data-scrollbar")).toBe("thin");
 
   const scrollOwners = [menuSurface, ...menuSurface.querySelectorAll<HTMLElement>("*")].filter(
     (element) => ["auto", "scroll"].includes(getComputedStyle(element).overflowY),
   );
-  expect(scrollOwners).toEqual([menuSurface]);
+  expect(scrollOwners).toEqual([scrollRegion]);
 
   const styledListbox = menuSurface.querySelector('[data-slot="list-box"]');
   const styledItem = menuSurface.querySelector('[data-slot="list-box-item"]');
@@ -85,6 +90,7 @@ test("uses one unmasked Select popover scroll owner without open or close animat
   overlayProbe.style.boxShadow = "var(--shadow-overlay)";
   document.body.append(overlayProbe);
   const menuStyle = getComputedStyle(menuSurface);
+  const scrollStyle = getComputedStyle(scrollRegion);
   const overlayStyle = getComputedStyle(overlayProbe);
   expect(menuStyle.backgroundColor).toBe(overlayStyle.backgroundColor);
   expect(menuStyle.boxShadow).toBe(overlayStyle.boxShadow);
@@ -93,15 +99,18 @@ test("uses one unmasked Select popover scroll owner without open or close animat
   expect(menuStyle.borderRightWidth).toBe("0px");
   expect(menuStyle.borderBottomWidth).toBe("0px");
   expect(menuStyle.borderLeftWidth).toBe("0px");
-  expect(menuStyle.overflowY).toBe("auto");
-  expect(menuStyle.overscrollBehaviorY).toBe("contain");
+  expect(menuStyle.overflowX).toBe("hidden");
+  expect(menuStyle.overflowY).toBe("hidden");
+  expect(scrollStyle.overflowX).toBe("hidden");
+  expect(scrollStyle.overflowY).toBe("auto");
+  expect(scrollStyle.overscrollBehaviorY).toBe("contain");
   const scrollbarProbe = document.createElement("div");
   scrollbarProbe.className = "scrollbar-thin";
   scrollbarProbe.setAttribute("data-scrollbar", "thin");
   document.body.append(scrollbarProbe);
   const scrollbarProbeStyle = getComputedStyle(scrollbarProbe);
-  expect(menuStyle.getPropertyValue("--scrollbar-width").trim()).toBe("thin");
-  expect(menuStyle.scrollbarWidth).toBe(scrollbarProbeStyle.scrollbarWidth);
+  expect(scrollStyle.getPropertyValue("--scrollbar-width").trim()).toBe("thin");
+  expect(scrollStyle.scrollbarWidth).toBe(scrollbarProbeStyle.scrollbarWidth);
   scrollbarProbe.remove();
   expect(menuStyle.animationName).toBe("none");
   expect(menuStyle.animationDuration).toBe("0s");
@@ -119,27 +128,28 @@ test("uses one unmasked Select popover scroll owner without open or close animat
   expect(menuSurface.hasAttribute("data-entering")).toBe(false);
   expect(menuSurface.hasAttribute("data-exiting")).toBe(false);
 
-  const expectNoMask = (): void => {
-    const style = getComputedStyle(menuSurface);
+  const expectNoMask = (element: HTMLElement): void => {
+    const style = getComputedStyle(element);
     expect(style.maskImage).toBe("none");
     const webkitMaskImage = style.getPropertyValue("-webkit-mask-image");
     expect(["", "none"]).toContain(webkitMaskImage);
   };
-  await expect.poll(() => menuSurface.scrollHeight > menuSurface.clientHeight).toBe(true);
-  const maximumScrollTop = menuSurface.scrollHeight - menuSurface.clientHeight;
-  menuSurface.scrollTop = 0;
-  await expect.poll(() => menuSurface.scrollTop).toBe(0);
-  expectNoMask();
-  menuSurface.scrollTop = maximumScrollTop / 2;
+  expectNoMask(menuSurface);
+  await expect.poll(() => scrollRegion.scrollHeight > scrollRegion.clientHeight).toBe(true);
+  const maximumScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight;
+  scrollRegion.scrollTop = 0;
+  await expect.poll(() => scrollRegion.scrollTop).toBe(0);
+  expectNoMask(scrollRegion);
+  scrollRegion.scrollTop = maximumScrollTop / 2;
   await expect
-    .poll(() => Math.abs(menuSurface.scrollTop - maximumScrollTop / 2))
+    .poll(() => Math.abs(scrollRegion.scrollTop - maximumScrollTop / 2))
     .toBeLessThanOrEqual(1);
-  expectNoMask();
-  menuSurface.scrollTop = maximumScrollTop;
+  expectNoMask(scrollRegion);
+  scrollRegion.scrollTop = maximumScrollTop;
   await expect
-    .poll(() => Math.abs(menuSurface.scrollTop - maximumScrollTop))
+    .poll(() => Math.abs(scrollRegion.scrollTop - maximumScrollTop))
     .toBeLessThanOrEqual(1);
-  expectNoMask();
+  expectNoMask(scrollRegion);
 
   await screen.user.keyboard("{Escape}");
   await expect.element(listbox).not.toBeInTheDocument();

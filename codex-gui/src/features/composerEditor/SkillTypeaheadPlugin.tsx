@@ -285,102 +285,106 @@ function SkillMenu({
 
   return createPortal(
     <div
-      className={`${SKILL_MENU_POPOVER_CLASS_NAME} pointer-events-auto w-full ${skillMenuSurfaceMaxHeightClassName(placement)} overflow-x-hidden scrollbar-thin`}
-      data-scrollbar="thin"
-      data-skill-menu-scroll-region
+      className={`${SKILL_MENU_POPOVER_CLASS_NAME} pointer-events-auto w-full overflow-hidden`}
       data-skill-menu-surface
     >
-      <SkillCatalogStatus onRetry={onRetry} skillCatalog={skillCatalog} />
-      {showNoResults ? (
-        <p aria-live="polite" className="px-3 py-2 text-sm text-muted" role="status">
-          <Trans>No matching skills</Trans>
-        </p>
-      ) : null}
-      <ul className={SKILL_MENU_LISTBOX_CLASS_NAME} data-slot="list-box" role="presentation">
-        {options.map((option, index) => {
-          const isSelected = selectedIndex === index;
-          const { candidate, disambiguatingParentPath, displayName } = option.result;
-          const localizedSourceLabel = ((): string => {
-            switch (candidate.scope) {
-              case "user":
-                return t({
-                  comment: "Source label for a skill installed by the current user",
-                  message: "User",
-                });
-              case "repo":
-                return t({
-                  comment: "Source label for a skill provided by the current repository",
-                  message: "Repository",
-                });
-              case "system":
-                return t({
-                  comment: "Source label for a skill provided by the Codex system",
-                  message: "System",
-                });
-              case "admin":
-                return t({
-                  comment: "Source label for a skill installed by an administrator",
-                  message: "Admin",
-                });
-            }
-            candidate.scope satisfies never;
-          })();
-          const description = (
-            candidate.interface?.shortDescription ??
-            candidate.shortDescription ??
-            candidate.description
-          ).trim();
-          return (
-            <li
-              aria-selected={isSelected}
-              className={`${SKILL_MENU_LISTBOX_ITEM_CLASS_NAME} min-w-0 flex-col! items-stretch! gap-0.5! text-foreground [overflow-wrap:anywhere] data-[active=true]:bg-default data-[active=true]:status-focused`}
-              data-active={isSelected || undefined}
-              data-slot="list-box-item"
-              id={skillMenuOptionId(menuId, index)}
-              key={option.key}
-              onPointerDown={(event) => {
-                if (event.button !== 0) {
-                  return;
-                }
-                event.preventDefault();
-                setHighlightedIndex(index);
-                selectOptionAndCleanUp(option);
-              }}
-              ref={(element) => {
-                option.setRefElement(element);
-              }}
-              role="option"
-            >
-              <div className="flex min-w-0 items-baseline gap-2">
-                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
-                    {displayName}
-                  </span>
-                  {displayName === candidate.name ? null : (
-                    <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                      ${candidate.name}
+      <div
+        className={`w-full ${skillMenuSurfaceMaxHeightClassName(placement)} scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-thin`}
+        data-scrollbar="thin"
+        data-skill-menu-scroll-region
+      >
+        <SkillCatalogStatus onRetry={onRetry} skillCatalog={skillCatalog} />
+        {showNoResults ? (
+          <p aria-live="polite" className="px-3 py-2 text-sm text-muted" role="status">
+            <Trans>No matching skills</Trans>
+          </p>
+        ) : null}
+        <ul className={SKILL_MENU_LISTBOX_CLASS_NAME} data-slot="list-box" role="presentation">
+          {options.map((option, index) => {
+            const isSelected = selectedIndex === index;
+            const { candidate, disambiguatingParentPath, displayName } = option.result;
+            const localizedSourceLabel = ((): string => {
+              switch (candidate.scope) {
+                case "user":
+                  return t({
+                    comment: "Source label for a skill installed by the current user",
+                    message: "User",
+                  });
+                case "repo":
+                  return t({
+                    comment: "Source label for a skill provided by the current repository",
+                    message: "Repository",
+                  });
+                case "system":
+                  return t({
+                    comment: "Source label for a skill provided by the Codex system",
+                    message: "System",
+                  });
+                case "admin":
+                  return t({
+                    comment: "Source label for a skill installed by an administrator",
+                    message: "Admin",
+                  });
+              }
+              candidate.scope satisfies never;
+            })();
+            const description = (
+              candidate.interface?.shortDescription ??
+              candidate.shortDescription ??
+              candidate.description
+            ).trim();
+            return (
+              <li
+                aria-selected={isSelected}
+                className={`${SKILL_MENU_LISTBOX_ITEM_CLASS_NAME} min-w-0 flex-col! items-stretch! gap-0.5! text-foreground [overflow-wrap:anywhere] data-[active=true]:bg-default data-[active=true]:status-focused`}
+                data-active={isSelected || undefined}
+                data-slot="list-box-item"
+                id={skillMenuOptionId(menuId, index)}
+                key={option.key}
+                onPointerDown={(event) => {
+                  if (event.button !== 0) {
+                    return;
+                  }
+                  event.preventDefault();
+                  setHighlightedIndex(index);
+                  selectOptionAndCleanUp(option);
+                }}
+                ref={(element) => {
+                  option.setRefElement(element);
+                }}
+                role="option"
+              >
+                <div className="flex min-w-0 items-baseline gap-2">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
+                      {displayName}
                     </span>
-                  )}
+                    {displayName === candidate.name ? null : (
+                      <span className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
+                        ${candidate.name}
+                      </span>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs text-muted">{localizedSourceLabel}</span>
                 </div>
-                <span className="shrink-0 text-xs text-muted">{localizedSourceLabel}</span>
-              </div>
-              {disambiguatingParentPath == null ? null : (
-                <div className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
-                  {disambiguatingParentPath}
-                </div>
-              )}
-              {description.length === 0 ? null : (
-                <div
-                  className="line-clamp-1 whitespace-normal text-sm text-muted [overflow-wrap:anywhere]"
-                  data-skill-description
-                >
-                  {description}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                {disambiguatingParentPath == null ? null : (
+                  <div className="min-w-0 text-xs text-muted [overflow-wrap:anywhere]">
+                    {disambiguatingParentPath}
+                  </div>
+                )}
+                {description.length === 0 ? null : (
+                  <div
+                    className="line-clamp-1 whitespace-normal text-sm text-muted [overflow-wrap:anywhere]"
+                    data-skill-description
+                  >
+                    {description}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>,
     anchorElement,
   );
