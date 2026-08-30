@@ -31,6 +31,7 @@ describe("transcript context pages", () => {
       message: "Failed without transcript items",
       codexErrorInfo: null,
       additionalDetails: null,
+      misalignment: null,
     } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
     const failed = failedTurn(turnId, error);
     const firstFragmentId = JSON.stringify(["context-page:1", turnId, 0]);

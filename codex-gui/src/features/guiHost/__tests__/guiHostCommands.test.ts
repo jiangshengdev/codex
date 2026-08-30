@@ -41,6 +41,8 @@ const threadResumeResponse = (threadId: string): RequestResponse<"thread/resume"
   approvalsReviewer: "user",
   sandbox: { type: "dangerFullAccess" },
   reasoningEffort: null,
+  turnsBackwardsCursor: null,
+  itemsBackwardsCursor: null,
 });
 
 const threadId = attachBaseline.snapshot.thread.id;

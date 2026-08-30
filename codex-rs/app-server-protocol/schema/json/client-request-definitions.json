@@ -100,6 +100,11 @@
     "responseSchema": "v2/ThreadRollbackResponse"
   },
   {
+    "method": "thread/revert",
+    "paramsSchema": "v2/ThreadRevertParams",
+    "responseSchema": "v2/ThreadRevertResponse"
+  },
+  {
     "method": "thread/list",
     "paramsSchema": "v2/ThreadListParams",
     "responseSchema": "v2/ThreadListResponse"
@@ -133,6 +138,16 @@
     "method": "thread/read",
     "paramsSchema": "v2/ThreadReadParams",
     "responseSchema": "v2/ThreadReadResponse"
+  },
+  {
+    "method": "thread/turns/list",
+    "paramsSchema": "v2/ThreadTurnsListParams",
+    "responseSchema": "v2/ThreadTurnsListResponse"
+  },
+  {
+    "method": "thread/items/list",
+    "paramsSchema": "v2/ThreadItemsListParams",
+    "responseSchema": "v2/ThreadItemsListResponse"
   },
   {
     "method": "thread/inject_items",

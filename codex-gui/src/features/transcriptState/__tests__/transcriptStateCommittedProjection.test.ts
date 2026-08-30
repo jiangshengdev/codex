@@ -950,6 +950,7 @@ describe("transcript state committed projection reducer", () => {
         "unexpected status 403 Forbidden: token quota is not enough\n(request id: request-live), url: https://shapi.vip/v1/responses",
       codexErrorInfo: "usageLimitExceeded",
       additionalDetails: null,
+      misalignment: null,
     } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
     const failedNotification = turnCompleted(
       eventTurnCompleted,

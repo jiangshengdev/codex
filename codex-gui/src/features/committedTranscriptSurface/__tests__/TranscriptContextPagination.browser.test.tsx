@@ -42,6 +42,7 @@ const boundaryOnlyFailure = {
   message: "The request failed after context compaction",
   codexErrorInfo: null,
   additionalDetails: null,
+  misalignment: null,
 } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
 
 const attachedContextPages = (pageCount: number, attach = attachBaseline) =>

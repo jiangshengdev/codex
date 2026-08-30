@@ -69,6 +69,7 @@ const quotaError = {
   message: quotaErrorMessage,
   codexErrorInfo: "usageLimitExceeded",
   additionalDetails: null,
+  misalignment: null,
 } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
 
 test("renders an empty committed transcript region", async () => {

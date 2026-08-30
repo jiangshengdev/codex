@@ -92,6 +92,8 @@ export const createGuiHostCommands = (): GuiHostCommands => ({
       approvalsReviewer: "user",
       sandbox: { type: "dangerFullAccess" },
       reasoningEffort: null,
+      turnsBackwardsCursor: null,
+      itemsBackwardsCursor: null,
     }),
   ),
   detachThreadProjection: vi

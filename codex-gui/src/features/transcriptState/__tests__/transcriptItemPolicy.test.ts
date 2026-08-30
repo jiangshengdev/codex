@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ThreadItem } from "@codex-protocol/v2";
 import {
   collabAgentState,
   collabAgentToolCall,
@@ -67,6 +68,23 @@ const startedCollabPresentation = (item: ReturnType<typeof collabAgentToolCall>)
 };
 
 describe("transcript item policy", () => {
+  it("ignores function call output in started and completed policies", () => {
+    const item = {
+      type: "functionCallOutput",
+      id: "function-call-output-1",
+      name: "lookup",
+      namespace: null,
+      output: "hidden output",
+    } satisfies Extract<ThreadItem, { type: "functionCallOutput" }>;
+
+    expect(projectStartedTranscriptItem(item, "turn-function-call-output")).toStrictEqual({
+      kind: "ignore",
+    });
+    expect(projectCompletedTranscriptItem(item, "turn-function-call-output")).toStrictEqual({
+      kind: "ignore",
+    });
+  });
+
   it("uses only completed context compaction as a transcript boundary", () => {
     const item = contextCompaction("compaction-1");
 
