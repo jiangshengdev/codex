@@ -42,6 +42,16 @@ msgstr "{0, plural, one {# message has not been sent} other {# messages have not
 msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# skill} other {# skills}}"
 
+#. Accessible name for a selected skill details trigger
+#: src/features/composerEditor/SelectedSkillToken.tsx:43
+msgid "{0} skill details"
+msgstr "{0} skill details"
+
+#. Accessible name for an invalid selected skill details trigger
+#: src/features/composerEditor/SelectedSkillToken.tsx:47
+msgid "{0} skill details, {1}"
+msgstr "{0} skill details, {1}"
+
 #. Disclosure label showing how many intermediate transcript updates it contains
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:767
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
@@ -73,7 +83,9 @@ msgid "Active"
 msgstr "Active"
 
 #. Source label for a skill installed by an administrator
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:321
+#. Source label for a skill installed by an administrator
+#: src/features/composerEditor/SelectedSkillToken.tsx:152
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:324
 msgid "Admin"
 msgstr "Admin"
 
@@ -344,7 +356,7 @@ msgstr "Load more"
 msgid "Loading history…"
 msgstr "Loading history…"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:435
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:439
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
@@ -439,7 +451,7 @@ msgstr "No committed messages yet."
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:296
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:299
 msgid "No matching skills"
 msgstr "No matching skills"
 
@@ -543,7 +555,7 @@ msgstr "Read-only history"
 msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:437
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:441
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
@@ -552,7 +564,9 @@ msgid "Remove or replace invalid skills before saving."
 msgstr "Remove or replace invalid skills before saving."
 
 #. Source label for a skill provided by the current repository
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:311
+#. Source label for a skill provided by the current repository
+#: src/features/composerEditor/SelectedSkillToken.tsx:142
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:314
 msgid "Repository"
 msgstr "Repository"
 
@@ -570,7 +584,7 @@ msgstr "Resumed {receiver}"
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:425
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:429
 #: src/features/threadHistory/ThreadHistoryDetailPage.tsx:227
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:226
 msgid "Retry"
@@ -616,7 +630,7 @@ msgstr "Show more guiding messages"
 msgid "Show more queued messages"
 msgstr "Show more queued messages"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:441
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:445
 msgid "Showing saved skills because refresh failed"
 msgstr "Showing saved skills because refresh failed"
 
@@ -625,11 +639,11 @@ msgstr "Showing saved skills because refresh failed"
 msgid "Shutdown"
 msgstr "Shutdown"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:439
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:443
 msgid "Skills could not be loaded"
 msgstr "Skills could not be loaded"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:444
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:448
 msgid "Some skills could not be loaded"
 msgstr "Some skills could not be loaded"
 
@@ -673,7 +687,9 @@ msgid "Structured input"
 msgstr "Structured input"
 
 #. Source label for a skill provided by the Codex system
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:316
+#. Source label for a skill provided by the Codex system
+#: src/features/composerEditor/SelectedSkillToken.tsx:147
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:319
 msgid "System"
 msgstr "System"
 
@@ -815,7 +831,9 @@ msgid "Updated pending order could not be loaded"
 msgstr "Updated pending order could not be loaded"
 
 #. Source label for a skill installed by the current user
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:306
+#. Source label for a skill installed by the current user
+#: src/features/composerEditor/SelectedSkillToken.tsx:137
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:309
 msgid "User"
 msgstr "User"
 

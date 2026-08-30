@@ -12,6 +12,10 @@ export type SkillQueryResult = Readonly<{
   disambiguatingParentPath: string | null;
 }>;
 
+export type SkillPathIdentity = Readonly<Pick<SkillQueryCandidate, "name" | "path">>;
+
+export type SkillParentPathDisclosure = "collision-only" | "diagnostic";
+
 export function skillDisplayName(candidate: SkillQueryCandidate): string {
   const displayName = candidate.interface?.displayName?.trim();
   return displayName == null || displayName.length === 0 ? candidate.name : displayName;
@@ -37,7 +41,7 @@ export function querySkills(
   query: string,
 ): SkillQueryResult[] {
   const normalizedQuery = query.trim().toLowerCase();
-  const disambiguatingParentPaths = collectDisambiguatingParentPaths(candidates);
+  const disambiguatingParentPaths = collectSkillDisambiguatingParentPaths(candidates);
   const results: SkillQueryResult[] = [];
 
   for (const candidate of candidates) {
@@ -100,8 +104,8 @@ function skillScopeRank(scope: SkillQueryCandidate["scope"]): number {
   }
 }
 
-function collectDisambiguatingParentPaths(
-  candidates: readonly SkillQueryCandidate[],
+export function collectSkillDisambiguatingParentPaths(
+  candidates: readonly SkillPathIdentity[],
 ): Map<string, Map<string, string | null>> {
   const pathsByCanonicalName = new Map<string, Set<string>>();
   for (const candidate of candidates) {
@@ -129,6 +133,24 @@ function collectDisambiguatingParentPaths(
     disambiguatingParentPaths.set(canonicalName, pathsForCanonicalName);
   }
   return disambiguatingParentPaths;
+}
+
+export function skillParentPathLabel(
+  skills: readonly SkillPathIdentity[],
+  target: SkillPathIdentity,
+  disclosure: SkillParentPathDisclosure,
+): string | null {
+  const paths = new Set(
+    skills.filter((skill) => skill.name === target.name).map((skill) => skill.path),
+  );
+  paths.add(target.path);
+  if (disclosure === "collision-only" && paths.size < 2) {
+    return null;
+  }
+
+  const parentPaths = Array.from(paths, parseParentPath);
+  const targetParentPath = parentPaths.find((parentPath) => parentPath.path === target.path);
+  return targetParentPath == null ? null : shortestUniqueParentPath(targetParentPath, parentPaths);
 }
 
 type ParsedParentPath = Readonly<{

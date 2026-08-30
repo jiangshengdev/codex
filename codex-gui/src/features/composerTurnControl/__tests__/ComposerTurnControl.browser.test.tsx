@@ -1,5 +1,5 @@
 import { Toast } from "@heroui/react";
-import { afterEach, expect, test, vi, type Mock } from "vitest";
+import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
 import { userEvent } from "vitest/browser";
 import { StrictMode, useSyncExternalStore } from "react";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
@@ -62,6 +62,10 @@ const readyEmptySkillCatalog: SkillCatalogState = {
   candidates: [],
   partialErrorCount: 0,
 };
+
+beforeEach(async () => {
+  await userEvent.unhover(document.body);
+});
 
 const queueSnapshot = (
   overrides: Partial<ComposerInputQueueCoordinatorSnapshot> = {},
@@ -1138,24 +1142,29 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
 
   await composer.fill("$canonical");
   await screen.user.keyboard("{Enter}");
-  const token = screen.getByText("$Friendly Skill", { exact: true });
+  const trigger = screen.getByRole("button", { name: /Friendly Skill/i });
+  const triggerElement = trigger.element();
+  const chip = triggerElement.querySelector('[data-slot="chip"]');
+  if (!(chip instanceof HTMLSpanElement))
+    throw new Error("selected skill must render a HeroUI Chip");
   await expect.element(send).toBeEnabled();
 
   catalogHarness.publish(invalidCatalog);
-  await expect.element(token).toHaveAttribute("aria-invalid", "true");
-  await expect.element(token).toHaveAttribute("data-invalid-status", "(Invalid skill)");
-  await expect.element(token).toHaveAttribute("aria-label", "$Friendly Skill, Invalid skill");
-  await expect.element(token).toHaveClass("bg-danger-soft");
-  await expect.element(token).toHaveClass("after:content-[attr(data-invalid-status)]");
+  await expect.element(triggerElement).toHaveAttribute("aria-invalid", "true");
+  await expect
+    .element(triggerElement)
+    .toHaveAccessibleName(/^(?=.*Friendly Skill)(?=.*Invalid skill)(?=.*details?).*$/i);
+  expect(chip.classList).toContain("chip--danger");
+  expect(chip.classList).toContain("chip--soft");
   await expect.element(send).toBeDisabled();
-  await expect.element(token).toHaveTextContent("$Friendly Skill");
-  expect(token.element().outerHTML).not.toContain(selectedSkill.path);
+  await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
+  expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
 
   catalogHarness.publish(readyCatalog);
-  await expect.element(token).not.toHaveAttribute("aria-invalid");
-  await expect.element(token).not.toHaveAttribute("aria-label");
-  await expect.element(token).not.toHaveAttribute("data-invalid-status");
-  await expect.element(token).not.toHaveClass("bg-danger-soft");
+  await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
+  await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
+  expect(chip.classList).toContain("chip--secondary");
+  expect(chip.classList).not.toContain("chip--danger");
   await expect.element(send).toBeEnabled();
 
   const unconfirmedCatalogs: SkillCatalogState[] = [
@@ -1166,16 +1175,86 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
   ];
   for (const catalog of unconfirmedCatalogs) {
     catalogHarness.publish(invalidCatalog);
-    await expect.element(token).toHaveAttribute("aria-invalid", "true");
+    await expect.element(triggerElement).toHaveAttribute("aria-invalid", "true");
     catalogHarness.publish(catalog);
-    await expect.element(token).not.toHaveAttribute("aria-invalid");
-    await expect.element(token).not.toHaveAttribute("aria-label");
-    await expect.element(token).not.toHaveAttribute("data-invalid-status");
-    await expect.element(token).not.toHaveClass("bg-danger-soft");
+    await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
+    await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
+    expect(chip.classList).not.toContain("chip--danger");
     await expect.element(send).toBeEnabled();
-    await expect.element(token).toHaveTextContent("$Friendly Skill");
-    expect(token.element().outerHTML).not.toContain(selectedSkill.path);
+    await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
+    expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
   }
+});
+
+test("uses the same skill chip and catalog tooltip while editing a pending message", async () => {
+  const selectedSkill: SkillCatalogCandidate = {
+    name: "pending-skill",
+    path: "/repo/skills/hidden-pending-location/SKILL.md",
+    description: "Pending skill fallback description",
+    shortDescription: "Pending skill catalog summary",
+    scope: "repo",
+    interface: {
+      displayName: "Pending Skill",
+      iconSmallUrl: null,
+      iconLargeUrl: null,
+      shortDescription: "Pending skill preferred summary",
+    },
+  };
+  const catalogHarness = createSkillCatalogHarness({
+    type: "ready",
+    candidates: [selectedSkill],
+    partialErrorCount: 0,
+  });
+  const { composer, reservations, screen } = await renderActiveTurn({
+    captureEditReservations: true,
+    skillCatalogController: catalogHarness.controller,
+  });
+
+  await composer.fill("$Pending");
+  await screen.user.keyboard("{Enter}");
+  await screen.getByRole("button", { name: "Send", exact: true }).click();
+  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
+  await screen.getByRole("button", { name: "Edit", exact: true }).click();
+
+  const pendingEditor = screen.getByRole("combobox", {
+    name: "Edit pending message",
+    exact: true,
+  });
+  const trigger = screen.getByRole("button", { name: /Pending Skill/i });
+  await expect.element(trigger).toHaveAccessibleName(/^(?=.*Pending Skill)(?=.*details?).*$/i);
+  const triggerElement = trigger.element();
+  const chip = triggerElement.querySelector('[data-slot="chip"]');
+  if (!(chip instanceof HTMLSpanElement))
+    throw new Error("pending editor must render a HeroUI Chip");
+  expect(chip.classList).toContain("chip--sm");
+  expect(chip.classList).toContain("chip--secondary");
+  expect(chip.textContent).toBe("$Pending Skill");
+  await expect.element(pendingEditor).toHaveTextContent("$Pending Skill");
+
+  await userEvent.unhover(document.body);
+  await userEvent.hover(triggerElement);
+  const tooltip = screen.getByRole("tooltip");
+  await expect
+    .element(tooltip, { timeout: 2_500 })
+    .toHaveTextContent("Pending skill preferred summary");
+  await expect.element(tooltip).toHaveTextContent("Repository");
+  expect(tooltip.element().textContent).not.toContain("hidden-pending-location");
+  expect(tooltip.element().textContent).not.toContain(selectedSkill.path);
+
+  await trigger.click();
+  await expect.element(pendingEditor).toHaveFocus();
+  const reservation = reservations.at(0);
+  if (reservation == null) throw new Error("pending skill edit must begin");
+  const save = vi.spyOn(reservation, "save");
+  await screen.getByRole("button", { name: "Save", exact: true }).click();
+  expect(save).toHaveBeenCalledOnce();
+  const savedCapture = save.mock.calls.at(0)?.at(0);
+  if (savedCapture == null) throw new Error("pending skill edit must save a composer capture");
+  expect(savedCapture.input).toEqual([
+    { type: "text", text: "$pending-skill", text_elements: [] },
+    { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
+  ]);
+  await expect.element(tooltip).not.toBeInTheDocument();
 });
 
 test("keeps whitespace-only draft from submitting", async () => {

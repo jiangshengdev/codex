@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { querySkills, skillSourceLabel, type SkillQueryCandidate } from "../skillQuery";
+import {
+  collectSkillDisambiguatingParentPaths,
+  querySkills,
+  skillSourceLabel,
+  type SkillQueryCandidate,
+} from "../skillQuery";
 
 const candidate = (
   name: string,
@@ -445,5 +450,23 @@ describe("skillSourceLabel", () => {
     ["admin", "Admin"],
   ] as const)("maps the generated %s scope to %s", (scope, expected) => {
     expect(skillSourceLabel(candidate(`${scope}-skill`, { scope }))).toBe(expected);
+  });
+});
+
+describe("collectSkillDisambiguatingParentPaths", () => {
+  it("projects the same shortest parent suffixes for catalog and document skill identities", () => {
+    const projections = collectSkillDisambiguatingParentPaths([
+      { name: "shared", path: "/workspace/team-one/tools/SKILL.md" },
+      { name: "shared", path: "/workspace/team-two/tools/SKILL.md" },
+      { name: "unique", path: "/workspace/unique/SKILL.md" },
+    ]);
+
+    expect(projections.get("shared")).toEqual(
+      new Map([
+        ["/workspace/team-one/tools/SKILL.md", "team-one/tools"],
+        ["/workspace/team-two/tools/SKILL.md", "team-two/tools"],
+      ]),
+    );
+    expect(projections.get("unique")).toEqual(new Map([["/workspace/unique/SKILL.md", null]]));
   });
 });
