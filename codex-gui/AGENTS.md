@@ -13,6 +13,7 @@ Use `$codex-gui-toolchain` to select and run frontend formatters, package script
 
 - Use `$gui-launch` for ordinary `GUI 启动`, `启动 GUI`, `/gui`, or URL-only requests. Real GUI debugging and acceptance are routed below.
 - Use `$heroui-react` for HeroUI v3 documentation, package, and API details, and `$redux-toolkit` for Redux Toolkit documentation, API, and architecture rules.
+- Use `$lingui-catalog-workflow` when Lingui message extraction, catalog diffs, catalog translation changes, or extraction stability are in scope.
 
 ## Frontend Engineering Constraints
 
