@@ -285,15 +285,15 @@ function SkillMenu({
 
   return createPortal(
     <div
-      className={`${SKILL_MENU_POPOVER_CLASS_NAME} pointer-events-auto w-full overflow-hidden`}
+      className={`${SKILL_MENU_POPOVER_CLASS_NAME} pointer-events-auto flex w-full flex-col overflow-hidden ${skillMenuSurfaceMaxHeightClassName(placement)}`}
       data-skill-menu-surface
     >
+      <SkillCatalogStatus onRetry={onRetry} skillCatalog={skillCatalog} />
       <div
-        className={`w-full ${skillMenuSurfaceMaxHeightClassName(placement)} scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-thin`}
+        className="min-h-0 w-full scroll-py-1.5 overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-thin"
         data-scrollbar="thin"
         data-skill-menu-scroll-region
       >
-        <SkillCatalogStatus onRetry={onRetry} skillCatalog={skillCatalog} />
         {showNoResults ? (
           <p aria-live="polite" className="px-3 py-2 text-sm text-muted" role="status">
             <Trans>No matching skills</Trans>
@@ -420,7 +420,7 @@ function SkillCatalogStatus({
   return (
     <div
       aria-live="polite"
-      className="flex items-center justify-between gap-2 border-b border-separator px-3 py-2 text-sm text-muted"
+      className="flex shrink-0 items-center justify-between gap-2 border-b border-separator px-3 py-2 text-sm text-muted"
       role="status"
     >
       <span>{status}</span>

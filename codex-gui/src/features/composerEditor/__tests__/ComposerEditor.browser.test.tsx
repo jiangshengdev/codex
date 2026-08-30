@@ -156,6 +156,142 @@ test("uses a clipped Select popover surface with one nested scroll owner", async
   expect(screen.container.querySelector("[data-skill-menu-surface]")).toBeNull();
 });
 
+test.for([
+  {
+    bannerText: null,
+    partialErrorCount: 0,
+    type: "ready",
+  },
+  {
+    bannerText: "Refreshing skills…",
+    partialErrorCount: 0,
+    type: "refreshing",
+  },
+  {
+    bannerText: "Showing saved skills because refresh failed",
+    partialErrorCount: 0,
+    type: "stale",
+  },
+  {
+    bannerText: "Some skills could not be loaded",
+    partialErrorCount: 1,
+    type: "ready",
+  },
+] as const)(
+  "keeps keyboard navigation at the candidate scroll boundaries across catalog states",
+  async ({ bannerText, partialErrorCount, type }) => {
+    const candidates = Array.from({ length: 20 }, (_, index) =>
+      skill(
+        `boundary-${String(index).padStart(2, "0")}`,
+        `/skills/boundary-${String(index).padStart(2, "0")}/SKILL.md`,
+      ),
+    );
+    const controllerRef = createRef<ComposerEditorController>();
+    const screen = await renderWithProviders(
+      <ComposerEditorFixture
+        ariaLabel="Message"
+        controllerRef={controllerRef}
+        disabled={false}
+        guardCompositionEndEnter={false}
+        onSubmit={() => undefined}
+        placeholder="Message Codex"
+        skillCatalog={catalog(type, candidates, partialErrorCount)}
+      />,
+    );
+    const editor = screen.getByRole("combobox", { name: "Message" });
+
+    await editor.fill("$");
+
+    const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+    await expect.element(listbox).toBeVisible();
+    await expect.poll(() => listbox.getByRole("option").length).toBe(candidates.length);
+    const firstOption = listbox.getByRole("option").first();
+    const lastOption = listbox.getByRole("option").last();
+    const scrollRegion = listbox.element().querySelector("[data-skill-menu-scroll-region]");
+    const styledListbox = listbox.element().querySelector('[data-slot="list-box"]');
+    if (!(scrollRegion instanceof HTMLElement) || !(styledListbox instanceof HTMLUListElement)) {
+      throw new Error("skill menu must expose its candidate scroll and listbox geometry");
+    }
+    const banner = bannerText == null ? null : screen.getByText(bannerText, { exact: true });
+    const bannerIsVisible = (): boolean => banner == null || banner.element().checkVisibility();
+    await expect.poll(() => listbox.getByRole("status").length).toBe(banner == null ? 0 : 1);
+    await expect.poll(bannerIsVisible).toBe(true);
+    const focusRingProbe = document.createElement("div");
+    focusRingProbe.className = "status-focused";
+    document.body.append(focusRingProbe);
+    const expectedActiveRing = getComputedStyle(focusRingProbe).boxShadow;
+    focusRingProbe.remove();
+    expect(expectedActiveRing).not.toBe("none");
+
+    await expect.element(firstOption).toHaveAttribute("aria-selected", "true");
+    await expect.element(editor).toHaveAttribute("aria-activedescendant", firstOption.element().id);
+    await expect.element(editor).toHaveFocus();
+    await expect.poll(() => scrollRegion.scrollHeight > scrollRegion.clientHeight).toBe(true);
+    expect(scrollRegion.scrollTop).toBe(0);
+
+    await screen.user.keyboard("{ArrowUp}");
+
+    await expect.element(lastOption).toHaveAttribute("aria-selected", "true");
+    await expect.element(editor).toHaveAttribute("aria-activedescendant", lastOption.element().id);
+    const maximumScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight;
+    await expect
+      .poll(() => {
+        const scrollBounds = scrollRegion.getBoundingClientRect();
+        const optionBounds = lastOption.element().getBoundingClientRect();
+        const scrollStyle = getComputedStyle(scrollRegion);
+        const listboxStyle = getComputedStyle(styledListbox);
+        return {
+          bannerOutsideScrollRegion: banner == null || !scrollRegion.contains(banner.element()),
+          boxShadow: getComputedStyle(lastOption.element()).boxShadow,
+          edgeClearance: scrollBounds.bottom - optionBounds.bottom,
+          listboxPaddingBottom: listboxStyle.paddingBottom,
+          listboxPaddingTop: listboxStyle.paddingTop,
+          maximumScrollTop,
+          scrollPaddingBottom: scrollStyle.scrollPaddingBottom,
+          scrollPaddingTop: scrollStyle.scrollPaddingTop,
+          scrollTop: scrollRegion.scrollTop,
+        };
+      })
+      .toEqual({
+        bannerOutsideScrollRegion: true,
+        boxShadow: expectedActiveRing,
+        edgeClearance: 6,
+        listboxPaddingBottom: "6px",
+        listboxPaddingTop: "6px",
+        maximumScrollTop,
+        scrollPaddingBottom: "6px",
+        scrollPaddingTop: "6px",
+        scrollTop: maximumScrollTop,
+      });
+    await expect.element(editor).toHaveFocus();
+    await expect.poll(bannerIsVisible).toBe(true);
+
+    await screen.user.keyboard("{ArrowDown}");
+
+    await expect.element(firstOption).toHaveAttribute("aria-selected", "true");
+    await expect.element(editor).toHaveAttribute("aria-activedescendant", firstOption.element().id);
+    await expect
+      .poll(() => {
+        const scrollBounds = scrollRegion.getBoundingClientRect();
+        const optionBounds = firstOption.element().getBoundingClientRect();
+        return {
+          bannerOutsideScrollRegion: banner == null || !scrollRegion.contains(banner.element()),
+          boxShadow: getComputedStyle(firstOption.element()).boxShadow,
+          edgeClearance: optionBounds.top - scrollBounds.top,
+          scrollTop: scrollRegion.scrollTop,
+        };
+      })
+      .toEqual({
+        bannerOutsideScrollRegion: true,
+        boxShadow: expectedActiveRing,
+        edgeClearance: 6,
+        scrollTop: 0,
+      });
+    await expect.element(editor).toHaveFocus();
+    await expect.poll(bannerIsVisible).toBe(true);
+  },
+);
+
 test("keeps a drawer-placed skill menu inside its dialog and returns focus after selection", async () => {
   const controllerRef = createRef<ComposerEditorController>();
   const screen = await renderWithProviders(
@@ -1175,7 +1311,13 @@ test("preserves catalog loading, refresh, partial error, total error, retry, emp
     .element(screen.getByText("Skills could not be loaded", { exact: true }))
     .toBeVisible();
   await expect.element(screen.getByText("No matching skills")).not.toBeInTheDocument();
-  await screen.getByRole("button", { name: "Retry" }).click();
+  const failedListbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+  expect(failedListbox.getByRole("option").length).toBe(0);
+  const retryButton = screen.getByRole("button", { name: "Retry" });
+  await expect.element(editor).toHaveFocus();
+  await screen.user.keyboard("{Shift>}{Tab}{/Shift}");
+  await expect.element(retryButton).toHaveFocus();
+  await screen.user.keyboard("{Enter}");
   expect(onRetrySkillCatalog).toHaveBeenCalledOnce();
 
   await screen.rerender(renderForCatalog(catalog("failed", []), true));
