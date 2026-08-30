@@ -147,6 +147,8 @@ import type { ThreadGoalSetParams } from "./v2/ThreadGoalSetParams";
 import type { ThreadGoalSetResponse } from "./v2/ThreadGoalSetResponse";
 import type { ThreadInjectItemsParams } from "./v2/ThreadInjectItemsParams";
 import type { ThreadInjectItemsResponse } from "./v2/ThreadInjectItemsResponse";
+import type { ThreadItemsListParams } from "./v2/ThreadItemsListParams";
+import type { ThreadItemsListResponse } from "./v2/ThreadItemsListResponse";
 import type { ThreadListParams } from "./v2/ThreadListParams";
 import type { ThreadListResponse } from "./v2/ThreadListResponse";
 import type { ThreadLoadedListParams } from "./v2/ThreadLoadedListParams";
@@ -161,6 +163,8 @@ import type { ThreadReadParams } from "./v2/ThreadReadParams";
 import type { ThreadReadResponse } from "./v2/ThreadReadResponse";
 import type { ThreadResumeParams } from "./v2/ThreadResumeParams";
 import type { ThreadResumeResponse } from "./v2/ThreadResumeResponse";
+import type { ThreadRevertParams } from "./v2/ThreadRevertParams";
+import type { ThreadRevertResponse } from "./v2/ThreadRevertResponse";
 import type { ThreadRollbackParams } from "./v2/ThreadRollbackParams";
 import type { ThreadRollbackResponse } from "./v2/ThreadRollbackResponse";
 import type { ThreadSectionCreateParams } from "./v2/ThreadSectionCreateParams";
@@ -179,6 +183,8 @@ import type { ThreadShellCommandParams } from "./v2/ThreadShellCommandParams";
 import type { ThreadShellCommandResponse } from "./v2/ThreadShellCommandResponse";
 import type { ThreadStartParams } from "./v2/ThreadStartParams";
 import type { ThreadStartResponse } from "./v2/ThreadStartResponse";
+import type { ThreadTurnsListParams } from "./v2/ThreadTurnsListParams";
+import type { ThreadTurnsListResponse } from "./v2/ThreadTurnsListResponse";
 import type { ThreadUnarchiveParams } from "./v2/ThreadUnarchiveParams";
 import type { ThreadUnarchiveResponse } from "./v2/ThreadUnarchiveResponse";
 import type { ThreadUnsubscribeParams } from "./v2/ThreadUnsubscribeParams";
@@ -214,6 +220,7 @@ export type ClientRequestDefinition =
   | { method: "thread/shellCommand"; params: ThreadShellCommandParams; response: ThreadShellCommandResponse; }
   | { method: "thread/approveGuardianDeniedAction"; params: ThreadApproveGuardianDeniedActionParams; response: ThreadApproveGuardianDeniedActionResponse; }
   | { method: "thread/rollback"; params: ThreadRollbackParams; response: ThreadRollbackResponse; }
+  | { method: "thread/revert"; params: ThreadRevertParams; response: ThreadRevertResponse; }
   | { method: "thread/list"; params: ThreadListParams; response: ThreadListResponse; }
   | { method: "threadSection/list"; params: ThreadSectionListParams; response: ThreadSectionListResponse; }
   | { method: "threadSection/create"; params: ThreadSectionCreateParams; response: ThreadSectionCreateResponse; }
@@ -221,6 +228,8 @@ export type ClientRequestDefinition =
   | { method: "threadSection/delete"; params: ThreadSectionDeleteParams; response: ThreadSectionDeleteResponse; }
   | { method: "thread/loaded/list"; params: ThreadLoadedListParams; response: ThreadLoadedListResponse; }
   | { method: "thread/read"; params: ThreadReadParams; response: ThreadReadResponse; }
+  | { method: "thread/turns/list"; params: ThreadTurnsListParams; response: ThreadTurnsListResponse; }
+  | { method: "thread/items/list"; params: ThreadItemsListParams; response: ThreadItemsListResponse; }
   | { method: "thread/inject_items"; params: ThreadInjectItemsParams; response: ThreadInjectItemsResponse; }
   | { method: "skills/list"; params: SkillsListParams; response: SkillsListResponse; }
   | { method: "skills/extraRoots/set"; params: SkillsExtraRootsSetParams; response: SkillsExtraRootsSetResponse; }

@@ -58,6 +58,7 @@ const EXPERIMENTAL_CLIENT_METHOD_DEPENDENCY_TYPES: &[&str] = &[
     "ThreadBackgroundTerminal",
     "ThreadSearchOccurrence",
     "ThreadSearchTextRange",
+    "TurnSettingsUpdateStatus",
 ];
 const SPECIAL_DEFINITIONS: &[&str] = &[
     "ClientNotification",

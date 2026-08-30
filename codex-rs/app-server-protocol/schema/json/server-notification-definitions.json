@@ -192,6 +192,10 @@
     "paramsSchema": "v2/ThreadProjectionEventNotification"
   },
   {
+    "method": "thread/reverted",
+    "paramsSchema": "v2/ThreadRevertedNotification"
+  },
+  {
     "method": "thread/started",
     "paramsSchema": "v2/ThreadStartedNotification"
   },
