@@ -34,6 +34,8 @@ const threadResumeResponse = {
   approvalsReviewer: "user",
   sandbox: { type: "dangerFullAccess" },
   reasoningEffort: null,
+  turnsBackwardsCursor: null,
+  itemsBackwardsCursor: null,
 } satisfies RequestResponse<"thread/resume">;
 
 describe("generated app-server protocol", () => {

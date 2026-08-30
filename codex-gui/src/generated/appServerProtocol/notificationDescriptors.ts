@@ -130,6 +130,8 @@ function isKnownServerNotificationMethod(method: string): boolean {
       return true;
     case "thread/projection/event":
       return true;
+    case "thread/reverted":
+      return true;
     case "thread/started":
       return true;
     case "thread/status/changed":
