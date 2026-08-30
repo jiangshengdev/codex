@@ -2,7 +2,7 @@
 
 日期：2026-08-30
 
-状态：待确认
+状态：待补充确认
 
 ## 设计依据
 
@@ -646,3 +646,370 @@ Level 3：
 ## 阶段边界
 
 本文仅完成计划落盘。用户明确确认本计划前，所有 DAG 执行节点保持未授权，不得 stage/commit 工作文档、修改 production/tests、运行验证或启动 browser。确认后仍必须先完成 DOCS 独立提交，才能进入 implementation。
+
+## 2026-08-30 执行中补充计划
+
+本节保留上述原计划及其已完成历史，只在直接相交字段上取代原计划：实施文件由三文件扩大为四文件；focused unit/Browser 命令、剩余 DAG、任务提交拓扑、完成条件和阶段边界以本节为准。已确认产品行为、设计边界、Level 2/Level 3 边界及其他未相交约束继续有效。
+
+### 稳定执行证据与新增范围
+
+- 原 DOCS task 已形成独立提交 `075dfc7c659b944f4977746bf8df4c4d7d32da50`，message 为 `docs: plan skill typeahead complete results`，只包含设计与原计划；禁止 amend、squash 或重写该提交。
+- E1、E2、F1 已完成，当前未提交 implementation diff 仍精确位于原三个文件；Git index 为空。
+- V0 已改用 direct Vitest 文件过滤命令 `/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerEditor/__tests__/skillQuery.test.ts`，唯一收集 `skillQuery.test.ts`，22/22 通过。E3 不读写 production/unit 输入，因此该证据保持有效，不重跑 V0。
+- V2 与 V3 在原三文件快照上通过；E3 将新增 TSX 修改，因此这两项证据失效，必须在 E3/F2 后以 V2R、V3R 重跑。
+- 原 V1 命令 exit 1；它实际收集 24 个源文件在 3 个 Browser instances 中运行，共 846 tests，843 passed、3 failed，不能作为 focused 命中证据。目标 `ComposerEditor.browser.test.tsx` 在三个 instances 中各 31/31 通过；唯一失败是 `AppShell.browser.test.tsx` 的同一旧断言在三个 instances 中各失败一次，actual 25、expected 20。
+- `AppShell.browser.test.tsx` 的 responsive fixture 构造 25 个 candidates，但仍硬编码断言 20 项。它是全量结果行为的直接 Browser 消费者，必须纳入本次实施；未发现需要第五个实施文件的证据。
+
+在原三个 implementation 文件之外，只新增 `codex-gui/src/__tests__/AppShell.browser.test.tsx`。E3 只把 responsive fixture 的 option 数断言从硬编码 `20` 改为 `candidates.length` 或语义等价的精确 `25`。既有 responsive viewport、菜单几何、滚动、焦点、视觉和 DOM/ARIA 断言全部保留；不修改 production、CSS、fixture 数量或布局语义。
+
+### 覆盖后的 focused 与格式化命令
+
+Focused unit 只使用：
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run src/features/composerEditor/__tests__/skillQuery.test.ts
+```
+
+Focused Browser 只使用：
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm exec vitest --run --config=vitest.browser.parallel.config.ts src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx src/__tests__/AppShell.browser.test.tsx
+```
+
+禁止使用 `pnpm run ... -- <path>` 作为 focused 验证。Browser 命令必须唯一收集上述两个源文件，并在 Chromium、Firefox、WebKit 三个 instances 中运行；`ComposerEditor.browser.test.tsx` 与 `AppShell.browser.test.tsx` 必须全部通过。
+
+F2 只对新增文件执行原生 scoped formatter：
+
+```bash
+/opt/homebrew/bin/fnm exec --using-file pnpm exec oxfmt --write src/__tests__/AppShell.browser.test.tsx
+/opt/homebrew/bin/fnm exec --using-file pnpm exec oxfmt --check src/__tests__/AppShell.browser.test.tsx
+```
+
+### 补充描述式执行 DAG
+
+下列 DAG 不改写 D0-D2、E1、E2、F1、V0、V2、V3 的已完成历史。P1 属于本次补充计划落盘后的只读审查；D3 及所有后继在用户明确确认补充计划前保持 `pending-supplemental-plan-confirmation`。
+
+#### P1：补充计划落盘审查
+
+- `nodeId`: P1
+- `taskBoundary`: PLAN-AMEND（无提交）
+- `operationKind`: 审查
+- `outcome`: 补充计划只修改当前计划文档，完整记录稳定证据、四文件范围、direct Vitest 命令与剩余 DAG。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: 无；消费用户对补充计划落盘的明确授权
+- `consumes`: 当前计划、原 DOCS commit、三文件未提交 diff、AppShell 旧断言与验证证据
+- `produces`: 可供用户确认的补充计划工作树快照
+- `completionEvidence`: `git diff --check` 通过；writeSet 精确为单一计划文件；Git index 为空
+- `readSet`: 设计、计划、四个 implementation 文件、package/Vitest configs、Git status/diff/commit metadata
+- `writeSet`: `docs/superpowers/plans/2026/08/30/2026-08-30-skill-typeahead-sorted-complete-results-plan.md`
+- `stateEffects`: 单一计划文档工作树修改
+- `commandScope`: `apply_patch` 仅编辑计划；只读 `rg`、`sed`、`git diff --check`、`git diff --`、`git status --short`
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，共享 worktree，Git index read-only
+- `resourceLocks`: 计划文件 write；`/Users/jiangsheng/cnb/codex/.git/index` read
+- `owner`: supplemental plan edit/review owner
+- `verification`: 补充正文与当前一手证据一致，未触碰 implementation/design/index
+- `failureDomain`: P1 及全部后继
+- `replanTriggers`: 需要第五个实施文件、改变已确认产品行为、无法用 direct Vitest 文件过滤闭合
+- `authorizationGate`: `active-supplemental-plan-landing`；只消费用户 `确认补充计划落盘`，P1 完成即到期
+
+#### D3：补充计划精确暂存
+
+- `nodeId`: D3
+- `taskBoundary`: DOCS-AMEND（`docs: amend skill typeahead complete results plan`）
+- `operationKind`: stage
+- `outcome`: Git index 只包含当前计划文档的补充 diff。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: P1；等待补充计划审查快照与用户确认
+- `consumes`: 补充计划工作树快照、用户补充计划确认
+- `produces`: DOCS-AMEND staged snapshot
+- `completionEvidence`: cached name list 精确等于单一计划文件；cached diff/check 通过
+- `readSet`: 当前计划文档、Git index
+- `writeSet`: `/Users/jiangsheng/cnb/codex/.git/index`
+- `stateEffects`: 精确 stage 单一计划文件
+- `commandScope`: `git add -- docs/superpowers/plans/2026/08/30/2026-08-30-skill-typeahead-sorted-complete-results-plan.md`；cached diff/name/check 只读审查
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，共享 index write
+- `resourceLocks`: `/Users/jiangsheng/cnb/codex/.git/index` write
+- `owner`: DOCS-AMEND Git owner
+- `verification`: index 不含 implementation/design/其他文件
+- `failureDomain`: D3、D4 及全部后继
+- `replanTriggers`: index 含额外文件、ignored match、补充 diff 漂移
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### D4：补充计划独立提交
+
+- `nodeId`: D4
+- `taskBoundary`: DOCS-AMEND
+- `operationKind`: commit
+- `outcome`: 创建只包含计划补充的本地提交 `docs: amend skill typeahead complete results plan`。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: D3；等待 DOCS-AMEND staged snapshot
+- `consumes`: DOCS-AMEND staged snapshot、原 DOCS commit identity
+- `produces`: DOCS-AMEND commit
+- `completionEvidence`: commit id、parent、message 与单文件列表精确；index 为空；原 DOCS commit 未改变
+- `readSet`: Git index、HEAD 与原 DOCS commit metadata
+- `writeSet`: Git object database、`refs/heads/dev`、Git index
+- `stateEffects`: 一个独立本地文档提交
+- `commandScope`: `git commit -m 'docs: amend skill typeahead complete results plan'`；精确 `git show`、status/index 核对
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，共享 branch/index write
+- `resourceLocks`: Git index、Git object database、`refs/heads/dev` write
+- `owner`: DOCS-AMEND Git owner
+- `verification`: parent 为原 DOCS commit；无 amend/squash/remote/force
+- `failureDomain`: D4 及全部 implementation 后继
+- `replanTriggers`: commit parent、message、文件范围或 branch 漂移
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### E3：AppShell Browser 断言编辑
+
+- `nodeId`: E3
+- `taskBoundary`: FIX（`fix(gui): show all sorted skills`）
+- `operationKind`: 编辑
+- `outcome`: responsive fixture 对 25 个 candidates 精确断言全部 options，同时保持原几何与视觉契约。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: D4；补充计划提交是恢复 implementation 的硬门禁
+- `consumes`: DOCS-AMEND commit、AppShell responsive fixture、已完成三文件 diff
+- `produces`: AppShell 单文件工作树 diff
+- `completionEvidence`: 只把 option count 从硬编码 20 改为 `candidates.length` 或等价精确 25；无其他断言或 fixture 变化
+- `readSet`: AppShell test、设计、计划、当前三文件 diff
+- `writeSet`: `codex-gui/src/__tests__/AppShell.browser.test.tsx`
+- `stateEffects`: 单测试文件工作树修改
+- `commandScope`: `apply_patch`；只读 `rg`、`sed`、`git diff --`
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，共享 worktree，禁止 index
+- `resourceLocks`: AppShell test file write
+- `owner`: AppShell test edit owner
+- `verification`: 局部断言审查；不运行测试或 formatter
+- `failureDomain`: E3 及全部 FIX 后继
+- `replanTriggers`: 需要第五个文件、改变 fixture/几何/视觉、无法用精确 option count 闭合
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### F2：AppShell scoped format
+
+- `nodeId`: F2
+- `taskBoundary`: FIX
+- `operationKind`: 格式化
+- `outcome`: 只对 AppShell 文件运行 scoped oxfmt write/check，形成四文件最终格式化快照。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: E3；formatter 消费稳定 AppShell diff
+- `consumes`: E3 diff、已完成 F1 的三文件 formatted snapshot
+- `produces`: 四文件 formatted FIX snapshot
+- `completionEvidence`: scoped write 后 scoped check exit 0；diff 仍精确为四文件
+- `readSet`: AppShell 文件、oxfmt config/binary、当前三文件 diff
+- `writeSet`: `codex-gui/src/__tests__/AppShell.browser.test.tsx`
+- `stateEffects`: scoped formatter 对 AppShell 文件的必要修改
+- `commandScope`: 本节两条 AppShell scoped oxfmt 命令
+- `subdelegation`: false
+- `executionContext`: `codex-gui` cwd，fnm Node/pnpm，共享 worktree
+- `resourceLocks`: AppShell file write；oxfmt runner
+- `owner`: FIX formatter owner
+- `verification`: write/check 均成功且未产生范围外 diff
+- `failureDomain`: F2 及全部 FIX 后继
+- `replanTriggers`: formatter 修改范围外文件、工具来源漂移或要求额外写集合
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### V1R：修正后的 focused Browser verification
+
+- `nodeId`: V1R
+- `taskBoundary`: FIX
+- `operationKind`: 验证
+- `outcome`: direct Vitest Browser 命令只收集两个目标源文件，并在三浏览器 instances 中全部通过。
+- `estimatedCost`: 高；`deferralEvidence`: 无；与任何同时使用 `.vite` write lock 的节点仅资源互斥
+- `hardPredecessors`: F2；读取四文件 formatted snapshot
+- `consumes`: formatted FIX snapshot、parallel Browser config、installed Playwright browsers
+- `produces`: corrected focused Browser green evidence
+- `completionEvidence`: 只收集两个目标源文件 × 3 instances；ComposerEditor 与 AppShell 均全绿，非零收集
+- `readSet`: 四个 implementation 文件、Vite/Vitest configs、node_modules、browser binaries
+- `writeSet`: 无代理显式输出
+- `stateEffects`: Vitest/Vite/browser 内部 cache、results 与临时状态
+- `commandScope`: 本节 exact focused Browser 命令；禁止 `pnpm run ... -- <path>`、headed、update、trace viewer
+- `subdelegation`: false
+- `executionContext`: `codex-gui` cwd，fnm Node/pnpm，headless Browser instances
+- `resourceLocks`: `/Users/jiangsheng/cnb/codex/codex-gui/node_modules/.vite` write；三 browser runner sessions
+- `owner`: corrected Browser verification owner
+- `verification`: 两文件在三 instances 中全部 tests pass
+- `failureDomain`: V1R、R1、S1、C1、A1、Z1；不暂停独立 V2R/V3R
+- `replanTriggers`: 收集范围不精确、需要 config/optimizer patch、browser 缺失或发现计划外行为
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### V2R：Frontend lint rerun
+
+- `nodeId`: V2R
+- `taskBoundary`: FIX
+- `operationKind`: 验证
+- `outcome`: 四文件最终快照通过 live frontend lint。
+- `estimatedCost`: 中；`deferralEvidence`: 无
+- `hardPredecessors`: F2；E3 使原 V2 证据失效
+- `consumes`: formatted FIX snapshot、live lint scripts/config
+- `produces`: refreshed lint green evidence
+- `completionEvidence`: `/opt/homebrew/bin/fnm exec --using-file pnpm run lint` exit 0；无 fix/baseline/ignore
+- `readSet`: codex-gui source/config/node_modules
+- `writeSet`: 无代理显式输出
+- `stateEffects`: ESLint 内部 cache
+- `commandScope`: `/opt/homebrew/bin/fnm exec --using-file pnpm run lint`
+- `subdelegation`: false
+- `executionContext`: `codex-gui` cwd，fnm Node/pnpm
+- `resourceLocks`: `.eslintcache` write（若 live script 使用）
+- `owner`: lint rerun owner
+- `verification`: lint exit 0
+- `failureDomain`: V2R、R1、S1、C1、A1、Z1；不暂停独立 V1R/V3R
+- `replanTriggers`: lint 要求范围外修改或检查配置漂移
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### V3R：Frontend type-check rerun
+
+- `nodeId`: V3R
+- `taskBoundary`: FIX
+- `operationKind`: 验证
+- `outcome`: 四文件最终快照通过 live frontend type-check。
+- `estimatedCost`: 中；`deferralEvidence`: 无
+- `hardPredecessors`: F2；E3 使原 V3 证据失效
+- `consumes`: formatted FIX snapshot、tsconfig project graph、generated protocol types
+- `produces`: refreshed type-check green evidence
+- `completionEvidence`: `/opt/homebrew/bin/fnm exec --using-file pnpm run type-check` exit 0；无 ignore/skip/降级
+- `readSet`: codex-gui source、tests、tsconfigs、generated TypeScript、node_modules
+- `writeSet`: 无代理显式输出
+- `stateEffects`: TypeScript incremental/cache 状态（若产生）
+- `commandScope`: `/opt/homebrew/bin/fnm exec --using-file pnpm run type-check`
+- `subdelegation`: false
+- `executionContext`: `codex-gui` cwd，fnm Node/pnpm
+- `resourceLocks`: TypeScript project graph read；内部 cache write（若产生）
+- `owner`: type-check rerun owner
+- `verification`: type-check exit 0
+- `failureDomain`: V3R、R1、S1、C1、A1、Z1；不暂停独立 V1R/V2R
+- `replanTriggers`: generated contract drift、需要 schema/generator 修改或范围外类型修复
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### R1：FIX 最终 fan-in 审查
+
+- `nodeId`: R1
+- `taskBoundary`: FIX
+- `operationKind`: fan-in
+- `outcome`: V0 保留证据与 V1R/V2R/V3R 新证据共同覆盖同一四文件最终快照，diff 完整满足设计。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: V1R、V2R、V3R；V0 已完成且输入未变
+- `consumes`: V0 unit evidence、V1R Browser evidence、V2R lint evidence、V3R type evidence、四文件 diff
+- `produces`: 四文件 FIX 可暂存快照
+- `completionEvidence`: 四文件 allowlist；`git diff --check` 通过；无视觉/protocol/order-only/范围外变更
+- `readSet`: 四个 implementation 文件、组合 diff、验证结果、Git status/index
+- `writeSet`: 无
+- `stateEffects`: 最终审查结论
+- `commandScope`: 精确 `git diff --check --`、`git diff --`、`git status --short`
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，共享 worktree/index read
+- `resourceLocks`: 四文件 read；Git index read
+- `owner`: FIX final review owner
+- `verification`: 设计映射、四文件范围、V0 稳定性与新验证证据全部闭合
+- `failureDomain`: R1、S1、C1、A1、Z1
+- `replanTriggers`: 最终 diff 漂移、V0 输入变化、验证读取不同快照或发现额外行为
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### S1：FIX 四文件精确暂存
+
+- `nodeId`: S1
+- `taskBoundary`: FIX
+- `operationKind`: stage
+- `outcome`: 只有四个 implementation 文件进入 Git index。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: R1；等待四文件可暂存快照
+- `consumes`: 四文件 allowlist
+- `produces`: FIX staged snapshot
+- `completionEvidence`: cached name list 精确等于四文件；cached diff/check 通过；不含 docs
+- `readSet`: 四个 implementation 文件、Git index
+- `writeSet`: `/Users/jiangsheng/cnb/codex/.git/index`
+- `stateEffects`: 精确 stage 四个 implementation 文件
+- `commandScope`: `git add -- codex-gui/src/features/composerEditor/skillQuery.ts codex-gui/src/features/composerEditor/__tests__/skillQuery.test.ts codex-gui/src/features/composerEditor/__tests__/ComposerEditor.browser.test.tsx codex-gui/src/__tests__/AppShell.browser.test.tsx`；cached review
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，共享 index write
+- `resourceLocks`: `/Users/jiangsheng/cnb/codex/.git/index` write
+- `owner`: FIX Git owner
+- `verification`: staged allowlist、cached diff 内容与 whitespace 正确
+- `failureDomain`: S1、C1、A1、Z1
+- `replanTriggers`: index 含额外文件、ignored match 或 cached diff 漂移
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### C1：FIX 独立提交
+
+- `nodeId`: C1
+- `taskBoundary`: FIX
+- `operationKind`: commit
+- `outcome`: 创建只包含四个 implementation 文件的本地提交 `fix(gui): show all sorted skills`。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: S1；等待 FIX staged snapshot
+- `consumes`: FIX staged snapshot、DOCS-AMEND commit metadata
+- `produces`: FIX commit
+- `completionEvidence`: commit id、parent、message 与四文件列表精确；index 为空；parent 为 DOCS-AMEND commit
+- `readSet`: Git index、HEAD/DOCS-AMEND metadata
+- `writeSet`: Git object database、`refs/heads/dev`、Git index
+- `stateEffects`: 一个本地 behavior commit
+- `commandScope`: `git commit -m 'fix(gui): show all sorted skills'`；精确 `git show`、status/index 核对
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，共享 branch/index write
+- `resourceLocks`: Git index、Git object database、`refs/heads/dev` write
+- `owner`: FIX Git owner
+- `verification`: 提交只含四文件；不 amend/squash/remote/force
+- `failureDomain`: C1、A1、Z1
+- `replanTriggers`: commit parent、message、范围错误或 branch 漂移
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### A1：Level 2 headless real-runtime acceptance
+
+- `nodeId`: A1
+- `taskBoundary`: FINAL（无提交）
+- `operationKind`: 验证
+- `outcome`: 在稳定 FIX commit 上按原 A0 边界完成真实 runtime 无头验收，或形成精确未执行证据。
+- `estimatedCost`: 中；`deferralEvidence`: 无
+- `hardPredecessors`: C1；只验收稳定 FIX commit
+- `consumes`: FIX commit、当次完整 GUI URL、installed headless browser
+- `produces`: Level 2 acceptance evidence 或精确 unexecuted 原因
+- `completionEvidence`: 与原 A0 相同；不得用 Level 1 替代
+- `readSet`: 真实 GUI runtime、page DOM/accessibility snapshot、browser session metadata
+- `writeSet`: 无 workspace 文件
+- `stateEffects`: 临时 headless browser session，完成后正常 close
+- `commandScope`: 原 Level 2 `playwright-cli` 命令骨架；禁止 headed/install/trace/report
+- `subdelegation`: false
+- `executionContext`: 当前 host 的临时 headless browser session
+- `resourceLocks`: 当前 thread GUI runtime read；临时 Playwright session write
+- `owner`: Level 2 acceptance owner
+- `verification`: 原 Level 2 场景通过，或前置缺失时明确标记未执行
+- `failureDomain`: A1、Z1 的完整验收声明；不回滚已通过 FIX commit
+- `replanTriggers`: 真实行为与 Level 1 冲突、需要可见桌面、URL/runtime 不可用或发现范围问题
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+#### Z1：补充后的终态审计
+
+- `nodeId`: Z1
+- `taskBoundary`: FINAL（无提交）
+- `operationKind`: fan-in
+- `outcome`: 三提交拓扑、Level 1/2 证据与最终工作树状态形成终态证据。
+- `estimatedCost`: 低；`deferralEvidence`: 无
+- `hardPredecessors`: C1、A1；等待 FIX commit 与 Level 2 结果/未执行记录
+- `consumes`: 原 DOCS commit、DOCS-AMEND commit、FIX commit、Level 1/2 evidence、Git status
+- `produces`: 最终结果摘要
+- `completionEvidence`: 三 commit 身份/顺序/文件范围正确；index 空；无计划内未提交 diff；Level 1/2/3 分别报告
+- `readSet`: Git log/show/status、验证结果
+- `writeSet`: 无
+- `stateEffects`: 最终审计结果
+- `commandScope`: `git log -3 --oneline --decorate=short`、精确 `git show --stat`、`git status --short`
+- `subdelegation`: false
+- `executionContext`: 当前 checkout/dev，只读
+- `resourceLocks`: Git metadata read
+- `owner`: root coordinator
+- `verification`: 最终状态满足设计与补充计划；无 remote/force/install/amend/squash
+- `failureDomain`: Z1
+- `replanTriggers`: commit 身份/范围错误、index 非空、计划内 diff 残留或验证证据失效
+- `authorizationGate`: `pending-supplemental-plan-confirmation`
+
+### 补充后的 ready set、提交拓扑与阶段边界
+
+- P1 完成后，D3 及后继仍因补充计划未确认而等待；用户确认后初始 ready set 为 D3。
+- `D3 → D4 → E3 → F2` 是补充计划提交、第四文件编辑与格式化的稳定产物链。D4 必须在 E3 前形成；不得 amend 原 DOCS commit。
+- F2 后 `V1R`、`V2R`、`V3R` 同时 ready。三者没有硬依赖；V1R 与任何也写 `/Users/jiangsheng/cnb/codex/codex-gui/node_modules/.vite` 的验证只通过 canonical resource lock 互斥。V0 不重跑。
+- 验证 fan-in 为 `V0(existing) + V1R + V2R + V3R → R1 → S1 → C1`；最终链为 `C1 → A1 → Z1`。
+- 粗粒度关键路径预计为：补充计划 stage/commit → AppShell edit/format → V1R 三浏览器 → review/stage/FIX commit → Level 2 → final audit。
+- 最终任务提交拓扑精确为原 DOCS commit `075dfc7c659b944f4977746bf8df4c4d7d32da50` → DOCS-AMEND commit `docs: amend skill typeahead complete results plan` → FIX commit `fix(gui): show all sorted skills`。禁止 squash、amend、remote、force。
+- FIX commit 必须只包含 `skillQuery.ts`、`skillQuery.test.ts`、`ComposerEditor.browser.test.tsx`、`AppShell.browser.test.tsx` 四文件。
+- Level 1 必须具有 V0 的 22/22 focused unit 稳定证据，以及 V1R 三 instances 两源文件全绿、V2R lint 全绿、V3R type-check 全绿证据。
+- Level 2/Level 3 边界不变：Level 2 仍是无头真实 runtime 验收；Level 3 不适用，禁止可见窗口。
+- 用户明确确认补充计划前，D3 及全部后继未授权；不得 stage/commit 补充计划、继续编辑 implementation、格式化、验证或启动 browser。确认后先完成 D3/D4，再从 E3 恢复实现。
