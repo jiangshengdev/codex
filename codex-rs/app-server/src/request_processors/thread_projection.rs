@@ -477,11 +477,18 @@ mod tests {
             );
         }
 
+        let request_id = ConnectionRequestId {
+            connection_id: ConnectionId(0),
+            request_id: RequestId::Integer(0),
+        };
         let read_response = processor
-            .thread_read(ThreadReadParams {
-                thread_id: thread_id.to_string(),
-                include_turns: true,
-            })
+            .thread_read(
+                &request_id,
+                ThreadReadParams {
+                    thread_id: thread_id.to_string(),
+                    include_turns: true,
+                },
+            )
             .await
             .expect("thread/read should include turns for materialized loaded thread");
         let Some(ClientResponsePayload::ThreadRead(read_response)) = read_response else {

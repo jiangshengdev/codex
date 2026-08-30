@@ -284,6 +284,7 @@ describe("transcript state snapshot reducer", () => {
         "unexpected status 403 Forbidden: token quota is not enough\n(request id: request-snapshot), url: https://shapi.vip/v1/responses",
       codexErrorInfo: { responseTooManyFailedAttempts: { httpStatusCode: 403 } },
       additionalDetails: "provider quota exhausted",
+      misalignment: null,
     } satisfies NonNullable<ReturnType<typeof failedTurn>["error"]>;
     const turn = failedTurn("turn-failed-snapshot", error);
     const store = makeStore();

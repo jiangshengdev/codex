@@ -279,6 +279,7 @@ export const projectStartedTranscriptItem = (
       return projectStartedCollabAgentItem(item, turnId);
     case "userMessage":
     case "hookPrompt":
+    case "functionCallOutput":
     case "plan":
     case "commandExecution":
     case "fileChange":
@@ -378,6 +379,7 @@ export const projectCompletedTranscriptItem = (
         },
       };
     case "hookPrompt":
+    case "functionCallOutput":
     case "plan":
     case "commandExecution":
     case "fileChange":
