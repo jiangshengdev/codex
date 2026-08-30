@@ -88,7 +88,7 @@ impl LaunchGuiToolExecutor {
     }
 }
 
-impl ToolExecutor<ToolCall> for LaunchGuiToolExecutor {
+impl<'call> ToolExecutor<ToolCall<'call>> for LaunchGuiToolExecutor {
     fn tool_name(&self) -> ToolName {
         ToolName::plain(LAUNCH_GUI_TOOL_NAME)
     }
@@ -97,7 +97,10 @@ impl ToolExecutor<ToolCall> for LaunchGuiToolExecutor {
         create_launch_gui_tool()
     }
 
-    fn handle(&self, invocation: ToolCall) -> ToolExecutorFuture<'_> {
+    fn handle<'a>(&'a self, invocation: ToolCall<'call>) -> ToolExecutorFuture<'a>
+    where
+        'call: 'a,
+    {
         Box::pin(async move {
             parse_empty_arguments(invocation.function_arguments()?)?;
 
