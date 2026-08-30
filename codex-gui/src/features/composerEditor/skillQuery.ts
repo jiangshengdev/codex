@@ -1,7 +1,5 @@
 import type { SkillMetadata } from "@codex-protocol/v2";
 
-export const MAX_SKILL_QUERY_RESULTS = 20;
-
 export type SkillQueryCandidate = Readonly<
   Pick<SkillMetadata, "name" | "description" | "shortDescription" | "interface" | "path" | "scope">
 >;
@@ -61,14 +59,45 @@ export function querySkills(
     });
   }
 
-  results.sort((left, right) => {
-    if (left.score !== right.score) {
-      return right.score - left.score;
-    }
-    const nameOrder = compareText(left.candidate.name, right.candidate.name);
-    return nameOrder === 0 ? compareText(left.candidate.path, right.candidate.path) : nameOrder;
-  });
-  return results.slice(0, MAX_SKILL_QUERY_RESULTS);
+  if (normalizedQuery.length === 0) {
+    results.sort((left, right) => {
+      const scopeOrder =
+        skillScopeRank(left.candidate.scope) - skillScopeRank(right.candidate.scope);
+      if (scopeOrder !== 0) {
+        return scopeOrder;
+      }
+      const displayNameOrder = compareText(left.displayName, right.displayName);
+      if (displayNameOrder !== 0) {
+        return displayNameOrder;
+      }
+      const nameOrder = compareText(left.candidate.name, right.candidate.name);
+      return nameOrder === 0 ? compareText(left.candidate.path, right.candidate.path) : nameOrder;
+    });
+  } else {
+    results.sort((left, right) => {
+      if (left.score !== right.score) {
+        return right.score - left.score;
+      }
+      const nameOrder = compareText(left.candidate.name, right.candidate.name);
+      return nameOrder === 0 ? compareText(left.candidate.path, right.candidate.path) : nameOrder;
+    });
+  }
+  return results;
+}
+
+function skillScopeRank(scope: SkillQueryCandidate["scope"]): number {
+  switch (scope) {
+    case "repo":
+      return 0;
+    case "user":
+      return 1;
+    case "admin":
+      return 2;
+    case "system":
+      return 3;
+    default:
+      return assertNever(scope);
+  }
 }
 
 function collectDisambiguatingParentPaths(

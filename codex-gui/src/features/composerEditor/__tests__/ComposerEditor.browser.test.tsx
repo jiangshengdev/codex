@@ -17,7 +17,7 @@ import {
 import type { ComposerDraft } from "../composerDraft";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
 
-test("opens a capped accessible skill list and keeps editor focus", async () => {
+test("opens the full accessible skill list and keeps editor focus", async () => {
   const candidates = Array.from({ length: 25 }, (_, index) =>
     skill(`skill-${String(index).padStart(2, "0")}`, `/skills/${String(index)}`),
   );
@@ -28,7 +28,7 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
 
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
   await expect.element(listbox).toBeVisible();
-  await expect.poll(() => listbox.getByRole("option").length).toBe(20);
+  await expect.poll(() => listbox.getByRole("option").length).toBe(candidates.length);
   await expect.element(editor).toHaveAttribute("aria-autocomplete", "list");
   await expect.element(editor).toHaveAttribute("aria-expanded", "true");
   await expect.element(editor).toHaveAttribute("aria-controls", listbox.element().id);
@@ -37,6 +37,10 @@ test("opens a capped accessible skill list and keeps editor focus", async () => 
   if (!(styledListbox instanceof HTMLUListElement)) {
     throw new Error("skill options must use the HeroUI listbox styles");
   }
+  expect(screen.container.querySelectorAll('[role="listbox"]')).toHaveLength(1);
+  expect(styledListbox.children).toHaveLength(candidates.length);
+  expect(Array.from(styledListbox.children).every((child) => child.role === "option")).toBe(true);
+  expect(listbox.element().querySelector('[role="group"], [role="separator"]')).toBeNull();
   expect(styledListbox.classList).toContain("list-box--default");
   expect(styledListbox.getAttribute("data-slot")).toBe("list-box");
   await expect.element(activeOption).toHaveClass("list-box-item", "list-box-item--default");
@@ -180,7 +184,7 @@ test.for([
 ] as const)(
   "keeps keyboard navigation at the candidate scroll boundaries across catalog states",
   async ({ bannerText, partialErrorCount, type }) => {
-    const candidates = Array.from({ length: 20 }, (_, index) =>
+    const candidates = Array.from({ length: 25 }, (_, index) =>
       skill(
         `boundary-${String(index).padStart(2, "0")}`,
         `/skills/boundary-${String(index).padStart(2, "0")}/SKILL.md`,
@@ -207,6 +211,7 @@ test.for([
     await expect.poll(() => listbox.getByRole("option").length).toBe(candidates.length);
     const firstOption = listbox.getByRole("option").first();
     const lastOption = listbox.getByRole("option").last();
+    await expect.element(lastOption).toHaveAccessibleName(/boundary-24/);
     const scrollRegion = listbox.element().querySelector("[data-skill-menu-scroll-region]");
     const styledListbox = listbox.element().querySelector('[data-slot="list-box"]');
     if (!(scrollRegion instanceof HTMLElement) || !(styledListbox instanceof HTMLUListElement)) {
@@ -727,6 +732,14 @@ test.each([
   await editor.fill("$");
 
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+  await expect
+    .poll(() =>
+      listbox
+        .getByRole("option")
+        .elements()
+        .map((option) => option.querySelector("span")?.textContent),
+    )
+    .toEqual(["Repo skill", "User skill", "Admin skill", "System skill"]);
   for (const candidate of candidates) {
     const label = labels[candidate.scope];
     const displayName = candidate.interface?.displayName ?? candidate.name;
@@ -753,13 +766,13 @@ test.each([
   await screen.user.keyboard("{Enter}");
   await expect
     .poll(() => getController(controllerRef).getSnapshot().textContent)
-    .toBe("$Admin skill");
+    .toBe("$Repo skill");
   expect(getController(controllerRef).getSnapshot().selectedSkillPaths).toEqual([
-    "/hidden/admin-parent/SKILL.md",
+    "/hidden/repo-parent/SKILL.md",
   ]);
   expect(getController(controllerRef).capture().input).toEqual([
-    { type: "text", text: "$admin-skill", text_elements: [] },
-    { type: "skill", name: "admin-skill", path: "/hidden/admin-parent/SKILL.md" },
+    { type: "text", text: "$repo-skill", text_elements: [] },
+    { type: "skill", name: "repo-skill", path: "/hidden/repo-parent/SKILL.md" },
   ]);
 });
 
@@ -920,7 +933,7 @@ test("lays out one-line descriptions and collision paths without horizontal over
 test("keeps HeroUI hover visual-only and active styling stronger than hover", async () => {
   await userEvent.unhover(document.body);
   const { controllerRef, screen } = await renderEditor([
-    skill("alpha", "/skills/alpha/SKILL.md", "Alpha", "Alpha description", "user"),
+    skill("alpha", "/skills/alpha/SKILL.md", "Alpha", "Alpha description", "repo"),
     skill("beta", "/skills/beta/SKILL.md", "Beta", "Beta description", "repo"),
   ]);
   const editor = screen.getByRole("combobox", { name: "Message" });
