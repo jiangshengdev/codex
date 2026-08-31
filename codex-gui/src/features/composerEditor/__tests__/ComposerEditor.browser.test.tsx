@@ -1228,6 +1228,70 @@ test.each([
   },
 );
 
+test("keeps the native caret hidden when a pointer click selects a skill token", async () => {
+  const selectedSkill = skill("atomic", "/skills/atomic/SKILL.md", "Atomic");
+  const { controllerRef, screen } = await renderEditor([selectedSkill]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+  const initialText = "abc $ato def";
+
+  await editor.fill(initialText);
+  await editor.click();
+  setCollapsedCaret(editor.element(), initialText, "abc $ato".length);
+  await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+
+  const trigger = screen.getByRole("button", { name: /Atomic/i });
+  const chip = trigger.element().querySelector('[data-slot="chip"]');
+  if (!(chip instanceof HTMLSpanElement)) {
+    throw new Error("selected skill must render a HeroUI Chip");
+  }
+  const snapshotBeforeSelection = getController(controllerRef).getSnapshot();
+  await expect.element(editor).toHaveFocus();
+  await expect.element(chip).not.toHaveAttribute("data-selected");
+
+  await trigger.click();
+
+  await expect.element(editor).toHaveFocus();
+  await expect.element(chip).toHaveAttribute("data-selected");
+  expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBeforeSelection);
+  await expect.poll(() => collapsedCaretOffset(editor.element())).toBeNull();
+});
+
+test("vertically centers an inline skill chip with adjacent text", async () => {
+  const selectedSkill = skill("alignment", "/skills/alignment/SKILL.md", "Alignment");
+  const { screen } = await renderEditor([selectedSkill]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+  const initialText = "abc $ali def";
+
+  await editor.fill(initialText);
+  setCollapsedCaret(editor.element(), initialText, "abc $ali".length);
+  await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+
+  const trigger = screen.getByRole("button", { name: /Alignment/i });
+  const triggerElement = trigger.element();
+  const tokenHost = triggerElement.parentElement;
+  const chip = triggerElement.querySelector('[data-slot="chip"]');
+  if (!(tokenHost instanceof HTMLSpanElement) || !(chip instanceof HTMLSpanElement)) {
+    throw new Error("selected skill must render as an inline HeroUI Chip");
+  }
+
+  const chipBounds = chip.getBoundingClientRect();
+  const chipCenter = chipBounds.top + chipBounds.height / 2;
+  const leftTextBounds = adjacentVisibleTextCharacterRect(tokenHost, "before");
+  const rightTextBounds = adjacentVisibleTextCharacterRect(tokenHost, "after");
+  const centerOffsets = {
+    left: chipCenter - (leftTextBounds.top + leftTextBounds.height / 2),
+    right: chipCenter - (rightTextBounds.top + rightTextBounds.height / 2),
+  };
+  const maximumCenterOffset = Math.max(Math.abs(centerOffsets.left), Math.abs(centerOffsets.right));
+
+  expect(
+    maximumCenterOffset,
+    `skill chip center offsets in CSS px: ${JSON.stringify(centerOffsets)}`,
+  ).toBeLessThanOrEqual(1);
+});
+
 test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-backed details", async () => {
   const selectedSkill: SkillCatalogCandidate = {
     ...skill(
@@ -1293,7 +1357,7 @@ test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-b
   await userEvent.unhover(document.body);
   await userEvent.hover(trigger);
   const tooltip = screen.getByRole("tooltip");
-  await expect.element(tooltip, { timeout: 2_500 }).toBeVisible();
+  await expect.element(tooltip, { timeout: 300 }).toBeVisible();
   await expect.element(tooltip).toHaveTextContent("Friendly Review");
   await expect.element(tooltip).toHaveTextContent("$review");
   await expect.element(tooltip).toHaveTextContent("Repository");
@@ -2207,6 +2271,23 @@ function findAdjacentText(node: ChildNode | null, side: SkillCaretSide): Text {
     throw new Error(`selected skill must have ${side} text content`);
   }
   return text;
+}
+
+function adjacentVisibleTextCharacterRect(tokenHost: HTMLElement, side: SkillCaretSide): DOMRect {
+  const adjacentNode = side === "before" ? tokenHost.previousSibling : tokenHost.nextSibling;
+  const text = findAdjacentText(adjacentNode, side);
+  const characterIndex =
+    side === "before"
+      ? Array.from(text.data.matchAll(/\S/gu)).at(-1)?.index
+      : text.data.search(/\S/u);
+  if (characterIndex == null || characterIndex < 0) {
+    throw new Error(`selected skill must have visible ${side} text content`);
+  }
+
+  const range = tokenHost.ownerDocument.createRange();
+  range.setStart(text, characterIndex);
+  range.setEnd(text, characterIndex + 1);
+  return range.getBoundingClientRect();
 }
 
 function firstTextCharacterRect(root: Element): DOMRect {

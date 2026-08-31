@@ -17,6 +17,7 @@ import {
   useMemo,
   useState,
   type KeyboardEvent,
+  type PointerEvent,
   type ReactNode,
 } from "react";
 
@@ -184,16 +185,22 @@ export function SelectedSkillToken({
       }
     }
   };
+  const onPointerDown = (event: PointerEvent<HTMLSpanElement>): void => {
+    if (event.pointerType === "mouse" && event.button === 0) {
+      event.preventDefault();
+    }
+  };
 
   return (
-    <Tooltip isDisabled={environment.disabled}>
+    <Tooltip delay={0} isDisabled={environment.disabled}>
       <Tooltip.Trigger<"span">
         aria-disabled={environment.disabled || undefined}
         aria-invalid={presentation.isInvalid || undefined}
         aria-label={accessibleName}
-        className="max-w-full align-middle"
+        className="max-w-full align-[2px]"
         onClick={activate}
         onKeyDown={onKeyDown}
+        onPointerDown={onPointerDown}
         render={(props) => <span {...props} />}
         tabIndex={environment.disabled ? -1 : 0}
       >
