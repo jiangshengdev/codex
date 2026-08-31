@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from "react";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 import {
   ComposerEditor,
   type ComposerEditorController,
@@ -29,6 +30,10 @@ const skillCatalog: SkillCatalogState = {
   partialErrorCount: 0,
 };
 
+beforeEach(async () => {
+  await userEvent.unhover(document.body);
+});
+
 test("same-namespace copy and paste preserves skill identity without external leakage", async () => {
   const harness = await renderEditors();
   const source = harness.screen.getByRole("combobox", { name: "Source composer" });
@@ -37,7 +42,11 @@ test("same-namespace copy and paste preserves skill identity without external le
   await insertSkill(harness.screen, source);
   await expect.element(source).toHaveTextContent(`$${displayName}`);
 
-  await harness.screen.user.tripleClick(source);
+  await source.click();
+  await expect.element(source).toHaveFocus();
+  await harness.screen.user.keyboard(
+    navigator.platform.startsWith("Mac") ? "{Meta>}a{/Meta}" : "{Control>}a{/Control}",
+  );
   const copiedData = observeNextCopyData();
   await harness.screen.user.copy();
   const copied = await copiedData;
@@ -48,6 +57,47 @@ test("same-namespace copy and paste preserves skill identity without external le
   expect(copied.html).not.toContain(canonicalName);
   expect(copied.html).not.toContain("namespace");
   expect(copied.html).not.toContain('"type":"skill"');
+
+  await target.click();
+  await harness.screen.user.paste();
+  await expect.element(target).toHaveTextContent(`$${displayName}`);
+  await expect
+    .poll(() => harness.targetController().capture().input)
+    .toEqual([
+      { type: "text", text: `$${canonicalName}`, text_elements: [] },
+      { type: "skill", name: canonicalName, path: skillPath },
+    ]);
+});
+
+test("node-selected skill copy and cut preserve public MIME identity without tooltip details", async () => {
+  const harness = await renderEditors();
+  const source = harness.screen.getByRole("combobox", { name: "Source composer" });
+  const target = harness.screen.getByRole("combobox", { name: "Target composer" });
+
+  await insertSkill(harness.screen, source);
+  const trigger = harness.screen.getByRole("button", { name: /Friendly Skill/i });
+  await trigger.click();
+  await expect.element(source).toHaveFocus();
+
+  const copiedData = observeNextCopyData();
+  await harness.screen.user.copy();
+  const copied = await copiedData;
+  expect(copied.plainText).toBe(`$${canonicalName}`);
+  expect(copied.html).toBe(`<span>$${displayName}</span>`);
+  expect(copied.lexical).toContain('"type":"skill"');
+  expect(copied.lexical).toContain(`"name":"${canonicalName}"`);
+  expect(copied.lexical).toContain(`"path":"${skillPath}"`);
+  expect(copied.lexical).not.toContain("Clipboard test skill");
+  expect(copied.lexical).not.toContain("tooltip");
+  expect(copied.lexical).not.toContain("data-slot");
+  expect(copied.html).not.toContain(skillPath);
+  expect(copied.html).not.toContain("Clipboard test skill");
+
+  const cutData = observeNextCopyData();
+  await harness.screen.user.cut();
+  const cut = await cutData;
+  expect(cut).toEqual(copied);
+  await expect.poll(() => source.element().textContent).toBe("");
 
   await target.click();
   await harness.screen.user.paste();
@@ -142,14 +192,17 @@ async function insertSkill(
   await option.click();
 }
 
-function observeNextCopyData(): Promise<{ plainText: string; html: string }> {
+function observeNextCopyData(
+  eventType: "copy" | "cut" = "copy",
+): Promise<{ plainText: string; html: string; lexical: string }> {
   return new Promise((resolve) => {
     document.addEventListener(
-      "copy",
+      eventType,
       (event) => {
         resolve({
           plainText: event.clipboardData?.getData("text/plain") ?? "",
           html: event.clipboardData?.getData("text/html") ?? "",
+          lexical: event.clipboardData?.getData("application/x-lexical-editor") ?? "",
         });
       },
       { once: true },

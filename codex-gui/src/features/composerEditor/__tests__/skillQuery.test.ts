@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_SKILL_QUERY_RESULTS,
+  collectSkillDisambiguatingParentPaths,
   querySkills,
   skillSourceLabel,
   type SkillQueryCandidate,
@@ -72,31 +72,166 @@ describe("querySkills", () => {
     expect(results[1]?.score).toBeGreaterThan(results[2]?.score ?? Number.NEGATIVE_INFINITY);
   });
 
-  it("breaks equal-score ties by canonical name and then path", () => {
-    const beta = candidate("Beta", { path: "/skills/beta/SKILL.md" });
-    const alphaLaterPath = candidate("Alpha", { path: "/skills/z/SKILL.md" });
-    const alphaEarlierPath = candidate("Alpha", { path: "/skills/a/SKILL.md" });
+  it("sorts an empty query by scope, display name, canonical name, and path", () => {
+    const repoSameLaterPath = candidate("same", {
+      interface: skillInterface("Same"),
+      path: "/repo/z/SKILL.md",
+    });
+    const systemSkill = candidate("system-first", {
+      interface: skillInterface("Aardvark"),
+      scope: "system",
+    });
+    const repoNameLater = candidate("beta", {
+      interface: skillInterface("Alpha"),
+    });
+    const adminSkill = candidate("admin-first", {
+      interface: skillInterface("Aardvark"),
+      scope: "admin",
+    });
+    const repoBlankDisplayName = candidate("Bravo", {
+      interface: skillInterface("   "),
+    });
+    const repoNameEarlier = candidate("alpha", {
+      interface: skillInterface("Alpha"),
+    });
+    const userSkill = candidate("user-first", {
+      interface: skillInterface("Aardvark"),
+      scope: "user",
+    });
+    const repoMissingDisplayName = candidate("Charlie");
+    const repoSameEarlierPath = candidate("same", {
+      interface: skillInterface("Same"),
+      path: "/repo/a/SKILL.md",
+    });
 
-    const results = querySkills([beta, alphaLaterPath, alphaEarlierPath], "");
+    const results = querySkills(
+      [
+        repoSameLaterPath,
+        systemSkill,
+        repoNameLater,
+        adminSkill,
+        repoBlankDisplayName,
+        repoNameEarlier,
+        userSkill,
+        repoMissingDisplayName,
+        repoSameEarlierPath,
+      ],
+      "",
+    );
 
-    expect(results.map(({ candidate: result }) => [result.name, result.path])).toEqual([
-      ["Alpha", "/skills/a/SKILL.md"],
-      ["Alpha", "/skills/z/SKILL.md"],
-      ["Beta", "/skills/beta/SKILL.md"],
+    expect(results).toEqual([
+      {
+        candidate: repoNameEarlier,
+        displayName: "Alpha",
+        sourceLabel: "Repository",
+        score: 0,
+        disambiguatingParentPath: null,
+      },
+      {
+        candidate: repoNameLater,
+        displayName: "Alpha",
+        sourceLabel: "Repository",
+        score: 0,
+        disambiguatingParentPath: null,
+      },
+      {
+        candidate: repoBlankDisplayName,
+        displayName: "Bravo",
+        sourceLabel: "Repository",
+        score: 0,
+        disambiguatingParentPath: null,
+      },
+      {
+        candidate: repoMissingDisplayName,
+        displayName: "Charlie",
+        sourceLabel: "Repository",
+        score: 0,
+        disambiguatingParentPath: null,
+      },
+      {
+        candidate: repoSameEarlierPath,
+        displayName: "Same",
+        sourceLabel: "Repository",
+        score: 0,
+        disambiguatingParentPath: "a",
+      },
+      {
+        candidate: repoSameLaterPath,
+        displayName: "Same",
+        sourceLabel: "Repository",
+        score: 0,
+        disambiguatingParentPath: "z",
+      },
+      {
+        candidate: userSkill,
+        displayName: "Aardvark",
+        sourceLabel: "User",
+        score: 0,
+        disambiguatingParentPath: null,
+      },
+      {
+        candidate: adminSkill,
+        displayName: "Aardvark",
+        sourceLabel: "Admin",
+        score: 0,
+        disambiguatingParentPath: null,
+      },
+      {
+        candidate: systemSkill,
+        displayName: "Aardvark",
+        sourceLabel: "System",
+        score: 0,
+        disambiguatingParentPath: null,
+      },
     ]);
   });
 
-  it("caps results at the hard maximum", () => {
-    const candidates = Array.from({ length: MAX_SKILL_QUERY_RESULTS + 5 }, (_, index) =>
+  it("returns every candidate for an empty query", () => {
+    const candidates = Array.from({ length: 25 }, (_, index) =>
       candidate(`skill-${String(index).padStart(2, "0")}`),
     );
 
-    const results = querySkills(candidates, "");
+    const results = querySkills(candidates.toReversed(), "");
 
-    expect(results).toHaveLength(MAX_SKILL_QUERY_RESULTS);
-    expect(results.map(({ candidate: result }) => result.name)).toEqual(
-      candidates.slice(0, MAX_SKILL_QUERY_RESULTS).map(({ name }) => name),
+    expect(results).toEqual(
+      candidates.map((result) => ({
+        candidate: result,
+        displayName: result.name,
+        sourceLabel: "Repository",
+        score: 0,
+        disambiguatingParentPath: null,
+      })),
     );
+  });
+
+  it("returns every match for a non-empty query", () => {
+    const candidates = Array.from({ length: 25 }, (_, index) =>
+      candidate(`match-${String(index).padStart(2, "0")}`),
+    );
+
+    const results = querySkills(candidates.toReversed(), "match");
+
+    expect(results).toEqual(
+      candidates.map((result) => ({
+        candidate: result,
+        displayName: result.name,
+        sourceLabel: "Repository",
+        score: 1_132,
+        disambiguatingParentPath: null,
+      })),
+    );
+  });
+
+  it("keeps non-empty query scores global across scopes", () => {
+    const compactSystemMatch = candidate("abc", { scope: "system" });
+    const spreadRepositoryMatch = candidate("a-x-b-x-c", { scope: "repo" });
+
+    const results = querySkills([spreadRepositoryMatch, compactSystemMatch], "abc");
+
+    expect(results.map(({ candidate: result }) => result)).toEqual([
+      compactSystemMatch,
+      spreadRepositoryMatch,
+    ]);
   });
 
   it("does not add parent paths when display names match but canonical names differ", () => {
@@ -315,5 +450,23 @@ describe("skillSourceLabel", () => {
     ["admin", "Admin"],
   ] as const)("maps the generated %s scope to %s", (scope, expected) => {
     expect(skillSourceLabel(candidate(`${scope}-skill`, { scope }))).toBe(expected);
+  });
+});
+
+describe("collectSkillDisambiguatingParentPaths", () => {
+  it("projects the same shortest parent suffixes for catalog and document skill identities", () => {
+    const projections = collectSkillDisambiguatingParentPaths([
+      { name: "shared", path: "/workspace/team-one/tools/SKILL.md" },
+      { name: "shared", path: "/workspace/team-two/tools/SKILL.md" },
+      { name: "unique", path: "/workspace/unique/SKILL.md" },
+    ]);
+
+    expect(projections.get("shared")).toEqual(
+      new Map([
+        ["/workspace/team-one/tools/SKILL.md", "team-one/tools"],
+        ["/workspace/team-two/tools/SKILL.md", "team-two/tools"],
+      ]),
+    );
+    expect(projections.get("unique")).toEqual(new Map([["/workspace/unique/SKILL.md", null]]));
   });
 });

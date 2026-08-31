@@ -2,12 +2,19 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $isElementNode,
   createEditor,
+  type LexicalNode,
   type LexicalEditor,
 } from "lexical";
 import { describe, expect, it, vi } from "vitest";
 
-import { captureComposerDraft, restoreComposerDraft, type ComposerDraft } from "../composerDraft";
+import {
+  captureComposerDraft,
+  projectComposerDraft,
+  restoreComposerDraft,
+  type ComposerDraft,
+} from "../composerDraft";
 import { $createSkillNode, $isSkillNode, SkillNode, type SkillNodeState } from "../SkillNode";
 
 describe("composerDraft", () => {
@@ -109,6 +116,33 @@ describe("composerDraft", () => {
         path: "/example/skills/second/SKILL.md",
       },
     ]);
+  });
+
+  it("projects every skill in full document order without collapsing repeated paths", () => {
+    const editor = createTestEditor();
+    const repeatedPath = "/example/skills/repeated/SKILL.md";
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createTextNode("Before "),
+            $createSkillNode(skill("first", repeatedPath, "First")),
+            $createTextNode(" and "),
+            $createSkillNode(skill("second", repeatedPath, "Second")),
+          ),
+          $createParagraphNode().append(
+            $createSkillNode(skill("third", "/example/skills/third/SKILL.md", "Third")),
+            $createTextNode(" after"),
+          ),
+        );
+      },
+      { discrete: true },
+    );
+
+    expect(projectComposerDraft(editor.getEditorState())).toEqual({
+      textContent: "Before $First and $Second\n\n$Third after",
+      selectedSkillPaths: [repeatedPath, repeatedPath, "/example/skills/third/SKILL.md"],
+    });
   });
 
   it("compiles a skill-only editor into a meaningful text and skill input", () => {
@@ -220,12 +254,17 @@ function createEditorWithText(text: string): LexicalEditor {
 }
 
 function readSkills(editor: LexicalEditor): SkillNodeState[] {
-  return editor.getEditorState().read(() =>
-    $getRoot()
-      .getAllTextNodes()
-      .filter($isSkillNode)
-      .map((node) => node.getSkill()),
-  );
+  return editor.getEditorState().read(() => collectSkills($getRoot()));
+}
+
+function collectSkills(node: LexicalNode): SkillNodeState[] {
+  if ($isSkillNode(node)) {
+    return [node.getSkill()];
+  }
+  if (!$isElementNode(node)) {
+    return [];
+  }
+  return node.getChildren().flatMap(collectSkills);
 }
 
 function createTestEditor(): LexicalEditor {

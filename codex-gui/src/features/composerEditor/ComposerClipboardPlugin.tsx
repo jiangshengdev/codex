@@ -8,9 +8,13 @@ import {
 } from "@lexical/clipboard";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
+  $createNodeSelection,
   $getSelection,
   $isElementNode,
+  $isNodeSelection,
   $isRangeSelection,
+  $isTextNode,
+  type BaseSelection,
   COMMAND_PRIORITY_HIGH,
   COPY_COMMAND,
   CUT_COMMAND,
@@ -20,7 +24,6 @@ import {
   mergeRegister,
   PASTE_COMMAND,
   PASTE_TAG,
-  type RangeSelection,
 } from "lexical";
 import { useEffect } from "react";
 import { $isSkillNode } from "./SkillNode";
@@ -35,23 +38,20 @@ export function ComposerClipboardPlugin() {
       mergeRegister(
         editor.registerCommand(
           COPY_COMMAND,
-          (event) => copySelection(editor, event),
+          (event) => copySelection(editor, event) !== "unavailable",
           COMMAND_PRIORITY_HIGH,
         ),
         editor.registerCommand(
           CUT_COMMAND,
           (event) => {
-            const copied = copySelection(editor, event);
-            if (copied) {
-              editor.update(
-                () => {
-                  const selection = $getSelection();
-                  if ($isRangeSelection(selection)) selection.removeText();
-                },
-                { tag: CUT_TAG },
-              );
+            const selectionToDelete = $getSelection()?.clone() ?? null;
+            const copyResult = copySelection(editor, event, () => {
+              deleteCopiedSelection(editor, selectionToDelete);
+            });
+            if (copyResult === "copied") {
+              deleteCopiedSelection(editor, selectionToDelete);
             }
-            return copied;
+            return copyResult !== "unavailable";
           },
           COMMAND_PRIORITY_HIGH,
         ),
@@ -64,7 +64,7 @@ export function ComposerClipboardPlugin() {
             editor.update(
               () => {
                 const selection = $getSelection();
-                if ($isRangeSelection(selection)) {
+                if ($isRangeSelection(selection) || $isNodeSelection(selection)) {
                   $insertDataTransferForRichText(dataTransfer, selection, editor);
                 }
               },
@@ -84,38 +84,109 @@ export function ComposerClipboardPlugin() {
 function copySelection(
   editor: LexicalEditor,
   event: ClipboardEvent | KeyboardEvent | null,
-): boolean {
+  onCopied?: () => void,
+): "copied" | "pending" | "unavailable" {
   const selection = $getSelection();
-  if (!$isRangeSelection(selection) || selection.isCollapsed()) return false;
+  if (
+    (!$isRangeSelection(selection) && !$isNodeSelection(selection)) ||
+    selection.isCollapsed() ||
+    selection.getNodes().length === 0
+  ) {
+    return "unavailable";
+  }
 
   const data = clipboardDataFromSelection(editor, selection);
   const clipboardData = event != null && "clipboardData" in event ? event.clipboardData : null;
   if (event != null && clipboardData != null) {
     event.preventDefault();
     setLexicalClipboardDataTransfer(clipboardData, data);
+    return "copied";
   } else {
-    void copyToClipboard(editor, null, data);
+    void copyToClipboard(editor, null, data).then(
+      (copied) => {
+        if (copied) {
+          onCopied?.();
+        } else {
+          reportClipboardCopyFailure(editor);
+        }
+      },
+      (error: unknown) => {
+        reportClipboardCopyFailure(editor, error);
+      },
+    );
+    return "pending";
   }
-  return true;
+}
+
+function deleteCopiedSelection(
+  editor: LexicalEditor,
+  expectedSelection: BaseSelection | null,
+): void {
+  editor.update(
+    () => {
+      const selection = $getSelection();
+      if (!selection?.is(expectedSelection)) return;
+      if ($isRangeSelection(selection)) {
+        selection.removeText();
+      } else if ($isNodeSelection(selection)) {
+        selection.deleteNodes();
+      }
+    },
+    { tag: CUT_TAG },
+  );
 }
 
 function clipboardDataFromSelection(
   editor: LexicalEditor,
-  selection: RangeSelection,
+  selection: BaseSelection,
 ): LexicalClipboardData {
-  const payload = $generateJSONFromSelectedNodes(editor, selection);
+  const payload = $generateJSONFromSelectedNodes(
+    editor,
+    normalizeSelectionForClipboardProjection(selection),
+  );
   const selectedNodes = $generateNodesFromSerializedNodes(payload.nodes);
   return {
-    "text/plain": selectedNodes.map(compileSelectedNode).join("\n"),
-    "text/html": `<span>${escapeHtml(selection.getTextContent())}</span>`,
+    "text/plain": compileSelectedNodes(selectedNodes, "canonical"),
+    "text/html": `<span>${escapeHtml(compileSelectedNodes(selectedNodes, "display"))}</span>`,
     [LEXICAL_MIME_TYPE]: JSON.stringify(payload),
   };
 }
 
-function compileSelectedNode(node: LexicalNode): string {
-  if ($isSkillNode(node)) return `$${node.getSkill().name}`;
+type SkillTextProjection = "canonical" | "display";
+
+function normalizeSelectionForClipboardProjection(selection: BaseSelection): BaseSelection {
+  if (!$isRangeSelection(selection)) return selection;
+
+  const selectedNodes = selection.getNodes();
+  if (selectedNodes.some($isTextNode)) return selection;
+
+  const nodeSelection = $createNodeSelection();
+  for (const node of selectedNodes) nodeSelection.add(node.getKey());
+  return nodeSelection;
+}
+
+function compileSelectedNodes(nodes: LexicalNode[], skillText: SkillTextProjection): string {
+  return nodes.map((node) => compileSelectedNode(node, skillText)).join("\n");
+}
+
+function compileSelectedNode(node: LexicalNode, skillText: SkillTextProjection): string {
+  if ($isSkillNode(node)) {
+    const skill = node.getSkill();
+    return `$${skillText === "canonical" ? skill.name : skill.displayName}`;
+  }
   if (!$isElementNode(node)) return node.getTextContent();
-  return node.getChildren().map(compileSelectedNode).join("");
+  return node
+    .getChildren()
+    .map((child) => compileSelectedNode(child, skillText))
+    .join("");
+}
+
+function reportClipboardCopyFailure(editor: LexicalEditor, error?: unknown): void {
+  const clipboardError =
+    error instanceof Error ? error : new Error("Unable to copy the composer selection");
+  editor.update(() => {
+    throw clipboardError;
+  });
 }
 
 function dataTransferFromPasteEvent(
