@@ -205,15 +205,11 @@ export function SelectedSkillToken({
         tabIndex={environment.disabled ? -1 : 0}
       >
         <Chip
-          className={
-            isSelected
-              ? "max-w-full whitespace-normal status-focused"
-              : "max-w-full whitespace-normal"
-          }
-          color={presentation.isInvalid ? "danger" : "default"}
+          className="max-w-full whitespace-normal"
+          color={presentation.isInvalid ? "danger" : isSelected ? "accent" : "default"}
           data-selected={isSelected || undefined}
           size="sm"
-          variant={presentation.isInvalid ? "soft" : "secondary"}
+          variant={isSelected ? "primary" : presentation.isInvalid ? "soft" : "secondary"}
         >
           <Chip.Label className="min-w-0 [overflow-wrap:anywhere]">
             {`$${presentation.displayName}`}
