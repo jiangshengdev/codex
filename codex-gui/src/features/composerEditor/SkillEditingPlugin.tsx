@@ -6,12 +6,15 @@ import {
   $isNodeSelection,
   $isRangeSelection,
   BEFORE_INPUT_COMMAND,
+  COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_HIGH,
   CONTROLLED_TEXT_INSERTION_COMMAND,
   DELETE_CHARACTER_COMMAND,
   HISTORY_MERGE_TAG,
   type LexicalEditor,
   type NodeKey,
+  KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
   mergeRegister,
@@ -54,6 +57,16 @@ export function SkillEditingPlugin() {
           DELETE_CHARACTER_COMMAND,
           () => deleteSelectedSkills(editor),
           COMMAND_PRIORITY_HIGH,
+        ),
+        editor.registerCommand(
+          KEY_ARROW_LEFT_COMMAND,
+          (event) => exitSelectedSkill(editor, event, "left"),
+          COMMAND_PRIORITY_EDITOR,
+        ),
+        editor.registerCommand(
+          KEY_ARROW_RIGHT_COMMAND,
+          (event) => exitSelectedSkill(editor, event, "right"),
+          COMMAND_PRIORITY_EDITOR,
         ),
         editor.registerCommand(
           KEY_BACKSPACE_COMMAND,
@@ -177,6 +190,32 @@ function deleteSelectedSkillsFromKeyboard(editor: LexicalEditor, event: Keyboard
   event.preventDefault();
   selection.deleteNodes();
   focusCurrentRoot(editor);
+  return true;
+}
+
+function exitSelectedSkill(
+  editor: LexicalEditor,
+  event: KeyboardEvent,
+  direction: "left" | "right",
+): boolean {
+  const selection = $getSelection();
+  if (!$isNodeSelection(selection)) return false;
+  const nodes = selection.getNodes();
+  if (nodes.length !== 1 || !$isSkillNode(nodes[0])) return false;
+
+  const node = nodes[0];
+  const parentElement = editor.getElementByKey(node.getParentOrThrow().getKey());
+  const view = parentElement?.ownerDocument.defaultView;
+  if (parentElement == null || view == null) return false;
+
+  const isParentRtl = view.getComputedStyle(parentElement).direction === "rtl";
+  const movesPrevious = direction === (isParentRtl ? "right" : "left");
+  if (movesPrevious) {
+    node.selectPrevious();
+  } else {
+    node.selectNext(0, 0);
+  }
+  event.preventDefault();
   return true;
 }
 

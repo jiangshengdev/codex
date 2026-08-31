@@ -1102,6 +1102,132 @@ test("keeps a skill token atomic across caret navigation, deletion, undo, and re
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
 });
 
+test.each([
+  {
+    arrow: "ArrowRight",
+    direction: "ltr",
+    logicalExit: "after",
+    logicalStart: "before",
+    textAfter: " right",
+    textBefore: "left ",
+  },
+  {
+    arrow: "ArrowLeft",
+    direction: "ltr",
+    logicalExit: "before",
+    logicalStart: "after",
+    textAfter: " right",
+    textBefore: "left ",
+  },
+  {
+    arrow: "ArrowRight",
+    direction: "rtl",
+    logicalExit: "before",
+    logicalStart: "after",
+    textAfter: " שמאל",
+    textBefore: "ימין ",
+  },
+  {
+    arrow: "ArrowLeft",
+    direction: "rtl",
+    logicalExit: "after",
+    logicalStart: "before",
+    textAfter: " שמאל",
+    textBefore: "ימין ",
+  },
+] as const)(
+  "moves through skill tokens as two-step visual-direction caret stops",
+  async ({ arrow, direction, logicalExit, logicalStart, textAfter, textBefore }) => {
+    const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+    const selectedSkill = skill("atomic", "/skills/atomic/SKILL.md", "Atomic");
+    const { controllerRef, screen } = await renderEditor([selectedSkill], { onSubmit });
+    const editor = screen.getByRole("combobox", { name: "Message" });
+    const initialText = `${textBefore}$ato${textAfter}`;
+
+    await editor.fill(initialText);
+    setCollapsedCaret(editor.element(), initialText, textBefore.length + "$ato".length);
+    await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
+    await screen.user.keyboard("{Enter}");
+
+    const trigger = screen.getByRole("button", { name: /Atomic/i });
+    const triggerElement = trigger.element();
+    const chip = triggerElement.querySelector('[data-slot="chip"]');
+    if (!(chip instanceof HTMLSpanElement)) {
+      throw new Error("selected skill must render a HeroUI Chip");
+    }
+    const tokenHost = triggerElement.parentElement;
+    if (!(tokenHost instanceof HTMLSpanElement)) {
+      throw new Error("selected skill trigger must render inside its Lexical decorator host");
+    }
+    const tooltip = screen.getByRole("tooltip");
+    const expectedText = `${textBefore}$Atomic${textAfter}`;
+    const expectedCanonicalText = `${textBefore}$atomic${textAfter}`;
+    const expectedSkillInput = {
+      type: "skill" as const,
+      name: selectedSkill.name,
+      path: selectedSkill.path,
+    };
+
+    await expect
+      .poll(() => getController(controllerRef).getSnapshot().textContent)
+      .toBe(expectedText);
+    expect(getComputedStyle(tokenHost).direction).toBe(direction);
+    expect(getController(controllerRef).capture().input).toEqual([
+      { type: "text", text: expectedCanonicalText, text_elements: [] },
+      expectedSkillInput,
+    ]);
+    await expect.element(editor).toHaveFocus();
+    await expect.element(chip).not.toHaveAttribute("data-selected");
+    await expect.element(tooltip).not.toBeInTheDocument();
+
+    setCollapsedCaretAtSkillSide(editor.element(), tokenHost, logicalStart);
+    await expect
+      .poll(() => collapsedCaretSideOfSkill(editor.element(), tokenHost))
+      .toBe(logicalStart);
+    await screen.user.keyboard(`{${arrow}}`);
+
+    await expect.element(editor).toHaveFocus();
+    await expect.element(chip).toHaveAttribute("data-selected");
+    await expect.element(tooltip).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await screen.user.keyboard(`{${arrow}}`);
+
+    await expect.element(editor).toHaveFocus();
+    await expect.element(chip).not.toHaveAttribute("data-selected");
+    await expect.element(tooltip).not.toBeInTheDocument();
+    await expect
+      .poll(() => collapsedCaretSideOfSkill(editor.element(), tokenHost))
+      .toBe(logicalExit);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await screen.user.keyboard("x");
+
+    const textAfterInsertion =
+      logicalExit === "before"
+        ? `${textBefore}x$Atomic${textAfter}`
+        : `${textBefore}$Atomicx${textAfter}`;
+    const canonicalTextAfterInsertion =
+      logicalExit === "before"
+        ? `${textBefore}x$atomic${textAfter}`
+        : `${textBefore}$atomicx${textAfter}`;
+    await expect
+      .poll(() => getController(controllerRef).getSnapshot().textContent)
+      .toBe(textAfterInsertion);
+    await expect.element(trigger).toBeInTheDocument();
+    await expect.element(chip).not.toHaveAttribute("data-selected");
+    await expect.element(tooltip).not.toBeInTheDocument();
+    expect(getController(controllerRef).getSnapshot().selectedSkillPaths).toEqual([
+      selectedSkill.path,
+    ]);
+    expect(getController(controllerRef).capture().input).toEqual([
+      { type: "text", text: canonicalTextAfterInsertion, text_elements: [] },
+      expectedSkillInput,
+    ]);
+    expect(onSubmit).not.toHaveBeenCalled();
+  },
+);
+
 test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-backed details", async () => {
   const selectedSkill: SkillCatalogCandidate = {
     ...skill(
@@ -2016,6 +2142,71 @@ function collapsedCaretOffset(root: Element): number | null {
     return null;
   }
   return selection.anchorOffset;
+}
+
+type SkillCaretSide = "after" | "before";
+
+function setCollapsedCaretAtSkillSide(
+  root: Element,
+  tokenHost: HTMLElement,
+  side: SkillCaretSide,
+): void {
+  const adjacentNode = side === "before" ? tokenHost.previousSibling : tokenHost.nextSibling;
+  const adjacentText = findAdjacentText(adjacentNode, side);
+  const selection = root.ownerDocument.getSelection();
+  if (selection == null) {
+    throw new Error("composer editor document must provide a Selection");
+  }
+  const range = root.ownerDocument.createRange();
+  range.setStart(adjacentText, side === "before" ? adjacentText.length : 0);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  root.ownerDocument.dispatchEvent(new Event("selectionchange"));
+}
+
+function collapsedCaretSideOfSkill(root: Element, tokenHost: HTMLElement): SkillCaretSide | null {
+  const selection = root.ownerDocument.getSelection();
+  if (
+    selection == null ||
+    !selection.isCollapsed ||
+    selection.anchorNode == null ||
+    !root.contains(selection.anchorNode)
+  ) {
+    return null;
+  }
+
+  const beforeText = findAdjacentText(tokenHost.previousSibling, "before");
+  if (selection.anchorNode === beforeText && selection.anchorOffset === beforeText.length) {
+    return "before";
+  }
+  const afterText = findAdjacentText(tokenHost.nextSibling, "after");
+  if (selection.anchorNode === afterText && selection.anchorOffset === 0) {
+    return "after";
+  }
+  return null;
+}
+
+function findAdjacentText(node: ChildNode | null, side: SkillCaretSide): Text {
+  if (node instanceof Text) {
+    return node;
+  }
+  if (!(node instanceof Element)) {
+    throw new Error(`selected skill must have ${side} text content`);
+  }
+  const walker = node.ownerDocument.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  let text = walker.nextNode();
+  if (side === "before") {
+    let nextText = walker.nextNode();
+    while (nextText != null) {
+      text = nextText;
+      nextText = walker.nextNode();
+    }
+  }
+  if (!(text instanceof Text)) {
+    throw new Error(`selected skill must have ${side} text content`);
+  }
+  return text;
 }
 
 function firstTextCharacterRect(root: Element): DOMRect {
