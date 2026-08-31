@@ -68,16 +68,23 @@ export function captureComposerDraft(editorState: EditorState): ComposerDraftCap
 export function projectComposerDraft(editorState: EditorState): ComposerDraftProjection {
   return editorState.read(() => {
     const selectedSkillPaths: string[] = [];
-    for (const node of $getRoot().getAllTextNodes()) {
-      if ($isSkillNode(node)) {
-        selectedSkillPaths.push(node.getSkill().path);
-      }
-    }
+    collectSelectedSkillPaths($getRoot(), selectedSkillPaths);
     return {
       textContent: $getRoot().getTextContent(),
       selectedSkillPaths,
     };
   });
+}
+
+function collectSelectedSkillPaths(node: LexicalNode, paths: string[]): void {
+  if ($isSkillNode(node)) {
+    paths.push(node.getSkill().path);
+    return;
+  }
+  if (!$isElementNode(node)) return;
+  for (const child of node.getChildren()) {
+    collectSelectedSkillPaths(child, paths);
+  }
 }
 
 export function composerDraftCaptureMatchesEditorState(

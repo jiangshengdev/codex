@@ -297,7 +297,7 @@ test("App keeps the skill menu anchored above the composer across responsive vie
 
     await editor.fill("$");
     const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
-    await expect.poll(() => listbox.getByRole("option").length).toBe(20);
+    await expect.poll(() => listbox.getByRole("option").length).toBe(25);
     expect(composerPanel.contains(listbox.element())).toBe(true);
 
     await expect
@@ -350,7 +350,7 @@ test("App keeps the skill menu anchored above the composer across responsive vie
     }
     expect(listbox.element().contains(scrollRegion)).toBe(true);
 
-    await screen.user.keyboard("{ArrowDown}".repeat(19));
+    await screen.user.keyboard("{ArrowDown}".repeat(24));
     await expect
       .poll(() => {
         const activeOption = listbox

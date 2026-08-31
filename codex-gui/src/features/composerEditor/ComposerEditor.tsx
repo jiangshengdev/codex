@@ -6,7 +6,6 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import {
   $createParagraphNode,
-  $getNodeByKey,
   $getRoot,
   COMMAND_PRIORITY_BEFORE_EDITOR,
   KEY_ENTER_COMMAND,
@@ -18,6 +17,8 @@ import { useEffect, useMemo, useRef, type KeyboardEvent, type Ref } from "react"
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 
 import { ComposerClipboardPlugin } from "./ComposerClipboardPlugin";
+import { SelectedSkillPresentationEnvironment } from "./SelectedSkillToken";
+import { SkillEditingPlugin } from "./SkillEditingPlugin";
 import {
   captureComposerDraft,
   composerDraftCaptureMatchesEditorState,
@@ -27,7 +28,7 @@ import {
   type ComposerDraftCapture,
   type ComposerDraftRestoreResult,
 } from "./composerDraft";
-import { $isSkillNode, SkillNode } from "./SkillNode";
+import { SkillNode } from "./SkillNode";
 import { SkillTypeaheadPlugin, type SkillTypeaheadPlacement } from "./SkillTypeaheadPlugin";
 
 export type ComposerEditorSkillMenuPlacement = SkillTypeaheadPlacement;
@@ -137,57 +138,63 @@ export function ComposerEditor({
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="relative min-w-0">
-        <PlainTextPlugin
-          contentEditable={
-            <ContentEditable
-              aria-autocomplete="list"
-              aria-label={ariaLabel}
-              aria-keyshortcuts={shortcutForPrimaryModifier(primaryModifier)}
-              aria-multiline="true"
-              className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
-              onCompositionEnd={onCompositionEnd}
-              onCompositionStart={onCompositionStart}
-              onKeyDown={onKeyDown}
-              spellCheck
-            />
-          }
-          ErrorBoundary={LexicalErrorBoundary}
-          placeholder={
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 px-3 py-2 leading-6 text-field-placeholder"
-            >
-              {placeholder}
-            </div>
-          }
-        />
-      </div>
-      <EnterCommandPlugin
-        activeControllerRef={activeControllerRef}
-        isComposingRef={isComposingRef}
-        onSubmitRef={onSubmitRef}
-        primaryModifier={primaryModifier}
-        suppressNextEnterRef={suppressNextEnterRef}
-      />
-      <HistoryPlugin />
-      <ComposerControllerPlugin
-        activeControllerRef={activeControllerRef}
-        controllerRef={controllerRef}
-        onControllerChange={onControllerChange}
-      />
-      <EditablePlugin disabled={disabled} />
-      <SkillValidityPlugin skillValidity={skillValidity} />
-      {skillMenuParent == null ? null : (
-        <SkillTypeaheadPlugin
+      <SelectedSkillPresentationEnvironment
+        disabled={disabled}
+        skillCatalog={skillCatalog}
+        skillValidity={skillValidity}
+      >
+        <div className="relative min-w-0">
+          <PlainTextPlugin
+            contentEditable={
+              <ContentEditable
+                aria-autocomplete="list"
+                aria-label={ariaLabel}
+                aria-keyshortcuts={shortcutForPrimaryModifier(primaryModifier)}
+                aria-multiline="true"
+                className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
+                onCompositionEnd={onCompositionEnd}
+                onCompositionStart={onCompositionStart}
+                onKeyDown={onKeyDown}
+                spellCheck
+              />
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+            placeholder={
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 top-0 px-3 py-2 leading-6 text-field-placeholder"
+              >
+                {placeholder}
+              </div>
+            }
+          />
+        </div>
+        <EnterCommandPlugin
+          activeControllerRef={activeControllerRef}
           isComposingRef={isComposingRef}
-          onRetry={onRetrySkillCatalog}
-          placement={skillMenuPlacement}
-          portalParent={skillMenuParent}
-          skillCatalog={skillCatalog}
+          onSubmitRef={onSubmitRef}
+          primaryModifier={primaryModifier}
+          suppressNextEnterRef={suppressNextEnterRef}
         />
-      )}
-      <ComposerClipboardPlugin />
+        <HistoryPlugin />
+        <ComposerControllerPlugin
+          activeControllerRef={activeControllerRef}
+          controllerRef={controllerRef}
+          onControllerChange={onControllerChange}
+        />
+        <EditablePlugin disabled={disabled} />
+        <SkillEditingPlugin />
+        {skillMenuParent == null ? null : (
+          <SkillTypeaheadPlugin
+            isComposingRef={isComposingRef}
+            onRetry={onRetrySkillCatalog}
+            placement={skillMenuPlacement}
+            portalParent={skillMenuParent}
+            skillCatalog={skillCatalog}
+          />
+        )}
+        <ComposerClipboardPlugin />
+      </SelectedSkillPresentationEnvironment>
     </LexicalComposer>
   );
 }
@@ -324,77 +331,6 @@ function EditablePlugin({ disabled }: Readonly<{ disabled: boolean }>): null {
   }, [disabled, editor]);
 
   return null;
-}
-
-const invalidSkillClassNames = [
-  "rounded-sm",
-  "bg-danger-soft",
-  "text-danger-soft-foreground",
-  "after:ml-1",
-  "after:text-xs",
-  "after:font-medium",
-  "after:content-[attr(data-invalid-status)]",
-] as const;
-const noInvalidSkillPaths: ReadonlySet<string> = new Set();
-
-function SkillValidityPlugin({
-  skillValidity,
-}: Readonly<{
-  skillValidity: ComposerEditorProps["skillValidity"];
-}>): null {
-  const [editor] = useLexicalComposerContext();
-  const invalidSkillPaths = skillValidity?.invalidPaths ?? noInvalidSkillPaths;
-  const invalidStatusText = skillValidity?.statusText ?? "";
-
-  useEffect(
-    () =>
-      editor.registerMutationListener(SkillNode, (mutations) => {
-        editor.getEditorState().read(() => {
-          for (const [key, mutation] of mutations) {
-            if (mutation === "destroyed") {
-              continue;
-            }
-
-            const node = $getNodeByKey(key);
-            const element = editor.getElementByKey(key);
-            if (!$isSkillNode(node) || element == null) {
-              continue;
-            }
-
-            const skill = node.getSkill();
-            setSkillInvalidDom(
-              element,
-              invalidSkillPaths.has(skill.path),
-              skill.displayName,
-              invalidStatusText,
-            );
-          }
-        });
-      }),
-    [editor, invalidSkillPaths, invalidStatusText],
-  );
-
-  return null;
-}
-
-function setSkillInvalidDom(
-  element: HTMLElement,
-  invalid: boolean,
-  displayName: string,
-  invalidStatusText: string,
-): void {
-  if (invalid) {
-    element.classList.add(...invalidSkillClassNames);
-    element.setAttribute("aria-invalid", "true");
-    element.setAttribute("aria-label", `$${displayName}, ${invalidStatusText}`);
-    element.setAttribute("data-invalid-status", `(${invalidStatusText})`);
-    return;
-  }
-
-  element.classList.remove(...invalidSkillClassNames);
-  element.removeAttribute("aria-invalid");
-  element.removeAttribute("aria-label");
-  element.removeAttribute("data-invalid-status");
 }
 
 class ComposerEditorControllerImpl implements ComposerEditorController {

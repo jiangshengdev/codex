@@ -1,11 +1,19 @@
 import {
   $applyNodeReplacement,
+  $createNodeSelection,
+  $getNodeByKey,
+  $setSelection,
+  DecoratorNode,
+  type DOMExportOutput,
+  type LexicalEditor,
   type LexicalNode,
   type NodeKey,
   type SerializedTextNode,
   type Spread,
-  TextNode,
 } from "lexical";
+import { createElement, type JSX } from "react";
+
+import { SelectedSkillToken } from "./SelectedSkillToken";
 
 export type SkillNodeState = Readonly<{
   name: string;
@@ -13,6 +21,8 @@ export type SkillNodeState = Readonly<{
   displayName: string;
   sourceLabel: string;
 }>;
+
+export type ActivateSkillNodeResult = "activated" | "unavailable";
 
 export type SerializedSkillNode = Spread<
   SkillNodeState & {
@@ -22,7 +32,7 @@ export type SerializedSkillNode = Spread<
   SerializedTextNode
 >;
 
-export class SkillNode extends TextNode {
+export class SkillNode extends DecoratorNode<JSX.Element> {
   __name: string;
   __path: string;
   __displayName: string;
@@ -37,7 +47,7 @@ export class SkillNode extends TextNode {
     },
     key?: NodeKey,
   ) {
-    super(`$${state.displayName}`, key);
+    super(key);
     this.__name = state.name;
     this.__path = state.path;
     this.__displayName = state.displayName;
@@ -45,7 +55,7 @@ export class SkillNode extends TextNode {
   }
 
   $config() {
-    return this.config("skill", { extends: TextNode });
+    return this.config("skill", {});
   }
 
   static clone(node: SkillNode): SkillNode {
@@ -70,19 +80,43 @@ export class SkillNode extends TextNode {
 
   static importJSON(serializedNode: SerializedSkillNode): SkillNode {
     assertSerializedSkillNode(serializedNode);
-    return $createSkillNode(serializedNode)
-      .updateFromJSON(serializedNode)
-      .setTextContent(`$${serializedNode.displayName}`)
-      .setMode("token");
+    return $createSkillNode(serializedNode);
   }
 
   exportJSON(): SerializedSkillNode {
     return {
-      ...super.exportJSON(),
+      detail: 0,
+      format: 0,
+      mode: "token",
+      style: "",
+      text: this.getTextContent(),
       ...this.getSkill(),
       type: "skill",
       version: 1,
     };
+  }
+
+  createDOM(): HTMLElement {
+    return document.createElement("span");
+  }
+
+  updateDOM(): false {
+    return false;
+  }
+
+  decorate(): JSX.Element {
+    return createElement(SelectedSkillToken, {
+      nodeKey: this.getKey(),
+      skill: this.getSkill(),
+    });
+  }
+
+  exportDOM(): DOMExportOutput {
+    return { element: document.createTextNode(this.getTextContent()) };
+  }
+
+  getTextContent(): string {
+    return `$${this.getSkill().displayName}`;
   }
 
   getSkill(): SkillNodeState {
@@ -95,10 +129,6 @@ export class SkillNode extends TextNode {
     };
   }
 
-  isTextEntity(): true {
-    return true;
-  }
-
   canInsertTextBefore(): false {
     return false;
   }
@@ -109,11 +139,41 @@ export class SkillNode extends TextNode {
 }
 
 export function $createSkillNode(state: SkillNodeState): SkillNode {
-  return $applyNodeReplacement(new SkillNode(state).setMode("token"));
+  return $applyNodeReplacement(new SkillNode(state));
 }
 
 export function $isSkillNode(node: LexicalNode | null | undefined): node is SkillNode {
   return node instanceof SkillNode;
+}
+
+export function activateSkillNode(
+  editor: LexicalEditor,
+  nodeKey: NodeKey,
+): ActivateSkillNodeResult {
+  const root = editor.getRootElement();
+  if (root?.isConnected !== true) return "unavailable";
+
+  const activation = { completed: false };
+  const isCurrentRootAvailable = () => editor.getRootElement() === root && root.isConnected;
+  editor.update(
+    () => {
+      if (!isCurrentRootAvailable()) return;
+      const node = $getNodeByKey(nodeKey);
+      if (!$isSkillNode(node) || !node.isAttached()) return;
+
+      const selection = $createNodeSelection();
+      selection.add(nodeKey);
+      $setSelection(selection);
+      activation.completed = true;
+    },
+    { discrete: true },
+  );
+
+  if (!activation.completed || !isCurrentRootAvailable()) {
+    return "unavailable";
+  }
+  root.focus({ preventScroll: true });
+  return "activated";
 }
 
 function assertSerializedSkillNode(

@@ -1,7 +1,5 @@
 import type { SkillMetadata } from "@codex-protocol/v2";
 
-export const MAX_SKILL_QUERY_RESULTS = 20;
-
 export type SkillQueryCandidate = Readonly<
   Pick<SkillMetadata, "name" | "description" | "shortDescription" | "interface" | "path" | "scope">
 >;
@@ -13,6 +11,10 @@ export type SkillQueryResult = Readonly<{
   score: number;
   disambiguatingParentPath: string | null;
 }>;
+
+export type SkillPathIdentity = Readonly<Pick<SkillQueryCandidate, "name" | "path">>;
+
+export type SkillParentPathDisclosure = "collision-only" | "diagnostic";
 
 export function skillDisplayName(candidate: SkillQueryCandidate): string {
   const displayName = candidate.interface?.displayName?.trim();
@@ -39,7 +41,7 @@ export function querySkills(
   query: string,
 ): SkillQueryResult[] {
   const normalizedQuery = query.trim().toLowerCase();
-  const disambiguatingParentPaths = collectDisambiguatingParentPaths(candidates);
+  const disambiguatingParentPaths = collectSkillDisambiguatingParentPaths(candidates);
   const results: SkillQueryResult[] = [];
 
   for (const candidate of candidates) {
@@ -61,18 +63,49 @@ export function querySkills(
     });
   }
 
-  results.sort((left, right) => {
-    if (left.score !== right.score) {
-      return right.score - left.score;
-    }
-    const nameOrder = compareText(left.candidate.name, right.candidate.name);
-    return nameOrder === 0 ? compareText(left.candidate.path, right.candidate.path) : nameOrder;
-  });
-  return results.slice(0, MAX_SKILL_QUERY_RESULTS);
+  if (normalizedQuery.length === 0) {
+    results.sort((left, right) => {
+      const scopeOrder =
+        skillScopeRank(left.candidate.scope) - skillScopeRank(right.candidate.scope);
+      if (scopeOrder !== 0) {
+        return scopeOrder;
+      }
+      const displayNameOrder = compareText(left.displayName, right.displayName);
+      if (displayNameOrder !== 0) {
+        return displayNameOrder;
+      }
+      const nameOrder = compareText(left.candidate.name, right.candidate.name);
+      return nameOrder === 0 ? compareText(left.candidate.path, right.candidate.path) : nameOrder;
+    });
+  } else {
+    results.sort((left, right) => {
+      if (left.score !== right.score) {
+        return right.score - left.score;
+      }
+      const nameOrder = compareText(left.candidate.name, right.candidate.name);
+      return nameOrder === 0 ? compareText(left.candidate.path, right.candidate.path) : nameOrder;
+    });
+  }
+  return results;
 }
 
-function collectDisambiguatingParentPaths(
-  candidates: readonly SkillQueryCandidate[],
+function skillScopeRank(scope: SkillQueryCandidate["scope"]): number {
+  switch (scope) {
+    case "repo":
+      return 0;
+    case "user":
+      return 1;
+    case "admin":
+      return 2;
+    case "system":
+      return 3;
+    default:
+      return assertNever(scope);
+  }
+}
+
+export function collectSkillDisambiguatingParentPaths(
+  candidates: readonly SkillPathIdentity[],
 ): Map<string, Map<string, string | null>> {
   const pathsByCanonicalName = new Map<string, Set<string>>();
   for (const candidate of candidates) {
@@ -100,6 +133,24 @@ function collectDisambiguatingParentPaths(
     disambiguatingParentPaths.set(canonicalName, pathsForCanonicalName);
   }
   return disambiguatingParentPaths;
+}
+
+export function skillParentPathLabel(
+  skills: readonly SkillPathIdentity[],
+  target: SkillPathIdentity,
+  disclosure: SkillParentPathDisclosure,
+): string | null {
+  const paths = new Set(
+    skills.filter((skill) => skill.name === target.name).map((skill) => skill.path),
+  );
+  paths.add(target.path);
+  if (disclosure === "collision-only" && paths.size < 2) {
+    return null;
+  }
+
+  const parentPaths = Array.from(paths, parseParentPath);
+  const targetParentPath = parentPaths.find((parentPath) => parentPath.path === target.path);
+  return targetParentPath == null ? null : shortestUniqueParentPath(targetParentPath, parentPaths);
 }
 
 type ParsedParentPath = Readonly<{
