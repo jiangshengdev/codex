@@ -1,4 +1,5 @@
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
+import { COMPOSITION_END_COMMAND, getNearestEditorFromDOMNode } from "lexical";
 import { beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -1570,7 +1571,7 @@ test("consumes only the first Enter immediately following composition end", asyn
 
   await editor.fill("中文");
   root.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  root.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "中文" }));
+  dispatchCompositionEnd(root, "中文");
   await screen.user.keyboard("{Enter}");
   expect(onSubmit).not.toHaveBeenCalled();
 
@@ -1597,7 +1598,7 @@ test("applies composition-end suppression before the guide shortcut intent", asy
 
     await editor.fill("中文");
     root.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-    root.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "中文" }));
+    dispatchCompositionEnd(root, "中文");
     dispatchEnterShortcut(root, { metaKey: true });
     expect(onSubmit).not.toHaveBeenCalled();
 
@@ -1898,6 +1899,19 @@ type RenderEditorOptions = Readonly<{
   locale?: AppLocale;
   onSubmit?: ComposerEditorProps["onSubmit"];
 }>;
+
+function dispatchCompositionEnd(root: HTMLElement, data: string): void {
+  const event = new CompositionEvent("compositionend", { bubbles: true, data });
+  root.dispatchEvent(event);
+
+  const editor = getNearestEditorFromDOMNode(root);
+  if (editor == null) {
+    throw new Error("composition root must belong to a Lexical editor");
+  }
+  if (editor.isComposing()) {
+    editor.dispatchCommand(COMPOSITION_END_COMMAND, event);
+  }
+}
 
 async function renderEditor(
   candidates: readonly SkillCatalogCandidate[],

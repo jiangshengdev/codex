@@ -12,7 +12,7 @@ import {
   type EditorState,
   type LexicalEditor,
 } from "lexical";
-import { useEffect, useMemo, useRef, type KeyboardEvent, type Ref } from "react";
+import { useEffect, useMemo, useRef, type Ref } from "react";
 
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 
@@ -105,37 +105,6 @@ export function ComposerEditor({
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== "Enter") {
-      suppressNextEnterRef.current = false;
-      return;
-    }
-    const intent = submitIntentForEnter(event.nativeEvent, primaryModifier);
-    if (intent == null) {
-      suppressNextEnterRef.current = false;
-      return;
-    }
-    if (event.nativeEvent.isComposing || isComposingRef.current) {
-      return;
-    }
-    if (event.nativeEvent.defaultPrevented) {
-      return;
-    }
-    if (suppressNextEnterRef.current) {
-      event.preventDefault();
-      suppressNextEnterRef.current = false;
-      return;
-    }
-
-    const controller = activeControllerRef.current;
-    if (controller == null) {
-      return;
-    }
-
-    event.preventDefault();
-    onSubmitRef.current(controller.capture(), intent);
-  };
-
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <SelectedSkillPresentationEnvironment
@@ -154,7 +123,6 @@ export function ComposerEditor({
                 className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
                 onCompositionEnd={onCompositionEnd}
                 onCompositionStart={onCompositionStart}
-                onKeyDown={onKeyDown}
                 spellCheck
               />
             }
