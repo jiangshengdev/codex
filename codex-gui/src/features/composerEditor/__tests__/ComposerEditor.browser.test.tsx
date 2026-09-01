@@ -1,9 +1,13 @@
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
 import {
+  $createNodeSelection,
   $getRoot,
   $getSelection,
+  $isNodeSelection,
   $isRangeSelection,
   $isTextNode,
+  $nodesOfType,
+  $setSelection,
   COMPOSITION_END_COMMAND,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
@@ -25,6 +29,7 @@ import {
   type ComposerEditorProps,
 } from "../ComposerEditor";
 import type { ComposerDraft } from "../composerDraft";
+import { SkillNode } from "../SkillNode";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
 
 beforeEach(async () => {
@@ -1146,6 +1151,60 @@ test("keeps a skill token atomic across deletion, undo, and redo", async () => {
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
 });
 
+test("replaces and deletes multiple selected skills as one atomic selection", async () => {
+  const { controllerRef, screen } = await renderEditor([
+    skill("first", "/skills/first/SKILL.md", "First"),
+    skill("second", "/skills/second/SKILL.md", "Second"),
+  ]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$fir");
+  await expect.element(screen.getByRole("option", { name: /First/i })).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+  await screen.user.keyboard("$sec");
+  await expect.element(screen.getByRole("option", { name: /Second/i })).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => readSkillNodeCount(editor.element())).toBe(2);
+  expect(selectAllSkillNodes(editor.element())).toBe(2);
+  editor.element().focus();
+  await expect.element(editor).toHaveFocus();
+  expect(readNodeSelectionSize(editor.element())).toBe(2);
+
+  const replacementEvent = new InputEvent("beforeinput", {
+    bubbles: true,
+    cancelable: true,
+    data: "replacement",
+    inputType: "insertText",
+  });
+  expect(editor.element().dispatchEvent(replacementEvent)).toBe(false);
+  expect(replacementEvent.defaultPrevented).toBe(true);
+
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot())
+    .toMatchObject({ selectedSkillPaths: [], textContent: "replacement" });
+  expect(getController(controllerRef).capture().input).toEqual([
+    { type: "text", text: "replacement", text_elements: [] },
+  ]);
+
+  await editor.fill("$fir");
+  await expect.element(screen.getByRole("option", { name: /First/i })).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+  await screen.user.keyboard("$sec");
+  await expect.element(screen.getByRole("option", { name: /Second/i })).toBeVisible();
+  await screen.user.keyboard("{Enter}");
+  await expect.poll(() => readSkillNodeCount(editor.element())).toBe(2);
+  expect(selectAllSkillNodes(editor.element())).toBe(2);
+  editor.element().focus();
+  await expect.element(editor).toHaveFocus();
+  expect(readNodeSelectionSize(editor.element())).toBe(2);
+
+  await screen.user.keyboard("{Delete}");
+
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot())
+    .toMatchObject({ selectedSkillPaths: [], textContent: "" });
+});
+
 test("keeps the native caret hidden when a pointer click selects a skill token", async () => {
   const selectedSkill = skill("atomic", "/skills/atomic/SKILL.md", "Atomic");
   const { controllerRef, screen } = await renderEditor([selectedSkill]);
@@ -2144,6 +2203,39 @@ function readRangeSelection(root: Element) {
       focusOffset: selection.focus.offset,
       type: "range" as const,
     };
+  });
+}
+
+function selectAllSkillNodes(root: Element): number {
+  const editor = getNearestEditorFromDOMNode(root);
+  if (editor == null) throw new Error("composer root must belong to a Lexical editor");
+  let selectedCount = 0;
+  editor.update(
+    () => {
+      const skillNodes = $nodesOfType(SkillNode);
+      if (skillNodes.length === 0) throw new Error("composer must contain selected Skill nodes");
+      const selection = $createNodeSelection();
+      for (const node of skillNodes) selection.add(node.getKey());
+      $setSelection(selection);
+      selectedCount = skillNodes.length;
+    },
+    { discrete: true },
+  );
+  return selectedCount;
+}
+
+function readSkillNodeCount(root: Element): number {
+  const editor = getNearestEditorFromDOMNode(root);
+  if (editor == null) throw new Error("composer root must belong to a Lexical editor");
+  return editor.getEditorState().read(() => $nodesOfType(SkillNode).length);
+}
+
+function readNodeSelectionSize(root: Element): number | null {
+  const editor = getNearestEditorFromDOMNode(root);
+  if (editor == null) throw new Error("composer root must belong to a Lexical editor");
+  return editor.getEditorState().read(() => {
+    const selection = $getSelection();
+    return $isNodeSelection(selection) ? selection.getNodes().length : null;
   });
 }
 

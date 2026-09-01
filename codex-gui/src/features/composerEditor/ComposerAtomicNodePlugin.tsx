@@ -2,38 +2,25 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import {
   $generateNodesFromRawText,
   $getSelection,
+  $isDecoratorNode,
   $isNodeSelection,
   BEFORE_INPUT_COMMAND,
   COMMAND_PRIORITY_HIGH,
-  KEY_BACKSPACE_COMMAND,
-  KEY_DELETE_COMMAND,
-  mergeRegister,
 } from "lexical";
 import { useEffect } from "react";
-
-import { $isSkillNode } from "./SkillNode";
 
 export function ComposerAtomicNodePlugin() {
   const [editor] = useLexicalComposerContext();
 
   useEffect(
     () =>
-      mergeRegister(
-        editor.registerCommand(
-          BEFORE_INPUT_COMMAND,
-          replaceSelectedSkillsFromBeforeInput,
-          COMMAND_PRIORITY_HIGH,
-        ),
-        editor.registerCommand(
-          KEY_BACKSPACE_COMMAND,
-          deleteSelectedSkillsFromKeyboard,
-          COMMAND_PRIORITY_HIGH,
-        ),
-        editor.registerCommand(
-          KEY_DELETE_COMMAND,
-          deleteSelectedSkillsFromKeyboard,
-          COMMAND_PRIORITY_HIGH,
-        ),
+      editor.registerCommand(
+        BEFORE_INPUT_COMMAND,
+        (event) => {
+          if (!editor.isEditable()) return false;
+          return replaceSelectedInlineAtomicNodesFromBeforeInput(event);
+        },
+        COMMAND_PRIORITY_HIGH,
       ),
     [editor],
   );
@@ -41,29 +28,28 @@ export function ComposerAtomicNodePlugin() {
   return null;
 }
 
-function replaceSelectedSkillsFromBeforeInput(event: InputEvent): boolean {
-  if (!isTextInsertionBeforeInput(event) || !replaceSelectedSkills(event)) return false;
+function replaceSelectedInlineAtomicNodesFromBeforeInput(event: InputEvent): boolean {
+  if (!isTextInsertionBeforeInput(event) || !replaceSelectedInlineAtomicNodes(event)) return false;
   event.preventDefault();
   return true;
 }
 
 function isTextInsertionBeforeInput(event: InputEvent): boolean {
+  if (event.isComposing) return false;
   switch (event.inputType) {
     case "insertText":
       return event.data !== "\n" && event.data !== "\n\n";
     case "insertTranspose":
     case "insertFromYank":
-    case "insertFromDrop":
     case "insertReplacementText":
-    case "insertFromComposition":
       return true;
     default:
       return false;
   }
 }
 
-function replaceSelectedSkills(event: InputEvent): boolean {
-  const selection = getSelectedSkills();
+function replaceSelectedInlineAtomicNodes(event: InputEvent): boolean {
+  const selection = getSelectedInlineAtomicNodes();
   if (selection == null) return false;
 
   const text = event.dataTransfer?.getData("text/plain") ?? event.data;
@@ -73,18 +59,17 @@ function replaceSelectedSkills(event: InputEvent): boolean {
   return true;
 }
 
-function deleteSelectedSkillsFromKeyboard(event: KeyboardEvent): boolean {
-  const selection = getSelectedSkills();
-  if (selection == null) return false;
-  event.preventDefault();
-  selection.deleteNodes();
-  return true;
-}
-
-function getSelectedSkills() {
+function getSelectedInlineAtomicNodes() {
   const selection = $getSelection();
   if (!$isNodeSelection(selection)) return null;
   const nodes = selection.getNodes();
-  if (nodes.length === 0 || nodes.some((node) => !$isSkillNode(node))) return null;
+  if (
+    nodes.length === 0 ||
+    nodes.some(
+      (node) => !$isDecoratorNode(node) || !node.isInline() || !node.isKeyboardSelectable(),
+    )
+  ) {
+    return null;
+  }
   return selection;
 }
