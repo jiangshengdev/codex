@@ -11,6 +11,7 @@ import {
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import {
   COMPOSITION_START_COMMAND,
+  COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
   KEY_ESCAPE_COMMAND,
   type LexicalEditor,
@@ -142,6 +143,7 @@ export function SkillTypeaheadPlugin({
   return (
     <LexicalTypeaheadMenuPlugin<SkillMenuOption>
       anchorClassName={anchorClassName}
+      commandPriority={COMMAND_PRIORITY_HIGH}
       ignoreEntityBoundary={false}
       menuRenderFn={menuRenderFn}
       onClose={onClose}

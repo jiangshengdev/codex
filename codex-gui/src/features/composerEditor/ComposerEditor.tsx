@@ -3,7 +3,7 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
-import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
+import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
   $createParagraphNode,
   $getRoot,
@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, type Ref } from "react";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 
 import { ComposerClipboardPlugin } from "./ComposerClipboardPlugin";
+import { ComposerContentModelPlugin } from "./ComposerContentModelPlugin";
 import { SelectedSkillPresentationEnvironment } from "./SelectedSkillToken";
 import { ComposerAtomicNodePlugin } from "./ComposerAtomicNodePlugin";
 import {
@@ -113,7 +114,7 @@ export function ComposerEditor({
         skillValidity={skillValidity}
       >
         <div className="relative min-w-0">
-          <PlainTextPlugin
+          <RichTextPlugin
             contentEditable={
               <ContentEditable
                 aria-autocomplete="list"
@@ -137,6 +138,7 @@ export function ComposerEditor({
             }
           />
         </div>
+        <ComposerContentModelPlugin />
         <EnterCommandPlugin
           activeControllerRef={activeControllerRef}
           isComposingRef={isComposingRef}

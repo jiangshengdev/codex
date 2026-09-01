@@ -1,5 +1,14 @@
 import { createRef, useState, type CSSProperties, type RefObject } from "react";
-import { COMPOSITION_END_COMMAND, getNearestEditorFromDOMNode } from "lexical";
+import {
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  $isTextNode,
+  COMPOSITION_END_COMMAND,
+  FORMAT_ELEMENT_COMMAND,
+  FORMAT_TEXT_COMMAND,
+  getNearestEditorFromDOMNode,
+} from "lexical";
 import { beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -68,6 +77,7 @@ test("uses a clipped Select popover surface with one nested scroll owner", async
   await editor.fill("$");
 
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
+  await expect.element(listbox.getByRole("option", { name: /skill-00/ })).toBeVisible();
   const menuSurface = listbox.element().querySelector("[data-skill-menu-surface]");
   if (!(menuSurface instanceof HTMLElement)) {
     throw new Error("skill menu must render a popover surface");
@@ -563,6 +573,50 @@ test("uses Tab to choose, Escape to close, and Shift Enter only to add a line br
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("Line\n");
 });
 
+test("contains rich-text format, drop, and closed-menu Escape without losing selection", async () => {
+  const { controllerRef, screen } = await renderEditor([]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+  const root = editor.element();
+
+  await editor.fill("alpha beta");
+  await editor.click();
+  const lexicalEditor = getNearestEditorFromDOMNode(root);
+  if (lexicalEditor == null) throw new Error("composer root must belong to a Lexical editor");
+  lexicalEditor.update(() => {
+    const firstText = $getRootTextNode();
+    firstText.select(0, 5);
+  });
+  await expect.poll(() => root.ownerDocument.getSelection()?.toString()).toBe("alpha");
+  const snapshotBefore = getController(controllerRef).getSnapshot();
+  const lexicalSelectionBefore = readRangeSelection(root);
+  const domSelectionBefore = readDomSelectionState(root);
+
+  expect(lexicalEditor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")).toBe(true);
+  expect(lexicalEditor.dispatchCommand(FORMAT_ELEMENT_COMMAND, "center")).toBe(true);
+
+  expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBefore);
+  expect(readRangeSelection(root)).toEqual(lexicalSelectionBefore);
+  expect(readDomSelectionState(root)).toEqual(domSelectionBefore);
+  await expect.element(editor).toHaveFocus();
+  await expect.element(editor).toHaveTextContent("alpha beta");
+
+  const drop = new DragEvent("drop", { bubbles: true, cancelable: true });
+  root.dispatchEvent(drop);
+
+  expect(drop.defaultPrevented).toBe(true);
+  expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBefore);
+  expect(readRangeSelection(root)).toEqual(lexicalSelectionBefore);
+  expect(readDomSelectionState(root)).toEqual(domSelectionBefore);
+  await expect.element(editor).toHaveFocus();
+
+  await screen.user.keyboard("{Escape}");
+
+  await expect.element(editor).toHaveFocus();
+  expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBefore);
+  expect(readRangeSelection(root)).toEqual(lexicalSelectionBefore);
+  expect(readDomSelectionState(root)).toEqual(domSelectionBefore);
+});
+
 test("submits a plain-text capture without letting Enter rewrite the editor snapshot", async () => {
   const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor([], { onSubmit });
@@ -632,7 +686,9 @@ test.each([
       expect(modifiedCall?.[1]).toBe("ordinary");
 
       onSubmit.mockClear();
-      await editor.fill("");
+      const currentController = getController(controllerRef);
+      const currentCapture = currentController.capture();
+      expect(currentController.clearIfCurrent(currentCapture)).toBe(true);
       await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
       dispatchEnterShortcut(editor.element(), guideModifiers);
       expect(onSubmit).toHaveBeenCalledOnce();
@@ -753,7 +809,9 @@ test("progressively discloses canonical names and only collision paths", async (
   await editor.fill("$");
 
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
-  const plainOption = listbox.getByRole("option", { name: /plain description/ }).element();
+  const plainOptionLocator = listbox.getByRole("option", { name: /plain description/ });
+  await expect.element(plainOptionLocator).toBeVisible();
+  const plainOption = plainOptionLocator.element();
   const friendlyOption = listbox.getByRole("option", { name: /friendly description/ }).element();
   const userSharedOption = listbox
     .getByRole("option", { name: /user shared description/ })
@@ -963,8 +1021,12 @@ test("does not scroll back to an offscreen active candidate on pointer hover", a
   await editor.fill("$");
 
   const listbox = screen.getByRole("listbox", { name: "Typeahead menu" });
-  const activeOption = listbox.getByRole("option", { name: /skill-00/ }).element();
-  const hoveredOption = listbox.getByRole("option", { name: /skill-19/ }).element();
+  const activeOptionLocator = listbox.getByRole("option", { name: /skill-00/ });
+  const hoveredOptionLocator = listbox.getByRole("option", { name: /skill-19/ });
+  await expect.element(activeOptionLocator).toBeVisible();
+  await expect.element(hoveredOptionLocator).toBeVisible();
+  const activeOption = activeOptionLocator.element();
+  const hoveredOption = hoveredOptionLocator.element();
   const scrollRegion = screen.container.querySelector("[data-skill-menu-scroll-region]");
   if (!(scrollRegion instanceof HTMLElement)) {
     throw new Error("skill scroll region must render");
@@ -1020,7 +1082,9 @@ test("uses touch pointer down to select without moving focus from the editor", a
   const editor = screen.getByRole("combobox", { name: "Message" });
 
   await editor.fill("$tou");
-  const option = screen.getByRole("option", { name: /touch/ }).element();
+  const optionLocator = screen.getByRole("option", { name: /touch/ });
+  await expect.element(optionLocator).toBeVisible();
+  const option = optionLocator.element();
   option.dispatchEvent(
     new PointerEvent("pointerdown", {
       bubbles: true,
@@ -2059,6 +2123,43 @@ function getController(ref: RefObject<ComposerEditorController | null>): Compose
     throw new Error("composer controller must be ready");
   }
   return ref.current;
+}
+
+function $getRootTextNode() {
+  const node = $getRoot().getFirstDescendant();
+  if (!$isTextNode(node)) throw new Error("composer must begin with a text node");
+  return node;
+}
+
+function readRangeSelection(root: Element) {
+  const editor = getNearestEditorFromDOMNode(root);
+  if (editor == null) throw new Error("composer root must belong to a Lexical editor");
+  return editor.getEditorState().read(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) return { type: "other" as const };
+    return {
+      anchorKey: selection.anchor.key,
+      anchorOffset: selection.anchor.offset,
+      focusKey: selection.focus.key,
+      focusOffset: selection.focus.offset,
+      type: "range" as const,
+    };
+  });
+}
+
+function readDomSelectionState(root: Element) {
+  const selection = root.ownerDocument.getSelection();
+  return {
+    anchorOffset: selection?.anchorOffset ?? null,
+    collapsed: selection?.isCollapsed ?? null,
+    focusOffset: selection?.focusOffset ?? null,
+    insideRoot:
+      selection?.anchorNode != null &&
+      selection.focusNode != null &&
+      root.contains(selection.anchorNode) &&
+      root.contains(selection.focusNode),
+    text: selection?.toString() ?? "",
+  };
 }
 
 function setCollapsedCaret(root: Element, expectedText: string, offset: number): void {
