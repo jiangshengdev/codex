@@ -1142,7 +1142,7 @@ test("marks a skill invalid only when a complete ready catalog confirms its path
 
   await composer.fill("$canonical");
   await screen.user.keyboard("{Enter}");
-  const trigger = screen.getByRole("button", { name: /Friendly Skill/i });
+  const trigger = screen.getByRole("group", { name: /Friendly Skill/i });
   const triggerElement = trigger.element();
   const chip = triggerElement.querySelector('[data-slot="chip"]');
   if (!(chip instanceof HTMLSpanElement))
@@ -1220,19 +1220,22 @@ test("uses the same skill chip and catalog tooltip while editing a pending messa
     name: "Edit pending message",
     exact: true,
   });
-  const trigger = screen.getByRole("button", { name: /Pending Skill/i });
+  const trigger = screen.getByRole("group", { name: /Pending Skill/i });
   await expect.element(trigger).toHaveAccessibleName(/^(?=.*Pending Skill)(?=.*details?).*$/i);
   const triggerElement = trigger.element();
   const chip = triggerElement.querySelector('[data-slot="chip"]');
   if (!(chip instanceof HTMLSpanElement))
     throw new Error("pending editor must render a HeroUI Chip");
+  const tooltipTrigger = triggerElement.querySelector('[data-slot="tooltip-trigger"]');
+  if (!(tooltipTrigger instanceof HTMLElement))
+    throw new Error("pending skill chip must render inside a Tooltip trigger");
   expect(chip.classList).toContain("chip--sm");
   expect(chip.classList).toContain("chip--secondary");
   expect(chip.textContent).toBe("$Pending Skill");
   await expect.element(pendingEditor).toHaveTextContent("$Pending Skill");
 
   await userEvent.unhover(document.body);
-  await userEvent.hover(triggerElement);
+  await userEvent.hover(tooltipTrigger);
   const tooltip = screen.getByRole("tooltip");
   await expect
     .element(tooltip, { timeout: 2_500 })
