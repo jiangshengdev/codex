@@ -5,6 +5,8 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import {
   $nodesOfType,
+  CLICK_COMMAND,
+  COMMAND_PRIORITY_LOW,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
   type EditorState,
@@ -13,6 +15,7 @@ import {
 import {
   createContext,
   use,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -23,7 +26,7 @@ import {
 
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 
-import { activateSkillNode, SkillNode, type SkillNodeState } from "./SkillNode";
+import { SkillNode, type SkillNodeState } from "./SkillNode";
 import {
   projectSelectedSkillPresentation,
   type SelectedSkillPresentation,
@@ -105,9 +108,34 @@ export function SelectedSkillToken({
   skill,
 }: Readonly<{ nodeKey: NodeKey; skill: SkillNodeState }>) {
   const [editor] = useLexicalComposerContext();
-  const [isSelected] = useLexicalNodeSelection(nodeKey);
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey);
   const environment = use(SelectedSkillPresentationContext);
   const { i18n, t } = useLingui();
+  const selectOnlyThisSkill = useCallback((): void => {
+    clearSelection();
+    setSelected(true);
+  }, [clearSelection, setSelected]);
+  const onClick = useCallback(
+    (event: MouseEvent): boolean => {
+      const nodeElement = editor.getElementByKey(nodeKey);
+      if (
+        environment?.disabled !== false ||
+        nodeElement === null ||
+        !nodeElement.contains(event.target as Node)
+      ) {
+        return false;
+      }
+      selectOnlyThisSkill();
+      return true;
+    },
+    [editor, environment?.disabled, nodeKey, selectOnlyThisSkill],
+  );
+
+  useEffect(
+    () => editor.registerCommand(CLICK_COMMAND, onClick, COMMAND_PRIORITY_LOW),
+    [editor, onClick],
+  );
+
   if (environment == null) {
     throw new Error("SelectedSkillToken requires a presentation environment");
   }
@@ -159,11 +187,6 @@ export function SelectedSkillToken({
     }
   })();
 
-  const activate = (): void => {
-    if (!environment.disabled) {
-      activateSkillNode(editor, nodeKey);
-    }
-  };
   const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>): void => {
     if (environment.disabled) {
       return;
@@ -171,18 +194,17 @@ export function SelectedSkillToken({
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       event.stopPropagation();
-      activate();
+      selectOnlyThisSkill();
       return;
     }
     if (event.key === "Backspace" || event.key === "Delete") {
       event.preventDefault();
       event.stopPropagation();
-      if (activateSkillNode(editor, nodeKey) === "activated") {
-        editor.dispatchCommand(
-          event.key === "Backspace" ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
-          event.nativeEvent,
-        );
-      }
+      selectOnlyThisSkill();
+      editor.dispatchCommand(
+        event.key === "Backspace" ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
+        event.nativeEvent,
+      );
     }
   };
   const onPointerDown = (event: PointerEvent<HTMLSpanElement>): void => {
@@ -198,7 +220,6 @@ export function SelectedSkillToken({
         aria-invalid={presentation.isInvalid || undefined}
         aria-label={accessibleName}
         className="max-w-full align-[2px]"
-        onClick={activate}
         onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
         render={(props) => <span {...props} />}

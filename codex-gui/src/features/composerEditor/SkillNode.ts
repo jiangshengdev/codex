@@ -1,14 +1,10 @@
 import {
   $applyNodeReplacement,
-  $createNodeSelection,
-  $getNodeByKey,
-  $setSelection,
   DecoratorNode,
   type DOMExportOutput,
-  type LexicalEditor,
   type LexicalNode,
   type NodeKey,
-  type SerializedTextNode,
+  type SerializedLexicalNode,
   type Spread,
 } from "lexical";
 import { createElement, type JSX } from "react";
@@ -22,14 +18,12 @@ export type SkillNodeState = Readonly<{
   sourceLabel: string;
 }>;
 
-export type ActivateSkillNodeResult = "activated" | "unavailable";
-
 export type SerializedSkillNode = Spread<
   SkillNodeState & {
     type: "skill";
     version: 1;
   },
-  SerializedTextNode
+  SerializedLexicalNode
 >;
 
 export class SkillNode extends DecoratorNode<JSX.Element> {
@@ -85,11 +79,7 @@ export class SkillNode extends DecoratorNode<JSX.Element> {
 
   exportJSON(): SerializedSkillNode {
     return {
-      detail: 0,
-      format: 0,
-      mode: "token",
-      style: "",
-      text: this.getTextContent(),
+      ...super.exportJSON(),
       ...this.getSkill(),
       type: "skill",
       version: 1,
@@ -128,14 +118,6 @@ export class SkillNode extends DecoratorNode<JSX.Element> {
       sourceLabel: self.__sourceLabel,
     };
   }
-
-  canInsertTextBefore(): false {
-    return false;
-  }
-
-  canInsertTextAfter(): false {
-    return false;
-  }
 }
 
 export function $createSkillNode(state: SkillNodeState): SkillNode {
@@ -144,36 +126,6 @@ export function $createSkillNode(state: SkillNodeState): SkillNode {
 
 export function $isSkillNode(node: LexicalNode | null | undefined): node is SkillNode {
   return node instanceof SkillNode;
-}
-
-export function activateSkillNode(
-  editor: LexicalEditor,
-  nodeKey: NodeKey,
-): ActivateSkillNodeResult {
-  const root = editor.getRootElement();
-  if (root?.isConnected !== true) return "unavailable";
-
-  const activation = { completed: false };
-  const isCurrentRootAvailable = () => editor.getRootElement() === root && root.isConnected;
-  editor.update(
-    () => {
-      if (!isCurrentRootAvailable()) return;
-      const node = $getNodeByKey(nodeKey);
-      if (!$isSkillNode(node) || !node.isAttached()) return;
-
-      const selection = $createNodeSelection();
-      selection.add(nodeKey);
-      $setSelection(selection);
-      activation.completed = true;
-    },
-    { discrete: true },
-  );
-
-  if (!activation.completed || !isCurrentRootAvailable()) {
-    return "unavailable";
-  }
-  root.focus({ preventScroll: true });
-  return "activated";
 }
 
 function assertSerializedSkillNode(

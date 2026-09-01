@@ -1158,6 +1158,36 @@ test("keeps the native caret hidden when a pointer click selects a skill token",
   await expect.poll(() => collapsedCaretOffset(editor.element())).toBeNull();
 });
 
+test("keeps Shift+click skill selection single", async () => {
+  const firstSkill = skill("first", "/skills/first/SKILL.md", "First");
+  const secondSkill = skill("second", "/skills/second/SKILL.md", "Second");
+  const { controllerRef, screen } = await renderEditor([firstSkill, secondSkill]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$fir");
+  await screen.user.keyboard("{Enter}");
+  await screen.user.keyboard(" $sec");
+  await screen.user.keyboard("{Enter}");
+
+  const firstTrigger = screen.getByRole("button", { name: /First/i });
+  const secondTrigger = screen.getByRole("button", { name: /Second/i });
+  const firstChip = firstTrigger.element().querySelector('[data-slot="chip"]');
+  const secondChip = secondTrigger.element().querySelector('[data-slot="chip"]');
+  if (!(firstChip instanceof HTMLSpanElement) || !(secondChip instanceof HTMLSpanElement)) {
+    throw new Error("selected skills must render HeroUI Chips");
+  }
+  const snapshotBeforeSelection = getController(controllerRef).getSnapshot();
+
+  await firstTrigger.click();
+  await expect.element(firstChip).toHaveAttribute("data-selected");
+  await expect.element(secondChip).not.toHaveAttribute("data-selected");
+
+  await secondTrigger.click({ modifiers: ["Shift"] });
+  await expect.element(firstChip).not.toHaveAttribute("data-selected");
+  await expect.element(secondChip).toHaveAttribute("data-selected");
+  expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBeforeSelection);
+});
+
 test("vertically centers an inline skill chip with adjacent text", async () => {
   const selectedSkill = skill("alignment", "/skills/alignment/SKILL.md", "Alignment");
   const { screen } = await renderEditor([selectedSkill]);
@@ -1312,17 +1342,13 @@ test("uses real keyboard focus traversal and Space/Backspace on the skill trigge
   await screen.user.tab();
   await expect.element(trigger).toHaveFocus();
   await screen.user.keyboard(" ");
-  await expect.element(editor).toHaveFocus();
-  await expect.element(tooltip).not.toBeInTheDocument();
+  await expect.element(trigger).toHaveFocus();
+  await expect.element(tooltip).toBeVisible();
   await expect.element(chip).toHaveAttribute("data-selected");
   expect(onSubmit).not.toHaveBeenCalled();
   expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBeforeSelection);
 
-  await screen.user.tab();
-  await expect.element(trigger).toHaveFocus();
-  await expect.element(tooltip).toBeVisible();
   await screen.user.keyboard("{Backspace}");
-  await expect.element(editor).toHaveFocus();
   await expect.element(trigger).not.toBeInTheDocument();
   await expect.element(tooltip).not.toBeInTheDocument();
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
@@ -1367,9 +1393,12 @@ test("uses the skill trigger to select, replace, delete, and restore one atomic 
   await expect.element(tooltip).toBeVisible();
 
   await screen.user.keyboard("{Enter}");
+  await expect.element(trigger).toHaveFocus();
+  await expect.element(tooltip).toBeVisible();
+  expect(onSubmit).not.toHaveBeenCalled();
+  editor.element().focus();
   await expect.element(editor).toHaveFocus();
   await expect.element(tooltip).not.toBeInTheDocument();
-  expect(onSubmit).not.toHaveBeenCalled();
   await screen.user.keyboard("replacement");
   await expect
     .poll(() => getController(controllerRef).getSnapshot().textContent)
@@ -1386,7 +1415,6 @@ test("uses the skill trigger to select, replace, delete, and restore one atomic 
   trigger = screen.getByRole("button", { name: /Atomic Trigger/i });
   trigger.element().focus();
   await screen.user.keyboard("{Delete}");
-  await expect.element(editor).toHaveFocus();
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
 
   dispatchHistoryShortcut(editor.element(), "undo");
