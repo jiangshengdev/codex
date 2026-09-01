@@ -118,11 +118,7 @@ export function SelectedSkillToken({
   const onClick = useCallback(
     (event: MouseEvent): boolean => {
       const nodeElement = editor.getElementByKey(nodeKey);
-      if (
-        environment?.disabled !== false ||
-        nodeElement === null ||
-        !nodeElement.contains(event.target as Node)
-      ) {
+      if (environment?.disabled !== false || !nodeElement?.contains(event.target as Node)) {
         return false;
       }
       selectOnlyThisSkill();
