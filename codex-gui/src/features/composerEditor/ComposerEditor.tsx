@@ -154,7 +154,6 @@ export function ComposerEditor({
         <SkillEditingPlugin />
         {skillMenuParent == null ? null : (
           <SkillTypeaheadPlugin
-            isComposingRef={isComposingRef}
             onRetry={onRetrySkillCatalog}
             placement={skillMenuPlacement}
             portalParent={skillMenuParent}

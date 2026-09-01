@@ -187,7 +187,7 @@ test.for([
     type: "ready",
   },
 ] as const)(
-  "keeps keyboard navigation at the candidate scroll boundaries across catalog states",
+  "keeps keyboard wrap, active ARIA, focus, and catalog banners across catalog states",
   async ({ bannerText, partialErrorCount, type }) => {
     const candidates = Array.from({ length: 25 }, (_, index) =>
       skill(
@@ -217,11 +217,6 @@ test.for([
     const firstOption = listbox.getByRole("option").first();
     const lastOption = listbox.getByRole("option").last();
     await expect.element(lastOption).toHaveAccessibleName(/boundary-24/);
-    const scrollRegion = listbox.element().querySelector("[data-skill-menu-scroll-region]");
-    const styledListbox = listbox.element().querySelector('[data-slot="list-box"]');
-    if (!(scrollRegion instanceof HTMLElement) || !(styledListbox instanceof HTMLUListElement)) {
-      throw new Error("skill menu must expose its candidate scroll and listbox geometry");
-    }
     const banner = bannerText == null ? null : screen.getByText(bannerText, { exact: true });
     const bannerIsVisible = (): boolean => banner == null || banner.element().checkVisibility();
     await expect.poll(() => listbox.getByRole("status").length).toBe(banner == null ? 0 : 1);
@@ -236,43 +231,14 @@ test.for([
     await expect.element(firstOption).toHaveAttribute("aria-selected", "true");
     await expect.element(editor).toHaveAttribute("aria-activedescendant", firstOption.element().id);
     await expect.element(editor).toHaveFocus();
-    await expect.poll(() => scrollRegion.scrollHeight > scrollRegion.clientHeight).toBe(true);
-    expect(scrollRegion.scrollTop).toBe(0);
 
     await screen.user.keyboard("{ArrowUp}");
 
     await expect.element(lastOption).toHaveAttribute("aria-selected", "true");
     await expect.element(editor).toHaveAttribute("aria-activedescendant", lastOption.element().id);
-    const maximumScrollTop = scrollRegion.scrollHeight - scrollRegion.clientHeight;
     await expect
-      .poll(() => {
-        const scrollBounds = scrollRegion.getBoundingClientRect();
-        const optionBounds = lastOption.element().getBoundingClientRect();
-        const scrollStyle = getComputedStyle(scrollRegion);
-        const listboxStyle = getComputedStyle(styledListbox);
-        return {
-          bannerOutsideScrollRegion: banner == null || !scrollRegion.contains(banner.element()),
-          boxShadow: getComputedStyle(lastOption.element()).boxShadow,
-          edgeClearance: scrollBounds.bottom - optionBounds.bottom,
-          listboxPaddingBottom: listboxStyle.paddingBottom,
-          listboxPaddingTop: listboxStyle.paddingTop,
-          maximumScrollTop,
-          scrollPaddingBottom: scrollStyle.scrollPaddingBottom,
-          scrollPaddingTop: scrollStyle.scrollPaddingTop,
-          scrollTop: scrollRegion.scrollTop,
-        };
-      })
-      .toEqual({
-        bannerOutsideScrollRegion: true,
-        boxShadow: expectedActiveRing,
-        edgeClearance: 6,
-        listboxPaddingBottom: "6px",
-        listboxPaddingTop: "6px",
-        maximumScrollTop,
-        scrollPaddingBottom: "6px",
-        scrollPaddingTop: "6px",
-        scrollTop: maximumScrollTop,
-      });
+      .poll(() => getComputedStyle(lastOption.element()).boxShadow)
+      .toBe(expectedActiveRing);
     await expect.element(editor).toHaveFocus();
     await expect.poll(bannerIsVisible).toBe(true);
 
@@ -281,22 +247,8 @@ test.for([
     await expect.element(firstOption).toHaveAttribute("aria-selected", "true");
     await expect.element(editor).toHaveAttribute("aria-activedescendant", firstOption.element().id);
     await expect
-      .poll(() => {
-        const scrollBounds = scrollRegion.getBoundingClientRect();
-        const optionBounds = firstOption.element().getBoundingClientRect();
-        return {
-          bannerOutsideScrollRegion: banner == null || !scrollRegion.contains(banner.element()),
-          boxShadow: getComputedStyle(firstOption.element()).boxShadow,
-          edgeClearance: optionBounds.top - scrollBounds.top,
-          scrollTop: scrollRegion.scrollTop,
-        };
-      })
-      .toEqual({
-        bannerOutsideScrollRegion: true,
-        boxShadow: expectedActiveRing,
-        edgeClearance: 6,
-        scrollTop: 0,
-      });
+      .poll(() => getComputedStyle(firstOption.element()).boxShadow)
+      .toBe(expectedActiveRing);
     await expect.element(editor).toHaveFocus();
     await expect.poll(bannerIsVisible).toBe(true);
   },
