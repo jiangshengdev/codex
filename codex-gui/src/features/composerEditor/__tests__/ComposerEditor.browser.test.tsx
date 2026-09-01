@@ -1852,7 +1852,7 @@ type RenderEditorOptions = Readonly<{
   onSubmit?: ComposerEditorProps["onSubmit"];
 }>;
 
-function dispatchCompositionEnd(root: HTMLElement, data: string): void {
+function dispatchCompositionEnd(root: Element, data: string): void {
   const event = new CompositionEvent("compositionend", { bubbles: true, data });
   root.dispatchEvent(event);
 
