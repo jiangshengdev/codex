@@ -13,7 +13,7 @@ import { useEffect } from "react";
 
 import { $isSkillNode } from "./SkillNode";
 
-export function SkillEditingPlugin() {
+export function ComposerAtomicNodePlugin() {
   const [editor] = useLexicalComposerContext();
 
   useEffect(

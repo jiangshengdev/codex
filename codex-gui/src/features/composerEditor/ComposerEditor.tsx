@@ -18,7 +18,7 @@ import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwne
 
 import { ComposerClipboardPlugin } from "./ComposerClipboardPlugin";
 import { SelectedSkillPresentationEnvironment } from "./SelectedSkillToken";
-import { SkillEditingPlugin } from "./SkillEditingPlugin";
+import { ComposerAtomicNodePlugin } from "./ComposerAtomicNodePlugin";
 import {
   captureComposerDraft,
   composerDraftCaptureMatchesEditorState,
@@ -151,7 +151,7 @@ export function ComposerEditor({
           onControllerChange={onControllerChange}
         />
         <EditablePlugin disabled={disabled} />
-        <SkillEditingPlugin />
+        <ComposerAtomicNodePlugin />
         {skillMenuParent == null ? null : (
           <SkillTypeaheadPlugin
             onRetry={onRetrySkillCatalog}
