@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { $getRoot, getNearestEditorFromDOMNode } from "lexical";
+import { $getRoot, $getSelection, $isNodeSelection, getNearestEditorFromDOMNode } from "lexical";
 import { beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 import {
@@ -13,6 +13,9 @@ import { renderWithProviders } from "@/utils/test-utils";
 const canonicalName = "canonical-skill";
 const displayName = "Friendly Skill";
 const skillPath = "/example/skills/canonical-skill/SKILL.md";
+const secondCanonicalName = "second-skill";
+const secondDisplayName = "Second Skill";
+const secondSkillPath = "/example/skills/second-skill/SKILL.md";
 const skillCatalog: SkillCatalogState = {
   type: "ready",
   candidates: [
@@ -25,6 +28,17 @@ const skillCatalog: SkillCatalogState = {
         iconLargeUrl: null,
       },
       path: skillPath,
+      scope: "repo",
+    },
+    {
+      name: secondCanonicalName,
+      description: "Second clipboard test skill",
+      interface: {
+        displayName: secondDisplayName,
+        iconSmallUrl: null,
+        iconLargeUrl: null,
+      },
+      path: secondSkillPath,
       scope: "repo",
     },
   ],
@@ -81,29 +95,49 @@ test("same-namespace copy and paste preserves skill identity without external le
     ]);
 });
 
-test("node-selected skill copy and cut preserve public MIME identity without tooltip details", async () => {
+test("multi-selected skill copy, cut, and paste preserve public MIME identities", async () => {
   const harness = await renderEditors();
   const source = harness.screen.getByRole("combobox", { name: "Source composer" });
   const target = harness.screen.getByRole("combobox", { name: "Target composer" });
 
   await insertSkill(harness.screen, source);
-  const trigger = harness.screen.getByRole("button", { name: /Friendly Skill/i });
-  await trigger.click();
+  await harness.screen.user.keyboard("$sec");
+  const secondOption = harness.screen.getByRole("option", {
+    name: new RegExp(secondDisplayName),
+  });
+  await expect.element(secondOption).toBeVisible();
+  await secondOption.click();
+
+  const firstHost = harness.screen.getByRole("group", { name: /Friendly Skill/i });
+  const secondHost = harness.screen.getByRole("group", { name: /Second Skill/i });
+  await firstHost.getByText(`$${displayName}`, { exact: true }).click();
+  await secondHost
+    .getByText(`$${secondDisplayName}`, { exact: true })
+    .click({ modifiers: ["Shift"] });
   await expect.element(source).toHaveFocus();
+  expect(readNodeSelectionSize(source.element())).toBe(2);
+  await expect.element(firstHost).toHaveAttribute("data-selected");
+  await expect.element(secondHost).toHaveAttribute("data-selected");
 
   const copiedData = observeNextCopyData();
   await harness.screen.user.copy();
   const copied = await copiedData;
-  expect(copied.plainText).toBe(`$${canonicalName}`);
-  expect(copied.html).toBe(`<span>$${displayName}</span>`);
+  expect(copied.plainText).toBe(`$${canonicalName}$${secondCanonicalName}`);
+  expect(copied.html).toBe(`<span>$${displayName}$${secondDisplayName}</span>`);
   expect(copied.lexical).toContain('"type":"skill"');
   expect(copied.lexical).toContain(`"name":"${canonicalName}"`);
   expect(copied.lexical).toContain(`"path":"${skillPath}"`);
+  expect(copied.lexical).toContain(`"name":"${secondCanonicalName}"`);
+  expect(copied.lexical).toContain(`"path":"${secondSkillPath}"`);
+  expect(copied.lexical.match(/"type":"skill"/g)).toHaveLength(2);
   expect(copied.lexical).not.toContain("Clipboard test skill");
+  expect(copied.lexical).not.toContain("Second clipboard test skill");
   expect(copied.lexical).not.toContain("tooltip");
   expect(copied.lexical).not.toContain("data-slot");
   expect(copied.html).not.toContain(skillPath);
+  expect(copied.html).not.toContain(secondSkillPath);
   expect(copied.html).not.toContain("Clipboard test skill");
+  expect(copied.html).not.toContain("Second clipboard test skill");
 
   const cutData = observeNextCopyData();
   await harness.screen.user.cut();
@@ -113,13 +147,38 @@ test("node-selected skill copy and cut preserve public MIME identity without too
 
   await target.click();
   await harness.screen.user.paste();
-  await expect.element(target).toHaveTextContent(`$${displayName}`);
+  await expect.element(target).toHaveTextContent(`$${displayName}$${secondDisplayName}`);
   await expect
     .poll(() => harness.targetController().capture().input)
     .toEqual([
-      { type: "text", text: `$${canonicalName}`, text_elements: [] },
+      {
+        type: "text",
+        text: `$${canonicalName}$${secondCanonicalName}`,
+        text_elements: [],
+      },
       { type: "skill", name: canonicalName, path: skillPath },
+      { type: "skill", name: secondCanonicalName, path: secondSkillPath },
     ]);
+});
+
+test("line-break copy preserves the newline boundary", async () => {
+  const harness = await renderEditors();
+  const source = harness.screen.getByRole("combobox", { name: "Source composer" });
+
+  await source.fill("First line");
+  await harness.screen.user.keyboard("{Shift>}{Enter}{/Shift}Second line");
+  await expect
+    .poll(() => harness.sourceController().capture().textContent)
+    .toBe("First line\nSecond line");
+
+  await harness.screen.user.keyboard(
+    navigator.platform.startsWith("Mac") ? "{Meta>}a{/Meta}" : "{Control>}a{/Control}",
+  );
+  const copiedData = observeNextCopyData();
+  await harness.screen.user.copy();
+  const copied = await copiedData;
+
+  expect(copied.plainText).toBe("First line\nSecond line");
 });
 
 test("external canonical-looking plain text pastes as ordinary text", async () => {
@@ -206,6 +265,7 @@ async function renderEditors() {
 
   return {
     screen,
+    sourceController: () => requireController(sourceController),
     targetController: () => requireController(targetController),
   };
 }
@@ -271,4 +331,13 @@ function readComposerTextFormats(root: Element) {
         style: node.getStyle(),
       })),
   );
+}
+
+function readNodeSelectionSize(root: Element): number | null {
+  const editor = getNearestEditorFromDOMNode(root);
+  if (editor == null) throw new Error("composer root must belong to a Lexical editor");
+  return editor.getEditorState().read(() => {
+    const selection = $getSelection();
+    return $isNodeSelection(selection) ? selection.getNodes().length : null;
+  });
 }

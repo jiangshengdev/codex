@@ -7,8 +7,6 @@ import {
   $nodesOfType,
   CLICK_COMMAND,
   COMMAND_PRIORITY_LOW,
-  KEY_BACKSPACE_COMMAND,
-  KEY_DELETE_COMMAND,
   type EditorState,
   type NodeKey,
 } from "lexical";
@@ -19,7 +17,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
 } from "react";
@@ -43,6 +40,15 @@ type SelectedSkillPresentationEnvironmentValue = Readonly<{
 
 const SelectedSkillPresentationContext =
   createContext<SelectedSkillPresentationEnvironmentValue | null>(null);
+
+function useSelectedSkillPresentationEnvironment(): SelectedSkillPresentationEnvironmentValue {
+  const environment = use(SelectedSkillPresentationContext);
+  if (environment == null) {
+    throw new Error("SelectedSkillToken requires a presentation environment");
+  }
+  return environment;
+}
+
 const noInvalidSkillPaths: ReadonlySet<string> = new Set();
 const selectedSkillDetailsMessage = msg({
   comment: "Accessible name for a selected skill details trigger",
@@ -109,32 +115,29 @@ export function SelectedSkillToken({
 }: Readonly<{ nodeKey: NodeKey; skill: SkillNodeState }>) {
   const [editor] = useLexicalComposerContext();
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey);
-  const environment = use(SelectedSkillPresentationContext);
+  const environment = useSelectedSkillPresentationEnvironment();
   const { i18n, t } = useLingui();
-  const selectOnlyThisSkill = useCallback((): void => {
-    clearSelection();
-    setSelected(true);
-  }, [clearSelection, setSelected]);
   const onClick = useCallback(
     (event: MouseEvent): boolean => {
       const nodeElement = editor.getElementByKey(nodeKey);
-      if (environment?.disabled !== false || !nodeElement?.contains(event.target as Node)) {
+      if (environment.disabled || !nodeElement?.contains(event.target as Node)) {
         return false;
       }
-      selectOnlyThisSkill();
+      if (event.shiftKey) {
+        setSelected(!isSelected);
+      } else {
+        clearSelection();
+        setSelected(true);
+      }
       return true;
     },
-    [editor, environment?.disabled, nodeKey, selectOnlyThisSkill],
+    [clearSelection, editor, environment.disabled, isSelected, nodeKey, setSelected],
   );
 
   useEffect(
     () => editor.registerCommand(CLICK_COMMAND, onClick, COMMAND_PRIORITY_LOW),
     [editor, onClick],
   );
-
-  if (environment == null) {
-    throw new Error("SelectedSkillToken requires a presentation environment");
-  }
 
   const documentSkills: SkillPathIdentity[] = (
     environment.documentSkillPathsByName.get(skill.name) ?? []
@@ -183,28 +186,47 @@ export function SelectedSkillToken({
     }
   })();
 
-  const onKeyDown = (event: KeyboardEvent<HTMLSpanElement>): void => {
-    if (environment.disabled) {
+  useEffect(() => {
+    const nodeElement = editor.getElementByKey(nodeKey);
+    if (nodeElement == null) {
       return;
     }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      event.stopPropagation();
-      selectOnlyThisSkill();
-      return;
+
+    nodeElement.setAttribute("role", "group");
+    nodeElement.setAttribute("aria-label", accessibleName);
+    nodeElement.classList.toggle("selected", isSelected);
+    for (const [attribute, enabled] of [
+      ["aria-invalid", presentation.isInvalid],
+      ["aria-disabled", environment.disabled],
+      ["data-selected", isSelected],
+      ["data-invalid", presentation.isInvalid],
+      ["data-disabled", environment.disabled],
+    ] as const) {
+      if (enabled) {
+        nodeElement.setAttribute(attribute, "true");
+      } else {
+        nodeElement.removeAttribute(attribute);
+      }
     }
-    if (event.key === "Backspace" || event.key === "Delete") {
-      event.preventDefault();
-      event.stopPropagation();
-      selectOnlyThisSkill();
-      editor.dispatchCommand(
-        event.key === "Backspace" ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
-        event.nativeEvent,
-      );
-    }
-  };
+
+    return () => {
+      nodeElement.classList.remove("selected");
+      for (const attribute of [
+        "role",
+        "aria-label",
+        "aria-invalid",
+        "aria-disabled",
+        "data-selected",
+        "data-invalid",
+        "data-disabled",
+      ]) {
+        nodeElement.removeAttribute(attribute);
+      }
+    };
+  }, [accessibleName, editor, environment.disabled, isSelected, nodeKey, presentation.isInvalid]);
+
   const onPointerDown = (event: PointerEvent<HTMLSpanElement>): void => {
-    if (event.pointerType === "mouse" && event.button === 0) {
+    if (event.isPrimary && event.button === 0) {
       event.preventDefault();
     }
   };
@@ -212,14 +234,11 @@ export function SelectedSkillToken({
   return (
     <Tooltip delay={0} isDisabled={environment.disabled}>
       <Tooltip.Trigger<"span">
-        aria-disabled={environment.disabled || undefined}
-        aria-invalid={presentation.isInvalid || undefined}
-        aria-label={accessibleName}
         className="max-w-full align-[2px]"
-        onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
         render={(props) => <span {...props} />}
-        tabIndex={environment.disabled ? -1 : 0}
+        role="presentation"
+        tabIndex={-1}
       >
         <Chip
           className="max-w-full whitespace-normal"

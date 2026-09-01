@@ -1205,7 +1205,7 @@ test("replaces and deletes multiple selected skills as one atomic selection", as
     .toMatchObject({ selectedSkillPaths: [], textContent: "" });
 });
 
-test("keeps the native caret hidden when a pointer click selects a skill token", async () => {
+test("uses a real mouse click to select a skill while the editor keeps DOM focus", async () => {
   const selectedSkill = skill("atomic", "/skills/atomic/SKILL.md", "Atomic");
   const { controllerRef, screen } = await renderEditor([selectedSkill]);
   const editor = screen.getByRole("combobox", { name: "Message" });
@@ -1217,8 +1217,8 @@ test("keeps the native caret hidden when a pointer click selects a skill token",
   await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
   await screen.user.keyboard("{Enter}");
 
-  const trigger = screen.getByRole("button", { name: /Atomic/i });
-  const chip = trigger.element().querySelector('[data-slot="chip"]');
+  const host = screen.getByRole("group", { name: /Atomic/i });
+  const chip = host.element().querySelector('[data-slot="chip"]');
   if (!(chip instanceof HTMLSpanElement)) {
     throw new Error("selected skill must render a HeroUI Chip");
   }
@@ -1226,15 +1226,17 @@ test("keeps the native caret hidden when a pointer click selects a skill token",
   await expect.element(editor).toHaveFocus();
   await expect.element(chip).not.toHaveAttribute("data-selected");
 
-  await trigger.click();
+  await host.getByText("$Atomic", { exact: true }).click();
 
   await expect.element(editor).toHaveFocus();
+  expect(readNodeSelectionSize(editor.element())).toBe(1);
+  await expect.element(host).toHaveAttribute("data-selected");
   await expect.element(chip).toHaveAttribute("data-selected");
   expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBeforeSelection);
   await expect.poll(() => collapsedCaretOffset(editor.element())).toBeNull();
 });
 
-test("keeps Shift+click skill selection single", async () => {
+test("uses ordinary click for one skill and Shift click to toggle a multi-selection", async () => {
   const firstSkill = skill("first", "/skills/first/SKILL.md", "First");
   const secondSkill = skill("second", "/skills/second/SKILL.md", "Second");
   const { controllerRef, screen } = await renderEditor([firstSkill, secondSkill]);
@@ -1245,24 +1247,74 @@ test("keeps Shift+click skill selection single", async () => {
   await screen.user.keyboard(" $sec");
   await screen.user.keyboard("{Enter}");
 
-  const firstTrigger = screen.getByRole("button", { name: /First/i });
-  const secondTrigger = screen.getByRole("button", { name: /Second/i });
-  const firstChip = firstTrigger.element().querySelector('[data-slot="chip"]');
-  const secondChip = secondTrigger.element().querySelector('[data-slot="chip"]');
+  const firstHost = screen.getByRole("group", { name: /First/i });
+  const secondHost = screen.getByRole("group", { name: /Second/i });
+  const firstChip = firstHost.element().querySelector('[data-slot="chip"]');
+  const secondChip = secondHost.element().querySelector('[data-slot="chip"]');
   if (!(firstChip instanceof HTMLSpanElement) || !(secondChip instanceof HTMLSpanElement)) {
     throw new Error("selected skills must render HeroUI Chips");
   }
   const snapshotBeforeSelection = getController(controllerRef).getSnapshot();
 
-  await firstTrigger.click();
+  await firstHost.getByText("$First", { exact: true }).click();
+  expect(readNodeSelectionSize(editor.element())).toBe(1);
+  await expect.element(firstHost).toHaveAttribute("data-selected");
+  await expect.element(secondHost).not.toHaveAttribute("data-selected");
   await expect.element(firstChip).toHaveAttribute("data-selected");
   await expect.element(secondChip).not.toHaveAttribute("data-selected");
 
-  await secondTrigger.click({ modifiers: ["Shift"] });
+  await secondHost.getByText("$Second", { exact: true }).click({ modifiers: ["Shift"] });
+  expect(readNodeSelectionSize(editor.element())).toBe(2);
+  await expect.element(firstHost).toHaveAttribute("data-selected");
+  await expect.element(secondHost).toHaveAttribute("data-selected");
+  await expect.element(firstChip).toHaveAttribute("data-selected");
+  await expect.element(secondChip).toHaveAttribute("data-selected");
+
+  await firstHost.getByText("$First", { exact: true }).click({ modifiers: ["Shift"] });
+  expect(readNodeSelectionSize(editor.element())).toBe(1);
+  await expect.element(firstHost).not.toHaveAttribute("data-selected");
+  await expect.element(secondHost).toHaveAttribute("data-selected");
   await expect.element(firstChip).not.toHaveAttribute("data-selected");
   await expect.element(secondChip).toHaveAttribute("data-selected");
+
+  await firstHost.getByText("$First", { exact: true }).click();
+  expect(readNodeSelectionSize(editor.element())).toBe(1);
+  await expect.element(firstHost).toHaveAttribute("data-selected");
+  await expect.element(secondHost).not.toHaveAttribute("data-selected");
   expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBeforeSelection);
 });
+
+test.for(["touch", "pen"] as const)(
+  "cancels primary $0 pointer down while its compatible click still selects the skill",
+  async (pointerType) => {
+    const selectedSkill = skill(pointerType, `/skills/${pointerType}/SKILL.md`, pointerType);
+    const { screen } = await renderEditor([selectedSkill]);
+    const editor = screen.getByRole("combobox", { name: "Message" });
+
+    await editor.fill(`$${pointerType}`);
+    await screen.user.keyboard("{Enter}");
+    const host = screen.getByRole("group", { name: new RegExp(pointerType, "i") });
+    const chip = host.element().querySelector('[data-slot="chip"]');
+    if (!(chip instanceof HTMLSpanElement)) {
+      throw new Error("selected skill must render a HeroUI Chip");
+    }
+    const pointerDown = new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      isPrimary: true,
+      pointerType,
+    });
+
+    expect(chip.dispatchEvent(pointerDown)).toBe(false);
+    expect(pointerDown.defaultPrevented).toBe(true);
+
+    chip.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0, cancelable: true }));
+    await expect.poll(() => readNodeSelectionSize(editor.element())).toBe(1);
+    await expect.element(host).toHaveAttribute("data-selected");
+    await expect.element(chip).toHaveAttribute("data-selected");
+  },
+);
 
 test("vertically centers an inline skill chip with adjacent text", async () => {
   const selectedSkill = skill("alignment", "/skills/alignment/SKILL.md", "Alignment");
@@ -1275,18 +1327,17 @@ test("vertically centers an inline skill chip with adjacent text", async () => {
   await expect.element(screen.getByRole("listbox", { name: "Typeahead menu" })).toBeVisible();
   await screen.user.keyboard("{Enter}");
 
-  const trigger = screen.getByRole("button", { name: /Alignment/i });
-  const triggerElement = trigger.element();
-  const tokenHost = triggerElement.parentElement;
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
-  if (!(tokenHost instanceof HTMLSpanElement) || !(chip instanceof HTMLSpanElement)) {
+  const host = screen.getByRole("group", { name: /Alignment/i });
+  const hostElement = host.element();
+  const chip = hostElement.querySelector('[data-slot="chip"]');
+  if (!(hostElement instanceof HTMLSpanElement) || !(chip instanceof HTMLSpanElement)) {
     throw new Error("selected skill must render as an inline HeroUI Chip");
   }
 
   const chipBounds = chip.getBoundingClientRect();
   const chipCenter = chipBounds.top + chipBounds.height / 2;
-  const leftTextBounds = adjacentVisibleTextCharacterRect(tokenHost, "before");
-  const rightTextBounds = adjacentVisibleTextCharacterRect(tokenHost, "after");
+  const leftTextBounds = adjacentVisibleTextCharacterRect(hostElement, "before");
+  const rightTextBounds = adjacentVisibleTextCharacterRect(hostElement, "after");
   const centerOffsets = {
     left: chipCenter - (leftTextBounds.top + leftTextBounds.height / 2),
     right: chipCenter - (rightTextBounds.top + rightTextBounds.height / 2),
@@ -1331,30 +1382,35 @@ test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-b
   await editor.fill("$Friendly");
   await screen.user.keyboard("{Enter}");
 
-  const trigger = screen.getByRole("button", { name: /Friendly Review/i });
-  await expect.element(trigger).toHaveAccessibleName(/^(?=.*Friendly Review)(?=.*details?).*$/i);
-  await expect.element(trigger).toHaveAttribute("tabindex", "0");
-  const triggerElement = trigger.element();
-  expect(triggerElement.tagName).toBe("SPAN");
-  const decoratorHost = triggerElement.parentElement;
-  expect(decoratorHost?.tagName).toBe("SPAN");
-  expect(decoratorHost?.getAttribute("contenteditable")).toBe("false");
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
+  const host = screen.getByRole("group", { name: /Friendly Review/i });
+  await expect.element(host).toHaveAccessibleName(/Friendly Review/i);
+  await expect.element(host).not.toHaveAttribute("role", "math");
+  const hostElement = host.element();
+  expect(hostElement.tagName).toBe("SPAN");
+  expect(hostElement.getAttribute("contenteditable")).toBe("false");
+  const chip = hostElement.querySelector('[data-slot="chip"]');
   if (!(chip instanceof HTMLSpanElement))
     throw new Error("selected skill must render a HeroUI Chip");
+  const tooltipTrigger = chip.parentElement;
+  if (!(tooltipTrigger instanceof HTMLElement)) {
+    throw new Error("selected skill chip must render inside a Tooltip trigger");
+  }
+  expect(tooltipTrigger.getAttribute("role")).toBe("presentation");
+  expect(tooltipTrigger.getAttribute("tabindex")).toBe("-1");
+  expect(hostElement.querySelector('button, [role="button"], [role="math"]')).toBeNull();
   expect(chip.classList).toContain("chip--sm");
   expect(chip.classList).toContain("chip--secondary");
   expect(chip.querySelector('[data-slot="chip-label"]')?.textContent).toBe("$Friendly Review");
   expect(chip.querySelector("button")).toBeNull();
-  expect(triggerElement.textContent).toBe("$Friendly Review");
-  expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
+  expect(hostElement.textContent).toBe("$Friendly Review");
+  expect(hostElement.outerHTML).not.toContain(selectedSkill.path);
   expect(getController(controllerRef).capture().input).toEqual([
     { type: "text", text: "$review", text_elements: [] },
     { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
   ]);
 
   const editorBounds = editor.element().getBoundingClientRect();
-  const triggerBounds = triggerElement.getBoundingClientRect();
+  const triggerBounds = tooltipTrigger.getBoundingClientRect();
   expect(triggerBounds.left).toBeGreaterThanOrEqual(editorBounds.left - 1);
   expect(triggerBounds.right).toBeLessThanOrEqual(editorBounds.right + 1);
   const bodyOverflow = getComputedStyle(document.body).overflow;
@@ -1362,7 +1418,7 @@ test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-b
   const documentScrollWidth = document.documentElement.scrollWidth;
 
   await userEvent.unhover(document.body);
-  await userEvent.hover(trigger);
+  await userEvent.hover(tooltipTrigger);
   const tooltip = screen.getByRole("tooltip");
   await expect.element(tooltip, { timeout: 300 }).toBeVisible();
   await expect.element(tooltip).toHaveTextContent("Friendly Review");
@@ -1383,67 +1439,58 @@ test("renders an inline HeroUI skill chip whose tooltip discloses only catalog-b
   await expect.element(tooltip).not.toBeInTheDocument();
 });
 
-test("uses real keyboard focus traversal and Space/Backspace on the skill trigger", async () => {
-  const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
+test("skips the skill host during Tab traversal without opening its tooltip", async () => {
   const selectedSkill = skill(
     "keyboard-trigger",
     "/skills/keyboard-trigger/SKILL.md",
     "Keyboard Trigger",
   );
-  const { controllerRef, screen } = await renderEditor([selectedSkill], { onSubmit });
+  const controllerRef = createRef<ComposerEditorController>();
+  const screen = await renderWithProviders(
+    <div>
+      <ComposerEditorFixture
+        ariaLabel="Message"
+        controllerRef={controllerRef}
+        disabled={false}
+        guardCompositionEndEnter={false}
+        onSubmit={() => undefined}
+        placeholder="Message Codex"
+        skillCatalog={catalog("ready", [selectedSkill])}
+      />
+      <input aria-label="After composer" type="text" />
+    </div>,
+  );
+  await expect.poll(() => controllerRef.current).not.toBeNull();
   const editor = screen.getByRole("combobox", { name: "Message" });
 
   await editor.fill("$keyboard");
   await screen.user.keyboard("{Enter}");
 
-  const trigger = screen.getByRole("button", { name: /Keyboard Trigger/i });
-  const chip = trigger.element().querySelector('[data-slot="chip"]');
+  const host = screen.getByRole("group", { name: /Keyboard Trigger/i });
+  const chip = host.element().querySelector('[data-slot="chip"]');
   if (!(chip instanceof HTMLSpanElement))
     throw new Error("selected skill must render a HeroUI Chip");
-  const tooltip = screen.getByRole("tooltip");
+  const tooltipTrigger = chip.parentElement;
+  if (!(tooltipTrigger instanceof HTMLElement)) {
+    throw new Error("selected skill chip must render inside a Tooltip trigger");
+  }
+  const afterComposer = screen.getByRole("textbox", { name: "After composer" });
   const snapshotBeforeSelection = getController(controllerRef).getSnapshot();
   await expect.element(editor).toHaveFocus();
+  await expect.element(host).not.toHaveAttribute("data-selected");
   await expect.element(chip).not.toHaveAttribute("data-selected");
+  expect(tooltipTrigger.getAttribute("tabindex")).toBe("-1");
 
   await screen.user.tab();
-  await expect.element(trigger).toHaveFocus();
-  await expect.element(tooltip).toBeVisible();
+  await expect.element(afterComposer).toHaveFocus();
+  await expect.element(screen.getByRole("tooltip")).not.toBeInTheDocument();
+  expect(readNodeSelectionSize(editor.element())).toBeNull();
+  await expect.element(host).not.toHaveAttribute("data-selected");
   await expect.element(chip).not.toHaveAttribute("data-selected");
-
-  await screen.user.tab({ shift: true });
-  await expect.element(editor).toHaveFocus();
-  await expect.element(tooltip).not.toBeInTheDocument();
-  await expect.element(chip).not.toHaveAttribute("data-selected");
-
-  await screen.user.tab();
-  await expect.element(trigger).toHaveFocus();
-  await screen.user.keyboard(" ");
-  await expect.element(trigger).toHaveFocus();
-  await expect.element(tooltip).toBeVisible();
-  await expect.element(chip).toHaveAttribute("data-selected");
-  expect(onSubmit).not.toHaveBeenCalled();
   expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBeforeSelection);
-
-  await screen.user.keyboard("{Backspace}");
-  await expect.element(trigger).not.toBeInTheDocument();
-  await expect.element(tooltip).not.toBeInTheDocument();
-  await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
-
-  dispatchHistoryShortcut(editor.element(), "undo");
-  await expect
-    .poll(() => getController(controllerRef).getSnapshot().textContent)
-    .toBe("$Keyboard Trigger");
-  expect(getController(controllerRef).capture().input).toEqual([
-    { type: "text", text: "$keyboard-trigger", text_elements: [] },
-    {
-      type: "skill",
-      name: selectedSkill.name,
-      path: selectedSkill.path,
-    },
-  ]);
 });
 
-test("uses the skill trigger to select, replace, delete, and restore one atomic token", async () => {
+test("uses pointer selection to replace, delete, and restore one atomic token", async () => {
   const onSubmit = vi.fn<ComposerEditorProps["onSubmit"]>();
   const { controllerRef, screen } = await renderEditor(
     [skill("atomic-trigger", "/skills/atomic-trigger/SKILL.md", "Atomic Trigger")],
@@ -1453,29 +1500,19 @@ test("uses the skill trigger to select, replace, delete, and restore one atomic 
 
   await editor.fill("$atomic");
   await screen.user.keyboard("{Enter}");
-  let trigger = screen.getByRole("button", { name: /Atomic Trigger/i });
-  trigger.element().focus();
-  await expect.element(trigger).toHaveFocus();
-  let tooltip = screen.getByRole("tooltip");
-  await expect.element(tooltip).toBeVisible();
-  await screen.user.keyboard("{Escape}");
-  await expect.element(tooltip).not.toBeInTheDocument();
-  await expect.element(trigger).toHaveFocus();
-
-  editor.element().focus();
+  let host = screen.getByRole("group", { name: /Atomic Trigger/i });
+  await host.getByText("$Atomic Trigger", { exact: true }).click();
   await expect.element(editor).toHaveFocus();
-  trigger.element().focus();
-  tooltip = screen.getByRole("tooltip");
-  await expect.element(tooltip).toBeVisible();
-
-  await screen.user.keyboard("{Enter}");
-  await expect.element(trigger).toHaveFocus();
-  await expect.element(tooltip).toBeVisible();
+  expect(readNodeSelectionSize(editor.element())).toBe(1);
   expect(onSubmit).not.toHaveBeenCalled();
-  editor.element().focus();
-  await expect.element(editor).toHaveFocus();
-  await expect.element(tooltip).not.toBeInTheDocument();
-  await screen.user.keyboard("replacement");
+  const replacementEvent = new InputEvent("beforeinput", {
+    bubbles: true,
+    cancelable: true,
+    data: "replacement",
+    inputType: "insertText",
+  });
+  expect(editor.element().dispatchEvent(replacementEvent)).toBe(false);
+  expect(replacementEvent.defaultPrevented).toBe(true);
   await expect
     .poll(() => getController(controllerRef).getSnapshot().textContent)
     .toBe("replacement");
@@ -1488,8 +1525,10 @@ test("uses the skill trigger to select, replace, delete, and restore one atomic 
   await expect
     .poll(() => getController(controllerRef).getSnapshot().textContent)
     .toBe("$Atomic Trigger");
-  trigger = screen.getByRole("button", { name: /Atomic Trigger/i });
-  trigger.element().focus();
+  host = screen.getByRole("group", { name: /Atomic Trigger/i });
+  await host.getByText("$Atomic Trigger", { exact: true }).click();
+  await expect.element(editor).toHaveFocus();
+  expect(readNodeSelectionSize(editor.element())).toBe(1);
   await screen.user.keyboard("{Delete}");
   await expect.poll(() => getController(controllerRef).getSnapshot().textContent).toBe("");
 
@@ -1504,6 +1543,33 @@ test("uses the skill trigger to select, replace, delete, and restore one atomic 
       name: "atomic-trigger",
       path: "/skills/atomic-trigger/SKILL.md",
     },
+  ]);
+});
+
+test("keeps a double-clicked skill atomic without adding an internal editor", async () => {
+  const selectedSkill = skill("double", "/skills/double/SKILL.md", "Double Click");
+  const { controllerRef, screen } = await renderEditor([selectedSkill]);
+  const editor = screen.getByRole("combobox", { name: "Message" });
+
+  await editor.fill("$double");
+  await screen.user.keyboard("{Enter}");
+  const host = screen.getByRole("group", { name: /Double Click/i });
+  const chipLabel = host.getByText("$Double Click", { exact: true });
+  const snapshotBefore = getController(controllerRef).getSnapshot();
+
+  await chipLabel.click();
+  chipLabel
+    .element()
+    .dispatchEvent(new MouseEvent("dblclick", { bubbles: true, button: 0, cancelable: true }));
+
+  await expect.element(editor).toHaveFocus();
+  expect(readNodeSelectionSize(editor.element())).toBe(1);
+  await expect.element(host).toHaveAttribute("data-selected");
+  expect(host.element().querySelector("input, textarea, [contenteditable='true']")).toBeNull();
+  expect(getController(controllerRef).getSnapshot()).toEqual(snapshotBefore);
+  expect(getController(controllerRef).capture().input).toEqual([
+    { type: "text", text: "$double", text_elements: [] },
+    { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
   ]);
 });
 
@@ -1778,24 +1844,24 @@ test("shows invalid chip details only when a complete ready catalog confirms its
 
   await editor.fill("$canonical");
   await screen.user.keyboard("{Enter}");
-  const trigger = screen.getByRole("button", { name: /Friendly Skill/i });
-  const triggerElement = trigger.element();
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
+  const host = screen.getByRole("group", { name: /Friendly Skill/i });
+  const hostElement = host.element();
+  const chip = hostElement.querySelector('[data-slot="chip"]');
   if (!(chip instanceof HTMLSpanElement))
     throw new Error("selected skill must render a HeroUI Chip");
 
   await screen.rerender(renderForCatalog(invalidCatalog));
-  await expect.element(triggerElement).toHaveAttribute("aria-invalid", "true");
+  await expect.element(hostElement).toHaveAttribute("aria-invalid", "true");
   await expect
-    .element(triggerElement)
-    .toHaveAccessibleName(/^(?=.*Friendly Skill)(?=.*Invalid skill)(?=.*details?).*$/i);
+    .element(hostElement)
+    .toHaveAccessibleName(/^(?=.*Friendly Skill)(?=.*Invalid skill).*$/i);
   expect(chip.classList).toContain("chip--danger");
   expect(chip.classList).toContain("chip--soft");
-  expect(triggerElement.textContent).toBe("$Friendly Skill");
+  expect(hostElement.textContent).toBe("$Friendly Skill");
   expect(getController(controllerRef).getSnapshot().textContent).toBe("$Friendly Skill");
-  expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
+  expect(hostElement.outerHTML).not.toContain(selectedSkill.path);
   await userEvent.unhover(document.body);
-  await userEvent.hover(triggerElement);
+  await userEvent.hover(chip);
   const invalidTooltip = screen.getByRole("tooltip");
   await expect.element(invalidTooltip, { timeout: 2_500 }).toHaveTextContent("Invalid skill");
   await expect.element(invalidTooltip).toHaveTextContent("missing-location");
@@ -1805,8 +1871,8 @@ test("shows invalid chip details only when a complete ready catalog confirms its
   await expect.element(invalidTooltip).not.toBeInTheDocument();
 
   await screen.rerender(renderForCatalog(readyCatalog));
-  await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
-  await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
+  await expect.element(hostElement).not.toHaveAttribute("aria-invalid");
+  await expect.element(hostElement).toHaveAccessibleName(/Friendly Skill/i);
   expect(chip.classList).toContain("chip--secondary");
   expect(chip.classList).not.toContain("chip--danger");
   const refreshedSkill: SkillCatalogCandidate = {
@@ -1818,7 +1884,7 @@ test("shows invalid chip details only when a complete ready catalog confirms its
   };
   await screen.rerender(renderForCatalog(catalog("ready", [refreshedSkill])));
   await userEvent.unhover(document.body);
-  await userEvent.hover(triggerElement);
+  await userEvent.hover(chip);
   const refreshedTooltip = screen.getByRole("tooltip");
   await expect
     .element(refreshedTooltip, { timeout: 2_500 })
@@ -1835,17 +1901,46 @@ test("shows invalid chip details only when a complete ready catalog confirms its
   ];
   for (const skillCatalog of unconfirmedCatalogs) {
     await screen.rerender(renderForCatalog(invalidCatalog));
-    await expect.element(triggerElement).toHaveAttribute("aria-invalid", "true");
+    await expect.element(hostElement).toHaveAttribute("aria-invalid", "true");
     await screen.rerender(renderForCatalog(skillCatalog));
-    await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
-    await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
+    await expect.element(hostElement).not.toHaveAttribute("aria-invalid");
+    await expect.element(hostElement).toHaveAccessibleName(/Friendly Skill/i);
     expect(chip.classList).not.toContain("chip--danger");
   }
 
   await screen.rerender(renderForCatalog(readyCatalog, true));
   await expect.element(editor).toHaveAttribute("contenteditable", "false");
-  await expect.element(triggerElement).toHaveAttribute("tabindex", "-1");
-  await userEvent.hover(triggerElement);
+  await expect.element(hostElement).toHaveAttribute("aria-disabled", "true");
+  const tooltipTrigger = chip.parentElement;
+  if (!(tooltipTrigger instanceof HTMLElement)) {
+    throw new Error("selected skill chip must render inside a Tooltip trigger");
+  }
+  expect(tooltipTrigger.getAttribute("tabindex")).toBe("-1");
+  const disabledSnapshot = getController(controllerRef).getSnapshot();
+  const disabledSelectionSize = readNodeSelectionSize(editor.element());
+  chip.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0, cancelable: true }));
+  editor.element().dispatchEvent(
+    new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data: "replacement",
+      inputType: "insertText",
+    }),
+  );
+  editor
+    .element()
+    .dispatchEvent(
+      new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Delete" }),
+    );
+  const clipboardData = new DataTransfer();
+  clipboardData.setData("text/plain", "replacement");
+  editor
+    .element()
+    .dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  expect(readNodeSelectionSize(editor.element())).toBe(disabledSelectionSize);
+  expect(getController(controllerRef).getSnapshot()).toEqual(disabledSnapshot);
+  expect(hostElement.textContent).toBe("$Friendly Skill");
+  await userEvent.hover(chip);
   await expect.element(screen.getByRole("tooltip")).not.toBeInTheDocument();
 });
 
@@ -1892,29 +1987,26 @@ test("reprojects invalid sibling collision paths through delete, undo, redo, and
 
   await screen.rerender(renderForCatalog(emptyCatalog));
   await expect
-    .element(screen.getByRole("button", { name: /Alpha Shared/i }))
+    .element(screen.getByRole("group", { name: /Alpha Shared/i }))
     .toHaveAttribute("aria-invalid", "true");
   await expect
-    .element(screen.getByRole("button", { name: /Beta Shared/i }))
+    .element(screen.getByRole("group", { name: /Beta Shared/i }))
     .toHaveAttribute("aria-invalid", "true");
 
-  const expectPathDetails = async (
-    triggerName: RegExp,
-    expectedPath: string,
-    tabCount: 1 | 2,
-  ): Promise<void> => {
-    editor.element().focus();
-    await expect.element(editor).toHaveFocus();
+  const expectPathDetails = async (triggerName: RegExp, expectedPath: string): Promise<void> => {
     await expect.element(screen.getByRole("tooltip")).not.toBeInTheDocument();
-    const trigger = screen.getByRole("button", { name: triggerName });
-    const chip = trigger.element().querySelector('[data-slot="chip"]');
+    const host = screen.getByRole("group", { name: triggerName });
+    const chip = host.element().querySelector('[data-slot="chip"]');
     if (!(chip instanceof HTMLSpanElement))
       throw new Error("selected skill must render a HeroUI Chip");
+    const tooltipTrigger = chip.parentElement;
+    if (!(tooltipTrigger instanceof HTMLElement)) {
+      throw new Error("selected skill chip must render inside a Tooltip trigger");
+    }
     const wasSelected = chip.hasAttribute("data-selected");
     await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
-    await screen.user.tab();
-    if (tabCount === 2) await screen.user.tab();
-    await expect.element(trigger).toHaveFocus();
+    await userEvent.unhover(document.body);
+    await userEvent.hover(tooltipTrigger);
     await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
     const pathParagraph = screen.getByText(expectedPath, { exact: true });
     await expect.element(pathParagraph).toBeVisible();
@@ -1924,49 +2016,48 @@ test("reprojects invalid sibling collision paths through delete, undo, redo, and
       throw new Error("selected skill path must render inside a Tooltip");
     expect(tooltip.textContent).not.toContain("/private/");
     expect(tooltip.textContent).not.toContain("SKILL.md");
-    editor.element().focus();
-    await expect.element(editor).toHaveFocus();
+    await userEvent.unhover(document.body);
     await expect.element(pathParagraph).not.toBeInTheDocument();
     await expect.element(tooltip).not.toBeInTheDocument();
     await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
   };
 
-  await expectPathDetails(/Alpha Shared/i, "alpha/shared", 1);
-  await expectPathDetails(/Beta Shared/i, "beta/shared", 2);
+  await expectPathDetails(/Alpha Shared/i, "alpha/shared");
+  await expectPathDetails(/Beta Shared/i, "beta/shared");
 
-  const siblingTrigger = screen.getByRole("button", { name: /Beta Shared/i });
-  await siblingTrigger.click();
+  const siblingHost = screen.getByRole("group", { name: /Beta Shared/i });
+  await siblingHost.getByText("$Beta Shared", { exact: true }).click();
   await screen.user.keyboard("{Backspace}");
   await expect
     .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
     .toEqual([primary.path]);
-  await expectPathDetails(/Alpha Shared/i, "shared", 1);
+  await expectPathDetails(/Alpha Shared/i, "shared");
 
   dispatchHistoryShortcut(editor.element(), "undo");
   await expect
     .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
     .toEqual(selectedPaths);
-  await expectPathDetails(/Alpha Shared/i, "alpha/shared", 1);
-  await expectPathDetails(/Beta Shared/i, "beta/shared", 2);
+  await expectPathDetails(/Alpha Shared/i, "alpha/shared");
+  await expectPathDetails(/Beta Shared/i, "beta/shared");
 
   dispatchHistoryShortcut(editor.element(), "redo");
   await expect
     .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
     .toEqual([primary.path]);
-  await expectPathDetails(/Alpha Shared/i, "shared", 1);
+  await expectPathDetails(/Alpha Shared/i, "shared");
 
   expect(getController(controllerRef).restore(collidingDraft)).toEqual({ type: "restored" });
   await expect
     .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
     .toEqual(selectedPaths);
-  await expectPathDetails(/Alpha Shared/i, "alpha/shared", 1);
-  await expectPathDetails(/Beta Shared/i, "beta/shared", 2);
+  await expectPathDetails(/Alpha Shared/i, "alpha/shared");
+  await expectPathDetails(/Beta Shared/i, "beta/shared");
 
   expect(getController(controllerRef).restore(singleDraft)).toEqual({ type: "restored" });
   await expect
     .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
     .toEqual([primary.path]);
-  await expectPathDetails(/Alpha Shared/i, "shared", 1);
+  await expectPathDetails(/Alpha Shared/i, "shared");
 });
 
 type RenderEditorOptions = Readonly<{

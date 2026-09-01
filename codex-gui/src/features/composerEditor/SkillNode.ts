@@ -87,7 +87,10 @@ export class SkillNode extends DecoratorNode<JSX.Element> {
   }
 
   createDOM(): HTMLElement {
-    return document.createElement("span");
+    const element = document.createElement("span");
+    element.className = "composer-skill-node inline-block select-none";
+    element.setAttribute("data-skill-node", "true");
+    return element;
   }
 
   updateDOM(): false {
