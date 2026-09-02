@@ -1,5 +1,5 @@
 import { Toast } from "@heroui/react";
-import { afterEach, beforeEach, expect, test, vi, type Mock } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 import { StrictMode, useSyncExternalStore } from "react";
 import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
@@ -30,18 +30,11 @@ import type {
 } from "@/features/composerInputQueue/composerInputQueueContracts";
 import { composerDraftCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import {
   attachBaseline,
-  attachReplacement,
-  eventTokenUsageUpdated,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
-import {
-  tokenUsageUpdated,
-  turnCompleted,
-} from "@/features/projection/__tests__/projectionTestBuilders";
 import type {
   SkillCatalogCandidate,
   SkillCatalogState,
@@ -49,14 +42,11 @@ import type {
 import type { AppLocale } from "@/i18n";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
-import { createComposerPendingInputSession } from "../composerPendingInputSession";
-import { createComposerTurnApplication } from "../composerTurnApplication";
-
-vi.mock(import("../composerPendingInputSession"), { spy: true });
-vi.mock(import("../composerTurnApplication"), { spy: true });
 
 const attachResponse = attachBaseline;
+
 const threadId = attachResponse.snapshot.thread.id;
+
 const readyEmptySkillCatalog: SkillCatalogState = {
   type: "ready",
   candidates: [],
@@ -109,25 +99,6 @@ const pendingInputItem = (
   preview,
   ...(detailText == null ? {} : { detailText }),
 });
-
-const expectStartTurnCalledOnceWithText = (
-  startTurn: Mock<GuiHostCommands["startTurn"]>,
-  text: string,
-): void => {
-  expect(startTurn).toHaveBeenCalledOnce();
-  const call = startTurn.mock.calls.at(0);
-  if (call == null) {
-    throw new Error("startTurn must have one recorded call");
-  }
-  const [params] = call;
-  const clientUserMessageId = params.clientUserMessageId;
-  expect(typeof clientUserMessageId).toBe("string");
-  expect(startTurn).toHaveBeenCalledExactlyOnceWith({
-    threadId,
-    clientUserMessageId,
-    input: [{ type: "text", text, text_elements: [] }],
-  });
-};
 
 const createQueueControllerHarness = (
   initial: ComposerInputQueueCoordinatorSnapshot,
@@ -580,48 +551,10 @@ const dispatchReadModelFacts = (
   screen.store.dispatch(activeThreadReadModelTransitionApplied({ sessionRevision, facts }));
 };
 
-const expectComposerDisabled = async (
-  screen: Awaited<ReturnType<typeof renderWithProviders>>,
-): Promise<void> => {
-  await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "false");
-  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
-  await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
-};
-
 const getComposer = (
   screen: Awaited<ReturnType<typeof renderWithProviders>>,
   name = "Message Codex",
 ) => screen.getByRole("combobox", { name, exact: true });
-
-const getComposerPanel = (screen: Awaited<ReturnType<typeof renderWithProviders>>): HTMLElement => {
-  const composerPanel = screen.container.querySelector(".composer-panel");
-  if (!(composerPanel instanceof HTMLElement)) {
-    throw new Error("composer panel must render");
-  }
-  return composerPanel;
-};
-
-const composerPanelVisualSignature = (composerPanel: HTMLElement) => {
-  const style = window.getComputedStyle(composerPanel);
-  return {
-    backgroundColor: style.backgroundColor,
-    borderColor: style.borderColor,
-    borderWidth: style.borderWidth,
-    boxShadow: style.boxShadow,
-    cursor: style.cursor,
-    opacity: style.opacity,
-  };
-};
-
-const elementGeometry = (element: Element) => {
-  const rect = element.getBoundingClientRect();
-  return {
-    height: rect.height,
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-  };
-};
 
 const composerTextWithoutTrailingBrowserPlaceholders = (
   element: Readonly<Pick<Node, "textContent">>,
@@ -636,16 +569,6 @@ const dispatchGuideShortcut = (element: Element): void => {
       ctrlKey: !isMac,
       key: "Enter",
       metaKey: isMac,
-    }),
-  );
-};
-
-const dispatchComposition = (element: Element, data: string): void => {
-  element.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  element.dispatchEvent(
-    new CompositionEvent("compositionend", {
-      bubbles: true,
-      data,
     }),
   );
 };
@@ -702,163 +625,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function beginPendingStop(draft: string) {
-  const pending = deferred<Awaited<ReturnType<GuiHostCommands["interruptTurn"]>>>();
-  const interruptTurn = vi
-    .fn<GuiHostCommands["interruptTurn"]>()
-    .mockReturnValueOnce(pending.promise);
-  const commandHandle: GuiHostCommands = { ...createGuiHostCommands(), interruptTurn };
-  const { composer, controller, screen } = await renderActiveTurn({ commandHandle });
-  const stopButton = screen.getByRole("button", { name: "Stop" });
-
-  await composer.fill(draft);
-  await userEvent.click(stopButton);
-
-  return { composer, controller, interruptTurn, pending, screen, stopButton };
-}
-
-test("disables controls while the projection is unavailable", async () => {
-  expect.hasAssertions();
-  const screen = await renderAttached();
-  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
-  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
-  screen.sessionHarness.publish(
-    screen.sessionHarness.projectionUnavailableSnapshot({
-      ...activeSnapshot,
-      revision: activeSnapshot.revision + 1,
-      reason: "backpressure",
-    }),
-  );
-
-  const composerPanel = getComposerPanel(screen);
-
-  await expect.element(composerPanel).toHaveAttribute("aria-disabled", "true");
-  await expect.element(composerPanel).toHaveAttribute("data-disabled", "true");
-  await expectComposerDisabled(screen);
-  await expect
-    .element(
-      screen.getByRole("button", { name: "Context usage details, 0% used, 120 of 258k tokens" }),
-    )
-    .toBeVisible();
-
-  screen.sessionHarness.publish(
-    screen.sessionHarness.activeSnapshot({
-      ...activeSnapshot,
-      revision: activeSnapshot.revision + 2,
-    }),
-  );
-
-  await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
-  await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
-  await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "true");
-});
-
-test("shows attached context usage and opens its details", async () => {
-  const screen = await renderAttached();
-  const contextUsageButton = screen.getByRole("button", {
-    name: "Context usage details, 0% used, 120 of 258k tokens",
-    exact: true,
-  });
-
-  await expect.element(contextUsageButton).toBeVisible();
-  expect(contextUsageButton.element().textContent).toBe("");
-  expect(contextUsageButton.element().textContent).not.toMatch(/120|0%/);
-  await contextUsageButton.click();
-
-  const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
-  await expect.element(dialog).toBeVisible();
-  await expect.element(dialog.getByText("0% used", { exact: true })).toBeVisible();
-  await expect.element(dialog.getByText("120 tokens used of 258k", { exact: true })).toBeVisible();
-});
-
-test("updates context usage from live runtime events", async () => {
-  if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
-    throw new Error("fixture must contain a tokenUsageUpdated projection event");
-  }
-  const screen = await renderAttached();
-  const nextTokenUsage = {
-    ...eventTokenUsageUpdated.event.notification.tokenUsage,
-    last: {
-      ...eventTokenUsageUpdated.event.notification.tokenUsage.last,
-      totalTokens: 149_000,
-    },
-    modelContextWindow: 258_000,
-  };
-
-  dispatchReadModelFacts(screen, [
-    {
-      type: "eventAccepted",
-      payload: {
-        notification: tokenUsageUpdated(eventTokenUsageUpdated, nextTokenUsage),
-        replay: "live",
-      },
-    },
-  ]);
-
-  const contextUsageButton = screen.getByRole("button", {
-    name: "Context usage details, 58% used, 149k of 258k tokens",
-    exact: true,
-  });
-  await expect.element(contextUsageButton).toBeVisible();
-  expect(contextUsageButton.element().textContent).toBe("");
-  expect(contextUsageButton.element().textContent).not.toMatch(/149k|58%/);
-  await contextUsageButton.click();
-
-  const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
-  await expect.element(dialog.getByText("58% used", { exact: true })).toBeVisible();
-  await expect.element(dialog.getByText("149k tokens used of 258k", { exact: true })).toBeVisible();
-});
-
-test("clears context usage when a replacement attach has no usage", async () => {
-  const screen = await renderAttached();
-  const contextUsageButton = screen.getByRole("button", {
-    name: "Context usage details, 0% used, 120 of 258k tokens",
-    exact: true,
-  });
-  await expect.element(contextUsageButton).toBeVisible();
-
-  dispatchReadModelFacts(screen, [{ type: "baselineAttached", response: attachReplacement }]);
-
-  await expect
-    .poll(() => screen.container.querySelector('[aria-label^="Context usage details"]'))
-    .toBeNull();
-});
-
-test("renders the Lexical composer panel and actions", async () => {
-  const screen = await renderAttached();
-  const composerShell = screen.container.querySelector('[aria-label="Message composer"]');
-  if (!(composerShell instanceof HTMLElement)) {
-    throw new Error("composer shell must render");
-  }
-  const composerPanel = getComposerPanel(screen);
-  const editorRoot = getComposer(screen).element();
-  const actions = Array.from(composerPanel.querySelectorAll("button"))
-    .map((button) => button.textContent.trim())
-    .filter((label) => label.length > 0);
-
-  expect(composerPanel.classList.contains("p-2")).toBe(true);
-  expect(composerPanel.classList.contains("pb-5")).toBe(false);
-  expect(composerPanel.classList.contains("p-3")).toBe(false);
-  expect(composerPanel.classList.contains("composer-panel")).toBe(true);
-  expect(composerShell.classList.contains("composer-shell")).toBe(true);
-  expect(composerShell.classList.contains("sticky")).toBe(true);
-  expect(composerShell.classList.contains("bottom-0")).toBe(true);
-  expect(composerShell.classList.contains("fixed")).toBe(false);
-  expect(composerShell.classList.contains("inset-x-0")).toBe(false);
-  expect(composerShell.classList.contains("px-3")).toBe(true);
-  expect(composerShell.classList.contains("px-4")).toBe(false);
-  expect(composerShell.classList.contains("pb-0")).toBe(false);
-  expect(composerShell.classList.contains("pb-3")).toBe(true);
-  expect(composerShell.classList.contains("py-3")).toBe(false);
-  await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
-  await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
-  await expect.element(editorRoot).toHaveAttribute("contenteditable", "true");
-  const qrButton = screen.getByRole("button", { name: "Scan with phone" });
-  await expect.element(qrButton).toBeDisabled();
-  await expect.element(qrButton).toHaveClass("button--icon-only");
-  expect(actions).toEqual(["Stop", "Send"]);
-});
-
 test("keeps submit and pending-input open available after StrictMode effect replay", async () => {
   const harness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
@@ -895,166 +661,6 @@ test("keeps submit and pending-input open available after StrictMode effect repl
   await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
   const dialog = screen.getByRole("dialog", { name: "Pending details", exact: true });
   await expect.element(dialog.getByText("Strict pending message", { exact: true })).toBeVisible();
-});
-
-test("disposes active Composer applications once after a real StrictMode unmount", async () => {
-  const pendingFactory = vi.mocked(createComposerPendingInputSession);
-  const turnFactory = vi.mocked(createComposerTurnApplication);
-  const pendingFactoryStart = pendingFactory.mock.results.length;
-  const turnFactoryStart = turnFactory.mock.results.length;
-  const { composer, reservations, screen } = await renderActiveTurn({
-    captureEditReservations: true,
-    strictMode: true,
-  });
-  const pendingInstances = pendingFactory.mock.results.slice(pendingFactoryStart).map((result) => {
-    if (result.type !== "return")
-      throw new Error("pending session factory must return an instance");
-    return result.value;
-  });
-  const turnInstances = turnFactory.mock.results.slice(turnFactoryStart).map((result) => {
-    if (result.type !== "return")
-      throw new Error("turn application factory must return an instance");
-    return result.value;
-  });
-  const pendingDisposeSpies = pendingInstances.map((instance) => vi.spyOn(instance, "dispose"));
-  const turnDisposeSpies = turnInstances.map((instance) => vi.spyOn(instance, "dispose"));
-
-  await composer.fill("Unmount active pending edit");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await screen.getByRole("button", { name: "Pending: Queued 1", exact: true }).click();
-  await screen.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect
-    .element(screen.getByRole("combobox", { name: "Edit pending message", exact: true }))
-    .toBeVisible();
-
-  const reservation = reservations.at(0);
-  if (reservation == null) throw new Error("real unmount test must begin a pending edit");
-  const save = vi.spyOn(reservation, "save");
-  const cancel = vi.spyOn(reservation, "cancel");
-  const pendingSnapshotsBeforeUnmount = pendingInstances.map((instance) => instance.getSnapshot());
-  const activePendingIndex = pendingSnapshotsBeforeUnmount.findIndex(
-    (snapshot) => snapshot.view?.edit?.phase === "active",
-  );
-  if (activePendingIndex < 0) throw new Error("one pending session must own the active edit");
-  const activePendingSnapshot = pendingSnapshotsBeforeUnmount[activePendingIndex];
-  if (activePendingSnapshot == null) throw new Error("active pending snapshot must exist");
-  const activeEdit = activePendingSnapshot.view?.edit;
-  if (activeEdit?.phase !== "active") throw new Error("pending edit must be active");
-  const turnVersionsBeforeUnmount = turnInstances.map((instance) => instance.getVersion());
-  const activeSessionSnapshot = screen.sessionHarness.session.getSnapshot();
-  if (activeSessionSnapshot.phase !== "active") throw new Error("expected an active session");
-  const pendingFacts = {
-    composerRole: activeSessionSnapshot.composerRole,
-    sessionRevision: activeSessionSnapshot.revision,
-    mutationsEnabled: true,
-    snapshot: activeSessionSnapshot.composer,
-  } as const;
-  const turnFacts = {
-    activeTurnId: activeSessionSnapshot.activeTurnId,
-    composer: activeSessionSnapshot.composer,
-    composerRole: activeSessionSnapshot.composerRole,
-    phase: activeSessionSnapshot.phase,
-    revision: activeSessionSnapshot.revision,
-    skills: activeSessionSnapshot.skills,
-  } as const;
-
-  await screen.unmount();
-
-  await expect
-    .poll(() => pendingDisposeSpies.reduce((count, spy) => count + spy.mock.calls.length, 0))
-    .toBe(1);
-  await expect
-    .poll(() => turnDisposeSpies.reduce((count, spy) => count + spy.mock.calls.length, 0))
-    .toBe(1);
-  expect(pendingDisposeSpies[activePendingIndex]).toHaveBeenCalledOnce();
-  expect(save).not.toHaveBeenCalled();
-  expect(cancel).not.toHaveBeenCalled();
-
-  const disposedPending = pendingInstances[activePendingIndex];
-  if (disposedPending == null) throw new Error("disposed pending session must exist");
-  const disposedPendingSnapshot = disposedPending.getSnapshot();
-  expect(disposedPendingSnapshot).toMatchObject({
-    phase: "closed",
-    ownerGeneration: activePendingSnapshot.ownerGeneration + 1,
-    view: null,
-    actionsEnabled: false,
-    alert: null,
-    announcement: null,
-    effects: [],
-  });
-  disposedPending.detachEditor(pendingFacts, activeEdit.preparationToken);
-  disposedPending.consumeEffect(Number.MAX_SAFE_INTEGER);
-  expect(disposedPending.getSnapshot()).toEqual(disposedPendingSnapshot);
-
-  const disposedTurnIndex = turnDisposeSpies.findIndex((spy) => spy.mock.calls.length === 1);
-  if (disposedTurnIndex < 0) throw new Error("one turn application must be disposed");
-  const disposedTurn = turnInstances[disposedTurnIndex];
-  if (disposedTurn == null) throw new Error("disposed turn application must exist");
-  const disposedTurnVersionBeforeUnmount = turnVersionsBeforeUnmount[disposedTurnIndex];
-  if (disposedTurnVersionBeforeUnmount == null) {
-    throw new Error("turn application version before unmount must exist");
-  }
-  expect(disposedTurn.getVersion()).toBe(disposedTurnVersionBeforeUnmount + 1);
-  expect(disposedTurn.project({ session: turnFacts, editor: null }).operationsEnabled).toBe(false);
-  const disposedTurnVersion = disposedTurn.getVersion();
-  expect(disposedTurn.recover({ session: turnFacts })).toEqual({ type: "ignored" });
-  expect(disposedTurn.getVersion()).toBe(disposedTurnVersion);
-});
-
-test("distinguishes hover, pointer focus, and keyboard focus-visible field states", async () => {
-  const screen = await renderAttached();
-  const composerPanel = getComposerPanel(screen);
-  const composer = getComposer(screen);
-
-  await userEvent.unhover(document.body);
-  const restingVisualSignature = composerPanelVisualSignature(composerPanel);
-
-  await userEvent.hover(composerPanel);
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(restingVisualSignature);
-  const hoverVisualSignature = composerPanelVisualSignature(composerPanel);
-  const panelGeometryBeforeFocus = elementGeometry(composerPanel);
-  const composerGeometryBeforeFocus = elementGeometry(composer.element());
-
-  await userEvent.click(composer);
-  await expect.element(composer).toHaveFocus();
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(hoverVisualSignature);
-  const pointerFocusVisualSignature = composerPanelVisualSignature(composerPanel);
-  expect(pointerFocusVisualSignature.borderWidth).toBe(hoverVisualSignature.borderWidth);
-  expect(elementGeometry(composerPanel)).toEqual(panelGeometryBeforeFocus);
-  expect(elementGeometry(composer.element())).toEqual(composerGeometryBeforeFocus);
-
-  await userEvent.keyboard("x");
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "false");
-
-  await userEvent.tab();
-  await expect.element(composer).not.toHaveFocus();
-  await userEvent.tab({ shift: true });
-  await expect.element(composer).toHaveFocus();
-  await expect.element(composerPanel).toHaveAttribute("data-focus-visible", "true");
-  await expect
-    .poll(() => composerPanelVisualSignature(composerPanel))
-    .not.toEqual(pointerFocusVisualSignature);
-});
-
-test("submits a non-empty draft through the queue controller and clears it when accepted", async () => {
-  const commandHandle = createGuiHostCommands();
-  const startTurn = vi.mocked(commandHandle.startTurn);
-  const screen = await renderAttached(commandHandle);
-
-  const composer = getComposer(screen);
-  await composer.fill("Hello Codex");
-  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-
-  expectStartTurnCalledOnceWithText(startTurn, "Hello Codex");
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("");
 });
 
 test("gates operations by the active session phase", async () => {
@@ -1105,85 +711,6 @@ test("gates operations by the active session phase", async () => {
     textContent: "Identity-gated draft",
     selectedSkillPaths: [],
   });
-});
-
-test("marks a skill invalid only when a complete ready catalog confirms its path is unavailable", async () => {
-  const selectedSkill: SkillCatalogCandidate = {
-    name: "canonical-skill",
-    path: "/private/skills/canonical-skill/SKILL.md",
-    description: "Canonical skill description",
-    scope: "repo",
-    interface: {
-      displayName: "Friendly Skill",
-      iconSmallUrl: null,
-      iconLargeUrl: null,
-    },
-  };
-  const readyCatalog: SkillCatalogState = {
-    type: "ready",
-    candidates: [selectedSkill],
-    partialErrorCount: 0,
-  };
-  const invalidCatalog: SkillCatalogState = {
-    type: "ready",
-    candidates: [],
-    partialErrorCount: 0,
-  };
-  const catalogHarness = createSkillCatalogHarness(readyCatalog);
-  const screen = await renderAttached(
-    createGuiHostCommands(),
-    false,
-    "en",
-    undefined,
-    catalogHarness.controller,
-  );
-  const composer = getComposer(screen);
-  const send = screen.getByRole("button", { name: "Send", exact: true });
-
-  await composer.fill("$canonical");
-  await screen.user.keyboard("{Enter}");
-  const trigger = screen.getByRole("group", { name: /Friendly Skill/i });
-  const triggerElement = trigger.element();
-  const chip = triggerElement.querySelector('[data-slot="chip"]');
-  if (!(chip instanceof HTMLSpanElement))
-    throw new Error("selected skill must render a HeroUI Chip");
-  await expect.element(send).toBeEnabled();
-
-  catalogHarness.publish(invalidCatalog);
-  await expect.element(triggerElement).toHaveAttribute("aria-invalid", "true");
-  await expect
-    .element(triggerElement)
-    .toHaveAccessibleName(/^(?=.*Friendly Skill)(?=.*Invalid skill)(?=.*details?).*$/i);
-  expect(chip.classList).toContain("chip--danger");
-  expect(chip.classList).toContain("chip--soft");
-  await expect.element(send).toBeDisabled();
-  await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
-  expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
-
-  catalogHarness.publish(readyCatalog);
-  await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
-  await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
-  expect(chip.classList).toContain("chip--secondary");
-  expect(chip.classList).not.toContain("chip--danger");
-  await expect.element(send).toBeEnabled();
-
-  const unconfirmedCatalogs: SkillCatalogState[] = [
-    { type: "refreshing", candidates: [], partialErrorCount: 0 },
-    { type: "stale", candidates: [], partialErrorCount: 0 },
-    { type: "failed", candidates: [], partialErrorCount: 0 },
-    { type: "ready", candidates: [], partialErrorCount: 1 },
-  ];
-  for (const catalog of unconfirmedCatalogs) {
-    catalogHarness.publish(invalidCatalog);
-    await expect.element(triggerElement).toHaveAttribute("aria-invalid", "true");
-    catalogHarness.publish(catalog);
-    await expect.element(triggerElement).not.toHaveAttribute("aria-invalid");
-    await expect.element(triggerElement).toHaveAccessibleName(/details?/i);
-    expect(chip.classList).not.toContain("chip--danger");
-    await expect.element(send).toBeEnabled();
-    await expect.element(triggerElement).toHaveTextContent("$Friendly Skill");
-    expect(triggerElement.outerHTML).not.toContain(selectedSkill.path);
-  }
 });
 
 test("uses the same skill chip and catalog tooltip while editing a pending message", async () => {
@@ -1258,194 +785,6 @@ test("uses the same skill chip and catalog tooltip while editing a pending messa
     { type: "skill", name: selectedSkill.name, path: selectedSkill.path },
   ]);
   await expect.element(tooltip).not.toBeInTheDocument();
-});
-
-test("keeps whitespace-only draft from submitting", async () => {
-  const commandHandle = createGuiHostCommands();
-  const screen = await renderAttached(commandHandle);
-  const composer = getComposer(screen);
-
-  await composer.fill("   ");
-  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
-  await composer.click();
-  await screen.user.keyboard("{Enter}");
-
-  expect(commandHandle.startTurn).not.toHaveBeenCalled();
-});
-
-test("uses Enter to send and Shift Enter to insert newline", async () => {
-  const commandHandle = createGuiHostCommands();
-  const screen = await renderAttached(commandHandle);
-  const composer = getComposer(screen);
-
-  await composer.fill("Line 1");
-  await composer.click();
-  await screen.user.keyboard("{Shift>}{Enter}{/Shift}");
-  await screen.user.keyboard("{Enter}");
-
-  expectStartTurnCalledOnceWithText(vi.mocked(commandHandle.startTurn), "Line 1\n");
-});
-
-test("keeps composing Enter from sending draft", async () => {
-  const commandHandle = createGuiHostCommands();
-  const screen = await renderAttached(commandHandle);
-  const composer = getComposer(screen);
-
-  await composer.fill("正在输入");
-  await composer.click();
-  composer.element().dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      isComposing: true,
-      key: "Enter",
-    }),
-  );
-
-  expect(commandHandle.startTurn).not.toHaveBeenCalled();
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("正在输入");
-});
-
-test("sends completed composition Enter immediately when guard is disabled", async () => {
-  const commandHandle = createGuiHostCommands();
-  const startTurn = vi.mocked(commandHandle.startTurn);
-  const screen = await renderAttached(commandHandle);
-  const composer = getComposer(screen);
-  const editorRoot = composer.element();
-
-  await composer.fill("你好呀");
-  await composer.click();
-  dispatchComposition(editorRoot, "你好呀");
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("你好呀");
-
-  await screen.user.keyboard("{Enter}");
-  expectStartTurnCalledOnceWithText(startTurn, "你好呀");
-});
-
-test("keeps guarded completed composition Enter from sending draft", async () => {
-  const commandHandle = createGuiHostCommands();
-  const startTurn = vi.mocked(commandHandle.startTurn);
-  const screen = await renderAttached(commandHandle, true);
-  const composer = getComposer(screen);
-  const editorRoot = composer.element();
-
-  await composer.fill("你好呀");
-  await composer.click();
-  dispatchComposition(editorRoot, "你好呀");
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("你好呀");
-
-  await screen.user.keyboard("{Enter}");
-  expect(commandHandle.startTurn).not.toHaveBeenCalled();
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("你好呀");
-
-  await screen.user.keyboard("{Enter}");
-  expectStartTurnCalledOnceWithText(startTurn, "你好呀");
-});
-
-test("clears completed composition suppression on the next non Enter keydown", async () => {
-  const commandHandle = createGuiHostCommands();
-  const startTurn = vi.mocked(commandHandle.startTurn);
-  const screen = await renderAttached(commandHandle, true);
-  const composer = getComposer(screen);
-  const editorRoot = composer.element();
-
-  await composer.fill("你好呀");
-  await composer.click();
-  dispatchComposition(editorRoot, "你好呀");
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("你好呀");
-
-  editorRoot.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: " ",
-    }),
-  );
-
-  await screen.user.keyboard("{Enter}");
-
-  expectStartTurnCalledOnceWithText(startTurn, "你好呀");
-});
-
-test.each([" ", "Enter"])(
-  "keeps completed composition suppression through keyup %s",
-  async (key) => {
-    const commandHandle = createGuiHostCommands();
-    const startTurn = vi.mocked(commandHandle.startTurn);
-    const screen = await renderAttached(commandHandle, true);
-    const composer = getComposer(screen);
-    const editorRoot = composer.element();
-
-    await composer.fill("你好呀");
-    await composer.click();
-    dispatchComposition(editorRoot, "你好呀");
-    await expect
-      .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-      .toBe("你好呀");
-
-    editorRoot.dispatchEvent(
-      new KeyboardEvent("keyup", {
-        bubbles: true,
-        cancelable: true,
-        key,
-      }),
-    );
-
-    await screen.user.keyboard("{Enter}");
-
-    expect(commandHandle.startTurn).not.toHaveBeenCalled();
-    await expect
-      .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-      .toBe("你好呀");
-
-    await screen.user.keyboard("{Enter}");
-
-    expectStartTurnCalledOnceWithText(startTurn, "你好呀");
-  },
-);
-
-test("active turn allows queuing and enables Stop", async () => {
-  const { commandHandle, composer, controller, screen, turn } = await renderActiveTurn();
-
-  await composer.fill("Next draft");
-  await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-  await expect
-    .element(screen.getByRole("button", { name: "Pending: Queued 1", exact: true }))
-    .toBeVisible();
-  expect(commandHandle.startTurn).not.toHaveBeenCalled();
-  const stopButton = screen.getByRole("button", { name: "Stop" });
-  await expect.element(stopButton).toBeEnabled();
-  await expect.element(stopButton).toHaveClass("button--danger-soft");
-  await stopButton.click();
-
-  expect(commandHandle.interruptTurn).toHaveBeenCalledExactlyOnceWith({
-    threadId,
-    turnId: turn.id,
-  });
-  await expect.poll(() => controller.getSnapshot().interrupt?.phase).toBe("accepted");
-
-  controller.observeAcceptedEvent({
-    notification: turnCompleted(eventTurnCompleted, "commit-local-stop", {
-      ...turn,
-      status: "interrupted",
-    }),
-    replay: "live",
-  });
-
-  await expect.element(screen.getByText("1 message has not been sent")).toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "Continue sending" })).toBeVisible();
-  expect(commandHandle.startTurn).not.toHaveBeenCalled();
 });
 
 test("shows Guide only for an active turn and submits an accepted draft as steer", async () => {
@@ -3110,71 +2449,6 @@ test("renders Simplified Chinese guide and pending-input copy", async () => {
     .toHaveTextContent("已将已排队消息移到第 1 项，共 2 项。");
 });
 
-test("manual reconnect disables composer operations", async () => {
-  expect.hasAssertions();
-
-  const screen = await renderAttached(createGuiHostCommands());
-  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
-  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
-  screen.sessionHarness.publish(
-    screen.sessionHarness.projectionUnavailableSnapshot({
-      ...activeSnapshot,
-      revision: activeSnapshot.revision + 1,
-      reason: "backpressure",
-    }),
-  );
-
-  await expectComposerDisabled(screen);
-});
-
-test("definite send failure exposes recovery without restoring the submitted draft", async () => {
-  const commandHandle = createGuiHostCommands();
-  const startTurn = vi.mocked(commandHandle.startTurn);
-  startTurn.mockRejectedValueOnce(
-    new GuiHostCommandError({
-      error: new Error("network failed"),
-      delivery: "definitelyNotAccepted",
-      source: "rpc",
-    }),
-  );
-  const screen = await renderAttached(commandHandle);
-  const composer = getComposer(screen);
-
-  await composer.fill("Keep this draft");
-  await screen.getByRole("button", { name: "Send", exact: true }).click();
-
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("");
-  await expect.element(screen.getByText("1 message has not been sent")).toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "Continue sending" })).toBeVisible();
-});
-
-test("renders Simplified Chinese composer and recovery copy", async () => {
-  const commandHandle = createGuiHostCommands();
-  const startTurn = vi.mocked(commandHandle.startTurn);
-  startTurn.mockRejectedValueOnce(
-    new GuiHostCommandError({
-      error: new Error("network failed"),
-      delivery: "definitelyNotAccepted",
-      source: "rpc",
-    }),
-  );
-  const screen = await renderAttached(commandHandle, false, "zh-CN");
-  const composer = getComposer(screen, "向 Codex 发送消息");
-
-  await expect.element(screen.getByRole("region", { name: "消息输入区" })).toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "停止" })).toBeDisabled();
-  await composer.fill("保留这份草稿");
-  await screen.getByRole("button", { name: "发送" }).click();
-
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("");
-  await expect.element(screen.getByText("1 条消息尚未发送")).toBeVisible();
-  await expect.element(screen.getByRole("button", { name: "继续发送" })).toBeVisible();
-});
-
 test("recovery disables send, keeps the editor editable, and prevents duplicate recovery", async () => {
   const initialSnapshot = queueSnapshot({
     recoveryCount: 2,
@@ -3224,77 +2498,4 @@ test("guards recovery while manual reconnect is required", async () => {
 
   await expect.element(composer).toHaveAttribute("contenteditable", "false");
   await expect.element(recoverButton).toBeDisabled();
-});
-
-test("accepted stop remains pending until its matching terminal", async () => {
-  const { composer, controller, interruptTurn, pending, stopButton } =
-    await beginPendingStop("Draft while stopping");
-
-  await expect.element(stopButton).toBeDisabled();
-  await expect.element(stopButton).toHaveAttribute("data-pending", "true");
-  if (eventTurnStarted.event.type !== "turnStarted") {
-    throw new Error("fixture must be turnStarted");
-  }
-  expect(interruptTurn).toHaveBeenCalledExactlyOnceWith({
-    threadId,
-    turnId: eventTurnStarted.event.notification.turn.id,
-  });
-
-  pending.resolve({});
-  await expect.poll(() => controller.getSnapshot().interrupt?.phase).toBe("accepted");
-  await expect.element(stopButton).toBeDisabled();
-  await expect.element(stopButton).toHaveAttribute("data-pending", "true");
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("Draft while stopping");
-
-  controller.observeAcceptedEvent({
-    notification: turnCompleted(eventTurnCompleted, "commit-pending-stop", {
-      ...eventTurnStarted.event.notification.turn,
-      status: "interrupted",
-    }),
-    replay: "live",
-  });
-
-  await expect.element(stopButton).toBeDisabled();
-  await expect.element(stopButton).not.toHaveAttribute("data-pending");
-});
-
-test("unknown stop delivery keeps its pending owner and prevents retry", async () => {
-  const { composer, interruptTurn, pending, screen, stopButton } =
-    await beginPendingStop("Draft while stopping");
-
-  await expect.element(stopButton).toBeDisabled();
-  pending.reject(new Error("interrupt failed"));
-
-  await expect.element(stopButton).toBeDisabled();
-  await expect.element(stopButton).toHaveAttribute("data-pending", "true");
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("Draft while stopping");
-  await expect.element(screen.getByText("Stop failed")).not.toBeInTheDocument();
-  await expect.element(screen.getByText("interrupt failed")).not.toBeInTheDocument();
-  expect(interruptTurn).toHaveBeenCalledTimes(1);
-});
-
-test("definite stop failure keeps the draft, reports failure, and allows retry", async () => {
-  const { composer, interruptTurn, pending, screen, stopButton } =
-    await beginPendingStop("Draft while stopping");
-
-  pending.reject(
-    new GuiHostCommandError({
-      error: new Error("interrupt rejected"),
-      delivery: "definitelyNotAccepted",
-      source: "rpc",
-    }),
-  );
-
-  await expect.element(screen.getByRole("status")).toHaveTextContent("Stop failed");
-  await expect.element(stopButton).toBeEnabled();
-  await expect.element(stopButton).not.toHaveAttribute("data-pending");
-  await expect
-    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
-    .toBe("Draft while stopping");
-  await expect.element(screen.getByText("interrupt rejected")).not.toBeInTheDocument();
-  expect(interruptTurn).toHaveBeenCalledTimes(1);
 });
