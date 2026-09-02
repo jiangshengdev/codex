@@ -17,7 +17,15 @@ import {
   type LexicalEditor,
   type TextNode,
 } from "lexical";
-import { useCallback, useEffect, useId, useMemo, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
@@ -205,6 +213,7 @@ function SkillMenu({
     options.length === 0 &&
     skillCatalog.type !== "initialLoading" &&
     skillCatalog.type !== "failed";
+  const activeOption = selectedIndex == null ? null : (options[selectedIndex] ?? null);
   useEffect(() => {
     const anchorElement = anchorElementRef.current;
     const rootElement = editor.getRootElement();
@@ -246,6 +255,9 @@ function SkillMenu({
       }
     };
   }, [anchorElementRef, editor, menuId, selectedIndex]);
+  useLayoutEffect(() => {
+    activeOption?.ref?.current?.scrollIntoView({ block: "nearest" });
+  }, [activeOption]);
 
   return createPortal(
     <div
