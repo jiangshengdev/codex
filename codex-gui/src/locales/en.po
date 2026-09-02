@@ -13,51 +13,51 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:299
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:258
 msgid "... and {count} more"
 msgstr "... and {count} more"
 
 #. placeholder {0}: preview.audioCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:796
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:19
 msgid "{0, plural, one {# audio item} other {# audio items}}"
 msgstr "{0, plural, one {# audio item} other {# audio items}}"
 
 #. placeholder {0}: preview.imageCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:793
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:16
 msgid "{0, plural, one {# image} other {# images}}"
 msgstr "{0, plural, one {# image} other {# images}}"
 
 #. placeholder {0}: preview.mentionCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:802
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:25
 msgid "{0, plural, one {# mention} other {# mentions}}"
 msgstr "{0, plural, one {# mention} other {# mentions}}"
 
 #. placeholder {0}: snapshot.recoveryCount
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:120
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:118
 msgid "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 msgstr "{0, plural, one {# message has not been sent} other {# messages have not been sent}}"
 
 #. placeholder {0}: preview.skillCount
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:799
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:22
 msgid "{0, plural, one {# skill} other {# skills}}"
 msgstr "{0, plural, one {# skill} other {# skills}}"
 
 #. Accessible name for a selected skill details trigger
-#: src/features/composerEditor/SelectedSkillToken.tsx:43
+#: src/features/composerEditor/SelectedSkillToken.tsx:53
 msgid "{0} skill details"
 msgstr "{0} skill details"
 
 #. Accessible name for an invalid selected skill details trigger
-#: src/features/composerEditor/SelectedSkillToken.tsx:47
+#: src/features/composerEditor/SelectedSkillToken.tsx:57
 msgid "{0} skill details, {1}"
 msgstr "{0} skill details, {1}"
 
 #. Disclosure label showing how many intermediate transcript updates it contains
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:767
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:94
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:427
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:386
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
@@ -66,7 +66,7 @@ msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
 #. Activity detail showing a raw collaborating-agent thread ID followed by its translated status
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:194
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:153
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
@@ -84,47 +84,47 @@ msgstr "Active"
 
 #. Source label for a skill installed by an administrator
 #. Source label for a skill installed by an administrator
-#: src/features/composerEditor/SelectedSkillToken.tsx:152
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:324
+#: src/features/composerEditor/SelectedSkillToken.tsx:180
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:300
 msgid "Admin"
 msgstr "Admin"
 
 #. Status shown when creation of a collaborating agent fails
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:226
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:185
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:413
+#: src/features/threadHistory/ContinueTaskAction.tsx:194
 msgid "An unexpected error occurred while continuing the task."
 msgstr "An unexpected error occurred while continuing the task."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:507
+#: src/features/threadHistory/ContinueTaskAction.tsx:288
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:166
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:58
 msgid "Back to history"
 msgstr "Back to history"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:276
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:273
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:595
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:619
+#: src/features/threadHistory/ContinueTaskAction.tsx:376
+#: src/features/threadHistory/ContinueTaskAction.tsx:400
 msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
 #. Collaboration activity showing the raw receiver value of the closed agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:280
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:239
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:634
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
 msgid "Collapse"
 msgstr "Collapse"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:626
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:235
 msgid "Collapse pending message: {previewText}"
 msgstr "Collapse pending message: {previewText}"
 
@@ -135,18 +135,18 @@ msgstr "Committed transcript"
 
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:137
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:856
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:183
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:96
 msgid "Completed"
 msgstr "Completed"
 
 #. Status of a collaborating agent followed by its raw completion-message preview
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:141
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:100
 msgid "Completed - {messagePreview}"
 msgstr "Completed - {messagePreview}"
 
 #. Activity showing sub-agents that completed work and any omitted count
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:465
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:424
 msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
@@ -180,11 +180,11 @@ msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {con
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:134
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:450
+#: src/features/threadHistory/ContinueTaskAction.tsx:231
 msgid "Continue this task"
 msgstr "Continue this task"
 
@@ -194,76 +194,76 @@ msgstr "Continue this task"
 msgid "Current task"
 msgstr "Current task"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:100
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:98
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:685
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:765
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:294
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:374
 msgid "Delete"
 msgstr "Delete"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:666
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:275
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:416
+#: src/features/threadHistory/ContinueTaskAction.tsx:197
 msgid "Diagnostic:"
 msgstr "Diagnostic:"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:755
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:364
 msgid "Edit"
 msgstr "Edit"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:217
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:214
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:70
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:78
 msgid "Edit pending message"
 msgstr "Edit pending message"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:400
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:328
 msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
 #. Status of a collaborating agent that failed
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:158
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:117
 msgid "Error"
 msgstr "Error"
 
 #. Status of a collaborating agent followed by its raw error-message preview
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:162
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:121
 msgid "Error - {messagePreview}"
 msgstr "Error - {messagePreview}"
 
 #. Status of a collaborating agent that failed without an error preview
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:151
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:110
 msgid "Error - Agent errored"
 msgstr "Error - Agent errored"
 
 #. Status shown when resuming a collaborating agent fails
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:288
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:247
 msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:634
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:243
 msgid "Expand"
 msgstr "Expand"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:627
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:236
 msgid "Expand pending message: {previewText}"
 msgstr "Expand pending message: {previewText}"
 
 #. Status chip for a failed turn
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:866
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:193
 msgid "Failed"
 msgstr "Failed"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:554
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:55
 msgid "Failed."
 msgstr "Failed."
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:277
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:236
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
@@ -275,19 +275,19 @@ msgstr "Go back home"
 msgid "Guide"
 msgstr "Guide"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:197
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:194
 msgid "Guide {guidingCount}"
 msgstr "Guide {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:80
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:78
 msgid "Guide status unknown"
 msgstr "Guide status unknown"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:533
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:142
 msgid "Guiding"
 msgstr "Guiding"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:232
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:229
 msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
@@ -302,7 +302,7 @@ msgid "History context unavailable"
 msgstr "History context unavailable"
 
 #: src/features/documentTitle/DocumentTitleOwner.tsx:45
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:144
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 msgid "History detail"
 msgstr "History detail"
 
@@ -311,29 +311,29 @@ msgid "Idle"
 msgstr "Idle"
 
 #. Status chip for a turn that is still in progress
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:871
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:198
 msgid "In progress"
 msgstr "In progress"
 
 #. Activity showing sub-agents that were contacted and any omitted count
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:449
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:408
 msgid "Interacted with <0/> <1/>"
 msgstr "Interacted with <0/> <1/>"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:128
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:861
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:188
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:87
 msgid "Interrupted"
 msgstr "Interrupted"
 
 #. Activity showing sub-agents that were interrupted and any omitted count
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:457
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:416
 msgid "Interrupted <0/> <1/>"
 msgstr "Interrupted <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:548
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:49
 msgid "Interrupted."
 msgstr "Interrupted."
 
@@ -343,7 +343,7 @@ msgstr "Interrupted."
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:675
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:284
 msgid "Keep"
 msgstr "Keep"
 
@@ -356,11 +356,11 @@ msgstr "Load more"
 msgid "Loading history…"
 msgstr "Loading history…"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:439
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:415
 msgid "Loading skills…"
 msgstr "Loading skills…"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:180
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:72
 msgid "Loading task history…"
 msgstr "Loading task history…"
 
@@ -372,7 +372,7 @@ msgstr "Main navigation"
 msgid "Menu"
 msgstr "Menu"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:369
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:297
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
@@ -385,43 +385,43 @@ msgstr "Message Codex"
 msgid "Message composer"
 msgstr "Message composer"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:716
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:325
 msgid "More move options for pending message: {previewText}"
 msgstr "More move options for pending message: {previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:712
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:321
 msgid "Move down"
 msgstr "Move down"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:704
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:313
 msgid "Move down pending message: {previewText}"
 msgstr "Move down pending message: {previewText}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:732
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:341
 msgid "Move pending message to first"
 msgstr "Move pending message to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:737
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:346
 msgid "Move pending message to last"
 msgstr "Move pending message to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:720
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:329
 msgid "Move to"
 msgstr "Move to"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:734
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:343
 msgid "Move to first"
 msgstr "Move to first"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:739
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:348
 msgid "Move to last"
 msgstr "Move to last"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:701
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:310
 msgid "Move up"
 msgstr "Move up"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:693
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:302
 msgid "Move up pending message: {previewText}"
 msgstr "Move up pending message: {previewText}"
 
@@ -439,7 +439,7 @@ msgid "Next context page"
 msgstr "Next context page"
 
 #. Status shown when waiting finishes before any collaborating agent completes
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:293
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:252
 msgid "No agents completed yet"
 msgstr "No agents completed yet"
 
@@ -451,16 +451,16 @@ msgstr "No committed messages yet."
 msgid "No history for the current working directory."
 msgstr "No history for the current working directory."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:299
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:275
 msgid "No matching skills"
 msgstr "No matching skills"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:442
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:51
 msgid "No pending messages"
 msgstr "No pending messages"
 
 #. Status indicating that a collaborating agent could not be found
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:177
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:136
 msgid "Not found"
 msgstr "Not found"
 
@@ -472,7 +472,7 @@ msgstr "Not loaded"
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:615
+#: src/features/threadHistory/ContinueTaskAction.tsx:396
 msgid "Operation diagnostic:"
 msgstr "Operation diagnostic:"
 
@@ -481,40 +481,40 @@ msgstr "Operation diagnostic:"
 msgid "Page not found"
 msgstr "Page not found"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:194
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:191
 msgid "Pending"
 msgstr "Pending"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:215
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:212
 msgid "Pending details"
 msgstr "Pending details"
 
 #. Status of a collaborating agent before initialization finishes
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:116
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:75
 msgid "Pending init"
 msgstr "Pending init"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:375
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:303
 msgid "Pending message changed"
 msgstr "Pending message changed"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:371
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:299
 msgid "Pending message was not reordered"
 msgstr "Pending message was not reordered"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:146
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:144
 msgid "Pending messages"
 msgstr "Pending messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:183
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:180
 msgid "Pending: Guide {guidingCount}"
 msgstr "Pending: Guide {guidingCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:181
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:178
 msgid "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 msgstr "Pending: Guide {guidingCount}, Queued {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:184
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:181
 msgid "Pending: Queued {ordinaryQueuedCount}"
 msgstr "Pending: Queued {ordinaryQueuedCount}"
 
@@ -535,27 +535,27 @@ msgstr "QR access is unavailable until the GUI launch token is ready."
 msgid "QR code for current GUI URL"
 msgstr "QR code for current GUI URL"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:533
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:142
 msgid "Queued"
 msgstr "Queued"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:202
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:199
 msgid "Queued {ordinaryQueuedCount}"
 msgstr "Queued {ordinaryQueuedCount}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:228
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:225
 msgid "Queued message moved to position {movedPosition} of {movedCount}."
 msgstr "Queued message moved to position {movedPosition} of {movedCount}."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:174
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:66
 msgid "Read-only history"
 msgstr "Read-only history"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:402
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:330
 msgid "Refresh complete. Try the action again."
 msgstr "Refresh complete. Try the action again."
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:441
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:417
 msgid "Refreshing skills…"
 msgstr "Refreshing skills…"
 
@@ -565,42 +565,42 @@ msgstr "Remove or replace invalid skills before saving."
 
 #. Source label for a skill provided by the current repository
 #. Source label for a skill provided by the current repository
-#: src/features/composerEditor/SelectedSkillToken.tsx:142
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:314
+#: src/features/composerEditor/SelectedSkillToken.tsx:170
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:290
 msgid "Repository"
 msgstr "Repository"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:819
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:146
 msgid "Request failed"
 msgstr "Request failed"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:271
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:230
 msgid "Resumed {receiver}"
 msgstr "Resumed {receiver}"
 
 #. Collaboration activity resuming the agent identified by the raw receiver value
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:205
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:164
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:429
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:227
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:405
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:119
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:226
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:532
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:561
+#: src/features/threadHistory/ContinueTaskAction.tsx:313
+#: src/features/threadHistory/ContinueTaskAction.tsx:342
 msgid "Return to current task"
 msgstr "Return to current task"
 
 #. Status of a collaborating agent that is currently working
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:122
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:81
 msgid "Running"
 msgstr "Running"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:279
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:276
 msgid "Save"
 msgstr "Save"
 
@@ -614,36 +614,36 @@ msgid "Send"
 msgstr "Send"
 
 #. Collaboration activity showing the raw receiver value of the agent that received input
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:263
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:222
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:566
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:175
 msgid "Show more"
 msgstr "Show more"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:559
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:168
 msgid "Show more guiding messages"
 msgstr "Show more guiding messages"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:559
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:168
 msgid "Show more queued messages"
 msgstr "Show more queued messages"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:445
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:421
 msgid "Showing saved skills because refresh failed"
 msgstr "Showing saved skills because refresh failed"
 
 #. Status of a collaborating agent that has shut down
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:171
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:130
 msgid "Shutdown"
 msgstr "Shutdown"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:443
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:419
 msgid "Skills could not be loaded"
 msgstr "Skills could not be loaded"
 
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:448
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:424
 msgid "Some skills could not be loaded"
 msgstr "Some skills could not be loaded"
 
@@ -653,23 +653,23 @@ msgstr "Sorry, we couldn’t find the page you’re looking for."
 
 #. Collaboration activity showing the raw receiver value of a newly created agent
 #. Collaboration activity showing the raw receiver value of a newly created agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:234
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:250
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:193
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:209
 msgid "Spawned {receiver}"
 msgstr "Spawned {receiver}"
 
 #. Collaboration activity showing raw receiver, model, and reasoning-effort values for a newly created agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:243
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:202
 msgid "Spawned {receiver} ({model} {reasoningEffort})"
 msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 
 #. Collaboration activity showing raw receiver and reasoning-effort values for a newly created agent
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:255
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:214
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
 #. Activity showing sub-agents that started and any omitted count
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:441
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:400
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
@@ -681,15 +681,15 @@ msgstr "Stop"
 msgid "Stop failed"
 msgstr "Stop failed"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:602
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:806
+#: src/features/composerTurnControl/ComposerInputPreviewContent.tsx:29
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:211
 msgid "Structured input"
 msgstr "Structured input"
 
 #. Source label for a skill provided by the Codex system
 #. Source label for a skill provided by the Codex system
-#: src/features/composerEditor/SelectedSkillToken.tsx:147
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:319
+#: src/features/composerEditor/SelectedSkillToken.tsx:175
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:295
 msgid "System"
 msgstr "System"
 
@@ -697,87 +697,87 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:266
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:270
+#: src/features/threadHistory/ContinueTaskAction.tsx:47
+#: src/features/threadHistory/ContinueTaskAction.tsx:51
 msgid "Task opened"
 msgstr "Task opened"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:576
+#: src/features/threadHistory/ContinueTaskAction.tsx:357
 msgid "Task switched, but cannot be opened"
 msgstr "Task switched, but cannot be opened"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:582
+#: src/features/threadHistory/ContinueTaskAction.tsx:363
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:549
+#: src/features/threadHistory/ContinueTaskAction.tsx:330
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:389
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:317
 msgid "The message was moved, but repeated queue changes prevented the updated order from loading."
 msgstr "The message was moved, but repeated queue changes prevented the updated order from loading."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:384
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:312
 msgid "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 msgstr "The pending-message order did not change, and the refreshed order could not be loaded because the queue kept changing."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:382
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:310
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "The pending-message order did not change. Refresh complete; try again."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:271
+#: src/features/threadHistory/ContinueTaskAction.tsx:52
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:394
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:322
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:641
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:643
+#: src/features/threadHistory/ContinueTaskAction.tsx:422
+#: src/features/threadHistory/ContinueTaskAction.tsx:424
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:64
+#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:51
 msgid "The task connection was closed."
 msgstr "The task connection was closed."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:430
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:522
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:645
+#: src/features/threadHistory/ContinueTaskAction.tsx:211
+#: src/features/threadHistory/ContinueTaskAction.tsx:303
+#: src/features/threadHistory/ContinueTaskAction.tsx:426
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:639
+#: src/features/threadHistory/ContinueTaskAction.tsx:420
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:267
+#: src/features/threadHistory/ContinueTaskAction.tsx:48
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:587
+#: src/features/threadHistory/ContinueTaskAction.tsx:368
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:396
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:324
 msgid "This message has entered the sending process and can no longer be managed."
 msgstr "This message has entered the sending process and can no longer be managed."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:774
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:383
 msgid "This message has entered the sending process."
 msgstr "This message has entered the sending process."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:772
+#: src/features/composerTurnControl/ComposerPendingInputList.tsx:381
 msgid "This message is being edited."
 msgstr "This message is being edited."
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:380
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:308
 msgid "This pending message cannot be edited."
 msgstr "This pending message cannot be edited."
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:186
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:78
 msgid "This task has no messages."
 msgstr "This task has no messages."
 
@@ -787,15 +787,15 @@ msgid "Transcript context pages"
 msgstr "Transcript context pages"
 
 #. Accessible label for a transcript turn identified by its raw turn ID
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:882
+#: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:209
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:409
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:427
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:519
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:574
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:608
+#: src/features/threadHistory/ContinueTaskAction.tsx:190
+#: src/features/threadHistory/ContinueTaskAction.tsx:208
+#: src/features/threadHistory/ContinueTaskAction.tsx:300
+#: src/features/threadHistory/ContinueTaskAction.tsx:355
+#: src/features/threadHistory/ContinueTaskAction.tsx:389
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
@@ -803,7 +803,7 @@ msgstr "Unable to continue this task"
 msgid "Unable to load history"
 msgstr "Unable to load history"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:222
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:114
 msgid "Unable to load task history"
 msgstr "Unable to load task history"
 
@@ -815,25 +815,25 @@ msgstr "Unable to load the current task"
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:504
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:546
+#: src/features/threadHistory/ContinueTaskAction.tsx:285
+#: src/features/threadHistory/ContinueTaskAction.tsx:327
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:144
-#: src/features/threadHistory/ThreadHistoryDetailPage.tsx:154
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
+#: src/features/threadHistory/ThreadHistoryDetailContent.tsx:46
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:137
 msgid "Untitled task"
 msgstr "Untitled task"
 
-#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:373
+#: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:301
 msgid "Updated pending order could not be loaded"
 msgstr "Updated pending order could not be loaded"
 
 #. Source label for a skill installed by the current user
 #. Source label for a skill installed by the current user
-#: src/features/composerEditor/SelectedSkillToken.tsx:137
-#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:309
+#: src/features/composerEditor/SelectedSkillToken.tsx:165
+#: src/features/composerEditor/SkillTypeaheadPlugin.tsx:285
 msgid "User"
 msgstr "User"
 
@@ -842,18 +842,18 @@ msgid "View"
 msgstr "View"
 
 #. Collaboration activity waiting for the agent identified by the raw receiver value
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:216
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:175
 msgid "Waiting for {receiver}"
 msgstr "Waiting for {receiver}"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:223
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:182
 msgid "Waiting for {receiverCount} agents"
 msgstr "Waiting for {receiverCount} agents"
 
-#: src/features/committedTranscriptSurface/CommittedTranscriptSurface.tsx:213
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:172
 msgid "Waiting for agents"
 msgstr "Waiting for agents"
 
-#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:93
+#: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:91
 msgid "Will send first"
 msgstr "Will send first"
