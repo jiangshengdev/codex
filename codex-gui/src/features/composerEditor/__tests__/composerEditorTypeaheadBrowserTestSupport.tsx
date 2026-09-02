@@ -1,4 +1,4 @@
-import { createRef, useState, type CSSProperties, type RefObject } from "react";
+import { createRef, type RefObject } from "react";
 import { expect } from "vitest";
 
 import type { AppLocale } from "@/i18n";
@@ -8,11 +8,8 @@ import type {
 } from "@/features/skillCatalog/skillCatalogOwner";
 import { renderWithProviders } from "@/utils/test-utils";
 
-import {
-  ComposerEditor,
-  type ComposerEditorController,
-  type ComposerEditorProps,
-} from "../ComposerEditor";
+import type { ComposerEditorController, ComposerEditorProps } from "../ComposerEditor";
+import { ComposerEditorFixture } from "./composerEditorTypeaheadBrowserTestFixture";
 
 type RenderEditorOptions = Readonly<{
   guardCompositionEndEnter?: boolean;
@@ -49,21 +46,6 @@ export async function renderEditor(
   await expect.poll(() => controllerRef.current).not.toBeNull();
   return { controllerRef, screen };
 }
-
-export function ComposerEditorFixture(props: Omit<ComposerEditorProps, "skillMenuParent">) {
-  const [skillMenuParent, setSkillMenuParent] = useState<HTMLElement | null>(null);
-
-  return (
-    <div className="w-96 max-w-full">
-      <div ref={setSkillMenuParent} style={fixtureSkillMenuParentStyle} />
-      <ComposerEditor {...props} skillMenuParent={skillMenuParent} />
-    </div>
-  );
-}
-
-const fixtureSkillMenuParentStyle = {
-  "--composer-skill-menu-max-height": "18rem",
-} as CSSProperties;
 
 export function catalog(
   type: SkillCatalogState["type"],

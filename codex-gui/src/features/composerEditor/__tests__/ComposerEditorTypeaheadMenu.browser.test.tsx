@@ -9,8 +9,8 @@ import type {
 import { renderWithProviders } from "@/utils/test-utils";
 
 import { ComposerEditor, type ComposerEditorController } from "../ComposerEditor";
+import { ComposerEditorFixture } from "./composerEditorTypeaheadBrowserTestFixture";
 import {
-  ComposerEditorFixture,
   catalog,
   getController,
   renderEditor,
