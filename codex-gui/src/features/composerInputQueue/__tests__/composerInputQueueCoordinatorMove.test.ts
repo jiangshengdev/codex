@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import type {
+  eventItemStarted} from "@/features/projection/__tests__/projectionFixtures";
 import {
-  eventItemStarted,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
