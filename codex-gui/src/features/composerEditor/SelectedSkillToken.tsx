@@ -232,7 +232,7 @@ export function SelectedSkillToken({
   };
 
   return (
-    <Tooltip delay={0} isDisabled={environment.disabled}>
+    <Tooltip closeDelay={0} delay={0} isDisabled={environment.disabled}>
       <Tooltip.Trigger<"span">
         className="max-w-full align-[2px]"
         onPointerDown={onPointerDown}
