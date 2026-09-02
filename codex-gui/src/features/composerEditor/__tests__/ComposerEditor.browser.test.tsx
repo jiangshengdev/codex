@@ -232,9 +232,7 @@ test.for([
     const firstOption = listbox.getByRole("option").first();
     const lastOption = listbox.getByRole("option").last();
     await expect.element(lastOption).toHaveAccessibleName(/boundary-24/);
-    const scrollRegions = listbox
-      .element()
-      .querySelectorAll("[data-skill-menu-scroll-region]");
+    const scrollRegions = listbox.element().querySelectorAll("[data-skill-menu-scroll-region]");
     expect(scrollRegions).toHaveLength(1);
     const scrollRegion = scrollRegions.item(0);
     const styledListboxes = listbox.element().querySelectorAll('[data-slot="list-box"]');
