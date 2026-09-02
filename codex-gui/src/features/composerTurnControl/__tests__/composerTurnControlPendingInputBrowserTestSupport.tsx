@@ -427,25 +427,6 @@ const skillsRoleFor = (
   retrySkills: () => controller.retry(),
 });
 
-function SessionComposerTurnControl({
-  guardCompositionEndEnter,
-  session,
-}: Readonly<{
-  guardCompositionEndEnter: boolean;
-  session: ActiveThreadSession;
-}>) {
-  const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
-  return (
-    <ComposerTurnControl
-      authorizationToken={null}
-      guardCompositionEndEnter={guardCompositionEndEnter}
-      routeTarget={{ type: "currentTask", threadId }}
-      sessionSnapshot={snapshot}
-    />
-  );
-}
-
 export async function renderAttached(
   commandHandle: GuiHostCommands = createGuiHostCommands(),
   guardCompositionEndEnter = false,
@@ -461,6 +442,25 @@ export async function renderAttached(
   activeTurnId?: string | null,
   strictMode = false,
 ) {
+  function SessionComposerTurnControl({
+    guardCompositionEndEnter,
+    session,
+  }: Readonly<{
+    guardCompositionEndEnter: boolean;
+    session: ActiveThreadSession;
+  }>) {
+    const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
+    if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
+    return (
+      <ComposerTurnControl
+        authorizationToken={null}
+        guardCompositionEndEnter={guardCompositionEndEnter}
+        routeTarget={{ type: "currentTask", threadId }}
+        sessionSnapshot={snapshot}
+      />
+    );
+  }
+
   const fixtureActiveTurnId =
     eventTurnStarted.event.type === "turnStarted"
       ? eventTurnStarted.event.notification.turn.id
