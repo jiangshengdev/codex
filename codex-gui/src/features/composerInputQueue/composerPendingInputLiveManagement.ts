@@ -171,10 +171,14 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
     } finally {
       this.acquiring = false;
     }
-    if (this.ownerGone != null) return this.ownerGone;
+    const ownerGoneAfterAcquisition = this.readOwnerGone();
+    if (ownerGoneAfterAcquisition != null) return ownerGoneAfterAcquisition;
     if (acquisition.type === "failed") {
       const replay = this.flushDeferredAcceptedEvents();
-      if (this.ownerGone != null) return this.ownerGone;
+      const ownerGoneAfterFailedAcquisitionReplay = this.readOwnerGone();
+      if (ownerGoneAfterFailedAcquisitionReplay != null) {
+        return ownerGoneAfterFailedAcquisitionReplay;
+      }
       if (replay.type === "failed") {
         throw new AggregateError(
           [acquisition.error, replay.error],
@@ -196,15 +200,18 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
         this.activeSession = session;
         this.managementOutcome = null;
         const replay = this.flushDeferredAcceptedEvents();
-        if (this.ownerGone != null) return this.ownerGone;
+        const ownerGoneAfterBegunReplay = this.readOwnerGone();
+        if (ownerGoneAfterBegunReplay != null) return ownerGoneAfterBegunReplay;
         if (replay.type === "failed") {
           this.cancelUndeliveredManagementSession(session);
           this.host.publishSnapshot();
-          if (this.ownerGone != null) return this.ownerGone;
+          const ownerGoneAfterCancelPublication = this.readOwnerGone();
+          if (ownerGoneAfterCancelPublication != null) return ownerGoneAfterCancelPublication;
           throw replay.error;
         }
         this.host.publishSnapshot();
-        if (this.ownerGone != null) return this.ownerGone;
+        const ownerGoneAfterBeginPublication = this.readOwnerGone();
+        if (ownerGoneAfterBeginPublication != null) return ownerGoneAfterBeginPublication;
         const unavailable = this.managementSessionUnavailable(session);
         if (unavailable != null) return unavailable;
         return {
@@ -217,13 +224,15 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
       case "stale":
       case "notManageable": {
         const replay = this.flushDeferredAcceptedEvents();
-        if (this.ownerGone != null) return this.ownerGone;
+        const ownerGoneAfterInvalidResultReplay = this.readOwnerGone();
+        if (ownerGoneAfterInvalidResultReplay != null) return ownerGoneAfterInvalidResultReplay;
         if (replay.type === "failed") throw replay.error;
         return { ...settledResult, scope: "liveOwner", revision: this.queue.detailRevision() };
       }
       case "conflict": {
         const replay = this.flushDeferredAcceptedEvents();
-        if (this.ownerGone != null) return this.ownerGone;
+        const ownerGoneAfterConflictReplay = this.readOwnerGone();
+        if (ownerGoneAfterConflictReplay != null) return ownerGoneAfterConflictReplay;
         if (replay.type === "failed") throw replay.error;
         return this.liveSessionInvalidation();
       }
@@ -239,12 +248,14 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
     if (blockedByCoordinator) return this.liveSessionInvalidation();
     const result = this.queue.deletePendingInput(request);
     switch (result.type) {
-      case "deleted":
+      case "deleted": {
         this.managementOutcome = null;
         this.handleManagementDrain(result.drainIntent);
         this.host.publishSnapshot();
-        if (this.ownerGone != null) return this.ownerGone;
+        const ownerGoneAfterDeletePublication = this.readOwnerGone();
+        if (ownerGoneAfterDeletePublication != null) return ownerGoneAfterDeletePublication;
         return { type: "deleted", revision: this.queue.detailRevision() };
+      }
       case "stale":
       case "notManageable":
         return { ...result, scope: "liveOwner" };
@@ -277,16 +288,19 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
           } catch (error: unknown) {
             firstFailure = { type: "failed", error };
           }
-          if (this.ownerGone != null) return this.ownerGone;
+          const ownerGoneAfterMovePublication = this.readOwnerGone();
+          if (ownerGoneAfterMovePublication != null) return ownerGoneAfterMovePublication;
 
           while (this.deferredAcceptedEvents.length > 0) {
             const replay = this.flushDeferredAcceptedEvents();
-            if (this.ownerGone != null) return this.ownerGone;
+            const ownerGoneAfterMoveReplay = this.readOwnerGone();
+            if (ownerGoneAfterMoveReplay != null) return ownerGoneAfterMoveReplay;
             if (firstFailure.type === "flushed" && replay.type === "failed") {
               firstFailure = replay;
             }
           }
-          if (this.ownerGone != null) return this.ownerGone;
+          const ownerGoneAfterMoveReplays = this.readOwnerGone();
+          if (ownerGoneAfterMoveReplays != null) return ownerGoneAfterMoveReplays;
           if (firstFailure.type === "failed") throw firstFailure.error;
 
           const movement = this.queue.readPendingInputMovement({
@@ -330,7 +344,8 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
     this.deferredAcceptedEvents.push(payload);
     if (this.acquiring || this.mutating || this.replayingAcceptedEvents) return;
     const replay = this.flushDeferredAcceptedEvents();
-    if (this.ownerGone != null) return;
+    const ownerGoneAfterReplay = this.readOwnerGone();
+    if (ownerGoneAfterReplay != null) return;
     if (replay.type === "failed") throw replay.error;
     this.flushDeferredDrains();
   }
@@ -446,6 +461,10 @@ class ComposerPendingInputLiveManagementImpl implements ComposerPendingInputLive
     this.host.publishSnapshot();
     if (this.ownerGone != null) return this.ownerGone;
     return { revision: this.queue.detailRevision() };
+  }
+
+  private readOwnerGone(): ComposerPendingInputOwnerGoneResult | null {
+    return this.ownerGone;
   }
 
   private managementSessionUnavailable(

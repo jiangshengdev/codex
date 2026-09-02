@@ -199,8 +199,12 @@ class ComposerInputQueueCoordinatorImpl implements ComposerInputQueueCoordinator
       activeTurnId: input.activeTurnId,
     });
     this.liveManagement = createComposerPendingInputLiveManagement(this.queue, {
-      applyAcceptedEvent: (payload) => this.applyAcceptedEvent(payload),
-      publishSnapshot: () => this.publishSnapshot(),
+      applyAcceptedEvent: (payload) => {
+        this.applyAcceptedEvent(payload);
+      },
+      publishSnapshot: () => {
+        this.publishSnapshot();
+      },
       drainPendingInput: (intent) => {
         if (this.recoveryPending()) return "deferred";
         this.consumeTransition(this.queue.drainPendingInput(intent));
