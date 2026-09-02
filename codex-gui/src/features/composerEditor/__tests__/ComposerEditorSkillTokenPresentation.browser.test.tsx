@@ -10,9 +10,9 @@ import type {
 
 import type { ComposerEditorController } from "../ComposerEditor";
 import { invalidSelectedSkillPaths } from "../../composerTurnControl/composerTurnControlModel";
+import { ComposerEditorFixture } from "./composerEditorSkillTokenBrowserTestFixture";
 import {
   catalog,
-  ComposerEditorFixture,
   dispatchHistoryShortcut,
   getController,
   readNodeSelectionSize,
