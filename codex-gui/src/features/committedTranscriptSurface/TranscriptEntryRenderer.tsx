@@ -8,13 +8,63 @@ import {
 import {
   ActivityEntryGroup,
   ActivityEntryRenderer,
-  groupTranscriptEntries,
   SubAgentActivityRow,
-  subAgentActivityPresentationInput,
+  type TranscriptActivityEntryGroup,
 } from "./TranscriptActivityEntries";
 import { LiveMarkdownText } from "./LiveMarkdownText";
 import { MarkdownText } from "./MarkdownText";
-import { presentSubAgentActivityGroup } from "./subAgentActivityPresentation";
+import {
+  presentSubAgentActivityGroup,
+  subAgentActivityPresentationInput,
+} from "./subAgentActivityPresentation";
+
+type TranscriptActivityEntryView = TranscriptActivityEntryGroup["entries"][number];
+
+type TranscriptSingletonEntryGroup = {
+  type: "entry";
+  entry: Exclude<TranscriptEntryView, TranscriptActivityEntryView>;
+};
+
+type TranscriptEntryRenderGroup = TranscriptActivityEntryGroup | TranscriptSingletonEntryGroup;
+
+const groupTranscriptEntries = (
+  entries: readonly TranscriptEntryView[],
+): TranscriptEntryRenderGroup[] => {
+  const groups: TranscriptEntryRenderGroup[] = [];
+  let activityEntries: TranscriptActivityEntryView[] = [];
+
+  const flushActivityEntries = () => {
+    const firstEntry = activityEntries[0];
+    if (firstEntry == null) {
+      return;
+    }
+
+    groups.push({ type: "activity", entries: [firstEntry, ...activityEntries.slice(1)] });
+    activityEntries = [];
+  };
+
+  for (const entry of entries) {
+    switch (entry.type) {
+      case "collabAgent":
+      case "subAgentActivity":
+        activityEntries.push(entry);
+        break;
+      case "message":
+      case "reasoning":
+      case "status":
+        flushActivityEntries();
+        groups.push({ type: "entry", entry });
+        break;
+      default: {
+        const exhaustiveEntry: never = entry;
+        return exhaustiveEntry;
+      }
+    }
+  }
+
+  flushActivityEntries();
+  return groups;
+};
 
 const MessageEntryBody = ({ rendering }: { rendering: TranscriptMessageRendering }) => {
   switch (rendering.mode) {

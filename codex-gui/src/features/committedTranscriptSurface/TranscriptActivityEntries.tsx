@@ -7,6 +7,7 @@ import {
 } from "@/features/transcriptState/transcriptStateSlice";
 import {
   presentSubAgentActivityGroup,
+  subAgentActivityPresentationInput,
   type SubAgentActivityGroupPresentation,
   type SubAgentActivityPresentationInput,
 } from "./subAgentActivityPresentation";
@@ -281,22 +282,10 @@ export const ActivityEntryRenderer = ({ entry }: { entry: TranscriptCollabAgentE
   return <ActivityEntryRow details={details} title={title} />;
 };
 
-type TranscriptActivityEntryGroup = {
+export type TranscriptActivityEntryGroup = {
   type: "activity";
   entries: readonly [TranscriptActivityEntryView, ...TranscriptActivityEntryView[]];
 };
-
-type TranscriptSingletonEntryGroup = {
-  type: "entry";
-  entry: Exclude<TranscriptEntryView, TranscriptActivityEntryView>;
-};
-
-type TranscriptEntryRenderGroup = TranscriptActivityEntryGroup | TranscriptSingletonEntryGroup;
-
-type TranscriptSubAgentActivityEntryView = Extract<
-  TranscriptActivityEntryView,
-  { type: "subAgentActivity" }
->;
 
 type TranscriptActivityRow =
   | {
@@ -309,14 +298,6 @@ type TranscriptActivityRow =
       identityKey: string;
       presentation: SubAgentActivityGroupPresentation;
     };
-
-export const subAgentActivityPresentationInput = (
-  entry: TranscriptSubAgentActivityEntryView,
-): SubAgentActivityPresentationInput => ({
-  id: entry.id,
-  turnId: entry.turnId,
-  title: entry.title,
-});
 
 const groupActivityEntries = (
   entries: TranscriptActivityEntryGroup["entries"],
@@ -430,45 +411,6 @@ export const SubAgentActivityRow = ({
   }
 
   return <ActivityEntryRow details={[]} title={title} />;
-};
-
-export const groupTranscriptEntries = (
-  entries: readonly TranscriptEntryView[],
-): TranscriptEntryRenderGroup[] => {
-  const groups: TranscriptEntryRenderGroup[] = [];
-  let activityEntries: TranscriptActivityEntryView[] = [];
-
-  const flushActivityEntries = () => {
-    const firstEntry = activityEntries[0];
-    if (firstEntry == null) {
-      return;
-    }
-
-    groups.push({ type: "activity", entries: [firstEntry, ...activityEntries.slice(1)] });
-    activityEntries = [];
-  };
-
-  for (const entry of entries) {
-    switch (entry.type) {
-      case "collabAgent":
-      case "subAgentActivity":
-        activityEntries.push(entry);
-        break;
-      case "message":
-      case "reasoning":
-      case "status":
-        flushActivityEntries();
-        groups.push({ type: "entry", entry });
-        break;
-      default: {
-        const exhaustiveEntry: never = entry;
-        return exhaustiveEntry;
-      }
-    }
-  }
-
-  flushActivityEntries();
-  return groups;
 };
 
 export const ActivityEntryGroup = ({
