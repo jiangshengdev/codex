@@ -166,7 +166,16 @@ function normalizeSelectionForClipboardProjection(selection: BaseSelection): Bas
 }
 
 function compileSelectedNodes(nodes: LexicalNode[], skillText: SkillTextProjection): string {
-  return nodes.map((node) => compileSelectedNode(node, skillText)).join("\n");
+  let compiled = "";
+  let previousNode: LexicalNode | null = null;
+  for (const node of nodes) {
+    if (previousNode != null && (!previousNode.isInline() || !node.isInline())) {
+      compiled += "\n";
+    }
+    compiled += compileSelectedNode(node, skillText);
+    previousNode = node;
+  }
+  return compiled;
 }
 
 function compileSelectedNode(node: LexicalNode, skillText: SkillTextProjection): string {

@@ -24,8 +24,6 @@ describe("SkillNode", () => {
         expect(node).toBeInstanceOf(DecoratorNode);
         expect(node.isInline()).toBe(true);
         expect(node.isKeyboardSelectable()).toBe(true);
-        expect(node.canInsertTextBefore()).toBe(false);
-        expect(node.canInsertTextAfter()).toBe(false);
       },
       { discrete: true },
     );
@@ -41,11 +39,6 @@ describe("SkillNode", () => {
         $getRoot().append($createParagraphNode().append(restored));
 
         expect(serialized).toEqual({
-          detail: 0,
-          format: 0,
-          mode: "token",
-          style: "",
-          text: "$Friendly Skill",
           ...skill,
           type: "skill",
           version: 1,
@@ -80,11 +73,6 @@ describe("SkillNode", () => {
 
   it("rejects unknown JSON versions before restoring a skill identity", () => {
     const serialized = {
-      detail: 0,
-      format: 0,
-      mode: "token",
-      style: "",
-      text: "$Friendly Skill",
       ...skill,
       type: "skill",
       version: 2,

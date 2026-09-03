@@ -1058,6 +1058,7 @@ mod tests {
                 phase: None,
                 memory_citation: None,
                 delivery: None,
+                questions: None,
             },
         })
     }

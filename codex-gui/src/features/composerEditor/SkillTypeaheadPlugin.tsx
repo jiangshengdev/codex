@@ -11,6 +11,7 @@ import {
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
 import {
   COMPOSITION_START_COMMAND,
+  COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
   KEY_ESCAPE_COMMAND,
   type LexicalEditor,
@@ -35,7 +36,6 @@ import { querySkills, type SkillQueryResult } from "./skillQuery";
 export type SkillTypeaheadPlacement = "above" | "below";
 
 export type SkillTypeaheadPluginProps = Readonly<{
-  isComposingRef: RefObject<boolean>;
   onRetry: (() => void) | undefined;
   placement: SkillTypeaheadPlacement;
   portalParent: HTMLElement;
@@ -50,7 +50,6 @@ const SKILL_MENU_LISTBOX_ITEM_CLASS_NAME = listboxItemVariants({
 }).item();
 
 export function SkillTypeaheadPlugin({
-  isComposingRef,
   onRetry,
   placement,
   portalParent,
@@ -88,45 +87,23 @@ export function SkillTypeaheadPlugin({
   );
 
   useEffect(() => {
-    let currentRoot: HTMLElement | null = null;
-    const unregisterRootListener = editor.registerRootListener(
-      (rootElement, previousRootElement) => {
-        previousRootElement?.removeEventListener("compositionstart", clearQueryForComposition);
-        currentRoot?.removeEventListener("compositionstart", clearQueryForComposition);
-        configureComboboxRoot(previousRootElement, false);
-        configureComboboxRoot(rootElement, true);
-        currentRoot = rootElement;
-        currentRoot?.addEventListener("compositionstart", clearQueryForComposition);
-      },
-    );
+    return editor.registerRootListener((rootElement, previousRootElement) => {
+      configureComboboxRoot(previousRootElement, false);
+      configureComboboxRoot(rootElement, true);
+    });
+  }, [editor]);
 
-    return () => {
-      currentRoot?.removeEventListener("compositionstart", clearQueryForComposition);
-      currentRoot = null;
-      unregisterRootListener();
-    };
-  }, [clearQueryForComposition, editor]);
+  const triggerFn = useCallback<TriggerFn>((text, lexicalEditor) => {
+    return lexicalEditor.isComposing() ? null : matchSkillTrigger(text);
+  }, []);
 
-  const triggerFn = useCallback<TriggerFn>(
-    (text, lexicalEditor) => {
-      if (isComposingRef.current || lexicalEditor.isComposing()) {
-        return null;
-      }
-      return matchSkillTrigger(text);
-    },
-    [isComposingRef],
-  );
-
-  const onQueryChange = useCallback(
-    (nextQuery: string | null) => {
-      setQuery(isComposingRef.current ? null : nextQuery);
-    },
-    [isComposingRef],
-  );
+  const onQueryChange = useCallback((nextQuery: string | null) => {
+    setQuery(nextQuery);
+  }, []);
 
   const onSelectOption = useCallback(
     (option: SkillMenuOption, textNodeContainingQuery: TextNode | null, closeMenu: () => void) => {
-      if (isComposingRef.current || editor.isComposing() || textNodeContainingQuery == null) {
+      if (editor.isComposing() || textNodeContainingQuery == null) {
         return;
       }
 
@@ -141,7 +118,7 @@ export function SkillTypeaheadPlugin({
       skillNode.selectNext();
       closeMenu();
     },
-    [editor, isComposingRef],
+    [editor],
   );
 
   const onOpen = useCallback(() => {
@@ -174,6 +151,7 @@ export function SkillTypeaheadPlugin({
   return (
     <LexicalTypeaheadMenuPlugin<SkillMenuOption>
       anchorClassName={anchorClassName}
+      commandPriority={COMMAND_PRIORITY_HIGH}
       ignoreEntityBoundary={false}
       menuRenderFn={menuRenderFn}
       onClose={onClose}
@@ -236,7 +214,6 @@ function SkillMenu({
     skillCatalog.type !== "initialLoading" &&
     skillCatalog.type !== "failed";
   const activeOption = selectedIndex == null ? null : (options[selectedIndex] ?? null);
-
   useEffect(() => {
     const anchorElement = anchorElementRef.current;
     const rootElement = editor.getRootElement();
@@ -278,7 +255,6 @@ function SkillMenu({
       }
     };
   }, [anchorElementRef, editor, menuId, selectedIndex]);
-
   useLayoutEffect(() => {
     activeOption?.ref?.current?.scrollIntoView({ block: "nearest" });
   }, [activeOption]);

@@ -3,22 +3,25 @@ import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
-import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
+import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import {
   $createParagraphNode,
   $getRoot,
   COMMAND_PRIORITY_BEFORE_EDITOR,
+  KEY_DOWN_COMMAND,
   KEY_ENTER_COMMAND,
   type EditorState,
   type LexicalEditor,
+  mergeRegister,
 } from "lexical";
-import { useEffect, useMemo, useRef, type KeyboardEvent, type Ref } from "react";
+import { useEffect, useMemo, useRef, type Ref } from "react";
 
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 
 import { ComposerClipboardPlugin } from "./ComposerClipboardPlugin";
+import { ComposerContentModelPlugin } from "./ComposerContentModelPlugin";
 import { SelectedSkillPresentationEnvironment } from "./SelectedSkillToken";
-import { SkillEditingPlugin } from "./SkillEditingPlugin";
+import { ComposerAtomicNodePlugin } from "./ComposerAtomicNodePlugin";
 import {
   captureComposerDraft,
   composerDraftCaptureMatchesEditorState,
@@ -105,37 +108,6 @@ export function ComposerEditor({
     }
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== "Enter") {
-      suppressNextEnterRef.current = false;
-      return;
-    }
-    const intent = submitIntentForEnter(event.nativeEvent, primaryModifier);
-    if (intent == null) {
-      suppressNextEnterRef.current = false;
-      return;
-    }
-    if (event.nativeEvent.isComposing || isComposingRef.current) {
-      return;
-    }
-    if (event.nativeEvent.defaultPrevented) {
-      return;
-    }
-    if (suppressNextEnterRef.current) {
-      event.preventDefault();
-      suppressNextEnterRef.current = false;
-      return;
-    }
-
-    const controller = activeControllerRef.current;
-    if (controller == null) {
-      return;
-    }
-
-    event.preventDefault();
-    onSubmitRef.current(controller.capture(), intent);
-  };
-
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <SelectedSkillPresentationEnvironment
@@ -144,7 +116,7 @@ export function ComposerEditor({
         skillValidity={skillValidity}
       >
         <div className="relative min-w-0">
-          <PlainTextPlugin
+          <RichTextPlugin
             contentEditable={
               <ContentEditable
                 aria-autocomplete="list"
@@ -154,7 +126,6 @@ export function ComposerEditor({
                 className="min-h-24 w-full min-w-0 resize-none overflow-x-hidden overflow-y-auto bg-transparent px-3 py-2 leading-6 whitespace-pre-wrap outline-none [max-height:min(13rem,30vh)] [overflow-wrap:anywhere]"
                 onCompositionEnd={onCompositionEnd}
                 onCompositionStart={onCompositionStart}
-                onKeyDown={onKeyDown}
                 spellCheck
               />
             }
@@ -169,6 +140,7 @@ export function ComposerEditor({
             }
           />
         </div>
+        <ComposerContentModelPlugin />
         <EnterCommandPlugin
           activeControllerRef={activeControllerRef}
           isComposingRef={isComposingRef}
@@ -183,10 +155,9 @@ export function ComposerEditor({
           onControllerChange={onControllerChange}
         />
         <EditablePlugin disabled={disabled} />
-        <SkillEditingPlugin />
+        <ComposerAtomicNodePlugin />
         {skillMenuParent == null ? null : (
           <SkillTypeaheadPlugin
-            isComposingRef={isComposingRef}
             onRetry={onRetrySkillCatalog}
             placement={skillMenuPlacement}
             portalParent={skillMenuParent}
@@ -248,36 +219,48 @@ function EnterCommandPlugin({
 
   useEffect(
     () =>
-      editor.registerCommand(
-        KEY_ENTER_COMMAND,
-        (event) => {
-          if (event == null) {
+      mergeRegister(
+        editor.registerCommand(
+          KEY_DOWN_COMMAND,
+          (event) => {
+            if (event.key !== "Enter" || submitIntentForEnter(event, primaryModifier) == null) {
+              suppressNextEnterRef.current = false;
+            }
             return false;
-          }
-          const intent = submitIntentForEnter(event, primaryModifier);
-          if (intent == null) {
-            return false;
-          }
-          if (event.isComposing || isComposingRef.current) {
-            event.preventDefault();
-            return true;
-          }
-          if (suppressNextEnterRef.current) {
-            event.preventDefault();
-            suppressNextEnterRef.current = false;
-            return true;
-          }
+          },
+          COMMAND_PRIORITY_BEFORE_EDITOR,
+        ),
+        editor.registerCommand(
+          KEY_ENTER_COMMAND,
+          (event) => {
+            if (event == null) {
+              return false;
+            }
+            const intent = submitIntentForEnter(event, primaryModifier);
+            if (intent == null) {
+              return false;
+            }
+            if (event.isComposing || isComposingRef.current) {
+              event.preventDefault();
+              return true;
+            }
+            if (suppressNextEnterRef.current) {
+              event.preventDefault();
+              suppressNextEnterRef.current = false;
+              return true;
+            }
 
-          const controller = activeControllerRef.current;
-          if (controller == null) {
-            return false;
-          }
+            const controller = activeControllerRef.current;
+            if (controller == null) {
+              return false;
+            }
 
-          event.preventDefault();
-          onSubmitRef.current(controller.capture(), intent);
-          return true;
-        },
-        COMMAND_PRIORITY_BEFORE_EDITOR,
+            event.preventDefault();
+            onSubmitRef.current(controller.capture(), intent);
+            return true;
+          },
+          COMMAND_PRIORITY_BEFORE_EDITOR,
+        ),
       ),
     [
       activeControllerRef,

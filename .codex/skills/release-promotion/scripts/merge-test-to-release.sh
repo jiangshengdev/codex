@@ -177,7 +177,7 @@ if [[ "$(rp_version_from_file codex-rs/Cargo.toml)" != "$release_version" ]]; th
 fi
 
 rp_log verify "checking staged diff"
-rp_require_staged_diff_check_for_merge "$test_branch"
+rp_require_staged_diff_check_for_merge
 
 rp_log verify "checking MERGE_HEAD matches $test_branch"
 rp_require_merge_head_matches_test

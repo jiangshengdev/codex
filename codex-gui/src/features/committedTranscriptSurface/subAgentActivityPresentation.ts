@@ -12,6 +12,14 @@ export type SubAgentActivityPresentationInput = Readonly<
   }
 >;
 
+export const subAgentActivityPresentationInput = (
+  entry: TranscriptSubAgentActivityView,
+): SubAgentActivityPresentationInput => ({
+  id: entry.id,
+  turnId: entry.turnId,
+  title: entry.title,
+});
+
 export type SubAgentActivityPresentationItem = Readonly<{
   id: TranscriptSubAgentActivityView["id"];
   turnId: TranscriptSubAgentActivityView["turnId"];
