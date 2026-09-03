@@ -24,6 +24,7 @@ pub fn is_allowed_server_notification_method(method: &str) -> bool {
     matches!(
         method,
         "skills/changed"
+            | "thread/status/changed"
             | "thread/projection/event"
             | "thread/projection/delta"
             | "thread/projection/closed"
@@ -51,7 +52,10 @@ mod tests {
     }
 
     #[test]
-    fn server_notification_allowlist_contains_projection_event_delta_and_closed() {
+    fn server_notification_allowlist_contains_current_gui_notifications() {
+        assert!(is_allowed_server_notification_method(
+            "thread/status/changed"
+        ));
         assert!(is_allowed_server_notification_method(
             "thread/projection/event"
         ));
