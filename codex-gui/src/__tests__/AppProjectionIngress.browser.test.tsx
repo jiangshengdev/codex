@@ -162,7 +162,7 @@ test("App dispatches projection display facts and updates the active session", a
 
   const { snapshot: sessionSnapshot } = await waitForThreadSwitchProbeSession();
   if (sessionSnapshot.phase !== "active") throw new Error("expected an active session");
-  const { turns: _turns, ...thread } = attachResponse.snapshot.thread;
+  const { turns: _turns, status: _status, ...thread } = attachResponse.snapshot.thread;
   const runtime = selectThreadRuntimeRecord(store.getState());
   expect(runtime).toStrictEqual({
     sessionRevision: sessionSnapshot.revision,

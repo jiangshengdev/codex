@@ -7,6 +7,7 @@ import type {
 import type { ProjectionManualReconnectReason } from "@/features/projectionIngress/projectionIngressAdapter";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
+  Thread,
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
@@ -47,6 +48,7 @@ type ActiveSnapshotContents = Readonly<{
   threadId: string;
   subscriptionId: string;
   activeTurnId: string | null;
+  threadStatus: Thread["status"] | null;
   compaction: ActiveThreadCompactionView;
   composer: ComposerInputQueueCoordinatorSnapshot;
   skills: SkillCatalogState;
@@ -138,6 +140,8 @@ export type LiveActiveThreadSession = Readonly<{
   retrySkills(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
   refreshSkills(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
   invalidateSkills(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  invalidateThreadStatus(): boolean;
+  settleThreadStatusInvalidations(): Promise<void>;
   handleProjectionEvent(
     notification: ThreadProjectionEventNotification,
   ): ActiveThreadProjectionInputOutcome;

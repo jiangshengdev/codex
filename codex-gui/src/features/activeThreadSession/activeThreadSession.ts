@@ -7,6 +7,7 @@ import type {
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
+  ThreadStatusChangedNotification,
 } from "@codex-protocol/v2";
 import type { UnknownAction } from "@reduxjs/toolkit";
 import { createActiveThreadProjection } from "./activeThreadProjection";
@@ -23,6 +24,7 @@ type ActiveThreadSessionCommands = Pick<
   | "detachThreadProjection"
   | "interruptTurn"
   | "listSkills"
+  | "readThread"
   | "resumeThread"
   | "startTurn"
   | "steerTurn"
@@ -131,6 +133,7 @@ export type ActiveThreadSessionController = Readonly<{
   handleProjectionDelta(notification: ThreadProjectionDeltaNotification): void;
   handleProjectionClosed(notification: ThreadProjectionClosedNotification): void;
   handleSkillsChanged(): void;
+  handleThreadStatusChanged(notification: ThreadStatusChangedNotification): void;
   connectionUnavailable(): void;
   dispose(): void;
 }>;
@@ -156,6 +159,7 @@ type ActivationCandidate = {
   replayedNotificationCount: number;
   liveSession: LiveActiveThreadSession | null;
   dispatchAdapter: CandidateDispatchAdapter;
+  threadStatusDirty: boolean;
 };
 
 class CandidateDispatchAdapter {
@@ -275,6 +279,7 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
       replayedNotificationCount: 0,
       liveSession: null,
       dispatchAdapter: new CandidateDispatchAdapter(),
+      threadStatusDirty: false,
     };
     this.candidate = candidate;
     const previousRevision = previousSnapshot?.revision ?? this.snapshot.revision;
@@ -334,6 +339,11 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
         commands: this.commands,
         dispatch: candidate.dispatchAdapter.dispatch,
       } satisfies CreateLiveActiveThreadSessionInput);
+      if (candidate.threadStatusDirty) {
+        candidate.threadStatusDirty = false;
+        candidate.liveSession.invalidateThreadStatus();
+      }
+      await candidate.liveSession.settleThreadStatusInvalidations();
     } catch (error: unknown) {
       return this.finishUncommitted(candidate, {
         type: "operationFailed",
@@ -484,6 +494,30 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
     const current = this.current;
     if (current == null) return;
     current.invalidateSkills(current.getSnapshot().revision);
+  };
+
+  handleThreadStatusChanged = (notification: ThreadStatusChangedNotification): void => {
+    if (this.disposed) return;
+    const candidate = this.candidate;
+    if (candidate?.threadId === notification.threadId) {
+      if (candidate.liveSession == null) {
+        candidate.threadStatusDirty = true;
+      } else {
+        candidate.liveSession.invalidateThreadStatus();
+      }
+      return;
+    }
+    const current = this.current;
+    const snapshot = current?.getSnapshot();
+    if (
+      current == null ||
+      snapshot == null ||
+      snapshot.phase === "disposed" ||
+      snapshot.threadId !== notification.threadId
+    ) {
+      return;
+    }
+    current.invalidateThreadStatus();
   };
 
   connectionUnavailable = (): void => {

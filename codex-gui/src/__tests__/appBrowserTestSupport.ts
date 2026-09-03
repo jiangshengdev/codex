@@ -300,6 +300,13 @@ export const emitSkillsChanged = (options: StartGuiHostConnectionOptions): void 
   options.onSkillsChanged?.({});
 };
 
+export const emitThreadStatusChanged = (
+  options: StartGuiHostConnectionOptions,
+  notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onThreadStatusChanged"]>>[0],
+): void => {
+  options.onThreadStatusChanged?.(notification);
+};
+
 export const emitProjectionEvent = (
   options: StartGuiHostConnectionOptions,
   notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onProjectionEvent"]>>[0],

@@ -31,10 +31,14 @@ const createHarness = () => {
   const store = makeStore();
   const listSkills = vi.fn<GuiHostCommands["listSkills"]>(() => new Promise(() => undefined));
   const compactThread = vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({});
+  const readThread = vi
+    .fn<GuiHostCommands["readThread"]>()
+    .mockResolvedValue({ thread: attachBaseline.snapshot.thread });
   const startTurn = vi.fn<GuiHostCommands["startTurn"]>(() => new Promise(() => undefined));
   const commands = {
     compactThread,
     listSkills,
+    readThread,
     startTurn,
     steerTurn: vi.fn<GuiHostCommands["steerTurn"]>(() => new Promise(() => undefined)),
     interruptTurn: vi.fn<GuiHostCommands["interruptTurn"]>().mockResolvedValue({}),
@@ -50,7 +54,7 @@ const createHarness = () => {
     commands,
     dispatch: store.dispatch,
   });
-  return { commands, compactThread, listSkills, session, startTurn, store };
+  return { commands, compactThread, listSkills, readThread, session, startTurn, store };
 };
 
 const compactTurnId = "compact-turn";
@@ -87,6 +91,26 @@ const commandError = (delivery: "definitelyNotAccepted" | "deliveryUnknown", mes
   new GuiHostCommandError({ source: "rpc", delivery, error: new Error(message) });
 
 describe("LiveActiveThreadSession", () => {
+  it("owns the attach status baseline and publishes authoritative refresh changes", async () => {
+    const h = createHarness();
+    const initial = h.session.getSnapshot();
+    if (initial.phase !== "active") throw new Error("expected an active session");
+    expect(initial.threadStatus).toEqual(attachBaseline.snapshot.thread.status);
+    const listener = vi.fn<() => void>();
+    h.session.subscribe(listener);
+    h.readThread.mockResolvedValueOnce({
+      thread: { ...attachBaseline.snapshot.thread, status: { type: "systemError" } },
+    });
+
+    h.session.invalidateThreadStatus();
+    await h.session.settleThreadStatusInvalidations();
+
+    const refreshed = h.session.getSnapshot();
+    expect(refreshed).toMatchObject({ threadStatus: { type: "systemError" } });
+    expect(refreshed.revision).toBe(initial.revision + 1);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it("gates compaction by revision, active turn, queue readiness, and one in-flight claim", async () => {
     const h = createHarness();
     const initial = h.session.getSnapshot();

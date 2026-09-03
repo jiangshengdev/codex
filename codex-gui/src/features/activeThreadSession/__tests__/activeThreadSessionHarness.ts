@@ -9,6 +9,7 @@ import type {
   ActiveThreadSessionSnapshot,
   ActiveThreadSkillsRole,
 } from "../activeThreadSession";
+import type { Thread } from "@codex-protocol/v2";
 
 type ActiveSnapshot = Extract<ActiveThreadSessionSnapshot, { phase: "active" }>;
 type ProjectionUnavailableSnapshot = Extract<
@@ -147,6 +148,7 @@ export const activeThreadSessionSnapshot = (
     threadId: "thread-1",
     subscriptionId: "subscription-1",
     activeTurnId: null,
+    threadStatus: { type: "idle" } satisfies Thread["status"],
     compaction: { phase: "idle", canRequest: true, startFailure: null },
     composer: emptyComposerSnapshot,
     skills: emptySkillsState,
@@ -169,6 +171,7 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
     threadId: "thread-1",
     subscriptionId: "subscription-1",
     activeTurnId: null,
+    threadStatus: { type: "idle" } satisfies Thread["status"],
     compaction: { phase: "idle", canRequest: false, startFailure: null },
     composer: emptyComposerSnapshot,
     skills: emptySkillsState,

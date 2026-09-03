@@ -16,6 +16,7 @@ import type {
   ThreadProjectionEventNotification,
   Turn,
 } from "@codex-protocol/v2";
+import { createActiveThreadStatus, type ActiveThreadStatus } from "./activeThreadStatus";
 import {
   type ActiveThreadProjection,
   type ActiveThreadProjectionAcceptedQueueFact,
@@ -41,7 +42,7 @@ import type {
 
 type LiveActiveThreadSessionCommands = Pick<
   GuiHostCommands,
-  "compactThread" | "interruptTurn" | "listSkills" | "startTurn" | "steerTurn"
+  "compactThread" | "interruptTurn" | "listSkills" | "readThread" | "startTurn" | "steerTurn"
 >;
 
 export type CreateLiveActiveThreadSessionInput = Readonly<{
@@ -60,10 +61,12 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private readonly compaction: ActiveThreadCompaction;
   private readonly compactThread: LiveActiveThreadSessionCommands["compactThread"];
   private readonly skillCatalog: SkillCatalogOwner;
+  private readonly threadStatus: ActiveThreadStatus;
   private readonly dispatch: AppDispatch;
   private readonly listeners = new Set<() => void>();
   private readonly unsubscribeQueue: () => void;
   private readonly unsubscribeSkills: () => void;
+  private readonly unsubscribeThreadStatus: () => void;
   private snapshot: LiveActiveThreadSessionSnapshot;
   private revision: number;
   private generation = 0;
@@ -106,9 +109,15 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     });
     this.compaction = createActiveThreadCompaction();
     this.skillCatalog = new SkillCatalogOwner({ cwd: thread.cwd, listSkills: commands.listSkills });
+    this.threadStatus = createActiveThreadStatus({
+      threadId: this.threadId,
+      initialStatus: thread.status,
+      readThread: commands.readThread,
+    });
     this.transactionDepth = 1;
     this.unsubscribeQueue = this.queue.subscribe(this.handleChildPublication);
     this.unsubscribeSkills = this.skillCatalog.subscribe(this.handleChildPublication);
+    this.unsubscribeThreadStatus = this.threadStatus.subscribe(this.handleChildPublication);
     this.skillCatalog.start();
     const initialBatch = this.projection.flush();
     this.applyQueueFacts(initialBatch.acceptedQueueFacts);
@@ -307,6 +316,10 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   invalidateSkills: LiveActiveThreadSession["invalidateSkills"] = (expectedRevision) =>
     this.mutate(expectedRevision, () => this.skillCatalog.invalidate());
 
+  invalidateThreadStatus = (): boolean => this.threadStatus.invalidate();
+
+  settleThreadStatusInvalidations = (): Promise<void> => this.threadStatus.settleInvalidations();
+
   handleProjectionEvent = (
     notification: ThreadProjectionEventNotification,
   ): ReturnType<ActiveThreadProjection["handleEvent"]> => {
@@ -340,11 +353,16 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.childChanged = false;
     this.unsubscribeQueue();
     this.unsubscribeSkills();
+    this.unsubscribeThreadStatus();
     try {
       this.compaction.dispose();
       this.queue.dispose();
     } finally {
-      this.skillCatalog.dispose();
+      try {
+        this.skillCatalog.dispose();
+      } finally {
+        this.threadStatus.dispose();
+      }
     }
     this.revision += 1;
     this.snapshot = { phase: "disposed", revision: this.revision };
@@ -515,6 +533,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       threadId: this.threadId,
       subscriptionId: this.subscriptionId,
       activeTurnId: this.activeTurnId,
+      threadStatus: this.threadStatus.getSnapshot(),
       compaction: this.compactionView(),
       composer: this.queue.getSnapshot(),
       skills: this.skillCatalog.getSnapshot(),

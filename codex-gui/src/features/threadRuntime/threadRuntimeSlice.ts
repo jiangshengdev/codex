@@ -18,7 +18,7 @@ export type ThreadRuntimeProjectionEventPayload = Readonly<{
 export type ThreadRuntimeRecord = {
   sessionRevision: number;
   threadId: string;
-  thread: Omit<Thread, "turns">;
+  thread: Omit<Thread, "turns" | "status">;
   tokenUsage: ThreadTokenUsage | null;
 };
 
@@ -70,7 +70,11 @@ export const replayForProjectionEvent = (
   notification.event satisfies never;
 };
 
-const threadMetadata = ({ turns: _turns, ...thread }: Thread): Omit<Thread, "turns"> => thread;
+const threadMetadata = ({
+  turns: _turns,
+  status: _status,
+  ...thread
+}: Thread): Omit<Thread, "turns" | "status"> => thread;
 
 const applyRuntimeFact = (
   state: ThreadRuntimeState,

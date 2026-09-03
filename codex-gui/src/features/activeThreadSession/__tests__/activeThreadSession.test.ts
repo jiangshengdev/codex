@@ -104,6 +104,36 @@ const queueReplacementActivation = (commands: GuiHostCommands) => {
 };
 
 describe("ActiveThreadSession", () => {
+  it("routes only the current thread status invalidation to an authoritative read", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const initial = h.session.getSnapshot();
+    if (initial.phase !== "active") throw new Error("expected the initial active session");
+    vi.mocked(h.commands.readThread).mockResolvedValueOnce({
+      thread: { ...attachBaseline.snapshot.thread, status: { type: "systemError" } },
+    });
+
+    h.controller.handleThreadStatusChanged({
+      threadId: "foreign-thread",
+      status: { type: "active", activeFlags: [] },
+    });
+    expect(h.commands.readThread).not.toHaveBeenCalled();
+
+    h.controller.handleThreadStatusChanged({
+      threadId: attachBaseline.snapshot.thread.id,
+      status: { type: "active", activeFlags: ["waitingOnApproval"] },
+    });
+    await vi.waitFor(() => {
+      expect(h.session.getSnapshot()).toMatchObject({
+        threadStatus: { type: "systemError" },
+      });
+    });
+    expect(h.commands.readThread).toHaveBeenCalledExactlyOnceWith({
+      threadId: attachBaseline.snapshot.thread.id,
+      includeTurns: false,
+    });
+  });
+
   it("uses the recovery locator for first attach and publishes one complete session", async () => {
     const h = createHarness();
     const listener = vi.fn<() => void>();
@@ -333,6 +363,103 @@ describe("ActiveThreadSession", () => {
     });
   });
 
+  it("closes candidate status invalidations before publishing the replacement", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const attach = createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+    const firstRead = createDeferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    const secondRead = createDeferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    vi.mocked(h.commands.readThread)
+      .mockReturnValueOnce(firstRead.promise)
+      .mockReturnValueOnce(secondRead.promise);
+
+    const activation = h.session.activate(replacementThreadId);
+    await Promise.resolve();
+    h.controller.handleThreadStatusChanged({
+      threadId: replacementThreadId,
+      status: { type: "systemError" },
+    });
+    attach.resolve(replacementAttach);
+    await vi.waitFor(() => {
+      expect(h.commands.readThread).toHaveBeenCalledTimes(1);
+    });
+    expect(h.session.getSnapshot()).toMatchObject({
+      threadId: attachBaseline.snapshot.thread.id,
+    });
+
+    h.controller.handleThreadStatusChanged({
+      threadId: replacementThreadId,
+      status: { type: "idle" },
+    });
+    firstRead.resolve({
+      thread: { ...replacementAttach.snapshot.thread, status: { type: "active", activeFlags: [] } },
+    });
+    await vi.waitFor(() => {
+      expect(h.commands.readThread).toHaveBeenCalledTimes(2);
+    });
+    expect(h.session.getSnapshot()).toMatchObject({
+      threadId: attachBaseline.snapshot.thread.id,
+    });
+
+    secondRead.resolve({
+      thread: { ...replacementAttach.snapshot.thread, status: { type: "systemError" } },
+    });
+    await expect(activation).resolves.toEqual({
+      type: "ready",
+      threadId: replacementThreadId,
+      warnings: [],
+    });
+    expect(h.session.getSnapshot()).toMatchObject({
+      phase: "active",
+      threadId: replacementThreadId,
+      threadStatus: { type: "systemError" },
+    });
+    expect(h.commands.readThread).toHaveBeenNthCalledWith(1, {
+      threadId: replacementThreadId,
+      includeTurns: false,
+    });
+    expect(h.commands.readThread).toHaveBeenNthCalledWith(2, {
+      threadId: replacementThreadId,
+      includeTurns: false,
+    });
+  });
+
+  it("abandons a candidate status read on connection loss and ignores its late result", async () => {
+    const h = createHarness();
+    await activateInitial(h);
+    const attach = createDeferred<Awaited<ReturnType<GuiHostCommands["attachThreadProjection"]>>>();
+    const read = createDeferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+    vi.mocked(h.commands.attachThreadProjection).mockReturnValueOnce(attach.promise);
+    vi.mocked(h.commands.readThread).mockReturnValueOnce(read.promise);
+
+    const activation = h.session.activate(replacementThreadId);
+    await Promise.resolve();
+    h.controller.handleThreadStatusChanged({
+      threadId: replacementThreadId,
+      status: { type: "active", activeFlags: [] },
+    });
+    attach.resolve(replacementAttach);
+    await vi.waitFor(() => {
+      expect(h.commands.readThread).toHaveBeenCalledTimes(1);
+    });
+    h.controller.connectionUnavailable();
+
+    await expect(activation).resolves.toMatchObject({
+      type: "unavailable",
+      failure: { type: "connectionLost", progress: "beforeCommit" },
+    });
+    const disposed = h.session.getSnapshot();
+    expect(disposed.phase).toBe("disposed");
+
+    read.resolve({
+      thread: { ...replacementAttach.snapshot.thread, status: { type: "systemError" } },
+    });
+    await read.promise;
+    await Promise.resolve();
+    expect(h.session.getSnapshot()).toBe(disposed);
+  });
+
   it("aborts a failed handoff without changing the old snapshot identity or revision", async () => {
     let rejectDispatch = false;
     const h = createHarness(() => rejectDispatch);
@@ -436,11 +563,11 @@ describe("ActiveThreadSession", () => {
     void activation.then(() => {
       settled = true;
     });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(h.session.getSnapshot()).toMatchObject({
-      phase: "active",
-      threadId: replacementThreadId,
+    await vi.waitFor(() => {
+      expect(h.session.getSnapshot()).toMatchObject({
+        phase: "active",
+        threadId: replacementThreadId,
+      });
     });
     expect(settled).toBe(false);
     h.controller.connectionUnavailable();

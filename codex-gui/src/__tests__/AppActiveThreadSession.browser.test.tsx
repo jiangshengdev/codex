@@ -5,6 +5,7 @@ import {
   createDeferred,
   createGuiHostCommands,
   emitProjectionEvent,
+  emitThreadStatusChanged,
   getCleanupConnectionCallCount,
   getConnectionStartCount,
   getHostOptions,
@@ -105,6 +106,9 @@ function ThreadSwitchCapabilityProbe() {
         Request context compaction
       </button>
       <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
+      <output aria-label="Active thread status">
+        {available ? JSON.stringify(snapshot.threadStatus) : "none"}
+      </output>
       <output aria-label="Active skill catalog status">
         {available ? snapshot.skills.type : "none"}
       </output>
@@ -639,6 +643,41 @@ test("App owns one live queue under StrictMode and disposes it once", async () =
 
   expect(queue.observeAcceptedEvent).toHaveBeenCalledOnce();
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
+});
+
+test("App refreshes only the current thread status and ignores its late result after disconnect", async () => {
+  const commands = createGuiHostCommands();
+  const pendingRead = createDeferred<Awaited<ReturnType<GuiHostCommands["readThread"]>>>();
+  vi.mocked(commands.readThread).mockReturnValueOnce(pendingRead.promise);
+  const { options, screen } = await renderThreadSwitchProbe(commands);
+  const status = screen.getByLabelText("Active thread status");
+  await expect.element(status).toHaveTextContent(JSON.stringify({ type: "idle" }));
+
+  emitThreadStatusChanged(options, {
+    threadId: "foreign-thread",
+    status: { type: "systemError" },
+  });
+  expect(commands.readThread).not.toHaveBeenCalled();
+
+  emitThreadStatusChanged(options, {
+    threadId: launchThreadId,
+    status: { type: "systemError" },
+  });
+  await expect.poll(() => vi.mocked(commands.readThread).mock.calls.length).toBe(1);
+  expect(commands.readThread).toHaveBeenCalledExactlyOnceWith({
+    threadId: launchThreadId,
+    includeTurns: false,
+  });
+
+  markCommandsUnavailable(options);
+  await expect.element(status).toHaveTextContent("none");
+  pendingRead.resolve({
+    thread: { ...attachResponse.snapshot.thread, status: { type: "systemError" } },
+  });
+  await pendingRead.promise;
+  await Promise.resolve();
+
+  await expect.element(status).toHaveTextContent("none");
 });
 
 test("App publishes compaction command and canonical lifecycle through its session snapshot", async () => {
