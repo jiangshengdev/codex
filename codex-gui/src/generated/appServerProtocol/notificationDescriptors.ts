@@ -104,6 +104,10 @@ function isKnownServerNotificationMethod(method: string): boolean {
       return true;
     case "model/verification":
       return true;
+    case "modelProvider/authRecoveryCompleted":
+      return true;
+    case "modelProvider/authRecoveryStarted":
+      return true;
     case "remoteControl/status/changed":
       return true;
     case "serverRequest/resolved":
