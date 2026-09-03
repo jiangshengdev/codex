@@ -260,6 +260,7 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
   const releaseReadinessBeforeMove = queueCoordinator.getReleaseReadiness();
   const hostCallsBeforeMove = readGuiHostCommandCallCounts(commandHandle);
   expect(hostCallsBeforeMove).toEqual({
+    compactThread: 0,
     attachThreadProjection: 1,
     listSkills: 1,
     listThreads: 0,

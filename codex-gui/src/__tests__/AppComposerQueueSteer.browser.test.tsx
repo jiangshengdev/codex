@@ -315,6 +315,7 @@ test("App issues steer inputs in the authoritative suffix order selected through
   const releaseReadinessBeforeMove = queueCoordinator.getReleaseReadiness();
   const hostCallsBeforeMove = readGuiHostCommandCallCounts(commandHandle);
   expect(hostCallsBeforeMove).toEqual({
+    compactThread: 0,
     attachThreadProjection: 1,
     listSkills: 1,
     listThreads: 0,
