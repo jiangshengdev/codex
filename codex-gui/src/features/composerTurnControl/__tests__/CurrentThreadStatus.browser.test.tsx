@@ -43,7 +43,7 @@ test.each(cases)(
     await expect.element(dot).toHaveAttribute("aria-hidden", "true");
     await expect.element(dot).toHaveClass("size-2", "shrink-0", "rounded-full", color);
     expect(statusItem.element().tabIndex).toBe(-1);
-    expect(statusItem.element().className).not.toMatch(
+    expect(statusItem.element().getAttribute("class") ?? "").not.toMatch(
       /(?:^|\s)(?:bg-|border|shadow|transition|animate-)/u,
     );
     expect(dot.className).not.toMatch(/(?:^|\s)(?:transition|animate-)/u);
