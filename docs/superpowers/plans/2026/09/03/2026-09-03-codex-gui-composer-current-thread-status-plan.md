@@ -1,6 +1,6 @@
 # Codex GUI Composer 当前 Thread 全局状态实施计划
 
-计划状态：待确认
+计划状态：已确认（含 P2 范围变更）
 
 计划日期：2026-09-03
 
@@ -76,7 +76,7 @@ thread，不与内部 `turn` 状态合并，也不改变 Composer 边框、背�
 | notification selection | `appServerProtocol.ts`、generated app-server artifacts、`guiHostClient.ts` 及其 tests | 目标通知当前被丢弃 |
 | status owner | 新 `activeThreadStatus.ts` 与 unit test | 通知无 revision，必须 invalidation + 权威 read |
 | live/controller lifecycle | `activeThreadSessionContracts.ts`、`liveActiveThreadSession.ts`、`activeThreadSession.ts`、`GuiHostConnectionBridge.tsx` 及 tests/harness | snapshot、current/candidate routing、dispose/generation 都由该链路拥有 |
-| Redux duplicate cleanup | `threadRuntimeSlice.ts` 与 reducer test | 当前 metadata shape 意外包含未消费的 attach-time `status`，与单一 owner 约束冲突 |
+| Redux duplicate cleanup | `threadRuntimeSlice.ts`、reducer test 与 `AppProjectionIngress.browser.test.tsx` 应用级断言 | 当前 metadata shape 意外包含未消费的 attach-time `status`，与单一 owner 约束冲突 |
 | presentation | 新 presentation model、组件及 tests；`ComposerTurnControl.tsx` 与相关 Browser tests | Composer 已直接消费 live snapshot，二维码位置由 footer 拥有 |
 | i18n | `src/locales/en.po`、`src/locales/zh-CN.po` | 新短标签与完整 accessible name 必须走现有 Lingui 流程 |
 | fixture E2E | `e2e/app.spec.ts` | 375px layout 与 WebSocket fixture 可覆盖 Level 1 应用集成，不冒充真实 runtime |
@@ -90,7 +90,8 @@ thread，不与内部 `turn` 状态合并，也不改变 Composer 边框、背�
   reconnect/dispose 与迟到 result：新 owner unit test、`liveActiveThreadSession.test.ts`、
   `activeThreadSession.test.ts`、`AppActiveThreadSession.browser.test.tsx`。
 - Redux owner 边界：`threadRuntimeSlice.test.ts` 以整个对象相等证明 derived metadata 不含
-  `turns` 或 `status`，且 token usage/turn read model 行为不变。
+  `turns` 或 `status`，且 token usage/turn read model 行为不变；
+  `AppProjectionIngress.browser.test.tsx` 验证应用 ingestion 的预期 metadata 同样不含 `status`。
 - presentation 全状态、集合语义、ARIA、静态 token、焦点不移动、二维码相邻、右侧顺序、panel
   token 不变：新 presentation unit/Browser tests 与现有 Composer Browser tests。
 - 窄 viewport：sequential `composer-viewport.browser.test.tsx` 与 fixture `e2e/app.spec.ts`。
@@ -413,7 +414,7 @@ translation 丢失、边界外 catalog 或二次 drift 均暂停后继。
 - `produces`: P2 source/test diff
 - `completionEvidence`: 只有 P2 allowlist 改动；Redux 变化仅限删除 duplicate status 与对应 test；无 Rust/presentation/i18n 变化
 - `readSet`: activeThreadSession feature、bridge、App Browser support/tests、generated ThreadStatus/read types
-- `writeSet`: 新 `activeThreadStatus.ts`/test、`activeThreadSessionContracts.ts`、`liveActiveThreadSession.ts`/test、`activeThreadSession.ts`/test、`activeThreadSessionHarness.ts`、`GuiHostConnectionBridge.tsx`、`threadRuntimeSlice.ts`/test、`AppActiveThreadSession.browser.test.tsx`、`AppRouting.browser.test.tsx`、`smoke/AppRouting.smoke.browser.test.tsx`、`appBrowserTestSupport.ts`（仅 status notification emit helper）
+- `writeSet`: 新 `activeThreadStatus.ts`/test、`activeThreadSessionContracts.ts`、`liveActiveThreadSession.ts`/test、`activeThreadSession.ts`/test、`activeThreadSessionHarness.ts`、`GuiHostConnectionBridge.tsx`、`threadRuntimeSlice.ts`/test、`AppActiveThreadSession.browser.test.tsx`、`AppRouting.browser.test.tsx`、`smoke/AppRouting.smoke.browser.test.tsx`、`appBrowserTestSupport.ts`（仅 status notification emit helper）、`src/__tests__/AppProjectionIngress.browser.test.tsx`（仅同步 whole-object expected metadata 删除 `status`）
 - `stateEffects`: 工作树编辑
 - `commandScope`: `apply_patch` 与精确只读 diff
 - `executionContext`: 当前 checkout/dev，禁止 index
@@ -442,14 +443,14 @@ translation 丢失、边界外 catalog 或二次 drift 均暂停后继。
 - `outcome`: owner/session unit 与应用级 Browser 生命周期 tests 实际收集并全绿。
 - `estimatedCost`: 高；`deferralEvidence`: 无
 - `hardPredecessors`: P2F；`consumes`: formatted P2 snapshot；`produces`: P2 green evidence
-- `completionEvidence`: 新 owner、live/controller unit 非零全绿；App lifecycle Browser 三引擎非零全绿
+- `completionEvidence`: 新 owner、live/controller unit 非零全绿；`AppProjectionIngress.browser.test.tsx` 与 App lifecycle Browser 三引擎非零全绿
 - `readSet`: P2 files、configs、node_modules；`writeSet`: 无代理显式输出
 - `stateEffects`: test runner cache/results
-- `commandScope`: focused unit；focused `test:browser:parallel`；`type-check`
+- `commandScope`: focused unit；focused `test:browser:parallel`（包含 `AppProjectionIngress.browser.test.tsx`）；`type-check`
 - `executionContext`: `codex-gui` cwd，fnm Node/pnpm，headless
 - `resourceLocks`: Vitest/Vite cache write、browser sessions
 - `owner`: P2 verification owner
-- `verification`: baseline/foreign/current/candidate/failure/dispose/reconnect/late result 场景；Redux metadata 整体对象不含 status
+- `verification`: baseline/foreign/current/candidate/failure/dispose/reconnect/late result 场景；Redux metadata 整体对象与应用 ingestion 预期均不含 status
 - `failureDomain`: P2V、P2S、P2C 与全部后继
 - `replanTriggers`: 零收集、需要外部 state store 或计划外生命周期 owner
 - `authorizationGate`: `pending-plan-confirmation`，P2 验证能力信封
@@ -668,8 +669,15 @@ translation 丢失、边界外 catalog 或二次 drift 均暂停后继。
 - 已有 commit 的修正使用新的独立 commit，禁止 amend；不得增加最终状态不需要的兼容层、双写、
   fallback 或 adapter 来让中间节点通过。
 
+## P2 范围变更证据
+
+- focused unit 共 4 个文件、47/47 tests passed。
+- Browser 共 129 个文件、948 tests；945 passed，唯一语义失败在三个引擎各出现一次。证据为
+  `src/__tests__/AppProjectionIngress.browser.test.tsx:165` 的 whole-object expected metadata 只剔除
+  `turns`，尚未同步剔除 `status`。
+- 当前 P2 尚未 stage 或 commit。
+- 用户确认本次 P2 范围变更后，先单独提交本次 plan amendment，再恢复 P2 的单行预期修正与复验。
+
 ## 计划确认门禁
 
-本文当前为待确认计划。用户明确确认本文后，下一轮先执行 DOCS 独立本地提交，再按 DAG 连续
-完成 P1、P2、P3、最终验证与计划内问题闭环。确认前不得开始实现、生成、格式化、测试、stage
-或 commit。
+本文及 P2 范围变更均已确认。恢复执行时先提交本次 plan amendment，再从 P2V 的单行预期修正、格式化与复验继续；P2 未通过验证和独立提交前不得启动 P3。
