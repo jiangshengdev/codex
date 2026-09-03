@@ -4,6 +4,10 @@ import {
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import {
+  GuiHostCommandError,
+  isGuiHostCommandError,
+} from "@/features/guiHost/guiHostCommandGateway";
 import { SkillCatalogOwner } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
   ThreadProjectionAttachResponse,
@@ -17,9 +21,16 @@ import {
   type ActiveThreadProjectionAcceptedQueueFact,
   type ActiveThreadProjectionStagedBatch,
 } from "./activeThreadProjection";
+import {
+  createActiveThreadCompaction,
+  type ActiveThreadCompaction,
+  type ActiveThreadCompactionClaim,
+  type ActiveThreadCompactionSettlement,
+} from "./activeThreadCompaction";
 import { activeThreadReadModelTransitionApplied } from "./activeThreadSessionReadModel";
 import type {
   ActiveThreadBeginPendingInputEditResult,
+  ActiveThreadCompactionView,
   ActiveThreadPendingInputEditReservation,
   ActiveThreadReserveReleaseResult,
   ActiveThreadSessionOperationResult,
@@ -30,7 +41,7 @@ import type {
 
 type LiveActiveThreadSessionCommands = Pick<
   GuiHostCommands,
-  "interruptTurn" | "listSkills" | "startTurn" | "steerTurn"
+  "compactThread" | "interruptTurn" | "listSkills" | "startTurn" | "steerTurn"
 >;
 
 export type CreateLiveActiveThreadSessionInput = Readonly<{
@@ -46,6 +57,8 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private readonly subscriptionId: string;
   private readonly projection: ActiveThreadProjection;
   private readonly queue: ComposerInputQueueCoordinator;
+  private readonly compaction: ActiveThreadCompaction;
+  private readonly compactThread: LiveActiveThreadSessionCommands["compactThread"];
   private readonly skillCatalog: SkillCatalogOwner;
   private readonly dispatch: AppDispatch;
   private readonly listeners = new Set<() => void>();
@@ -80,6 +93,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.threadId = thread.id;
     this.subscriptionId = attachResponse.subscriptionId;
     this.projection = projection;
+    this.compactThread = commands.compactThread;
     this.dispatch = dispatch;
     this.revision = sessionRevision;
     this.activeTurnId = activeTurnIdFromTurns(thread.turns);
@@ -90,6 +104,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       steerTurn: commands.steerTurn,
       interruptTurn: commands.interruptTurn,
     });
+    this.compaction = createActiveThreadCompaction();
     this.skillCatalog = new SkillCatalogOwner({ cwd: thread.cwd, listSkills: commands.listSkills });
     this.transactionDepth = 1;
     this.unsubscribeQueue = this.queue.subscribe(this.handleChildPublication);
@@ -134,6 +149,42 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
 
   recover: LiveActiveThreadSession["recover"] = (expectedRevision) =>
     this.mutate(expectedRevision, () => this.queue.recover());
+
+  requestCompaction: LiveActiveThreadSession["requestCompaction"] = (expectedRevision) => {
+    const unavailable = this.operationUnavailable(expectedRevision);
+    if (unavailable != null) return unavailable;
+    if (this.activeTurnId != null) return { type: "rejected", reason: "activeTurn" };
+    if (this.compaction.getState().phase !== "idle") {
+      return { type: "rejected", reason: "operationInProgress" };
+    }
+
+    const claimResult = this.runChildTransaction(() => {
+      const reserved = this.queue.reserveRelease();
+      if (reserved.type === "blocked") return reserved;
+      return this.compaction.claimRequest(reserved.reservation);
+    });
+    if (claimResult.type === "blocked") {
+      if ("blockers" in claimResult) return claimResult;
+      return claimResult.reason === "disposed"
+        ? this.unavailable("disposed")
+        : { type: "rejected", reason: "operationInProgress" };
+    }
+
+    const generation = this.generation;
+    const claim = claimResult.claim;
+    this.compactThread({ threadId: this.threadId }).then(
+      () => {
+        this.settleCompactionRequest(generation, claim, { type: "accepted" });
+      },
+      (error: unknown) => {
+        this.settleCompactionRequest(generation, claim, {
+          type: "rejected",
+          error: compactionCommandError(error),
+        });
+      },
+    );
+    return { type: "accepted" };
+  };
 
   readPendingInputPage: LiveActiveThreadSession["readPendingInputPage"] = (request) =>
     this.queue.readPendingInputPage(request);
@@ -290,6 +341,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     this.unsubscribeQueue();
     this.unsubscribeSkills();
     try {
+      this.compaction.dispose();
       this.queue.dispose();
     } finally {
       this.skillCatalog.dispose();
@@ -321,6 +373,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private runChildTransaction<Result>(operation: () => Result): Result {
     const outermost = this.transactionDepth === 0;
     const queueCapabilityBefore = outermost ? this.queueCapabilityFingerprint() : null;
+    const compactionStateBefore = outermost ? this.compaction.getState() : null;
     this.transactionDepth += 1;
     try {
       return operation();
@@ -328,7 +381,12 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       this.transactionDepth -= 1;
       const queueCapabilityChanged =
         outermost && queueCapabilityBefore !== this.queueCapabilityFingerprint();
-      if (this.transactionDepth === 0 && (this.childChanged || queueCapabilityChanged)) {
+      const compactionStateChanged =
+        outermost && compactionStateBefore !== this.compaction.getState();
+      if (
+        this.transactionDepth === 0 &&
+        (this.childChanged || queueCapabilityChanged || compactionStateChanged)
+      ) {
         this.childChanged = false;
         this.publishTransition([]);
       }
@@ -410,21 +468,23 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private applyQueueFacts(facts: readonly ActiveThreadProjectionAcceptedQueueFact[]): void {
     for (const fact of facts) {
       this.queue.observeAcceptedEvent(fact);
-      if (fact.replay !== "live") continue;
-      switch (fact.notification.event.type) {
-        case "turnStarted":
-          this.activeTurnId = fact.notification.event.notification.turn.id;
-          break;
-        case "turnCompleted":
-          if (this.activeTurnId === fact.notification.event.notification.turn.id) {
-            this.activeTurnId = null;
-          }
-          break;
-        case "itemStarted":
-        case "itemCompleted":
-        case "tokenUsageUpdated":
-          break;
+      if (fact.replay === "live") {
+        switch (fact.notification.event.type) {
+          case "turnStarted":
+            this.activeTurnId = fact.notification.event.notification.turn.id;
+            break;
+          case "turnCompleted":
+            if (this.activeTurnId === fact.notification.event.notification.turn.id) {
+              this.activeTurnId = null;
+            }
+            break;
+          case "itemStarted":
+          case "itemCompleted":
+          case "tokenUsageUpdated":
+            break;
+        }
       }
+      this.compaction.observeAcceptedEvent(fact);
     }
   }
 
@@ -432,6 +492,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
     for (const fact of batch.readModelFacts) {
       if (fact.type === "projectionUnavailable") {
         this.projectionUnavailableReason = fact.reason;
+        this.compaction.dispose();
       }
     }
   }
@@ -454,6 +515,7 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
       threadId: this.threadId,
       subscriptionId: this.subscriptionId,
       activeTurnId: this.activeTurnId,
+      compaction: this.compactionView(),
       composer: this.queue.getSnapshot(),
       skills: this.skillCatalog.getSnapshot(),
     };
@@ -470,6 +532,30 @@ class LiveActiveThreadSessionImpl implements LiveActiveThreadSession {
   private notifyListeners(): void {
     for (const listener of this.listeners) listener();
   }
+
+  private settleCompactionRequest(
+    generation: number,
+    claim: ActiveThreadCompactionClaim,
+    settlement: ActiveThreadCompactionSettlement,
+  ): void {
+    if (this.disposed || generation !== this.generation) return;
+    this.runChildTransaction(() => this.compaction.settleRequest(claim, settlement));
+  }
+
+  private compactionView(): ActiveThreadCompactionView {
+    const state = this.compaction.getState();
+    if (state.phase !== "idle") {
+      return { phase: state.phase, canRequest: false, startFailure: null };
+    }
+    return {
+      phase: "idle",
+      canRequest:
+        this.projectionUnavailableReason == null &&
+        this.activeTurnId == null &&
+        this.queue.getReleaseReadiness().type === "safe",
+      startFailure: state.startFailure,
+    };
+  }
 }
 
 const activeTurnIdFromTurns = (turns: Turn[]): Turn["id"] | null =>
@@ -480,6 +566,15 @@ function isSessionUnavailable(result: {
   scope?: string;
 }): result is ActiveThreadSessionOperationUnavailable {
   return result.type === "unavailable" && result.scope === "activeThreadSession";
+}
+
+function compactionCommandError(error: unknown): GuiHostCommandError {
+  if (isGuiHostCommandError(error)) return error;
+  return new GuiHostCommandError({
+    source: "send",
+    delivery: "deliveryUnknown",
+    error: error instanceof Error ? error : new Error("Unexpected compaction command failure"),
+  });
 }
 
 type ReleaseHandoff = {

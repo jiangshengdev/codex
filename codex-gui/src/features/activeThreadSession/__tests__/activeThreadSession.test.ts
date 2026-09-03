@@ -124,7 +124,7 @@ describe("ActiveThreadSession", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it("exposes stable revision-gated composer and skills roles through the public snapshot", async () => {
+  it("exposes stable revision-gated compaction, composer, and skills roles", async () => {
     const h = createHarness();
     await activateInitial(h);
     const initial = h.session.getSnapshot();
@@ -135,12 +135,19 @@ describe("ActiveThreadSession", () => {
     });
     expect(initial.composerRole.promoteOrdinaryFrontToSteer(initial.revision)).toBe(false);
     expect(initial.composerRole.recover(initial.revision)).toBe(false);
+    expect(initial.compaction).toEqual({ phase: "idle", canRequest: true, startFailure: null });
 
     h.controller.handleProjectionEvent(eventTurnStarted);
     const withTurn = h.session.getSnapshot();
     if (withTurn.phase !== "active") throw new Error("expected an active turn session");
     expect(withTurn.composerRole).toBe(initial.composerRole);
+    expect(withTurn.compactionRole).toBe(initial.compactionRole);
     expect(withTurn.skillsRole).toBe(initial.skillsRole);
+    expect(withTurn.compaction).toEqual({ phase: "idle", canRequest: false, startFailure: null });
+    expect(withTurn.compactionRole.requestCompaction(withTurn.revision)).toEqual({
+      type: "rejected",
+      reason: "activeTurn",
+    });
     expect(withTurn.composerRole.interruptActiveTurn(withTurn.revision)).toBe(true);
 
     h.controller.handleProjectionClosed(closedBackpressure);
@@ -166,6 +173,33 @@ describe("ActiveThreadSession", () => {
         revision: unavailable.revision,
       });
     }
+  });
+
+  it("invalidates an old compaction role and ignores its late command callback after replacement", async () => {
+    const h = createHarness();
+    const compact = createDeferred<Awaited<ReturnType<GuiHostCommands["compactThread"]>>>();
+    vi.mocked(h.commands.compactThread).mockReturnValueOnce(compact.promise);
+    await activateInitial(h);
+    const initial = h.session.getSnapshot();
+    if (initial.phase !== "active") throw new Error("expected the initial active session");
+    expect(initial.compactionRole.requestCompaction(initial.revision)).toEqual({
+      type: "accepted",
+    });
+    h.controller.handleProjectionEvent(eventTurnStarted);
+
+    queueReplacementActivation(h.commands);
+    await expect(h.session.activate(replacementThreadId)).resolves.toMatchObject({ type: "ready" });
+    const replacement = h.session.getSnapshot();
+    if (replacement.phase !== "active") throw new Error("expected the replacement session");
+    expect(replacement.compactionRole).not.toBe(initial.compactionRole);
+    expect(initial.compactionRole.requestCompaction(initial.revision)).toMatchObject({
+      type: "unavailable",
+      reason: "disposed",
+    });
+
+    compact.reject(new Error("late compact failure"));
+    await Promise.resolve();
+    expect(h.session.getSnapshot()).toBe(replacement);
   });
 
   it("keeps pending-input reads, mutations, and edit capabilities on the public role", async () => {

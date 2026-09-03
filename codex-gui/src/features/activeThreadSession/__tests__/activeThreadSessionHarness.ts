@@ -3,6 +3,7 @@ import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerI
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
 import type {
   ActiveThreadActivationOutcome,
+  ActiveThreadCompactionRole,
   ActiveThreadComposerRole,
   ActiveThreadSession,
   ActiveThreadSessionSnapshot,
@@ -29,6 +30,7 @@ type ActivateOutcomeFactory = (
 export type ActiveThreadSessionHarnessOptions = Readonly<{
   initialSnapshot?: ActiveThreadSessionSnapshot;
   composerRole?: Partial<ActiveThreadComposerRole>;
+  compactionRole?: Partial<ActiveThreadCompactionRole>;
   skillsRole?: Partial<ActiveThreadSkillsRole>;
   activate?: ActiveThreadActivationOutcome | ActivateOutcomeFactory;
 }>;
@@ -36,6 +38,7 @@ export type ActiveThreadSessionHarnessOptions = Readonly<{
 export type ActiveThreadSessionHarness = Readonly<{
   session: ActiveThreadSession;
   composerRole: ActiveThreadComposerRole;
+  compactionRole: ActiveThreadCompactionRole;
   skillsRole: ActiveThreadSkillsRole;
   activate: Mock<ActiveThreadSession["activate"]>;
   subscribe: Mock<ActiveThreadSession["subscribe"]>;
@@ -111,6 +114,15 @@ const createComposerRole = (
   ...overrides,
 });
 
+const createCompactionRole = (
+  overrides: Partial<ActiveThreadCompactionRole> = {},
+): ActiveThreadCompactionRole => ({
+  requestCompaction: vi
+    .fn<ActiveThreadCompactionRole["requestCompaction"]>()
+    .mockReturnValue(ownerGone),
+  ...overrides,
+});
+
 const createSkillsRole = (
   overrides: Partial<ActiveThreadSkillsRole> = {},
 ): ActiveThreadSkillsRole => ({
@@ -127,9 +139,11 @@ export const activeThreadSessionSnapshot = (
   threadId: "thread-1",
   subscriptionId: "subscription-1",
   activeTurnId: null,
+  compaction: { phase: "idle", canRequest: true, startFailure: null },
   composer: emptyComposerSnapshot,
   skills: emptySkillsState,
   composerRole: createComposerRole(),
+  compactionRole: createCompactionRole(),
   skillsRole: createSkillsRole(),
   ...options,
   phase: "active",
@@ -144,9 +158,11 @@ export const projectionUnavailableActiveThreadSessionSnapshot = (
   threadId: "thread-1",
   subscriptionId: "subscription-1",
   activeTurnId: null,
+  compaction: { phase: "idle", canRequest: false, startFailure: null },
   composer: emptyComposerSnapshot,
   skills: emptySkillsState,
   composerRole: createComposerRole(),
+  compactionRole: createCompactionRole(),
   skillsRole: createSkillsRole(),
   ...options,
   phase: "projectionUnavailable",
@@ -170,23 +186,30 @@ export const createActiveThreadSessionHarness = (
     options.composerRole == null && initialRoles != null
       ? initialRoles.composerRole
       : createComposerRole(options.composerRole);
+  const compactionRole =
+    options.compactionRole == null && initialRoles != null
+      ? initialRoles.compactionRole
+      : createCompactionRole(options.compactionRole);
   const skillsRole =
     options.skillsRole == null && initialRoles != null
       ? initialRoles.skillsRole
       : createSkillsRole(options.skillsRole);
   const activeSnapshot = (snapshotOptions: ActiveSnapshotOptions = {}): ActiveSnapshot =>
-    activeThreadSessionSnapshot({ ...snapshotOptions, composerRole, skillsRole });
+    activeThreadSessionSnapshot({ ...snapshotOptions, compactionRole, composerRole, skillsRole });
   const projectionUnavailableSnapshot = (
     snapshotOptions: ProjectionUnavailableSnapshotOptions = {},
   ): ProjectionUnavailableSnapshot =>
     projectionUnavailableActiveThreadSessionSnapshot({
       ...snapshotOptions,
+      compactionRole,
       composerRole,
       skillsRole,
     });
   let snapshot =
     initialRoles == null ||
-    (initialRoles.composerRole === composerRole && initialRoles.skillsRole === skillsRole)
+    (initialRoles.compactionRole === compactionRole &&
+      initialRoles.composerRole === composerRole &&
+      initialRoles.skillsRole === skillsRole)
       ? (options.initialSnapshot ?? emptyActiveThreadSessionSnapshot)
       : initialRoles.phase === "active"
         ? activeSnapshot(initialRoles)
@@ -213,6 +236,7 @@ export const createActiveThreadSessionHarness = (
 
   return {
     session,
+    compactionRole,
     composerRole,
     skillsRole,
     activate,
@@ -223,7 +247,9 @@ export const createActiveThreadSessionHarness = (
       if (Object.is(snapshot, nextSnapshot)) return false;
       if (
         (nextSnapshot.phase === "active" || nextSnapshot.phase === "projectionUnavailable") &&
-        (nextSnapshot.composerRole !== composerRole || nextSnapshot.skillsRole !== skillsRole)
+        (nextSnapshot.compactionRole !== compactionRole ||
+          nextSnapshot.composerRole !== composerRole ||
+          nextSnapshot.skillsRole !== skillsRole)
       ) {
         throw new Error("active thread session harness snapshots must preserve role identity");
       }

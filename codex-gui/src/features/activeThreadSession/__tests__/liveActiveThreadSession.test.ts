@@ -1,21 +1,39 @@
 import { describe, expect, it, vi } from "vitest";
+import { createDeferred } from "@/__tests__/testDeferred";
 import { makeStore } from "@/app/store";
 import { composerCapture } from "@/features/composerInputQueue/__tests__/composerInputQueueTestFixtures";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
+import { GuiHostCommandError } from "@/features/guiHost/guiHostCommandGateway";
 import {
   attachBaseline,
   closedBackpressure,
   eventAgentMessageDelta,
+  eventItemCompleted,
+  eventItemStarted,
+  eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
+import {
+  baseTurn,
+  contextCompaction,
+  contextCompactionCompleted,
+  eventWithEnvelope,
+  inProgressTurn,
+  itemStarted,
+  turnCompleted,
+  turnStarted,
+  turnWithStatus,
+} from "@/features/projection/__tests__/projectionTestBuilders";
 import { createActiveThreadProjection } from "../activeThreadProjection";
 import { createLiveActiveThreadSession } from "../liveActiveThreadSession";
 
 const createHarness = () => {
   const store = makeStore();
   const listSkills = vi.fn<GuiHostCommands["listSkills"]>(() => new Promise(() => undefined));
+  const compactThread = vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({});
   const startTurn = vi.fn<GuiHostCommands["startTurn"]>(() => new Promise(() => undefined));
   const commands = {
+    compactThread,
     listSkills,
     startTurn,
     steerTurn: vi.fn<GuiHostCommands["steerTurn"]>(() => new Promise(() => undefined)),
@@ -32,10 +50,227 @@ const createHarness = () => {
     commands,
     dispatch: store.dispatch,
   });
-  return { commands, listSkills, session, startTurn, store };
+  return { commands, compactThread, listSkills, session, startTurn, store };
 };
 
+const compactTurnId = "compact-turn";
+const compactItemId = "compact-item";
+const compactTurnStarted = turnStarted(
+  eventTurnStarted,
+  "compact-turn-started",
+  inProgressTurn(compactTurnId),
+);
+const compactItemStarted = eventWithEnvelope(
+  itemStarted(
+    eventItemStarted,
+    "compact-item-started",
+    compactTurnId,
+    contextCompaction(compactItemId),
+  ),
+  { parentCommitId: compactTurnStarted.commitId },
+);
+const compactItemCompleted = eventWithEnvelope(
+  contextCompactionCompleted(
+    eventItemCompleted,
+    "compact-item-completed",
+    compactTurnId,
+    compactItemId,
+  ),
+  { parentCommitId: compactItemStarted.commitId },
+);
+const compactTurnCompleted = eventWithEnvelope(
+  turnCompleted(eventTurnCompleted, "compact-turn-completed", baseTurn(compactTurnId)),
+  { parentCommitId: compactTurnStarted.commitId },
+);
+
+const commandError = (delivery: "definitelyNotAccepted" | "deliveryUnknown", message: string) =>
+  new GuiHostCommandError({ source: "rpc", delivery, error: new Error(message) });
+
 describe("LiveActiveThreadSession", () => {
+  it("gates compaction by revision, active turn, queue readiness, and one in-flight claim", async () => {
+    const h = createHarness();
+    const initial = h.session.getSnapshot();
+    if (initial.phase !== "active") throw new Error("expected an active session");
+
+    expect(h.session.requestCompaction(initial.revision - 1)).toMatchObject({
+      type: "unavailable",
+      reason: "staleRevision",
+    });
+    const handoff = h.session.reserveRelease(initial.revision);
+    if (handoff.type !== "reserved") throw new Error("expected a release reservation");
+    expect(h.session.requestCompaction(initial.revision)).toEqual({
+      type: "blocked",
+      blockers: [{ type: "releaseReserved" }],
+    });
+    expect(handoff.reservation.release()).toEqual({ type: "released" });
+
+    expect(h.session.requestCompaction(initial.revision)).toEqual({ type: "accepted" });
+    const pending = h.session.getSnapshot();
+    if (pending.phase !== "active") throw new Error("expected an active session");
+    expect(pending.compaction).toEqual({
+      phase: "requestPending",
+      canRequest: false,
+      startFailure: null,
+    });
+    expect(h.session.requestCompaction(pending.revision)).toEqual({
+      type: "rejected",
+      reason: "operationInProgress",
+    });
+    expect(h.session.submit(pending.revision, composerCapture("blocked by compact"))).toEqual({
+      type: "rejected",
+      reason: "releaseReserved",
+    });
+    expect(h.compactThread).toHaveBeenCalledExactlyOnceWith({
+      threadId: attachBaseline.snapshot.thread.id,
+    });
+    await Promise.resolve();
+    expect(h.session.getSnapshot()).toBe(pending);
+
+    const activeHarness = createHarness();
+    activeHarness.session.handleProjectionEvent(eventTurnStarted);
+    const active = activeHarness.session.getSnapshot();
+    expect(activeHarness.session.requestCompaction(active.revision)).toEqual({
+      type: "rejected",
+      reason: "activeTurn",
+    });
+    expect(activeHarness.compactThread).not.toHaveBeenCalled();
+  });
+
+  it("publishes the candidate turn and releases the child reservation in one transition", () => {
+    const h = createHarness();
+    h.session.requestCompaction(h.session.getSnapshot().revision);
+    const pendingRevision = h.session.getSnapshot().revision;
+    const listener = vi.fn<() => void>();
+    h.session.subscribe(listener);
+
+    expect(h.session.handleProjectionEvent(compactTurnStarted)).toEqual({ type: "accepted" });
+
+    const started = h.session.getSnapshot();
+    if (started.phase !== "active") throw new Error("expected an active session");
+    expect(started.revision).toBe(pendingRevision + 1);
+    expect(started.activeTurnId).toBe(compactTurnId);
+    expect(started.compaction.phase).toBe("requestPending");
+    expect(h.session.getReleaseReadiness()).toEqual({ type: "safe" });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps acknowledgement separate from lifecycle and supports event-before-ack", async () => {
+    const h = createHarness();
+    const response = createDeferred<void>();
+    h.compactThread.mockReturnValue(response.promise.then(() => ({})));
+    h.session.requestCompaction(h.session.getSnapshot().revision);
+
+    h.session.handleProjectionEvent(compactTurnStarted);
+    h.session.handleProjectionEvent(compactItemStarted);
+    let running = h.session.getSnapshot();
+    if (running.phase !== "active") throw new Error("expected an active session");
+    expect(running.compaction).toEqual({
+      phase: "running",
+      canRequest: false,
+      startFailure: null,
+    });
+
+    response.resolve();
+    await response.promise;
+    await Promise.resolve();
+    expect(h.session.getSnapshot()).toBe(running);
+
+    h.session.handleProjectionEvent(compactItemCompleted);
+    running = h.session.getSnapshot();
+    if (running.phase !== "active") throw new Error("expected an active session");
+    expect(running.compaction).toEqual({ phase: "idle", canRequest: false, startFailure: null });
+  });
+
+  it("tracks automatic compaction and clears matching failed or interrupted turns", () => {
+    for (const terminalStatus of ["failed", "interrupted"] as const) {
+      const h = createHarness();
+      h.session.handleProjectionEvent(compactTurnStarted);
+      h.session.handleProjectionEvent(compactItemStarted);
+      const running = h.session.getSnapshot();
+      if (running.phase !== "active") throw new Error("expected an active session");
+      expect(running.compaction.phase).toBe("running");
+
+      h.session.handleProjectionEvent(
+        eventWithEnvelope(
+          turnCompleted(
+            eventTurnCompleted,
+            `compact-${terminalStatus}`,
+            turnWithStatus(baseTurn(compactTurnId), terminalStatus),
+          ),
+          { parentCommitId: compactItemStarted.commitId },
+        ),
+      );
+      const terminal = h.session.getSnapshot();
+      if (terminal.phase !== "active") throw new Error("expected an active session");
+      expect(terminal.compaction).toEqual({
+        phase: "idle",
+        canRequest: true,
+        startFailure: null,
+      });
+    }
+
+    const beforeItem = createHarness();
+    beforeItem.session.requestCompaction(beforeItem.session.getSnapshot().revision);
+    beforeItem.session.handleProjectionEvent(compactTurnStarted);
+    beforeItem.session.handleProjectionEvent(compactTurnCompleted);
+    const terminal = beforeItem.session.getSnapshot();
+    if (terminal.phase !== "active") throw new Error("expected an active session");
+    expect(terminal.compaction).toEqual({ phase: "idle", canRequest: true, startFailure: null });
+  });
+
+  it("distinguishes definite rejection from unknown delivery", async () => {
+    const rejected = createHarness();
+    rejected.compactThread.mockRejectedValue(
+      commandError("definitelyNotAccepted", "compaction rejected"),
+    );
+    rejected.session.requestCompaction(rejected.session.getSnapshot().revision);
+    await Promise.resolve();
+    const rejectedSnapshot = rejected.session.getSnapshot();
+    if (rejectedSnapshot.phase !== "active") throw new Error("expected an active session");
+    expect(rejectedSnapshot.compaction).toEqual({
+      phase: "idle",
+      canRequest: true,
+      startFailure: "compaction rejected",
+    });
+
+    const unknown = createHarness();
+    unknown.compactThread.mockRejectedValue(commandError("deliveryUnknown", "connection lost"));
+    unknown.session.requestCompaction(unknown.session.getSnapshot().revision);
+    await Promise.resolve();
+    const unknownSnapshot = unknown.session.getSnapshot();
+    if (unknownSnapshot.phase !== "active") throw new Error("expected an active session");
+    expect(unknownSnapshot.compaction).toEqual({
+      phase: "deliveryUnknown",
+      canRequest: false,
+      startFailure: null,
+    });
+
+    const unexpected = createHarness();
+    unexpected.compactThread.mockRejectedValue(new Error("unexpected transport failure"));
+    unexpected.session.requestCompaction(unexpected.session.getSnapshot().revision);
+    await Promise.resolve();
+    const unexpectedSnapshot = unexpected.session.getSnapshot();
+    if (unexpectedSnapshot.phase !== "active") throw new Error("expected an active session");
+    expect(unexpectedSnapshot.compaction.phase).toBe("deliveryUnknown");
+  });
+
+  it("invalidates pending compaction callbacks on projection loss and dispose", async () => {
+    for (const terminate of ["projection", "dispose"] as const) {
+      const h = createHarness();
+      const response = createDeferred<void>();
+      h.compactThread.mockReturnValue(response.promise.then(() => ({})));
+      h.session.requestCompaction(h.session.getSnapshot().revision);
+      if (terminate === "projection") h.session.handleProjectionClosed(closedBackpressure);
+      else h.session.dispose();
+      const terminated = h.session.getSnapshot();
+
+      response.resolve();
+      await response.promise;
+      await Promise.resolve();
+      expect(h.session.getSnapshot()).toBe(terminated);
+    }
+  });
+
   it("fans an accepted turn fact into queue, Redux, and one session revision", () => {
     const { session, store } = createHarness();
     const revisions: number[] = [];

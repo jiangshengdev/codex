@@ -37,14 +37,17 @@ import type {
 } from "@/features/guiHost/guiHostClient";
 import {
   attachReplacement,
+  eventItemStarted,
   eventTurnCompleted,
   eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import {
   attachWithThreadId,
   attachWithTurns,
+  contextCompaction,
   eventWithEnvelope,
   inProgressTurn,
+  itemStarted,
   turnCompleted,
   turnStarted,
 } from "@/features/projection/__tests__/projectionTestBuilders";
@@ -86,6 +89,21 @@ function ThreadSwitchCapabilityProbe() {
       >
         Continue candidate thread
       </button>
+      <button
+        disabled={
+          session == null ||
+          (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") ||
+          !snapshot.compaction.canRequest
+        }
+        onClick={() => {
+          if (snapshot.phase === "active" || snapshot.phase === "projectionUnavailable") {
+            snapshot.compactionRole.requestCompaction(snapshot.revision);
+          }
+        }}
+        type="button"
+      >
+        Request context compaction
+      </button>
       <output aria-label="Active thread session">{available ? snapshot.threadId : "none"}</output>
       <output aria-label="Active skill catalog status">
         {available ? snapshot.skills.type : "none"}
@@ -94,6 +112,9 @@ function ThreadSwitchCapabilityProbe() {
         {available
           ? snapshot.skills.candidates.map(({ name }) => name).join(",") || "none"
           : "none"}
+      </output>
+      <output aria-label="Context compaction phase">
+        {available ? snapshot.compaction.phase : "none"}
       </output>
     </section>
   );
@@ -618,6 +639,41 @@ test("App owns one live queue under StrictMode and disposes it once", async () =
 
   expect(queue.observeAcceptedEvent).toHaveBeenCalledOnce();
   expect(createQueueCoordinator).toHaveBeenCalledOnce();
+});
+
+test("App publishes compaction command and canonical lifecycle through its session snapshot", async () => {
+  const commands = createGuiHostCommands();
+  const compactResponse = createDeferred<Awaited<ReturnType<GuiHostCommands["compactThread"]>>>();
+  vi.mocked(commands.compactThread).mockReturnValue(compactResponse.promise);
+  const { options, screen } = await renderThreadSwitchProbe(commands);
+  const compactButton = screen.getByRole("button", { name: "Request context compaction" });
+  const phase = screen.getByLabelText("Context compaction phase");
+
+  await expect.element(compactButton).toBeEnabled();
+  await compactButton.click();
+  expect(commands.compactThread).toHaveBeenCalledExactlyOnceWith({ threadId: launchThreadId });
+  await expect.element(phase).toHaveTextContent("requestPending");
+  await expect.element(compactButton).toBeDisabled();
+
+  emitProjectionEvent(options, eventTurnStarted);
+  if (eventTurnStarted.event.type !== "turnStarted") {
+    throw new Error("expected a turnStarted fixture");
+  }
+  const compactionStarted = eventWithEnvelope(
+    itemStarted(
+      eventItemStarted,
+      "commit-app-compaction-started",
+      eventTurnStarted.event.notification.turn.id,
+      contextCompaction("app-compaction-item"),
+    ),
+    { parentCommitId: eventTurnStarted.commitId },
+  );
+  emitProjectionEvent(options, compactionStarted);
+  await expect.element(phase).toHaveTextContent("running");
+
+  compactResponse.resolve({});
+  await compactResponse.promise;
+  await expect.element(phase).toHaveTextContent("running");
 });
 
 test("App keeps the initial session when its queue blocks a thread switch", async () => {

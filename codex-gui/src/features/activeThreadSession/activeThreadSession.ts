@@ -19,6 +19,7 @@ import {
 type ActiveThreadSessionCommands = Pick<
   GuiHostCommands,
   | "attachThreadProjection"
+  | "compactThread"
   | "detachThreadProjection"
   | "interruptTurn"
   | "listSkills"
@@ -57,7 +58,12 @@ export type ActiveThreadSkillsRole = Readonly<
   Pick<LiveActiveThreadSession, "invalidateSkills" | "refreshSkills" | "retrySkills">
 >;
 
+export type ActiveThreadCompactionRole = Readonly<
+  Pick<LiveActiveThreadSession, "requestCompaction">
+>;
+
 type ActiveThreadSessionRoles = Readonly<{
+  compactionRole: ActiveThreadCompactionRole;
   composerRole: ActiveThreadComposerRole;
   skillsRole: ActiveThreadSkillsRole;
 }>;
@@ -692,6 +698,9 @@ class ActiveThreadSessionImpl implements ActiveThreadSessionController {
 
 function createSessionRoles(liveSession: LiveActiveThreadSession): ActiveThreadSessionRoles {
   return {
+    compactionRole: {
+      requestCompaction: liveSession.requestCompaction,
+    },
     composerRole: {
       beginPendingInputEdit: liveSession.beginPendingInputEdit,
       deletePendingInput: liveSession.deletePendingInput,

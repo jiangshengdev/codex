@@ -12,6 +12,7 @@ import type {
   ThreadProjectionEventNotification,
 } from "@codex-protocol/v2";
 import type { ActiveThreadProjectionInputOutcome } from "./activeThreadProjection";
+import type { ActiveThreadCompactionState } from "./activeThreadCompaction";
 
 export type ActiveThreadSessionOperationUnavailable = Readonly<{
   type: "unavailable";
@@ -24,11 +25,29 @@ export type ActiveThreadSessionOperationResult<Result> =
   | Result
   | ActiveThreadSessionOperationUnavailable;
 
+export type ActiveThreadCompactionView =
+  | Readonly<{
+      phase: "idle";
+      canRequest: boolean;
+      startFailure: string | null;
+    }>
+  | Readonly<{
+      phase: Exclude<ActiveThreadCompactionState["phase"], "idle">;
+      canRequest: false;
+      startFailure: null;
+    }>;
+
+export type ActiveThreadRequestCompactionResult =
+  | Readonly<{ type: "accepted" }>
+  | Readonly<{ type: "rejected"; reason: "activeTurn" | "operationInProgress" }>
+  | Exclude<ComposerInputQueueCoordinatorReserveReleaseResult, { type: "reserved" }>;
+
 type ActiveSnapshotContents = Readonly<{
   revision: number;
   threadId: string;
   subscriptionId: string;
   activeTurnId: string | null;
+  compaction: ActiveThreadCompactionView;
   composer: ComposerInputQueueCoordinatorSnapshot;
   skills: SkillCatalogState;
 }>;
@@ -86,6 +105,9 @@ export type LiveActiveThreadSession = Readonly<{
   ): ActiveThreadSessionOperationResult<boolean>;
   interruptActiveTurn(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
   recover(expectedRevision: number): ActiveThreadSessionOperationResult<boolean>;
+  requestCompaction(
+    expectedRevision: number,
+  ): ActiveThreadSessionOperationResult<ActiveThreadRequestCompactionResult>;
   readPendingInputPage(
     request: Parameters<ComposerInputQueueCoordinator["readPendingInputPage"]>[0],
   ): ReturnType<ComposerInputQueueCoordinator["readPendingInputPage"]>;
