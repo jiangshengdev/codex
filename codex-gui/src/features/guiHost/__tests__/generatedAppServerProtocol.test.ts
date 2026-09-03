@@ -108,6 +108,16 @@ describe("generated app-server protocol", () => {
     expect(requestDescriptors["turn/steer"].validateResponse({ turnId: null })).toBe(false);
   });
 
+  it("validates thread/compact/start responses with the generated descriptor", () => {
+    const descriptor = requestDescriptors["thread/compact/start"];
+
+    expect(descriptor.validateResponse({})).toBe(true);
+    expect(descriptor.validateResponse({ futureField: true })).toBe(true);
+    expect(descriptor.validateResponse(null)).toBe(false);
+    expect(descriptor.validateResponse([])).toBe(false);
+    expect(descriptor.validateResponse("invalid")).toBe(false);
+  });
+
   it.each([
     [
       "skills/list",

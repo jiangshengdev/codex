@@ -47,6 +47,9 @@ export function isGuiHostCommandError(error: unknown): error is GuiHostCommandEr
 }
 
 export type GuiHostCommands = {
+  compactThread: (
+    params: RequestParams<"thread/compact/start">,
+  ) => Promise<RequestResponse<"thread/compact/start">>;
   attachThreadProjection: (
     params: RequestParams<"thread/projection/attach">,
   ) => Promise<RequestResponse<"thread/projection/attach">>;
@@ -76,6 +79,7 @@ export class GuiHostCommandGateway {
   constructor(requests: AppServerRequestSender) {
     this.requests = requests;
     this.commands = {
+      compactThread: (params) => this.request(requestDescriptors["thread/compact/start"], params),
       attachThreadProjection: (params) =>
         this.request(requestDescriptors["thread/projection/attach"], params),
       listSkills: (params) => this.request(requestDescriptors["skills/list"], params),

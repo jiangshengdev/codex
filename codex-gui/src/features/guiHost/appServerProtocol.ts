@@ -17,6 +17,7 @@ export type RequestResponse<M extends ClientRequestDefinition["method"]> =
 export const APP_SERVER_REQUEST_METHODS = [
   "initialize",
   "skills/list",
+  "thread/compact/start",
   "thread/projection/attach",
   "thread/projection/detach",
   "thread/list",

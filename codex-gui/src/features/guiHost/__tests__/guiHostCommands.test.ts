@@ -165,6 +165,49 @@ describe("guiHostClient commands", () => {
     await expect(promise).resolves.toEqual(skillsListResponse);
   });
 
+  it("sends thread/compact/start through the ready command API", async () => {
+    const { commands, socket } = startConnectionUntilCommandsReady({});
+    const params: RequestParams<"thread/compact/start"> = { threadId };
+    const response: RequestResponse<"thread/compact/start"> = {};
+    const promise = commands.compactThread(params);
+    const request = readLatestRpcRequest(socket, "thread/compact/start");
+
+    expect(request).toEqual({
+      jsonrpc: "2.0",
+      id: request.id,
+      method: "thread/compact/start",
+      params,
+    });
+
+    sendJsonRpcResult(socket, request.id, response);
+
+    await expect(promise).resolves.toEqual(response);
+  });
+
+  it("preserves thread/compact/start JSON-RPC failure metadata", async () => {
+    const { labels: statuses, onStatus } = recordStatusLabels();
+    const { commands, socket } = startConnectionUntilCommandsReady({ onStatus });
+    const promise = commands.compactThread({ threadId });
+    const request = readLatestRpcRequest(socket, "thread/compact/start");
+    const rpcError = {
+      code: -32000,
+      message: "thread compaction unavailable",
+    };
+
+    sendJsonRpcError(socket, request.id, rpcError);
+
+    const error: unknown = await promise.catch((failure: unknown) => failure);
+    if (!isGuiHostCommandError(error)) {
+      throw new Error("Expected GuiHostCommandError");
+    }
+    expect(error.source).toBe("rpc");
+    expect(error.delivery).toBe("definitelyNotAccepted");
+    expect(error.rpcError).toEqual(rpcError);
+    expect(error.message).toContain("thread compaction unavailable");
+    expect(socket.closed).toEqual([]);
+    expect(statuses.at(-1)).toBe("initialized");
+  });
+
   it("sends turn/start through the ready command API", async () => {
     const { commands, socket } = startConnectionUntilCommandsReady({});
     const params = turnStartParams(threadId);

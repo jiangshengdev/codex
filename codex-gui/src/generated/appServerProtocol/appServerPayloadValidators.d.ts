@@ -14,6 +14,9 @@ export declare const validateV2SkillsChangedNotification: ProtocolValidator<
 export declare const validateV2SkillsListResponse: ProtocolValidator<
   RequestResponse<"skills/list">
 >;
+export declare const validateV2ThreadCompactStartResponse: ProtocolValidator<
+  RequestResponse<"thread/compact/start">
+>;
 export declare const validateV2ThreadListResponse: ProtocolValidator<
   RequestResponse<"thread/list">
 >;

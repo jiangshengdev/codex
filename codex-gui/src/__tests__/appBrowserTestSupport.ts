@@ -64,6 +64,7 @@ let deferredAttachProjections = new WeakMap<GuiHostCommands, Set<DeferredAttachP
 const activeDeferredAttachProjections = new Set<RegisteredDeferredAttachProjection>();
 
 export const createGuiHostCommands = (): GuiHostCommands => ({
+  compactThread: vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({}),
   attachThreadProjection: vi
     .fn<GuiHostCommands["attachThreadProjection"]>()
     .mockResolvedValue(attachResponse),
