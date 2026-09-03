@@ -61,7 +61,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:93
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:85
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -70,11 +70,11 @@ msgstr "{percentageLabel} used"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:96
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:80
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
@@ -151,14 +151,14 @@ msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
 #. Button that starts compression for the current conversation context
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:119
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:111
 msgid "Compress context"
 msgstr "Compress context"
 
 #. Status shown while the current conversation context is compressed
 #. Status shown while the current conversation context is compressed
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:50
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:114
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:47
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:106
 msgid "Compressing"
 msgstr "Compressing"
 
@@ -174,12 +174,12 @@ msgstr "Contact support"
 msgid "Context compressed"
 msgstr "Context compressed"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:126
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:118
 msgid "Context compression could not be started."
 msgstr "Context compression could not be started."
 
 #. Accessible name for context controls while compression is active
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:38
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:35
 msgid "Context compression in progress"
 msgstr "Context compression in progress"
 
@@ -190,29 +190,29 @@ msgstr "Context page {item}"
 
 #. Accessible label for the context usage progress indicator
 #. Heading for context usage and compression controls
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:57
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:77
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:73
 msgid "Context usage"
 msgstr "Context usage"
 
 #. Accessible name for context controls with current token usage
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:32
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:29
 msgid "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
 msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
 
 #. Accessible name for context controls when capacity is unknown
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:28
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:25
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 
 #. Accessible name for context controls when usage data is unavailable
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:23
-msgid "Context usage details, usage unavailable"
-msgstr "Context usage details, usage unavailable"
+#~ msgid "Context usage details, usage unavailable"
+#~ msgstr "Context usage details, usage unavailable"
 
 #: src/features/composerTurnControl/ContextUsagePopover.tsx:84
-msgid "Context usage is unavailable."
-msgstr "Context usage is unavailable."
+#~ msgid "Context usage is unavailable."
+#~ msgstr "Context usage is unavailable."
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 msgid "Continue sending"

@@ -15,24 +15,21 @@ export function ContextUsagePopover({
   usage,
 }: ContextUsagePopoverProps) {
   const { t } = useLingui();
-  const usedTokensLabel = usage?.usedTokensCompact ?? "";
-  const contextWindowLabel = usage?.modelContextWindowCompact ?? null;
-  const percentageLabel = usage?.percentage == null ? null : `${String(usage.percentage)}%`;
+  if (usage?.percentage == null) return null;
+
+  const usedTokensLabel = usage.usedTokensCompact;
+  const contextWindowLabel = usage.modelContextWindowCompact;
+  const percentageLabel = `${String(usage.percentage)}%`;
   const accessibleLabel =
-    usage == null
+    contextWindowLabel == null
       ? t({
-          comment: "Accessible name for context controls when usage data is unavailable",
-          message: "Context usage details, usage unavailable",
+          comment: "Accessible name for context controls when capacity is unknown",
+          message: `Context usage details, ${usedTokensLabel} tokens used, context window capacity unknown`,
         })
-      : percentageLabel == null || contextWindowLabel == null
-        ? t({
-            comment: "Accessible name for context controls when capacity is unknown",
-            message: `Context usage details, ${usedTokensLabel} tokens used, context window capacity unknown`,
-          })
-        : t({
-            comment: "Accessible name for context controls with current token usage",
-            message: `Context usage details, ${percentageLabel} used, ${usedTokensLabel} of ${contextWindowLabel} tokens`,
-          });
+      : t({
+          comment: "Accessible name for context controls with current token usage",
+          message: `Context usage details, ${percentageLabel} used, ${usedTokensLabel} of ${contextWindowLabel} tokens`,
+        });
   const isCompressing = compaction.phase !== "idle";
   const triggerLabel = isCompressing
     ? t({
@@ -59,9 +56,8 @@ export function ContextUsagePopover({
                 message: "Context usage",
               })}
               color="default"
-              isIndeterminate={percentageLabel == null}
               size="sm"
-              value={usage?.percentage ?? 0}
+              value={usage.percentage}
             >
               <ProgressCircle.Track>
                 <ProgressCircle.TrackCircle />
@@ -79,11 +75,7 @@ export function ContextUsagePopover({
             </Trans>
           </Popover.Heading>
           <div className="mt-2 grid gap-1 text-sm text-muted">
-            {usage == null ? (
-              <p>
-                <Trans>Context usage is unavailable.</Trans>
-              </p>
-            ) : percentageLabel == null || contextWindowLabel == null ? (
+            {contextWindowLabel == null ? (
               <p>
                 <Trans>{usedTokensLabel} tokens used; context window capacity unknown</Trans>
               </p>

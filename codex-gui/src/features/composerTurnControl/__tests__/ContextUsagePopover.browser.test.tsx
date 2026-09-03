@@ -82,34 +82,23 @@ describe("ContextUsagePopover", () => {
       .toBeVisible();
   });
 
-  it("renders unknown capacity as indeterminate without inventing zero percent", async () => {
-    const usage = {
-      usedTokens: 32_000,
-      modelContextWindow: null,
-      percentage: null,
-      usedTokensCompact: "32k",
-      modelContextWindowCompact: null,
-    } satisfies ContextUsageModel;
+  it.each([
+    ["usage is unavailable", null],
+    [
+      "context capacity is unavailable",
+      {
+        usedTokens: 32_000,
+        modelContextWindow: null,
+        percentage: null,
+        usedTokensCompact: "32k",
+        modelContextWindowCompact: null,
+      } satisfies ContextUsageModel,
+    ],
+  ])("does not render when percentage data is unavailable because $0", async (_caseName, usage) => {
     const screen = await renderPopover(usage);
-    const trigger = screen.getByRole("button", {
-      name: "Context usage details, 32k tokens used, context window capacity unknown",
-      exact: true,
-    });
-    await expect.element(trigger).toBeVisible();
-    expect(trigger.element().textContent).toBe("");
-    expect(trigger.element().textContent).not.toMatch(/32k|—%/);
-    const progressCircle = progressCircleFor(trigger.element());
 
-    expect(progressCircle.hasAttribute("aria-valuenow")).toBe(false);
-    await trigger.click();
-
-    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
-    await expect
-      .element(
-        dialog.getByText("32k tokens used; context window capacity unknown", { exact: true }),
-      )
-      .toBeVisible();
-    expect(dialog.element().textContent).not.toContain("0%");
+    expect(screen.container).toBeEmptyDOMElement();
+    await expect.element(screen.getByRole("button")).not.toBeInTheDocument();
   });
 
   it("shows clamped percentage while retaining raw over-window token values", async () => {
@@ -184,30 +173,6 @@ describe("ContextUsagePopover", () => {
     const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
     await expect.element(dialog).toBeVisible();
     expect(dialog.element().textContent).not.toMatch(/warning|danger|auto-compact/i);
-  });
-
-  it("keeps compression available when context usage is unavailable", async () => {
-    const requestCompaction = vi.fn<() => void>();
-    const screen = await renderPopover(null, idleCompaction, requestCompaction);
-    const trigger = screen.getByRole("button", {
-      name: "Context usage details, usage unavailable",
-      exact: true,
-    });
-
-    await expect.element(trigger).toBeVisible();
-    const progressCircle = progressCircleFor(trigger.element());
-    expect(progressCircle.hasAttribute("aria-valuenow")).toBe(false);
-    await trigger.click();
-
-    const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
-    await expect
-      .element(dialog.getByText("Context usage is unavailable.", { exact: true }))
-      .toBeVisible();
-    const action = dialog.getByRole("button", { name: "Compress context", exact: true });
-    await expect.element(action).toBeEnabled();
-    await action.click();
-
-    expect(requestCompaction).toHaveBeenCalledOnce();
   });
 
   it.each([

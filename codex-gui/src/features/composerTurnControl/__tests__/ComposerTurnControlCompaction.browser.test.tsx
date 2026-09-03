@@ -5,6 +5,11 @@ import type {
 } from "@/features/activeThreadSession/activeThreadSession";
 import type { ActiveThreadCompactionView } from "@/features/activeThreadSession/activeThreadSessionContracts";
 import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
+import {
+  activeThreadReadModelTransitionApplied,
+  buildActiveThreadCandidateReadModelTransition,
+} from "@/features/activeThreadSession/activeThreadSessionReadModel";
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 import { renderWithProviders } from "@/utils/test-utils";
 import { ComposerTurnControl } from "../ComposerTurnControl";
 
@@ -35,11 +40,17 @@ test("routes context compression through the session role and follows session st
     compaction: { phase: "idle", canRequest: true, startFailure: null },
   });
   const screen = await renderWithProviders(composer(initial));
+  screen.store.dispatch(
+    activeThreadReadModelTransitionApplied(
+      buildActiveThreadCandidateReadModelTransition(1, attachBaseline),
+    ),
+  );
   const idleTrigger = screen.getByRole("button", {
-    name: "Context usage details, usage unavailable",
+    name: "Context usage details, 0% used, 120 of 258k tokens",
     exact: true,
   });
 
+  await expect.element(idleTrigger).toBeVisible();
   idleTrigger.element().focus();
   await expect.element(idleTrigger).toHaveFocus();
   await screen.user.keyboard("{Enter}");
