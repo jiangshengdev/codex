@@ -561,6 +561,28 @@ test("clears completed composition suppression on the next non Enter keydown", a
   expectStartTurnCalledOnceWithText(startTurn, "你好呀");
 });
 
+test("clears completed composition suppression when Shift Enter inserts a newline", async () => {
+  const commandHandle = createGuiHostCommands();
+  const startTurn = vi.mocked(commandHandle.startTurn);
+  const screen = await renderAttached(commandHandle, true);
+  const composer = getComposer(screen);
+  const editorRoot = composer.element();
+
+  await composer.fill("你好呀");
+  await composer.click();
+  dispatchComposition(editorRoot, "你好呀");
+  await expect
+    .poll(() => composerTextWithoutTrailingBrowserPlaceholders(composer.element()))
+    .toBe("你好呀");
+
+  await screen.user.keyboard("{Shift>}{Enter}{/Shift}");
+  expect(startTurn).not.toHaveBeenCalled();
+
+  await screen.user.keyboard("{Enter}");
+
+  expectStartTurnCalledOnceWithText(startTurn, "你好呀\n");
+});
+
 test.each([" ", "Enter"])(
   "keeps completed composition suppression through keyup %s",
   async (key) => {

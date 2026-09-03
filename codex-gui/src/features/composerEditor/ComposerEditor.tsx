@@ -8,9 +8,11 @@ import {
   $createParagraphNode,
   $getRoot,
   COMMAND_PRIORITY_BEFORE_EDITOR,
+  KEY_DOWN_COMMAND,
   KEY_ENTER_COMMAND,
   type EditorState,
   type LexicalEditor,
+  mergeRegister,
 } from "lexical";
 import { useEffect, useMemo, useRef, type Ref } from "react";
 
@@ -217,36 +219,48 @@ function EnterCommandPlugin({
 
   useEffect(
     () =>
-      editor.registerCommand(
-        KEY_ENTER_COMMAND,
-        (event) => {
-          if (event == null) {
+      mergeRegister(
+        editor.registerCommand(
+          KEY_DOWN_COMMAND,
+          (event) => {
+            if (event.key !== "Enter" || submitIntentForEnter(event, primaryModifier) == null) {
+              suppressNextEnterRef.current = false;
+            }
             return false;
-          }
-          const intent = submitIntentForEnter(event, primaryModifier);
-          if (intent == null) {
-            return false;
-          }
-          if (event.isComposing || isComposingRef.current) {
-            event.preventDefault();
-            return true;
-          }
-          if (suppressNextEnterRef.current) {
-            event.preventDefault();
-            suppressNextEnterRef.current = false;
-            return true;
-          }
+          },
+          COMMAND_PRIORITY_BEFORE_EDITOR,
+        ),
+        editor.registerCommand(
+          KEY_ENTER_COMMAND,
+          (event) => {
+            if (event == null) {
+              return false;
+            }
+            const intent = submitIntentForEnter(event, primaryModifier);
+            if (intent == null) {
+              return false;
+            }
+            if (event.isComposing || isComposingRef.current) {
+              event.preventDefault();
+              return true;
+            }
+            if (suppressNextEnterRef.current) {
+              event.preventDefault();
+              suppressNextEnterRef.current = false;
+              return true;
+            }
 
-          const controller = activeControllerRef.current;
-          if (controller == null) {
-            return false;
-          }
+            const controller = activeControllerRef.current;
+            if (controller == null) {
+              return false;
+            }
 
-          event.preventDefault();
-          onSubmitRef.current(controller.capture(), intent);
-          return true;
-        },
-        COMMAND_PRIORITY_BEFORE_EDITOR,
+            event.preventDefault();
+            onSubmitRef.current(controller.capture(), intent);
+            return true;
+          },
+          COMMAND_PRIORITY_BEFORE_EDITOR,
+        ),
       ),
     [
       activeControllerRef,
