@@ -15,6 +15,7 @@ import {
   createComposerInputQueueCoordinator,
   type ComposerInputQueueCoordinator,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
+import { dispatchCompositionEnd } from "@/features/composerEditor/__tests__/composerEditorCompositionBrowserTestSupport";
 import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
 import {
   attachBaseline,
@@ -282,12 +283,7 @@ const composerTextWithoutTrailingBrowserPlaceholders = (
 
 const dispatchComposition = (element: Element, data: string): void => {
   element.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
-  element.dispatchEvent(
-    new CompositionEvent("compositionend", {
-      bubbles: true,
-      data,
-    }),
-  );
+  dispatchCompositionEnd(element, data);
 };
 
 afterEach(() => {
