@@ -58,6 +58,8 @@ export function ComposerTurnControl({
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
   const {
     activeTurnId,
+    compaction,
+    compactionRole,
     composer: queueSnapshot,
     composerRole,
     revision,
@@ -147,6 +149,10 @@ export function ComposerTurnControl({
     turnApplication.stop({ session: sessionFacts });
   };
 
+  const requestCompaction = (): void => {
+    compactionRole.requestCompaction(revision);
+  };
+
   return (
     <section
       aria-label={t`Message composer`}
@@ -195,7 +201,11 @@ export function ComposerTurnControl({
         <div className="flex items-center justify-between gap-2">
           <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
           <div className="flex items-center gap-2">
-            {contextUsage == null ? null : <ContextUsagePopover usage={contextUsage} />}
+            <ContextUsagePopover
+              compaction={compaction}
+              onRequestCompaction={requestCompaction}
+              usage={contextUsage}
+            />
             {controlView.stop.failed ? (
               <span className="text-sm text-danger" role="status">
                 <Trans>Stop failed</Trans>

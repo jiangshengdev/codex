@@ -61,7 +61,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:50
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:94
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -70,11 +70,11 @@ msgstr "{percentageLabel} used"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:53
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:97
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:45
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:89
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
@@ -150,6 +150,18 @@ msgstr "Completed - {messagePreview}"
 msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
+#. Button that starts compression for the current conversation context
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:120
+msgid "Compress context"
+msgstr "Compress context"
+
+#. Status shown while the current conversation context is compressed
+#. Status shown while the current conversation context is compressed
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:53
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:115
+msgid "Compressing"
+msgstr "Compressing"
+
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:92
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
@@ -162,23 +174,45 @@ msgstr "Contact support"
 msgid "Context compressed"
 msgstr "Context compressed"
 
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:127
+msgid "Context compression could not be started."
+msgstr "Context compression could not be started."
+
+#. Accessible name for context controls while compression is active
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:41
+msgid "Context compression in progress"
+msgstr "Context compression in progress"
+
 #. Accessible name for a numbered transcript context page button
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:79
 msgid "Context page {item}"
 msgstr "Context page {item}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:24
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:40
+#. Accessible label for the context usage progress indicator
+#. Heading for context usage and compression controls
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:60
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:80
 msgid "Context usage"
 msgstr "Context usage"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:17
+#. Accessible name for context controls with current token usage
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:35
 msgid "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
 msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:16
+#. Accessible name for context controls when capacity is unknown
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:31
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
+
+#. Accessible name for context controls when usage data is unavailable
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:26
+msgid "Context usage details, usage unavailable"
+msgstr "Context usage details, usage unavailable"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:85
+msgid "Context usage is unavailable."
+msgstr "Context usage is unavailable."
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 msgid "Continue sending"
@@ -271,7 +305,7 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:222
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:232
 msgid "Guide"
 msgstr "Guide"
 
@@ -339,7 +373,7 @@ msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:92
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:94
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -376,12 +410,12 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:165
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:173
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:171
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:179
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:152
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:158
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -609,7 +643,7 @@ msgstr "Save"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:234
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:244
 msgid "Send"
 msgstr "Send"
 
@@ -673,11 +707,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:210
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:220
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:201
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:211
 msgid "Stop failed"
 msgstr "Stop failed"
 

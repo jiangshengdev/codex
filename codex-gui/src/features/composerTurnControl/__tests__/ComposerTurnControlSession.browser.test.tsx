@@ -407,7 +407,7 @@ test("updates context usage from live runtime events", async () => {
   await expect.element(dialog.getByText("149k tokens used of 258k", { exact: true })).toBeVisible();
 });
 
-test("clears context usage when a replacement attach has no usage", async () => {
+test("keeps context controls when a replacement attach has no usage", async () => {
   const screen = await renderAttached();
   const contextUsageButton = screen.getByRole("button", {
     name: "Context usage details, 0% used, 120 of 258k tokens",
@@ -417,9 +417,17 @@ test("clears context usage when a replacement attach has no usage", async () => 
 
   dispatchReadModelFacts(screen, [{ type: "baselineAttached", response: attachReplacement }]);
 
+  const unavailableContextUsageButton = screen.getByRole("button", {
+    name: "Context usage details, usage unavailable",
+    exact: true,
+  });
+  await expect.element(unavailableContextUsageButton).toBeVisible();
+  await unavailableContextUsageButton.click();
+
+  const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });
   await expect
-    .poll(() => screen.container.querySelector('[aria-label^="Context usage details"]'))
-    .toBeNull();
+    .element(dialog.getByText("Context usage is unavailable.", { exact: true }))
+    .toBeVisible();
 });
 
 test("disposes active Composer applications once after a real StrictMode unmount", async () => {
