@@ -351,6 +351,28 @@ test("disables controls while the projection is unavailable", async () => {
   await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "true");
 });
 
+test("presents thread status from the active session snapshot", async () => {
+  const screen = await renderAttached();
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  const composer = getComposer(screen);
+  composer.element().focus();
+  await expect.element(composer).toHaveFocus();
+
+  screen.sessionHarness.publish(
+    screen.sessionHarness.activeSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
+      threadStatus: { type: "active", activeFlags: ["waitingOnApproval"] },
+    }),
+  );
+
+  await expect
+    .element(screen.getByRole("status", { name: "Current task is waiting for approval" }))
+    .toHaveTextContent("Waiting for approval");
+  await expect.element(composer).toHaveFocus();
+});
+
 test("shows attached context usage and opens its details", async () => {
   const screen = await renderAttached();
   const contextUsageButton = screen.getByRole("button", {

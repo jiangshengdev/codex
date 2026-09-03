@@ -320,8 +320,17 @@ test("renders the Lexical composer panel and actions", async () => {
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
   await expect.element(editorRoot).toHaveAttribute("contenteditable", "true");
   const qrButton = screen.getByRole("button", { name: "Scan with phone" });
+  const threadStatus = screen.getByRole("status", { name: "Current task is idle", exact: true });
+  const footerLeft = composerPanel.querySelector(".composer-footer-left");
+  if (!(footerLeft instanceof HTMLElement)) {
+    throw new Error("composer footer left cluster must render");
+  }
   await expect.element(qrButton).toBeDisabled();
   await expect.element(qrButton).toHaveClass("button--icon-only");
+  await expect.element(threadStatus).toHaveTextContent("Idle");
+  expect(qrButton.element().parentElement).toBe(footerLeft);
+  expect(threadStatus.element().parentElement).toBe(footerLeft);
+  expect(qrButton.element().nextElementSibling).toBe(threadStatus.element());
   expect(actions).toEqual(["Stop", "Send"]);
 });
 

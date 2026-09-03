@@ -26,6 +26,7 @@ import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
+import { CurrentThreadStatus } from "./CurrentThreadStatus";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
@@ -198,8 +199,11 @@ export function ComposerTurnControl({
           pendingInputSession={pendingInputSession}
           pendingInputSnapshot={pendingInputSnapshot}
         />
-        <div className="flex items-center justify-between gap-2">
-          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="composer-footer-left flex shrink-0 items-center gap-1">
+            <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+            <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
+          </div>
           <div className="flex items-center gap-2">
             <ContextUsagePopover
               compaction={compaction}

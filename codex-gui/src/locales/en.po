@@ -228,6 +228,38 @@ msgstr "Continue this task"
 msgid "Current task"
 msgstr "Current task"
 
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:69
+msgid "Current task has a system error"
+msgstr "Current task has a system error"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:29
+msgid "Current task is idle"
+msgstr "Current task is idle"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:37
+msgid "Current task is in progress"
+msgstr "Current task is in progress"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:21
+msgid "Current task is not loaded"
+msgstr "Current task is not loaded"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:45
+msgid "Current task is waiting for approval"
+msgstr "Current task is waiting for approval"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:61
+msgid "Current task is waiting for approval and input"
+msgstr "Current task is waiting for approval and input"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:53
+msgid "Current task is waiting for input"
+msgstr "Current task is waiting for input"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:13
+msgid "Current task status is unknown"
+msgstr "Current task status is unknown"
+
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:98
 msgid "Currently unable to guide; added to queue"
 msgstr "Currently unable to guide; added to queue"
@@ -259,8 +291,10 @@ msgstr "Edit pending message"
 msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
+#. Short system-error label for the current task beside the composer QR button
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:118
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:71
 msgid "Error"
 msgstr "Error"
 
@@ -305,7 +339,7 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:232
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:236
 msgid "Guide"
 msgstr "Guide"
 
@@ -340,12 +374,16 @@ msgstr "History context unavailable"
 msgid "History detail"
 msgstr "History detail"
 
+#. Short idle-state label for the current task beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:191
 msgid "Idle"
 msgstr "Idle"
 
+#. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:198
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "In progress"
 
@@ -373,7 +411,7 @@ msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:94
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:95
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -410,12 +448,12 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:171
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:179
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:172
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:158
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:159
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -498,6 +536,8 @@ msgstr "No pending messages"
 msgid "Not found"
 msgstr "Not found"
 
+#. Short label for a current task that is not loaded beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:190
 msgid "Not loaded"
 msgstr "Not loaded"
@@ -643,7 +683,7 @@ msgstr "Save"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:244
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:248
 msgid "Send"
 msgstr "Send"
 
@@ -707,11 +747,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:220
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:211
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:215
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -854,6 +894,11 @@ msgstr "Unable to start Codex GUI"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
+#. Short label for an unknown current task status beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:15
+msgid "Unknown"
+msgstr "Unknown"
+
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:46
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:137
@@ -875,6 +920,11 @@ msgstr "User"
 msgid "View"
 msgstr "View"
 
+#. Short label for a current task awaiting approval and input beside the QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:63
+msgid "Waiting"
+msgstr "Waiting"
+
 #. Collaboration activity waiting for the agent identified by the raw receiver value
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:176
 msgid "Waiting for {receiver}"
@@ -887,6 +937,16 @@ msgstr "Waiting for {receiverCount} agents"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:173
 msgid "Waiting for agents"
 msgstr "Waiting for agents"
+
+#. Short label for a current task awaiting approval beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:47
+msgid "Waiting for approval"
+msgstr "Waiting for approval"
+
+#. Short label for a current task awaiting user input beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
+msgid "Waiting for input"
+msgstr "Waiting for input"
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:91
 msgid "Will send first"
