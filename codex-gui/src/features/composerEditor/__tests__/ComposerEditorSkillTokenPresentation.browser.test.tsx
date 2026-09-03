@@ -328,7 +328,72 @@ test("shows invalid chip details only when a complete ready catalog confirms its
   await expect.element(screen.getByRole("tooltip")).not.toBeInTheDocument();
 });
 
-test("reprojects invalid sibling collision paths through delete, undo, redo, and draft restore", async () => {
+test("reprojects invalid sibling collision paths after deleting one skill", async () => {
+  const { controllerRef, primary, screen } = await renderInvalidSiblingCollisionScenario();
+
+  await expectPathDetails(screen, /Alpha Shared/i, "alpha/shared");
+  await expectPathDetails(screen, /Beta Shared/i, "beta/shared");
+
+  const siblingHost = screen.getByRole("group", { name: /Beta Shared/i });
+  await siblingHost.getByText("$Beta Shared", { exact: true }).click();
+  await screen.user.keyboard("{Backspace}");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
+    .toEqual([primary.path]);
+  await expectPathDetails(screen, /Alpha Shared/i, "shared");
+});
+
+test("reprojects invalid sibling collision paths through undo and redo", async () => {
+  const { controllerRef, editor, primary, screen, selectedPaths } =
+    await renderInvalidSiblingCollisionScenario();
+
+  const siblingHost = screen.getByRole("group", { name: /Beta Shared/i });
+  await siblingHost.getByText("$Beta Shared", { exact: true }).click();
+  await screen.user.keyboard("{Backspace}");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
+    .toEqual([primary.path]);
+
+  dispatchHistoryShortcut(editor.element(), "undo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
+    .toEqual(selectedPaths);
+  await expectPathDetails(screen, /Alpha Shared/i, "alpha/shared");
+  await expectPathDetails(screen, /Beta Shared/i, "beta/shared");
+
+  dispatchHistoryShortcut(editor.element(), "redo");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
+    .toEqual([primary.path]);
+  await expectPathDetails(screen, /Alpha Shared/i, "shared");
+});
+
+test("reprojects invalid sibling collision paths through draft restore", async () => {
+  const { collidingDraft, controllerRef, primary, screen, selectedPaths, singleDraft } =
+    await renderInvalidSiblingCollisionScenario();
+
+  const siblingHost = screen.getByRole("group", { name: /Beta Shared/i });
+  await siblingHost.getByText("$Beta Shared", { exact: true }).click();
+  await screen.user.keyboard("{Backspace}");
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
+    .toEqual([primary.path]);
+
+  expect(getController(controllerRef).restore(collidingDraft)).toEqual({ type: "restored" });
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
+    .toEqual(selectedPaths);
+  await expectPathDetails(screen, /Alpha Shared/i, "alpha/shared");
+  await expectPathDetails(screen, /Beta Shared/i, "beta/shared");
+
+  expect(getController(controllerRef).restore(singleDraft)).toEqual({ type: "restored" });
+  await expect
+    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
+    .toEqual([primary.path]);
+  await expectPathDetails(screen, /Alpha Shared/i, "shared");
+});
+
+async function renderInvalidSiblingCollisionScenario() {
   const primary = skill("shared", "/private/alpha/shared/SKILL.md", "Alpha Shared");
   const sibling = skill("shared", "/private/beta/shared/SKILL.md", "Beta Shared");
   const selectedPaths = [primary.path, sibling.path];
@@ -377,72 +442,43 @@ test("reprojects invalid sibling collision paths through delete, undo, redo, and
     .element(screen.getByRole("group", { name: /Beta Shared/i }))
     .toHaveAttribute("aria-invalid", "true");
 
-  const expectPathDetails = async (triggerName: RegExp, expectedPath: string): Promise<void> => {
-    await expect.element(screen.getByRole("tooltip")).not.toBeInTheDocument();
-    const host = screen.getByRole("group", { name: triggerName });
-    const chip = host.element().querySelector('[data-slot="chip"]');
-    if (!(chip instanceof HTMLSpanElement))
-      throw new Error("selected skill must render a HeroUI Chip");
-    const tooltipTrigger = chip.parentElement;
-    if (!(tooltipTrigger instanceof HTMLElement)) {
-      throw new Error("selected skill chip must render inside a Tooltip trigger");
-    }
-    const wasSelected = chip.hasAttribute("data-selected");
-    await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
-    await userEvent.unhover(document.body);
-    await userEvent.hover(tooltipTrigger);
-    await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
-    const pathParagraph = screen.getByText(expectedPath, { exact: true });
-    await expect.element(pathParagraph).toBeVisible();
-    expect(pathParagraph.element().tagName).toBe("P");
-    const tooltip = pathParagraph.element().closest('[role="tooltip"]');
-    if (!(tooltip instanceof HTMLElement))
-      throw new Error("selected skill path must render inside a Tooltip");
-    expect(tooltip.textContent).not.toContain("/private/");
-    expect(tooltip.textContent).not.toContain("SKILL.md");
-    await userEvent.unhover(document.body);
-    await expect.element(pathParagraph).not.toBeInTheDocument();
-    await expect.element(tooltip).not.toBeInTheDocument();
-    await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
-  };
+  return { collidingDraft, controllerRef, editor, primary, screen, selectedPaths, singleDraft };
+}
 
-  await expectPathDetails(/Alpha Shared/i, "alpha/shared");
-  await expectPathDetails(/Beta Shared/i, "beta/shared");
+type SkillTokenBrowserScreen = Awaited<ReturnType<typeof renderWithProviders>>;
 
-  const siblingHost = screen.getByRole("group", { name: /Beta Shared/i });
-  await siblingHost.getByText("$Beta Shared", { exact: true }).click();
-  await screen.user.keyboard("{Backspace}");
-  await expect
-    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
-    .toEqual([primary.path]);
-  await expectPathDetails(/Alpha Shared/i, "shared");
-
-  dispatchHistoryShortcut(editor.element(), "undo");
-  await expect
-    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
-    .toEqual(selectedPaths);
-  await expectPathDetails(/Alpha Shared/i, "alpha/shared");
-  await expectPathDetails(/Beta Shared/i, "beta/shared");
-
-  dispatchHistoryShortcut(editor.element(), "redo");
-  await expect
-    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
-    .toEqual([primary.path]);
-  await expectPathDetails(/Alpha Shared/i, "shared");
-
-  expect(getController(controllerRef).restore(collidingDraft)).toEqual({ type: "restored" });
-  await expect
-    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
-    .toEqual(selectedPaths);
-  await expectPathDetails(/Alpha Shared/i, "alpha/shared");
-  await expectPathDetails(/Beta Shared/i, "beta/shared");
-
-  expect(getController(controllerRef).restore(singleDraft)).toEqual({ type: "restored" });
-  await expect
-    .poll(() => getController(controllerRef).getSnapshot().selectedSkillPaths)
-    .toEqual([primary.path]);
-  await expectPathDetails(/Alpha Shared/i, "shared");
-});
+async function expectPathDetails(
+  screen: SkillTokenBrowserScreen,
+  triggerName: RegExp,
+  expectedPath: string,
+): Promise<void> {
+  await expect.element(screen.getByRole("tooltip")).not.toBeInTheDocument();
+  const host = screen.getByRole("group", { name: triggerName });
+  const chip = host.element().querySelector('[data-slot="chip"]');
+  if (!(chip instanceof HTMLSpanElement))
+    throw new Error("selected skill must render a HeroUI Chip");
+  const tooltipTrigger = chip.parentElement;
+  if (!(tooltipTrigger instanceof HTMLElement)) {
+    throw new Error("selected skill chip must render inside a Tooltip trigger");
+  }
+  const wasSelected = chip.hasAttribute("data-selected");
+  await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
+  await userEvent.unhover(document.body);
+  await userEvent.hover(tooltipTrigger);
+  await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
+  const pathParagraph = screen.getByText(expectedPath, { exact: true });
+  await expect.element(pathParagraph).toBeVisible();
+  expect(pathParagraph.element().tagName).toBe("P");
+  const tooltip = pathParagraph.element().closest('[role="tooltip"]');
+  if (!(tooltip instanceof HTMLElement))
+    throw new Error("selected skill path must render inside a Tooltip");
+  expect(tooltip.textContent).not.toContain("/private/");
+  expect(tooltip.textContent).not.toContain("SKILL.md");
+  await userEvent.unhover(document.body);
+  await expect.element(pathParagraph).not.toBeInTheDocument();
+  await expect.element(tooltip).not.toBeInTheDocument();
+  await expect.poll(() => chip.hasAttribute("data-selected")).toBe(wasSelected);
+}
 
 type SkillCaretSide = "after" | "before";
 
