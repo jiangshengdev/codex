@@ -40,14 +40,9 @@ export function ContextUsagePopover({
 
   return (
     <Popover>
-      <Button aria-label={triggerLabel} isIconOnly={!isCompressing} size="sm" variant="ghost">
+      <Button aria-label={triggerLabel} isIconOnly size="sm" variant="ghost">
         {isCompressing ? (
-          <>
-            <Spinner aria-hidden color="current" size="sm" />
-            <Trans comment="Status shown while the current conversation context is compressed">
-              Compressing
-            </Trans>
-          </>
+          <Spinner aria-hidden color="current" size="sm" />
         ) : (
           <span aria-hidden="true">
             <ProgressCircle

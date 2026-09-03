@@ -196,7 +196,7 @@ describe("ContextUsagePopover", () => {
       });
 
       await expect.element(trigger).toBeEnabled();
-      await expect.element(trigger).toHaveTextContent("Compressing");
+      expect(trigger.element().textContent).toBe("");
       await trigger.click();
 
       const dialog = screen.getByRole("dialog", { name: "Context usage", exact: true });

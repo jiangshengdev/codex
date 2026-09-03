@@ -82,7 +82,7 @@ test("routes context compression through the session role and follows session st
     exact: true,
   });
   await expect.element(pendingTrigger).toBeEnabled();
-  await expect.element(pendingTrigger).toHaveTextContent("Compressing");
+  expect(pendingTrigger.element().textContent).toBe("");
   const pendingAction = dialog.getByRole("button", { name: "Compressing", exact: true });
   await expect.element(pendingAction).toBeDisabled();
   await expect.element(pendingAction).toHaveAttribute("data-pending");
