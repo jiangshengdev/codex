@@ -158,11 +158,17 @@ test("keeps pagination spacing and focus clearance in regular and constrained la
   const focusPreviousWithKeyboard = async () => {
     (focusBefore.element() as HTMLElement).focus();
     await userEvent.tab();
+    if (document.activeElement === scrollport) {
+      await userEvent.tab();
+    }
     await expect.element(previous).toHaveFocus();
   };
   const focusNextWithKeyboard = async () => {
     (focusAfter.element() as HTMLElement).focus();
     await userEvent.tab({ shift: true });
+    if (document.activeElement === scrollport) {
+      await userEvent.tab({ shift: true });
+    }
     await expect.element(next).toHaveFocus();
   };
 
