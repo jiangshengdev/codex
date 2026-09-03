@@ -318,6 +318,41 @@ test("localizes the context boundary on later pages", async () => {
     store,
   });
 
-  await expect.element(screen.getByText("上下文已压缩", { exact: true })).toBeVisible();
-  expect(screen.getByText("上下文已压缩", { exact: true }).elements()).toHaveLength(1);
+  const contextBoundary = screen.getByRole("separator", { name: "上下文已压缩" });
+  const contextBoundaryLabel = screen.getByText("上下文已压缩", { exact: true });
+  await expect.element(contextBoundary).toBeVisible();
+  await expect.element(contextBoundaryLabel).toBeVisible();
+  expect(contextBoundaryLabel.elements()).toHaveLength(1);
+
+  const boundaryElement = contextBoundary.element();
+  const boundaryBounds = boundaryElement.getBoundingClientRect();
+  const labelBounds = contextBoundaryLabel.element().getBoundingClientRect();
+  const lineElements = Array.from(
+    boundaryElement.querySelectorAll<HTMLElement>(".committed-transcript-context-boundary-line"),
+  );
+  expect(lineElements).toHaveLength(2);
+
+  const [leftLine, rightLine] = lineElements;
+  if (leftLine == null || rightLine == null) {
+    throw new Error("Expected both context boundary lines");
+  }
+  const leftLineBounds = leftLine.getBoundingClientRect();
+  const rightLineBounds = rightLine.getBoundingClientRect();
+  const boundaryCenterX = boundaryBounds.left + boundaryBounds.width / 2;
+  const boundaryCenterY = boundaryBounds.top + boundaryBounds.height / 2;
+  const labelCenterX = labelBounds.left + labelBounds.width / 2;
+  const labelCenterY = labelBounds.top + labelBounds.height / 2;
+  expect(Math.abs(labelCenterX - boundaryCenterX)).toBeLessThanOrEqual(1);
+  expect(Math.abs(labelCenterY - boundaryCenterY)).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(leftLineBounds.top + leftLineBounds.height / 2 - labelCenterY),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(rightLineBounds.top + rightLineBounds.height / 2 - labelCenterY),
+  ).toBeLessThanOrEqual(1);
+  expect(Math.abs(leftLineBounds.width - rightLineBounds.width)).toBeLessThanOrEqual(1);
+
+  const boundaryStyle = getComputedStyle(boundaryElement);
+  expect(boundaryStyle.paddingTop).toBe("8px");
+  expect(boundaryStyle.paddingBottom).toBe("8px");
 });
