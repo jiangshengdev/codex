@@ -140,6 +140,14 @@
     "paramsSchema": "v2/ModelVerificationNotification"
   },
   {
+    "method": "modelProvider/authRecoveryCompleted",
+    "paramsSchema": "v2/AuthRecoveryNotification"
+  },
+  {
+    "method": "modelProvider/authRecoveryStarted",
+    "paramsSchema": "v2/AuthRecoveryNotification"
+  },
+  {
     "method": "remoteControl/status/changed",
     "paramsSchema": "v2/RemoteControlStatusChangedNotification"
   },
