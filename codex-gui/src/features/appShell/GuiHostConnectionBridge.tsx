@@ -88,6 +88,9 @@ export function GuiHostConnectionBridge({
         onSkillsChanged: () => {
           activeThreadController?.handleSkillsChanged();
         },
+        onThreadStatusChanged: (notification) => {
+          activeThreadController?.handleThreadStatusChanged(notification);
+        },
         onCommandsReady: (commands) => {
           if (!isMounted) return;
           setCommands(commands);

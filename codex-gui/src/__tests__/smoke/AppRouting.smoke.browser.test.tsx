@@ -73,6 +73,7 @@ const installActiveThreadSessionController = (
     handleProjectionDelta: vi.fn<ActiveThreadSessionController["handleProjectionDelta"]>(),
     handleProjectionClosed: vi.fn<ActiveThreadSessionController["handleProjectionClosed"]>(),
     handleSkillsChanged: vi.fn<ActiveThreadSessionController["handleSkillsChanged"]>(),
+    handleThreadStatusChanged: vi.fn<ActiveThreadSessionController["handleThreadStatusChanged"]>(),
     connectionUnavailable: vi.fn<ActiveThreadSessionController["connectionUnavailable"]>(),
     dispose: vi.fn<ActiveThreadSessionController["dispose"]>(),
   };

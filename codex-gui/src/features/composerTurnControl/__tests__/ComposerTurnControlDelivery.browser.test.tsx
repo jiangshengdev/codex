@@ -493,7 +493,9 @@ test("definite stop failure keeps the draft, reports failure, and allows retry",
     }),
   );
 
-  await expect.element(screen.getByRole("status")).toHaveTextContent("Stop failed");
+  await expect
+    .element(screen.getByRole("status").filter({ hasText: "Stop failed" }))
+    .toHaveTextContent("Stop failed");
   await expect.element(stopButton).toBeEnabled();
   await expect.element(stopButton).not.toHaveAttribute("data-pending");
   await expect

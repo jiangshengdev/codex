@@ -331,6 +331,12 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     const screen = await renderAttached(commandHandle, controller, responsiveSkillController);
     const composerShell = screen.getByRole("region", { name: "Message composer" }).element();
     const composer = screen.getByRole("combobox", { name: "Message Codex", exact: true });
+    const qrButton = screen.getByRole("button", { name: "Scan with phone", exact: true });
+    const threadStatus = screen.getByRole("status", { name: "Current task is idle", exact: true });
+    const footerLeft = composerShell.querySelector(".composer-footer-left");
+    if (!(footerLeft instanceof HTMLElement)) {
+      throw new Error("composer footer left cluster must render");
+    }
     const longToken = "x".repeat(240);
     const longOrdinaryText = "Ordinary message after guidance ".repeat(12).trim();
 
@@ -349,6 +355,21 @@ test("keeps the compact pending trigger and right Drawer horizontally closed in 
     });
     await expect.element(pendingRegion).toBeVisible();
     await expect.element(trigger).toBeVisible();
+    await expect.element(threadStatus).toBeVisible();
+    await expect.element(threadStatus).toHaveTextContent("Idle");
+    expect(qrButton.element().parentElement).toBe(footerLeft);
+    expect(qrButton.element().nextElementSibling).toBe(threadStatus.element());
+    await expect
+      .poll(() => ({
+        composerHorizontallyClosed: composerShell.scrollWidth <= composerShell.clientWidth + 1,
+        footerLeftHorizontallyClosed: footerLeft.scrollWidth <= footerLeft.clientWidth + 1,
+        statusVisible: threadStatus.element().getBoundingClientRect().width > 0,
+      }))
+      .toEqual({
+        composerHorizontallyClosed: true,
+        footerLeftHorizontallyClosed: true,
+        statusVisible: true,
+      });
     const pendingRegionElement = pendingRegion.element();
     const triggerElement = trigger.element();
     await expect

@@ -1,4 +1,5 @@
 import { expect, test } from "vitest";
+import { userEvent } from "vitest/browser";
 import { makeStore } from "@/app/store";
 import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
@@ -28,6 +29,7 @@ import {
   CommittedTranscriptSurface,
   ReadOnlyCommittedTranscriptSurface,
 } from "../CommittedTranscriptSurface";
+import { TranscriptContextPagination } from "../TranscriptContextPagination";
 
 let sessionRevision = 0;
 const readModelAction = (...facts: ActiveThreadProjectionReadModelFact[]) =>
@@ -92,6 +94,113 @@ test("navigates attached context pages and unmounts the previous page", async ()
 
   await previous.click();
   await expect.element(firstPage).toHaveAttribute("aria-current", "page");
+});
+
+test("keeps pagination spacing and focus clearance in regular and constrained layouts", async () => {
+  const screen = await renderWithProviders(
+    <div
+      data-testid="pagination-layout"
+      style={{ display: "grid", gap: "16px", position: "relative", width: "640px" }}
+    >
+      <button
+        aria-label="Focus before context pagination"
+        style={{ height: "1px", opacity: 0, position: "absolute", width: "1px" }}
+        type="button"
+      />
+      <div aria-hidden="true" data-testid="pagination-before" style={{ height: "20px" }} />
+      <TranscriptContextPagination onPageChange={() => undefined} page={4} totalPages={8} />
+      <div aria-hidden="true" data-testid="pagination-after" style={{ height: "20px" }} />
+      <button
+        aria-label="Focus after context pagination"
+        style={{ height: "1px", opacity: 0, position: "absolute", width: "1px" }}
+        type="button"
+      />
+    </div>,
+  );
+
+  const layout = screen.getByTestId("pagination-layout").element() as HTMLElement;
+  const before = screen.getByTestId("pagination-before").element();
+  const after = screen.getByTestId("pagination-after").element();
+  const focusBefore = screen.getByRole("button", {
+    name: "Focus before context pagination",
+  });
+  const focusAfter = screen.getByRole("button", {
+    name: "Focus after context pagination",
+  });
+  const pagination = screen.getByRole("navigation", { name: "Transcript context pages" });
+  const previous = pagination.getByRole("button", { name: "Previous context page" });
+  const firstPage = pagination.getByRole("button", { name: "Context page 1" });
+  const next = pagination.getByRole("button", { name: "Next context page" });
+  const paginationElement = pagination.element() as HTMLElement;
+  const scrollport = paginationElement.parentElement;
+  const content = paginationElement.querySelector<HTMLElement>('[data-slot="pagination-content"]');
+
+  if (scrollport == null || content == null) {
+    throw new Error("Expected pagination scrollport and content");
+  }
+
+  const expectExternalRhythm = () => {
+    const beforeBounds = before.getBoundingClientRect();
+    const contentBounds = content.getBoundingClientRect();
+    const afterBounds = after.getBoundingClientRect();
+    expect.soft(contentBounds.top - beforeBounds.bottom).toBe(16);
+    expect.soft(afterBounds.top - contentBounds.bottom).toBe(16);
+  };
+  const expectFocusedClearance = (control: HTMLElement) => {
+    const scrollportBounds = scrollport.getBoundingClientRect();
+    const controlBounds = control.getBoundingClientRect();
+    expect.soft(control.matches(":focus-visible")).toBe(true);
+    expect.soft(controlBounds.top - scrollportBounds.top).toBeGreaterThanOrEqual(4);
+    expect.soft(scrollportBounds.right - controlBounds.right).toBeGreaterThanOrEqual(4);
+    expect.soft(scrollportBounds.bottom - controlBounds.bottom).toBeGreaterThanOrEqual(4);
+    expect.soft(controlBounds.left - scrollportBounds.left).toBeGreaterThanOrEqual(4);
+  };
+  const focusPreviousWithKeyboard = async () => {
+    (focusBefore.element() as HTMLElement).focus();
+    await userEvent.tab();
+    if (document.activeElement === scrollport) {
+      await userEvent.tab();
+    }
+    await expect.element(previous).toHaveFocus();
+  };
+  const focusNextWithKeyboard = async () => {
+    (focusAfter.element() as HTMLElement).focus();
+    await userEvent.tab({ shift: true });
+    if (document.activeElement === scrollport) {
+      await userEvent.tab({ shift: true });
+    }
+    await expect.element(next).toHaveFocus();
+  };
+
+  expect.soft(getComputedStyle(content).columnGap).toBe("8px");
+  expect.soft(scrollport.scrollWidth).toBe(scrollport.clientWidth);
+  expectExternalRhythm();
+
+  await focusPreviousWithKeyboard();
+  expectFocusedClearance(previous.element() as HTMLElement);
+  await userEvent.tab();
+  await expect.element(firstPage).toHaveFocus();
+  expectFocusedClearance(firstPage.element() as HTMLElement);
+  await focusNextWithKeyboard();
+  expectFocusedClearance(next.element() as HTMLElement);
+
+  layout.style.width = "240px";
+  expect.soft(scrollport.scrollWidth).toBeGreaterThan(scrollport.clientWidth);
+  expect.soft(getComputedStyle(content).columnGap).toBe("8px");
+  expectExternalRhythm();
+
+  scrollport.scrollLeft = 0;
+  await focusPreviousWithKeyboard();
+  expect.soft(scrollport.scrollLeft).toBe(0);
+  expectFocusedClearance(previous.element() as HTMLElement);
+  await userEvent.tab();
+  await expect.element(firstPage).toHaveFocus();
+  expectFocusedClearance(firstPage.element() as HTMLElement);
+
+  scrollport.scrollLeft = scrollport.scrollWidth;
+  await focusNextWithKeyboard();
+  expect.soft(scrollport.scrollLeft).toBe(scrollport.scrollWidth - scrollport.clientWidth);
+  expectFocusedClearance(next.element() as HTMLElement);
 });
 
 test("renders an isolated read-only snapshot through the same current-page surface", async () => {
@@ -318,6 +427,41 @@ test("localizes the context boundary on later pages", async () => {
     store,
   });
 
-  await expect.element(screen.getByText("上下文已压缩", { exact: true })).toBeVisible();
-  expect(screen.getByText("上下文已压缩", { exact: true }).elements()).toHaveLength(1);
+  const contextBoundary = screen.getByRole("separator", { name: "上下文已压缩" });
+  const contextBoundaryLabel = screen.getByText("上下文已压缩", { exact: true });
+  await expect.element(contextBoundary).toBeVisible();
+  await expect.element(contextBoundaryLabel).toBeVisible();
+  expect(contextBoundaryLabel.elements()).toHaveLength(1);
+
+  const boundaryElement = contextBoundary.element();
+  const boundaryBounds = boundaryElement.getBoundingClientRect();
+  const labelBounds = contextBoundaryLabel.element().getBoundingClientRect();
+  const lineElements = Array.from(
+    boundaryElement.querySelectorAll<HTMLElement>(".committed-transcript-context-boundary-line"),
+  );
+  expect(lineElements).toHaveLength(2);
+
+  const [leftLine, rightLine] = lineElements;
+  if (leftLine == null || rightLine == null) {
+    throw new Error("Expected both context boundary lines");
+  }
+  const leftLineBounds = leftLine.getBoundingClientRect();
+  const rightLineBounds = rightLine.getBoundingClientRect();
+  const boundaryCenterX = boundaryBounds.left + boundaryBounds.width / 2;
+  const boundaryCenterY = boundaryBounds.top + boundaryBounds.height / 2;
+  const labelCenterX = labelBounds.left + labelBounds.width / 2;
+  const labelCenterY = labelBounds.top + labelBounds.height / 2;
+  expect(Math.abs(labelCenterX - boundaryCenterX)).toBeLessThanOrEqual(1);
+  expect(Math.abs(labelCenterY - boundaryCenterY)).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(leftLineBounds.top + leftLineBounds.height / 2 - labelCenterY),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(rightLineBounds.top + rightLineBounds.height / 2 - labelCenterY),
+  ).toBeLessThanOrEqual(1);
+  expect(Math.abs(leftLineBounds.width - rightLineBounds.width)).toBeLessThanOrEqual(1);
+
+  const boundaryStyle = getComputedStyle(boundaryElement);
+  expect(boundaryStyle.paddingTop).toBe("8px");
+  expect(boundaryStyle.paddingBottom).toBe("8px");
 });

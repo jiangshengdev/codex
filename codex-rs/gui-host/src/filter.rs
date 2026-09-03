@@ -6,6 +6,7 @@ pub fn is_allowed_client_request_method(method: &str) -> bool {
             | "thread/projection/attach"
             | "thread/projection/detach"
             | "thread/list"
+            | "thread/compact/start"
             | "thread/read"
             | "thread/resume"
             | "thread/loaded/list"
@@ -23,6 +24,7 @@ pub fn is_allowed_server_notification_method(method: &str) -> bool {
     matches!(
         method,
         "skills/changed"
+            | "thread/status/changed"
             | "thread/projection/event"
             | "thread/projection/delta"
             | "thread/projection/closed"
@@ -39,6 +41,7 @@ mod tests {
         assert!(is_allowed_client_request_method("thread/projection/attach"));
         assert!(is_allowed_client_request_method("thread/projection/detach"));
         assert!(is_allowed_client_request_method("thread/list"));
+        assert!(is_allowed_client_request_method("thread/compact/start"));
         assert!(is_allowed_client_request_method("thread/read"));
         assert!(is_allowed_client_request_method("thread/resume"));
         assert!(is_allowed_client_request_method("thread/loaded/list"));
@@ -49,7 +52,10 @@ mod tests {
     }
 
     #[test]
-    fn server_notification_allowlist_contains_projection_event_delta_and_closed() {
+    fn server_notification_allowlist_contains_current_gui_notifications() {
+        assert!(is_allowed_server_notification_method(
+            "thread/status/changed"
+        ));
         assert!(is_allowed_server_notification_method(
             "thread/projection/event"
         ));

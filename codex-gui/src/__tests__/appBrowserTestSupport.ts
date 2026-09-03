@@ -64,6 +64,7 @@ let deferredAttachProjections = new WeakMap<GuiHostCommands, Set<DeferredAttachP
 const activeDeferredAttachProjections = new Set<RegisteredDeferredAttachProjection>();
 
 export const createGuiHostCommands = (): GuiHostCommands => ({
+  compactThread: vi.fn<GuiHostCommands["compactThread"]>().mockResolvedValue({}),
   attachThreadProjection: vi
     .fn<GuiHostCommands["attachThreadProjection"]>()
     .mockResolvedValue(attachResponse),
@@ -297,6 +298,13 @@ export const markCommandsUnavailable = (options: StartGuiHostConnectionOptions):
 
 export const emitSkillsChanged = (options: StartGuiHostConnectionOptions): void => {
   options.onSkillsChanged?.({});
+};
+
+export const emitThreadStatusChanged = (
+  options: StartGuiHostConnectionOptions,
+  notification: Parameters<NonNullable<StartGuiHostConnectionOptions["onThreadStatusChanged"]>>[0],
+): void => {
+  options.onThreadStatusChanged?.(notification);
 };
 
 export const emitProjectionEvent = (

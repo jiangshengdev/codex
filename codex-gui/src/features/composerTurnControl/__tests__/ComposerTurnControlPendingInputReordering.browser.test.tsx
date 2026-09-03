@@ -108,9 +108,8 @@ test("moves pending messages through the authoritative owner and preserves menu 
     .toBe(true);
   await expect.element(dialog.getByRole("group", { name: "Queued B", exact: true })).toHaveFocus();
   await expect
-    .element(screen.getByRole("status"))
+    .element(screen.getByRole("status").filter({ hasText: "Queued message moved" }))
     .toHaveTextContent("Queued message moved to position 1 of 4.");
-  expect(screen.getByRole("status").all().length).toBe(1);
 
   await dialog
     .getByRole("group", { name: "Queued B", exact: true })
@@ -189,7 +188,7 @@ test("moves pending messages through the authoritative owner and preserves menu 
     destination: "earlier",
   });
   await expect
-    .element(screen.getByRole("status"))
+    .element(screen.getByRole("status").filter({ hasText: "Guiding message moved" }))
     .toHaveTextContent("Guiding message moved to position 1 of 2.");
 });
 
@@ -268,7 +267,7 @@ test("re-reads independent lane budgets after a move and does not locate an item
     .not.toBeInTheDocument();
   await expect.element(dialog.getByRole("heading", { name: "Queued", exact: true })).toHaveFocus();
   await expect
-    .element(screen.getByRole("status"))
+    .element(screen.getByRole("status").filter({ hasText: "Queued message moved" }))
     .toHaveTextContent("Queued message moved to position 41 of 41.");
   await expect.element(dialog.getByText("Ordinary budget 40", { exact: true })).toBeVisible();
   await expect
@@ -568,9 +567,8 @@ test("hides move actions for owner-projected blockers and while delete confirmat
     })
     .click();
   await expect
-    .element(screen.getByRole("status"))
+    .element(screen.getByRole("status").filter({ hasText: "Guiding message moved" }))
     .toHaveTextContent("Guiding message moved to position 1 of 2.");
-  expect(screen.getByRole("status").all().length).toBe(1);
   await expect.element(readOnlyStatusText).toBeVisible();
   expect(readOnlyStatusText.element().closest('[role="status"]')).toBeNull();
 

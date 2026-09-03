@@ -26,6 +26,7 @@ import { createComposerTurnApplication } from "./composerTurnApplication";
 import { contextUsageModelFromTokenUsage } from "./contextUsageModel";
 import { ComposerPendingInputRegion } from "./ComposerPendingInputRegion";
 import { ComposerSkillMenuLayer } from "./ComposerSkillMenuLayer";
+import { CurrentThreadStatus } from "./CurrentThreadStatus";
 import { useRevealComposerOnViewportResize } from "./useRevealComposerOnViewportResize";
 
 export type ComposerTurnControlProps = {
@@ -58,6 +59,8 @@ export function ComposerTurnControl({
   const contextUsage = contextUsageModelFromTokenUsage(tokenUsage);
   const {
     activeTurnId,
+    compaction,
+    compactionRole,
     composer: queueSnapshot,
     composerRole,
     revision,
@@ -147,6 +150,10 @@ export function ComposerTurnControl({
     turnApplication.stop({ session: sessionFacts });
   };
 
+  const requestCompaction = (): void => {
+    compactionRole.requestCompaction(revision);
+  };
+
   return (
     <section
       aria-label={t`Message composer`}
@@ -192,10 +199,17 @@ export function ComposerTurnControl({
           pendingInputSession={pendingInputSession}
           pendingInputSnapshot={pendingInputSnapshot}
         />
-        <div className="flex items-center justify-between gap-2">
-          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="composer-footer-left flex shrink-0 items-center gap-2">
+            <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+            <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
+          </div>
           <div className="flex items-center gap-2">
-            {contextUsage == null ? null : <ContextUsagePopover usage={contextUsage} />}
+            <ContextUsagePopover
+              compaction={compaction}
+              onRequestCompaction={requestCompaction}
+              usage={contextUsage}
+            />
             {controlView.stop.failed ? (
               <span className="text-sm text-danger" role="status">
                 <Trans>Stop failed</Trans>
