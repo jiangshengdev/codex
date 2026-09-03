@@ -200,7 +200,7 @@ export function ComposerTurnControl({
           pendingInputSnapshot={pendingInputSnapshot}
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="composer-footer-left flex shrink-0 items-center gap-1">
+          <div className="composer-footer-left flex shrink-0 items-center gap-2">
             <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
             <CurrentThreadStatus status={sessionSnapshot.threadStatus} />
           </div>
