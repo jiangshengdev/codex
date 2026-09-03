@@ -4,10 +4,8 @@ import { Fragment, type ReactNode } from "react";
 import type { ActiveThreadComposerRole } from "@/features/activeThreadSession/activeThreadSession";
 import type { ComposerInputQueueCoordinatorSnapshot } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import {
-  ComposerInputPreviewContent,
-  ComposerPendingInputDrawer,
-} from "./ComposerPendingInputDrawer";
+import { ComposerInputPreviewContent } from "./ComposerInputPreviewContent";
+import { ComposerPendingInputDrawer } from "./ComposerPendingInputDrawer";
 import type {
   ComposerPendingInputSession,
   ComposerPendingInputSessionSnapshot,

@@ -848,10 +848,11 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
 }
 var validateV2ThreadListResponse = validate26;
 var schema30 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "backwardsCursor": { "description": "Opaque cursor to pass as `cursor` when reversing `sortDirection`. This is only populated when the page contains at least one thread. Use it with the opposite `sortDirection`; for timestamp sorts it anchors at the start of the page timestamp so same-second updates are not skipped.", "type": ["string", "null"] }, "data": { "items": { "$ref": "#/definitions/v2/Thread" }, "type": "array" }, "nextCursor": { "description": "Opaque cursor to pass to the next call to continue after the last item. if None, there are no more items to return.", "type": ["string", "null"] } }, "required": ["backwardsCursor", "data", "nextCursor"], "title": "ThreadListResponse", "type": "object" };
-var schema31 = { "properties": { "agentNickname": { "description": "Optional random unique nickname assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "agentRole": { "description": "Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "cliVersion": { "description": "Version of the CLI that created the thread.", "type": "string" }, "createdAt": { "description": "Unix timestamp (in seconds) when the thread was created.", "format": "int64", "type": "integer" }, "cwd": { "allOf": [{ "$ref": "#/definitions/v2/AbsolutePathBuf" }], "description": "Working directory captured for the thread." }, "ephemeral": { "description": "Whether the thread is ephemeral and should not be materialized on disk.", "type": "boolean" }, "forkedFromId": { "description": "Source thread id when this thread was created by forking another thread.", "type": ["string", "null"] }, "gitInfo": { "anyOf": [{ "$ref": "#/definitions/v2/GitInfo" }, { "type": "null" }], "description": "Optional Git metadata captured when the thread was created." }, "historyMode": { "allOf": [{ "$ref": "#/definitions/v2/ThreadHistoryMode" }], "default": "legacy", "description": "Persisted thread history contract selected when this thread was created." }, "id": { "description": "Identifier for this thread. Codex-generated thread IDs are UUIDv7.", "type": "string" }, "modelProvider": { "description": "Model provider used for this thread (for example, 'openai').", "type": "string" }, "name": { "description": "Optional user-facing thread title.", "type": ["string", "null"] }, "parentThreadId": { "description": "The ID of the parent thread. This will only be set if this thread is a subagent.", "type": ["string", "null"] }, "path": { "description": "[UNSTABLE] Path to the thread on disk.", "type": ["string", "null"] }, "preview": { "description": "Usually the first user message in the thread, if available.", "type": "string" }, "projectId": { "description": "Canonical project assignment owned by app-server, if any.", "type": ["string", "null"] }, "recencyAt": { "description": "Unix timestamp (in seconds) used for thread recency ordering.", "format": "int64", "type": ["integer", "null"] }, "section": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSection" }, { "type": "null" }], "default": null, "description": "The independently persisted section selected for this thread, if any." }, "sectionEnteredAt": { "default": null, "description": "Unix timestamp in seconds when the thread entered its current section.", "format": "int64", "type": ["integer", "null"] }, "sessionId": { "description": "Session id shared by threads that belong to the same session tree.", "type": "string" }, "source": { "allOf": [{ "$ref": "#/definitions/v2/SessionSource" }], "description": "Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.)." }, "status": { "allOf": [{ "$ref": "#/definitions/v2/ThreadStatus" }], "description": "Current runtime status for the thread." }, "threadSource": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSource" }, { "type": "null" }], "description": "Optional analytics source classification for this thread." }, "turns": { "description": "Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.", "items": { "$ref": "#/definitions/v2/Turn" }, "type": "array" }, "updatedAt": { "description": "Unix timestamp (in seconds) when the thread was last updated.", "format": "int64", "type": "integer" } }, "required": ["cliVersion", "createdAt", "cwd", "ephemeral", "id", "modelProvider", "preview", "projectId", "sessionId", "source", "status", "turns", "updatedAt"], "type": "object" };
+var schema31 = { "properties": { "agentNickname": { "description": "Optional random unique nickname assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "agentRole": { "description": "Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.", "type": ["string", "null"] }, "cliVersion": { "description": "Version of the CLI that created the thread.", "type": "string" }, "createdAt": { "description": "Unix timestamp (in seconds) when the thread was created.", "format": "int64", "type": "integer" }, "cwd": { "allOf": [{ "$ref": "#/definitions/v2/AbsolutePathBuf" }], "description": "Working directory captured for the thread." }, "ephemeral": { "description": "Whether the thread is ephemeral and should not be materialized on disk.", "type": "boolean" }, "forkedFromId": { "description": "Source thread id when this thread was created by forking another thread.", "type": ["string", "null"] }, "gitInfo": { "anyOf": [{ "$ref": "#/definitions/v2/GitInfo" }, { "type": "null" }], "description": "Optional Git metadata captured when the thread was created." }, "historyMode": { "allOf": [{ "$ref": "#/definitions/v2/ThreadHistoryMode" }], "default": "legacy", "description": "Persisted thread history contract selected when this thread was created." }, "id": { "description": "Identifier for this thread. Codex-generated thread IDs are UUIDv7.", "type": "string" }, "model": { "description": "Current configured model when loaded, otherwise the latest persisted model. Null when unavailable. This is not per-turn execution telemetry.", "type": ["string", "null"] }, "modelProvider": { "description": "Model provider used for this thread (for example, 'openai').", "type": "string" }, "name": { "description": "Optional user-facing thread title.", "type": ["string", "null"] }, "parentThreadId": { "description": "The ID of the parent thread. This will only be set if this thread is a subagent.", "type": ["string", "null"] }, "path": { "description": "[UNSTABLE] Path to the thread on disk.", "type": ["string", "null"] }, "preview": { "description": "Usually the first user message in the thread, if available.", "type": "string" }, "projectId": { "description": "Canonical project assignment owned by app-server, if any.", "type": ["string", "null"] }, "reasoningEffort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }], "description": "Current configured reasoning effort when loaded, otherwise the latest persisted effort. Null when unset or unavailable. This is not per-turn execution telemetry." }, "recencyAt": { "description": "Unix timestamp (in seconds) used for thread recency ordering.", "format": "int64", "type": ["integer", "null"] }, "section": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSection" }, { "type": "null" }], "default": null, "description": "The independently persisted section selected for this thread, if any." }, "sectionEnteredAt": { "default": null, "description": "Unix timestamp in seconds when the thread entered its current section.", "format": "int64", "type": ["integer", "null"] }, "sessionId": { "description": "Session id shared by threads that belong to the same session tree.", "type": "string" }, "source": { "allOf": [{ "$ref": "#/definitions/v2/SessionSource" }], "description": "Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.)." }, "status": { "allOf": [{ "$ref": "#/definitions/v2/ThreadStatus" }], "description": "Current runtime status for the thread." }, "threadSource": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadSource" }, { "type": "null" }], "description": "Optional analytics source classification for this thread." }, "turns": { "description": "Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.", "items": { "$ref": "#/definitions/v2/Turn" }, "type": "array" }, "updatedAt": { "description": "Unix timestamp (in seconds) when the thread was last updated.", "format": "int64", "type": "integer" } }, "required": ["cliVersion", "createdAt", "cwd", "ephemeral", "id", "modelProvider", "preview", "projectId", "sessionId", "source", "status", "turns", "updatedAt"], "type": "object" };
 var schema33 = { "properties": { "branch": { "type": ["string", "null"] }, "originUrl": { "type": ["string", "null"] }, "sha": { "type": ["string", "null"] } }, "type": "object" };
 var schema34 = { "enum": ["legacy", "paginated"], "type": "string" };
-var schema36 = { "description": "Extensible visual presentation for a custom thread section.", "properties": { "color": { "type": ["string", "null"] }, "icon": { "type": ["string", "null"] } }, "type": "object" };
+var func2 = require_ucs2length().default;
+var schema37 = { "description": "Extensible visual presentation for a custom thread section.", "properties": { "color": { "type": ["string", "null"] }, "icon": { "type": ["string", "null"] } }, "type": "object" };
 function validate29(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -875,7 +876,7 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                 let data1 = data0.color;
                 const _errs6 = errors;
                 if (typeof data1 !== "string" && data1 !== null) {
-                  const err0 = { instancePath: instancePath + "/appearance/color", schemaPath: "#/definitions/v2/ThreadSectionAppearance/properties/color/type", keyword: "type", params: { type: schema36.properties.color.type } };
+                  const err0 = { instancePath: instancePath + "/appearance/color", schemaPath: "#/definitions/v2/ThreadSectionAppearance/properties/color/type", keyword: "type", params: { type: schema37.properties.color.type } };
                   if (vErrors === null) {
                     vErrors = [err0];
                   } else {
@@ -892,7 +893,7 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
                   let data2 = data0.icon;
                   const _errs8 = errors;
                   if (typeof data2 !== "string" && data2 !== null) {
-                    const err1 = { instancePath: instancePath + "/appearance/icon", schemaPath: "#/definitions/v2/ThreadSectionAppearance/properties/icon/type", keyword: "type", params: { type: schema36.properties.icon.type } };
+                    const err1 = { instancePath: instancePath + "/appearance/icon", schemaPath: "#/definitions/v2/ThreadSectionAppearance/properties/icon/type", keyword: "type", params: { type: schema37.properties.icon.type } };
                     if (vErrors === null) {
                       vErrors = [err1];
                     } else {
@@ -988,8 +989,8 @@ function validate29(data, { instancePath = "", parentData, parentDataProperty, r
   validate29.errors = vErrors;
   return errors === 0;
 }
-var schema37 = { "oneOf": [{ "enum": ["cli", "vscode", "exec", "appServer", "unknown"], "type": "string" }, { "additionalProperties": false, "properties": { "custom": { "type": "string" } }, "required": ["custom"], "title": "CustomSessionSource", "type": "object" }, { "additionalProperties": false, "properties": { "subAgent": { "$ref": "#/definitions/v2/SubAgentSource" } }, "required": ["subAgent"], "title": "SubAgentSessionSource", "type": "object" }] };
-var schema38 = { "oneOf": [{ "enum": ["review", "compact", "memory_consolidation"], "type": "string" }, { "additionalProperties": false, "properties": { "thread_spawn": { "properties": { "agent_nickname": { "default": null, "type": ["string", "null"] }, "agent_path": { "anyOf": [{ "$ref": "#/definitions/v2/AgentPath" }, { "type": "null" }], "default": null }, "agent_role": { "default": null, "type": ["string", "null"] }, "depth": { "format": "int32", "type": "integer" }, "parent_thread_id": { "$ref": "#/definitions/v2/ThreadId" } }, "required": ["depth", "parent_thread_id"], "type": "object" } }, "required": ["thread_spawn"], "title": "ThreadSpawnSubAgentSource", "type": "object" }, { "additionalProperties": false, "properties": { "other": { "type": "string" } }, "required": ["other"], "title": "OtherSubAgentSource", "type": "object" }] };
+var schema38 = { "oneOf": [{ "enum": ["cli", "vscode", "exec", "appServer", "unknown"], "type": "string" }, { "additionalProperties": false, "properties": { "custom": { "type": "string" } }, "required": ["custom"], "title": "CustomSessionSource", "type": "object" }, { "additionalProperties": false, "properties": { "subAgent": { "$ref": "#/definitions/v2/SubAgentSource" } }, "required": ["subAgent"], "title": "SubAgentSessionSource", "type": "object" }] };
+var schema39 = { "oneOf": [{ "enum": ["review", "compact", "memory_consolidation"], "type": "string" }, { "additionalProperties": false, "properties": { "thread_spawn": { "properties": { "agent_nickname": { "default": null, "type": ["string", "null"] }, "agent_path": { "anyOf": [{ "$ref": "#/definitions/v2/AgentPath" }, { "type": "null" }], "default": null }, "agent_role": { "default": null, "type": ["string", "null"] }, "depth": { "format": "int32", "type": "integer" }, "parent_thread_id": { "$ref": "#/definitions/v2/ThreadId" } }, "required": ["depth", "parent_thread_id"], "type": "object" } }, "required": ["thread_spawn"], "title": "ThreadSpawnSubAgentSource", "type": "object" }, { "additionalProperties": false, "properties": { "other": { "type": "string" } }, "required": ["other"], "title": "OtherSubAgentSource", "type": "object" }] };
 function validate32(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -1007,7 +1008,7 @@ function validate32(data, { instancePath = "", parentData, parentDataProperty, r
     errors++;
   }
   if (!(data === "review" || data === "compact" || data === "memory_consolidation")) {
-    const err1 = { instancePath, schemaPath: "#/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema38.oneOf[0].enum } };
+    const err1 = { instancePath, schemaPath: "#/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema39.oneOf[0].enum } };
     if (vErrors === null) {
       vErrors = [err1];
     } else {
@@ -1066,7 +1067,7 @@ function validate32(data, { instancePath = "", parentData, parentDataProperty, r
                     let data1 = data0.agent_nickname;
                     const _errs8 = errors;
                     if (typeof data1 !== "string" && data1 !== null) {
-                      const err5 = { instancePath: instancePath + "/thread_spawn/agent_nickname", schemaPath: "#/oneOf/1/properties/thread_spawn/properties/agent_nickname/type", keyword: "type", params: { type: schema38.oneOf[1].properties.thread_spawn.properties.agent_nickname.type } };
+                      const err5 = { instancePath: instancePath + "/thread_spawn/agent_nickname", schemaPath: "#/oneOf/1/properties/thread_spawn/properties/agent_nickname/type", keyword: "type", params: { type: schema39.oneOf[1].properties.thread_spawn.properties.agent_nickname.type } };
                       if (vErrors === null) {
                         vErrors = [err5];
                       } else {
@@ -1137,7 +1138,7 @@ function validate32(data, { instancePath = "", parentData, parentDataProperty, r
                         let data3 = data0.agent_role;
                         const _errs17 = errors;
                         if (typeof data3 !== "string" && data3 !== null) {
-                          const err9 = { instancePath: instancePath + "/thread_spawn/agent_role", schemaPath: "#/oneOf/1/properties/thread_spawn/properties/agent_role/type", keyword: "type", params: { type: schema38.oneOf[1].properties.thread_spawn.properties.agent_role.type } };
+                          const err9 = { instancePath: instancePath + "/thread_spawn/agent_role", schemaPath: "#/oneOf/1/properties/thread_spawn/properties/agent_role/type", keyword: "type", params: { type: schema39.oneOf[1].properties.thread_spawn.properties.agent_role.type } };
                           if (vErrors === null) {
                             vErrors = [err9];
                           } else {
@@ -1320,7 +1321,7 @@ function validate31(data, { instancePath = "", parentData, parentDataProperty, r
     errors++;
   }
   if (!(data === "cli" || data === "vscode" || data === "exec" || data === "appServer" || data === "unknown")) {
-    const err1 = { instancePath, schemaPath: "#/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema37.oneOf[0].enum } };
+    const err1 = { instancePath, schemaPath: "#/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema38.oneOf[0].enum } };
     if (vErrors === null) {
       vErrors = [err1];
     } else {
@@ -1471,8 +1472,8 @@ function validate31(data, { instancePath = "", parentData, parentDataProperty, r
   validate31.errors = vErrors;
   return errors === 0;
 }
-var schema41 = { "oneOf": [{ "properties": { "type": { "enum": ["notLoaded"], "title": "NotLoadedThreadStatusType", "type": "string" } }, "required": ["type"], "title": "NotLoadedThreadStatus", "type": "object" }, { "properties": { "type": { "enum": ["idle"], "title": "IdleThreadStatusType", "type": "string" } }, "required": ["type"], "title": "IdleThreadStatus", "type": "object" }, { "properties": { "type": { "enum": ["systemError"], "title": "SystemErrorThreadStatusType", "type": "string" } }, "required": ["type"], "title": "SystemErrorThreadStatus", "type": "object" }, { "properties": { "activeFlags": { "items": { "$ref": "#/definitions/v2/ThreadActiveFlag" }, "type": "array" }, "type": { "enum": ["active"], "title": "ActiveThreadStatusType", "type": "string" } }, "required": ["activeFlags", "type"], "title": "ActiveThreadStatus", "type": "object" }] };
-var schema42 = { "enum": ["waitingOnApproval", "waitingOnUserInput"], "type": "string" };
+var schema42 = { "oneOf": [{ "properties": { "type": { "enum": ["notLoaded"], "title": "NotLoadedThreadStatusType", "type": "string" } }, "required": ["type"], "title": "NotLoadedThreadStatus", "type": "object" }, { "properties": { "type": { "enum": ["idle"], "title": "IdleThreadStatusType", "type": "string" } }, "required": ["type"], "title": "IdleThreadStatus", "type": "object" }, { "properties": { "type": { "enum": ["systemError"], "title": "SystemErrorThreadStatusType", "type": "string" } }, "required": ["type"], "title": "SystemErrorThreadStatus", "type": "object" }, { "properties": { "activeFlags": { "items": { "$ref": "#/definitions/v2/ThreadActiveFlag" }, "type": "array" }, "type": { "enum": ["active"], "title": "ActiveThreadStatusType", "type": "string" } }, "required": ["activeFlags", "type"], "title": "ActiveThreadStatus", "type": "object" }] };
+var schema43 = { "enum": ["waitingOnApproval", "waitingOnUserInput"], "type": "string" };
 function validate35(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -1504,7 +1505,7 @@ function validate35(data, { instancePath = "", parentData, parentDataProperty, r
             errors++;
           }
           if (!(data0 === "notLoaded")) {
-            const err2 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema41.oneOf[0].properties.type.enum } };
+            const err2 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema42.oneOf[0].properties.type.enum } };
             if (vErrors === null) {
               vErrors = [err2];
             } else {
@@ -1554,7 +1555,7 @@ function validate35(data, { instancePath = "", parentData, parentDataProperty, r
             errors++;
           }
           if (!(data1 === "idle")) {
-            const err6 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema41.oneOf[1].properties.type.enum } };
+            const err6 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema42.oneOf[1].properties.type.enum } };
             if (vErrors === null) {
               vErrors = [err6];
             } else {
@@ -1608,7 +1609,7 @@ function validate35(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data2 === "systemError")) {
-              const err10 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema41.oneOf[2].properties.type.enum } };
+              const err10 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema42.oneOf[2].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err10];
               } else {
@@ -1670,7 +1671,7 @@ function validate35(data, { instancePath = "", parentData, parentDataProperty, r
                       errors++;
                     }
                     if (!(data4 === "waitingOnApproval" || data4 === "waitingOnUserInput")) {
-                      const err14 = { instancePath: instancePath + "/activeFlags/" + i0, schemaPath: "#/definitions/v2/ThreadActiveFlag/enum", keyword: "enum", params: { allowedValues: schema42.enum } };
+                      const err14 = { instancePath: instancePath + "/activeFlags/" + i0, schemaPath: "#/definitions/v2/ThreadActiveFlag/enum", keyword: "enum", params: { allowedValues: schema43.enum } };
                       if (vErrors === null) {
                         vErrors = [err14];
                       } else {
@@ -1711,7 +1712,7 @@ function validate35(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data5 === "active")) {
-                  const err17 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema41.oneOf[3].properties.type.enum } };
+                  const err17 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema42.oneOf[3].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err17];
                   } else {
@@ -1770,12 +1771,12 @@ function validate35(data, { instancePath = "", parentData, parentDataProperty, r
   validate35.errors = vErrors;
   return errors === 0;
 }
-var schema44 = { "properties": { "completedAt": { "description": "Unix timestamp (in seconds) when the turn completed.", "format": "int64", "type": ["integer", "null"] }, "durationMs": { "description": "Duration between turn start and completion in milliseconds, if known.", "format": "int64", "type": ["integer", "null"] }, "error": { "anyOf": [{ "$ref": "#/definitions/v2/TurnError" }, { "type": "null" }], "description": "Only populated when the Turn's status is failed." }, "id": { "description": "Identifier for this turn. Codex-generated turn IDs are UUIDv7.", "type": "string" }, "items": { "description": "Thread items currently included in this turn payload.", "items": { "$ref": "#/definitions/v2/ThreadItem" }, "type": "array" }, "itemsView": { "allOf": [{ "$ref": "#/definitions/v2/TurnItemsView" }], "default": "full", "description": "Describes how much of `items` has been loaded for this turn." }, "startedAt": { "description": "Unix timestamp (in seconds) when the turn started.", "format": "int64", "type": ["integer", "null"] }, "status": { "$ref": "#/definitions/v2/TurnStatus" } }, "required": ["id", "items", "status"], "type": "object" };
-var schema88 = { "oneOf": [{ "description": "`items` was not loaded for this turn. The field is intentionally empty.", "enum": ["notLoaded"], "type": "string" }, { "description": "`items` contains only a display summary for this turn.", "enum": ["summary"], "type": "string" }, { "description": "`items` contains every ThreadItem available from persisted app-server history for this turn.", "enum": ["full"], "type": "string" }] };
-var schema89 = { "enum": ["completed", "interrupted", "failed", "inProgress"], "type": "string" };
-var schema45 = { "properties": { "additionalDetails": { "default": null, "type": ["string", "null"] }, "codexErrorInfo": { "anyOf": [{ "$ref": "#/definitions/v2/CodexErrorInfo" }, { "type": "null" }] }, "message": { "type": "string" }, "misalignment": { "anyOf": [{ "$ref": "#/definitions/v2/MisalignmentErrorDetails" }, { "type": "null" }], "default": null, "description": "Optional public explanation and continuation instruction for a misalignment block." } }, "required": ["message"], "type": "object" };
-var schema46 = { "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.", "oneOf": [{ "enum": ["contextWindowExceeded", "sessionBudgetExceeded", "usageLimitExceeded", "rateLimitExceeded", "serverOverloaded", "cyberPolicy", "misalignmentPolicyViolation", "internalServerError", "unauthorized", "badRequest", "threadRollbackFailed", "sandboxError", "other"], "type": "string" }, { "additionalProperties": false, "properties": { "httpConnectionFailed": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["httpConnectionFailed"], "title": "HttpConnectionFailedCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "Failed to connect to the response SSE stream.", "properties": { "responseStreamConnectionFailed": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["responseStreamConnectionFailed"], "title": "ResponseStreamConnectionFailedCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "The response SSE stream disconnected in the middle of a turn before completion.", "properties": { "responseStreamDisconnected": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["responseStreamDisconnected"], "title": "ResponseStreamDisconnectedCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "Reached the retry limit for responses.", "properties": { "responseTooManyFailedAttempts": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["responseTooManyFailedAttempts"], "title": "ResponseTooManyFailedAttemptsCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "Returned when `turn/start` or `turn/steer` is submitted while the current active turn cannot accept same-turn steering, for example `/review` or manual `/compact`.", "properties": { "activeTurnNotSteerable": { "properties": { "turnKind": { "$ref": "#/definitions/v2/NonSteerableTurnKind" } }, "required": ["turnKind"], "type": "object" } }, "required": ["activeTurnNotSteerable"], "title": "ActiveTurnNotSteerableCodexErrorInfo", "type": "object" }] };
-var schema47 = { "enum": ["review", "compact"], "type": "string" };
+var schema45 = { "properties": { "completedAt": { "description": "Unix timestamp (in seconds) when the turn completed.", "format": "int64", "type": ["integer", "null"] }, "durationMs": { "description": "Duration between turn start and completion in milliseconds, if known.", "format": "int64", "type": ["integer", "null"] }, "error": { "anyOf": [{ "$ref": "#/definitions/v2/TurnError" }, { "type": "null" }], "description": "Only populated when the Turn's status is failed." }, "id": { "description": "Identifier for this turn. Codex-generated turn IDs are UUIDv7.", "type": "string" }, "items": { "description": "Thread items currently included in this turn payload.", "items": { "$ref": "#/definitions/v2/ThreadItem" }, "type": "array" }, "itemsView": { "allOf": [{ "$ref": "#/definitions/v2/TurnItemsView" }], "default": "full", "description": "Describes how much of `items` has been loaded for this turn." }, "startedAt": { "description": "Unix timestamp (in seconds) when the turn started.", "format": "int64", "type": ["integer", "null"] }, "status": { "$ref": "#/definitions/v2/TurnStatus" } }, "required": ["id", "items", "status"], "type": "object" };
+var schema90 = { "oneOf": [{ "description": "`items` was not loaded for this turn. The field is intentionally empty.", "enum": ["notLoaded"], "type": "string" }, { "description": "`items` contains only a display summary for this turn.", "enum": ["summary"], "type": "string" }, { "description": "`items` contains every ThreadItem available from persisted app-server history for this turn.", "enum": ["full"], "type": "string" }] };
+var schema91 = { "enum": ["completed", "interrupted", "failed", "inProgress"], "type": "string" };
+var schema46 = { "properties": { "additionalDetails": { "default": null, "type": ["string", "null"] }, "codexErrorInfo": { "anyOf": [{ "$ref": "#/definitions/v2/CodexErrorInfo" }, { "type": "null" }] }, "message": { "type": "string" }, "misalignment": { "anyOf": [{ "$ref": "#/definitions/v2/MisalignmentErrorDetails" }, { "type": "null" }], "default": null, "description": "Optional public explanation and continuation instruction for a misalignment block." } }, "required": ["message"], "type": "object" };
+var schema47 = { "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.", "oneOf": [{ "enum": ["contextWindowExceeded", "sessionBudgetExceeded", "usageLimitExceeded", "rateLimitExceeded", "serverOverloaded", "cyberPolicy", "misalignmentPolicyViolation", "internalServerError", "unauthorized", "badRequest", "threadRollbackFailed", "sandboxError", "other"], "type": "string" }, { "additionalProperties": false, "properties": { "httpConnectionFailed": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["httpConnectionFailed"], "title": "HttpConnectionFailedCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "Failed to connect to the response SSE stream.", "properties": { "responseStreamConnectionFailed": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["responseStreamConnectionFailed"], "title": "ResponseStreamConnectionFailedCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "The response SSE stream disconnected in the middle of a turn before completion.", "properties": { "responseStreamDisconnected": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["responseStreamDisconnected"], "title": "ResponseStreamDisconnectedCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "Reached the retry limit for responses.", "properties": { "responseTooManyFailedAttempts": { "properties": { "httpStatusCode": { "format": "uint16", "minimum": 0, "type": ["integer", "null"] } }, "type": "object" } }, "required": ["responseTooManyFailedAttempts"], "title": "ResponseTooManyFailedAttemptsCodexErrorInfo", "type": "object" }, { "additionalProperties": false, "description": "Returned when `turn/start` or `turn/steer` is submitted while the current active turn cannot accept same-turn steering, for example `/review` or manual `/compact`.", "properties": { "activeTurnNotSteerable": { "properties": { "turnKind": { "$ref": "#/definitions/v2/NonSteerableTurnKind" } }, "required": ["turnKind"], "type": "object" } }, "required": ["activeTurnNotSteerable"], "title": "ActiveTurnNotSteerableCodexErrorInfo", "type": "object" }] };
+var schema48 = { "enum": ["review", "compact"], "type": "string" };
 function validate39(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -1793,7 +1794,7 @@ function validate39(data, { instancePath = "", parentData, parentDataProperty, r
     errors++;
   }
   if (!(data === "contextWindowExceeded" || data === "sessionBudgetExceeded" || data === "usageLimitExceeded" || data === "rateLimitExceeded" || data === "serverOverloaded" || data === "cyberPolicy" || data === "misalignmentPolicyViolation" || data === "internalServerError" || data === "unauthorized" || data === "badRequest" || data === "threadRollbackFailed" || data === "sandboxError" || data === "other")) {
-    const err1 = { instancePath, schemaPath: "#/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema46.oneOf[0].enum } };
+    const err1 = { instancePath, schemaPath: "#/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema47.oneOf[0].enum } };
     if (vErrors === null) {
       vErrors = [err1];
     } else {
@@ -1842,7 +1843,7 @@ function validate39(data, { instancePath = "", parentData, parentDataProperty, r
                   let data1 = data0.httpStatusCode;
                   const _errs8 = errors;
                   if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1)) && isFinite(data1)) && data1 !== null) {
-                    const err4 = { instancePath: instancePath + "/httpConnectionFailed/httpStatusCode", schemaPath: "#/oneOf/1/properties/httpConnectionFailed/properties/httpStatusCode/type", keyword: "type", params: { type: schema46.oneOf[1].properties.httpConnectionFailed.properties.httpStatusCode.type } };
+                    const err4 = { instancePath: instancePath + "/httpConnectionFailed/httpStatusCode", schemaPath: "#/oneOf/1/properties/httpConnectionFailed/properties/httpStatusCode/type", keyword: "type", params: { type: schema47.oneOf[1].properties.httpConnectionFailed.properties.httpStatusCode.type } };
                     if (vErrors === null) {
                       vErrors = [err4];
                     } else {
@@ -1932,7 +1933,7 @@ function validate39(data, { instancePath = "", parentData, parentDataProperty, r
                     let data3 = data2.httpStatusCode;
                     const _errs15 = errors;
                     if (!(typeof data3 == "number" && (!(data3 % 1) && !isNaN(data3)) && isFinite(data3)) && data3 !== null) {
-                      const err10 = { instancePath: instancePath + "/responseStreamConnectionFailed/httpStatusCode", schemaPath: "#/oneOf/2/properties/responseStreamConnectionFailed/properties/httpStatusCode/type", keyword: "type", params: { type: schema46.oneOf[2].properties.responseStreamConnectionFailed.properties.httpStatusCode.type } };
+                      const err10 = { instancePath: instancePath + "/responseStreamConnectionFailed/httpStatusCode", schemaPath: "#/oneOf/2/properties/responseStreamConnectionFailed/properties/httpStatusCode/type", keyword: "type", params: { type: schema47.oneOf[2].properties.responseStreamConnectionFailed.properties.httpStatusCode.type } };
                       if (vErrors === null) {
                         vErrors = [err10];
                       } else {
@@ -2022,7 +2023,7 @@ function validate39(data, { instancePath = "", parentData, parentDataProperty, r
                       let data5 = data4.httpStatusCode;
                       const _errs22 = errors;
                       if (!(typeof data5 == "number" && (!(data5 % 1) && !isNaN(data5)) && isFinite(data5)) && data5 !== null) {
-                        const err16 = { instancePath: instancePath + "/responseStreamDisconnected/httpStatusCode", schemaPath: "#/oneOf/3/properties/responseStreamDisconnected/properties/httpStatusCode/type", keyword: "type", params: { type: schema46.oneOf[3].properties.responseStreamDisconnected.properties.httpStatusCode.type } };
+                        const err16 = { instancePath: instancePath + "/responseStreamDisconnected/httpStatusCode", schemaPath: "#/oneOf/3/properties/responseStreamDisconnected/properties/httpStatusCode/type", keyword: "type", params: { type: schema47.oneOf[3].properties.responseStreamDisconnected.properties.httpStatusCode.type } };
                         if (vErrors === null) {
                           vErrors = [err16];
                         } else {
@@ -2112,7 +2113,7 @@ function validate39(data, { instancePath = "", parentData, parentDataProperty, r
                         let data7 = data6.httpStatusCode;
                         const _errs29 = errors;
                         if (!(typeof data7 == "number" && (!(data7 % 1) && !isNaN(data7)) && isFinite(data7)) && data7 !== null) {
-                          const err22 = { instancePath: instancePath + "/responseTooManyFailedAttempts/httpStatusCode", schemaPath: "#/oneOf/4/properties/responseTooManyFailedAttempts/properties/httpStatusCode/type", keyword: "type", params: { type: schema46.oneOf[4].properties.responseTooManyFailedAttempts.properties.httpStatusCode.type } };
+                          const err22 = { instancePath: instancePath + "/responseTooManyFailedAttempts/httpStatusCode", schemaPath: "#/oneOf/4/properties/responseTooManyFailedAttempts/properties/httpStatusCode/type", keyword: "type", params: { type: schema47.oneOf[4].properties.responseTooManyFailedAttempts.properties.httpStatusCode.type } };
                           if (vErrors === null) {
                             vErrors = [err22];
                           } else {
@@ -2220,7 +2221,7 @@ function validate39(data, { instancePath = "", parentData, parentDataProperty, r
                               errors++;
                             }
                             if (!(data9 === "review" || data9 === "compact")) {
-                              const err30 = { instancePath: instancePath + "/activeTurnNotSteerable/turnKind", schemaPath: "#/definitions/v2/NonSteerableTurnKind/enum", keyword: "enum", params: { allowedValues: schema47.enum } };
+                              const err30 = { instancePath: instancePath + "/activeTurnNotSteerable/turnKind", schemaPath: "#/definitions/v2/NonSteerableTurnKind/enum", keyword: "enum", params: { allowedValues: schema48.enum } };
                               if (vErrors === null) {
                                 vErrors = [err30];
                               } else {
@@ -2290,7 +2291,7 @@ function validate39(data, { instancePath = "", parentData, parentDataProperty, r
   validate39.errors = vErrors;
   return errors === 0;
 }
-var schema48 = { "properties": { "detailedExplanation": { "description": "A substantive localized explanation is required before offering continuation.", "type": ["string", "null"] }, "errorType": { "description": "Open-ended classification; clients must accept categories added by Responses.", "type": ["string", "null"] }, "steer": { "anyOf": [{ "$ref": "#/definitions/v2/MisalignmentSteer" }, { "type": "null" }], "description": "Instruction to submit as the next turn's user input if continuation is confirmed." } }, "type": "object" };
+var schema49 = { "properties": { "detailedExplanation": { "description": "A substantive localized explanation is required before offering continuation.", "type": ["string", "null"] }, "errorType": { "description": "Open-ended classification; clients must accept categories added by Responses.", "type": ["string", "null"] }, "steer": { "anyOf": [{ "$ref": "#/definitions/v2/MisalignmentSteer" }, { "type": "null" }], "description": "Instruction to submit as the next turn's user input if continuation is confirmed." } }, "type": "object" };
 function validate41(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -2300,7 +2301,7 @@ function validate41(data, { instancePath = "", parentData, parentDataProperty, r
         let data0 = data.detailedExplanation;
         const _errs1 = errors;
         if (typeof data0 !== "string" && data0 !== null) {
-          validate41.errors = [{ instancePath: instancePath + "/detailedExplanation", schemaPath: "#/properties/detailedExplanation/type", keyword: "type", params: { type: schema48.properties.detailedExplanation.type } }];
+          validate41.errors = [{ instancePath: instancePath + "/detailedExplanation", schemaPath: "#/properties/detailedExplanation/type", keyword: "type", params: { type: schema49.properties.detailedExplanation.type } }];
           return false;
         }
         var valid0 = _errs1 === errors;
@@ -2312,7 +2313,7 @@ function validate41(data, { instancePath = "", parentData, parentDataProperty, r
           let data1 = data.errorType;
           const _errs3 = errors;
           if (typeof data1 !== "string" && data1 !== null) {
-            validate41.errors = [{ instancePath: instancePath + "/errorType", schemaPath: "#/properties/errorType/type", keyword: "type", params: { type: schema48.properties.errorType.type } }];
+            validate41.errors = [{ instancePath: instancePath + "/errorType", schemaPath: "#/properties/errorType/type", keyword: "type", params: { type: schema49.properties.errorType.type } }];
             return false;
           }
           var valid0 = _errs3 === errors;
@@ -2425,7 +2426,7 @@ function validate38(data, { instancePath = "", parentData, parentDataProperty, r
           let data0 = data.additionalDetails;
           const _errs1 = errors;
           if (typeof data0 !== "string" && data0 !== null) {
-            validate38.errors = [{ instancePath: instancePath + "/additionalDetails", schemaPath: "#/properties/additionalDetails/type", keyword: "type", params: { type: schema45.properties.additionalDetails.type } }];
+            validate38.errors = [{ instancePath: instancePath + "/additionalDetails", schemaPath: "#/properties/additionalDetails/type", keyword: "type", params: { type: schema46.properties.additionalDetails.type } }];
             return false;
           }
           var valid0 = _errs1 === errors;
@@ -2557,24 +2558,25 @@ function validate38(data, { instancePath = "", parentData, parentDataProperty, r
   validate38.errors = vErrors;
   return errors === 0;
 }
-var schema50 = { "oneOf": [{ "properties": { "clientId": { "type": ["string", "null"] }, "content": { "items": { "$ref": "#/definitions/v2/UserInput" }, "type": "array" }, "id": { "type": "string" }, "type": { "enum": ["userMessage"], "title": "UserMessageThreadItemType", "type": "string" } }, "required": ["content", "id", "type"], "title": "UserMessageThreadItem", "type": "object" }, { "properties": { "fragments": { "items": { "$ref": "#/definitions/v2/HookPromptFragment" }, "type": "array" }, "id": { "type": "string" }, "type": { "enum": ["hookPrompt"], "title": "HookPromptThreadItemType", "type": "string" } }, "required": ["fragments", "id", "type"], "title": "HookPromptThreadItem", "type": "object" }, { "properties": { "delivery": { "anyOf": [{ "$ref": "#/definitions/v2/AgentMessageDelivery" }, { "type": "null" }], "default": null }, "id": { "type": "string" }, "memoryCitation": { "anyOf": [{ "$ref": "#/definitions/v2/MemoryCitation" }, { "type": "null" }], "default": null }, "phase": { "anyOf": [{ "$ref": "#/definitions/v2/MessagePhase" }, { "type": "null" }], "default": null }, "text": { "type": "string" }, "type": { "enum": ["agentMessage"], "title": "AgentMessageThreadItemType", "type": "string" } }, "required": ["id", "text", "type"], "title": "AgentMessageThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "namespace": { "type": ["string", "null"] }, "output": { "$ref": "#/definitions/v2/FunctionCallOutputBody" }, "type": { "enum": ["functionCallOutput"], "title": "FunctionCallOutputThreadItemType", "type": "string" } }, "required": ["id", "name", "output", "type"], "title": "FunctionCallOutputThreadItem", "type": "object" }, { "description": "EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and may not match the concatenation of `PlanDelta` text.", "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "type": { "enum": ["plan"], "title": "PlanThreadItemType", "type": "string" } }, "required": ["id", "text", "type"], "title": "PlanThreadItem", "type": "object" }, { "properties": { "content": { "default": [], "items": { "type": "string" }, "type": "array" }, "id": { "type": "string" }, "summary": { "default": [], "items": { "type": "string" }, "type": "array" }, "type": { "enum": ["reasoning"], "title": "ReasoningThreadItemType", "type": "string" } }, "required": ["id", "type"], "title": "ReasoningThreadItem", "type": "object" }, { "properties": { "aggregatedOutput": { "description": "The command's output, aggregated from stdout and stderr.", "type": ["string", "null"] }, "command": { "description": "The command to be executed.", "type": "string" }, "commandActions": { "description": "A best-effort parsing of the command to understand the action(s) it will perform. This returns a list of CommandAction objects because a single shell command may be composed of many commands piped together.", "items": { "$ref": "#/definitions/v2/CommandAction" }, "type": "array" }, "cwd": { "allOf": [{ "$ref": "#/definitions/v2/LegacyAppPathString" }], "description": "The command's working directory." }, "durationMs": { "description": "The duration of the command execution in milliseconds.", "format": "int64", "type": ["integer", "null"] }, "exitCode": { "description": "The command's exit code.", "format": "int32", "type": ["integer", "null"] }, "id": { "type": "string" }, "pluginId": { "default": null, "description": "Trusted first-party plugin id when this command resolves to one plugin script.", "type": ["string", "null"] }, "processId": { "description": "Identifier for the underlying PTY process (when available).", "type": ["string", "null"] }, "scriptPath": { "default": null, "description": "Safe plugin-relative path when this command resolves to one plugin script.", "type": ["string", "null"] }, "source": { "allOf": [{ "$ref": "#/definitions/v2/CommandExecutionSource" }], "default": "agent" }, "status": { "$ref": "#/definitions/v2/CommandExecutionStatus" }, "type": { "enum": ["commandExecution"], "title": "CommandExecutionThreadItemType", "type": "string" } }, "required": ["command", "commandActions", "cwd", "id", "status", "type"], "title": "CommandExecutionThreadItem", "type": "object" }, { "properties": { "changes": { "items": { "$ref": "#/definitions/v2/FileUpdateChange" }, "type": "array" }, "id": { "type": "string" }, "status": { "$ref": "#/definitions/v2/PatchApplyStatus" }, "type": { "enum": ["fileChange"], "title": "FileChangeThreadItemType", "type": "string" } }, "required": ["changes", "id", "status", "type"], "title": "FileChangeThreadItem", "type": "object" }, { "properties": { "appContext": { "anyOf": [{ "$ref": "#/definitions/v2/McpToolCallAppContext" }, { "type": "null" }] }, "arguments": true, "durationMs": { "description": "The duration of the MCP tool call in milliseconds.", "format": "int64", "type": ["integer", "null"] }, "error": { "anyOf": [{ "$ref": "#/definitions/v2/McpToolCallError" }, { "type": "null" }] }, "id": { "type": "string" }, "mcpAppResourceUri": { "description": "Deprecated: use `appContext.resourceUri` instead.", "type": ["string", "null"] }, "pluginId": { "type": ["string", "null"] }, "readOnlyHint": { "type": ["boolean", "null"] }, "result": { "anyOf": [{ "$ref": "#/definitions/v2/McpToolCallResult" }, { "type": "null" }] }, "server": { "type": "string" }, "status": { "$ref": "#/definitions/v2/McpToolCallStatus" }, "tool": { "type": "string" }, "type": { "enum": ["mcpToolCall"], "title": "McpToolCallThreadItemType", "type": "string" } }, "required": ["arguments", "id", "server", "status", "tool", "type"], "title": "McpToolCallThreadItem", "type": "object" }, { "properties": { "arguments": true, "contentItems": { "items": { "$ref": "#/definitions/v2/DynamicToolCallOutputContentItem" }, "type": ["array", "null"] }, "durationMs": { "description": "The duration of the dynamic tool call in milliseconds.", "format": "int64", "type": ["integer", "null"] }, "id": { "type": "string" }, "namespace": { "type": ["string", "null"] }, "status": { "$ref": "#/definitions/v2/DynamicToolCallStatus" }, "success": { "type": ["boolean", "null"] }, "tool": { "type": "string" }, "type": { "enum": ["dynamicToolCall"], "title": "DynamicToolCallThreadItemType", "type": "string" } }, "required": ["arguments", "id", "status", "tool", "type"], "title": "DynamicToolCallThreadItem", "type": "object" }, { "properties": { "agentsStates": { "additionalProperties": { "$ref": "#/definitions/v2/CollabAgentState" }, "description": "Last known status of the target agents, when available.", "type": "object" }, "id": { "description": "Unique identifier for this collab tool call.", "type": "string" }, "model": { "description": "Model requested for the spawned agent, when applicable.", "type": ["string", "null"] }, "prompt": { "description": "Prompt text sent as part of the collab tool call, when available.", "type": ["string", "null"] }, "reasoningEffort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }], "description": "Reasoning effort requested for the spawned agent, when applicable." }, "receiverThreadIds": { "description": "Thread ID of the receiving agent, when applicable. In case of spawn operation, this corresponds to the newly spawned agent.", "items": { "type": "string" }, "type": "array" }, "senderThreadId": { "description": "Thread ID of the agent issuing the collab request.", "type": "string" }, "status": { "allOf": [{ "$ref": "#/definitions/v2/CollabAgentToolCallStatus" }], "description": "Current status of the collab tool call." }, "tool": { "allOf": [{ "$ref": "#/definitions/v2/CollabAgentTool" }], "description": "Name of the collab tool that was invoked." }, "type": { "enum": ["collabAgentToolCall"], "title": "CollabAgentToolCallThreadItemType", "type": "string" } }, "required": ["agentsStates", "id", "receiverThreadIds", "senderThreadId", "status", "tool", "type"], "title": "CollabAgentToolCallThreadItem", "type": "object" }, { "properties": { "agentPath": { "type": "string" }, "agentThreadId": { "type": "string" }, "id": { "type": "string" }, "kind": { "$ref": "#/definitions/v2/SubAgentActivityKind" }, "type": { "enum": ["subAgentActivity"], "title": "SubAgentActivityThreadItemType", "type": "string" } }, "required": ["agentPath", "agentThreadId", "id", "kind", "type"], "title": "SubAgentActivityThreadItem", "type": "object" }, { "properties": { "action": { "anyOf": [{ "$ref": "#/definitions/v2/WebSearchAction" }, { "type": "null" }] }, "id": { "type": "string" }, "query": { "type": "string" }, "results": { "default": null, "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a Codex release.", "items": true, "type": ["array", "null"] }, "type": { "enum": ["webSearch"], "title": "WebSearchThreadItemType", "type": "string" } }, "required": ["id", "query", "type"], "title": "WebSearchThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "path": { "$ref": "#/definitions/v2/LegacyAppPathString" }, "type": { "enum": ["imageView"], "title": "ImageViewThreadItemType", "type": "string" } }, "required": ["id", "path", "type"], "title": "ImageViewThreadItem", "type": "object" }, { "description": "Display item emitted by the interruptible `clock.sleep` tool.", "properties": { "durationMs": { "format": "uint64", "minimum": 0, "type": "integer" }, "id": { "type": "string" }, "type": { "enum": ["sleep"], "title": "SleepThreadItemType", "type": "string" } }, "required": ["durationMs", "id", "type"], "title": "SleepThreadItem", "type": "object" }, { "properties": { "failure": { "anyOf": [{ "$ref": "#/definitions/v2/ImageGenerationFailure" }, { "type": "null" }], "default": null }, "id": { "type": "string" }, "result": { "type": "string" }, "revisedPrompt": { "type": ["string", "null"] }, "savedPath": { "anyOf": [{ "$ref": "#/definitions/v2/AbsolutePathBuf" }, { "type": "null" }] }, "status": { "type": "string" }, "transparentBackground": { "default": null, "type": ["boolean", "null"] }, "type": { "enum": ["imageGeneration"], "title": "ImageGenerationThreadItemType", "type": "string" } }, "required": ["id", "result", "status", "type"], "title": "ImageGenerationThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "review": { "type": "string" }, "type": { "enum": ["enteredReviewMode"], "title": "EnteredReviewModeThreadItemType", "type": "string" } }, "required": ["id", "review", "type"], "title": "EnteredReviewModeThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "review": { "type": "string" }, "type": { "enum": ["exitedReviewMode"], "title": "ExitedReviewModeThreadItemType", "type": "string" } }, "required": ["id", "review", "type"], "title": "ExitedReviewModeThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "type": { "enum": ["contextCompaction"], "title": "ContextCompactionThreadItemType", "type": "string" } }, "required": ["id", "type"], "title": "ContextCompactionThreadItem", "type": "object" }] };
-var schema57 = { "enum": ["async"], "type": "string" };
-var schema60 = { "description": 'Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as "phase unknown" and keep compatibility behavior for legacy models.', "oneOf": [{ "description": "Mid-turn assistant text (for example preamble/progress narration).\n\nAdditional tool calls or assistant output may follow before turn completion.", "enum": ["commentary"], "type": "string" }, { "description": "The assistant's terminal answer text for the current turn.", "enum": ["final_answer"], "type": "string" }] };
-var schema67 = { "enum": ["agent", "userShell", "unifiedExecStartup", "unifiedExecInteraction"], "type": "string" };
-var schema68 = { "enum": ["inProgress", "completed", "failed", "declined"], "type": "string" };
-var schema71 = { "enum": ["inProgress", "completed", "failed", "declined"], "type": "string" };
-var schema72 = { "properties": { "actionName": { "type": ["string", "null"] }, "appName": { "type": ["string", "null"] }, "connectorId": { "type": "string" }, "linkId": { "type": ["string", "null"] }, "resourceUri": { "type": ["string", "null"] } }, "required": ["connectorId"], "type": "object" };
-var schema75 = { "enum": ["inProgress", "completed", "failed"], "type": "string" };
-var schema76 = { "oneOf": [{ "properties": { "text": { "type": "string" }, "type": { "enum": ["inputText"], "title": "InputTextDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["text", "type"], "title": "InputTextDynamicToolCallOutputContentItem", "type": "object" }, { "properties": { "imageUrl": { "type": "string" }, "type": { "enum": ["inputImage"], "title": "InputImageDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["imageUrl", "type"], "title": "InputImageDynamicToolCallOutputContentItem", "type": "object" }, { "properties": { "audioUrl": { "type": "string" }, "type": { "enum": ["inputAudio"], "title": "InputAudioDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["audioUrl", "type"], "title": "InputAudioDynamicToolCallOutputContentItem", "type": "object" }] };
+var schema51 = { "oneOf": [{ "properties": { "clientId": { "type": ["string", "null"] }, "content": { "items": { "$ref": "#/definitions/v2/UserInput" }, "type": "array" }, "id": { "type": "string" }, "type": { "enum": ["userMessage"], "title": "UserMessageThreadItemType", "type": "string" } }, "required": ["content", "id", "type"], "title": "UserMessageThreadItem", "type": "object" }, { "properties": { "fragments": { "items": { "$ref": "#/definitions/v2/HookPromptFragment" }, "type": "array" }, "id": { "type": "string" }, "type": { "enum": ["hookPrompt"], "title": "HookPromptThreadItemType", "type": "string" } }, "required": ["fragments", "id", "type"], "title": "HookPromptThreadItem", "type": "object" }, { "properties": { "delivery": { "anyOf": [{ "$ref": "#/definitions/v2/AgentMessageDelivery" }, { "type": "null" }], "default": null }, "id": { "type": "string" }, "memoryCitation": { "anyOf": [{ "$ref": "#/definitions/v2/MemoryCitation" }, { "type": "null" }], "default": null }, "phase": { "anyOf": [{ "$ref": "#/definitions/v2/MessagePhase" }, { "type": "null" }], "default": null }, "questions": { "default": null, "items": { "$ref": "#/definitions/v2/AsyncUserInputQuestion" }, "type": ["array", "null"] }, "text": { "type": "string" }, "type": { "enum": ["agentMessage"], "title": "AgentMessageThreadItemType", "type": "string" } }, "required": ["id", "text", "type"], "title": "AgentMessageThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "namespace": { "type": ["string", "null"] }, "output": { "$ref": "#/definitions/v2/FunctionCallOutputBody" }, "type": { "enum": ["functionCallOutput"], "title": "FunctionCallOutputThreadItemType", "type": "string" } }, "required": ["id", "name", "output", "type"], "title": "FunctionCallOutputThreadItem", "type": "object" }, { "description": "EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and may not match the concatenation of `PlanDelta` text.", "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "type": { "enum": ["plan"], "title": "PlanThreadItemType", "type": "string" } }, "required": ["id", "text", "type"], "title": "PlanThreadItem", "type": "object" }, { "properties": { "content": { "default": [], "items": { "type": "string" }, "type": "array" }, "id": { "type": "string" }, "summary": { "default": [], "items": { "type": "string" }, "type": "array" }, "type": { "enum": ["reasoning"], "title": "ReasoningThreadItemType", "type": "string" } }, "required": ["id", "type"], "title": "ReasoningThreadItem", "type": "object" }, { "properties": { "aggregatedOutput": { "description": "The command's output, aggregated from stdout and stderr.", "type": ["string", "null"] }, "command": { "description": "The command to be executed.", "type": "string" }, "commandActions": { "description": "A best-effort parsing of the command to understand the action(s) it will perform. This returns a list of CommandAction objects because a single shell command may be composed of many commands piped together.", "items": { "$ref": "#/definitions/v2/CommandAction" }, "type": "array" }, "cwd": { "allOf": [{ "$ref": "#/definitions/v2/LegacyAppPathString" }], "description": "The command's working directory." }, "durationMs": { "description": "The duration of the command execution in milliseconds.", "format": "int64", "type": ["integer", "null"] }, "exitCode": { "description": "The command's exit code.", "format": "int32", "type": ["integer", "null"] }, "id": { "type": "string" }, "pluginId": { "default": null, "description": "Trusted first-party plugin id when this command resolves to one plugin script.", "type": ["string", "null"] }, "processId": { "description": "Identifier for the underlying PTY process (when available).", "type": ["string", "null"] }, "scriptPath": { "default": null, "description": "Safe plugin-relative path when this command resolves to one plugin script.", "type": ["string", "null"] }, "source": { "allOf": [{ "$ref": "#/definitions/v2/CommandExecutionSource" }], "default": "agent" }, "status": { "$ref": "#/definitions/v2/CommandExecutionStatus" }, "type": { "enum": ["commandExecution"], "title": "CommandExecutionThreadItemType", "type": "string" } }, "required": ["command", "commandActions", "cwd", "id", "status", "type"], "title": "CommandExecutionThreadItem", "type": "object" }, { "properties": { "changes": { "items": { "$ref": "#/definitions/v2/FileUpdateChange" }, "type": "array" }, "id": { "type": "string" }, "status": { "$ref": "#/definitions/v2/PatchApplyStatus" }, "type": { "enum": ["fileChange"], "title": "FileChangeThreadItemType", "type": "string" } }, "required": ["changes", "id", "status", "type"], "title": "FileChangeThreadItem", "type": "object" }, { "properties": { "appContext": { "anyOf": [{ "$ref": "#/definitions/v2/McpToolCallAppContext" }, { "type": "null" }] }, "arguments": true, "durationMs": { "description": "The duration of the MCP tool call in milliseconds.", "format": "int64", "type": ["integer", "null"] }, "error": { "anyOf": [{ "$ref": "#/definitions/v2/McpToolCallError" }, { "type": "null" }] }, "id": { "type": "string" }, "mcpAppResourceUri": { "description": "Deprecated: use `appContext.resourceUri` instead.", "type": ["string", "null"] }, "pluginId": { "type": ["string", "null"] }, "readOnlyHint": { "type": ["boolean", "null"] }, "result": { "anyOf": [{ "$ref": "#/definitions/v2/McpToolCallResult" }, { "type": "null" }] }, "server": { "type": "string" }, "status": { "$ref": "#/definitions/v2/McpToolCallStatus" }, "tool": { "type": "string" }, "type": { "enum": ["mcpToolCall"], "title": "McpToolCallThreadItemType", "type": "string" } }, "required": ["arguments", "id", "server", "status", "tool", "type"], "title": "McpToolCallThreadItem", "type": "object" }, { "properties": { "arguments": true, "contentItems": { "items": { "$ref": "#/definitions/v2/DynamicToolCallOutputContentItem" }, "type": ["array", "null"] }, "durationMs": { "description": "The duration of the dynamic tool call in milliseconds.", "format": "int64", "type": ["integer", "null"] }, "id": { "type": "string" }, "namespace": { "type": ["string", "null"] }, "status": { "$ref": "#/definitions/v2/DynamicToolCallStatus" }, "success": { "type": ["boolean", "null"] }, "tool": { "type": "string" }, "type": { "enum": ["dynamicToolCall"], "title": "DynamicToolCallThreadItemType", "type": "string" } }, "required": ["arguments", "id", "status", "tool", "type"], "title": "DynamicToolCallThreadItem", "type": "object" }, { "properties": { "agentsStates": { "additionalProperties": { "$ref": "#/definitions/v2/CollabAgentState" }, "description": "Last known status of the target agents, when available.", "type": "object" }, "id": { "description": "Unique identifier for this collab tool call.", "type": "string" }, "model": { "description": "Model requested for the spawned agent, when applicable.", "type": ["string", "null"] }, "prompt": { "description": "Prompt text sent as part of the collab tool call, when available.", "type": ["string", "null"] }, "reasoningEffort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }], "description": "Reasoning effort requested for the spawned agent, when applicable." }, "receiverThreadIds": { "description": "Thread ID of the receiving agent, when applicable. In case of spawn operation, this corresponds to the newly spawned agent.", "items": { "type": "string" }, "type": "array" }, "senderThreadId": { "description": "Thread ID of the agent issuing the collab request.", "type": "string" }, "status": { "allOf": [{ "$ref": "#/definitions/v2/CollabAgentToolCallStatus" }], "description": "Current status of the collab tool call." }, "tool": { "allOf": [{ "$ref": "#/definitions/v2/CollabAgentTool" }], "description": "Name of the collab tool that was invoked." }, "type": { "enum": ["collabAgentToolCall"], "title": "CollabAgentToolCallThreadItemType", "type": "string" } }, "required": ["agentsStates", "id", "receiverThreadIds", "senderThreadId", "status", "tool", "type"], "title": "CollabAgentToolCallThreadItem", "type": "object" }, { "properties": { "agentPath": { "type": "string" }, "agentThreadId": { "type": "string" }, "id": { "type": "string" }, "kind": { "$ref": "#/definitions/v2/SubAgentActivityKind" }, "type": { "enum": ["subAgentActivity"], "title": "SubAgentActivityThreadItemType", "type": "string" } }, "required": ["agentPath", "agentThreadId", "id", "kind", "type"], "title": "SubAgentActivityThreadItem", "type": "object" }, { "properties": { "action": { "anyOf": [{ "$ref": "#/definitions/v2/WebSearchAction" }, { "type": "null" }] }, "id": { "type": "string" }, "query": { "type": "string" }, "results": { "default": null, "description": "Structured search results returned out-of-band by standalone web search.\n\nThese stay as opaque JSON at the extension/app-server boundary so new result fields and result types can pass through without a Codex release.", "items": true, "type": ["array", "null"] }, "type": { "enum": ["webSearch"], "title": "WebSearchThreadItemType", "type": "string" } }, "required": ["id", "query", "type"], "title": "WebSearchThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "path": { "$ref": "#/definitions/v2/LegacyAppPathString" }, "type": { "enum": ["imageView"], "title": "ImageViewThreadItemType", "type": "string" } }, "required": ["id", "path", "type"], "title": "ImageViewThreadItem", "type": "object" }, { "description": "Display item emitted by the interruptible `clock.sleep` tool.", "properties": { "durationMs": { "format": "uint64", "minimum": 0, "type": "integer" }, "id": { "type": "string" }, "type": { "enum": ["sleep"], "title": "SleepThreadItemType", "type": "string" } }, "required": ["durationMs", "id", "type"], "title": "SleepThreadItem", "type": "object" }, { "properties": { "failure": { "anyOf": [{ "$ref": "#/definitions/v2/ImageGenerationFailure" }, { "type": "null" }], "default": null }, "id": { "type": "string" }, "result": { "type": "string" }, "revisedPrompt": { "type": ["string", "null"] }, "savedPath": { "anyOf": [{ "$ref": "#/definitions/v2/AbsolutePathBuf" }, { "type": "null" }] }, "status": { "type": "string" }, "transparentBackground": { "default": null, "type": ["boolean", "null"] }, "type": { "enum": ["imageGeneration"], "title": "ImageGenerationThreadItemType", "type": "string" } }, "required": ["id", "result", "status", "type"], "title": "ImageGenerationThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "review": { "type": "string" }, "type": { "enum": ["enteredReviewMode"], "title": "EnteredReviewModeThreadItemType", "type": "string" } }, "required": ["id", "review", "type"], "title": "EnteredReviewModeThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "review": { "type": "string" }, "type": { "enum": ["exitedReviewMode"], "title": "ExitedReviewModeThreadItemType", "type": "string" } }, "required": ["id", "review", "type"], "title": "ExitedReviewModeThreadItem", "type": "object" }, { "properties": { "id": { "type": "string" }, "type": { "enum": ["contextCompaction"], "title": "ContextCompactionThreadItemType", "type": "string" } }, "required": ["id", "type"], "title": "ContextCompactionThreadItem", "type": "object" }] };
+var schema58 = { "enum": ["async"], "type": "string" };
+var schema61 = { "description": 'Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as "phase unknown" and keep compatibility behavior for legacy models.', "oneOf": [{ "description": "Mid-turn assistant text (for example preamble/progress narration).\n\nAdditional tool calls or assistant output may follow before turn completion.", "enum": ["commentary"], "type": "string" }, { "description": "The assistant's terminal answer text for the current turn.", "enum": ["final_answer"], "type": "string" }] };
+var schema62 = { "additionalProperties": false, "properties": { "options": { "items": { "type": "string" }, "type": ["array", "null"] }, "title": { "type": "string" } }, "required": ["title"], "type": "object" };
+var schema69 = { "enum": ["agent", "userShell", "unifiedExecStartup", "unifiedExecInteraction"], "type": "string" };
+var schema70 = { "enum": ["inProgress", "completed", "failed", "declined"], "type": "string" };
+var schema73 = { "enum": ["inProgress", "completed", "failed", "declined"], "type": "string" };
+var schema74 = { "properties": { "actionName": { "type": ["string", "null"] }, "appName": { "type": ["string", "null"] }, "connectorId": { "type": "string" }, "linkId": { "type": ["string", "null"] }, "resourceUri": { "type": ["string", "null"] } }, "required": ["connectorId"], "type": "object" };
 var schema77 = { "enum": ["inProgress", "completed", "failed"], "type": "string" };
-var schema81 = { "enum": ["inProgress", "completed", "failed", "interrupted"], "type": "string" };
-var schema82 = { "enum": ["spawnAgent", "sendInput", "resumeAgent", "wait", "closeAgent", "sendMessage", "followupTask", "interruptAgent", "listAgents"], "type": "string" };
-var schema83 = { "enum": ["started", "interacted", "interrupted", "completed"], "type": "string" };
-var schema84 = { "oneOf": [{ "properties": { "queries": { "items": { "type": "string" }, "type": ["array", "null"] }, "query": { "type": ["string", "null"] }, "type": { "enum": ["search"], "title": "SearchWebSearchActionType", "type": "string" } }, "required": ["type"], "title": "SearchWebSearchAction", "type": "object" }, { "properties": { "type": { "enum": ["openPage"], "title": "OpenPageWebSearchActionType", "type": "string" }, "url": { "type": ["string", "null"] } }, "required": ["type"], "title": "OpenPageWebSearchAction", "type": "object" }, { "properties": { "pattern": { "type": ["string", "null"] }, "type": { "enum": ["findInPage"], "title": "FindInPageWebSearchActionType", "type": "string" }, "url": { "type": ["string", "null"] } }, "required": ["type"], "title": "FindInPageWebSearchAction", "type": "object" }, { "properties": { "type": { "enum": ["other"], "title": "OtherWebSearchActionType", "type": "string" } }, "required": ["type"], "title": "OtherWebSearchAction", "type": "object" }] };
-var schema86 = { "oneOf": [{ "properties": { "limitId": { "type": "string" }, "resetsAt": { "format": "int64", "type": ["integer", "null"] }, "type": { "enum": ["usageLimitExceeded"], "title": "UsageLimitExceededImageGenerationFailureType", "type": "string" } }, "required": ["limitId", "type"], "title": "UsageLimitExceededImageGenerationFailure", "type": "object" }] };
-var schema51 = { "oneOf": [{ "properties": { "text": { "type": "string" }, "text_elements": { "default": [], "description": "UI-defined spans within `text` used to render or persist special elements.", "items": { "$ref": "#/definitions/v2/TextElement" }, "type": "array" }, "type": { "enum": ["text"], "title": "TextUserInputType", "type": "string" } }, "required": ["text", "type"], "title": "TextUserInput", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }], "default": null }, "type": { "enum": ["image"], "title": "ImageUserInputType", "type": "string" }, "url": { "type": "string" } }, "required": ["type", "url"], "title": "ImageUserInput", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }], "default": null }, "path": { "type": "string" }, "type": { "enum": ["localImage"], "title": "LocalImageUserInputType", "type": "string" } }, "required": ["path", "type"], "title": "LocalImageUserInput", "type": "object" }, { "properties": { "type": { "enum": ["audio"], "title": "AudioUserInputType", "type": "string" }, "url": { "type": "string" } }, "required": ["type", "url"], "title": "AudioUserInput", "type": "object" }, { "properties": { "path": { "type": "string" }, "type": { "enum": ["localAudio"], "title": "LocalAudioUserInputType", "type": "string" } }, "required": ["path", "type"], "title": "LocalAudioUserInput", "type": "object" }, { "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "type": { "enum": ["skill"], "title": "SkillUserInputType", "type": "string" } }, "required": ["name", "path", "type"], "title": "SkillUserInput", "type": "object" }, { "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "type": { "enum": ["mention"], "title": "MentionUserInputType", "type": "string" } }, "required": ["name", "path", "type"], "title": "MentionUserInput", "type": "object" }] };
-var schema54 = { "enum": ["auto", "low", "high", "original"], "type": "string" };
-var schema52 = { "properties": { "byteRange": { "allOf": [{ "$ref": "#/definitions/v2/ByteRange" }], "description": "Byte range in the parent `text` buffer that this element occupies." }, "placeholder": { "description": "Optional human-readable placeholder for the element, displayed in the UI.", "type": ["string", "null"] } }, "required": ["byteRange"], "type": "object" };
+var schema78 = { "oneOf": [{ "properties": { "text": { "type": "string" }, "type": { "enum": ["inputText"], "title": "InputTextDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["text", "type"], "title": "InputTextDynamicToolCallOutputContentItem", "type": "object" }, { "properties": { "imageUrl": { "type": "string" }, "type": { "enum": ["inputImage"], "title": "InputImageDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["imageUrl", "type"], "title": "InputImageDynamicToolCallOutputContentItem", "type": "object" }, { "properties": { "audioUrl": { "type": "string" }, "type": { "enum": ["inputAudio"], "title": "InputAudioDynamicToolCallOutputContentItemType", "type": "string" } }, "required": ["audioUrl", "type"], "title": "InputAudioDynamicToolCallOutputContentItem", "type": "object" }] };
+var schema79 = { "enum": ["inProgress", "completed", "failed"], "type": "string" };
+var schema83 = { "enum": ["inProgress", "completed", "failed", "interrupted"], "type": "string" };
+var schema84 = { "enum": ["spawnAgent", "sendInput", "resumeAgent", "wait", "closeAgent", "sendMessage", "followupTask", "interruptAgent", "listAgents"], "type": "string" };
+var schema85 = { "enum": ["started", "interacted", "interrupted", "completed"], "type": "string" };
+var schema86 = { "oneOf": [{ "properties": { "queries": { "items": { "type": "string" }, "type": ["array", "null"] }, "query": { "type": ["string", "null"] }, "type": { "enum": ["search"], "title": "SearchWebSearchActionType", "type": "string" } }, "required": ["type"], "title": "SearchWebSearchAction", "type": "object" }, { "properties": { "type": { "enum": ["openPage"], "title": "OpenPageWebSearchActionType", "type": "string" }, "url": { "type": ["string", "null"] } }, "required": ["type"], "title": "OpenPageWebSearchAction", "type": "object" }, { "properties": { "pattern": { "type": ["string", "null"] }, "type": { "enum": ["findInPage"], "title": "FindInPageWebSearchActionType", "type": "string" }, "url": { "type": ["string", "null"] } }, "required": ["type"], "title": "FindInPageWebSearchAction", "type": "object" }, { "properties": { "type": { "enum": ["other"], "title": "OtherWebSearchActionType", "type": "string" } }, "required": ["type"], "title": "OtherWebSearchAction", "type": "object" }] };
+var schema88 = { "oneOf": [{ "properties": { "limitId": { "type": "string" }, "resetsAt": { "format": "int64", "type": ["integer", "null"] }, "type": { "enum": ["usageLimitExceeded"], "title": "UsageLimitExceededImageGenerationFailureType", "type": "string" } }, "required": ["limitId", "type"], "title": "UsageLimitExceededImageGenerationFailure", "type": "object" }] };
+var schema52 = { "oneOf": [{ "properties": { "text": { "type": "string" }, "text_elements": { "default": [], "description": "UI-defined spans within `text` used to render or persist special elements.", "items": { "$ref": "#/definitions/v2/TextElement" }, "type": "array" }, "type": { "enum": ["text"], "title": "TextUserInputType", "type": "string" } }, "required": ["text", "type"], "title": "TextUserInput", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }], "default": null }, "type": { "enum": ["image"], "title": "ImageUserInputType", "type": "string" }, "url": { "type": "string" } }, "required": ["type", "url"], "title": "ImageUserInput", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }], "default": null }, "path": { "type": "string" }, "type": { "enum": ["localImage"], "title": "LocalImageUserInputType", "type": "string" } }, "required": ["path", "type"], "title": "LocalImageUserInput", "type": "object" }, { "properties": { "type": { "enum": ["audio"], "title": "AudioUserInputType", "type": "string" }, "url": { "type": "string" } }, "required": ["type", "url"], "title": "AudioUserInput", "type": "object" }, { "properties": { "path": { "type": "string" }, "type": { "enum": ["localAudio"], "title": "LocalAudioUserInputType", "type": "string" } }, "required": ["path", "type"], "title": "LocalAudioUserInput", "type": "object" }, { "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "type": { "enum": ["skill"], "title": "SkillUserInputType", "type": "string" } }, "required": ["name", "path", "type"], "title": "SkillUserInput", "type": "object" }, { "properties": { "name": { "type": "string" }, "path": { "type": "string" }, "type": { "enum": ["mention"], "title": "MentionUserInputType", "type": "string" } }, "required": ["name", "path", "type"], "title": "MentionUserInput", "type": "object" }] };
+var schema55 = { "enum": ["auto", "low", "high", "original"], "type": "string" };
+var schema53 = { "properties": { "byteRange": { "allOf": [{ "$ref": "#/definitions/v2/ByteRange" }], "description": "Byte range in the parent `text` buffer that this element occupies." }, "placeholder": { "description": "Optional human-readable placeholder for the element, displayed in the UI.", "type": ["string", "null"] } }, "required": ["byteRange"], "type": "object" };
 function validate46(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -2651,7 +2653,7 @@ function validate46(data, { instancePath = "", parentData, parentDataProperty, r
             let data3 = data.placeholder;
             const _errs9 = errors;
             if (typeof data3 !== "string" && data3 !== null) {
-              validate46.errors = [{ instancePath: instancePath + "/placeholder", schemaPath: "#/properties/placeholder/type", keyword: "type", params: { type: schema52.properties.placeholder.type } }];
+              validate46.errors = [{ instancePath: instancePath + "/placeholder", schemaPath: "#/properties/placeholder/type", keyword: "type", params: { type: schema53.properties.placeholder.type } }];
               return false;
             }
             var valid0 = _errs9 === errors;
@@ -2749,7 +2751,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data3 === "text")) {
-                const err4 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[0].properties.type.enum } };
+                const err4 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema52.oneOf[0].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err4];
                 } else {
@@ -2808,7 +2810,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
             errors++;
           }
           if (!(data4 === "auto" || data4 === "low" || data4 === "high" || data4 === "original")) {
-            const err8 = { instancePath: instancePath + "/detail", schemaPath: "#/definitions/v2/ImageDetail/enum", keyword: "enum", params: { allowedValues: schema54.enum } };
+            const err8 = { instancePath: instancePath + "/detail", schemaPath: "#/definitions/v2/ImageDetail/enum", keyword: "enum", params: { allowedValues: schema55.enum } };
             if (vErrors === null) {
               vErrors = [err8];
             } else {
@@ -2868,7 +2870,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data5 === "image")) {
-              const err12 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[1].properties.type.enum } };
+              const err12 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema52.oneOf[1].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err12];
               } else {
@@ -2947,7 +2949,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data7 === "auto" || data7 === "low" || data7 === "high" || data7 === "original")) {
-              const err17 = { instancePath: instancePath + "/detail", schemaPath: "#/definitions/v2/ImageDetail/enum", keyword: "enum", params: { allowedValues: schema54.enum } };
+              const err17 = { instancePath: instancePath + "/detail", schemaPath: "#/definitions/v2/ImageDetail/enum", keyword: "enum", params: { allowedValues: schema55.enum } };
               if (vErrors === null) {
                 vErrors = [err17];
               } else {
@@ -3023,7 +3025,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data9 === "localImage")) {
-                  const err22 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[2].properties.type.enum } };
+                  const err22 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema52.oneOf[2].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err22];
                   } else {
@@ -3083,7 +3085,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data10 === "audio")) {
-                const err26 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[3].properties.type.enum } };
+                const err26 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema52.oneOf[3].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err26];
                 } else {
@@ -3174,7 +3176,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
                     errors++;
                   }
                   if (!(data13 === "localAudio")) {
-                    const err32 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[4].properties.type.enum } };
+                    const err32 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/enum", keyword: "enum", params: { allowedValues: schema52.oneOf[4].properties.type.enum } };
                     if (vErrors === null) {
                       vErrors = [err32];
                     } else {
@@ -3265,7 +3267,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
                         errors++;
                       }
                       if (!(data16 === "skill")) {
-                        const err38 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/5/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[5].properties.type.enum } };
+                        const err38 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/5/properties/type/enum", keyword: "enum", params: { allowedValues: schema52.oneOf[5].properties.type.enum } };
                         if (vErrors === null) {
                           vErrors = [err38];
                         } else {
@@ -3357,7 +3359,7 @@ function validate45(data, { instancePath = "", parentData, parentDataProperty, r
                           errors++;
                         }
                         if (!(data19 === "mention")) {
-                          const err44 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/6/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[6].properties.type.enum } };
+                          const err44 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/6/properties/type/enum", keyword: "enum", params: { allowedValues: schema52.oneOf[6].properties.type.enum } };
                           if (vErrors === null) {
                             vErrors = [err44];
                           } else {
@@ -3570,7 +3572,7 @@ function validate49(data, { instancePath = "", parentData, parentDataProperty, r
   validate49.errors = vErrors;
   return errors === 0;
 }
-var schema62 = { "description": "Responses API compatible content items that can be returned by a tool call. This is a subset of ContentItem with the types we support as function call outputs.", "oneOf": [{ "properties": { "text": { "type": "string" }, "type": { "enum": ["input_text"], "title": "InputTextFunctionCallOutputContentItemType", "type": "string" } }, "required": ["text", "type"], "title": "InputTextFunctionCallOutputContentItem", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }] }, "image_url": { "type": "string" }, "type": { "enum": ["input_image"], "title": "InputImageFunctionCallOutputContentItemType", "type": "string" } }, "required": ["image_url", "type"], "title": "InputImageFunctionCallOutputContentItem", "type": "object" }, { "properties": { "audio_url": { "type": "string" }, "type": { "enum": ["input_audio"], "title": "InputAudioFunctionCallOutputContentItemType", "type": "string" } }, "required": ["audio_url", "type"], "title": "InputAudioFunctionCallOutputContentItem", "type": "object" }, { "properties": { "encrypted_content": { "type": "string" }, "type": { "enum": ["encrypted_content"], "title": "EncryptedContentFunctionCallOutputContentItemType", "type": "string" } }, "required": ["encrypted_content", "type"], "title": "EncryptedContentFunctionCallOutputContentItem", "type": "object" }] };
+var schema64 = { "description": "Responses API compatible content items that can be returned by a tool call. This is a subset of ContentItem with the types we support as function call outputs.", "oneOf": [{ "properties": { "text": { "type": "string" }, "type": { "enum": ["input_text"], "title": "InputTextFunctionCallOutputContentItemType", "type": "string" } }, "required": ["text", "type"], "title": "InputTextFunctionCallOutputContentItem", "type": "object" }, { "properties": { "detail": { "anyOf": [{ "$ref": "#/definitions/v2/ImageDetail" }, { "type": "null" }] }, "image_url": { "type": "string" }, "type": { "enum": ["input_image"], "title": "InputImageFunctionCallOutputContentItemType", "type": "string" } }, "required": ["image_url", "type"], "title": "InputImageFunctionCallOutputContentItem", "type": "object" }, { "properties": { "audio_url": { "type": "string" }, "type": { "enum": ["input_audio"], "title": "InputAudioFunctionCallOutputContentItemType", "type": "string" } }, "required": ["audio_url", "type"], "title": "InputAudioFunctionCallOutputContentItem", "type": "object" }, { "properties": { "encrypted_content": { "type": "string" }, "type": { "enum": ["encrypted_content"], "title": "EncryptedContentFunctionCallOutputContentItemType", "type": "string" } }, "required": ["encrypted_content", "type"], "title": "EncryptedContentFunctionCallOutputContentItem", "type": "object" }] };
 function validate52(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -3619,7 +3621,7 @@ function validate52(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data1 === "input_text")) {
-              const err3 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema62.oneOf[0].properties.type.enum } };
+              const err3 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[0].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err3];
               } else {
@@ -3677,7 +3679,7 @@ function validate52(data, { instancePath = "", parentData, parentDataProperty, r
             errors++;
           }
           if (!(data2 === "auto" || data2 === "low" || data2 === "high" || data2 === "original")) {
-            const err7 = { instancePath: instancePath + "/detail", schemaPath: "#/definitions/v2/ImageDetail/enum", keyword: "enum", params: { allowedValues: schema54.enum } };
+            const err7 = { instancePath: instancePath + "/detail", schemaPath: "#/definitions/v2/ImageDetail/enum", keyword: "enum", params: { allowedValues: schema55.enum } };
             if (vErrors === null) {
               vErrors = [err7];
             } else {
@@ -3753,7 +3755,7 @@ function validate52(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data4 === "input_image")) {
-                const err12 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema62.oneOf[1].properties.type.enum } };
+                const err12 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[1].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err12];
                 } else {
@@ -3829,7 +3831,7 @@ function validate52(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data6 === "input_audio")) {
-                const err17 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema62.oneOf[2].properties.type.enum } };
+                const err17 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[2].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err17];
                 } else {
@@ -3904,7 +3906,7 @@ function validate52(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data8 === "encrypted_content")) {
-                  const err22 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema62.oneOf[3].properties.type.enum } };
+                  const err22 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[3].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err22];
                   } else {
@@ -4033,7 +4035,7 @@ function validate51(data, { instancePath = "", parentData, parentDataProperty, r
   validate51.errors = vErrors;
   return errors === 0;
 }
-var schema64 = { "oneOf": [{ "properties": { "command": { "type": "string" }, "name": { "type": "string" }, "path": { "$ref": "#/definitions/v2/LegacyAppPathString" }, "type": { "enum": ["read"], "title": "ReadCommandActionType", "type": "string" } }, "required": ["command", "name", "path", "type"], "title": "ReadCommandAction", "type": "object" }, { "properties": { "command": { "type": "string" }, "path": { "type": ["string", "null"] }, "type": { "enum": ["listFiles"], "title": "ListFilesCommandActionType", "type": "string" } }, "required": ["command", "type"], "title": "ListFilesCommandAction", "type": "object" }, { "properties": { "command": { "type": "string" }, "path": { "type": ["string", "null"] }, "query": { "type": ["string", "null"] }, "type": { "enum": ["search"], "title": "SearchCommandActionType", "type": "string" } }, "required": ["command", "type"], "title": "SearchCommandAction", "type": "object" }, { "properties": { "command": { "type": "string" }, "type": { "enum": ["unknown"], "title": "UnknownCommandActionType", "type": "string" } }, "required": ["command", "type"], "title": "UnknownCommandAction", "type": "object" }] };
+var schema66 = { "oneOf": [{ "properties": { "command": { "type": "string" }, "name": { "type": "string" }, "path": { "$ref": "#/definitions/v2/LegacyAppPathString" }, "type": { "enum": ["read"], "title": "ReadCommandActionType", "type": "string" } }, "required": ["command", "name", "path", "type"], "title": "ReadCommandAction", "type": "object" }, { "properties": { "command": { "type": "string" }, "path": { "type": ["string", "null"] }, "type": { "enum": ["listFiles"], "title": "ListFilesCommandActionType", "type": "string" } }, "required": ["command", "type"], "title": "ListFilesCommandAction", "type": "object" }, { "properties": { "command": { "type": "string" }, "path": { "type": ["string", "null"] }, "query": { "type": ["string", "null"] }, "type": { "enum": ["search"], "title": "SearchCommandActionType", "type": "string" } }, "required": ["command", "type"], "title": "SearchCommandAction", "type": "object" }, { "properties": { "command": { "type": "string" }, "type": { "enum": ["unknown"], "title": "UnknownCommandActionType", "type": "string" } }, "required": ["command", "type"], "title": "UnknownCommandAction", "type": "object" }] };
 function validate55(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -4114,7 +4116,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data3 === "read")) {
-                  const err5 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[0].properties.type.enum } };
+                  const err5 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema66.oneOf[0].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err5];
                   } else {
@@ -4178,7 +4180,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
             let data5 = data.path;
             const _errs16 = errors;
             if (typeof data5 !== "string" && data5 !== null) {
-              const err9 = { instancePath: instancePath + "/path", schemaPath: "#/oneOf/1/properties/path/type", keyword: "type", params: { type: schema64.oneOf[1].properties.path.type } };
+              const err9 = { instancePath: instancePath + "/path", schemaPath: "#/oneOf/1/properties/path/type", keyword: "type", params: { type: schema66.oneOf[1].properties.path.type } };
               if (vErrors === null) {
                 vErrors = [err9];
               } else {
@@ -4204,7 +4206,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data6 === "listFiles")) {
-                const err11 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[1].properties.type.enum } };
+                const err11 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema66.oneOf[1].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err11];
                 } else {
@@ -4271,7 +4273,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
               let data8 = data.path;
               const _errs24 = errors;
               if (typeof data8 !== "string" && data8 !== null) {
-                const err15 = { instancePath: instancePath + "/path", schemaPath: "#/oneOf/2/properties/path/type", keyword: "type", params: { type: schema64.oneOf[2].properties.path.type } };
+                const err15 = { instancePath: instancePath + "/path", schemaPath: "#/oneOf/2/properties/path/type", keyword: "type", params: { type: schema66.oneOf[2].properties.path.type } };
                 if (vErrors === null) {
                   vErrors = [err15];
                 } else {
@@ -4288,7 +4290,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
                 let data9 = data.query;
                 const _errs26 = errors;
                 if (typeof data9 !== "string" && data9 !== null) {
-                  const err16 = { instancePath: instancePath + "/query", schemaPath: "#/oneOf/2/properties/query/type", keyword: "type", params: { type: schema64.oneOf[2].properties.query.type } };
+                  const err16 = { instancePath: instancePath + "/query", schemaPath: "#/oneOf/2/properties/query/type", keyword: "type", params: { type: schema66.oneOf[2].properties.query.type } };
                   if (vErrors === null) {
                     vErrors = [err16];
                   } else {
@@ -4314,7 +4316,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
                     errors++;
                   }
                   if (!(data10 === "search")) {
-                    const err18 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[2].properties.type.enum } };
+                    const err18 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema66.oneOf[2].properties.type.enum } };
                     if (vErrors === null) {
                       vErrors = [err18];
                     } else {
@@ -4391,7 +4393,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data12 === "unknown")) {
-                  const err23 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema64.oneOf[3].properties.type.enum } };
+                  const err23 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema66.oneOf[3].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err23];
                   } else {
@@ -4450,7 +4452,7 @@ function validate55(data, { instancePath = "", parentData, parentDataProperty, r
   validate55.errors = vErrors;
   return errors === 0;
 }
-var schema70 = { "oneOf": [{ "properties": { "type": { "enum": ["add"], "title": "AddPatchChangeKindType", "type": "string" } }, "required": ["type"], "title": "AddPatchChangeKind", "type": "object" }, { "properties": { "type": { "enum": ["delete"], "title": "DeletePatchChangeKindType", "type": "string" } }, "required": ["type"], "title": "DeletePatchChangeKind", "type": "object" }, { "properties": { "move_path": { "type": ["string", "null"] }, "type": { "enum": ["update"], "title": "UpdatePatchChangeKindType", "type": "string" } }, "required": ["type"], "title": "UpdatePatchChangeKind", "type": "object" }] };
+var schema72 = { "oneOf": [{ "properties": { "type": { "enum": ["add"], "title": "AddPatchChangeKindType", "type": "string" } }, "required": ["type"], "title": "AddPatchChangeKind", "type": "object" }, { "properties": { "type": { "enum": ["delete"], "title": "DeletePatchChangeKindType", "type": "string" } }, "required": ["type"], "title": "DeletePatchChangeKind", "type": "object" }, { "properties": { "move_path": { "type": ["string", "null"] }, "type": { "enum": ["update"], "title": "UpdatePatchChangeKindType", "type": "string" } }, "required": ["type"], "title": "UpdatePatchChangeKind", "type": "object" }] };
 function validate57(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -4503,7 +4505,7 @@ function validate57(data, { instancePath = "", parentData, parentDataProperty, r
                       errors++;
                     }
                     if (!(data2 === "add")) {
-                      const err2 = { instancePath: instancePath + "/kind/type", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema70.oneOf[0].properties.type.enum } };
+                      const err2 = { instancePath: instancePath + "/kind/type", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema72.oneOf[0].properties.type.enum } };
                       if (vErrors === null) {
                         vErrors = [err2];
                       } else {
@@ -4553,7 +4555,7 @@ function validate57(data, { instancePath = "", parentData, parentDataProperty, r
                       errors++;
                     }
                     if (!(data3 === "delete")) {
-                      const err6 = { instancePath: instancePath + "/kind/type", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema70.oneOf[1].properties.type.enum } };
+                      const err6 = { instancePath: instancePath + "/kind/type", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema72.oneOf[1].properties.type.enum } };
                       if (vErrors === null) {
                         vErrors = [err6];
                       } else {
@@ -4599,7 +4601,7 @@ function validate57(data, { instancePath = "", parentData, parentDataProperty, r
                       let data4 = data1.move_path;
                       const _errs16 = errors;
                       if (typeof data4 !== "string" && data4 !== null) {
-                        const err9 = { instancePath: instancePath + "/kind/move_path", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/2/properties/move_path/type", keyword: "type", params: { type: schema70.oneOf[2].properties.move_path.type } };
+                        const err9 = { instancePath: instancePath + "/kind/move_path", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/2/properties/move_path/type", keyword: "type", params: { type: schema72.oneOf[2].properties.move_path.type } };
                         if (vErrors === null) {
                           vErrors = [err9];
                         } else {
@@ -4625,7 +4627,7 @@ function validate57(data, { instancePath = "", parentData, parentDataProperty, r
                           errors++;
                         }
                         if (!(data5 === "update")) {
-                          const err11 = { instancePath: instancePath + "/kind/type", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema70.oneOf[2].properties.type.enum } };
+                          const err11 = { instancePath: instancePath + "/kind/type", schemaPath: "#/definitions/v2/PatchChangeKind/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema72.oneOf[2].properties.type.enum } };
                           if (vErrors === null) {
                             vErrors = [err11];
                           } else {
@@ -4706,8 +4708,8 @@ function validate57(data, { instancePath = "", parentData, parentDataProperty, r
   validate57.errors = vErrors;
   return errors === 0;
 }
-var schema78 = { "properties": { "message": { "type": ["string", "null"] }, "status": { "$ref": "#/definitions/v2/CollabAgentStatus" } }, "required": ["status"], "type": "object" };
-var schema79 = { "enum": ["pendingInit", "running", "interrupted", "completed", "errored", "shutdown", "notFound"], "type": "string" };
+var schema80 = { "properties": { "message": { "type": ["string", "null"] }, "status": { "$ref": "#/definitions/v2/CollabAgentStatus" } }, "required": ["status"], "type": "object" };
+var schema81 = { "enum": ["pendingInit", "running", "interrupted", "completed", "errored", "shutdown", "notFound"], "type": "string" };
 function validate59(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -4722,7 +4724,7 @@ function validate59(data, { instancePath = "", parentData, parentDataProperty, r
           let data0 = data.message;
           const _errs1 = errors;
           if (typeof data0 !== "string" && data0 !== null) {
-            validate59.errors = [{ instancePath: instancePath + "/message", schemaPath: "#/properties/message/type", keyword: "type", params: { type: schema78.properties.message.type } }];
+            validate59.errors = [{ instancePath: instancePath + "/message", schemaPath: "#/properties/message/type", keyword: "type", params: { type: schema80.properties.message.type } }];
             return false;
           }
           var valid0 = _errs1 === errors;
@@ -4738,7 +4740,7 @@ function validate59(data, { instancePath = "", parentData, parentDataProperty, r
               return false;
             }
             if (!(data1 === "pendingInit" || data1 === "running" || data1 === "interrupted" || data1 === "completed" || data1 === "errored" || data1 === "shutdown" || data1 === "notFound")) {
-              validate59.errors = [{ instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CollabAgentStatus/enum", keyword: "enum", params: { allowedValues: schema79.enum } }];
+              validate59.errors = [{ instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CollabAgentStatus/enum", keyword: "enum", params: { allowedValues: schema81.enum } }];
               return false;
             }
             var valid0 = _errs3 === errors;
@@ -4755,7 +4757,6 @@ function validate59(data, { instancePath = "", parentData, parentDataProperty, r
   validate59.errors = vErrors;
   return errors === 0;
 }
-var func2 = require_ucs2length().default;
 function validate44(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -4779,7 +4780,7 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
           let data0 = data.clientId;
           const _errs3 = errors;
           if (typeof data0 !== "string" && data0 !== null) {
-            const err1 = { instancePath: instancePath + "/clientId", schemaPath: "#/oneOf/0/properties/clientId/type", keyword: "type", params: { type: schema50.oneOf[0].properties.clientId.type } };
+            const err1 = { instancePath: instancePath + "/clientId", schemaPath: "#/oneOf/0/properties/clientId/type", keyword: "type", params: { type: schema51.oneOf[0].properties.clientId.type } };
             if (vErrors === null) {
               vErrors = [err1];
             } else {
@@ -4854,7 +4855,7 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data4 === "userMessage")) {
-                  const err5 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[0].properties.type.enum } };
+                  const err5 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[0].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err5];
                   } else {
@@ -5013,7 +5014,7 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data10 === "hookPrompt")) {
-                const err15 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[1].properties.type.enum } };
+                const err15 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[1].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err15];
                 } else {
@@ -5076,7 +5077,7 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data11 === "async")) {
-              const err19 = { instancePath: instancePath + "/delivery", schemaPath: "#/definitions/v2/AgentMessageDelivery/enum", keyword: "enum", params: { allowedValues: schema57.enum } };
+              const err19 = { instancePath: instancePath + "/delivery", schemaPath: "#/definitions/v2/AgentMessageDelivery/enum", keyword: "enum", params: { allowedValues: schema58.enum } };
               if (vErrors === null) {
                 vErrors = [err19];
               } else {
@@ -5208,7 +5209,7 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                     errors++;
                   }
                   if (!(data14 === "commentary")) {
-                    const err26 = { instancePath: instancePath + "/phase", schemaPath: "#/definitions/v2/MessagePhase/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema60.oneOf[0].enum } };
+                    const err26 = { instancePath: instancePath + "/phase", schemaPath: "#/definitions/v2/MessagePhase/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema61.oneOf[0].enum } };
                     if (vErrors === null) {
                       vErrors = [err26];
                     } else {
@@ -5232,7 +5233,7 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                     errors++;
                   }
                   if (!(data14 === "final_answer")) {
-                    const err28 = { instancePath: instancePath + "/phase", schemaPath: "#/definitions/v2/MessagePhase/oneOf/1/enum", keyword: "enum", params: { allowedValues: schema60.oneOf[1].enum } };
+                    const err28 = { instancePath: instancePath + "/phase", schemaPath: "#/definitions/v2/MessagePhase/oneOf/1/enum", keyword: "enum", params: { allowedValues: schema61.oneOf[1].enum } };
                     if (vErrors === null) {
                       vErrors = [err28];
                     } else {
@@ -5307,10 +5308,11 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                   var valid7 = true;
                 }
                 if (valid7) {
-                  if (data.text !== void 0) {
+                  if (data.questions !== void 0) {
+                    let data15 = data.questions;
                     const _errs54 = errors;
-                    if (typeof data.text !== "string") {
-                      const err32 = { instancePath: instancePath + "/text", schemaPath: "#/oneOf/2/properties/text/type", keyword: "type", params: { type: "string" } };
+                    if (!Array.isArray(data15) && data15 !== null) {
+                      const err32 = { instancePath: instancePath + "/questions", schemaPath: "#/oneOf/2/properties/questions/type", keyword: "type", params: { type: schema51.oneOf[2].properties.questions.type } };
                       if (vErrors === null) {
                         vErrors = [err32];
                       } else {
@@ -5318,35 +5320,160 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                       }
                       errors++;
                     }
+                    if (errors === _errs54) {
+                      if (Array.isArray(data15)) {
+                        var valid14 = true;
+                        const len2 = data15.length;
+                        for (let i2 = 0; i2 < len2; i2++) {
+                          let data16 = data15[i2];
+                          const _errs56 = errors;
+                          const _errs57 = errors;
+                          if (errors === _errs57) {
+                            if (data16 && typeof data16 == "object" && !Array.isArray(data16)) {
+                              let missing4;
+                              if (data16.title === void 0 && (missing4 = "title")) {
+                                const err33 = { instancePath: instancePath + "/questions/" + i2, schemaPath: "#/definitions/v2/AsyncUserInputQuestion/required", keyword: "required", params: { missingProperty: missing4 } };
+                                if (vErrors === null) {
+                                  vErrors = [err33];
+                                } else {
+                                  vErrors.push(err33);
+                                }
+                                errors++;
+                              } else {
+                                const _errs59 = errors;
+                                for (const key0 in data16) {
+                                  if (!(key0 === "options" || key0 === "title")) {
+                                    const err34 = { instancePath: instancePath + "/questions/" + i2, schemaPath: "#/definitions/v2/AsyncUserInputQuestion/additionalProperties", keyword: "additionalProperties", params: { additionalProperty: key0 } };
+                                    if (vErrors === null) {
+                                      vErrors = [err34];
+                                    } else {
+                                      vErrors.push(err34);
+                                    }
+                                    errors++;
+                                    break;
+                                  }
+                                }
+                                if (_errs59 === errors) {
+                                  if (data16.options !== void 0) {
+                                    let data17 = data16.options;
+                                    const _errs60 = errors;
+                                    if (!Array.isArray(data17) && data17 !== null) {
+                                      const err35 = { instancePath: instancePath + "/questions/" + i2 + "/options", schemaPath: "#/definitions/v2/AsyncUserInputQuestion/properties/options/type", keyword: "type", params: { type: schema62.properties.options.type } };
+                                      if (vErrors === null) {
+                                        vErrors = [err35];
+                                      } else {
+                                        vErrors.push(err35);
+                                      }
+                                      errors++;
+                                    }
+                                    if (errors === _errs60) {
+                                      if (Array.isArray(data17)) {
+                                        var valid17 = true;
+                                        const len3 = data17.length;
+                                        for (let i3 = 0; i3 < len3; i3++) {
+                                          const _errs62 = errors;
+                                          if (typeof data17[i3] !== "string") {
+                                            const err36 = { instancePath: instancePath + "/questions/" + i2 + "/options/" + i3, schemaPath: "#/definitions/v2/AsyncUserInputQuestion/properties/options/items/type", keyword: "type", params: { type: "string" } };
+                                            if (vErrors === null) {
+                                              vErrors = [err36];
+                                            } else {
+                                              vErrors.push(err36);
+                                            }
+                                            errors++;
+                                          }
+                                          var valid17 = _errs62 === errors;
+                                          if (!valid17) {
+                                            break;
+                                          }
+                                        }
+                                      }
+                                    }
+                                    var valid16 = _errs60 === errors;
+                                  } else {
+                                    var valid16 = true;
+                                  }
+                                  if (valid16) {
+                                    if (data16.title !== void 0) {
+                                      const _errs64 = errors;
+                                      if (typeof data16.title !== "string") {
+                                        const err37 = { instancePath: instancePath + "/questions/" + i2 + "/title", schemaPath: "#/definitions/v2/AsyncUserInputQuestion/properties/title/type", keyword: "type", params: { type: "string" } };
+                                        if (vErrors === null) {
+                                          vErrors = [err37];
+                                        } else {
+                                          vErrors.push(err37);
+                                        }
+                                        errors++;
+                                      }
+                                      var valid16 = _errs64 === errors;
+                                    } else {
+                                      var valid16 = true;
+                                    }
+                                  }
+                                }
+                              }
+                            } else {
+                              const err38 = { instancePath: instancePath + "/questions/" + i2, schemaPath: "#/definitions/v2/AsyncUserInputQuestion/type", keyword: "type", params: { type: "object" } };
+                              if (vErrors === null) {
+                                vErrors = [err38];
+                              } else {
+                                vErrors.push(err38);
+                              }
+                              errors++;
+                            }
+                          }
+                          var valid14 = _errs56 === errors;
+                          if (!valid14) {
+                            break;
+                          }
+                        }
+                      }
+                    }
                     var valid7 = _errs54 === errors;
                   } else {
                     var valid7 = true;
                   }
                   if (valid7) {
-                    if (data.type !== void 0) {
-                      let data16 = data.type;
-                      const _errs56 = errors;
-                      if (typeof data16 !== "string") {
-                        const err33 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/type", keyword: "type", params: { type: "string" } };
+                    if (data.text !== void 0) {
+                      const _errs66 = errors;
+                      if (typeof data.text !== "string") {
+                        const err39 = { instancePath: instancePath + "/text", schemaPath: "#/oneOf/2/properties/text/type", keyword: "type", params: { type: "string" } };
                         if (vErrors === null) {
-                          vErrors = [err33];
+                          vErrors = [err39];
                         } else {
-                          vErrors.push(err33);
+                          vErrors.push(err39);
                         }
                         errors++;
                       }
-                      if (!(data16 === "agentMessage")) {
-                        const err34 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[2].properties.type.enum } };
-                        if (vErrors === null) {
-                          vErrors = [err34];
-                        } else {
-                          vErrors.push(err34);
-                        }
-                        errors++;
-                      }
-                      var valid7 = _errs56 === errors;
+                      var valid7 = _errs66 === errors;
                     } else {
                       var valid7 = true;
+                    }
+                    if (valid7) {
+                      if (data.type !== void 0) {
+                        let data21 = data.type;
+                        const _errs68 = errors;
+                        if (typeof data21 !== "string") {
+                          const err40 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/type", keyword: "type", params: { type: "string" } };
+                          if (vErrors === null) {
+                            vErrors = [err40];
+                          } else {
+                            vErrors.push(err40);
+                          }
+                          errors++;
+                        }
+                        if (!(data21 === "agentMessage")) {
+                          const err41 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[2].properties.type.enum } };
+                          if (vErrors === null) {
+                            vErrors = [err41];
+                          } else {
+                            vErrors.push(err41);
+                          }
+                          errors++;
+                        }
+                        var valid7 = _errs68 === errors;
+                      } else {
+                        var valid7 = true;
+                      }
                     }
                   }
                 }
@@ -5355,11 +5482,11 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
           }
         }
       } else {
-        const err35 = { instancePath, schemaPath: "#/oneOf/2/type", keyword: "type", params: { type: "object" } };
+        const err42 = { instancePath, schemaPath: "#/oneOf/2/type", keyword: "type", params: { type: "object" } };
         if (vErrors === null) {
-          vErrors = [err35];
+          vErrors = [err42];
         } else {
-          vErrors.push(err35);
+          vErrors.push(err42);
         }
         errors++;
       }
@@ -5373,103 +5500,103 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
         valid0 = true;
         passing0 = 2;
       }
-      const _errs58 = errors;
-      if (errors === _errs58) {
+      const _errs70 = errors;
+      if (errors === _errs70) {
         if (data && typeof data == "object" && !Array.isArray(data)) {
-          let missing4;
-          if (data.id === void 0 && (missing4 = "id") || data.name === void 0 && (missing4 = "name") || data.output === void 0 && (missing4 = "output") || data.type === void 0 && (missing4 = "type")) {
-            const err36 = { instancePath, schemaPath: "#/oneOf/3/required", keyword: "required", params: { missingProperty: missing4 } };
+          let missing5;
+          if (data.id === void 0 && (missing5 = "id") || data.name === void 0 && (missing5 = "name") || data.output === void 0 && (missing5 = "output") || data.type === void 0 && (missing5 = "type")) {
+            const err43 = { instancePath, schemaPath: "#/oneOf/3/required", keyword: "required", params: { missingProperty: missing5 } };
             if (vErrors === null) {
-              vErrors = [err36];
+              vErrors = [err43];
             } else {
-              vErrors.push(err36);
+              vErrors.push(err43);
             }
             errors++;
           } else {
             if (data.id !== void 0) {
-              const _errs60 = errors;
+              const _errs72 = errors;
               if (typeof data.id !== "string") {
-                const err37 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/3/properties/id/type", keyword: "type", params: { type: "string" } };
+                const err44 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/3/properties/id/type", keyword: "type", params: { type: "string" } };
                 if (vErrors === null) {
-                  vErrors = [err37];
+                  vErrors = [err44];
                 } else {
-                  vErrors.push(err37);
+                  vErrors.push(err44);
                 }
                 errors++;
               }
-              var valid14 = _errs60 === errors;
+              var valid18 = _errs72 === errors;
             } else {
-              var valid14 = true;
+              var valid18 = true;
             }
-            if (valid14) {
+            if (valid18) {
               if (data.name !== void 0) {
-                const _errs62 = errors;
+                const _errs74 = errors;
                 if (typeof data.name !== "string") {
-                  const err38 = { instancePath: instancePath + "/name", schemaPath: "#/oneOf/3/properties/name/type", keyword: "type", params: { type: "string" } };
+                  const err45 = { instancePath: instancePath + "/name", schemaPath: "#/oneOf/3/properties/name/type", keyword: "type", params: { type: "string" } };
                   if (vErrors === null) {
-                    vErrors = [err38];
+                    vErrors = [err45];
                   } else {
-                    vErrors.push(err38);
+                    vErrors.push(err45);
                   }
                   errors++;
                 }
-                var valid14 = _errs62 === errors;
+                var valid18 = _errs74 === errors;
               } else {
-                var valid14 = true;
+                var valid18 = true;
               }
-              if (valid14) {
+              if (valid18) {
                 if (data.namespace !== void 0) {
-                  let data19 = data.namespace;
-                  const _errs64 = errors;
-                  if (typeof data19 !== "string" && data19 !== null) {
-                    const err39 = { instancePath: instancePath + "/namespace", schemaPath: "#/oneOf/3/properties/namespace/type", keyword: "type", params: { type: schema50.oneOf[3].properties.namespace.type } };
+                  let data24 = data.namespace;
+                  const _errs76 = errors;
+                  if (typeof data24 !== "string" && data24 !== null) {
+                    const err46 = { instancePath: instancePath + "/namespace", schemaPath: "#/oneOf/3/properties/namespace/type", keyword: "type", params: { type: schema51.oneOf[3].properties.namespace.type } };
                     if (vErrors === null) {
-                      vErrors = [err39];
+                      vErrors = [err46];
                     } else {
-                      vErrors.push(err39);
+                      vErrors.push(err46);
                     }
                     errors++;
                   }
-                  var valid14 = _errs64 === errors;
+                  var valid18 = _errs76 === errors;
                 } else {
-                  var valid14 = true;
+                  var valid18 = true;
                 }
-                if (valid14) {
+                if (valid18) {
                   if (data.output !== void 0) {
-                    const _errs66 = errors;
+                    const _errs78 = errors;
                     if (!validate51(data.output, { instancePath: instancePath + "/output", parentData: data, parentDataProperty: "output", rootData })) {
                       vErrors = vErrors === null ? validate51.errors : vErrors.concat(validate51.errors);
                       errors = vErrors.length;
                     }
-                    var valid14 = _errs66 === errors;
+                    var valid18 = _errs78 === errors;
                   } else {
-                    var valid14 = true;
+                    var valid18 = true;
                   }
-                  if (valid14) {
+                  if (valid18) {
                     if (data.type !== void 0) {
-                      let data21 = data.type;
-                      const _errs67 = errors;
-                      if (typeof data21 !== "string") {
-                        const err40 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/type", keyword: "type", params: { type: "string" } };
+                      let data26 = data.type;
+                      const _errs79 = errors;
+                      if (typeof data26 !== "string") {
+                        const err47 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/type", keyword: "type", params: { type: "string" } };
                         if (vErrors === null) {
-                          vErrors = [err40];
+                          vErrors = [err47];
                         } else {
-                          vErrors.push(err40);
+                          vErrors.push(err47);
                         }
                         errors++;
                       }
-                      if (!(data21 === "functionCallOutput")) {
-                        const err41 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[3].properties.type.enum } };
+                      if (!(data26 === "functionCallOutput")) {
+                        const err48 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[3].properties.type.enum } };
                         if (vErrors === null) {
-                          vErrors = [err41];
+                          vErrors = [err48];
                         } else {
-                          vErrors.push(err41);
+                          vErrors.push(err48);
                         }
                         errors++;
                       }
-                      var valid14 = _errs67 === errors;
+                      var valid18 = _errs79 === errors;
                     } else {
-                      var valid14 = true;
+                      var valid18 = true;
                     }
                   }
                 }
@@ -5477,16 +5604,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
             }
           }
         } else {
-          const err42 = { instancePath, schemaPath: "#/oneOf/3/type", keyword: "type", params: { type: "object" } };
+          const err49 = { instancePath, schemaPath: "#/oneOf/3/type", keyword: "type", params: { type: "object" } };
           if (vErrors === null) {
-            vErrors = [err42];
+            vErrors = [err49];
           } else {
-            vErrors.push(err42);
+            vErrors.push(err49);
           }
           errors++;
         }
       }
-      var _valid0 = _errs58 === errors;
+      var _valid0 = _errs70 === errors;
       if (_valid0 && valid0) {
         valid0 = false;
         passing0 = [passing0, 3];
@@ -5495,90 +5622,90 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
           valid0 = true;
           passing0 = 3;
         }
-        const _errs69 = errors;
-        if (errors === _errs69) {
+        const _errs81 = errors;
+        if (errors === _errs81) {
           if (data && typeof data == "object" && !Array.isArray(data)) {
-            let missing5;
-            if (data.id === void 0 && (missing5 = "id") || data.text === void 0 && (missing5 = "text") || data.type === void 0 && (missing5 = "type")) {
-              const err43 = { instancePath, schemaPath: "#/oneOf/4/required", keyword: "required", params: { missingProperty: missing5 } };
+            let missing6;
+            if (data.id === void 0 && (missing6 = "id") || data.text === void 0 && (missing6 = "text") || data.type === void 0 && (missing6 = "type")) {
+              const err50 = { instancePath, schemaPath: "#/oneOf/4/required", keyword: "required", params: { missingProperty: missing6 } };
               if (vErrors === null) {
-                vErrors = [err43];
+                vErrors = [err50];
               } else {
-                vErrors.push(err43);
+                vErrors.push(err50);
               }
               errors++;
             } else {
               if (data.id !== void 0) {
-                const _errs71 = errors;
+                const _errs83 = errors;
                 if (typeof data.id !== "string") {
-                  const err44 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/4/properties/id/type", keyword: "type", params: { type: "string" } };
+                  const err51 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/4/properties/id/type", keyword: "type", params: { type: "string" } };
                   if (vErrors === null) {
-                    vErrors = [err44];
+                    vErrors = [err51];
                   } else {
-                    vErrors.push(err44);
+                    vErrors.push(err51);
                   }
                   errors++;
                 }
-                var valid15 = _errs71 === errors;
+                var valid19 = _errs83 === errors;
               } else {
-                var valid15 = true;
+                var valid19 = true;
               }
-              if (valid15) {
+              if (valid19) {
                 if (data.text !== void 0) {
-                  const _errs73 = errors;
+                  const _errs85 = errors;
                   if (typeof data.text !== "string") {
-                    const err45 = { instancePath: instancePath + "/text", schemaPath: "#/oneOf/4/properties/text/type", keyword: "type", params: { type: "string" } };
+                    const err52 = { instancePath: instancePath + "/text", schemaPath: "#/oneOf/4/properties/text/type", keyword: "type", params: { type: "string" } };
                     if (vErrors === null) {
-                      vErrors = [err45];
+                      vErrors = [err52];
                     } else {
-                      vErrors.push(err45);
+                      vErrors.push(err52);
                     }
                     errors++;
                   }
-                  var valid15 = _errs73 === errors;
+                  var valid19 = _errs85 === errors;
                 } else {
-                  var valid15 = true;
+                  var valid19 = true;
                 }
-                if (valid15) {
+                if (valid19) {
                   if (data.type !== void 0) {
-                    let data24 = data.type;
-                    const _errs75 = errors;
-                    if (typeof data24 !== "string") {
-                      const err46 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/type", keyword: "type", params: { type: "string" } };
+                    let data29 = data.type;
+                    const _errs87 = errors;
+                    if (typeof data29 !== "string") {
+                      const err53 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/type", keyword: "type", params: { type: "string" } };
                       if (vErrors === null) {
-                        vErrors = [err46];
+                        vErrors = [err53];
                       } else {
-                        vErrors.push(err46);
+                        vErrors.push(err53);
                       }
                       errors++;
                     }
-                    if (!(data24 === "plan")) {
-                      const err47 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[4].properties.type.enum } };
+                    if (!(data29 === "plan")) {
+                      const err54 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[4].properties.type.enum } };
                       if (vErrors === null) {
-                        vErrors = [err47];
+                        vErrors = [err54];
                       } else {
-                        vErrors.push(err47);
+                        vErrors.push(err54);
                       }
                       errors++;
                     }
-                    var valid15 = _errs75 === errors;
+                    var valid19 = _errs87 === errors;
                   } else {
-                    var valid15 = true;
+                    var valid19 = true;
                   }
                 }
               }
             }
           } else {
-            const err48 = { instancePath, schemaPath: "#/oneOf/4/type", keyword: "type", params: { type: "object" } };
+            const err55 = { instancePath, schemaPath: "#/oneOf/4/type", keyword: "type", params: { type: "object" } };
             if (vErrors === null) {
-              vErrors = [err48];
+              vErrors = [err55];
             } else {
-              vErrors.push(err48);
+              vErrors.push(err55);
             }
             errors++;
           }
         }
-        var _valid0 = _errs69 === errors;
+        var _valid0 = _errs81 === errors;
         if (_valid0 && valid0) {
           valid0 = false;
           passing0 = [passing0, 4];
@@ -5587,151 +5714,151 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
             valid0 = true;
             passing0 = 4;
           }
-          const _errs77 = errors;
-          if (errors === _errs77) {
+          const _errs89 = errors;
+          if (errors === _errs89) {
             if (data && typeof data == "object" && !Array.isArray(data)) {
-              let missing6;
-              if (data.id === void 0 && (missing6 = "id") || data.type === void 0 && (missing6 = "type")) {
-                const err49 = { instancePath, schemaPath: "#/oneOf/5/required", keyword: "required", params: { missingProperty: missing6 } };
+              let missing7;
+              if (data.id === void 0 && (missing7 = "id") || data.type === void 0 && (missing7 = "type")) {
+                const err56 = { instancePath, schemaPath: "#/oneOf/5/required", keyword: "required", params: { missingProperty: missing7 } };
                 if (vErrors === null) {
-                  vErrors = [err49];
+                  vErrors = [err56];
                 } else {
-                  vErrors.push(err49);
+                  vErrors.push(err56);
                 }
                 errors++;
               } else {
                 if (data.content !== void 0) {
-                  let data25 = data.content;
-                  const _errs79 = errors;
-                  if (errors === _errs79) {
-                    if (Array.isArray(data25)) {
-                      var valid17 = true;
-                      const len2 = data25.length;
-                      for (let i2 = 0; i2 < len2; i2++) {
-                        const _errs81 = errors;
-                        if (typeof data25[i2] !== "string") {
-                          const err50 = { instancePath: instancePath + "/content/" + i2, schemaPath: "#/oneOf/5/properties/content/items/type", keyword: "type", params: { type: "string" } };
+                  let data30 = data.content;
+                  const _errs91 = errors;
+                  if (errors === _errs91) {
+                    if (Array.isArray(data30)) {
+                      var valid21 = true;
+                      const len4 = data30.length;
+                      for (let i4 = 0; i4 < len4; i4++) {
+                        const _errs93 = errors;
+                        if (typeof data30[i4] !== "string") {
+                          const err57 = { instancePath: instancePath + "/content/" + i4, schemaPath: "#/oneOf/5/properties/content/items/type", keyword: "type", params: { type: "string" } };
                           if (vErrors === null) {
-                            vErrors = [err50];
+                            vErrors = [err57];
                           } else {
-                            vErrors.push(err50);
+                            vErrors.push(err57);
                           }
                           errors++;
                         }
-                        var valid17 = _errs81 === errors;
-                        if (!valid17) {
+                        var valid21 = _errs93 === errors;
+                        if (!valid21) {
                           break;
                         }
                       }
                     } else {
-                      const err51 = { instancePath: instancePath + "/content", schemaPath: "#/oneOf/5/properties/content/type", keyword: "type", params: { type: "array" } };
+                      const err58 = { instancePath: instancePath + "/content", schemaPath: "#/oneOf/5/properties/content/type", keyword: "type", params: { type: "array" } };
                       if (vErrors === null) {
-                        vErrors = [err51];
+                        vErrors = [err58];
                       } else {
-                        vErrors.push(err51);
+                        vErrors.push(err58);
                       }
                       errors++;
                     }
                   }
-                  var valid16 = _errs79 === errors;
+                  var valid20 = _errs91 === errors;
                 } else {
-                  var valid16 = true;
+                  var valid20 = true;
                 }
-                if (valid16) {
+                if (valid20) {
                   if (data.id !== void 0) {
-                    const _errs83 = errors;
+                    const _errs95 = errors;
                     if (typeof data.id !== "string") {
-                      const err52 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/5/properties/id/type", keyword: "type", params: { type: "string" } };
+                      const err59 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/5/properties/id/type", keyword: "type", params: { type: "string" } };
                       if (vErrors === null) {
-                        vErrors = [err52];
+                        vErrors = [err59];
                       } else {
-                        vErrors.push(err52);
+                        vErrors.push(err59);
                       }
                       errors++;
                     }
-                    var valid16 = _errs83 === errors;
+                    var valid20 = _errs95 === errors;
                   } else {
-                    var valid16 = true;
+                    var valid20 = true;
                   }
-                  if (valid16) {
+                  if (valid20) {
                     if (data.summary !== void 0) {
-                      let data28 = data.summary;
-                      const _errs85 = errors;
-                      if (errors === _errs85) {
-                        if (Array.isArray(data28)) {
-                          var valid18 = true;
-                          const len3 = data28.length;
-                          for (let i3 = 0; i3 < len3; i3++) {
-                            const _errs87 = errors;
-                            if (typeof data28[i3] !== "string") {
-                              const err53 = { instancePath: instancePath + "/summary/" + i3, schemaPath: "#/oneOf/5/properties/summary/items/type", keyword: "type", params: { type: "string" } };
+                      let data33 = data.summary;
+                      const _errs97 = errors;
+                      if (errors === _errs97) {
+                        if (Array.isArray(data33)) {
+                          var valid22 = true;
+                          const len5 = data33.length;
+                          for (let i5 = 0; i5 < len5; i5++) {
+                            const _errs99 = errors;
+                            if (typeof data33[i5] !== "string") {
+                              const err60 = { instancePath: instancePath + "/summary/" + i5, schemaPath: "#/oneOf/5/properties/summary/items/type", keyword: "type", params: { type: "string" } };
                               if (vErrors === null) {
-                                vErrors = [err53];
+                                vErrors = [err60];
                               } else {
-                                vErrors.push(err53);
+                                vErrors.push(err60);
                               }
                               errors++;
                             }
-                            var valid18 = _errs87 === errors;
-                            if (!valid18) {
+                            var valid22 = _errs99 === errors;
+                            if (!valid22) {
                               break;
                             }
                           }
                         } else {
-                          const err54 = { instancePath: instancePath + "/summary", schemaPath: "#/oneOf/5/properties/summary/type", keyword: "type", params: { type: "array" } };
+                          const err61 = { instancePath: instancePath + "/summary", schemaPath: "#/oneOf/5/properties/summary/type", keyword: "type", params: { type: "array" } };
                           if (vErrors === null) {
-                            vErrors = [err54];
+                            vErrors = [err61];
                           } else {
-                            vErrors.push(err54);
+                            vErrors.push(err61);
                           }
                           errors++;
                         }
                       }
-                      var valid16 = _errs85 === errors;
+                      var valid20 = _errs97 === errors;
                     } else {
-                      var valid16 = true;
+                      var valid20 = true;
                     }
-                    if (valid16) {
+                    if (valid20) {
                       if (data.type !== void 0) {
-                        let data30 = data.type;
-                        const _errs89 = errors;
-                        if (typeof data30 !== "string") {
-                          const err55 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/5/properties/type/type", keyword: "type", params: { type: "string" } };
+                        let data35 = data.type;
+                        const _errs101 = errors;
+                        if (typeof data35 !== "string") {
+                          const err62 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/5/properties/type/type", keyword: "type", params: { type: "string" } };
                           if (vErrors === null) {
-                            vErrors = [err55];
+                            vErrors = [err62];
                           } else {
-                            vErrors.push(err55);
+                            vErrors.push(err62);
                           }
                           errors++;
                         }
-                        if (!(data30 === "reasoning")) {
-                          const err56 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/5/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[5].properties.type.enum } };
+                        if (!(data35 === "reasoning")) {
+                          const err63 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/5/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[5].properties.type.enum } };
                           if (vErrors === null) {
-                            vErrors = [err56];
+                            vErrors = [err63];
                           } else {
-                            vErrors.push(err56);
+                            vErrors.push(err63);
                           }
                           errors++;
                         }
-                        var valid16 = _errs89 === errors;
+                        var valid20 = _errs101 === errors;
                       } else {
-                        var valid16 = true;
+                        var valid20 = true;
                       }
                     }
                   }
                 }
               }
             } else {
-              const err57 = { instancePath, schemaPath: "#/oneOf/5/type", keyword: "type", params: { type: "object" } };
+              const err64 = { instancePath, schemaPath: "#/oneOf/5/type", keyword: "type", params: { type: "object" } };
               if (vErrors === null) {
-                vErrors = [err57];
+                vErrors = [err64];
               } else {
-                vErrors.push(err57);
+                vErrors.push(err64);
               }
               errors++;
             }
           }
-          var _valid0 = _errs77 === errors;
+          var _valid0 = _errs89 === errors;
           if (_valid0 && valid0) {
             valid0 = false;
             passing0 = [passing0, 5];
@@ -5740,278 +5867,278 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
               valid0 = true;
               passing0 = 5;
             }
-            const _errs91 = errors;
-            if (errors === _errs91) {
+            const _errs103 = errors;
+            if (errors === _errs103) {
               if (data && typeof data == "object" && !Array.isArray(data)) {
-                let missing7;
-                if (data.command === void 0 && (missing7 = "command") || data.commandActions === void 0 && (missing7 = "commandActions") || data.cwd === void 0 && (missing7 = "cwd") || data.id === void 0 && (missing7 = "id") || data.status === void 0 && (missing7 = "status") || data.type === void 0 && (missing7 = "type")) {
-                  const err58 = { instancePath, schemaPath: "#/oneOf/6/required", keyword: "required", params: { missingProperty: missing7 } };
+                let missing8;
+                if (data.command === void 0 && (missing8 = "command") || data.commandActions === void 0 && (missing8 = "commandActions") || data.cwd === void 0 && (missing8 = "cwd") || data.id === void 0 && (missing8 = "id") || data.status === void 0 && (missing8 = "status") || data.type === void 0 && (missing8 = "type")) {
+                  const err65 = { instancePath, schemaPath: "#/oneOf/6/required", keyword: "required", params: { missingProperty: missing8 } };
                   if (vErrors === null) {
-                    vErrors = [err58];
+                    vErrors = [err65];
                   } else {
-                    vErrors.push(err58);
+                    vErrors.push(err65);
                   }
                   errors++;
                 } else {
                   if (data.aggregatedOutput !== void 0) {
-                    let data31 = data.aggregatedOutput;
-                    const _errs93 = errors;
-                    if (typeof data31 !== "string" && data31 !== null) {
-                      const err59 = { instancePath: instancePath + "/aggregatedOutput", schemaPath: "#/oneOf/6/properties/aggregatedOutput/type", keyword: "type", params: { type: schema50.oneOf[6].properties.aggregatedOutput.type } };
+                    let data36 = data.aggregatedOutput;
+                    const _errs105 = errors;
+                    if (typeof data36 !== "string" && data36 !== null) {
+                      const err66 = { instancePath: instancePath + "/aggregatedOutput", schemaPath: "#/oneOf/6/properties/aggregatedOutput/type", keyword: "type", params: { type: schema51.oneOf[6].properties.aggregatedOutput.type } };
                       if (vErrors === null) {
-                        vErrors = [err59];
+                        vErrors = [err66];
                       } else {
-                        vErrors.push(err59);
+                        vErrors.push(err66);
                       }
                       errors++;
                     }
-                    var valid19 = _errs93 === errors;
+                    var valid23 = _errs105 === errors;
                   } else {
-                    var valid19 = true;
+                    var valid23 = true;
                   }
-                  if (valid19) {
+                  if (valid23) {
                     if (data.command !== void 0) {
-                      const _errs95 = errors;
+                      const _errs107 = errors;
                       if (typeof data.command !== "string") {
-                        const err60 = { instancePath: instancePath + "/command", schemaPath: "#/oneOf/6/properties/command/type", keyword: "type", params: { type: "string" } };
+                        const err67 = { instancePath: instancePath + "/command", schemaPath: "#/oneOf/6/properties/command/type", keyword: "type", params: { type: "string" } };
                         if (vErrors === null) {
-                          vErrors = [err60];
+                          vErrors = [err67];
                         } else {
-                          vErrors.push(err60);
+                          vErrors.push(err67);
                         }
                         errors++;
                       }
-                      var valid19 = _errs95 === errors;
+                      var valid23 = _errs107 === errors;
                     } else {
-                      var valid19 = true;
+                      var valid23 = true;
                     }
-                    if (valid19) {
+                    if (valid23) {
                       if (data.commandActions !== void 0) {
-                        let data33 = data.commandActions;
-                        const _errs97 = errors;
-                        if (errors === _errs97) {
-                          if (Array.isArray(data33)) {
-                            var valid20 = true;
-                            const len4 = data33.length;
-                            for (let i4 = 0; i4 < len4; i4++) {
-                              const _errs99 = errors;
-                              if (!validate55(data33[i4], { instancePath: instancePath + "/commandActions/" + i4, parentData: data33, parentDataProperty: i4, rootData })) {
+                        let data38 = data.commandActions;
+                        const _errs109 = errors;
+                        if (errors === _errs109) {
+                          if (Array.isArray(data38)) {
+                            var valid24 = true;
+                            const len6 = data38.length;
+                            for (let i6 = 0; i6 < len6; i6++) {
+                              const _errs111 = errors;
+                              if (!validate55(data38[i6], { instancePath: instancePath + "/commandActions/" + i6, parentData: data38, parentDataProperty: i6, rootData })) {
                                 vErrors = vErrors === null ? validate55.errors : vErrors.concat(validate55.errors);
                                 errors = vErrors.length;
                               }
-                              var valid20 = _errs99 === errors;
-                              if (!valid20) {
+                              var valid24 = _errs111 === errors;
+                              if (!valid24) {
                                 break;
                               }
                             }
                           } else {
-                            const err61 = { instancePath: instancePath + "/commandActions", schemaPath: "#/oneOf/6/properties/commandActions/type", keyword: "type", params: { type: "array" } };
+                            const err68 = { instancePath: instancePath + "/commandActions", schemaPath: "#/oneOf/6/properties/commandActions/type", keyword: "type", params: { type: "array" } };
                             if (vErrors === null) {
-                              vErrors = [err61];
+                              vErrors = [err68];
                             } else {
-                              vErrors.push(err61);
+                              vErrors.push(err68);
                             }
                             errors++;
                           }
                         }
-                        var valid19 = _errs97 === errors;
+                        var valid23 = _errs109 === errors;
                       } else {
-                        var valid19 = true;
+                        var valid23 = true;
                       }
-                      if (valid19) {
+                      if (valid23) {
                         if (data.cwd !== void 0) {
-                          const _errs100 = errors;
+                          const _errs112 = errors;
                           if (typeof data.cwd !== "string") {
-                            const err62 = { instancePath: instancePath + "/cwd", schemaPath: "#/definitions/v2/LegacyAppPathString/type", keyword: "type", params: { type: "string" } };
+                            const err69 = { instancePath: instancePath + "/cwd", schemaPath: "#/definitions/v2/LegacyAppPathString/type", keyword: "type", params: { type: "string" } };
                             if (vErrors === null) {
-                              vErrors = [err62];
+                              vErrors = [err69];
                             } else {
-                              vErrors.push(err62);
+                              vErrors.push(err69);
                             }
                             errors++;
                           }
-                          var valid19 = _errs100 === errors;
+                          var valid23 = _errs112 === errors;
                         } else {
-                          var valid19 = true;
+                          var valid23 = true;
                         }
-                        if (valid19) {
+                        if (valid23) {
                           if (data.durationMs !== void 0) {
-                            let data36 = data.durationMs;
-                            const _errs104 = errors;
-                            if (!(typeof data36 == "number" && (!(data36 % 1) && !isNaN(data36)) && isFinite(data36)) && data36 !== null) {
-                              const err63 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/6/properties/durationMs/type", keyword: "type", params: { type: schema50.oneOf[6].properties.durationMs.type } };
+                            let data41 = data.durationMs;
+                            const _errs116 = errors;
+                            if (!(typeof data41 == "number" && (!(data41 % 1) && !isNaN(data41)) && isFinite(data41)) && data41 !== null) {
+                              const err70 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/6/properties/durationMs/type", keyword: "type", params: { type: schema51.oneOf[6].properties.durationMs.type } };
                               if (vErrors === null) {
-                                vErrors = [err63];
+                                vErrors = [err70];
                               } else {
-                                vErrors.push(err63);
+                                vErrors.push(err70);
                               }
                               errors++;
                             }
-                            var valid19 = _errs104 === errors;
+                            var valid23 = _errs116 === errors;
                           } else {
-                            var valid19 = true;
+                            var valid23 = true;
                           }
-                          if (valid19) {
+                          if (valid23) {
                             if (data.exitCode !== void 0) {
-                              let data37 = data.exitCode;
-                              const _errs106 = errors;
-                              if (!(typeof data37 == "number" && (!(data37 % 1) && !isNaN(data37)) && isFinite(data37)) && data37 !== null) {
-                                const err64 = { instancePath: instancePath + "/exitCode", schemaPath: "#/oneOf/6/properties/exitCode/type", keyword: "type", params: { type: schema50.oneOf[6].properties.exitCode.type } };
+                              let data42 = data.exitCode;
+                              const _errs118 = errors;
+                              if (!(typeof data42 == "number" && (!(data42 % 1) && !isNaN(data42)) && isFinite(data42)) && data42 !== null) {
+                                const err71 = { instancePath: instancePath + "/exitCode", schemaPath: "#/oneOf/6/properties/exitCode/type", keyword: "type", params: { type: schema51.oneOf[6].properties.exitCode.type } };
                                 if (vErrors === null) {
-                                  vErrors = [err64];
+                                  vErrors = [err71];
                                 } else {
-                                  vErrors.push(err64);
+                                  vErrors.push(err71);
                                 }
                                 errors++;
                               }
-                              var valid19 = _errs106 === errors;
+                              var valid23 = _errs118 === errors;
                             } else {
-                              var valid19 = true;
+                              var valid23 = true;
                             }
-                            if (valid19) {
+                            if (valid23) {
                               if (data.id !== void 0) {
-                                const _errs108 = errors;
+                                const _errs120 = errors;
                                 if (typeof data.id !== "string") {
-                                  const err65 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/6/properties/id/type", keyword: "type", params: { type: "string" } };
+                                  const err72 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/6/properties/id/type", keyword: "type", params: { type: "string" } };
                                   if (vErrors === null) {
-                                    vErrors = [err65];
+                                    vErrors = [err72];
                                   } else {
-                                    vErrors.push(err65);
+                                    vErrors.push(err72);
                                   }
                                   errors++;
                                 }
-                                var valid19 = _errs108 === errors;
+                                var valid23 = _errs120 === errors;
                               } else {
-                                var valid19 = true;
+                                var valid23 = true;
                               }
-                              if (valid19) {
+                              if (valid23) {
                                 if (data.pluginId !== void 0) {
-                                  let data39 = data.pluginId;
-                                  const _errs110 = errors;
-                                  if (typeof data39 !== "string" && data39 !== null) {
-                                    const err66 = { instancePath: instancePath + "/pluginId", schemaPath: "#/oneOf/6/properties/pluginId/type", keyword: "type", params: { type: schema50.oneOf[6].properties.pluginId.type } };
+                                  let data44 = data.pluginId;
+                                  const _errs122 = errors;
+                                  if (typeof data44 !== "string" && data44 !== null) {
+                                    const err73 = { instancePath: instancePath + "/pluginId", schemaPath: "#/oneOf/6/properties/pluginId/type", keyword: "type", params: { type: schema51.oneOf[6].properties.pluginId.type } };
                                     if (vErrors === null) {
-                                      vErrors = [err66];
+                                      vErrors = [err73];
                                     } else {
-                                      vErrors.push(err66);
+                                      vErrors.push(err73);
                                     }
                                     errors++;
                                   }
-                                  var valid19 = _errs110 === errors;
+                                  var valid23 = _errs122 === errors;
                                 } else {
-                                  var valid19 = true;
+                                  var valid23 = true;
                                 }
-                                if (valid19) {
+                                if (valid23) {
                                   if (data.processId !== void 0) {
-                                    let data40 = data.processId;
-                                    const _errs112 = errors;
-                                    if (typeof data40 !== "string" && data40 !== null) {
-                                      const err67 = { instancePath: instancePath + "/processId", schemaPath: "#/oneOf/6/properties/processId/type", keyword: "type", params: { type: schema50.oneOf[6].properties.processId.type } };
+                                    let data45 = data.processId;
+                                    const _errs124 = errors;
+                                    if (typeof data45 !== "string" && data45 !== null) {
+                                      const err74 = { instancePath: instancePath + "/processId", schemaPath: "#/oneOf/6/properties/processId/type", keyword: "type", params: { type: schema51.oneOf[6].properties.processId.type } };
                                       if (vErrors === null) {
-                                        vErrors = [err67];
+                                        vErrors = [err74];
                                       } else {
-                                        vErrors.push(err67);
+                                        vErrors.push(err74);
                                       }
                                       errors++;
                                     }
-                                    var valid19 = _errs112 === errors;
+                                    var valid23 = _errs124 === errors;
                                   } else {
-                                    var valid19 = true;
+                                    var valid23 = true;
                                   }
-                                  if (valid19) {
+                                  if (valid23) {
                                     if (data.scriptPath !== void 0) {
-                                      let data41 = data.scriptPath;
-                                      const _errs114 = errors;
-                                      if (typeof data41 !== "string" && data41 !== null) {
-                                        const err68 = { instancePath: instancePath + "/scriptPath", schemaPath: "#/oneOf/6/properties/scriptPath/type", keyword: "type", params: { type: schema50.oneOf[6].properties.scriptPath.type } };
+                                      let data46 = data.scriptPath;
+                                      const _errs126 = errors;
+                                      if (typeof data46 !== "string" && data46 !== null) {
+                                        const err75 = { instancePath: instancePath + "/scriptPath", schemaPath: "#/oneOf/6/properties/scriptPath/type", keyword: "type", params: { type: schema51.oneOf[6].properties.scriptPath.type } };
                                         if (vErrors === null) {
-                                          vErrors = [err68];
+                                          vErrors = [err75];
                                         } else {
-                                          vErrors.push(err68);
+                                          vErrors.push(err75);
                                         }
                                         errors++;
                                       }
-                                      var valid19 = _errs114 === errors;
+                                      var valid23 = _errs126 === errors;
                                     } else {
-                                      var valid19 = true;
+                                      var valid23 = true;
                                     }
-                                    if (valid19) {
+                                    if (valid23) {
                                       if (data.source !== void 0) {
-                                        let data42 = data.source;
-                                        const _errs116 = errors;
-                                        if (typeof data42 !== "string") {
-                                          const err69 = { instancePath: instancePath + "/source", schemaPath: "#/definitions/v2/CommandExecutionSource/type", keyword: "type", params: { type: "string" } };
+                                        let data47 = data.source;
+                                        const _errs128 = errors;
+                                        if (typeof data47 !== "string") {
+                                          const err76 = { instancePath: instancePath + "/source", schemaPath: "#/definitions/v2/CommandExecutionSource/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err69];
+                                            vErrors = [err76];
                                           } else {
-                                            vErrors.push(err69);
+                                            vErrors.push(err76);
                                           }
                                           errors++;
                                         }
-                                        if (!(data42 === "agent" || data42 === "userShell" || data42 === "unifiedExecStartup" || data42 === "unifiedExecInteraction")) {
-                                          const err70 = { instancePath: instancePath + "/source", schemaPath: "#/definitions/v2/CommandExecutionSource/enum", keyword: "enum", params: { allowedValues: schema67.enum } };
+                                        if (!(data47 === "agent" || data47 === "userShell" || data47 === "unifiedExecStartup" || data47 === "unifiedExecInteraction")) {
+                                          const err77 = { instancePath: instancePath + "/source", schemaPath: "#/definitions/v2/CommandExecutionSource/enum", keyword: "enum", params: { allowedValues: schema69.enum } };
                                           if (vErrors === null) {
-                                            vErrors = [err70];
+                                            vErrors = [err77];
                                           } else {
-                                            vErrors.push(err70);
+                                            vErrors.push(err77);
                                           }
                                           errors++;
                                         }
-                                        var valid19 = _errs116 === errors;
+                                        var valid23 = _errs128 === errors;
                                       } else {
-                                        var valid19 = true;
+                                        var valid23 = true;
                                       }
-                                      if (valid19) {
+                                      if (valid23) {
                                         if (data.status !== void 0) {
-                                          let data43 = data.status;
-                                          const _errs120 = errors;
-                                          if (typeof data43 !== "string") {
-                                            const err71 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CommandExecutionStatus/type", keyword: "type", params: { type: "string" } };
+                                          let data48 = data.status;
+                                          const _errs132 = errors;
+                                          if (typeof data48 !== "string") {
+                                            const err78 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CommandExecutionStatus/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err71];
+                                              vErrors = [err78];
                                             } else {
-                                              vErrors.push(err71);
+                                              vErrors.push(err78);
                                             }
                                             errors++;
                                           }
-                                          if (!(data43 === "inProgress" || data43 === "completed" || data43 === "failed" || data43 === "declined")) {
-                                            const err72 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CommandExecutionStatus/enum", keyword: "enum", params: { allowedValues: schema68.enum } };
+                                          if (!(data48 === "inProgress" || data48 === "completed" || data48 === "failed" || data48 === "declined")) {
+                                            const err79 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CommandExecutionStatus/enum", keyword: "enum", params: { allowedValues: schema70.enum } };
                                             if (vErrors === null) {
-                                              vErrors = [err72];
+                                              vErrors = [err79];
                                             } else {
-                                              vErrors.push(err72);
+                                              vErrors.push(err79);
                                             }
                                             errors++;
                                           }
-                                          var valid19 = _errs120 === errors;
+                                          var valid23 = _errs132 === errors;
                                         } else {
-                                          var valid19 = true;
+                                          var valid23 = true;
                                         }
-                                        if (valid19) {
+                                        if (valid23) {
                                           if (data.type !== void 0) {
-                                            let data44 = data.type;
-                                            const _errs123 = errors;
-                                            if (typeof data44 !== "string") {
-                                              const err73 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/6/properties/type/type", keyword: "type", params: { type: "string" } };
+                                            let data49 = data.type;
+                                            const _errs135 = errors;
+                                            if (typeof data49 !== "string") {
+                                              const err80 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/6/properties/type/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err73];
+                                                vErrors = [err80];
                                               } else {
-                                                vErrors.push(err73);
+                                                vErrors.push(err80);
                                               }
                                               errors++;
                                             }
-                                            if (!(data44 === "commandExecution")) {
-                                              const err74 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/6/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[6].properties.type.enum } };
+                                            if (!(data49 === "commandExecution")) {
+                                              const err81 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/6/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[6].properties.type.enum } };
                                               if (vErrors === null) {
-                                                vErrors = [err74];
+                                                vErrors = [err81];
                                               } else {
-                                                vErrors.push(err74);
+                                                vErrors.push(err81);
                                               }
                                               errors++;
                                             }
-                                            var valid19 = _errs123 === errors;
+                                            var valid23 = _errs135 === errors;
                                           } else {
-                                            var valid19 = true;
+                                            var valid23 = true;
                                           }
                                         }
                                       }
@@ -6027,16 +6154,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                   }
                 }
               } else {
-                const err75 = { instancePath, schemaPath: "#/oneOf/6/type", keyword: "type", params: { type: "object" } };
+                const err82 = { instancePath, schemaPath: "#/oneOf/6/type", keyword: "type", params: { type: "object" } };
                 if (vErrors === null) {
-                  vErrors = [err75];
+                  vErrors = [err82];
                 } else {
-                  vErrors.push(err75);
+                  vErrors.push(err82);
                 }
                 errors++;
               }
             }
-            var _valid0 = _errs91 === errors;
+            var _valid0 = _errs103 === errors;
             if (_valid0 && valid0) {
               valid0 = false;
               passing0 = [passing0, 6];
@@ -6045,134 +6172,134 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                 valid0 = true;
                 passing0 = 6;
               }
-              const _errs125 = errors;
-              if (errors === _errs125) {
+              const _errs137 = errors;
+              if (errors === _errs137) {
                 if (data && typeof data == "object" && !Array.isArray(data)) {
-                  let missing8;
-                  if (data.changes === void 0 && (missing8 = "changes") || data.id === void 0 && (missing8 = "id") || data.status === void 0 && (missing8 = "status") || data.type === void 0 && (missing8 = "type")) {
-                    const err76 = { instancePath, schemaPath: "#/oneOf/7/required", keyword: "required", params: { missingProperty: missing8 } };
+                  let missing9;
+                  if (data.changes === void 0 && (missing9 = "changes") || data.id === void 0 && (missing9 = "id") || data.status === void 0 && (missing9 = "status") || data.type === void 0 && (missing9 = "type")) {
+                    const err83 = { instancePath, schemaPath: "#/oneOf/7/required", keyword: "required", params: { missingProperty: missing9 } };
                     if (vErrors === null) {
-                      vErrors = [err76];
+                      vErrors = [err83];
                     } else {
-                      vErrors.push(err76);
+                      vErrors.push(err83);
                     }
                     errors++;
                   } else {
                     if (data.changes !== void 0) {
-                      let data45 = data.changes;
-                      const _errs127 = errors;
-                      if (errors === _errs127) {
-                        if (Array.isArray(data45)) {
-                          var valid27 = true;
-                          const len5 = data45.length;
-                          for (let i5 = 0; i5 < len5; i5++) {
-                            const _errs129 = errors;
-                            if (!validate57(data45[i5], { instancePath: instancePath + "/changes/" + i5, parentData: data45, parentDataProperty: i5, rootData })) {
+                      let data50 = data.changes;
+                      const _errs139 = errors;
+                      if (errors === _errs139) {
+                        if (Array.isArray(data50)) {
+                          var valid31 = true;
+                          const len7 = data50.length;
+                          for (let i7 = 0; i7 < len7; i7++) {
+                            const _errs141 = errors;
+                            if (!validate57(data50[i7], { instancePath: instancePath + "/changes/" + i7, parentData: data50, parentDataProperty: i7, rootData })) {
                               vErrors = vErrors === null ? validate57.errors : vErrors.concat(validate57.errors);
                               errors = vErrors.length;
                             }
-                            var valid27 = _errs129 === errors;
-                            if (!valid27) {
+                            var valid31 = _errs141 === errors;
+                            if (!valid31) {
                               break;
                             }
                           }
                         } else {
-                          const err77 = { instancePath: instancePath + "/changes", schemaPath: "#/oneOf/7/properties/changes/type", keyword: "type", params: { type: "array" } };
+                          const err84 = { instancePath: instancePath + "/changes", schemaPath: "#/oneOf/7/properties/changes/type", keyword: "type", params: { type: "array" } };
                           if (vErrors === null) {
-                            vErrors = [err77];
+                            vErrors = [err84];
                           } else {
-                            vErrors.push(err77);
+                            vErrors.push(err84);
                           }
                           errors++;
                         }
                       }
-                      var valid26 = _errs127 === errors;
+                      var valid30 = _errs139 === errors;
                     } else {
-                      var valid26 = true;
+                      var valid30 = true;
                     }
-                    if (valid26) {
+                    if (valid30) {
                       if (data.id !== void 0) {
-                        const _errs130 = errors;
+                        const _errs142 = errors;
                         if (typeof data.id !== "string") {
-                          const err78 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/7/properties/id/type", keyword: "type", params: { type: "string" } };
+                          const err85 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/7/properties/id/type", keyword: "type", params: { type: "string" } };
                           if (vErrors === null) {
-                            vErrors = [err78];
+                            vErrors = [err85];
                           } else {
-                            vErrors.push(err78);
+                            vErrors.push(err85);
                           }
                           errors++;
                         }
-                        var valid26 = _errs130 === errors;
+                        var valid30 = _errs142 === errors;
                       } else {
-                        var valid26 = true;
+                        var valid30 = true;
                       }
-                      if (valid26) {
+                      if (valid30) {
                         if (data.status !== void 0) {
-                          let data48 = data.status;
-                          const _errs132 = errors;
-                          if (typeof data48 !== "string") {
-                            const err79 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/PatchApplyStatus/type", keyword: "type", params: { type: "string" } };
+                          let data53 = data.status;
+                          const _errs144 = errors;
+                          if (typeof data53 !== "string") {
+                            const err86 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/PatchApplyStatus/type", keyword: "type", params: { type: "string" } };
                             if (vErrors === null) {
-                              vErrors = [err79];
+                              vErrors = [err86];
                             } else {
-                              vErrors.push(err79);
+                              vErrors.push(err86);
                             }
                             errors++;
                           }
-                          if (!(data48 === "inProgress" || data48 === "completed" || data48 === "failed" || data48 === "declined")) {
-                            const err80 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/PatchApplyStatus/enum", keyword: "enum", params: { allowedValues: schema71.enum } };
+                          if (!(data53 === "inProgress" || data53 === "completed" || data53 === "failed" || data53 === "declined")) {
+                            const err87 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/PatchApplyStatus/enum", keyword: "enum", params: { allowedValues: schema73.enum } };
                             if (vErrors === null) {
-                              vErrors = [err80];
+                              vErrors = [err87];
                             } else {
-                              vErrors.push(err80);
+                              vErrors.push(err87);
                             }
                             errors++;
                           }
-                          var valid26 = _errs132 === errors;
+                          var valid30 = _errs144 === errors;
                         } else {
-                          var valid26 = true;
+                          var valid30 = true;
                         }
-                        if (valid26) {
+                        if (valid30) {
                           if (data.type !== void 0) {
-                            let data49 = data.type;
-                            const _errs135 = errors;
-                            if (typeof data49 !== "string") {
-                              const err81 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/7/properties/type/type", keyword: "type", params: { type: "string" } };
+                            let data54 = data.type;
+                            const _errs147 = errors;
+                            if (typeof data54 !== "string") {
+                              const err88 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/7/properties/type/type", keyword: "type", params: { type: "string" } };
                               if (vErrors === null) {
-                                vErrors = [err81];
+                                vErrors = [err88];
                               } else {
-                                vErrors.push(err81);
+                                vErrors.push(err88);
                               }
                               errors++;
                             }
-                            if (!(data49 === "fileChange")) {
-                              const err82 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/7/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[7].properties.type.enum } };
+                            if (!(data54 === "fileChange")) {
+                              const err89 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/7/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[7].properties.type.enum } };
                               if (vErrors === null) {
-                                vErrors = [err82];
+                                vErrors = [err89];
                               } else {
-                                vErrors.push(err82);
+                                vErrors.push(err89);
                               }
                               errors++;
                             }
-                            var valid26 = _errs135 === errors;
+                            var valid30 = _errs147 === errors;
                           } else {
-                            var valid26 = true;
+                            var valid30 = true;
                           }
                         }
                       }
                     }
                   }
                 } else {
-                  const err83 = { instancePath, schemaPath: "#/oneOf/7/type", keyword: "type", params: { type: "object" } };
+                  const err90 = { instancePath, schemaPath: "#/oneOf/7/type", keyword: "type", params: { type: "object" } };
                   if (vErrors === null) {
-                    vErrors = [err83];
+                    vErrors = [err90];
                   } else {
-                    vErrors.push(err83);
+                    vErrors.push(err90);
                   }
                   errors++;
                 }
               }
-              var _valid0 = _errs125 === errors;
+              var _valid0 = _errs137 === errors;
               if (_valid0 && valid0) {
                 valid0 = false;
                 passing0 = [passing0, 7];
@@ -6181,120 +6308,120 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                   valid0 = true;
                   passing0 = 7;
                 }
-                const _errs137 = errors;
-                if (errors === _errs137) {
+                const _errs149 = errors;
+                if (errors === _errs149) {
                   if (data && typeof data == "object" && !Array.isArray(data)) {
-                    let missing9;
-                    if (data.arguments === void 0 && (missing9 = "arguments") || data.id === void 0 && (missing9 = "id") || data.server === void 0 && (missing9 = "server") || data.status === void 0 && (missing9 = "status") || data.tool === void 0 && (missing9 = "tool") || data.type === void 0 && (missing9 = "type")) {
-                      const err84 = { instancePath, schemaPath: "#/oneOf/8/required", keyword: "required", params: { missingProperty: missing9 } };
+                    let missing10;
+                    if (data.arguments === void 0 && (missing10 = "arguments") || data.id === void 0 && (missing10 = "id") || data.server === void 0 && (missing10 = "server") || data.status === void 0 && (missing10 = "status") || data.tool === void 0 && (missing10 = "tool") || data.type === void 0 && (missing10 = "type")) {
+                      const err91 = { instancePath, schemaPath: "#/oneOf/8/required", keyword: "required", params: { missingProperty: missing10 } };
                       if (vErrors === null) {
-                        vErrors = [err84];
+                        vErrors = [err91];
                       } else {
-                        vErrors.push(err84);
+                        vErrors.push(err91);
                       }
                       errors++;
                     } else {
                       if (data.appContext !== void 0) {
-                        let data50 = data.appContext;
-                        const _errs139 = errors;
-                        const _errs140 = errors;
-                        let valid30 = false;
-                        const _errs141 = errors;
-                        const _errs142 = errors;
-                        if (errors === _errs142) {
-                          if (data50 && typeof data50 == "object" && !Array.isArray(data50)) {
-                            let missing10;
-                            if (data50.connectorId === void 0 && (missing10 = "connectorId")) {
-                              const err85 = { instancePath: instancePath + "/appContext", schemaPath: "#/definitions/v2/McpToolCallAppContext/required", keyword: "required", params: { missingProperty: missing10 } };
+                        let data55 = data.appContext;
+                        const _errs151 = errors;
+                        const _errs152 = errors;
+                        let valid34 = false;
+                        const _errs153 = errors;
+                        const _errs154 = errors;
+                        if (errors === _errs154) {
+                          if (data55 && typeof data55 == "object" && !Array.isArray(data55)) {
+                            let missing11;
+                            if (data55.connectorId === void 0 && (missing11 = "connectorId")) {
+                              const err92 = { instancePath: instancePath + "/appContext", schemaPath: "#/definitions/v2/McpToolCallAppContext/required", keyword: "required", params: { missingProperty: missing11 } };
                               if (vErrors === null) {
-                                vErrors = [err85];
+                                vErrors = [err92];
                               } else {
-                                vErrors.push(err85);
+                                vErrors.push(err92);
                               }
                               errors++;
                             } else {
-                              if (data50.actionName !== void 0) {
-                                let data51 = data50.actionName;
-                                const _errs144 = errors;
-                                if (typeof data51 !== "string" && data51 !== null) {
-                                  const err86 = { instancePath: instancePath + "/appContext/actionName", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/actionName/type", keyword: "type", params: { type: schema72.properties.actionName.type } };
+                              if (data55.actionName !== void 0) {
+                                let data56 = data55.actionName;
+                                const _errs156 = errors;
+                                if (typeof data56 !== "string" && data56 !== null) {
+                                  const err93 = { instancePath: instancePath + "/appContext/actionName", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/actionName/type", keyword: "type", params: { type: schema74.properties.actionName.type } };
                                   if (vErrors === null) {
-                                    vErrors = [err86];
+                                    vErrors = [err93];
                                   } else {
-                                    vErrors.push(err86);
+                                    vErrors.push(err93);
                                   }
                                   errors++;
                                 }
-                                var valid32 = _errs144 === errors;
+                                var valid36 = _errs156 === errors;
                               } else {
-                                var valid32 = true;
+                                var valid36 = true;
                               }
-                              if (valid32) {
-                                if (data50.appName !== void 0) {
-                                  let data52 = data50.appName;
-                                  const _errs146 = errors;
-                                  if (typeof data52 !== "string" && data52 !== null) {
-                                    const err87 = { instancePath: instancePath + "/appContext/appName", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/appName/type", keyword: "type", params: { type: schema72.properties.appName.type } };
+                              if (valid36) {
+                                if (data55.appName !== void 0) {
+                                  let data57 = data55.appName;
+                                  const _errs158 = errors;
+                                  if (typeof data57 !== "string" && data57 !== null) {
+                                    const err94 = { instancePath: instancePath + "/appContext/appName", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/appName/type", keyword: "type", params: { type: schema74.properties.appName.type } };
                                     if (vErrors === null) {
-                                      vErrors = [err87];
+                                      vErrors = [err94];
                                     } else {
-                                      vErrors.push(err87);
+                                      vErrors.push(err94);
                                     }
                                     errors++;
                                   }
-                                  var valid32 = _errs146 === errors;
+                                  var valid36 = _errs158 === errors;
                                 } else {
-                                  var valid32 = true;
+                                  var valid36 = true;
                                 }
-                                if (valid32) {
-                                  if (data50.connectorId !== void 0) {
-                                    const _errs148 = errors;
-                                    if (typeof data50.connectorId !== "string") {
-                                      const err88 = { instancePath: instancePath + "/appContext/connectorId", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/connectorId/type", keyword: "type", params: { type: "string" } };
+                                if (valid36) {
+                                  if (data55.connectorId !== void 0) {
+                                    const _errs160 = errors;
+                                    if (typeof data55.connectorId !== "string") {
+                                      const err95 = { instancePath: instancePath + "/appContext/connectorId", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/connectorId/type", keyword: "type", params: { type: "string" } };
                                       if (vErrors === null) {
-                                        vErrors = [err88];
+                                        vErrors = [err95];
                                       } else {
-                                        vErrors.push(err88);
+                                        vErrors.push(err95);
                                       }
                                       errors++;
                                     }
-                                    var valid32 = _errs148 === errors;
+                                    var valid36 = _errs160 === errors;
                                   } else {
-                                    var valid32 = true;
+                                    var valid36 = true;
                                   }
-                                  if (valid32) {
-                                    if (data50.linkId !== void 0) {
-                                      let data54 = data50.linkId;
-                                      const _errs150 = errors;
-                                      if (typeof data54 !== "string" && data54 !== null) {
-                                        const err89 = { instancePath: instancePath + "/appContext/linkId", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/linkId/type", keyword: "type", params: { type: schema72.properties.linkId.type } };
+                                  if (valid36) {
+                                    if (data55.linkId !== void 0) {
+                                      let data59 = data55.linkId;
+                                      const _errs162 = errors;
+                                      if (typeof data59 !== "string" && data59 !== null) {
+                                        const err96 = { instancePath: instancePath + "/appContext/linkId", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/linkId/type", keyword: "type", params: { type: schema74.properties.linkId.type } };
                                         if (vErrors === null) {
-                                          vErrors = [err89];
+                                          vErrors = [err96];
                                         } else {
-                                          vErrors.push(err89);
+                                          vErrors.push(err96);
                                         }
                                         errors++;
                                       }
-                                      var valid32 = _errs150 === errors;
+                                      var valid36 = _errs162 === errors;
                                     } else {
-                                      var valid32 = true;
+                                      var valid36 = true;
                                     }
-                                    if (valid32) {
-                                      if (data50.resourceUri !== void 0) {
-                                        let data55 = data50.resourceUri;
-                                        const _errs152 = errors;
-                                        if (typeof data55 !== "string" && data55 !== null) {
-                                          const err90 = { instancePath: instancePath + "/appContext/resourceUri", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/resourceUri/type", keyword: "type", params: { type: schema72.properties.resourceUri.type } };
+                                    if (valid36) {
+                                      if (data55.resourceUri !== void 0) {
+                                        let data60 = data55.resourceUri;
+                                        const _errs164 = errors;
+                                        if (typeof data60 !== "string" && data60 !== null) {
+                                          const err97 = { instancePath: instancePath + "/appContext/resourceUri", schemaPath: "#/definitions/v2/McpToolCallAppContext/properties/resourceUri/type", keyword: "type", params: { type: schema74.properties.resourceUri.type } };
                                           if (vErrors === null) {
-                                            vErrors = [err90];
+                                            vErrors = [err97];
                                           } else {
-                                            vErrors.push(err90);
+                                            vErrors.push(err97);
                                           }
                                           errors++;
                                         }
-                                        var valid32 = _errs152 === errors;
+                                        var valid36 = _errs164 === errors;
                                       } else {
-                                        var valid32 = true;
+                                        var valid36 = true;
                                       }
                                     }
                                   }
@@ -6302,206 +6429,93 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                               }
                             }
                           } else {
-                            const err91 = { instancePath: instancePath + "/appContext", schemaPath: "#/definitions/v2/McpToolCallAppContext/type", keyword: "type", params: { type: "object" } };
+                            const err98 = { instancePath: instancePath + "/appContext", schemaPath: "#/definitions/v2/McpToolCallAppContext/type", keyword: "type", params: { type: "object" } };
                             if (vErrors === null) {
-                              vErrors = [err91];
+                              vErrors = [err98];
                             } else {
-                              vErrors.push(err91);
+                              vErrors.push(err98);
                             }
                             errors++;
                           }
                         }
-                        var _valid5 = _errs141 === errors;
-                        valid30 = valid30 || _valid5;
-                        if (!valid30) {
-                          const _errs154 = errors;
-                          if (data50 !== null) {
-                            const err92 = { instancePath: instancePath + "/appContext", schemaPath: "#/oneOf/8/properties/appContext/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                        var _valid5 = _errs153 === errors;
+                        valid34 = valid34 || _valid5;
+                        if (!valid34) {
+                          const _errs166 = errors;
+                          if (data55 !== null) {
+                            const err99 = { instancePath: instancePath + "/appContext", schemaPath: "#/oneOf/8/properties/appContext/anyOf/1/type", keyword: "type", params: { type: "null" } };
                             if (vErrors === null) {
-                              vErrors = [err92];
+                              vErrors = [err99];
                             } else {
-                              vErrors.push(err92);
+                              vErrors.push(err99);
                             }
                             errors++;
                           }
-                          var _valid5 = _errs154 === errors;
-                          valid30 = valid30 || _valid5;
+                          var _valid5 = _errs166 === errors;
+                          valid34 = valid34 || _valid5;
                         }
-                        if (!valid30) {
-                          const err93 = { instancePath: instancePath + "/appContext", schemaPath: "#/oneOf/8/properties/appContext/anyOf", keyword: "anyOf", params: {} };
+                        if (!valid34) {
+                          const err100 = { instancePath: instancePath + "/appContext", schemaPath: "#/oneOf/8/properties/appContext/anyOf", keyword: "anyOf", params: {} };
                           if (vErrors === null) {
-                            vErrors = [err93];
+                            vErrors = [err100];
                           } else {
-                            vErrors.push(err93);
+                            vErrors.push(err100);
                           }
                           errors++;
                         } else {
-                          errors = _errs140;
+                          errors = _errs152;
                           if (vErrors !== null) {
-                            if (_errs140) {
-                              vErrors.length = _errs140;
+                            if (_errs152) {
+                              vErrors.length = _errs152;
                             } else {
                               vErrors = null;
                             }
                           }
                         }
-                        var valid29 = _errs139 === errors;
+                        var valid33 = _errs151 === errors;
                       } else {
-                        var valid29 = true;
+                        var valid33 = true;
                       }
-                      if (valid29) {
+                      if (valid33) {
                         if (data.durationMs !== void 0) {
-                          let data56 = data.durationMs;
-                          const _errs156 = errors;
-                          if (!(typeof data56 == "number" && (!(data56 % 1) && !isNaN(data56)) && isFinite(data56)) && data56 !== null) {
-                            const err94 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/8/properties/durationMs/type", keyword: "type", params: { type: schema50.oneOf[8].properties.durationMs.type } };
+                          let data61 = data.durationMs;
+                          const _errs168 = errors;
+                          if (!(typeof data61 == "number" && (!(data61 % 1) && !isNaN(data61)) && isFinite(data61)) && data61 !== null) {
+                            const err101 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/8/properties/durationMs/type", keyword: "type", params: { type: schema51.oneOf[8].properties.durationMs.type } };
                             if (vErrors === null) {
-                              vErrors = [err94];
+                              vErrors = [err101];
                             } else {
-                              vErrors.push(err94);
+                              vErrors.push(err101);
                             }
                             errors++;
                           }
-                          var valid29 = _errs156 === errors;
+                          var valid33 = _errs168 === errors;
                         } else {
-                          var valid29 = true;
+                          var valid33 = true;
                         }
-                        if (valid29) {
+                        if (valid33) {
                           if (data.error !== void 0) {
-                            let data57 = data.error;
-                            const _errs158 = errors;
-                            const _errs159 = errors;
-                            let valid33 = false;
-                            const _errs160 = errors;
-                            const _errs161 = errors;
-                            if (errors === _errs161) {
-                              if (data57 && typeof data57 == "object" && !Array.isArray(data57)) {
-                                let missing11;
-                                if (data57.message === void 0 && (missing11 = "message")) {
-                                  const err95 = { instancePath: instancePath + "/error", schemaPath: "#/definitions/v2/McpToolCallError/required", keyword: "required", params: { missingProperty: missing11 } };
+                            let data62 = data.error;
+                            const _errs170 = errors;
+                            const _errs171 = errors;
+                            let valid37 = false;
+                            const _errs172 = errors;
+                            const _errs173 = errors;
+                            if (errors === _errs173) {
+                              if (data62 && typeof data62 == "object" && !Array.isArray(data62)) {
+                                let missing12;
+                                if (data62.message === void 0 && (missing12 = "message")) {
+                                  const err102 = { instancePath: instancePath + "/error", schemaPath: "#/definitions/v2/McpToolCallError/required", keyword: "required", params: { missingProperty: missing12 } };
                                   if (vErrors === null) {
-                                    vErrors = [err95];
+                                    vErrors = [err102];
                                   } else {
-                                    vErrors.push(err95);
+                                    vErrors.push(err102);
                                   }
                                   errors++;
                                 } else {
-                                  if (data57.message !== void 0) {
-                                    if (typeof data57.message !== "string") {
-                                      const err96 = { instancePath: instancePath + "/error/message", schemaPath: "#/definitions/v2/McpToolCallError/properties/message/type", keyword: "type", params: { type: "string" } };
-                                      if (vErrors === null) {
-                                        vErrors = [err96];
-                                      } else {
-                                        vErrors.push(err96);
-                                      }
-                                      errors++;
-                                    }
-                                  }
-                                }
-                              } else {
-                                const err97 = { instancePath: instancePath + "/error", schemaPath: "#/definitions/v2/McpToolCallError/type", keyword: "type", params: { type: "object" } };
-                                if (vErrors === null) {
-                                  vErrors = [err97];
-                                } else {
-                                  vErrors.push(err97);
-                                }
-                                errors++;
-                              }
-                            }
-                            var _valid6 = _errs160 === errors;
-                            valid33 = valid33 || _valid6;
-                            if (!valid33) {
-                              const _errs165 = errors;
-                              if (data57 !== null) {
-                                const err98 = { instancePath: instancePath + "/error", schemaPath: "#/oneOf/8/properties/error/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                if (vErrors === null) {
-                                  vErrors = [err98];
-                                } else {
-                                  vErrors.push(err98);
-                                }
-                                errors++;
-                              }
-                              var _valid6 = _errs165 === errors;
-                              valid33 = valid33 || _valid6;
-                            }
-                            if (!valid33) {
-                              const err99 = { instancePath: instancePath + "/error", schemaPath: "#/oneOf/8/properties/error/anyOf", keyword: "anyOf", params: {} };
-                              if (vErrors === null) {
-                                vErrors = [err99];
-                              } else {
-                                vErrors.push(err99);
-                              }
-                              errors++;
-                            } else {
-                              errors = _errs159;
-                              if (vErrors !== null) {
-                                if (_errs159) {
-                                  vErrors.length = _errs159;
-                                } else {
-                                  vErrors = null;
-                                }
-                              }
-                            }
-                            var valid29 = _errs158 === errors;
-                          } else {
-                            var valid29 = true;
-                          }
-                          if (valid29) {
-                            if (data.id !== void 0) {
-                              const _errs167 = errors;
-                              if (typeof data.id !== "string") {
-                                const err100 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/8/properties/id/type", keyword: "type", params: { type: "string" } };
-                                if (vErrors === null) {
-                                  vErrors = [err100];
-                                } else {
-                                  vErrors.push(err100);
-                                }
-                                errors++;
-                              }
-                              var valid29 = _errs167 === errors;
-                            } else {
-                              var valid29 = true;
-                            }
-                            if (valid29) {
-                              if (data.mcpAppResourceUri !== void 0) {
-                                let data60 = data.mcpAppResourceUri;
-                                const _errs169 = errors;
-                                if (typeof data60 !== "string" && data60 !== null) {
-                                  const err101 = { instancePath: instancePath + "/mcpAppResourceUri", schemaPath: "#/oneOf/8/properties/mcpAppResourceUri/type", keyword: "type", params: { type: schema50.oneOf[8].properties.mcpAppResourceUri.type } };
-                                  if (vErrors === null) {
-                                    vErrors = [err101];
-                                  } else {
-                                    vErrors.push(err101);
-                                  }
-                                  errors++;
-                                }
-                                var valid29 = _errs169 === errors;
-                              } else {
-                                var valid29 = true;
-                              }
-                              if (valid29) {
-                                if (data.pluginId !== void 0) {
-                                  let data61 = data.pluginId;
-                                  const _errs171 = errors;
-                                  if (typeof data61 !== "string" && data61 !== null) {
-                                    const err102 = { instancePath: instancePath + "/pluginId", schemaPath: "#/oneOf/8/properties/pluginId/type", keyword: "type", params: { type: schema50.oneOf[8].properties.pluginId.type } };
-                                    if (vErrors === null) {
-                                      vErrors = [err102];
-                                    } else {
-                                      vErrors.push(err102);
-                                    }
-                                    errors++;
-                                  }
-                                  var valid29 = _errs171 === errors;
-                                } else {
-                                  var valid29 = true;
-                                }
-                                if (valid29) {
-                                  if (data.readOnlyHint !== void 0) {
-                                    let data62 = data.readOnlyHint;
-                                    const _errs173 = errors;
-                                    if (typeof data62 !== "boolean" && data62 !== null) {
-                                      const err103 = { instancePath: instancePath + "/readOnlyHint", schemaPath: "#/oneOf/8/properties/readOnlyHint/type", keyword: "type", params: { type: schema50.oneOf[8].properties.readOnlyHint.type } };
+                                  if (data62.message !== void 0) {
+                                    if (typeof data62.message !== "string") {
+                                      const err103 = { instancePath: instancePath + "/error/message", schemaPath: "#/definitions/v2/McpToolCallError/properties/message/type", keyword: "type", params: { type: "string" } };
                                       if (vErrors === null) {
                                         vErrors = [err103];
                                       } else {
@@ -6509,39 +6523,152 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                       }
                                       errors++;
                                     }
-                                    var valid29 = _errs173 === errors;
-                                  } else {
-                                    var valid29 = true;
                                   }
-                                  if (valid29) {
+                                }
+                              } else {
+                                const err104 = { instancePath: instancePath + "/error", schemaPath: "#/definitions/v2/McpToolCallError/type", keyword: "type", params: { type: "object" } };
+                                if (vErrors === null) {
+                                  vErrors = [err104];
+                                } else {
+                                  vErrors.push(err104);
+                                }
+                                errors++;
+                              }
+                            }
+                            var _valid6 = _errs172 === errors;
+                            valid37 = valid37 || _valid6;
+                            if (!valid37) {
+                              const _errs177 = errors;
+                              if (data62 !== null) {
+                                const err105 = { instancePath: instancePath + "/error", schemaPath: "#/oneOf/8/properties/error/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                if (vErrors === null) {
+                                  vErrors = [err105];
+                                } else {
+                                  vErrors.push(err105);
+                                }
+                                errors++;
+                              }
+                              var _valid6 = _errs177 === errors;
+                              valid37 = valid37 || _valid6;
+                            }
+                            if (!valid37) {
+                              const err106 = { instancePath: instancePath + "/error", schemaPath: "#/oneOf/8/properties/error/anyOf", keyword: "anyOf", params: {} };
+                              if (vErrors === null) {
+                                vErrors = [err106];
+                              } else {
+                                vErrors.push(err106);
+                              }
+                              errors++;
+                            } else {
+                              errors = _errs171;
+                              if (vErrors !== null) {
+                                if (_errs171) {
+                                  vErrors.length = _errs171;
+                                } else {
+                                  vErrors = null;
+                                }
+                              }
+                            }
+                            var valid33 = _errs170 === errors;
+                          } else {
+                            var valid33 = true;
+                          }
+                          if (valid33) {
+                            if (data.id !== void 0) {
+                              const _errs179 = errors;
+                              if (typeof data.id !== "string") {
+                                const err107 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/8/properties/id/type", keyword: "type", params: { type: "string" } };
+                                if (vErrors === null) {
+                                  vErrors = [err107];
+                                } else {
+                                  vErrors.push(err107);
+                                }
+                                errors++;
+                              }
+                              var valid33 = _errs179 === errors;
+                            } else {
+                              var valid33 = true;
+                            }
+                            if (valid33) {
+                              if (data.mcpAppResourceUri !== void 0) {
+                                let data65 = data.mcpAppResourceUri;
+                                const _errs181 = errors;
+                                if (typeof data65 !== "string" && data65 !== null) {
+                                  const err108 = { instancePath: instancePath + "/mcpAppResourceUri", schemaPath: "#/oneOf/8/properties/mcpAppResourceUri/type", keyword: "type", params: { type: schema51.oneOf[8].properties.mcpAppResourceUri.type } };
+                                  if (vErrors === null) {
+                                    vErrors = [err108];
+                                  } else {
+                                    vErrors.push(err108);
+                                  }
+                                  errors++;
+                                }
+                                var valid33 = _errs181 === errors;
+                              } else {
+                                var valid33 = true;
+                              }
+                              if (valid33) {
+                                if (data.pluginId !== void 0) {
+                                  let data66 = data.pluginId;
+                                  const _errs183 = errors;
+                                  if (typeof data66 !== "string" && data66 !== null) {
+                                    const err109 = { instancePath: instancePath + "/pluginId", schemaPath: "#/oneOf/8/properties/pluginId/type", keyword: "type", params: { type: schema51.oneOf[8].properties.pluginId.type } };
+                                    if (vErrors === null) {
+                                      vErrors = [err109];
+                                    } else {
+                                      vErrors.push(err109);
+                                    }
+                                    errors++;
+                                  }
+                                  var valid33 = _errs183 === errors;
+                                } else {
+                                  var valid33 = true;
+                                }
+                                if (valid33) {
+                                  if (data.readOnlyHint !== void 0) {
+                                    let data67 = data.readOnlyHint;
+                                    const _errs185 = errors;
+                                    if (typeof data67 !== "boolean" && data67 !== null) {
+                                      const err110 = { instancePath: instancePath + "/readOnlyHint", schemaPath: "#/oneOf/8/properties/readOnlyHint/type", keyword: "type", params: { type: schema51.oneOf[8].properties.readOnlyHint.type } };
+                                      if (vErrors === null) {
+                                        vErrors = [err110];
+                                      } else {
+                                        vErrors.push(err110);
+                                      }
+                                      errors++;
+                                    }
+                                    var valid33 = _errs185 === errors;
+                                  } else {
+                                    var valid33 = true;
+                                  }
+                                  if (valid33) {
                                     if (data.result !== void 0) {
-                                      let data63 = data.result;
-                                      const _errs175 = errors;
-                                      const _errs176 = errors;
-                                      let valid36 = false;
-                                      const _errs177 = errors;
-                                      const _errs178 = errors;
-                                      if (errors === _errs178) {
-                                        if (data63 && typeof data63 == "object" && !Array.isArray(data63)) {
-                                          let missing12;
-                                          if (data63.content === void 0 && (missing12 = "content")) {
-                                            const err104 = { instancePath: instancePath + "/result", schemaPath: "#/definitions/v2/McpToolCallResult/required", keyword: "required", params: { missingProperty: missing12 } };
+                                      let data68 = data.result;
+                                      const _errs187 = errors;
+                                      const _errs188 = errors;
+                                      let valid40 = false;
+                                      const _errs189 = errors;
+                                      const _errs190 = errors;
+                                      if (errors === _errs190) {
+                                        if (data68 && typeof data68 == "object" && !Array.isArray(data68)) {
+                                          let missing13;
+                                          if (data68.content === void 0 && (missing13 = "content")) {
+                                            const err111 = { instancePath: instancePath + "/result", schemaPath: "#/definitions/v2/McpToolCallResult/required", keyword: "required", params: { missingProperty: missing13 } };
                                             if (vErrors === null) {
-                                              vErrors = [err104];
+                                              vErrors = [err111];
                                             } else {
-                                              vErrors.push(err104);
+                                              vErrors.push(err111);
                                             }
                                             errors++;
                                           } else {
-                                            if (data63.content !== void 0) {
-                                              const _errs180 = errors;
-                                              if (errors === _errs180) {
-                                                if (!Array.isArray(data63.content)) {
-                                                  const err105 = { instancePath: instancePath + "/result/content", schemaPath: "#/definitions/v2/McpToolCallResult/properties/content/type", keyword: "type", params: { type: "array" } };
+                                            if (data68.content !== void 0) {
+                                              const _errs192 = errors;
+                                              if (errors === _errs192) {
+                                                if (!Array.isArray(data68.content)) {
+                                                  const err112 = { instancePath: instancePath + "/result/content", schemaPath: "#/definitions/v2/McpToolCallResult/properties/content/type", keyword: "type", params: { type: "array" } };
                                                   if (vErrors === null) {
-                                                    vErrors = [err105];
+                                                    vErrors = [err112];
                                                   } else {
-                                                    vErrors.push(err105);
+                                                    vErrors.push(err112);
                                                   }
                                                   errors++;
                                                 }
@@ -6549,136 +6676,136 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                             }
                                           }
                                         } else {
-                                          const err106 = { instancePath: instancePath + "/result", schemaPath: "#/definitions/v2/McpToolCallResult/type", keyword: "type", params: { type: "object" } };
+                                          const err113 = { instancePath: instancePath + "/result", schemaPath: "#/definitions/v2/McpToolCallResult/type", keyword: "type", params: { type: "object" } };
                                           if (vErrors === null) {
-                                            vErrors = [err106];
+                                            vErrors = [err113];
                                           } else {
-                                            vErrors.push(err106);
+                                            vErrors.push(err113);
                                           }
                                           errors++;
                                         }
                                       }
-                                      var _valid7 = _errs177 === errors;
-                                      valid36 = valid36 || _valid7;
-                                      if (!valid36) {
-                                        const _errs182 = errors;
-                                        if (data63 !== null) {
-                                          const err107 = { instancePath: instancePath + "/result", schemaPath: "#/oneOf/8/properties/result/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                      var _valid7 = _errs189 === errors;
+                                      valid40 = valid40 || _valid7;
+                                      if (!valid40) {
+                                        const _errs194 = errors;
+                                        if (data68 !== null) {
+                                          const err114 = { instancePath: instancePath + "/result", schemaPath: "#/oneOf/8/properties/result/anyOf/1/type", keyword: "type", params: { type: "null" } };
                                           if (vErrors === null) {
-                                            vErrors = [err107];
+                                            vErrors = [err114];
                                           } else {
-                                            vErrors.push(err107);
+                                            vErrors.push(err114);
                                           }
                                           errors++;
                                         }
-                                        var _valid7 = _errs182 === errors;
-                                        valid36 = valid36 || _valid7;
+                                        var _valid7 = _errs194 === errors;
+                                        valid40 = valid40 || _valid7;
                                       }
-                                      if (!valid36) {
-                                        const err108 = { instancePath: instancePath + "/result", schemaPath: "#/oneOf/8/properties/result/anyOf", keyword: "anyOf", params: {} };
+                                      if (!valid40) {
+                                        const err115 = { instancePath: instancePath + "/result", schemaPath: "#/oneOf/8/properties/result/anyOf", keyword: "anyOf", params: {} };
                                         if (vErrors === null) {
-                                          vErrors = [err108];
+                                          vErrors = [err115];
                                         } else {
-                                          vErrors.push(err108);
+                                          vErrors.push(err115);
                                         }
                                         errors++;
                                       } else {
-                                        errors = _errs176;
+                                        errors = _errs188;
                                         if (vErrors !== null) {
-                                          if (_errs176) {
-                                            vErrors.length = _errs176;
+                                          if (_errs188) {
+                                            vErrors.length = _errs188;
                                           } else {
                                             vErrors = null;
                                           }
                                         }
                                       }
-                                      var valid29 = _errs175 === errors;
+                                      var valid33 = _errs187 === errors;
                                     } else {
-                                      var valid29 = true;
+                                      var valid33 = true;
                                     }
-                                    if (valid29) {
+                                    if (valid33) {
                                       if (data.server !== void 0) {
-                                        const _errs184 = errors;
+                                        const _errs196 = errors;
                                         if (typeof data.server !== "string") {
-                                          const err109 = { instancePath: instancePath + "/server", schemaPath: "#/oneOf/8/properties/server/type", keyword: "type", params: { type: "string" } };
+                                          const err116 = { instancePath: instancePath + "/server", schemaPath: "#/oneOf/8/properties/server/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err109];
+                                            vErrors = [err116];
                                           } else {
-                                            vErrors.push(err109);
+                                            vErrors.push(err116);
                                           }
                                           errors++;
                                         }
-                                        var valid29 = _errs184 === errors;
+                                        var valid33 = _errs196 === errors;
                                       } else {
-                                        var valid29 = true;
+                                        var valid33 = true;
                                       }
-                                      if (valid29) {
+                                      if (valid33) {
                                         if (data.status !== void 0) {
-                                          let data66 = data.status;
-                                          const _errs186 = errors;
-                                          if (typeof data66 !== "string") {
-                                            const err110 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/McpToolCallStatus/type", keyword: "type", params: { type: "string" } };
+                                          let data71 = data.status;
+                                          const _errs198 = errors;
+                                          if (typeof data71 !== "string") {
+                                            const err117 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/McpToolCallStatus/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err110];
+                                              vErrors = [err117];
                                             } else {
-                                              vErrors.push(err110);
+                                              vErrors.push(err117);
                                             }
                                             errors++;
                                           }
-                                          if (!(data66 === "inProgress" || data66 === "completed" || data66 === "failed")) {
-                                            const err111 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/McpToolCallStatus/enum", keyword: "enum", params: { allowedValues: schema75.enum } };
+                                          if (!(data71 === "inProgress" || data71 === "completed" || data71 === "failed")) {
+                                            const err118 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/McpToolCallStatus/enum", keyword: "enum", params: { allowedValues: schema77.enum } };
                                             if (vErrors === null) {
-                                              vErrors = [err111];
+                                              vErrors = [err118];
                                             } else {
-                                              vErrors.push(err111);
+                                              vErrors.push(err118);
                                             }
                                             errors++;
                                           }
-                                          var valid29 = _errs186 === errors;
+                                          var valid33 = _errs198 === errors;
                                         } else {
-                                          var valid29 = true;
+                                          var valid33 = true;
                                         }
-                                        if (valid29) {
+                                        if (valid33) {
                                           if (data.tool !== void 0) {
-                                            const _errs189 = errors;
+                                            const _errs201 = errors;
                                             if (typeof data.tool !== "string") {
-                                              const err112 = { instancePath: instancePath + "/tool", schemaPath: "#/oneOf/8/properties/tool/type", keyword: "type", params: { type: "string" } };
+                                              const err119 = { instancePath: instancePath + "/tool", schemaPath: "#/oneOf/8/properties/tool/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err112];
+                                                vErrors = [err119];
                                               } else {
-                                                vErrors.push(err112);
+                                                vErrors.push(err119);
                                               }
                                               errors++;
                                             }
-                                            var valid29 = _errs189 === errors;
+                                            var valid33 = _errs201 === errors;
                                           } else {
-                                            var valid29 = true;
+                                            var valid33 = true;
                                           }
-                                          if (valid29) {
+                                          if (valid33) {
                                             if (data.type !== void 0) {
-                                              let data68 = data.type;
-                                              const _errs191 = errors;
-                                              if (typeof data68 !== "string") {
-                                                const err113 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/8/properties/type/type", keyword: "type", params: { type: "string" } };
+                                              let data73 = data.type;
+                                              const _errs203 = errors;
+                                              if (typeof data73 !== "string") {
+                                                const err120 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/8/properties/type/type", keyword: "type", params: { type: "string" } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err113];
+                                                  vErrors = [err120];
                                                 } else {
-                                                  vErrors.push(err113);
+                                                  vErrors.push(err120);
                                                 }
                                                 errors++;
                                               }
-                                              if (!(data68 === "mcpToolCall")) {
-                                                const err114 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/8/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[8].properties.type.enum } };
+                                              if (!(data73 === "mcpToolCall")) {
+                                                const err121 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/8/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[8].properties.type.enum } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err114];
+                                                  vErrors = [err121];
                                                 } else {
-                                                  vErrors.push(err114);
+                                                  vErrors.push(err121);
                                                 }
                                                 errors++;
                                               }
-                                              var valid29 = _errs191 === errors;
+                                              var valid33 = _errs203 === errors;
                                             } else {
-                                              var valid29 = true;
+                                              var valid33 = true;
                                             }
                                           }
                                         }
@@ -6693,16 +6820,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                       }
                     }
                   } else {
-                    const err115 = { instancePath, schemaPath: "#/oneOf/8/type", keyword: "type", params: { type: "object" } };
+                    const err122 = { instancePath, schemaPath: "#/oneOf/8/type", keyword: "type", params: { type: "object" } };
                     if (vErrors === null) {
-                      vErrors = [err115];
+                      vErrors = [err122];
                     } else {
-                      vErrors.push(err115);
+                      vErrors.push(err122);
                     }
                     errors++;
                   }
                 }
-                var _valid0 = _errs137 === errors;
+                var _valid0 = _errs149 === errors;
                 if (_valid0 && valid0) {
                   valid0 = false;
                   passing0 = [passing0, 8];
@@ -6711,375 +6838,245 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                     valid0 = true;
                     passing0 = 8;
                   }
-                  const _errs193 = errors;
-                  if (errors === _errs193) {
+                  const _errs205 = errors;
+                  if (errors === _errs205) {
                     if (data && typeof data == "object" && !Array.isArray(data)) {
-                      let missing13;
-                      if (data.arguments === void 0 && (missing13 = "arguments") || data.id === void 0 && (missing13 = "id") || data.status === void 0 && (missing13 = "status") || data.tool === void 0 && (missing13 = "tool") || data.type === void 0 && (missing13 = "type")) {
-                        const err116 = { instancePath, schemaPath: "#/oneOf/9/required", keyword: "required", params: { missingProperty: missing13 } };
+                      let missing14;
+                      if (data.arguments === void 0 && (missing14 = "arguments") || data.id === void 0 && (missing14 = "id") || data.status === void 0 && (missing14 = "status") || data.tool === void 0 && (missing14 = "tool") || data.type === void 0 && (missing14 = "type")) {
+                        const err123 = { instancePath, schemaPath: "#/oneOf/9/required", keyword: "required", params: { missingProperty: missing14 } };
                         if (vErrors === null) {
-                          vErrors = [err116];
+                          vErrors = [err123];
                         } else {
-                          vErrors.push(err116);
+                          vErrors.push(err123);
                         }
                         errors++;
                       } else {
                         if (data.contentItems !== void 0) {
-                          let data69 = data.contentItems;
-                          const _errs195 = errors;
-                          if (!Array.isArray(data69) && data69 !== null) {
-                            const err117 = { instancePath: instancePath + "/contentItems", schemaPath: "#/oneOf/9/properties/contentItems/type", keyword: "type", params: { type: schema50.oneOf[9].properties.contentItems.type } };
+                          let data74 = data.contentItems;
+                          const _errs207 = errors;
+                          if (!Array.isArray(data74) && data74 !== null) {
+                            const err124 = { instancePath: instancePath + "/contentItems", schemaPath: "#/oneOf/9/properties/contentItems/type", keyword: "type", params: { type: schema51.oneOf[9].properties.contentItems.type } };
                             if (vErrors === null) {
-                              vErrors = [err117];
+                              vErrors = [err124];
                             } else {
-                              vErrors.push(err117);
+                              vErrors.push(err124);
                             }
                             errors++;
                           }
-                          if (errors === _errs195) {
-                            if (Array.isArray(data69)) {
-                              var valid41 = true;
-                              const len6 = data69.length;
-                              for (let i6 = 0; i6 < len6; i6++) {
-                                let data70 = data69[i6];
-                                const _errs197 = errors;
-                                const _errs199 = errors;
-                                let valid43 = false;
+                          if (errors === _errs207) {
+                            if (Array.isArray(data74)) {
+                              var valid45 = true;
+                              const len8 = data74.length;
+                              for (let i8 = 0; i8 < len8; i8++) {
+                                let data75 = data74[i8];
+                                const _errs209 = errors;
+                                const _errs211 = errors;
+                                let valid47 = false;
                                 let passing2 = null;
-                                const _errs200 = errors;
-                                if (errors === _errs200) {
-                                  if (data70 && typeof data70 == "object" && !Array.isArray(data70)) {
-                                    let missing14;
-                                    if (data70.text === void 0 && (missing14 = "text") || data70.type === void 0 && (missing14 = "type")) {
-                                      const err118 = { instancePath: instancePath + "/contentItems/" + i6, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/required", keyword: "required", params: { missingProperty: missing14 } };
+                                const _errs212 = errors;
+                                if (errors === _errs212) {
+                                  if (data75 && typeof data75 == "object" && !Array.isArray(data75)) {
+                                    let missing15;
+                                    if (data75.text === void 0 && (missing15 = "text") || data75.type === void 0 && (missing15 = "type")) {
+                                      const err125 = { instancePath: instancePath + "/contentItems/" + i8, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/required", keyword: "required", params: { missingProperty: missing15 } };
                                       if (vErrors === null) {
-                                        vErrors = [err118];
+                                        vErrors = [err125];
                                       } else {
-                                        vErrors.push(err118);
+                                        vErrors.push(err125);
                                       }
                                       errors++;
                                     } else {
-                                      if (data70.text !== void 0) {
-                                        const _errs202 = errors;
-                                        if (typeof data70.text !== "string") {
-                                          const err119 = { instancePath: instancePath + "/contentItems/" + i6 + "/text", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/properties/text/type", keyword: "type", params: { type: "string" } };
+                                      if (data75.text !== void 0) {
+                                        const _errs214 = errors;
+                                        if (typeof data75.text !== "string") {
+                                          const err126 = { instancePath: instancePath + "/contentItems/" + i8 + "/text", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/properties/text/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err119];
+                                            vErrors = [err126];
                                           } else {
-                                            vErrors.push(err119);
+                                            vErrors.push(err126);
                                           }
                                           errors++;
                                         }
-                                        var valid44 = _errs202 === errors;
+                                        var valid48 = _errs214 === errors;
                                       } else {
-                                        var valid44 = true;
+                                        var valid48 = true;
                                       }
-                                      if (valid44) {
-                                        if (data70.type !== void 0) {
-                                          let data72 = data70.type;
-                                          const _errs204 = errors;
-                                          if (typeof data72 !== "string") {
-                                            const err120 = { instancePath: instancePath + "/contentItems/" + i6 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/properties/type/type", keyword: "type", params: { type: "string" } };
+                                      if (valid48) {
+                                        if (data75.type !== void 0) {
+                                          let data77 = data75.type;
+                                          const _errs216 = errors;
+                                          if (typeof data77 !== "string") {
+                                            const err127 = { instancePath: instancePath + "/contentItems/" + i8 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/properties/type/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err120];
+                                              vErrors = [err127];
                                             } else {
-                                              vErrors.push(err120);
+                                              vErrors.push(err127);
                                             }
                                             errors++;
                                           }
-                                          if (!(data72 === "inputText")) {
-                                            const err121 = { instancePath: instancePath + "/contentItems/" + i6 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema76.oneOf[0].properties.type.enum } };
+                                          if (!(data77 === "inputText")) {
+                                            const err128 = { instancePath: instancePath + "/contentItems/" + i8 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema78.oneOf[0].properties.type.enum } };
                                             if (vErrors === null) {
-                                              vErrors = [err121];
+                                              vErrors = [err128];
                                             } else {
-                                              vErrors.push(err121);
+                                              vErrors.push(err128);
                                             }
                                             errors++;
                                           }
-                                          var valid44 = _errs204 === errors;
+                                          var valid48 = _errs216 === errors;
                                         } else {
-                                          var valid44 = true;
+                                          var valid48 = true;
                                         }
                                       }
                                     }
                                   } else {
-                                    const err122 = { instancePath: instancePath + "/contentItems/" + i6, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/type", keyword: "type", params: { type: "object" } };
+                                    const err129 = { instancePath: instancePath + "/contentItems/" + i8, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/0/type", keyword: "type", params: { type: "object" } };
                                     if (vErrors === null) {
-                                      vErrors = [err122];
+                                      vErrors = [err129];
                                     } else {
-                                      vErrors.push(err122);
+                                      vErrors.push(err129);
                                     }
                                     errors++;
                                   }
                                 }
-                                var _valid8 = _errs200 === errors;
+                                var _valid8 = _errs212 === errors;
                                 if (_valid8) {
-                                  valid43 = true;
+                                  valid47 = true;
                                   passing2 = 0;
                                 }
-                                const _errs206 = errors;
-                                if (errors === _errs206) {
-                                  if (data70 && typeof data70 == "object" && !Array.isArray(data70)) {
-                                    let missing15;
-                                    if (data70.imageUrl === void 0 && (missing15 = "imageUrl") || data70.type === void 0 && (missing15 = "type")) {
-                                      const err123 = { instancePath: instancePath + "/contentItems/" + i6, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/required", keyword: "required", params: { missingProperty: missing15 } };
+                                const _errs218 = errors;
+                                if (errors === _errs218) {
+                                  if (data75 && typeof data75 == "object" && !Array.isArray(data75)) {
+                                    let missing16;
+                                    if (data75.imageUrl === void 0 && (missing16 = "imageUrl") || data75.type === void 0 && (missing16 = "type")) {
+                                      const err130 = { instancePath: instancePath + "/contentItems/" + i8, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/required", keyword: "required", params: { missingProperty: missing16 } };
                                       if (vErrors === null) {
-                                        vErrors = [err123];
+                                        vErrors = [err130];
                                       } else {
-                                        vErrors.push(err123);
+                                        vErrors.push(err130);
                                       }
                                       errors++;
                                     } else {
-                                      if (data70.imageUrl !== void 0) {
-                                        const _errs208 = errors;
-                                        if (typeof data70.imageUrl !== "string") {
-                                          const err124 = { instancePath: instancePath + "/contentItems/" + i6 + "/imageUrl", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/properties/imageUrl/type", keyword: "type", params: { type: "string" } };
+                                      if (data75.imageUrl !== void 0) {
+                                        const _errs220 = errors;
+                                        if (typeof data75.imageUrl !== "string") {
+                                          const err131 = { instancePath: instancePath + "/contentItems/" + i8 + "/imageUrl", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/properties/imageUrl/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err124];
+                                            vErrors = [err131];
                                           } else {
-                                            vErrors.push(err124);
+                                            vErrors.push(err131);
                                           }
                                           errors++;
                                         }
-                                        var valid45 = _errs208 === errors;
+                                        var valid49 = _errs220 === errors;
                                       } else {
-                                        var valid45 = true;
+                                        var valid49 = true;
                                       }
-                                      if (valid45) {
-                                        if (data70.type !== void 0) {
-                                          let data74 = data70.type;
-                                          const _errs210 = errors;
-                                          if (typeof data74 !== "string") {
-                                            const err125 = { instancePath: instancePath + "/contentItems/" + i6 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/properties/type/type", keyword: "type", params: { type: "string" } };
+                                      if (valid49) {
+                                        if (data75.type !== void 0) {
+                                          let data79 = data75.type;
+                                          const _errs222 = errors;
+                                          if (typeof data79 !== "string") {
+                                            const err132 = { instancePath: instancePath + "/contentItems/" + i8 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/properties/type/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err125];
+                                              vErrors = [err132];
                                             } else {
-                                              vErrors.push(err125);
+                                              vErrors.push(err132);
                                             }
                                             errors++;
                                           }
-                                          if (!(data74 === "inputImage")) {
-                                            const err126 = { instancePath: instancePath + "/contentItems/" + i6 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema76.oneOf[1].properties.type.enum } };
+                                          if (!(data79 === "inputImage")) {
+                                            const err133 = { instancePath: instancePath + "/contentItems/" + i8 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema78.oneOf[1].properties.type.enum } };
                                             if (vErrors === null) {
-                                              vErrors = [err126];
+                                              vErrors = [err133];
                                             } else {
-                                              vErrors.push(err126);
+                                              vErrors.push(err133);
                                             }
                                             errors++;
                                           }
-                                          var valid45 = _errs210 === errors;
+                                          var valid49 = _errs222 === errors;
                                         } else {
-                                          var valid45 = true;
+                                          var valid49 = true;
                                         }
                                       }
                                     }
                                   } else {
-                                    const err127 = { instancePath: instancePath + "/contentItems/" + i6, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/type", keyword: "type", params: { type: "object" } };
+                                    const err134 = { instancePath: instancePath + "/contentItems/" + i8, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/1/type", keyword: "type", params: { type: "object" } };
                                     if (vErrors === null) {
-                                      vErrors = [err127];
+                                      vErrors = [err134];
                                     } else {
-                                      vErrors.push(err127);
+                                      vErrors.push(err134);
                                     }
                                     errors++;
                                   }
                                 }
-                                var _valid8 = _errs206 === errors;
-                                if (_valid8 && valid43) {
-                                  valid43 = false;
+                                var _valid8 = _errs218 === errors;
+                                if (_valid8 && valid47) {
+                                  valid47 = false;
                                   passing2 = [passing2, 1];
                                 } else {
                                   if (_valid8) {
-                                    valid43 = true;
+                                    valid47 = true;
                                     passing2 = 1;
                                   }
-                                  const _errs212 = errors;
-                                  if (errors === _errs212) {
-                                    if (data70 && typeof data70 == "object" && !Array.isArray(data70)) {
-                                      let missing16;
-                                      if (data70.audioUrl === void 0 && (missing16 = "audioUrl") || data70.type === void 0 && (missing16 = "type")) {
-                                        const err128 = { instancePath: instancePath + "/contentItems/" + i6, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/required", keyword: "required", params: { missingProperty: missing16 } };
+                                  const _errs224 = errors;
+                                  if (errors === _errs224) {
+                                    if (data75 && typeof data75 == "object" && !Array.isArray(data75)) {
+                                      let missing17;
+                                      if (data75.audioUrl === void 0 && (missing17 = "audioUrl") || data75.type === void 0 && (missing17 = "type")) {
+                                        const err135 = { instancePath: instancePath + "/contentItems/" + i8, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/required", keyword: "required", params: { missingProperty: missing17 } };
                                         if (vErrors === null) {
-                                          vErrors = [err128];
+                                          vErrors = [err135];
                                         } else {
-                                          vErrors.push(err128);
+                                          vErrors.push(err135);
                                         }
                                         errors++;
                                       } else {
-                                        if (data70.audioUrl !== void 0) {
-                                          const _errs214 = errors;
-                                          if (typeof data70.audioUrl !== "string") {
-                                            const err129 = { instancePath: instancePath + "/contentItems/" + i6 + "/audioUrl", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/properties/audioUrl/type", keyword: "type", params: { type: "string" } };
+                                        if (data75.audioUrl !== void 0) {
+                                          const _errs226 = errors;
+                                          if (typeof data75.audioUrl !== "string") {
+                                            const err136 = { instancePath: instancePath + "/contentItems/" + i8 + "/audioUrl", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/properties/audioUrl/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err129];
+                                              vErrors = [err136];
                                             } else {
-                                              vErrors.push(err129);
+                                              vErrors.push(err136);
                                             }
                                             errors++;
                                           }
-                                          var valid46 = _errs214 === errors;
+                                          var valid50 = _errs226 === errors;
                                         } else {
-                                          var valid46 = true;
+                                          var valid50 = true;
                                         }
-                                        if (valid46) {
-                                          if (data70.type !== void 0) {
-                                            let data76 = data70.type;
-                                            const _errs216 = errors;
-                                            if (typeof data76 !== "string") {
-                                              const err130 = { instancePath: instancePath + "/contentItems/" + i6 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/properties/type/type", keyword: "type", params: { type: "string" } };
+                                        if (valid50) {
+                                          if (data75.type !== void 0) {
+                                            let data81 = data75.type;
+                                            const _errs228 = errors;
+                                            if (typeof data81 !== "string") {
+                                              const err137 = { instancePath: instancePath + "/contentItems/" + i8 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/properties/type/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err130];
+                                                vErrors = [err137];
                                               } else {
-                                                vErrors.push(err130);
+                                                vErrors.push(err137);
                                               }
                                               errors++;
                                             }
-                                            if (!(data76 === "inputAudio")) {
-                                              const err131 = { instancePath: instancePath + "/contentItems/" + i6 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema76.oneOf[2].properties.type.enum } };
+                                            if (!(data81 === "inputAudio")) {
+                                              const err138 = { instancePath: instancePath + "/contentItems/" + i8 + "/type", schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema78.oneOf[2].properties.type.enum } };
                                               if (vErrors === null) {
-                                                vErrors = [err131];
+                                                vErrors = [err138];
                                               } else {
-                                                vErrors.push(err131);
+                                                vErrors.push(err138);
                                               }
                                               errors++;
                                             }
-                                            var valid46 = _errs216 === errors;
+                                            var valid50 = _errs228 === errors;
                                           } else {
-                                            var valid46 = true;
+                                            var valid50 = true;
                                           }
                                         }
                                       }
                                     } else {
-                                      const err132 = { instancePath: instancePath + "/contentItems/" + i6, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/type", keyword: "type", params: { type: "object" } };
-                                      if (vErrors === null) {
-                                        vErrors = [err132];
-                                      } else {
-                                        vErrors.push(err132);
-                                      }
-                                      errors++;
-                                    }
-                                  }
-                                  var _valid8 = _errs212 === errors;
-                                  if (_valid8 && valid43) {
-                                    valid43 = false;
-                                    passing2 = [passing2, 2];
-                                  } else {
-                                    if (_valid8) {
-                                      valid43 = true;
-                                      passing2 = 2;
-                                    }
-                                  }
-                                }
-                                if (!valid43) {
-                                  const err133 = { instancePath: instancePath + "/contentItems/" + i6, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf", keyword: "oneOf", params: { passingSchemas: passing2 } };
-                                  if (vErrors === null) {
-                                    vErrors = [err133];
-                                  } else {
-                                    vErrors.push(err133);
-                                  }
-                                  errors++;
-                                } else {
-                                  errors = _errs199;
-                                  if (vErrors !== null) {
-                                    if (_errs199) {
-                                      vErrors.length = _errs199;
-                                    } else {
-                                      vErrors = null;
-                                    }
-                                  }
-                                }
-                                var valid41 = _errs197 === errors;
-                                if (!valid41) {
-                                  break;
-                                }
-                              }
-                            }
-                          }
-                          var valid40 = _errs195 === errors;
-                        } else {
-                          var valid40 = true;
-                        }
-                        if (valid40) {
-                          if (data.durationMs !== void 0) {
-                            let data77 = data.durationMs;
-                            const _errs218 = errors;
-                            if (!(typeof data77 == "number" && (!(data77 % 1) && !isNaN(data77)) && isFinite(data77)) && data77 !== null) {
-                              const err134 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/9/properties/durationMs/type", keyword: "type", params: { type: schema50.oneOf[9].properties.durationMs.type } };
-                              if (vErrors === null) {
-                                vErrors = [err134];
-                              } else {
-                                vErrors.push(err134);
-                              }
-                              errors++;
-                            }
-                            var valid40 = _errs218 === errors;
-                          } else {
-                            var valid40 = true;
-                          }
-                          if (valid40) {
-                            if (data.id !== void 0) {
-                              const _errs220 = errors;
-                              if (typeof data.id !== "string") {
-                                const err135 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/9/properties/id/type", keyword: "type", params: { type: "string" } };
-                                if (vErrors === null) {
-                                  vErrors = [err135];
-                                } else {
-                                  vErrors.push(err135);
-                                }
-                                errors++;
-                              }
-                              var valid40 = _errs220 === errors;
-                            } else {
-                              var valid40 = true;
-                            }
-                            if (valid40) {
-                              if (data.namespace !== void 0) {
-                                let data79 = data.namespace;
-                                const _errs222 = errors;
-                                if (typeof data79 !== "string" && data79 !== null) {
-                                  const err136 = { instancePath: instancePath + "/namespace", schemaPath: "#/oneOf/9/properties/namespace/type", keyword: "type", params: { type: schema50.oneOf[9].properties.namespace.type } };
-                                  if (vErrors === null) {
-                                    vErrors = [err136];
-                                  } else {
-                                    vErrors.push(err136);
-                                  }
-                                  errors++;
-                                }
-                                var valid40 = _errs222 === errors;
-                              } else {
-                                var valid40 = true;
-                              }
-                              if (valid40) {
-                                if (data.status !== void 0) {
-                                  let data80 = data.status;
-                                  const _errs224 = errors;
-                                  if (typeof data80 !== "string") {
-                                    const err137 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/DynamicToolCallStatus/type", keyword: "type", params: { type: "string" } };
-                                    if (vErrors === null) {
-                                      vErrors = [err137];
-                                    } else {
-                                      vErrors.push(err137);
-                                    }
-                                    errors++;
-                                  }
-                                  if (!(data80 === "inProgress" || data80 === "completed" || data80 === "failed")) {
-                                    const err138 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/DynamicToolCallStatus/enum", keyword: "enum", params: { allowedValues: schema77.enum } };
-                                    if (vErrors === null) {
-                                      vErrors = [err138];
-                                    } else {
-                                      vErrors.push(err138);
-                                    }
-                                    errors++;
-                                  }
-                                  var valid40 = _errs224 === errors;
-                                } else {
-                                  var valid40 = true;
-                                }
-                                if (valid40) {
-                                  if (data.success !== void 0) {
-                                    let data81 = data.success;
-                                    const _errs227 = errors;
-                                    if (typeof data81 !== "boolean" && data81 !== null) {
-                                      const err139 = { instancePath: instancePath + "/success", schemaPath: "#/oneOf/9/properties/success/type", keyword: "type", params: { type: schema50.oneOf[9].properties.success.type } };
+                                      const err139 = { instancePath: instancePath + "/contentItems/" + i8, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf/2/type", keyword: "type", params: { type: "object" } };
                                       if (vErrors === null) {
                                         vErrors = [err139];
                                       } else {
@@ -7087,51 +7084,181 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                       }
                                       errors++;
                                     }
-                                    var valid40 = _errs227 === errors;
-                                  } else {
-                                    var valid40 = true;
                                   }
-                                  if (valid40) {
+                                  var _valid8 = _errs224 === errors;
+                                  if (_valid8 && valid47) {
+                                    valid47 = false;
+                                    passing2 = [passing2, 2];
+                                  } else {
+                                    if (_valid8) {
+                                      valid47 = true;
+                                      passing2 = 2;
+                                    }
+                                  }
+                                }
+                                if (!valid47) {
+                                  const err140 = { instancePath: instancePath + "/contentItems/" + i8, schemaPath: "#/definitions/v2/DynamicToolCallOutputContentItem/oneOf", keyword: "oneOf", params: { passingSchemas: passing2 } };
+                                  if (vErrors === null) {
+                                    vErrors = [err140];
+                                  } else {
+                                    vErrors.push(err140);
+                                  }
+                                  errors++;
+                                } else {
+                                  errors = _errs211;
+                                  if (vErrors !== null) {
+                                    if (_errs211) {
+                                      vErrors.length = _errs211;
+                                    } else {
+                                      vErrors = null;
+                                    }
+                                  }
+                                }
+                                var valid45 = _errs209 === errors;
+                                if (!valid45) {
+                                  break;
+                                }
+                              }
+                            }
+                          }
+                          var valid44 = _errs207 === errors;
+                        } else {
+                          var valid44 = true;
+                        }
+                        if (valid44) {
+                          if (data.durationMs !== void 0) {
+                            let data82 = data.durationMs;
+                            const _errs230 = errors;
+                            if (!(typeof data82 == "number" && (!(data82 % 1) && !isNaN(data82)) && isFinite(data82)) && data82 !== null) {
+                              const err141 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/9/properties/durationMs/type", keyword: "type", params: { type: schema51.oneOf[9].properties.durationMs.type } };
+                              if (vErrors === null) {
+                                vErrors = [err141];
+                              } else {
+                                vErrors.push(err141);
+                              }
+                              errors++;
+                            }
+                            var valid44 = _errs230 === errors;
+                          } else {
+                            var valid44 = true;
+                          }
+                          if (valid44) {
+                            if (data.id !== void 0) {
+                              const _errs232 = errors;
+                              if (typeof data.id !== "string") {
+                                const err142 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/9/properties/id/type", keyword: "type", params: { type: "string" } };
+                                if (vErrors === null) {
+                                  vErrors = [err142];
+                                } else {
+                                  vErrors.push(err142);
+                                }
+                                errors++;
+                              }
+                              var valid44 = _errs232 === errors;
+                            } else {
+                              var valid44 = true;
+                            }
+                            if (valid44) {
+                              if (data.namespace !== void 0) {
+                                let data84 = data.namespace;
+                                const _errs234 = errors;
+                                if (typeof data84 !== "string" && data84 !== null) {
+                                  const err143 = { instancePath: instancePath + "/namespace", schemaPath: "#/oneOf/9/properties/namespace/type", keyword: "type", params: { type: schema51.oneOf[9].properties.namespace.type } };
+                                  if (vErrors === null) {
+                                    vErrors = [err143];
+                                  } else {
+                                    vErrors.push(err143);
+                                  }
+                                  errors++;
+                                }
+                                var valid44 = _errs234 === errors;
+                              } else {
+                                var valid44 = true;
+                              }
+                              if (valid44) {
+                                if (data.status !== void 0) {
+                                  let data85 = data.status;
+                                  const _errs236 = errors;
+                                  if (typeof data85 !== "string") {
+                                    const err144 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/DynamicToolCallStatus/type", keyword: "type", params: { type: "string" } };
+                                    if (vErrors === null) {
+                                      vErrors = [err144];
+                                    } else {
+                                      vErrors.push(err144);
+                                    }
+                                    errors++;
+                                  }
+                                  if (!(data85 === "inProgress" || data85 === "completed" || data85 === "failed")) {
+                                    const err145 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/DynamicToolCallStatus/enum", keyword: "enum", params: { allowedValues: schema79.enum } };
+                                    if (vErrors === null) {
+                                      vErrors = [err145];
+                                    } else {
+                                      vErrors.push(err145);
+                                    }
+                                    errors++;
+                                  }
+                                  var valid44 = _errs236 === errors;
+                                } else {
+                                  var valid44 = true;
+                                }
+                                if (valid44) {
+                                  if (data.success !== void 0) {
+                                    let data86 = data.success;
+                                    const _errs239 = errors;
+                                    if (typeof data86 !== "boolean" && data86 !== null) {
+                                      const err146 = { instancePath: instancePath + "/success", schemaPath: "#/oneOf/9/properties/success/type", keyword: "type", params: { type: schema51.oneOf[9].properties.success.type } };
+                                      if (vErrors === null) {
+                                        vErrors = [err146];
+                                      } else {
+                                        vErrors.push(err146);
+                                      }
+                                      errors++;
+                                    }
+                                    var valid44 = _errs239 === errors;
+                                  } else {
+                                    var valid44 = true;
+                                  }
+                                  if (valid44) {
                                     if (data.tool !== void 0) {
-                                      const _errs229 = errors;
+                                      const _errs241 = errors;
                                       if (typeof data.tool !== "string") {
-                                        const err140 = { instancePath: instancePath + "/tool", schemaPath: "#/oneOf/9/properties/tool/type", keyword: "type", params: { type: "string" } };
+                                        const err147 = { instancePath: instancePath + "/tool", schemaPath: "#/oneOf/9/properties/tool/type", keyword: "type", params: { type: "string" } };
                                         if (vErrors === null) {
-                                          vErrors = [err140];
+                                          vErrors = [err147];
                                         } else {
-                                          vErrors.push(err140);
+                                          vErrors.push(err147);
                                         }
                                         errors++;
                                       }
-                                      var valid40 = _errs229 === errors;
+                                      var valid44 = _errs241 === errors;
                                     } else {
-                                      var valid40 = true;
+                                      var valid44 = true;
                                     }
-                                    if (valid40) {
+                                    if (valid44) {
                                       if (data.type !== void 0) {
-                                        let data83 = data.type;
-                                        const _errs231 = errors;
-                                        if (typeof data83 !== "string") {
-                                          const err141 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/9/properties/type/type", keyword: "type", params: { type: "string" } };
+                                        let data88 = data.type;
+                                        const _errs243 = errors;
+                                        if (typeof data88 !== "string") {
+                                          const err148 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/9/properties/type/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err141];
+                                            vErrors = [err148];
                                           } else {
-                                            vErrors.push(err141);
+                                            vErrors.push(err148);
                                           }
                                           errors++;
                                         }
-                                        if (!(data83 === "dynamicToolCall")) {
-                                          const err142 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/9/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[9].properties.type.enum } };
+                                        if (!(data88 === "dynamicToolCall")) {
+                                          const err149 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/9/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[9].properties.type.enum } };
                                           if (vErrors === null) {
-                                            vErrors = [err142];
+                                            vErrors = [err149];
                                           } else {
-                                            vErrors.push(err142);
+                                            vErrors.push(err149);
                                           }
                                           errors++;
                                         }
-                                        var valid40 = _errs231 === errors;
+                                        var valid44 = _errs243 === errors;
                                       } else {
-                                        var valid40 = true;
+                                        var valid44 = true;
                                       }
                                     }
                                   }
@@ -7142,16 +7269,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                         }
                       }
                     } else {
-                      const err143 = { instancePath, schemaPath: "#/oneOf/9/type", keyword: "type", params: { type: "object" } };
+                      const err150 = { instancePath, schemaPath: "#/oneOf/9/type", keyword: "type", params: { type: "object" } };
                       if (vErrors === null) {
-                        vErrors = [err143];
+                        vErrors = [err150];
                       } else {
-                        vErrors.push(err143);
+                        vErrors.push(err150);
                       }
                       errors++;
                     }
                   }
-                  var _valid0 = _errs193 === errors;
+                  var _valid0 = _errs205 === errors;
                   if (_valid0 && valid0) {
                     valid0 = false;
                     passing0 = [passing0, 9];
@@ -7160,297 +7287,297 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                       valid0 = true;
                       passing0 = 9;
                     }
-                    const _errs233 = errors;
-                    if (errors === _errs233) {
+                    const _errs245 = errors;
+                    if (errors === _errs245) {
                       if (data && typeof data == "object" && !Array.isArray(data)) {
-                        let missing17;
-                        if (data.agentsStates === void 0 && (missing17 = "agentsStates") || data.id === void 0 && (missing17 = "id") || data.receiverThreadIds === void 0 && (missing17 = "receiverThreadIds") || data.senderThreadId === void 0 && (missing17 = "senderThreadId") || data.status === void 0 && (missing17 = "status") || data.tool === void 0 && (missing17 = "tool") || data.type === void 0 && (missing17 = "type")) {
-                          const err144 = { instancePath, schemaPath: "#/oneOf/10/required", keyword: "required", params: { missingProperty: missing17 } };
+                        let missing18;
+                        if (data.agentsStates === void 0 && (missing18 = "agentsStates") || data.id === void 0 && (missing18 = "id") || data.receiverThreadIds === void 0 && (missing18 = "receiverThreadIds") || data.senderThreadId === void 0 && (missing18 = "senderThreadId") || data.status === void 0 && (missing18 = "status") || data.tool === void 0 && (missing18 = "tool") || data.type === void 0 && (missing18 = "type")) {
+                          const err151 = { instancePath, schemaPath: "#/oneOf/10/required", keyword: "required", params: { missingProperty: missing18 } };
                           if (vErrors === null) {
-                            vErrors = [err144];
+                            vErrors = [err151];
                           } else {
-                            vErrors.push(err144);
+                            vErrors.push(err151);
                           }
                           errors++;
                         } else {
                           if (data.agentsStates !== void 0) {
-                            let data84 = data.agentsStates;
-                            const _errs235 = errors;
-                            if (errors === _errs235) {
-                              if (data84 && typeof data84 == "object" && !Array.isArray(data84)) {
-                                for (const key0 in data84) {
-                                  const _errs238 = errors;
-                                  if (!validate59(data84[key0], { instancePath: instancePath + "/agentsStates/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"), parentData: data84, parentDataProperty: key0, rootData })) {
+                            let data89 = data.agentsStates;
+                            const _errs247 = errors;
+                            if (errors === _errs247) {
+                              if (data89 && typeof data89 == "object" && !Array.isArray(data89)) {
+                                for (const key1 in data89) {
+                                  const _errs250 = errors;
+                                  if (!validate59(data89[key1], { instancePath: instancePath + "/agentsStates/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"), parentData: data89, parentDataProperty: key1, rootData })) {
                                     vErrors = vErrors === null ? validate59.errors : vErrors.concat(validate59.errors);
                                     errors = vErrors.length;
                                   }
-                                  var valid49 = _errs238 === errors;
-                                  if (!valid49) {
+                                  var valid53 = _errs250 === errors;
+                                  if (!valid53) {
                                     break;
                                   }
                                 }
                               } else {
-                                const err145 = { instancePath: instancePath + "/agentsStates", schemaPath: "#/oneOf/10/properties/agentsStates/type", keyword: "type", params: { type: "object" } };
+                                const err152 = { instancePath: instancePath + "/agentsStates", schemaPath: "#/oneOf/10/properties/agentsStates/type", keyword: "type", params: { type: "object" } };
                                 if (vErrors === null) {
-                                  vErrors = [err145];
+                                  vErrors = [err152];
                                 } else {
-                                  vErrors.push(err145);
+                                  vErrors.push(err152);
                                 }
                                 errors++;
                               }
                             }
-                            var valid48 = _errs235 === errors;
+                            var valid52 = _errs247 === errors;
                           } else {
-                            var valid48 = true;
+                            var valid52 = true;
                           }
-                          if (valid48) {
+                          if (valid52) {
                             if (data.id !== void 0) {
-                              const _errs239 = errors;
+                              const _errs251 = errors;
                               if (typeof data.id !== "string") {
-                                const err146 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/10/properties/id/type", keyword: "type", params: { type: "string" } };
+                                const err153 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/10/properties/id/type", keyword: "type", params: { type: "string" } };
                                 if (vErrors === null) {
-                                  vErrors = [err146];
+                                  vErrors = [err153];
                                 } else {
-                                  vErrors.push(err146);
+                                  vErrors.push(err153);
                                 }
                                 errors++;
                               }
-                              var valid48 = _errs239 === errors;
+                              var valid52 = _errs251 === errors;
                             } else {
-                              var valid48 = true;
+                              var valid52 = true;
                             }
-                            if (valid48) {
+                            if (valid52) {
                               if (data.model !== void 0) {
-                                let data87 = data.model;
-                                const _errs241 = errors;
-                                if (typeof data87 !== "string" && data87 !== null) {
-                                  const err147 = { instancePath: instancePath + "/model", schemaPath: "#/oneOf/10/properties/model/type", keyword: "type", params: { type: schema50.oneOf[10].properties.model.type } };
+                                let data92 = data.model;
+                                const _errs253 = errors;
+                                if (typeof data92 !== "string" && data92 !== null) {
+                                  const err154 = { instancePath: instancePath + "/model", schemaPath: "#/oneOf/10/properties/model/type", keyword: "type", params: { type: schema51.oneOf[10].properties.model.type } };
                                   if (vErrors === null) {
-                                    vErrors = [err147];
+                                    vErrors = [err154];
                                   } else {
-                                    vErrors.push(err147);
+                                    vErrors.push(err154);
                                   }
                                   errors++;
                                 }
-                                var valid48 = _errs241 === errors;
+                                var valid52 = _errs253 === errors;
                               } else {
-                                var valid48 = true;
+                                var valid52 = true;
                               }
-                              if (valid48) {
+                              if (valid52) {
                                 if (data.prompt !== void 0) {
-                                  let data88 = data.prompt;
-                                  const _errs243 = errors;
-                                  if (typeof data88 !== "string" && data88 !== null) {
-                                    const err148 = { instancePath: instancePath + "/prompt", schemaPath: "#/oneOf/10/properties/prompt/type", keyword: "type", params: { type: schema50.oneOf[10].properties.prompt.type } };
+                                  let data93 = data.prompt;
+                                  const _errs255 = errors;
+                                  if (typeof data93 !== "string" && data93 !== null) {
+                                    const err155 = { instancePath: instancePath + "/prompt", schemaPath: "#/oneOf/10/properties/prompt/type", keyword: "type", params: { type: schema51.oneOf[10].properties.prompt.type } };
                                     if (vErrors === null) {
-                                      vErrors = [err148];
+                                      vErrors = [err155];
                                     } else {
-                                      vErrors.push(err148);
+                                      vErrors.push(err155);
                                     }
                                     errors++;
                                   }
-                                  var valid48 = _errs243 === errors;
+                                  var valid52 = _errs255 === errors;
                                 } else {
-                                  var valid48 = true;
+                                  var valid52 = true;
                                 }
-                                if (valid48) {
+                                if (valid52) {
                                   if (data.reasoningEffort !== void 0) {
-                                    let data89 = data.reasoningEffort;
-                                    const _errs245 = errors;
-                                    const _errs246 = errors;
-                                    let valid50 = false;
-                                    const _errs247 = errors;
-                                    const _errs248 = errors;
-                                    if (errors === _errs248) {
-                                      if (typeof data89 === "string") {
-                                        if (func2(data89) < 1) {
-                                          const err149 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/minLength", keyword: "minLength", params: { limit: 1 } };
+                                    let data94 = data.reasoningEffort;
+                                    const _errs257 = errors;
+                                    const _errs258 = errors;
+                                    let valid54 = false;
+                                    const _errs259 = errors;
+                                    const _errs260 = errors;
+                                    if (errors === _errs260) {
+                                      if (typeof data94 === "string") {
+                                        if (func2(data94) < 1) {
+                                          const err156 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/minLength", keyword: "minLength", params: { limit: 1 } };
                                           if (vErrors === null) {
-                                            vErrors = [err149];
+                                            vErrors = [err156];
                                           } else {
-                                            vErrors.push(err149);
+                                            vErrors.push(err156);
                                           }
                                           errors++;
                                         }
                                       } else {
-                                        const err150 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/type", keyword: "type", params: { type: "string" } };
+                                        const err157 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/type", keyword: "type", params: { type: "string" } };
                                         if (vErrors === null) {
-                                          vErrors = [err150];
+                                          vErrors = [err157];
                                         } else {
-                                          vErrors.push(err150);
+                                          vErrors.push(err157);
                                         }
                                         errors++;
                                       }
                                     }
-                                    var _valid9 = _errs247 === errors;
-                                    valid50 = valid50 || _valid9;
-                                    if (!valid50) {
-                                      const _errs250 = errors;
-                                      if (data89 !== null) {
-                                        const err151 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/oneOf/10/properties/reasoningEffort/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                    var _valid9 = _errs259 === errors;
+                                    valid54 = valid54 || _valid9;
+                                    if (!valid54) {
+                                      const _errs262 = errors;
+                                      if (data94 !== null) {
+                                        const err158 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/oneOf/10/properties/reasoningEffort/anyOf/1/type", keyword: "type", params: { type: "null" } };
                                         if (vErrors === null) {
-                                          vErrors = [err151];
+                                          vErrors = [err158];
                                         } else {
-                                          vErrors.push(err151);
+                                          vErrors.push(err158);
                                         }
                                         errors++;
                                       }
-                                      var _valid9 = _errs250 === errors;
-                                      valid50 = valid50 || _valid9;
+                                      var _valid9 = _errs262 === errors;
+                                      valid54 = valid54 || _valid9;
                                     }
-                                    if (!valid50) {
-                                      const err152 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/oneOf/10/properties/reasoningEffort/anyOf", keyword: "anyOf", params: {} };
+                                    if (!valid54) {
+                                      const err159 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/oneOf/10/properties/reasoningEffort/anyOf", keyword: "anyOf", params: {} };
                                       if (vErrors === null) {
-                                        vErrors = [err152];
+                                        vErrors = [err159];
                                       } else {
-                                        vErrors.push(err152);
+                                        vErrors.push(err159);
                                       }
                                       errors++;
                                     } else {
-                                      errors = _errs246;
+                                      errors = _errs258;
                                       if (vErrors !== null) {
-                                        if (_errs246) {
-                                          vErrors.length = _errs246;
+                                        if (_errs258) {
+                                          vErrors.length = _errs258;
                                         } else {
                                           vErrors = null;
                                         }
                                       }
                                     }
-                                    var valid48 = _errs245 === errors;
+                                    var valid52 = _errs257 === errors;
                                   } else {
-                                    var valid48 = true;
+                                    var valid52 = true;
                                   }
-                                  if (valid48) {
+                                  if (valid52) {
                                     if (data.receiverThreadIds !== void 0) {
-                                      let data90 = data.receiverThreadIds;
-                                      const _errs252 = errors;
-                                      if (errors === _errs252) {
-                                        if (Array.isArray(data90)) {
-                                          var valid52 = true;
-                                          const len7 = data90.length;
-                                          for (let i7 = 0; i7 < len7; i7++) {
-                                            const _errs254 = errors;
-                                            if (typeof data90[i7] !== "string") {
-                                              const err153 = { instancePath: instancePath + "/receiverThreadIds/" + i7, schemaPath: "#/oneOf/10/properties/receiverThreadIds/items/type", keyword: "type", params: { type: "string" } };
+                                      let data95 = data.receiverThreadIds;
+                                      const _errs264 = errors;
+                                      if (errors === _errs264) {
+                                        if (Array.isArray(data95)) {
+                                          var valid56 = true;
+                                          const len9 = data95.length;
+                                          for (let i9 = 0; i9 < len9; i9++) {
+                                            const _errs266 = errors;
+                                            if (typeof data95[i9] !== "string") {
+                                              const err160 = { instancePath: instancePath + "/receiverThreadIds/" + i9, schemaPath: "#/oneOf/10/properties/receiverThreadIds/items/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err153];
+                                                vErrors = [err160];
                                               } else {
-                                                vErrors.push(err153);
+                                                vErrors.push(err160);
                                               }
                                               errors++;
                                             }
-                                            var valid52 = _errs254 === errors;
-                                            if (!valid52) {
+                                            var valid56 = _errs266 === errors;
+                                            if (!valid56) {
                                               break;
                                             }
                                           }
                                         } else {
-                                          const err154 = { instancePath: instancePath + "/receiverThreadIds", schemaPath: "#/oneOf/10/properties/receiverThreadIds/type", keyword: "type", params: { type: "array" } };
+                                          const err161 = { instancePath: instancePath + "/receiverThreadIds", schemaPath: "#/oneOf/10/properties/receiverThreadIds/type", keyword: "type", params: { type: "array" } };
                                           if (vErrors === null) {
-                                            vErrors = [err154];
+                                            vErrors = [err161];
                                           } else {
-                                            vErrors.push(err154);
+                                            vErrors.push(err161);
                                           }
                                           errors++;
                                         }
                                       }
-                                      var valid48 = _errs252 === errors;
+                                      var valid52 = _errs264 === errors;
                                     } else {
-                                      var valid48 = true;
+                                      var valid52 = true;
                                     }
-                                    if (valid48) {
+                                    if (valid52) {
                                       if (data.senderThreadId !== void 0) {
-                                        const _errs256 = errors;
+                                        const _errs268 = errors;
                                         if (typeof data.senderThreadId !== "string") {
-                                          const err155 = { instancePath: instancePath + "/senderThreadId", schemaPath: "#/oneOf/10/properties/senderThreadId/type", keyword: "type", params: { type: "string" } };
+                                          const err162 = { instancePath: instancePath + "/senderThreadId", schemaPath: "#/oneOf/10/properties/senderThreadId/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err155];
+                                            vErrors = [err162];
                                           } else {
-                                            vErrors.push(err155);
+                                            vErrors.push(err162);
                                           }
                                           errors++;
                                         }
-                                        var valid48 = _errs256 === errors;
+                                        var valid52 = _errs268 === errors;
                                       } else {
-                                        var valid48 = true;
+                                        var valid52 = true;
                                       }
-                                      if (valid48) {
+                                      if (valid52) {
                                         if (data.status !== void 0) {
-                                          let data93 = data.status;
-                                          const _errs258 = errors;
-                                          if (typeof data93 !== "string") {
-                                            const err156 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CollabAgentToolCallStatus/type", keyword: "type", params: { type: "string" } };
+                                          let data98 = data.status;
+                                          const _errs270 = errors;
+                                          if (typeof data98 !== "string") {
+                                            const err163 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CollabAgentToolCallStatus/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err156];
+                                              vErrors = [err163];
                                             } else {
-                                              vErrors.push(err156);
+                                              vErrors.push(err163);
                                             }
                                             errors++;
                                           }
-                                          if (!(data93 === "inProgress" || data93 === "completed" || data93 === "failed" || data93 === "interrupted")) {
-                                            const err157 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CollabAgentToolCallStatus/enum", keyword: "enum", params: { allowedValues: schema81.enum } };
+                                          if (!(data98 === "inProgress" || data98 === "completed" || data98 === "failed" || data98 === "interrupted")) {
+                                            const err164 = { instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/CollabAgentToolCallStatus/enum", keyword: "enum", params: { allowedValues: schema83.enum } };
                                             if (vErrors === null) {
-                                              vErrors = [err157];
+                                              vErrors = [err164];
                                             } else {
-                                              vErrors.push(err157);
+                                              vErrors.push(err164);
                                             }
                                             errors++;
                                           }
-                                          var valid48 = _errs258 === errors;
+                                          var valid52 = _errs270 === errors;
                                         } else {
-                                          var valid48 = true;
+                                          var valid52 = true;
                                         }
-                                        if (valid48) {
+                                        if (valid52) {
                                           if (data.tool !== void 0) {
-                                            let data94 = data.tool;
-                                            const _errs262 = errors;
-                                            if (typeof data94 !== "string") {
-                                              const err158 = { instancePath: instancePath + "/tool", schemaPath: "#/definitions/v2/CollabAgentTool/type", keyword: "type", params: { type: "string" } };
+                                            let data99 = data.tool;
+                                            const _errs274 = errors;
+                                            if (typeof data99 !== "string") {
+                                              const err165 = { instancePath: instancePath + "/tool", schemaPath: "#/definitions/v2/CollabAgentTool/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err158];
+                                                vErrors = [err165];
                                               } else {
-                                                vErrors.push(err158);
+                                                vErrors.push(err165);
                                               }
                                               errors++;
                                             }
-                                            if (!(data94 === "spawnAgent" || data94 === "sendInput" || data94 === "resumeAgent" || data94 === "wait" || data94 === "closeAgent" || data94 === "sendMessage" || data94 === "followupTask" || data94 === "interruptAgent" || data94 === "listAgents")) {
-                                              const err159 = { instancePath: instancePath + "/tool", schemaPath: "#/definitions/v2/CollabAgentTool/enum", keyword: "enum", params: { allowedValues: schema82.enum } };
+                                            if (!(data99 === "spawnAgent" || data99 === "sendInput" || data99 === "resumeAgent" || data99 === "wait" || data99 === "closeAgent" || data99 === "sendMessage" || data99 === "followupTask" || data99 === "interruptAgent" || data99 === "listAgents")) {
+                                              const err166 = { instancePath: instancePath + "/tool", schemaPath: "#/definitions/v2/CollabAgentTool/enum", keyword: "enum", params: { allowedValues: schema84.enum } };
                                               if (vErrors === null) {
-                                                vErrors = [err159];
+                                                vErrors = [err166];
                                               } else {
-                                                vErrors.push(err159);
+                                                vErrors.push(err166);
                                               }
                                               errors++;
                                             }
-                                            var valid48 = _errs262 === errors;
+                                            var valid52 = _errs274 === errors;
                                           } else {
-                                            var valid48 = true;
+                                            var valid52 = true;
                                           }
-                                          if (valid48) {
+                                          if (valid52) {
                                             if (data.type !== void 0) {
-                                              let data95 = data.type;
-                                              const _errs266 = errors;
-                                              if (typeof data95 !== "string") {
-                                                const err160 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/10/properties/type/type", keyword: "type", params: { type: "string" } };
+                                              let data100 = data.type;
+                                              const _errs278 = errors;
+                                              if (typeof data100 !== "string") {
+                                                const err167 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/10/properties/type/type", keyword: "type", params: { type: "string" } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err160];
+                                                  vErrors = [err167];
                                                 } else {
-                                                  vErrors.push(err160);
+                                                  vErrors.push(err167);
                                                 }
                                                 errors++;
                                               }
-                                              if (!(data95 === "collabAgentToolCall")) {
-                                                const err161 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/10/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[10].properties.type.enum } };
+                                              if (!(data100 === "collabAgentToolCall")) {
+                                                const err168 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/10/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[10].properties.type.enum } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err161];
+                                                  vErrors = [err168];
                                                 } else {
-                                                  vErrors.push(err161);
+                                                  vErrors.push(err168);
                                                 }
                                                 errors++;
                                               }
-                                              var valid48 = _errs266 === errors;
+                                              var valid52 = _errs278 === errors;
                                             } else {
-                                              var valid48 = true;
+                                              var valid52 = true;
                                             }
                                           }
                                         }
@@ -7463,16 +7590,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                           }
                         }
                       } else {
-                        const err162 = { instancePath, schemaPath: "#/oneOf/10/type", keyword: "type", params: { type: "object" } };
+                        const err169 = { instancePath, schemaPath: "#/oneOf/10/type", keyword: "type", params: { type: "object" } };
                         if (vErrors === null) {
-                          vErrors = [err162];
+                          vErrors = [err169];
                         } else {
-                          vErrors.push(err162);
+                          vErrors.push(err169);
                         }
                         errors++;
                       }
                     }
-                    var _valid0 = _errs233 === errors;
+                    var _valid0 = _errs245 === errors;
                     if (_valid0 && valid0) {
                       valid0 = false;
                       passing0 = [passing0, 10];
@@ -7481,117 +7608,117 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                         valid0 = true;
                         passing0 = 10;
                       }
-                      const _errs268 = errors;
-                      if (errors === _errs268) {
+                      const _errs280 = errors;
+                      if (errors === _errs280) {
                         if (data && typeof data == "object" && !Array.isArray(data)) {
-                          let missing18;
-                          if (data.agentPath === void 0 && (missing18 = "agentPath") || data.agentThreadId === void 0 && (missing18 = "agentThreadId") || data.id === void 0 && (missing18 = "id") || data.kind === void 0 && (missing18 = "kind") || data.type === void 0 && (missing18 = "type")) {
-                            const err163 = { instancePath, schemaPath: "#/oneOf/11/required", keyword: "required", params: { missingProperty: missing18 } };
+                          let missing19;
+                          if (data.agentPath === void 0 && (missing19 = "agentPath") || data.agentThreadId === void 0 && (missing19 = "agentThreadId") || data.id === void 0 && (missing19 = "id") || data.kind === void 0 && (missing19 = "kind") || data.type === void 0 && (missing19 = "type")) {
+                            const err170 = { instancePath, schemaPath: "#/oneOf/11/required", keyword: "required", params: { missingProperty: missing19 } };
                             if (vErrors === null) {
-                              vErrors = [err163];
+                              vErrors = [err170];
                             } else {
-                              vErrors.push(err163);
+                              vErrors.push(err170);
                             }
                             errors++;
                           } else {
                             if (data.agentPath !== void 0) {
-                              const _errs270 = errors;
+                              const _errs282 = errors;
                               if (typeof data.agentPath !== "string") {
-                                const err164 = { instancePath: instancePath + "/agentPath", schemaPath: "#/oneOf/11/properties/agentPath/type", keyword: "type", params: { type: "string" } };
+                                const err171 = { instancePath: instancePath + "/agentPath", schemaPath: "#/oneOf/11/properties/agentPath/type", keyword: "type", params: { type: "string" } };
                                 if (vErrors === null) {
-                                  vErrors = [err164];
+                                  vErrors = [err171];
                                 } else {
-                                  vErrors.push(err164);
+                                  vErrors.push(err171);
                                 }
                                 errors++;
                               }
-                              var valid57 = _errs270 === errors;
+                              var valid61 = _errs282 === errors;
                             } else {
-                              var valid57 = true;
+                              var valid61 = true;
                             }
-                            if (valid57) {
+                            if (valid61) {
                               if (data.agentThreadId !== void 0) {
-                                const _errs272 = errors;
+                                const _errs284 = errors;
                                 if (typeof data.agentThreadId !== "string") {
-                                  const err165 = { instancePath: instancePath + "/agentThreadId", schemaPath: "#/oneOf/11/properties/agentThreadId/type", keyword: "type", params: { type: "string" } };
+                                  const err172 = { instancePath: instancePath + "/agentThreadId", schemaPath: "#/oneOf/11/properties/agentThreadId/type", keyword: "type", params: { type: "string" } };
                                   if (vErrors === null) {
-                                    vErrors = [err165];
+                                    vErrors = [err172];
                                   } else {
-                                    vErrors.push(err165);
+                                    vErrors.push(err172);
                                   }
                                   errors++;
                                 }
-                                var valid57 = _errs272 === errors;
+                                var valid61 = _errs284 === errors;
                               } else {
-                                var valid57 = true;
+                                var valid61 = true;
                               }
-                              if (valid57) {
+                              if (valid61) {
                                 if (data.id !== void 0) {
-                                  const _errs274 = errors;
+                                  const _errs286 = errors;
                                   if (typeof data.id !== "string") {
-                                    const err166 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/11/properties/id/type", keyword: "type", params: { type: "string" } };
+                                    const err173 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/11/properties/id/type", keyword: "type", params: { type: "string" } };
                                     if (vErrors === null) {
-                                      vErrors = [err166];
+                                      vErrors = [err173];
                                     } else {
-                                      vErrors.push(err166);
+                                      vErrors.push(err173);
                                     }
                                     errors++;
                                   }
-                                  var valid57 = _errs274 === errors;
+                                  var valid61 = _errs286 === errors;
                                 } else {
-                                  var valid57 = true;
+                                  var valid61 = true;
                                 }
-                                if (valid57) {
+                                if (valid61) {
                                   if (data.kind !== void 0) {
-                                    let data99 = data.kind;
-                                    const _errs276 = errors;
-                                    if (typeof data99 !== "string") {
-                                      const err167 = { instancePath: instancePath + "/kind", schemaPath: "#/definitions/v2/SubAgentActivityKind/type", keyword: "type", params: { type: "string" } };
+                                    let data104 = data.kind;
+                                    const _errs288 = errors;
+                                    if (typeof data104 !== "string") {
+                                      const err174 = { instancePath: instancePath + "/kind", schemaPath: "#/definitions/v2/SubAgentActivityKind/type", keyword: "type", params: { type: "string" } };
                                       if (vErrors === null) {
-                                        vErrors = [err167];
+                                        vErrors = [err174];
                                       } else {
-                                        vErrors.push(err167);
+                                        vErrors.push(err174);
                                       }
                                       errors++;
                                     }
-                                    if (!(data99 === "started" || data99 === "interacted" || data99 === "interrupted" || data99 === "completed")) {
-                                      const err168 = { instancePath: instancePath + "/kind", schemaPath: "#/definitions/v2/SubAgentActivityKind/enum", keyword: "enum", params: { allowedValues: schema83.enum } };
+                                    if (!(data104 === "started" || data104 === "interacted" || data104 === "interrupted" || data104 === "completed")) {
+                                      const err175 = { instancePath: instancePath + "/kind", schemaPath: "#/definitions/v2/SubAgentActivityKind/enum", keyword: "enum", params: { allowedValues: schema85.enum } };
                                       if (vErrors === null) {
-                                        vErrors = [err168];
+                                        vErrors = [err175];
                                       } else {
-                                        vErrors.push(err168);
+                                        vErrors.push(err175);
                                       }
                                       errors++;
                                     }
-                                    var valid57 = _errs276 === errors;
+                                    var valid61 = _errs288 === errors;
                                   } else {
-                                    var valid57 = true;
+                                    var valid61 = true;
                                   }
-                                  if (valid57) {
+                                  if (valid61) {
                                     if (data.type !== void 0) {
-                                      let data100 = data.type;
-                                      const _errs279 = errors;
-                                      if (typeof data100 !== "string") {
-                                        const err169 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/11/properties/type/type", keyword: "type", params: { type: "string" } };
+                                      let data105 = data.type;
+                                      const _errs291 = errors;
+                                      if (typeof data105 !== "string") {
+                                        const err176 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/11/properties/type/type", keyword: "type", params: { type: "string" } };
                                         if (vErrors === null) {
-                                          vErrors = [err169];
+                                          vErrors = [err176];
                                         } else {
-                                          vErrors.push(err169);
+                                          vErrors.push(err176);
                                         }
                                         errors++;
                                       }
-                                      if (!(data100 === "subAgentActivity")) {
-                                        const err170 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/11/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[11].properties.type.enum } };
+                                      if (!(data105 === "subAgentActivity")) {
+                                        const err177 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/11/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[11].properties.type.enum } };
                                         if (vErrors === null) {
-                                          vErrors = [err170];
+                                          vErrors = [err177];
                                         } else {
-                                          vErrors.push(err170);
+                                          vErrors.push(err177);
                                         }
                                         errors++;
                                       }
-                                      var valid57 = _errs279 === errors;
+                                      var valid61 = _errs291 === errors;
                                     } else {
-                                      var valid57 = true;
+                                      var valid61 = true;
                                     }
                                   }
                                 }
@@ -7599,16 +7726,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                             }
                           }
                         } else {
-                          const err171 = { instancePath, schemaPath: "#/oneOf/11/type", keyword: "type", params: { type: "object" } };
+                          const err178 = { instancePath, schemaPath: "#/oneOf/11/type", keyword: "type", params: { type: "object" } };
                           if (vErrors === null) {
-                            vErrors = [err171];
+                            vErrors = [err178];
                           } else {
-                            vErrors.push(err171);
+                            vErrors.push(err178);
                           }
                           errors++;
                         }
                       }
-                      var _valid0 = _errs268 === errors;
+                      var _valid0 = _errs280 === errors;
                       if (_valid0 && valid0) {
                         valid0 = false;
                         passing0 = [passing0, 11];
@@ -7617,146 +7744,34 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                           valid0 = true;
                           passing0 = 11;
                         }
-                        const _errs281 = errors;
-                        if (errors === _errs281) {
+                        const _errs293 = errors;
+                        if (errors === _errs293) {
                           if (data && typeof data == "object" && !Array.isArray(data)) {
-                            let missing19;
-                            if (data.id === void 0 && (missing19 = "id") || data.query === void 0 && (missing19 = "query") || data.type === void 0 && (missing19 = "type")) {
-                              const err172 = { instancePath, schemaPath: "#/oneOf/12/required", keyword: "required", params: { missingProperty: missing19 } };
+                            let missing20;
+                            if (data.id === void 0 && (missing20 = "id") || data.query === void 0 && (missing20 = "query") || data.type === void 0 && (missing20 = "type")) {
+                              const err179 = { instancePath, schemaPath: "#/oneOf/12/required", keyword: "required", params: { missingProperty: missing20 } };
                               if (vErrors === null) {
-                                vErrors = [err172];
+                                vErrors = [err179];
                               } else {
-                                vErrors.push(err172);
+                                vErrors.push(err179);
                               }
                               errors++;
                             } else {
                               if (data.action !== void 0) {
-                                let data101 = data.action;
-                                const _errs283 = errors;
-                                const _errs284 = errors;
-                                let valid60 = false;
-                                const _errs285 = errors;
-                                const _errs287 = errors;
-                                let valid62 = false;
+                                let data106 = data.action;
+                                const _errs295 = errors;
+                                const _errs296 = errors;
+                                let valid64 = false;
+                                const _errs297 = errors;
+                                const _errs299 = errors;
+                                let valid66 = false;
                                 let passing3 = null;
-                                const _errs288 = errors;
-                                if (errors === _errs288) {
-                                  if (data101 && typeof data101 == "object" && !Array.isArray(data101)) {
-                                    let missing20;
-                                    if (data101.type === void 0 && (missing20 = "type")) {
-                                      const err173 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/required", keyword: "required", params: { missingProperty: missing20 } };
-                                      if (vErrors === null) {
-                                        vErrors = [err173];
-                                      } else {
-                                        vErrors.push(err173);
-                                      }
-                                      errors++;
-                                    } else {
-                                      if (data101.queries !== void 0) {
-                                        let data102 = data101.queries;
-                                        const _errs290 = errors;
-                                        if (!Array.isArray(data102) && data102 !== null) {
-                                          const err174 = { instancePath: instancePath + "/action/queries", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/queries/type", keyword: "type", params: { type: schema84.oneOf[0].properties.queries.type } };
-                                          if (vErrors === null) {
-                                            vErrors = [err174];
-                                          } else {
-                                            vErrors.push(err174);
-                                          }
-                                          errors++;
-                                        }
-                                        if (errors === _errs290) {
-                                          if (Array.isArray(data102)) {
-                                            var valid64 = true;
-                                            const len8 = data102.length;
-                                            for (let i8 = 0; i8 < len8; i8++) {
-                                              const _errs292 = errors;
-                                              if (typeof data102[i8] !== "string") {
-                                                const err175 = { instancePath: instancePath + "/action/queries/" + i8, schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/queries/items/type", keyword: "type", params: { type: "string" } };
-                                                if (vErrors === null) {
-                                                  vErrors = [err175];
-                                                } else {
-                                                  vErrors.push(err175);
-                                                }
-                                                errors++;
-                                              }
-                                              var valid64 = _errs292 === errors;
-                                              if (!valid64) {
-                                                break;
-                                              }
-                                            }
-                                          }
-                                        }
-                                        var valid63 = _errs290 === errors;
-                                      } else {
-                                        var valid63 = true;
-                                      }
-                                      if (valid63) {
-                                        if (data101.query !== void 0) {
-                                          let data104 = data101.query;
-                                          const _errs294 = errors;
-                                          if (typeof data104 !== "string" && data104 !== null) {
-                                            const err176 = { instancePath: instancePath + "/action/query", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/query/type", keyword: "type", params: { type: schema84.oneOf[0].properties.query.type } };
-                                            if (vErrors === null) {
-                                              vErrors = [err176];
-                                            } else {
-                                              vErrors.push(err176);
-                                            }
-                                            errors++;
-                                          }
-                                          var valid63 = _errs294 === errors;
-                                        } else {
-                                          var valid63 = true;
-                                        }
-                                        if (valid63) {
-                                          if (data101.type !== void 0) {
-                                            let data105 = data101.type;
-                                            const _errs296 = errors;
-                                            if (typeof data105 !== "string") {
-                                              const err177 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/type/type", keyword: "type", params: { type: "string" } };
-                                              if (vErrors === null) {
-                                                vErrors = [err177];
-                                              } else {
-                                                vErrors.push(err177);
-                                              }
-                                              errors++;
-                                            }
-                                            if (!(data105 === "search")) {
-                                              const err178 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema84.oneOf[0].properties.type.enum } };
-                                              if (vErrors === null) {
-                                                vErrors = [err178];
-                                              } else {
-                                                vErrors.push(err178);
-                                              }
-                                              errors++;
-                                            }
-                                            var valid63 = _errs296 === errors;
-                                          } else {
-                                            var valid63 = true;
-                                          }
-                                        }
-                                      }
-                                    }
-                                  } else {
-                                    const err179 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/type", keyword: "type", params: { type: "object" } };
-                                    if (vErrors === null) {
-                                      vErrors = [err179];
-                                    } else {
-                                      vErrors.push(err179);
-                                    }
-                                    errors++;
-                                  }
-                                }
-                                var _valid11 = _errs288 === errors;
-                                if (_valid11) {
-                                  valid62 = true;
-                                  passing3 = 0;
-                                }
-                                const _errs298 = errors;
-                                if (errors === _errs298) {
-                                  if (data101 && typeof data101 == "object" && !Array.isArray(data101)) {
+                                const _errs300 = errors;
+                                if (errors === _errs300) {
+                                  if (data106 && typeof data106 == "object" && !Array.isArray(data106)) {
                                     let missing21;
-                                    if (data101.type === void 0 && (missing21 = "type")) {
-                                      const err180 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/required", keyword: "required", params: { missingProperty: missing21 } };
+                                    if (data106.type === void 0 && (missing21 = "type")) {
+                                      const err180 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/required", keyword: "required", params: { missingProperty: missing21 } };
                                       if (vErrors === null) {
                                         vErrors = [err180];
                                       } else {
@@ -7764,11 +7779,11 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                       }
                                       errors++;
                                     } else {
-                                      if (data101.type !== void 0) {
-                                        let data106 = data101.type;
-                                        const _errs300 = errors;
-                                        if (typeof data106 !== "string") {
-                                          const err181 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/properties/type/type", keyword: "type", params: { type: "string" } };
+                                      if (data106.queries !== void 0) {
+                                        let data107 = data106.queries;
+                                        const _errs302 = errors;
+                                        if (!Array.isArray(data107) && data107 !== null) {
+                                          const err181 = { instancePath: instancePath + "/action/queries", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/queries/type", keyword: "type", params: { type: schema86.oneOf[0].properties.queries.type } };
                                           if (vErrors === null) {
                                             vErrors = [err181];
                                           } else {
@@ -7776,25 +7791,38 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                           }
                                           errors++;
                                         }
-                                        if (!(data106 === "openPage")) {
-                                          const err182 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema84.oneOf[1].properties.type.enum } };
-                                          if (vErrors === null) {
-                                            vErrors = [err182];
-                                          } else {
-                                            vErrors.push(err182);
+                                        if (errors === _errs302) {
+                                          if (Array.isArray(data107)) {
+                                            var valid68 = true;
+                                            const len10 = data107.length;
+                                            for (let i10 = 0; i10 < len10; i10++) {
+                                              const _errs304 = errors;
+                                              if (typeof data107[i10] !== "string") {
+                                                const err182 = { instancePath: instancePath + "/action/queries/" + i10, schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/queries/items/type", keyword: "type", params: { type: "string" } };
+                                                if (vErrors === null) {
+                                                  vErrors = [err182];
+                                                } else {
+                                                  vErrors.push(err182);
+                                                }
+                                                errors++;
+                                              }
+                                              var valid68 = _errs304 === errors;
+                                              if (!valid68) {
+                                                break;
+                                              }
+                                            }
                                           }
-                                          errors++;
                                         }
-                                        var valid65 = _errs300 === errors;
+                                        var valid67 = _errs302 === errors;
                                       } else {
-                                        var valid65 = true;
+                                        var valid67 = true;
                                       }
-                                      if (valid65) {
-                                        if (data101.url !== void 0) {
-                                          let data107 = data101.url;
-                                          const _errs302 = errors;
-                                          if (typeof data107 !== "string" && data107 !== null) {
-                                            const err183 = { instancePath: instancePath + "/action/url", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/properties/url/type", keyword: "type", params: { type: schema84.oneOf[1].properties.url.type } };
+                                      if (valid67) {
+                                        if (data106.query !== void 0) {
+                                          let data109 = data106.query;
+                                          const _errs306 = errors;
+                                          if (typeof data109 !== "string" && data109 !== null) {
+                                            const err183 = { instancePath: instancePath + "/action/query", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/query/type", keyword: "type", params: { type: schema86.oneOf[0].properties.query.type } };
                                             if (vErrors === null) {
                                               vErrors = [err183];
                                             } else {
@@ -7802,312 +7830,411 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                             }
                                             errors++;
                                           }
-                                          var valid65 = _errs302 === errors;
+                                          var valid67 = _errs306 === errors;
                                         } else {
-                                          var valid65 = true;
+                                          var valid67 = true;
+                                        }
+                                        if (valid67) {
+                                          if (data106.type !== void 0) {
+                                            let data110 = data106.type;
+                                            const _errs308 = errors;
+                                            if (typeof data110 !== "string") {
+                                              const err184 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/type/type", keyword: "type", params: { type: "string" } };
+                                              if (vErrors === null) {
+                                                vErrors = [err184];
+                                              } else {
+                                                vErrors.push(err184);
+                                              }
+                                              errors++;
+                                            }
+                                            if (!(data110 === "search")) {
+                                              const err185 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema86.oneOf[0].properties.type.enum } };
+                                              if (vErrors === null) {
+                                                vErrors = [err185];
+                                              } else {
+                                                vErrors.push(err185);
+                                              }
+                                              errors++;
+                                            }
+                                            var valid67 = _errs308 === errors;
+                                          } else {
+                                            var valid67 = true;
+                                          }
                                         }
                                       }
                                     }
                                   } else {
-                                    const err184 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/type", keyword: "type", params: { type: "object" } };
+                                    const err186 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/0/type", keyword: "type", params: { type: "object" } };
                                     if (vErrors === null) {
-                                      vErrors = [err184];
+                                      vErrors = [err186];
                                     } else {
-                                      vErrors.push(err184);
+                                      vErrors.push(err186);
                                     }
                                     errors++;
                                   }
                                 }
-                                var _valid11 = _errs298 === errors;
-                                if (_valid11 && valid62) {
-                                  valid62 = false;
-                                  passing3 = [passing3, 1];
-                                } else {
-                                  if (_valid11) {
-                                    valid62 = true;
-                                    passing3 = 1;
-                                  }
-                                  const _errs304 = errors;
-                                  if (errors === _errs304) {
-                                    if (data101 && typeof data101 == "object" && !Array.isArray(data101)) {
-                                      let missing22;
-                                      if (data101.type === void 0 && (missing22 = "type")) {
-                                        const err185 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/required", keyword: "required", params: { missingProperty: missing22 } };
-                                        if (vErrors === null) {
-                                          vErrors = [err185];
-                                        } else {
-                                          vErrors.push(err185);
-                                        }
-                                        errors++;
+                                var _valid11 = _errs300 === errors;
+                                if (_valid11) {
+                                  valid66 = true;
+                                  passing3 = 0;
+                                }
+                                const _errs310 = errors;
+                                if (errors === _errs310) {
+                                  if (data106 && typeof data106 == "object" && !Array.isArray(data106)) {
+                                    let missing22;
+                                    if (data106.type === void 0 && (missing22 = "type")) {
+                                      const err187 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/required", keyword: "required", params: { missingProperty: missing22 } };
+                                      if (vErrors === null) {
+                                        vErrors = [err187];
                                       } else {
-                                        if (data101.pattern !== void 0) {
-                                          let data108 = data101.pattern;
-                                          const _errs306 = errors;
-                                          if (typeof data108 !== "string" && data108 !== null) {
-                                            const err186 = { instancePath: instancePath + "/action/pattern", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/pattern/type", keyword: "type", params: { type: schema84.oneOf[2].properties.pattern.type } };
+                                        vErrors.push(err187);
+                                      }
+                                      errors++;
+                                    } else {
+                                      if (data106.type !== void 0) {
+                                        let data111 = data106.type;
+                                        const _errs312 = errors;
+                                        if (typeof data111 !== "string") {
+                                          const err188 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/properties/type/type", keyword: "type", params: { type: "string" } };
+                                          if (vErrors === null) {
+                                            vErrors = [err188];
+                                          } else {
+                                            vErrors.push(err188);
+                                          }
+                                          errors++;
+                                        }
+                                        if (!(data111 === "openPage")) {
+                                          const err189 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema86.oneOf[1].properties.type.enum } };
+                                          if (vErrors === null) {
+                                            vErrors = [err189];
+                                          } else {
+                                            vErrors.push(err189);
+                                          }
+                                          errors++;
+                                        }
+                                        var valid69 = _errs312 === errors;
+                                      } else {
+                                        var valid69 = true;
+                                      }
+                                      if (valid69) {
+                                        if (data106.url !== void 0) {
+                                          let data112 = data106.url;
+                                          const _errs314 = errors;
+                                          if (typeof data112 !== "string" && data112 !== null) {
+                                            const err190 = { instancePath: instancePath + "/action/url", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/properties/url/type", keyword: "type", params: { type: schema86.oneOf[1].properties.url.type } };
                                             if (vErrors === null) {
-                                              vErrors = [err186];
+                                              vErrors = [err190];
                                             } else {
-                                              vErrors.push(err186);
+                                              vErrors.push(err190);
                                             }
                                             errors++;
                                           }
-                                          var valid66 = _errs306 === errors;
+                                          var valid69 = _errs314 === errors;
                                         } else {
-                                          var valid66 = true;
+                                          var valid69 = true;
                                         }
-                                        if (valid66) {
-                                          if (data101.type !== void 0) {
-                                            let data109 = data101.type;
-                                            const _errs308 = errors;
-                                            if (typeof data109 !== "string") {
-                                              const err187 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/type/type", keyword: "type", params: { type: "string" } };
-                                              if (vErrors === null) {
-                                                vErrors = [err187];
-                                              } else {
-                                                vErrors.push(err187);
-                                              }
-                                              errors++;
+                                      }
+                                    }
+                                  } else {
+                                    const err191 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/1/type", keyword: "type", params: { type: "object" } };
+                                    if (vErrors === null) {
+                                      vErrors = [err191];
+                                    } else {
+                                      vErrors.push(err191);
+                                    }
+                                    errors++;
+                                  }
+                                }
+                                var _valid11 = _errs310 === errors;
+                                if (_valid11 && valid66) {
+                                  valid66 = false;
+                                  passing3 = [passing3, 1];
+                                } else {
+                                  if (_valid11) {
+                                    valid66 = true;
+                                    passing3 = 1;
+                                  }
+                                  const _errs316 = errors;
+                                  if (errors === _errs316) {
+                                    if (data106 && typeof data106 == "object" && !Array.isArray(data106)) {
+                                      let missing23;
+                                      if (data106.type === void 0 && (missing23 = "type")) {
+                                        const err192 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/required", keyword: "required", params: { missingProperty: missing23 } };
+                                        if (vErrors === null) {
+                                          vErrors = [err192];
+                                        } else {
+                                          vErrors.push(err192);
+                                        }
+                                        errors++;
+                                      } else {
+                                        if (data106.pattern !== void 0) {
+                                          let data113 = data106.pattern;
+                                          const _errs318 = errors;
+                                          if (typeof data113 !== "string" && data113 !== null) {
+                                            const err193 = { instancePath: instancePath + "/action/pattern", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/pattern/type", keyword: "type", params: { type: schema86.oneOf[2].properties.pattern.type } };
+                                            if (vErrors === null) {
+                                              vErrors = [err193];
+                                            } else {
+                                              vErrors.push(err193);
                                             }
-                                            if (!(data109 === "findInPage")) {
-                                              const err188 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema84.oneOf[2].properties.type.enum } };
-                                              if (vErrors === null) {
-                                                vErrors = [err188];
-                                              } else {
-                                                vErrors.push(err188);
-                                              }
-                                              errors++;
-                                            }
-                                            var valid66 = _errs308 === errors;
-                                          } else {
-                                            var valid66 = true;
+                                            errors++;
                                           }
-                                          if (valid66) {
-                                            if (data101.url !== void 0) {
-                                              let data110 = data101.url;
-                                              const _errs310 = errors;
-                                              if (typeof data110 !== "string" && data110 !== null) {
-                                                const err189 = { instancePath: instancePath + "/action/url", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/url/type", keyword: "type", params: { type: schema84.oneOf[2].properties.url.type } };
+                                          var valid70 = _errs318 === errors;
+                                        } else {
+                                          var valid70 = true;
+                                        }
+                                        if (valid70) {
+                                          if (data106.type !== void 0) {
+                                            let data114 = data106.type;
+                                            const _errs320 = errors;
+                                            if (typeof data114 !== "string") {
+                                              const err194 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/type/type", keyword: "type", params: { type: "string" } };
+                                              if (vErrors === null) {
+                                                vErrors = [err194];
+                                              } else {
+                                                vErrors.push(err194);
+                                              }
+                                              errors++;
+                                            }
+                                            if (!(data114 === "findInPage")) {
+                                              const err195 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema86.oneOf[2].properties.type.enum } };
+                                              if (vErrors === null) {
+                                                vErrors = [err195];
+                                              } else {
+                                                vErrors.push(err195);
+                                              }
+                                              errors++;
+                                            }
+                                            var valid70 = _errs320 === errors;
+                                          } else {
+                                            var valid70 = true;
+                                          }
+                                          if (valid70) {
+                                            if (data106.url !== void 0) {
+                                              let data115 = data106.url;
+                                              const _errs322 = errors;
+                                              if (typeof data115 !== "string" && data115 !== null) {
+                                                const err196 = { instancePath: instancePath + "/action/url", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/properties/url/type", keyword: "type", params: { type: schema86.oneOf[2].properties.url.type } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err189];
+                                                  vErrors = [err196];
                                                 } else {
-                                                  vErrors.push(err189);
+                                                  vErrors.push(err196);
                                                 }
                                                 errors++;
                                               }
-                                              var valid66 = _errs310 === errors;
+                                              var valid70 = _errs322 === errors;
                                             } else {
-                                              var valid66 = true;
+                                              var valid70 = true;
                                             }
                                           }
                                         }
                                       }
                                     } else {
-                                      const err190 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/type", keyword: "type", params: { type: "object" } };
+                                      const err197 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/2/type", keyword: "type", params: { type: "object" } };
                                       if (vErrors === null) {
-                                        vErrors = [err190];
+                                        vErrors = [err197];
                                       } else {
-                                        vErrors.push(err190);
+                                        vErrors.push(err197);
                                       }
                                       errors++;
                                     }
                                   }
-                                  var _valid11 = _errs304 === errors;
-                                  if (_valid11 && valid62) {
-                                    valid62 = false;
+                                  var _valid11 = _errs316 === errors;
+                                  if (_valid11 && valid66) {
+                                    valid66 = false;
                                     passing3 = [passing3, 2];
                                   } else {
                                     if (_valid11) {
-                                      valid62 = true;
+                                      valid66 = true;
                                       passing3 = 2;
                                     }
-                                    const _errs312 = errors;
-                                    if (errors === _errs312) {
-                                      if (data101 && typeof data101 == "object" && !Array.isArray(data101)) {
-                                        let missing23;
-                                        if (data101.type === void 0 && (missing23 = "type")) {
-                                          const err191 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/required", keyword: "required", params: { missingProperty: missing23 } };
+                                    const _errs324 = errors;
+                                    if (errors === _errs324) {
+                                      if (data106 && typeof data106 == "object" && !Array.isArray(data106)) {
+                                        let missing24;
+                                        if (data106.type === void 0 && (missing24 = "type")) {
+                                          const err198 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/required", keyword: "required", params: { missingProperty: missing24 } };
                                           if (vErrors === null) {
-                                            vErrors = [err191];
+                                            vErrors = [err198];
                                           } else {
-                                            vErrors.push(err191);
+                                            vErrors.push(err198);
                                           }
                                           errors++;
                                         } else {
-                                          if (data101.type !== void 0) {
-                                            let data111 = data101.type;
-                                            if (typeof data111 !== "string") {
-                                              const err192 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/properties/type/type", keyword: "type", params: { type: "string" } };
+                                          if (data106.type !== void 0) {
+                                            let data116 = data106.type;
+                                            if (typeof data116 !== "string") {
+                                              const err199 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/properties/type/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err192];
+                                                vErrors = [err199];
                                               } else {
-                                                vErrors.push(err192);
+                                                vErrors.push(err199);
                                               }
                                               errors++;
                                             }
-                                            if (!(data111 === "other")) {
-                                              const err193 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema84.oneOf[3].properties.type.enum } };
+                                            if (!(data116 === "other")) {
+                                              const err200 = { instancePath: instancePath + "/action/type", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema86.oneOf[3].properties.type.enum } };
                                               if (vErrors === null) {
-                                                vErrors = [err193];
+                                                vErrors = [err200];
                                               } else {
-                                                vErrors.push(err193);
+                                                vErrors.push(err200);
                                               }
                                               errors++;
                                             }
                                           }
                                         }
                                       } else {
-                                        const err194 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/type", keyword: "type", params: { type: "object" } };
+                                        const err201 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf/3/type", keyword: "type", params: { type: "object" } };
                                         if (vErrors === null) {
-                                          vErrors = [err194];
+                                          vErrors = [err201];
                                         } else {
-                                          vErrors.push(err194);
+                                          vErrors.push(err201);
                                         }
                                         errors++;
                                       }
                                     }
-                                    var _valid11 = _errs312 === errors;
-                                    if (_valid11 && valid62) {
-                                      valid62 = false;
+                                    var _valid11 = _errs324 === errors;
+                                    if (_valid11 && valid66) {
+                                      valid66 = false;
                                       passing3 = [passing3, 3];
                                     } else {
                                       if (_valid11) {
-                                        valid62 = true;
+                                        valid66 = true;
                                         passing3 = 3;
                                       }
                                     }
                                   }
                                 }
-                                if (!valid62) {
-                                  const err195 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf", keyword: "oneOf", params: { passingSchemas: passing3 } };
+                                if (!valid66) {
+                                  const err202 = { instancePath: instancePath + "/action", schemaPath: "#/definitions/v2/WebSearchAction/oneOf", keyword: "oneOf", params: { passingSchemas: passing3 } };
                                   if (vErrors === null) {
-                                    vErrors = [err195];
+                                    vErrors = [err202];
                                   } else {
-                                    vErrors.push(err195);
+                                    vErrors.push(err202);
                                   }
                                   errors++;
                                 } else {
-                                  errors = _errs287;
+                                  errors = _errs299;
                                   if (vErrors !== null) {
-                                    if (_errs287) {
-                                      vErrors.length = _errs287;
+                                    if (_errs299) {
+                                      vErrors.length = _errs299;
                                     } else {
                                       vErrors = null;
                                     }
                                   }
                                 }
-                                var _valid10 = _errs285 === errors;
-                                valid60 = valid60 || _valid10;
-                                if (!valid60) {
-                                  const _errs316 = errors;
-                                  if (data101 !== null) {
-                                    const err196 = { instancePath: instancePath + "/action", schemaPath: "#/oneOf/12/properties/action/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                var _valid10 = _errs297 === errors;
+                                valid64 = valid64 || _valid10;
+                                if (!valid64) {
+                                  const _errs328 = errors;
+                                  if (data106 !== null) {
+                                    const err203 = { instancePath: instancePath + "/action", schemaPath: "#/oneOf/12/properties/action/anyOf/1/type", keyword: "type", params: { type: "null" } };
                                     if (vErrors === null) {
-                                      vErrors = [err196];
+                                      vErrors = [err203];
                                     } else {
-                                      vErrors.push(err196);
+                                      vErrors.push(err203);
                                     }
                                     errors++;
                                   }
-                                  var _valid10 = _errs316 === errors;
-                                  valid60 = valid60 || _valid10;
+                                  var _valid10 = _errs328 === errors;
+                                  valid64 = valid64 || _valid10;
                                 }
-                                if (!valid60) {
-                                  const err197 = { instancePath: instancePath + "/action", schemaPath: "#/oneOf/12/properties/action/anyOf", keyword: "anyOf", params: {} };
+                                if (!valid64) {
+                                  const err204 = { instancePath: instancePath + "/action", schemaPath: "#/oneOf/12/properties/action/anyOf", keyword: "anyOf", params: {} };
                                   if (vErrors === null) {
-                                    vErrors = [err197];
+                                    vErrors = [err204];
                                   } else {
-                                    vErrors.push(err197);
+                                    vErrors.push(err204);
                                   }
                                   errors++;
                                 } else {
-                                  errors = _errs284;
+                                  errors = _errs296;
                                   if (vErrors !== null) {
-                                    if (_errs284) {
-                                      vErrors.length = _errs284;
+                                    if (_errs296) {
+                                      vErrors.length = _errs296;
                                     } else {
                                       vErrors = null;
                                     }
                                   }
                                 }
-                                var valid59 = _errs283 === errors;
+                                var valid63 = _errs295 === errors;
                               } else {
-                                var valid59 = true;
+                                var valid63 = true;
                               }
-                              if (valid59) {
+                              if (valid63) {
                                 if (data.id !== void 0) {
-                                  const _errs318 = errors;
+                                  const _errs330 = errors;
                                   if (typeof data.id !== "string") {
-                                    const err198 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/12/properties/id/type", keyword: "type", params: { type: "string" } };
+                                    const err205 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/12/properties/id/type", keyword: "type", params: { type: "string" } };
                                     if (vErrors === null) {
-                                      vErrors = [err198];
+                                      vErrors = [err205];
                                     } else {
-                                      vErrors.push(err198);
+                                      vErrors.push(err205);
                                     }
                                     errors++;
                                   }
-                                  var valid59 = _errs318 === errors;
+                                  var valid63 = _errs330 === errors;
                                 } else {
-                                  var valid59 = true;
+                                  var valid63 = true;
                                 }
-                                if (valid59) {
+                                if (valid63) {
                                   if (data.query !== void 0) {
-                                    const _errs320 = errors;
+                                    const _errs332 = errors;
                                     if (typeof data.query !== "string") {
-                                      const err199 = { instancePath: instancePath + "/query", schemaPath: "#/oneOf/12/properties/query/type", keyword: "type", params: { type: "string" } };
+                                      const err206 = { instancePath: instancePath + "/query", schemaPath: "#/oneOf/12/properties/query/type", keyword: "type", params: { type: "string" } };
                                       if (vErrors === null) {
-                                        vErrors = [err199];
+                                        vErrors = [err206];
                                       } else {
-                                        vErrors.push(err199);
+                                        vErrors.push(err206);
                                       }
                                       errors++;
                                     }
-                                    var valid59 = _errs320 === errors;
+                                    var valid63 = _errs332 === errors;
                                   } else {
-                                    var valid59 = true;
+                                    var valid63 = true;
                                   }
-                                  if (valid59) {
+                                  if (valid63) {
                                     if (data.results !== void 0) {
-                                      let data114 = data.results;
-                                      const _errs322 = errors;
-                                      if (!Array.isArray(data114) && data114 !== null) {
-                                        const err200 = { instancePath: instancePath + "/results", schemaPath: "#/oneOf/12/properties/results/type", keyword: "type", params: { type: schema50.oneOf[12].properties.results.type } };
+                                      let data119 = data.results;
+                                      const _errs334 = errors;
+                                      if (!Array.isArray(data119) && data119 !== null) {
+                                        const err207 = { instancePath: instancePath + "/results", schemaPath: "#/oneOf/12/properties/results/type", keyword: "type", params: { type: schema51.oneOf[12].properties.results.type } };
                                         if (vErrors === null) {
-                                          vErrors = [err200];
+                                          vErrors = [err207];
                                         } else {
-                                          vErrors.push(err200);
+                                          vErrors.push(err207);
                                         }
                                         errors++;
                                       }
-                                      var valid59 = _errs322 === errors;
+                                      var valid63 = _errs334 === errors;
                                     } else {
-                                      var valid59 = true;
+                                      var valid63 = true;
                                     }
-                                    if (valid59) {
+                                    if (valid63) {
                                       if (data.type !== void 0) {
-                                        let data115 = data.type;
-                                        const _errs324 = errors;
-                                        if (typeof data115 !== "string") {
-                                          const err201 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/12/properties/type/type", keyword: "type", params: { type: "string" } };
+                                        let data120 = data.type;
+                                        const _errs336 = errors;
+                                        if (typeof data120 !== "string") {
+                                          const err208 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/12/properties/type/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err201];
+                                            vErrors = [err208];
                                           } else {
-                                            vErrors.push(err201);
+                                            vErrors.push(err208);
                                           }
                                           errors++;
                                         }
-                                        if (!(data115 === "webSearch")) {
-                                          const err202 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/12/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[12].properties.type.enum } };
+                                        if (!(data120 === "webSearch")) {
+                                          const err209 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/12/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[12].properties.type.enum } };
                                           if (vErrors === null) {
-                                            vErrors = [err202];
+                                            vErrors = [err209];
                                           } else {
-                                            vErrors.push(err202);
+                                            vErrors.push(err209);
                                           }
                                           errors++;
                                         }
-                                        var valid59 = _errs324 === errors;
+                                        var valid63 = _errs336 === errors;
                                       } else {
-                                        var valid59 = true;
+                                        var valid63 = true;
                                       }
                                     }
                                   }
@@ -8115,16 +8242,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                               }
                             }
                           } else {
-                            const err203 = { instancePath, schemaPath: "#/oneOf/12/type", keyword: "type", params: { type: "object" } };
+                            const err210 = { instancePath, schemaPath: "#/oneOf/12/type", keyword: "type", params: { type: "object" } };
                             if (vErrors === null) {
-                              vErrors = [err203];
+                              vErrors = [err210];
                             } else {
-                              vErrors.push(err203);
+                              vErrors.push(err210);
                             }
                             errors++;
                           }
                         }
-                        var _valid0 = _errs281 === errors;
+                        var _valid0 = _errs293 === errors;
                         if (_valid0 && valid0) {
                           valid0 = false;
                           passing0 = [passing0, 12];
@@ -8133,90 +8260,90 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                             valid0 = true;
                             passing0 = 12;
                           }
-                          const _errs326 = errors;
-                          if (errors === _errs326) {
+                          const _errs338 = errors;
+                          if (errors === _errs338) {
                             if (data && typeof data == "object" && !Array.isArray(data)) {
-                              let missing24;
-                              if (data.id === void 0 && (missing24 = "id") || data.path === void 0 && (missing24 = "path") || data.type === void 0 && (missing24 = "type")) {
-                                const err204 = { instancePath, schemaPath: "#/oneOf/13/required", keyword: "required", params: { missingProperty: missing24 } };
+                              let missing25;
+                              if (data.id === void 0 && (missing25 = "id") || data.path === void 0 && (missing25 = "path") || data.type === void 0 && (missing25 = "type")) {
+                                const err211 = { instancePath, schemaPath: "#/oneOf/13/required", keyword: "required", params: { missingProperty: missing25 } };
                                 if (vErrors === null) {
-                                  vErrors = [err204];
+                                  vErrors = [err211];
                                 } else {
-                                  vErrors.push(err204);
+                                  vErrors.push(err211);
                                 }
                                 errors++;
                               } else {
                                 if (data.id !== void 0) {
-                                  const _errs328 = errors;
+                                  const _errs340 = errors;
                                   if (typeof data.id !== "string") {
-                                    const err205 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/13/properties/id/type", keyword: "type", params: { type: "string" } };
+                                    const err212 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/13/properties/id/type", keyword: "type", params: { type: "string" } };
                                     if (vErrors === null) {
-                                      vErrors = [err205];
+                                      vErrors = [err212];
                                     } else {
-                                      vErrors.push(err205);
+                                      vErrors.push(err212);
                                     }
                                     errors++;
                                   }
-                                  var valid68 = _errs328 === errors;
+                                  var valid72 = _errs340 === errors;
                                 } else {
-                                  var valid68 = true;
+                                  var valid72 = true;
                                 }
-                                if (valid68) {
+                                if (valid72) {
                                   if (data.path !== void 0) {
-                                    const _errs330 = errors;
+                                    const _errs342 = errors;
                                     if (typeof data.path !== "string") {
-                                      const err206 = { instancePath: instancePath + "/path", schemaPath: "#/definitions/v2/LegacyAppPathString/type", keyword: "type", params: { type: "string" } };
+                                      const err213 = { instancePath: instancePath + "/path", schemaPath: "#/definitions/v2/LegacyAppPathString/type", keyword: "type", params: { type: "string" } };
                                       if (vErrors === null) {
-                                        vErrors = [err206];
+                                        vErrors = [err213];
                                       } else {
-                                        vErrors.push(err206);
+                                        vErrors.push(err213);
                                       }
                                       errors++;
                                     }
-                                    var valid68 = _errs330 === errors;
+                                    var valid72 = _errs342 === errors;
                                   } else {
-                                    var valid68 = true;
+                                    var valid72 = true;
                                   }
-                                  if (valid68) {
+                                  if (valid72) {
                                     if (data.type !== void 0) {
-                                      let data118 = data.type;
-                                      const _errs333 = errors;
-                                      if (typeof data118 !== "string") {
-                                        const err207 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/13/properties/type/type", keyword: "type", params: { type: "string" } };
+                                      let data123 = data.type;
+                                      const _errs345 = errors;
+                                      if (typeof data123 !== "string") {
+                                        const err214 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/13/properties/type/type", keyword: "type", params: { type: "string" } };
                                         if (vErrors === null) {
-                                          vErrors = [err207];
+                                          vErrors = [err214];
                                         } else {
-                                          vErrors.push(err207);
+                                          vErrors.push(err214);
                                         }
                                         errors++;
                                       }
-                                      if (!(data118 === "imageView")) {
-                                        const err208 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/13/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[13].properties.type.enum } };
+                                      if (!(data123 === "imageView")) {
+                                        const err215 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/13/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[13].properties.type.enum } };
                                         if (vErrors === null) {
-                                          vErrors = [err208];
+                                          vErrors = [err215];
                                         } else {
-                                          vErrors.push(err208);
+                                          vErrors.push(err215);
                                         }
                                         errors++;
                                       }
-                                      var valid68 = _errs333 === errors;
+                                      var valid72 = _errs345 === errors;
                                     } else {
-                                      var valid68 = true;
+                                      var valid72 = true;
                                     }
                                   }
                                 }
                               }
                             } else {
-                              const err209 = { instancePath, schemaPath: "#/oneOf/13/type", keyword: "type", params: { type: "object" } };
+                              const err216 = { instancePath, schemaPath: "#/oneOf/13/type", keyword: "type", params: { type: "object" } };
                               if (vErrors === null) {
-                                vErrors = [err209];
+                                vErrors = [err216];
                               } else {
-                                vErrors.push(err209);
+                                vErrors.push(err216);
                               }
                               errors++;
                             }
                           }
-                          var _valid0 = _errs326 === errors;
+                          var _valid0 = _errs338 === errors;
                           if (_valid0 && valid0) {
                             valid0 = false;
                             passing0 = [passing0, 13];
@@ -8225,104 +8352,104 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                               valid0 = true;
                               passing0 = 13;
                             }
-                            const _errs335 = errors;
-                            if (errors === _errs335) {
+                            const _errs347 = errors;
+                            if (errors === _errs347) {
                               if (data && typeof data == "object" && !Array.isArray(data)) {
-                                let missing25;
-                                if (data.durationMs === void 0 && (missing25 = "durationMs") || data.id === void 0 && (missing25 = "id") || data.type === void 0 && (missing25 = "type")) {
-                                  const err210 = { instancePath, schemaPath: "#/oneOf/14/required", keyword: "required", params: { missingProperty: missing25 } };
+                                let missing26;
+                                if (data.durationMs === void 0 && (missing26 = "durationMs") || data.id === void 0 && (missing26 = "id") || data.type === void 0 && (missing26 = "type")) {
+                                  const err217 = { instancePath, schemaPath: "#/oneOf/14/required", keyword: "required", params: { missingProperty: missing26 } };
                                   if (vErrors === null) {
-                                    vErrors = [err210];
+                                    vErrors = [err217];
                                   } else {
-                                    vErrors.push(err210);
+                                    vErrors.push(err217);
                                   }
                                   errors++;
                                 } else {
                                   if (data.durationMs !== void 0) {
-                                    let data119 = data.durationMs;
-                                    const _errs337 = errors;
-                                    if (!(typeof data119 == "number" && (!(data119 % 1) && !isNaN(data119)) && isFinite(data119))) {
-                                      const err211 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/14/properties/durationMs/type", keyword: "type", params: { type: "integer" } };
+                                    let data124 = data.durationMs;
+                                    const _errs349 = errors;
+                                    if (!(typeof data124 == "number" && (!(data124 % 1) && !isNaN(data124)) && isFinite(data124))) {
+                                      const err218 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/14/properties/durationMs/type", keyword: "type", params: { type: "integer" } };
                                       if (vErrors === null) {
-                                        vErrors = [err211];
+                                        vErrors = [err218];
                                       } else {
-                                        vErrors.push(err211);
+                                        vErrors.push(err218);
                                       }
                                       errors++;
                                     }
-                                    if (errors === _errs337) {
-                                      if (typeof data119 == "number" && isFinite(data119)) {
-                                        if (data119 < 0 || isNaN(data119)) {
-                                          const err212 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/14/properties/durationMs/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 } };
+                                    if (errors === _errs349) {
+                                      if (typeof data124 == "number" && isFinite(data124)) {
+                                        if (data124 < 0 || isNaN(data124)) {
+                                          const err219 = { instancePath: instancePath + "/durationMs", schemaPath: "#/oneOf/14/properties/durationMs/minimum", keyword: "minimum", params: { comparison: ">=", limit: 0 } };
                                           if (vErrors === null) {
-                                            vErrors = [err212];
+                                            vErrors = [err219];
                                           } else {
-                                            vErrors.push(err212);
+                                            vErrors.push(err219);
                                           }
                                           errors++;
                                         }
                                       }
                                     }
-                                    var valid70 = _errs337 === errors;
+                                    var valid74 = _errs349 === errors;
                                   } else {
-                                    var valid70 = true;
+                                    var valid74 = true;
                                   }
-                                  if (valid70) {
+                                  if (valid74) {
                                     if (data.id !== void 0) {
-                                      const _errs339 = errors;
+                                      const _errs351 = errors;
                                       if (typeof data.id !== "string") {
-                                        const err213 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/14/properties/id/type", keyword: "type", params: { type: "string" } };
+                                        const err220 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/14/properties/id/type", keyword: "type", params: { type: "string" } };
                                         if (vErrors === null) {
-                                          vErrors = [err213];
+                                          vErrors = [err220];
                                         } else {
-                                          vErrors.push(err213);
+                                          vErrors.push(err220);
                                         }
                                         errors++;
                                       }
-                                      var valid70 = _errs339 === errors;
+                                      var valid74 = _errs351 === errors;
                                     } else {
-                                      var valid70 = true;
+                                      var valid74 = true;
                                     }
-                                    if (valid70) {
+                                    if (valid74) {
                                       if (data.type !== void 0) {
-                                        let data121 = data.type;
-                                        const _errs341 = errors;
-                                        if (typeof data121 !== "string") {
-                                          const err214 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/14/properties/type/type", keyword: "type", params: { type: "string" } };
+                                        let data126 = data.type;
+                                        const _errs353 = errors;
+                                        if (typeof data126 !== "string") {
+                                          const err221 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/14/properties/type/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err214];
+                                            vErrors = [err221];
                                           } else {
-                                            vErrors.push(err214);
+                                            vErrors.push(err221);
                                           }
                                           errors++;
                                         }
-                                        if (!(data121 === "sleep")) {
-                                          const err215 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/14/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[14].properties.type.enum } };
+                                        if (!(data126 === "sleep")) {
+                                          const err222 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/14/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[14].properties.type.enum } };
                                           if (vErrors === null) {
-                                            vErrors = [err215];
+                                            vErrors = [err222];
                                           } else {
-                                            vErrors.push(err215);
+                                            vErrors.push(err222);
                                           }
                                           errors++;
                                         }
-                                        var valid70 = _errs341 === errors;
+                                        var valid74 = _errs353 === errors;
                                       } else {
-                                        var valid70 = true;
+                                        var valid74 = true;
                                       }
                                     }
                                   }
                                 }
                               } else {
-                                const err216 = { instancePath, schemaPath: "#/oneOf/14/type", keyword: "type", params: { type: "object" } };
+                                const err223 = { instancePath, schemaPath: "#/oneOf/14/type", keyword: "type", params: { type: "object" } };
                                 if (vErrors === null) {
-                                  vErrors = [err216];
+                                  vErrors = [err223];
                                 } else {
-                                  vErrors.push(err216);
+                                  vErrors.push(err223);
                                 }
                                 errors++;
                               }
                             }
-                            var _valid0 = _errs335 === errors;
+                            var _valid0 = _errs347 === errors;
                             if (_valid0 && valid0) {
                               valid0 = false;
                               passing0 = [passing0, 14];
@@ -8331,334 +8458,334 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                 valid0 = true;
                                 passing0 = 14;
                               }
-                              const _errs343 = errors;
-                              if (errors === _errs343) {
+                              const _errs355 = errors;
+                              if (errors === _errs355) {
                                 if (data && typeof data == "object" && !Array.isArray(data)) {
-                                  let missing26;
-                                  if (data.id === void 0 && (missing26 = "id") || data.result === void 0 && (missing26 = "result") || data.status === void 0 && (missing26 = "status") || data.type === void 0 && (missing26 = "type")) {
-                                    const err217 = { instancePath, schemaPath: "#/oneOf/15/required", keyword: "required", params: { missingProperty: missing26 } };
+                                  let missing27;
+                                  if (data.id === void 0 && (missing27 = "id") || data.result === void 0 && (missing27 = "result") || data.status === void 0 && (missing27 = "status") || data.type === void 0 && (missing27 = "type")) {
+                                    const err224 = { instancePath, schemaPath: "#/oneOf/15/required", keyword: "required", params: { missingProperty: missing27 } };
                                     if (vErrors === null) {
-                                      vErrors = [err217];
+                                      vErrors = [err224];
                                     } else {
-                                      vErrors.push(err217);
+                                      vErrors.push(err224);
                                     }
                                     errors++;
                                   } else {
                                     if (data.failure !== void 0) {
-                                      let data122 = data.failure;
-                                      const _errs345 = errors;
-                                      const _errs346 = errors;
-                                      let valid72 = false;
-                                      const _errs347 = errors;
-                                      const _errs349 = errors;
-                                      let valid74 = false;
+                                      let data127 = data.failure;
+                                      const _errs357 = errors;
+                                      const _errs358 = errors;
+                                      let valid76 = false;
+                                      const _errs359 = errors;
+                                      const _errs361 = errors;
+                                      let valid78 = false;
                                       let passing4 = null;
-                                      const _errs350 = errors;
-                                      if (errors === _errs350) {
-                                        if (data122 && typeof data122 == "object" && !Array.isArray(data122)) {
-                                          let missing27;
-                                          if (data122.limitId === void 0 && (missing27 = "limitId") || data122.type === void 0 && (missing27 = "type")) {
-                                            const err218 = { instancePath: instancePath + "/failure", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/required", keyword: "required", params: { missingProperty: missing27 } };
+                                      const _errs362 = errors;
+                                      if (errors === _errs362) {
+                                        if (data127 && typeof data127 == "object" && !Array.isArray(data127)) {
+                                          let missing28;
+                                          if (data127.limitId === void 0 && (missing28 = "limitId") || data127.type === void 0 && (missing28 = "type")) {
+                                            const err225 = { instancePath: instancePath + "/failure", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/required", keyword: "required", params: { missingProperty: missing28 } };
                                             if (vErrors === null) {
-                                              vErrors = [err218];
+                                              vErrors = [err225];
                                             } else {
-                                              vErrors.push(err218);
+                                              vErrors.push(err225);
                                             }
                                             errors++;
                                           } else {
-                                            if (data122.limitId !== void 0) {
-                                              const _errs352 = errors;
-                                              if (typeof data122.limitId !== "string") {
-                                                const err219 = { instancePath: instancePath + "/failure/limitId", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/limitId/type", keyword: "type", params: { type: "string" } };
+                                            if (data127.limitId !== void 0) {
+                                              const _errs364 = errors;
+                                              if (typeof data127.limitId !== "string") {
+                                                const err226 = { instancePath: instancePath + "/failure/limitId", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/limitId/type", keyword: "type", params: { type: "string" } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err219];
+                                                  vErrors = [err226];
                                                 } else {
-                                                  vErrors.push(err219);
+                                                  vErrors.push(err226);
                                                 }
                                                 errors++;
                                               }
-                                              var valid75 = _errs352 === errors;
+                                              var valid79 = _errs364 === errors;
                                             } else {
-                                              var valid75 = true;
+                                              var valid79 = true;
                                             }
-                                            if (valid75) {
-                                              if (data122.resetsAt !== void 0) {
-                                                let data124 = data122.resetsAt;
-                                                const _errs354 = errors;
-                                                if (!(typeof data124 == "number" && (!(data124 % 1) && !isNaN(data124)) && isFinite(data124)) && data124 !== null) {
-                                                  const err220 = { instancePath: instancePath + "/failure/resetsAt", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/resetsAt/type", keyword: "type", params: { type: schema86.oneOf[0].properties.resetsAt.type } };
+                                            if (valid79) {
+                                              if (data127.resetsAt !== void 0) {
+                                                let data129 = data127.resetsAt;
+                                                const _errs366 = errors;
+                                                if (!(typeof data129 == "number" && (!(data129 % 1) && !isNaN(data129)) && isFinite(data129)) && data129 !== null) {
+                                                  const err227 = { instancePath: instancePath + "/failure/resetsAt", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/resetsAt/type", keyword: "type", params: { type: schema88.oneOf[0].properties.resetsAt.type } };
                                                   if (vErrors === null) {
-                                                    vErrors = [err220];
+                                                    vErrors = [err227];
                                                   } else {
-                                                    vErrors.push(err220);
+                                                    vErrors.push(err227);
                                                   }
                                                   errors++;
                                                 }
-                                                var valid75 = _errs354 === errors;
+                                                var valid79 = _errs366 === errors;
                                               } else {
-                                                var valid75 = true;
+                                                var valid79 = true;
                                               }
-                                              if (valid75) {
-                                                if (data122.type !== void 0) {
-                                                  let data125 = data122.type;
-                                                  const _errs356 = errors;
-                                                  if (typeof data125 !== "string") {
-                                                    const err221 = { instancePath: instancePath + "/failure/type", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/type/type", keyword: "type", params: { type: "string" } };
+                                              if (valid79) {
+                                                if (data127.type !== void 0) {
+                                                  let data130 = data127.type;
+                                                  const _errs368 = errors;
+                                                  if (typeof data130 !== "string") {
+                                                    const err228 = { instancePath: instancePath + "/failure/type", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/type/type", keyword: "type", params: { type: "string" } };
                                                     if (vErrors === null) {
-                                                      vErrors = [err221];
+                                                      vErrors = [err228];
                                                     } else {
-                                                      vErrors.push(err221);
+                                                      vErrors.push(err228);
                                                     }
                                                     errors++;
                                                   }
-                                                  if (!(data125 === "usageLimitExceeded")) {
-                                                    const err222 = { instancePath: instancePath + "/failure/type", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema86.oneOf[0].properties.type.enum } };
+                                                  if (!(data130 === "usageLimitExceeded")) {
+                                                    const err229 = { instancePath: instancePath + "/failure/type", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema88.oneOf[0].properties.type.enum } };
                                                     if (vErrors === null) {
-                                                      vErrors = [err222];
+                                                      vErrors = [err229];
                                                     } else {
-                                                      vErrors.push(err222);
+                                                      vErrors.push(err229);
                                                     }
                                                     errors++;
                                                   }
-                                                  var valid75 = _errs356 === errors;
+                                                  var valid79 = _errs368 === errors;
                                                 } else {
-                                                  var valid75 = true;
+                                                  var valid79 = true;
                                                 }
                                               }
                                             }
                                           }
                                         } else {
-                                          const err223 = { instancePath: instancePath + "/failure", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/type", keyword: "type", params: { type: "object" } };
+                                          const err230 = { instancePath: instancePath + "/failure", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf/0/type", keyword: "type", params: { type: "object" } };
                                           if (vErrors === null) {
-                                            vErrors = [err223];
+                                            vErrors = [err230];
                                           } else {
-                                            vErrors.push(err223);
+                                            vErrors.push(err230);
                                           }
                                           errors++;
                                         }
                                       }
-                                      var _valid13 = _errs350 === errors;
+                                      var _valid13 = _errs362 === errors;
                                       if (_valid13) {
-                                        valid74 = true;
+                                        valid78 = true;
                                         passing4 = 0;
                                       }
-                                      if (!valid74) {
-                                        const err224 = { instancePath: instancePath + "/failure", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf", keyword: "oneOf", params: { passingSchemas: passing4 } };
+                                      if (!valid78) {
+                                        const err231 = { instancePath: instancePath + "/failure", schemaPath: "#/definitions/v2/ImageGenerationFailure/oneOf", keyword: "oneOf", params: { passingSchemas: passing4 } };
                                         if (vErrors === null) {
-                                          vErrors = [err224];
+                                          vErrors = [err231];
                                         } else {
-                                          vErrors.push(err224);
+                                          vErrors.push(err231);
                                         }
                                         errors++;
                                       } else {
-                                        errors = _errs349;
+                                        errors = _errs361;
                                         if (vErrors !== null) {
-                                          if (_errs349) {
-                                            vErrors.length = _errs349;
+                                          if (_errs361) {
+                                            vErrors.length = _errs361;
                                           } else {
                                             vErrors = null;
                                           }
                                         }
                                       }
-                                      var _valid12 = _errs347 === errors;
-                                      valid72 = valid72 || _valid12;
-                                      if (!valid72) {
-                                        const _errs358 = errors;
-                                        if (data122 !== null) {
-                                          const err225 = { instancePath: instancePath + "/failure", schemaPath: "#/oneOf/15/properties/failure/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                      var _valid12 = _errs359 === errors;
+                                      valid76 = valid76 || _valid12;
+                                      if (!valid76) {
+                                        const _errs370 = errors;
+                                        if (data127 !== null) {
+                                          const err232 = { instancePath: instancePath + "/failure", schemaPath: "#/oneOf/15/properties/failure/anyOf/1/type", keyword: "type", params: { type: "null" } };
                                           if (vErrors === null) {
-                                            vErrors = [err225];
+                                            vErrors = [err232];
                                           } else {
-                                            vErrors.push(err225);
+                                            vErrors.push(err232);
                                           }
                                           errors++;
                                         }
-                                        var _valid12 = _errs358 === errors;
-                                        valid72 = valid72 || _valid12;
+                                        var _valid12 = _errs370 === errors;
+                                        valid76 = valid76 || _valid12;
                                       }
-                                      if (!valid72) {
-                                        const err226 = { instancePath: instancePath + "/failure", schemaPath: "#/oneOf/15/properties/failure/anyOf", keyword: "anyOf", params: {} };
+                                      if (!valid76) {
+                                        const err233 = { instancePath: instancePath + "/failure", schemaPath: "#/oneOf/15/properties/failure/anyOf", keyword: "anyOf", params: {} };
                                         if (vErrors === null) {
-                                          vErrors = [err226];
+                                          vErrors = [err233];
                                         } else {
-                                          vErrors.push(err226);
+                                          vErrors.push(err233);
                                         }
                                         errors++;
                                       } else {
-                                        errors = _errs346;
+                                        errors = _errs358;
                                         if (vErrors !== null) {
-                                          if (_errs346) {
-                                            vErrors.length = _errs346;
+                                          if (_errs358) {
+                                            vErrors.length = _errs358;
                                           } else {
                                             vErrors = null;
                                           }
                                         }
                                       }
-                                      var valid71 = _errs345 === errors;
+                                      var valid75 = _errs357 === errors;
                                     } else {
-                                      var valid71 = true;
+                                      var valid75 = true;
                                     }
-                                    if (valid71) {
+                                    if (valid75) {
                                       if (data.id !== void 0) {
-                                        const _errs360 = errors;
+                                        const _errs372 = errors;
                                         if (typeof data.id !== "string") {
-                                          const err227 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/15/properties/id/type", keyword: "type", params: { type: "string" } };
+                                          const err234 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/15/properties/id/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err227];
+                                            vErrors = [err234];
                                           } else {
-                                            vErrors.push(err227);
+                                            vErrors.push(err234);
                                           }
                                           errors++;
                                         }
-                                        var valid71 = _errs360 === errors;
+                                        var valid75 = _errs372 === errors;
                                       } else {
-                                        var valid71 = true;
+                                        var valid75 = true;
                                       }
-                                      if (valid71) {
+                                      if (valid75) {
                                         if (data.result !== void 0) {
-                                          const _errs362 = errors;
+                                          const _errs374 = errors;
                                           if (typeof data.result !== "string") {
-                                            const err228 = { instancePath: instancePath + "/result", schemaPath: "#/oneOf/15/properties/result/type", keyword: "type", params: { type: "string" } };
+                                            const err235 = { instancePath: instancePath + "/result", schemaPath: "#/oneOf/15/properties/result/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err228];
+                                              vErrors = [err235];
                                             } else {
-                                              vErrors.push(err228);
+                                              vErrors.push(err235);
                                             }
                                             errors++;
                                           }
-                                          var valid71 = _errs362 === errors;
+                                          var valid75 = _errs374 === errors;
                                         } else {
-                                          var valid71 = true;
+                                          var valid75 = true;
                                         }
-                                        if (valid71) {
+                                        if (valid75) {
                                           if (data.revisedPrompt !== void 0) {
-                                            let data128 = data.revisedPrompt;
-                                            const _errs364 = errors;
-                                            if (typeof data128 !== "string" && data128 !== null) {
-                                              const err229 = { instancePath: instancePath + "/revisedPrompt", schemaPath: "#/oneOf/15/properties/revisedPrompt/type", keyword: "type", params: { type: schema50.oneOf[15].properties.revisedPrompt.type } };
+                                            let data133 = data.revisedPrompt;
+                                            const _errs376 = errors;
+                                            if (typeof data133 !== "string" && data133 !== null) {
+                                              const err236 = { instancePath: instancePath + "/revisedPrompt", schemaPath: "#/oneOf/15/properties/revisedPrompt/type", keyword: "type", params: { type: schema51.oneOf[15].properties.revisedPrompt.type } };
                                               if (vErrors === null) {
-                                                vErrors = [err229];
+                                                vErrors = [err236];
                                               } else {
-                                                vErrors.push(err229);
+                                                vErrors.push(err236);
                                               }
                                               errors++;
                                             }
-                                            var valid71 = _errs364 === errors;
+                                            var valid75 = _errs376 === errors;
                                           } else {
-                                            var valid71 = true;
+                                            var valid75 = true;
                                           }
-                                          if (valid71) {
+                                          if (valid75) {
                                             if (data.savedPath !== void 0) {
-                                              let data129 = data.savedPath;
-                                              const _errs366 = errors;
-                                              const _errs367 = errors;
-                                              let valid76 = false;
-                                              const _errs368 = errors;
-                                              if (typeof data129 !== "string") {
-                                                const err230 = { instancePath: instancePath + "/savedPath", schemaPath: "#/definitions/v2/AbsolutePathBuf/type", keyword: "type", params: { type: "string" } };
+                                              let data134 = data.savedPath;
+                                              const _errs378 = errors;
+                                              const _errs379 = errors;
+                                              let valid80 = false;
+                                              const _errs380 = errors;
+                                              if (typeof data134 !== "string") {
+                                                const err237 = { instancePath: instancePath + "/savedPath", schemaPath: "#/definitions/v2/AbsolutePathBuf/type", keyword: "type", params: { type: "string" } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err230];
+                                                  vErrors = [err237];
                                                 } else {
-                                                  vErrors.push(err230);
+                                                  vErrors.push(err237);
                                                 }
                                                 errors++;
                                               }
-                                              var _valid14 = _errs368 === errors;
-                                              valid76 = valid76 || _valid14;
-                                              if (!valid76) {
-                                                const _errs371 = errors;
-                                                if (data129 !== null) {
-                                                  const err231 = { instancePath: instancePath + "/savedPath", schemaPath: "#/oneOf/15/properties/savedPath/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                              var _valid14 = _errs380 === errors;
+                                              valid80 = valid80 || _valid14;
+                                              if (!valid80) {
+                                                const _errs383 = errors;
+                                                if (data134 !== null) {
+                                                  const err238 = { instancePath: instancePath + "/savedPath", schemaPath: "#/oneOf/15/properties/savedPath/anyOf/1/type", keyword: "type", params: { type: "null" } };
                                                   if (vErrors === null) {
-                                                    vErrors = [err231];
+                                                    vErrors = [err238];
                                                   } else {
-                                                    vErrors.push(err231);
+                                                    vErrors.push(err238);
                                                   }
                                                   errors++;
                                                 }
-                                                var _valid14 = _errs371 === errors;
-                                                valid76 = valid76 || _valid14;
+                                                var _valid14 = _errs383 === errors;
+                                                valid80 = valid80 || _valid14;
                                               }
-                                              if (!valid76) {
-                                                const err232 = { instancePath: instancePath + "/savedPath", schemaPath: "#/oneOf/15/properties/savedPath/anyOf", keyword: "anyOf", params: {} };
+                                              if (!valid80) {
+                                                const err239 = { instancePath: instancePath + "/savedPath", schemaPath: "#/oneOf/15/properties/savedPath/anyOf", keyword: "anyOf", params: {} };
                                                 if (vErrors === null) {
-                                                  vErrors = [err232];
+                                                  vErrors = [err239];
                                                 } else {
-                                                  vErrors.push(err232);
+                                                  vErrors.push(err239);
                                                 }
                                                 errors++;
                                               } else {
-                                                errors = _errs367;
+                                                errors = _errs379;
                                                 if (vErrors !== null) {
-                                                  if (_errs367) {
-                                                    vErrors.length = _errs367;
+                                                  if (_errs379) {
+                                                    vErrors.length = _errs379;
                                                   } else {
                                                     vErrors = null;
                                                   }
                                                 }
                                               }
-                                              var valid71 = _errs366 === errors;
+                                              var valid75 = _errs378 === errors;
                                             } else {
-                                              var valid71 = true;
+                                              var valid75 = true;
                                             }
-                                            if (valid71) {
+                                            if (valid75) {
                                               if (data.status !== void 0) {
-                                                const _errs373 = errors;
+                                                const _errs385 = errors;
                                                 if (typeof data.status !== "string") {
-                                                  const err233 = { instancePath: instancePath + "/status", schemaPath: "#/oneOf/15/properties/status/type", keyword: "type", params: { type: "string" } };
+                                                  const err240 = { instancePath: instancePath + "/status", schemaPath: "#/oneOf/15/properties/status/type", keyword: "type", params: { type: "string" } };
                                                   if (vErrors === null) {
-                                                    vErrors = [err233];
+                                                    vErrors = [err240];
                                                   } else {
-                                                    vErrors.push(err233);
+                                                    vErrors.push(err240);
                                                   }
                                                   errors++;
                                                 }
-                                                var valid71 = _errs373 === errors;
+                                                var valid75 = _errs385 === errors;
                                               } else {
-                                                var valid71 = true;
+                                                var valid75 = true;
                                               }
-                                              if (valid71) {
+                                              if (valid75) {
                                                 if (data.transparentBackground !== void 0) {
-                                                  let data131 = data.transparentBackground;
-                                                  const _errs375 = errors;
-                                                  if (typeof data131 !== "boolean" && data131 !== null) {
-                                                    const err234 = { instancePath: instancePath + "/transparentBackground", schemaPath: "#/oneOf/15/properties/transparentBackground/type", keyword: "type", params: { type: schema50.oneOf[15].properties.transparentBackground.type } };
+                                                  let data136 = data.transparentBackground;
+                                                  const _errs387 = errors;
+                                                  if (typeof data136 !== "boolean" && data136 !== null) {
+                                                    const err241 = { instancePath: instancePath + "/transparentBackground", schemaPath: "#/oneOf/15/properties/transparentBackground/type", keyword: "type", params: { type: schema51.oneOf[15].properties.transparentBackground.type } };
                                                     if (vErrors === null) {
-                                                      vErrors = [err234];
+                                                      vErrors = [err241];
                                                     } else {
-                                                      vErrors.push(err234);
+                                                      vErrors.push(err241);
                                                     }
                                                     errors++;
                                                   }
-                                                  var valid71 = _errs375 === errors;
+                                                  var valid75 = _errs387 === errors;
                                                 } else {
-                                                  var valid71 = true;
+                                                  var valid75 = true;
                                                 }
-                                                if (valid71) {
+                                                if (valid75) {
                                                   if (data.type !== void 0) {
-                                                    let data132 = data.type;
-                                                    const _errs377 = errors;
-                                                    if (typeof data132 !== "string") {
-                                                      const err235 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/15/properties/type/type", keyword: "type", params: { type: "string" } };
+                                                    let data137 = data.type;
+                                                    const _errs389 = errors;
+                                                    if (typeof data137 !== "string") {
+                                                      const err242 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/15/properties/type/type", keyword: "type", params: { type: "string" } };
                                                       if (vErrors === null) {
-                                                        vErrors = [err235];
+                                                        vErrors = [err242];
                                                       } else {
-                                                        vErrors.push(err235);
+                                                        vErrors.push(err242);
                                                       }
                                                       errors++;
                                                     }
-                                                    if (!(data132 === "imageGeneration")) {
-                                                      const err236 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/15/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[15].properties.type.enum } };
+                                                    if (!(data137 === "imageGeneration")) {
+                                                      const err243 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/15/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[15].properties.type.enum } };
                                                       if (vErrors === null) {
-                                                        vErrors = [err236];
+                                                        vErrors = [err243];
                                                       } else {
-                                                        vErrors.push(err236);
+                                                        vErrors.push(err243);
                                                       }
                                                       errors++;
                                                     }
-                                                    var valid71 = _errs377 === errors;
+                                                    var valid75 = _errs389 === errors;
                                                   } else {
-                                                    var valid71 = true;
+                                                    var valid75 = true;
                                                   }
                                                 }
                                               }
@@ -8669,16 +8796,16 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                     }
                                   }
                                 } else {
-                                  const err237 = { instancePath, schemaPath: "#/oneOf/15/type", keyword: "type", params: { type: "object" } };
+                                  const err244 = { instancePath, schemaPath: "#/oneOf/15/type", keyword: "type", params: { type: "object" } };
                                   if (vErrors === null) {
-                                    vErrors = [err237];
+                                    vErrors = [err244];
                                   } else {
-                                    vErrors.push(err237);
+                                    vErrors.push(err244);
                                   }
                                   errors++;
                                 }
                               }
-                              var _valid0 = _errs343 === errors;
+                              var _valid0 = _errs355 === errors;
                               if (_valid0 && valid0) {
                                 valid0 = false;
                                 passing0 = [passing0, 15];
@@ -8687,90 +8814,90 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                   valid0 = true;
                                   passing0 = 15;
                                 }
-                                const _errs379 = errors;
-                                if (errors === _errs379) {
+                                const _errs391 = errors;
+                                if (errors === _errs391) {
                                   if (data && typeof data == "object" && !Array.isArray(data)) {
-                                    let missing28;
-                                    if (data.id === void 0 && (missing28 = "id") || data.review === void 0 && (missing28 = "review") || data.type === void 0 && (missing28 = "type")) {
-                                      const err238 = { instancePath, schemaPath: "#/oneOf/16/required", keyword: "required", params: { missingProperty: missing28 } };
+                                    let missing29;
+                                    if (data.id === void 0 && (missing29 = "id") || data.review === void 0 && (missing29 = "review") || data.type === void 0 && (missing29 = "type")) {
+                                      const err245 = { instancePath, schemaPath: "#/oneOf/16/required", keyword: "required", params: { missingProperty: missing29 } };
                                       if (vErrors === null) {
-                                        vErrors = [err238];
+                                        vErrors = [err245];
                                       } else {
-                                        vErrors.push(err238);
+                                        vErrors.push(err245);
                                       }
                                       errors++;
                                     } else {
                                       if (data.id !== void 0) {
-                                        const _errs381 = errors;
+                                        const _errs393 = errors;
                                         if (typeof data.id !== "string") {
-                                          const err239 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/16/properties/id/type", keyword: "type", params: { type: "string" } };
+                                          const err246 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/16/properties/id/type", keyword: "type", params: { type: "string" } };
                                           if (vErrors === null) {
-                                            vErrors = [err239];
+                                            vErrors = [err246];
                                           } else {
-                                            vErrors.push(err239);
+                                            vErrors.push(err246);
                                           }
                                           errors++;
                                         }
-                                        var valid78 = _errs381 === errors;
+                                        var valid82 = _errs393 === errors;
                                       } else {
-                                        var valid78 = true;
+                                        var valid82 = true;
                                       }
-                                      if (valid78) {
+                                      if (valid82) {
                                         if (data.review !== void 0) {
-                                          const _errs383 = errors;
+                                          const _errs395 = errors;
                                           if (typeof data.review !== "string") {
-                                            const err240 = { instancePath: instancePath + "/review", schemaPath: "#/oneOf/16/properties/review/type", keyword: "type", params: { type: "string" } };
+                                            const err247 = { instancePath: instancePath + "/review", schemaPath: "#/oneOf/16/properties/review/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err240];
+                                              vErrors = [err247];
                                             } else {
-                                              vErrors.push(err240);
+                                              vErrors.push(err247);
                                             }
                                             errors++;
                                           }
-                                          var valid78 = _errs383 === errors;
+                                          var valid82 = _errs395 === errors;
                                         } else {
-                                          var valid78 = true;
+                                          var valid82 = true;
                                         }
-                                        if (valid78) {
+                                        if (valid82) {
                                           if (data.type !== void 0) {
-                                            let data135 = data.type;
-                                            const _errs385 = errors;
-                                            if (typeof data135 !== "string") {
-                                              const err241 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/16/properties/type/type", keyword: "type", params: { type: "string" } };
+                                            let data140 = data.type;
+                                            const _errs397 = errors;
+                                            if (typeof data140 !== "string") {
+                                              const err248 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/16/properties/type/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err241];
+                                                vErrors = [err248];
                                               } else {
-                                                vErrors.push(err241);
+                                                vErrors.push(err248);
                                               }
                                               errors++;
                                             }
-                                            if (!(data135 === "enteredReviewMode")) {
-                                              const err242 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/16/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[16].properties.type.enum } };
+                                            if (!(data140 === "enteredReviewMode")) {
+                                              const err249 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/16/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[16].properties.type.enum } };
                                               if (vErrors === null) {
-                                                vErrors = [err242];
+                                                vErrors = [err249];
                                               } else {
-                                                vErrors.push(err242);
+                                                vErrors.push(err249);
                                               }
                                               errors++;
                                             }
-                                            var valid78 = _errs385 === errors;
+                                            var valid82 = _errs397 === errors;
                                           } else {
-                                            var valid78 = true;
+                                            var valid82 = true;
                                           }
                                         }
                                       }
                                     }
                                   } else {
-                                    const err243 = { instancePath, schemaPath: "#/oneOf/16/type", keyword: "type", params: { type: "object" } };
+                                    const err250 = { instancePath, schemaPath: "#/oneOf/16/type", keyword: "type", params: { type: "object" } };
                                     if (vErrors === null) {
-                                      vErrors = [err243];
+                                      vErrors = [err250];
                                     } else {
-                                      vErrors.push(err243);
+                                      vErrors.push(err250);
                                     }
                                     errors++;
                                   }
                                 }
-                                var _valid0 = _errs379 === errors;
+                                var _valid0 = _errs391 === errors;
                                 if (_valid0 && valid0) {
                                   valid0 = false;
                                   passing0 = [passing0, 16];
@@ -8779,90 +8906,90 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                     valid0 = true;
                                     passing0 = 16;
                                   }
-                                  const _errs387 = errors;
-                                  if (errors === _errs387) {
+                                  const _errs399 = errors;
+                                  if (errors === _errs399) {
                                     if (data && typeof data == "object" && !Array.isArray(data)) {
-                                      let missing29;
-                                      if (data.id === void 0 && (missing29 = "id") || data.review === void 0 && (missing29 = "review") || data.type === void 0 && (missing29 = "type")) {
-                                        const err244 = { instancePath, schemaPath: "#/oneOf/17/required", keyword: "required", params: { missingProperty: missing29 } };
+                                      let missing30;
+                                      if (data.id === void 0 && (missing30 = "id") || data.review === void 0 && (missing30 = "review") || data.type === void 0 && (missing30 = "type")) {
+                                        const err251 = { instancePath, schemaPath: "#/oneOf/17/required", keyword: "required", params: { missingProperty: missing30 } };
                                         if (vErrors === null) {
-                                          vErrors = [err244];
+                                          vErrors = [err251];
                                         } else {
-                                          vErrors.push(err244);
+                                          vErrors.push(err251);
                                         }
                                         errors++;
                                       } else {
                                         if (data.id !== void 0) {
-                                          const _errs389 = errors;
+                                          const _errs401 = errors;
                                           if (typeof data.id !== "string") {
-                                            const err245 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/17/properties/id/type", keyword: "type", params: { type: "string" } };
+                                            const err252 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/17/properties/id/type", keyword: "type", params: { type: "string" } };
                                             if (vErrors === null) {
-                                              vErrors = [err245];
+                                              vErrors = [err252];
                                             } else {
-                                              vErrors.push(err245);
+                                              vErrors.push(err252);
                                             }
                                             errors++;
                                           }
-                                          var valid79 = _errs389 === errors;
+                                          var valid83 = _errs401 === errors;
                                         } else {
-                                          var valid79 = true;
+                                          var valid83 = true;
                                         }
-                                        if (valid79) {
+                                        if (valid83) {
                                           if (data.review !== void 0) {
-                                            const _errs391 = errors;
+                                            const _errs403 = errors;
                                             if (typeof data.review !== "string") {
-                                              const err246 = { instancePath: instancePath + "/review", schemaPath: "#/oneOf/17/properties/review/type", keyword: "type", params: { type: "string" } };
+                                              const err253 = { instancePath: instancePath + "/review", schemaPath: "#/oneOf/17/properties/review/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err246];
+                                                vErrors = [err253];
                                               } else {
-                                                vErrors.push(err246);
+                                                vErrors.push(err253);
                                               }
                                               errors++;
                                             }
-                                            var valid79 = _errs391 === errors;
+                                            var valid83 = _errs403 === errors;
                                           } else {
-                                            var valid79 = true;
+                                            var valid83 = true;
                                           }
-                                          if (valid79) {
+                                          if (valid83) {
                                             if (data.type !== void 0) {
-                                              let data138 = data.type;
-                                              const _errs393 = errors;
-                                              if (typeof data138 !== "string") {
-                                                const err247 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/17/properties/type/type", keyword: "type", params: { type: "string" } };
+                                              let data143 = data.type;
+                                              const _errs405 = errors;
+                                              if (typeof data143 !== "string") {
+                                                const err254 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/17/properties/type/type", keyword: "type", params: { type: "string" } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err247];
+                                                  vErrors = [err254];
                                                 } else {
-                                                  vErrors.push(err247);
+                                                  vErrors.push(err254);
                                                 }
                                                 errors++;
                                               }
-                                              if (!(data138 === "exitedReviewMode")) {
-                                                const err248 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/17/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[17].properties.type.enum } };
+                                              if (!(data143 === "exitedReviewMode")) {
+                                                const err255 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/17/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[17].properties.type.enum } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err248];
+                                                  vErrors = [err255];
                                                 } else {
-                                                  vErrors.push(err248);
+                                                  vErrors.push(err255);
                                                 }
                                                 errors++;
                                               }
-                                              var valid79 = _errs393 === errors;
+                                              var valid83 = _errs405 === errors;
                                             } else {
-                                              var valid79 = true;
+                                              var valid83 = true;
                                             }
                                           }
                                         }
                                       }
                                     } else {
-                                      const err249 = { instancePath, schemaPath: "#/oneOf/17/type", keyword: "type", params: { type: "object" } };
+                                      const err256 = { instancePath, schemaPath: "#/oneOf/17/type", keyword: "type", params: { type: "object" } };
                                       if (vErrors === null) {
-                                        vErrors = [err249];
+                                        vErrors = [err256];
                                       } else {
-                                        vErrors.push(err249);
+                                        vErrors.push(err256);
                                       }
                                       errors++;
                                     }
                                   }
-                                  var _valid0 = _errs387 === errors;
+                                  var _valid0 = _errs399 === errors;
                                   if (_valid0 && valid0) {
                                     valid0 = false;
                                     passing0 = [passing0, 17];
@@ -8871,73 +8998,73 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
                                       valid0 = true;
                                       passing0 = 17;
                                     }
-                                    const _errs395 = errors;
-                                    if (errors === _errs395) {
+                                    const _errs407 = errors;
+                                    if (errors === _errs407) {
                                       if (data && typeof data == "object" && !Array.isArray(data)) {
-                                        let missing30;
-                                        if (data.id === void 0 && (missing30 = "id") || data.type === void 0 && (missing30 = "type")) {
-                                          const err250 = { instancePath, schemaPath: "#/oneOf/18/required", keyword: "required", params: { missingProperty: missing30 } };
+                                        let missing31;
+                                        if (data.id === void 0 && (missing31 = "id") || data.type === void 0 && (missing31 = "type")) {
+                                          const err257 = { instancePath, schemaPath: "#/oneOf/18/required", keyword: "required", params: { missingProperty: missing31 } };
                                           if (vErrors === null) {
-                                            vErrors = [err250];
+                                            vErrors = [err257];
                                           } else {
-                                            vErrors.push(err250);
+                                            vErrors.push(err257);
                                           }
                                           errors++;
                                         } else {
                                           if (data.id !== void 0) {
-                                            const _errs397 = errors;
+                                            const _errs409 = errors;
                                             if (typeof data.id !== "string") {
-                                              const err251 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/18/properties/id/type", keyword: "type", params: { type: "string" } };
+                                              const err258 = { instancePath: instancePath + "/id", schemaPath: "#/oneOf/18/properties/id/type", keyword: "type", params: { type: "string" } };
                                               if (vErrors === null) {
-                                                vErrors = [err251];
+                                                vErrors = [err258];
                                               } else {
-                                                vErrors.push(err251);
+                                                vErrors.push(err258);
                                               }
                                               errors++;
                                             }
-                                            var valid80 = _errs397 === errors;
+                                            var valid84 = _errs409 === errors;
                                           } else {
-                                            var valid80 = true;
+                                            var valid84 = true;
                                           }
-                                          if (valid80) {
+                                          if (valid84) {
                                             if (data.type !== void 0) {
-                                              let data140 = data.type;
-                                              const _errs399 = errors;
-                                              if (typeof data140 !== "string") {
-                                                const err252 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/18/properties/type/type", keyword: "type", params: { type: "string" } };
+                                              let data145 = data.type;
+                                              const _errs411 = errors;
+                                              if (typeof data145 !== "string") {
+                                                const err259 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/18/properties/type/type", keyword: "type", params: { type: "string" } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err252];
+                                                  vErrors = [err259];
                                                 } else {
-                                                  vErrors.push(err252);
+                                                  vErrors.push(err259);
                                                 }
                                                 errors++;
                                               }
-                                              if (!(data140 === "contextCompaction")) {
-                                                const err253 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/18/properties/type/enum", keyword: "enum", params: { allowedValues: schema50.oneOf[18].properties.type.enum } };
+                                              if (!(data145 === "contextCompaction")) {
+                                                const err260 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/18/properties/type/enum", keyword: "enum", params: { allowedValues: schema51.oneOf[18].properties.type.enum } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err253];
+                                                  vErrors = [err260];
                                                 } else {
-                                                  vErrors.push(err253);
+                                                  vErrors.push(err260);
                                                 }
                                                 errors++;
                                               }
-                                              var valid80 = _errs399 === errors;
+                                              var valid84 = _errs411 === errors;
                                             } else {
-                                              var valid80 = true;
+                                              var valid84 = true;
                                             }
                                           }
                                         }
                                       } else {
-                                        const err254 = { instancePath, schemaPath: "#/oneOf/18/type", keyword: "type", params: { type: "object" } };
+                                        const err261 = { instancePath, schemaPath: "#/oneOf/18/type", keyword: "type", params: { type: "object" } };
                                         if (vErrors === null) {
-                                          vErrors = [err254];
+                                          vErrors = [err261];
                                         } else {
-                                          vErrors.push(err254);
+                                          vErrors.push(err261);
                                         }
                                         errors++;
                                       }
                                     }
-                                    var _valid0 = _errs395 === errors;
+                                    var _valid0 = _errs407 === errors;
                                     if (_valid0 && valid0) {
                                       valid0 = false;
                                       passing0 = [passing0, 18];
@@ -8965,11 +9092,11 @@ function validate44(data, { instancePath = "", parentData, parentDataProperty, r
     }
   }
   if (!valid0) {
-    const err255 = { instancePath, schemaPath: "#/oneOf", keyword: "oneOf", params: { passingSchemas: passing0 } };
+    const err262 = { instancePath, schemaPath: "#/oneOf", keyword: "oneOf", params: { passingSchemas: passing0 } };
     if (vErrors === null) {
-      vErrors = [err255];
+      vErrors = [err262];
     } else {
-      vErrors.push(err255);
+      vErrors.push(err262);
     }
     errors++;
     validate44.errors = vErrors;
@@ -9001,7 +9128,7 @@ function validate37(data, { instancePath = "", parentData, parentDataProperty, r
           let data0 = data.completedAt;
           const _errs1 = errors;
           if (!(typeof data0 == "number" && (!(data0 % 1) && !isNaN(data0)) && isFinite(data0)) && data0 !== null) {
-            validate37.errors = [{ instancePath: instancePath + "/completedAt", schemaPath: "#/properties/completedAt/type", keyword: "type", params: { type: schema44.properties.completedAt.type } }];
+            validate37.errors = [{ instancePath: instancePath + "/completedAt", schemaPath: "#/properties/completedAt/type", keyword: "type", params: { type: schema45.properties.completedAt.type } }];
             return false;
           }
           var valid0 = _errs1 === errors;
@@ -9013,7 +9140,7 @@ function validate37(data, { instancePath = "", parentData, parentDataProperty, r
             let data1 = data.durationMs;
             const _errs3 = errors;
             if (!(typeof data1 == "number" && (!(data1 % 1) && !isNaN(data1)) && isFinite(data1)) && data1 !== null) {
-              validate37.errors = [{ instancePath: instancePath + "/durationMs", schemaPath: "#/properties/durationMs/type", keyword: "type", params: { type: schema44.properties.durationMs.type } }];
+              validate37.errors = [{ instancePath: instancePath + "/durationMs", schemaPath: "#/properties/durationMs/type", keyword: "type", params: { type: schema45.properties.durationMs.type } }];
               return false;
             }
             var valid0 = _errs3 === errors;
@@ -9128,7 +9255,7 @@ function validate37(data, { instancePath = "", parentData, parentDataProperty, r
                       errors++;
                     }
                     if (!(data6 === "notLoaded")) {
-                      const err3 = { instancePath: instancePath + "/itemsView", schemaPath: "#/definitions/v2/TurnItemsView/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema88.oneOf[0].enum } };
+                      const err3 = { instancePath: instancePath + "/itemsView", schemaPath: "#/definitions/v2/TurnItemsView/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema90.oneOf[0].enum } };
                       if (vErrors === null) {
                         vErrors = [err3];
                       } else {
@@ -9152,7 +9279,7 @@ function validate37(data, { instancePath = "", parentData, parentDataProperty, r
                       errors++;
                     }
                     if (!(data6 === "summary")) {
-                      const err5 = { instancePath: instancePath + "/itemsView", schemaPath: "#/definitions/v2/TurnItemsView/oneOf/1/enum", keyword: "enum", params: { allowedValues: schema88.oneOf[1].enum } };
+                      const err5 = { instancePath: instancePath + "/itemsView", schemaPath: "#/definitions/v2/TurnItemsView/oneOf/1/enum", keyword: "enum", params: { allowedValues: schema90.oneOf[1].enum } };
                       if (vErrors === null) {
                         vErrors = [err5];
                       } else {
@@ -9180,7 +9307,7 @@ function validate37(data, { instancePath = "", parentData, parentDataProperty, r
                         errors++;
                       }
                       if (!(data6 === "full")) {
-                        const err7 = { instancePath: instancePath + "/itemsView", schemaPath: "#/definitions/v2/TurnItemsView/oneOf/2/enum", keyword: "enum", params: { allowedValues: schema88.oneOf[2].enum } };
+                        const err7 = { instancePath: instancePath + "/itemsView", schemaPath: "#/definitions/v2/TurnItemsView/oneOf/2/enum", keyword: "enum", params: { allowedValues: schema90.oneOf[2].enum } };
                         if (vErrors === null) {
                           vErrors = [err7];
                         } else {
@@ -9228,7 +9355,7 @@ function validate37(data, { instancePath = "", parentData, parentDataProperty, r
                       let data7 = data.startedAt;
                       const _errs25 = errors;
                       if (!(typeof data7 == "number" && (!(data7 % 1) && !isNaN(data7)) && isFinite(data7)) && data7 !== null) {
-                        validate37.errors = [{ instancePath: instancePath + "/startedAt", schemaPath: "#/properties/startedAt/type", keyword: "type", params: { type: schema44.properties.startedAt.type } }];
+                        validate37.errors = [{ instancePath: instancePath + "/startedAt", schemaPath: "#/properties/startedAt/type", keyword: "type", params: { type: schema45.properties.startedAt.type } }];
                         return false;
                       }
                       var valid0 = _errs25 === errors;
@@ -9244,7 +9371,7 @@ function validate37(data, { instancePath = "", parentData, parentDataProperty, r
                           return false;
                         }
                         if (!(data8 === "completed" || data8 === "interrupted" || data8 === "failed" || data8 === "inProgress")) {
-                          validate37.errors = [{ instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/TurnStatus/enum", keyword: "enum", params: { allowedValues: schema89.enum } }];
+                          validate37.errors = [{ instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/TurnStatus/enum", keyword: "enum", params: { allowedValues: schema91.enum } }];
                           return false;
                         }
                         var valid0 = _errs27 === errors;
@@ -9497,10 +9624,11 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                             var valid0 = true;
                           }
                           if (valid0) {
-                            if (data.modelProvider !== void 0) {
+                            if (data.model !== void 0) {
+                              let data13 = data.model;
                               const _errs36 = errors;
-                              if (typeof data.modelProvider !== "string") {
-                                validate28.errors = [{ instancePath: instancePath + "/modelProvider", schemaPath: "#/properties/modelProvider/type", keyword: "type", params: { type: "string" } }];
+                              if (typeof data13 !== "string" && data13 !== null) {
+                                validate28.errors = [{ instancePath: instancePath + "/model", schemaPath: "#/properties/model/type", keyword: "type", params: { type: schema31.properties.model.type } }];
                                 return false;
                               }
                               var valid0 = _errs36 === errors;
@@ -9508,11 +9636,10 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                               var valid0 = true;
                             }
                             if (valid0) {
-                              if (data.name !== void 0) {
-                                let data14 = data.name;
+                              if (data.modelProvider !== void 0) {
                                 const _errs38 = errors;
-                                if (typeof data14 !== "string" && data14 !== null) {
-                                  validate28.errors = [{ instancePath: instancePath + "/name", schemaPath: "#/properties/name/type", keyword: "type", params: { type: schema31.properties.name.type } }];
+                                if (typeof data.modelProvider !== "string") {
+                                  validate28.errors = [{ instancePath: instancePath + "/modelProvider", schemaPath: "#/properties/modelProvider/type", keyword: "type", params: { type: "string" } }];
                                   return false;
                                 }
                                 var valid0 = _errs38 === errors;
@@ -9520,11 +9647,11 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                                 var valid0 = true;
                               }
                               if (valid0) {
-                                if (data.parentThreadId !== void 0) {
-                                  let data15 = data.parentThreadId;
+                                if (data.name !== void 0) {
+                                  let data15 = data.name;
                                   const _errs40 = errors;
                                   if (typeof data15 !== "string" && data15 !== null) {
-                                    validate28.errors = [{ instancePath: instancePath + "/parentThreadId", schemaPath: "#/properties/parentThreadId/type", keyword: "type", params: { type: schema31.properties.parentThreadId.type } }];
+                                    validate28.errors = [{ instancePath: instancePath + "/name", schemaPath: "#/properties/name/type", keyword: "type", params: { type: schema31.properties.name.type } }];
                                     return false;
                                   }
                                   var valid0 = _errs40 === errors;
@@ -9532,11 +9659,11 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                                   var valid0 = true;
                                 }
                                 if (valid0) {
-                                  if (data.path !== void 0) {
-                                    let data16 = data.path;
+                                  if (data.parentThreadId !== void 0) {
+                                    let data16 = data.parentThreadId;
                                     const _errs42 = errors;
                                     if (typeof data16 !== "string" && data16 !== null) {
-                                      validate28.errors = [{ instancePath: instancePath + "/path", schemaPath: "#/properties/path/type", keyword: "type", params: { type: schema31.properties.path.type } }];
+                                      validate28.errors = [{ instancePath: instancePath + "/parentThreadId", schemaPath: "#/properties/parentThreadId/type", keyword: "type", params: { type: schema31.properties.parentThreadId.type } }];
                                       return false;
                                     }
                                     var valid0 = _errs42 === errors;
@@ -9544,10 +9671,11 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                                     var valid0 = true;
                                   }
                                   if (valid0) {
-                                    if (data.preview !== void 0) {
+                                    if (data.path !== void 0) {
+                                      let data17 = data.path;
                                       const _errs44 = errors;
-                                      if (typeof data.preview !== "string") {
-                                        validate28.errors = [{ instancePath: instancePath + "/preview", schemaPath: "#/properties/preview/type", keyword: "type", params: { type: "string" } }];
+                                      if (typeof data17 !== "string" && data17 !== null) {
+                                        validate28.errors = [{ instancePath: instancePath + "/path", schemaPath: "#/properties/path/type", keyword: "type", params: { type: schema31.properties.path.type } }];
                                         return false;
                                       }
                                       var valid0 = _errs44 === errors;
@@ -9555,11 +9683,10 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                                       var valid0 = true;
                                     }
                                     if (valid0) {
-                                      if (data.projectId !== void 0) {
-                                        let data18 = data.projectId;
+                                      if (data.preview !== void 0) {
                                         const _errs46 = errors;
-                                        if (typeof data18 !== "string" && data18 !== null) {
-                                          validate28.errors = [{ instancePath: instancePath + "/projectId", schemaPath: "#/properties/projectId/type", keyword: "type", params: { type: schema31.properties.projectId.type } }];
+                                        if (typeof data.preview !== "string") {
+                                          validate28.errors = [{ instancePath: instancePath + "/preview", schemaPath: "#/properties/preview/type", keyword: "type", params: { type: "string" } }];
                                           return false;
                                         }
                                         var valid0 = _errs46 === errors;
@@ -9567,11 +9694,11 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                                         var valid0 = true;
                                       }
                                       if (valid0) {
-                                        if (data.recencyAt !== void 0) {
-                                          let data19 = data.recencyAt;
+                                        if (data.projectId !== void 0) {
+                                          let data19 = data.projectId;
                                           const _errs48 = errors;
-                                          if (!(typeof data19 == "number" && (!(data19 % 1) && !isNaN(data19)) && isFinite(data19)) && data19 !== null) {
-                                            validate28.errors = [{ instancePath: instancePath + "/recencyAt", schemaPath: "#/properties/recencyAt/type", keyword: "type", params: { type: schema31.properties.recencyAt.type } }];
+                                          if (typeof data19 !== "string" && data19 !== null) {
+                                            validate28.errors = [{ instancePath: instancePath + "/projectId", schemaPath: "#/properties/projectId/type", keyword: "type", params: { type: schema31.properties.projectId.type } }];
                                             return false;
                                           }
                                           var valid0 = _errs48 === errors;
@@ -9579,38 +9706,56 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                                           var valid0 = true;
                                         }
                                         if (valid0) {
-                                          if (data.section !== void 0) {
-                                            let data20 = data.section;
+                                          if (data.reasoningEffort !== void 0) {
+                                            let data20 = data.reasoningEffort;
                                             const _errs50 = errors;
                                             const _errs51 = errors;
                                             let valid8 = false;
                                             const _errs52 = errors;
-                                            if (!validate29(data20, { instancePath: instancePath + "/section", parentData: data, parentDataProperty: "section", rootData })) {
-                                              vErrors = vErrors === null ? validate29.errors : vErrors.concat(validate29.errors);
-                                              errors = vErrors.length;
+                                            const _errs53 = errors;
+                                            if (errors === _errs53) {
+                                              if (typeof data20 === "string") {
+                                                if (func2(data20) < 1) {
+                                                  const err6 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/minLength", keyword: "minLength", params: { limit: 1 } };
+                                                  if (vErrors === null) {
+                                                    vErrors = [err6];
+                                                  } else {
+                                                    vErrors.push(err6);
+                                                  }
+                                                  errors++;
+                                                }
+                                              } else {
+                                                const err7 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/definitions/v2/ReasoningEffort/type", keyword: "type", params: { type: "string" } };
+                                                if (vErrors === null) {
+                                                  vErrors = [err7];
+                                                } else {
+                                                  vErrors.push(err7);
+                                                }
+                                                errors++;
+                                              }
                                             }
                                             var _valid1 = _errs52 === errors;
                                             valid8 = valid8 || _valid1;
                                             if (!valid8) {
-                                              const _errs53 = errors;
+                                              const _errs55 = errors;
                                               if (data20 !== null) {
-                                                const err6 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                                const err8 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/properties/reasoningEffort/anyOf/1/type", keyword: "type", params: { type: "null" } };
                                                 if (vErrors === null) {
-                                                  vErrors = [err6];
+                                                  vErrors = [err8];
                                                 } else {
-                                                  vErrors.push(err6);
+                                                  vErrors.push(err8);
                                                 }
                                                 errors++;
                                               }
-                                              var _valid1 = _errs53 === errors;
+                                              var _valid1 = _errs55 === errors;
                                               valid8 = valid8 || _valid1;
                                             }
                                             if (!valid8) {
-                                              const err7 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf", keyword: "anyOf", params: {} };
+                                              const err9 = { instancePath: instancePath + "/reasoningEffort", schemaPath: "#/properties/reasoningEffort/anyOf", keyword: "anyOf", params: {} };
                                               if (vErrors === null) {
-                                                vErrors = [err7];
+                                                vErrors = [err9];
                                               } else {
-                                                vErrors.push(err7);
+                                                vErrors.push(err9);
                                               }
                                               errors++;
                                               validate28.errors = vErrors;
@@ -9630,145 +9775,210 @@ function validate28(data, { instancePath = "", parentData, parentDataProperty, r
                                             var valid0 = true;
                                           }
                                           if (valid0) {
-                                            if (data.sectionEnteredAt !== void 0) {
-                                              let data21 = data.sectionEnteredAt;
-                                              const _errs55 = errors;
+                                            if (data.recencyAt !== void 0) {
+                                              let data21 = data.recencyAt;
+                                              const _errs57 = errors;
                                               if (!(typeof data21 == "number" && (!(data21 % 1) && !isNaN(data21)) && isFinite(data21)) && data21 !== null) {
-                                                validate28.errors = [{ instancePath: instancePath + "/sectionEnteredAt", schemaPath: "#/properties/sectionEnteredAt/type", keyword: "type", params: { type: schema31.properties.sectionEnteredAt.type } }];
+                                                validate28.errors = [{ instancePath: instancePath + "/recencyAt", schemaPath: "#/properties/recencyAt/type", keyword: "type", params: { type: schema31.properties.recencyAt.type } }];
                                                 return false;
                                               }
-                                              var valid0 = _errs55 === errors;
+                                              var valid0 = _errs57 === errors;
                                             } else {
                                               var valid0 = true;
                                             }
                                             if (valid0) {
-                                              if (data.sessionId !== void 0) {
-                                                const _errs57 = errors;
-                                                if (typeof data.sessionId !== "string") {
-                                                  validate28.errors = [{ instancePath: instancePath + "/sessionId", schemaPath: "#/properties/sessionId/type", keyword: "type", params: { type: "string" } }];
-                                                  return false;
+                                              if (data.section !== void 0) {
+                                                let data22 = data.section;
+                                                const _errs59 = errors;
+                                                const _errs60 = errors;
+                                                let valid10 = false;
+                                                const _errs61 = errors;
+                                                if (!validate29(data22, { instancePath: instancePath + "/section", parentData: data, parentDataProperty: "section", rootData })) {
+                                                  vErrors = vErrors === null ? validate29.errors : vErrors.concat(validate29.errors);
+                                                  errors = vErrors.length;
                                                 }
-                                                var valid0 = _errs57 === errors;
+                                                var _valid2 = _errs61 === errors;
+                                                valid10 = valid10 || _valid2;
+                                                if (!valid10) {
+                                                  const _errs62 = errors;
+                                                  if (data22 !== null) {
+                                                    const err10 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                                    if (vErrors === null) {
+                                                      vErrors = [err10];
+                                                    } else {
+                                                      vErrors.push(err10);
+                                                    }
+                                                    errors++;
+                                                  }
+                                                  var _valid2 = _errs62 === errors;
+                                                  valid10 = valid10 || _valid2;
+                                                }
+                                                if (!valid10) {
+                                                  const err11 = { instancePath: instancePath + "/section", schemaPath: "#/properties/section/anyOf", keyword: "anyOf", params: {} };
+                                                  if (vErrors === null) {
+                                                    vErrors = [err11];
+                                                  } else {
+                                                    vErrors.push(err11);
+                                                  }
+                                                  errors++;
+                                                  validate28.errors = vErrors;
+                                                  return false;
+                                                } else {
+                                                  errors = _errs60;
+                                                  if (vErrors !== null) {
+                                                    if (_errs60) {
+                                                      vErrors.length = _errs60;
+                                                    } else {
+                                                      vErrors = null;
+                                                    }
+                                                  }
+                                                }
+                                                var valid0 = _errs59 === errors;
                                               } else {
                                                 var valid0 = true;
                                               }
                                               if (valid0) {
-                                                if (data.source !== void 0) {
-                                                  const _errs59 = errors;
-                                                  if (!validate31(data.source, { instancePath: instancePath + "/source", parentData: data, parentDataProperty: "source", rootData })) {
-                                                    vErrors = vErrors === null ? validate31.errors : vErrors.concat(validate31.errors);
-                                                    errors = vErrors.length;
+                                                if (data.sectionEnteredAt !== void 0) {
+                                                  let data23 = data.sectionEnteredAt;
+                                                  const _errs64 = errors;
+                                                  if (!(typeof data23 == "number" && (!(data23 % 1) && !isNaN(data23)) && isFinite(data23)) && data23 !== null) {
+                                                    validate28.errors = [{ instancePath: instancePath + "/sectionEnteredAt", schemaPath: "#/properties/sectionEnteredAt/type", keyword: "type", params: { type: schema31.properties.sectionEnteredAt.type } }];
+                                                    return false;
                                                   }
-                                                  var valid0 = _errs59 === errors;
+                                                  var valid0 = _errs64 === errors;
                                                 } else {
                                                   var valid0 = true;
                                                 }
                                                 if (valid0) {
-                                                  if (data.status !== void 0) {
-                                                    const _errs61 = errors;
-                                                    if (!validate35(data.status, { instancePath: instancePath + "/status", parentData: data, parentDataProperty: "status", rootData })) {
-                                                      vErrors = vErrors === null ? validate35.errors : vErrors.concat(validate35.errors);
-                                                      errors = vErrors.length;
+                                                  if (data.sessionId !== void 0) {
+                                                    const _errs66 = errors;
+                                                    if (typeof data.sessionId !== "string") {
+                                                      validate28.errors = [{ instancePath: instancePath + "/sessionId", schemaPath: "#/properties/sessionId/type", keyword: "type", params: { type: "string" } }];
+                                                      return false;
                                                     }
-                                                    var valid0 = _errs61 === errors;
+                                                    var valid0 = _errs66 === errors;
                                                   } else {
                                                     var valid0 = true;
                                                   }
                                                   if (valid0) {
-                                                    if (data.threadSource !== void 0) {
-                                                      let data25 = data.threadSource;
-                                                      const _errs63 = errors;
-                                                      const _errs64 = errors;
-                                                      let valid11 = false;
-                                                      const _errs65 = errors;
-                                                      if (typeof data25 !== "string") {
-                                                        const err8 = { instancePath: instancePath + "/threadSource", schemaPath: "#/definitions/v2/ThreadSource/type", keyword: "type", params: { type: "string" } };
-                                                        if (vErrors === null) {
-                                                          vErrors = [err8];
-                                                        } else {
-                                                          vErrors.push(err8);
-                                                        }
-                                                        errors++;
+                                                    if (data.source !== void 0) {
+                                                      const _errs68 = errors;
+                                                      if (!validate31(data.source, { instancePath: instancePath + "/source", parentData: data, parentDataProperty: "source", rootData })) {
+                                                        vErrors = vErrors === null ? validate31.errors : vErrors.concat(validate31.errors);
+                                                        errors = vErrors.length;
                                                       }
-                                                      var _valid2 = _errs65 === errors;
-                                                      valid11 = valid11 || _valid2;
-                                                      if (!valid11) {
-                                                        const _errs68 = errors;
-                                                        if (data25 !== null) {
-                                                          const err9 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf/1/type", keyword: "type", params: { type: "null" } };
-                                                          if (vErrors === null) {
-                                                            vErrors = [err9];
-                                                          } else {
-                                                            vErrors.push(err9);
-                                                          }
-                                                          errors++;
-                                                        }
-                                                        var _valid2 = _errs68 === errors;
-                                                        valid11 = valid11 || _valid2;
-                                                      }
-                                                      if (!valid11) {
-                                                        const err10 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf", keyword: "anyOf", params: {} };
-                                                        if (vErrors === null) {
-                                                          vErrors = [err10];
-                                                        } else {
-                                                          vErrors.push(err10);
-                                                        }
-                                                        errors++;
-                                                        validate28.errors = vErrors;
-                                                        return false;
-                                                      } else {
-                                                        errors = _errs64;
-                                                        if (vErrors !== null) {
-                                                          if (_errs64) {
-                                                            vErrors.length = _errs64;
-                                                          } else {
-                                                            vErrors = null;
-                                                          }
-                                                        }
-                                                      }
-                                                      var valid0 = _errs63 === errors;
+                                                      var valid0 = _errs68 === errors;
                                                     } else {
                                                       var valid0 = true;
                                                     }
                                                     if (valid0) {
-                                                      if (data.turns !== void 0) {
-                                                        let data26 = data.turns;
+                                                      if (data.status !== void 0) {
                                                         const _errs70 = errors;
-                                                        if (errors === _errs70) {
-                                                          if (Array.isArray(data26)) {
-                                                            var valid13 = true;
-                                                            const len0 = data26.length;
-                                                            for (let i0 = 0; i0 < len0; i0++) {
-                                                              const _errs72 = errors;
-                                                              if (!validate37(data26[i0], { instancePath: instancePath + "/turns/" + i0, parentData: data26, parentDataProperty: i0, rootData })) {
-                                                                vErrors = vErrors === null ? validate37.errors : vErrors.concat(validate37.errors);
-                                                                errors = vErrors.length;
-                                                              }
-                                                              var valid13 = _errs72 === errors;
-                                                              if (!valid13) {
-                                                                break;
-                                                              }
-                                                            }
-                                                          } else {
-                                                            validate28.errors = [{ instancePath: instancePath + "/turns", schemaPath: "#/properties/turns/type", keyword: "type", params: { type: "array" } }];
-                                                            return false;
-                                                          }
+                                                        if (!validate35(data.status, { instancePath: instancePath + "/status", parentData: data, parentDataProperty: "status", rootData })) {
+                                                          vErrors = vErrors === null ? validate35.errors : vErrors.concat(validate35.errors);
+                                                          errors = vErrors.length;
                                                         }
                                                         var valid0 = _errs70 === errors;
                                                       } else {
                                                         var valid0 = true;
                                                       }
                                                       if (valid0) {
-                                                        if (data.updatedAt !== void 0) {
-                                                          let data28 = data.updatedAt;
+                                                        if (data.threadSource !== void 0) {
+                                                          let data27 = data.threadSource;
+                                                          const _errs72 = errors;
                                                           const _errs73 = errors;
-                                                          if (!(typeof data28 == "number" && (!(data28 % 1) && !isNaN(data28)) && isFinite(data28))) {
-                                                            validate28.errors = [{ instancePath: instancePath + "/updatedAt", schemaPath: "#/properties/updatedAt/type", keyword: "type", params: { type: "integer" } }];
-                                                            return false;
+                                                          let valid13 = false;
+                                                          const _errs74 = errors;
+                                                          if (typeof data27 !== "string") {
+                                                            const err12 = { instancePath: instancePath + "/threadSource", schemaPath: "#/definitions/v2/ThreadSource/type", keyword: "type", params: { type: "string" } };
+                                                            if (vErrors === null) {
+                                                              vErrors = [err12];
+                                                            } else {
+                                                              vErrors.push(err12);
+                                                            }
+                                                            errors++;
                                                           }
-                                                          var valid0 = _errs73 === errors;
+                                                          var _valid3 = _errs74 === errors;
+                                                          valid13 = valid13 || _valid3;
+                                                          if (!valid13) {
+                                                            const _errs77 = errors;
+                                                            if (data27 !== null) {
+                                                              const err13 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf/1/type", keyword: "type", params: { type: "null" } };
+                                                              if (vErrors === null) {
+                                                                vErrors = [err13];
+                                                              } else {
+                                                                vErrors.push(err13);
+                                                              }
+                                                              errors++;
+                                                            }
+                                                            var _valid3 = _errs77 === errors;
+                                                            valid13 = valid13 || _valid3;
+                                                          }
+                                                          if (!valid13) {
+                                                            const err14 = { instancePath: instancePath + "/threadSource", schemaPath: "#/properties/threadSource/anyOf", keyword: "anyOf", params: {} };
+                                                            if (vErrors === null) {
+                                                              vErrors = [err14];
+                                                            } else {
+                                                              vErrors.push(err14);
+                                                            }
+                                                            errors++;
+                                                            validate28.errors = vErrors;
+                                                            return false;
+                                                          } else {
+                                                            errors = _errs73;
+                                                            if (vErrors !== null) {
+                                                              if (_errs73) {
+                                                                vErrors.length = _errs73;
+                                                              } else {
+                                                                vErrors = null;
+                                                              }
+                                                            }
+                                                          }
+                                                          var valid0 = _errs72 === errors;
                                                         } else {
                                                           var valid0 = true;
+                                                        }
+                                                        if (valid0) {
+                                                          if (data.turns !== void 0) {
+                                                            let data28 = data.turns;
+                                                            const _errs79 = errors;
+                                                            if (errors === _errs79) {
+                                                              if (Array.isArray(data28)) {
+                                                                var valid15 = true;
+                                                                const len0 = data28.length;
+                                                                for (let i0 = 0; i0 < len0; i0++) {
+                                                                  const _errs81 = errors;
+                                                                  if (!validate37(data28[i0], { instancePath: instancePath + "/turns/" + i0, parentData: data28, parentDataProperty: i0, rootData })) {
+                                                                    vErrors = vErrors === null ? validate37.errors : vErrors.concat(validate37.errors);
+                                                                    errors = vErrors.length;
+                                                                  }
+                                                                  var valid15 = _errs81 === errors;
+                                                                  if (!valid15) {
+                                                                    break;
+                                                                  }
+                                                                }
+                                                              } else {
+                                                                validate28.errors = [{ instancePath: instancePath + "/turns", schemaPath: "#/properties/turns/type", keyword: "type", params: { type: "array" } }];
+                                                                return false;
+                                                              }
+                                                            }
+                                                            var valid0 = _errs79 === errors;
+                                                          } else {
+                                                            var valid0 = true;
+                                                          }
+                                                          if (valid0) {
+                                                            if (data.updatedAt !== void 0) {
+                                                              let data30 = data.updatedAt;
+                                                              const _errs82 = errors;
+                                                              if (!(typeof data30 == "number" && (!(data30 % 1) && !isNaN(data30)) && isFinite(data30))) {
+                                                                validate28.errors = [{ instancePath: instancePath + "/updatedAt", schemaPath: "#/properties/updatedAt/type", keyword: "type", params: { type: "integer" } }];
+                                                                return false;
+                                                              }
+                                                              var valid0 = _errs82 === errors;
+                                                            } else {
+                                                              var valid0 = true;
+                                                            }
+                                                          }
                                                         }
                                                       }
                                                     }
@@ -9887,8 +10097,8 @@ function validate26(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 var validateV2ThreadProjectionAttachResponse = validate65;
-var schema92 = { "properties": { "headCommitId": { "type": ["string", "null"] }, "thread": { "$ref": "#/definitions/v2/Thread" }, "tokenUsage": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadTokenUsage" }, { "type": "null" }] } }, "required": ["thread"], "type": "object" };
-var schema93 = { "properties": { "last": { "$ref": "#/definitions/v2/TokenUsageBreakdown" }, "modelContextWindow": { "format": "int64", "type": ["integer", "null"] }, "total": { "$ref": "#/definitions/v2/TokenUsageBreakdown" } }, "required": ["last", "total"], "type": "object" };
+var schema94 = { "properties": { "headCommitId": { "type": ["string", "null"] }, "thread": { "$ref": "#/definitions/v2/Thread" }, "tokenUsage": { "anyOf": [{ "$ref": "#/definitions/v2/ThreadTokenUsage" }, { "type": "null" }] } }, "required": ["thread"], "type": "object" };
+var schema95 = { "properties": { "last": { "$ref": "#/definitions/v2/TokenUsageBreakdown" }, "modelContextWindow": { "format": "int64", "type": ["integer", "null"] }, "total": { "$ref": "#/definitions/v2/TokenUsageBreakdown" } }, "required": ["last", "total"], "type": "object" };
 function validate69(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -10001,7 +10211,7 @@ function validate69(data, { instancePath = "", parentData, parentDataProperty, r
             let data7 = data.modelContextWindow;
             const _errs16 = errors;
             if (!(typeof data7 == "number" && (!(data7 % 1) && !isNaN(data7)) && isFinite(data7)) && data7 !== null) {
-              validate69.errors = [{ instancePath: instancePath + "/modelContextWindow", schemaPath: "#/properties/modelContextWindow/type", keyword: "type", params: { type: schema93.properties.modelContextWindow.type } }];
+              validate69.errors = [{ instancePath: instancePath + "/modelContextWindow", schemaPath: "#/properties/modelContextWindow/type", keyword: "type", params: { type: schema95.properties.modelContextWindow.type } }];
               return false;
             }
             var valid0 = _errs16 === errors;
@@ -10131,7 +10341,7 @@ function validate67(data, { instancePath = "", parentData, parentDataProperty, r
           let data0 = data.headCommitId;
           const _errs1 = errors;
           if (typeof data0 !== "string" && data0 !== null) {
-            validate67.errors = [{ instancePath: instancePath + "/headCommitId", schemaPath: "#/properties/headCommitId/type", keyword: "type", params: { type: schema92.properties.headCommitId.type } }];
+            validate67.errors = [{ instancePath: instancePath + "/headCommitId", schemaPath: "#/properties/headCommitId/type", keyword: "type", params: { type: schema94.properties.headCommitId.type } }];
             return false;
           }
           var valid0 = _errs1 === errors;
@@ -10264,7 +10474,7 @@ function validate65(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 var validateV2ThreadProjectionClosedNotification = validate73;
-var schema98 = { "enum": ["backpressure"], "type": "string" };
+var schema100 = { "enum": ["backpressure"], "type": "string" };
 function validate74(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -10283,7 +10493,7 @@ function validate74(data, { instancePath = "", parentData, parentDataProperty, r
             return false;
           }
           if (!(data0 === "backpressure")) {
-            validate74.errors = [{ instancePath: instancePath + "/reason", schemaPath: "#/definitions/v2/ThreadProjectionClosedReason/enum", keyword: "enum", params: { allowedValues: schema98.enum } }];
+            validate74.errors = [{ instancePath: instancePath + "/reason", schemaPath: "#/definitions/v2/ThreadProjectionClosedReason/enum", keyword: "enum", params: { allowedValues: schema100.enum } }];
             return false;
           }
           var valid0 = _errs1 === errors;
@@ -10335,7 +10545,7 @@ function validate73(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 var validateV2ThreadProjectionDeltaNotification = validate76;
-var schema101 = { "oneOf": [{ "properties": { "notification": { "$ref": "#/definitions/v2/AgentMessageDeltaNotification" }, "type": { "enum": ["agentMessage"], "title": "AgentMessageThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "AgentMessageThreadProjectionDelta", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ReasoningSummaryTextDeltaNotification" }, "type": { "enum": ["reasoningSummaryText"], "title": "ReasoningSummaryTextThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "ReasoningSummaryTextThreadProjectionDelta", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ReasoningSummaryPartAddedNotification" }, "type": { "enum": ["reasoningSummaryPartAdded"], "title": "ReasoningSummaryPartAddedThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "ReasoningSummaryPartAddedThreadProjectionDelta", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ReasoningTextDeltaNotification" }, "type": { "enum": ["reasoningText"], "title": "ReasoningTextThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "ReasoningTextThreadProjectionDelta", "type": "object" }] };
+var schema103 = { "oneOf": [{ "properties": { "notification": { "$ref": "#/definitions/v2/AgentMessageDeltaNotification" }, "type": { "enum": ["agentMessage"], "title": "AgentMessageThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "AgentMessageThreadProjectionDelta", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ReasoningSummaryTextDeltaNotification" }, "type": { "enum": ["reasoningSummaryText"], "title": "ReasoningSummaryTextThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "ReasoningSummaryTextThreadProjectionDelta", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ReasoningSummaryPartAddedNotification" }, "type": { "enum": ["reasoningSummaryPartAdded"], "title": "ReasoningSummaryPartAddedThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "ReasoningSummaryPartAddedThreadProjectionDelta", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ReasoningTextDeltaNotification" }, "type": { "enum": ["reasoningText"], "title": "ReasoningTextThreadProjectionDeltaType", "type": "string" } }, "required": ["notification", "type"], "title": "ReasoningTextThreadProjectionDelta", "type": "object" }] };
 function validate78(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -10466,7 +10676,7 @@ function validate78(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data5 === "agentMessage")) {
-              const err8 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema101.oneOf[0].properties.type.enum } };
+              const err8 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema103.oneOf[0].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err8];
               } else {
@@ -10637,7 +10847,7 @@ function validate78(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data12 === "reasoningSummaryText")) {
-              const err19 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema101.oneOf[1].properties.type.enum } };
+              const err19 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema103.oneOf[1].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err19];
               } else {
@@ -10795,7 +11005,7 @@ function validate78(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data18 === "reasoningSummaryPartAdded")) {
-                const err29 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema101.oneOf[2].properties.type.enum } };
+                const err29 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema103.oneOf[2].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err29];
                 } else {
@@ -10970,7 +11180,7 @@ function validate78(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data25 === "reasoningText")) {
-                  const err40 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema101.oneOf[3].properties.type.enum } };
+                  const err40 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema103.oneOf[3].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err40];
                   } else {
@@ -11094,7 +11304,7 @@ function validate76(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 var validateV2ThreadProjectionDetachResponse = validate81;
-var schema108 = { "enum": ["detached", "notSubscribed", "notLoaded"], "type": "string" };
+var schema110 = { "enum": ["detached", "notSubscribed", "notLoaded"], "type": "string" };
 function validate82(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -11112,7 +11322,7 @@ function validate82(data, { instancePath = "", parentData, parentDataProperty, r
             return false;
           }
           if (!(data0 === "detached" || data0 === "notSubscribed" || data0 === "notLoaded")) {
-            validate82.errors = [{ instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/ThreadProjectionDetachStatus/enum", keyword: "enum", params: { allowedValues: schema108.enum } }];
+            validate82.errors = [{ instancePath: instancePath + "/status", schemaPath: "#/definitions/v2/ThreadProjectionDetachStatus/enum", keyword: "enum", params: { allowedValues: schema110.enum } }];
             return false;
           }
         }
@@ -11137,8 +11347,8 @@ function validate81(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 var validateV2ThreadProjectionEventNotification = validate84;
-var schema110 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "commitId": { "type": "string" }, "event": { "$ref": "#/definitions/v2/ThreadProjectionEvent" }, "parentCommitId": { "type": ["string", "null"] }, "subscriptionId": { "type": "string" }, "threadId": { "type": "string" } }, "required": ["commitId", "event", "subscriptionId", "threadId"], "title": "ThreadProjectionEventNotification", "type": "object" };
-var schema111 = { "oneOf": [{ "properties": { "notification": { "$ref": "#/definitions/v2/TurnStartedNotification" }, "type": { "enum": ["turnStarted"], "title": "TurnStartedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "TurnStartedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/TurnCompletedNotification" }, "type": { "enum": ["turnCompleted"], "title": "TurnCompletedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "TurnCompletedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ItemStartedNotification" }, "type": { "enum": ["itemStarted"], "title": "ItemStartedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "ItemStartedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ItemCompletedNotification" }, "type": { "enum": ["itemCompleted"], "title": "ItemCompletedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "ItemCompletedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ThreadTokenUsageUpdatedNotification" }, "type": { "enum": ["tokenUsageUpdated"], "title": "TokenUsageUpdatedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "TokenUsageUpdatedThreadProjectionEvent", "type": "object" }] };
+var schema112 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "commitId": { "type": "string" }, "event": { "$ref": "#/definitions/v2/ThreadProjectionEvent" }, "parentCommitId": { "type": ["string", "null"] }, "subscriptionId": { "type": "string" }, "threadId": { "type": "string" } }, "required": ["commitId", "event", "subscriptionId", "threadId"], "title": "ThreadProjectionEventNotification", "type": "object" };
+var schema113 = { "oneOf": [{ "properties": { "notification": { "$ref": "#/definitions/v2/TurnStartedNotification" }, "type": { "enum": ["turnStarted"], "title": "TurnStartedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "TurnStartedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/TurnCompletedNotification" }, "type": { "enum": ["turnCompleted"], "title": "TurnCompletedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "TurnCompletedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ItemStartedNotification" }, "type": { "enum": ["itemStarted"], "title": "ItemStartedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "ItemStartedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ItemCompletedNotification" }, "type": { "enum": ["itemCompleted"], "title": "ItemCompletedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "ItemCompletedThreadProjectionEvent", "type": "object" }, { "properties": { "notification": { "$ref": "#/definitions/v2/ThreadTokenUsageUpdatedNotification" }, "type": { "enum": ["tokenUsageUpdated"], "title": "TokenUsageUpdatedThreadProjectionEventType", "type": "string" } }, "required": ["notification", "type"], "title": "TokenUsageUpdatedThreadProjectionEvent", "type": "object" }] };
 function validate87(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -11449,7 +11659,7 @@ function validate86(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data1 === "turnStarted")) {
-              const err2 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema111.oneOf[0].properties.type.enum } };
+              const err2 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema113.oneOf[0].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err2];
               } else {
@@ -11515,7 +11725,7 @@ function validate86(data, { instancePath = "", parentData, parentDataProperty, r
               errors++;
             }
             if (!(data3 === "turnCompleted")) {
-              const err6 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema111.oneOf[1].properties.type.enum } };
+              const err6 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema113.oneOf[1].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err6];
               } else {
@@ -11585,7 +11795,7 @@ function validate86(data, { instancePath = "", parentData, parentDataProperty, r
                 errors++;
               }
               if (!(data5 === "itemStarted")) {
-                const err10 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema111.oneOf[2].properties.type.enum } };
+                const err10 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema113.oneOf[2].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err10];
                 } else {
@@ -11655,7 +11865,7 @@ function validate86(data, { instancePath = "", parentData, parentDataProperty, r
                   errors++;
                 }
                 if (!(data7 === "itemCompleted")) {
-                  const err14 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema111.oneOf[3].properties.type.enum } };
+                  const err14 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema113.oneOf[3].properties.type.enum } };
                   if (vErrors === null) {
                     vErrors = [err14];
                   } else {
@@ -11725,7 +11935,7 @@ function validate86(data, { instancePath = "", parentData, parentDataProperty, r
                     errors++;
                   }
                   if (!(data9 === "tokenUsageUpdated")) {
-                    const err18 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/enum", keyword: "enum", params: { allowedValues: schema111.oneOf[4].properties.type.enum } };
+                    const err18 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/4/properties/type/enum", keyword: "enum", params: { allowedValues: schema113.oneOf[4].properties.type.enum } };
                     if (vErrors === null) {
                       vErrors = [err18];
                     } else {
@@ -11821,7 +12031,7 @@ function validate85(data, { instancePath = "", parentData, parentDataProperty, r
               let data2 = data.parentCommitId;
               const _errs4 = errors;
               if (typeof data2 !== "string" && data2 !== null) {
-                validate85.errors = [{ instancePath: instancePath + "/parentCommitId", schemaPath: "#/properties/parentCommitId/type", keyword: "type", params: { type: schema110.properties.parentCommitId.type } }];
+                validate85.errors = [{ instancePath: instancePath + "/parentCommitId", schemaPath: "#/properties/parentCommitId/type", keyword: "type", params: { type: schema112.properties.parentCommitId.type } }];
                 return false;
               }
               var valid0 = _errs4 === errors;
@@ -11912,11 +12122,11 @@ function validate104(data, { instancePath = "", parentData, parentDataProperty, 
   return errors === 0;
 }
 var validateV2ThreadResumeResponse = validate108;
-var schema120 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "approvalPolicy": { "$ref": "#/definitions/v2/AskForApproval" }, "approvalsReviewer": { "allOf": [{ "$ref": "#/definitions/v2/ApprovalsReviewer" }], "description": "Reviewer currently used for approval requests on this thread." }, "cwd": { "$ref": "#/definitions/v2/AbsolutePathBuf" }, "instructionSources": { "default": [], "description": "Environment-native paths to instruction source files currently loaded for this thread.", "items": { "$ref": "#/definitions/v2/LegacyAppPathString" }, "type": "array" }, "itemsBackwardsCursor": { "description": 'Opaque cursor for hydrating paginated items backwards.\n\nPass this as `cursor` to `thread/items/list` with `sortDirection: "desc"`. The first page includes the item identified by the cursor.', "type": ["string", "null"] }, "model": { "type": "string" }, "modelProvider": { "type": "string" }, "reasoningEffort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }] }, "sandbox": { "allOf": [{ "$ref": "#/definitions/v2/SandboxPolicy" }], "description": "Legacy sandbox policy retained for compatibility. Experimental clients should prefer `activePermissionProfile` for profile provenance." }, "serviceTier": { "type": ["string", "null"] }, "thread": { "$ref": "#/definitions/v2/Thread" }, "turnsBackwardsCursor": { "description": 'Opaque cursor for hydrating paginated turns backwards.\n\nPass this as `cursor` to `thread/turns/list` with `sortDirection: "desc"`. The first page includes the turn identified by the cursor.', "type": ["string", "null"] } }, "required": ["approvalPolicy", "approvalsReviewer", "cwd", "itemsBackwardsCursor", "model", "modelProvider", "reasoningEffort", "sandbox", "serviceTier", "thread", "turnsBackwardsCursor"], "title": "ThreadResumeResponse", "type": "object" };
-var schema121 = { "oneOf": [{ "enum": ["untrusted", "on-request", "never"], "type": "string" }, { "additionalProperties": false, "properties": { "granular": { "properties": { "mcp_elicitations": { "type": "boolean" }, "request_permissions": { "default": false, "type": "boolean" }, "rules": { "type": "boolean" }, "sandbox_approval": { "type": "boolean" }, "skill_approval": { "default": false, "type": "boolean" } }, "required": ["mcp_elicitations", "rules", "sandbox_approval"], "type": "object" } }, "required": ["granular"], "title": "GranularAskForApproval", "type": "object" }] };
-var schema122 = { "description": "Configures who approval requests are routed to for review. Examples include sandbox escapes, blocked network access, MCP approval prompts, and ARC escalations. Defaults to `user`. `auto_review` uses a carefully prompted subagent to gather relevant context and apply a risk-based decision framework before approving or denying the request. The legacy value `guardian_subagent` is accepted for compatibility.", "enum": ["user", "auto_review", "guardian_subagent"], "type": "string" };
-var schema126 = { "oneOf": [{ "properties": { "type": { "enum": ["dangerFullAccess"], "title": "DangerFullAccessSandboxPolicyType", "type": "string" } }, "required": ["type"], "title": "DangerFullAccessSandboxPolicy", "type": "object" }, { "properties": { "networkAccess": { "default": false, "type": "boolean" }, "type": { "enum": ["readOnly"], "title": "ReadOnlySandboxPolicyType", "type": "string" } }, "required": ["type"], "title": "ReadOnlySandboxPolicy", "type": "object" }, { "properties": { "networkAccess": { "allOf": [{ "$ref": "#/definitions/v2/NetworkAccess" }], "default": "restricted" }, "type": { "enum": ["externalSandbox"], "title": "ExternalSandboxSandboxPolicyType", "type": "string" } }, "required": ["type"], "title": "ExternalSandboxSandboxPolicy", "type": "object" }, { "properties": { "excludeSlashTmp": { "default": false, "type": "boolean" }, "excludeTmpdirEnvVar": { "default": false, "type": "boolean" }, "networkAccess": { "default": false, "type": "boolean" }, "type": { "enum": ["workspaceWrite"], "title": "WorkspaceWriteSandboxPolicyType", "type": "string" }, "writableRoots": { "default": [], "items": { "$ref": "#/definitions/v2/AbsolutePathBuf" }, "type": "array" } }, "required": ["type"], "title": "WorkspaceWriteSandboxPolicy", "type": "object" }] };
-var schema127 = { "enum": ["restricted", "enabled"], "type": "string" };
+var schema122 = { "$schema": "http://json-schema.org/draft-07/schema#", "properties": { "approvalPolicy": { "$ref": "#/definitions/v2/AskForApproval" }, "approvalsReviewer": { "allOf": [{ "$ref": "#/definitions/v2/ApprovalsReviewer" }], "description": "Reviewer currently used for approval requests on this thread." }, "cwd": { "$ref": "#/definitions/v2/AbsolutePathBuf" }, "instructionSources": { "default": [], "description": "Environment-native paths to instruction source files currently loaded for this thread.", "items": { "$ref": "#/definitions/v2/LegacyAppPathString" }, "type": "array" }, "itemsBackwardsCursor": { "description": 'Opaque cursor for hydrating paginated items backwards.\n\nPass this as `cursor` to `thread/items/list` with `sortDirection: "desc"`. The first page includes the item identified by the cursor.', "type": ["string", "null"] }, "model": { "type": "string" }, "modelProvider": { "type": "string" }, "reasoningEffort": { "anyOf": [{ "$ref": "#/definitions/v2/ReasoningEffort" }, { "type": "null" }] }, "sandbox": { "allOf": [{ "$ref": "#/definitions/v2/SandboxPolicy" }], "description": "Legacy sandbox policy retained for compatibility. Experimental clients should prefer `activePermissionProfile` for profile provenance." }, "serviceTier": { "type": ["string", "null"] }, "thread": { "$ref": "#/definitions/v2/Thread" }, "turnsBackwardsCursor": { "description": 'Opaque cursor for hydrating paginated turns backwards.\n\nPass this as `cursor` to `thread/turns/list` with `sortDirection: "desc"`. The first page includes the turn identified by the cursor.', "type": ["string", "null"] } }, "required": ["approvalPolicy", "approvalsReviewer", "cwd", "itemsBackwardsCursor", "model", "modelProvider", "reasoningEffort", "sandbox", "serviceTier", "thread", "turnsBackwardsCursor"], "title": "ThreadResumeResponse", "type": "object" };
+var schema123 = { "oneOf": [{ "enum": ["untrusted", "on-request", "never"], "type": "string" }, { "additionalProperties": false, "properties": { "granular": { "properties": { "mcp_elicitations": { "type": "boolean" }, "request_permissions": { "default": false, "type": "boolean" }, "rules": { "type": "boolean" }, "sandbox_approval": { "type": "boolean" }, "skill_approval": { "default": false, "type": "boolean" } }, "required": ["mcp_elicitations", "rules", "sandbox_approval"], "type": "object" } }, "required": ["granular"], "title": "GranularAskForApproval", "type": "object" }] };
+var schema124 = { "description": "Configures who approval requests are routed to for review. Examples include sandbox escapes, blocked network access, MCP approval prompts, and ARC escalations. Defaults to `user`. `auto_review` uses a carefully prompted subagent to gather relevant context and apply a risk-based decision framework before approving or denying the request. The legacy value `guardian_subagent` is accepted for compatibility.", "enum": ["user", "auto_review", "guardian_subagent"], "type": "string" };
+var schema128 = { "oneOf": [{ "properties": { "type": { "enum": ["dangerFullAccess"], "title": "DangerFullAccessSandboxPolicyType", "type": "string" } }, "required": ["type"], "title": "DangerFullAccessSandboxPolicy", "type": "object" }, { "properties": { "networkAccess": { "default": false, "type": "boolean" }, "type": { "enum": ["readOnly"], "title": "ReadOnlySandboxPolicyType", "type": "string" } }, "required": ["type"], "title": "ReadOnlySandboxPolicy", "type": "object" }, { "properties": { "networkAccess": { "allOf": [{ "$ref": "#/definitions/v2/NetworkAccess" }], "default": "restricted" }, "type": { "enum": ["externalSandbox"], "title": "ExternalSandboxSandboxPolicyType", "type": "string" } }, "required": ["type"], "title": "ExternalSandboxSandboxPolicy", "type": "object" }, { "properties": { "excludeSlashTmp": { "default": false, "type": "boolean" }, "excludeTmpdirEnvVar": { "default": false, "type": "boolean" }, "networkAccess": { "default": false, "type": "boolean" }, "type": { "enum": ["workspaceWrite"], "title": "WorkspaceWriteSandboxPolicyType", "type": "string" }, "writableRoots": { "default": [], "items": { "$ref": "#/definitions/v2/AbsolutePathBuf" }, "type": "array" } }, "required": ["type"], "title": "WorkspaceWriteSandboxPolicy", "type": "object" }] };
+var schema129 = { "enum": ["restricted", "enabled"], "type": "string" };
 function validate110(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
@@ -11948,7 +12158,7 @@ function validate110(data, { instancePath = "", parentData, parentDataProperty, 
             errors++;
           }
           if (!(data0 === "dangerFullAccess")) {
-            const err2 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema126.oneOf[0].properties.type.enum } };
+            const err2 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/0/properties/type/enum", keyword: "enum", params: { allowedValues: schema128.oneOf[0].properties.type.enum } };
             if (vErrors === null) {
               vErrors = [err2];
             } else {
@@ -12015,7 +12225,7 @@ function validate110(data, { instancePath = "", parentData, parentDataProperty, 
               errors++;
             }
             if (!(data2 === "readOnly")) {
-              const err7 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema126.oneOf[1].properties.type.enum } };
+              const err7 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/1/properties/type/enum", keyword: "enum", params: { allowedValues: schema128.oneOf[1].properties.type.enum } };
               if (vErrors === null) {
                 vErrors = [err7];
               } else {
@@ -12074,7 +12284,7 @@ function validate110(data, { instancePath = "", parentData, parentDataProperty, 
               errors++;
             }
             if (!(data3 === "restricted" || data3 === "enabled")) {
-              const err11 = { instancePath: instancePath + "/networkAccess", schemaPath: "#/definitions/v2/NetworkAccess/enum", keyword: "enum", params: { allowedValues: schema127.enum } };
+              const err11 = { instancePath: instancePath + "/networkAccess", schemaPath: "#/definitions/v2/NetworkAccess/enum", keyword: "enum", params: { allowedValues: schema129.enum } };
               if (vErrors === null) {
                 vErrors = [err11];
               } else {
@@ -12100,7 +12310,7 @@ function validate110(data, { instancePath = "", parentData, parentDataProperty, 
                 errors++;
               }
               if (!(data4 === "externalSandbox")) {
-                const err13 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema126.oneOf[2].properties.type.enum } };
+                const err13 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/2/properties/type/enum", keyword: "enum", params: { allowedValues: schema128.oneOf[2].properties.type.enum } };
                 if (vErrors === null) {
                   vErrors = [err13];
                 } else {
@@ -12207,7 +12417,7 @@ function validate110(data, { instancePath = "", parentData, parentDataProperty, 
                       errors++;
                     }
                     if (!(data8 === "workspaceWrite")) {
-                      const err20 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema126.oneOf[3].properties.type.enum } };
+                      const err20 = { instancePath: instancePath + "/type", schemaPath: "#/oneOf/3/properties/type/enum", keyword: "enum", params: { allowedValues: schema128.oneOf[3].properties.type.enum } };
                       if (vErrors === null) {
                         vErrors = [err20];
                       } else {
@@ -12334,7 +12544,7 @@ function validate109(data, { instancePath = "", parentData, parentDataProperty, 
             errors++;
           }
           if (!(data0 === "untrusted" || data0 === "on-request" || data0 === "never")) {
-            const err1 = { instancePath: instancePath + "/approvalPolicy", schemaPath: "#/definitions/v2/AskForApproval/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema121.oneOf[0].enum } };
+            const err1 = { instancePath: instancePath + "/approvalPolicy", schemaPath: "#/definitions/v2/AskForApproval/oneOf/0/enum", keyword: "enum", params: { allowedValues: schema123.oneOf[0].enum } };
             if (vErrors === null) {
               vErrors = [err1];
             } else {
@@ -12539,7 +12749,7 @@ function validate109(data, { instancePath = "", parentData, parentDataProperty, 
               return false;
             }
             if (!(data7 === "user" || data7 === "auto_review" || data7 === "guardian_subagent")) {
-              validate109.errors = [{ instancePath: instancePath + "/approvalsReviewer", schemaPath: "#/definitions/v2/ApprovalsReviewer/enum", keyword: "enum", params: { allowedValues: schema122.enum } }];
+              validate109.errors = [{ instancePath: instancePath + "/approvalsReviewer", schemaPath: "#/definitions/v2/ApprovalsReviewer/enum", keyword: "enum", params: { allowedValues: schema124.enum } }];
               return false;
             }
             var valid0 = _errs21 === errors;
@@ -12590,7 +12800,7 @@ function validate109(data, { instancePath = "", parentData, parentDataProperty, 
                   let data11 = data.itemsBackwardsCursor;
                   const _errs33 = errors;
                   if (typeof data11 !== "string" && data11 !== null) {
-                    validate109.errors = [{ instancePath: instancePath + "/itemsBackwardsCursor", schemaPath: "#/properties/itemsBackwardsCursor/type", keyword: "type", params: { type: schema120.properties.itemsBackwardsCursor.type } }];
+                    validate109.errors = [{ instancePath: instancePath + "/itemsBackwardsCursor", schemaPath: "#/properties/itemsBackwardsCursor/type", keyword: "type", params: { type: schema122.properties.itemsBackwardsCursor.type } }];
                     return false;
                   }
                   var valid0 = _errs33 === errors;
@@ -12704,7 +12914,7 @@ function validate109(data, { instancePath = "", parentData, parentDataProperty, 
                             let data16 = data.serviceTier;
                             const _errs48 = errors;
                             if (typeof data16 !== "string" && data16 !== null) {
-                              validate109.errors = [{ instancePath: instancePath + "/serviceTier", schemaPath: "#/properties/serviceTier/type", keyword: "type", params: { type: schema120.properties.serviceTier.type } }];
+                              validate109.errors = [{ instancePath: instancePath + "/serviceTier", schemaPath: "#/properties/serviceTier/type", keyword: "type", params: { type: schema122.properties.serviceTier.type } }];
                               return false;
                             }
                             var valid0 = _errs48 === errors;
@@ -12727,7 +12937,7 @@ function validate109(data, { instancePath = "", parentData, parentDataProperty, 
                                 let data18 = data.turnsBackwardsCursor;
                                 const _errs51 = errors;
                                 if (typeof data18 !== "string" && data18 !== null) {
-                                  validate109.errors = [{ instancePath: instancePath + "/turnsBackwardsCursor", schemaPath: "#/properties/turnsBackwardsCursor/type", keyword: "type", params: { type: schema120.properties.turnsBackwardsCursor.type } }];
+                                  validate109.errors = [{ instancePath: instancePath + "/turnsBackwardsCursor", schemaPath: "#/properties/turnsBackwardsCursor/type", keyword: "type", params: { type: schema122.properties.turnsBackwardsCursor.type } }];
                                   return false;
                                 }
                                 var valid0 = _errs51 === errors;
@@ -12780,7 +12990,7 @@ function validate115(data, { instancePath = "", parentData, parentDataProperty, 
           let data0 = data.additionalDetails;
           const _errs1 = errors;
           if (typeof data0 !== "string" && data0 !== null) {
-            validate115.errors = [{ instancePath: instancePath + "/additionalDetails", schemaPath: "#/properties/additionalDetails/type", keyword: "type", params: { type: schema45.properties.additionalDetails.type } }];
+            validate115.errors = [{ instancePath: instancePath + "/additionalDetails", schemaPath: "#/properties/additionalDetails/type", keyword: "type", params: { type: schema46.properties.additionalDetails.type } }];
             return false;
           }
           var valid0 = _errs1 === errors;

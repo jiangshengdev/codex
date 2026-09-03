@@ -1,6 +1,5 @@
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
-use crate::realtime_history::RealtimeHistoryState;
 use crate::thread_projection::ProjectionGeneration;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ThreadGoal;
@@ -19,7 +18,6 @@ use codex_protocol::items::AgentMessageContent as CoreAgentMessageContent;
 use codex_protocol::items::TurnItem as CoreTurnItem;
 use codex_protocol::models::MessagePhase;
 use codex_protocol::protocol::EventMsg;
-use codex_protocol::user_input::UserInput;
 use codex_rollout::RolloutItem;
 use codex_rollout::state_db::StateDbHandle;
 use codex_utils_path_uri::LegacyAppPathString;
@@ -91,10 +89,6 @@ pub(crate) enum ThreadListenerCommand {
         snapshot_processor: Box<crate::request_processors::ThreadRequestProcessor>,
         completion_tx: oneshot::Sender<()>,
     },
-    SealRealtimeUserInput {
-        input: Vec<UserInput>,
-        completion_tx: oneshot::Sender<Result<(), String>>,
-    },
 }
 
 /// Per-conversation accumulation of the latest states e.g. error message while a turn runs.
@@ -118,7 +112,6 @@ pub(crate) struct ThreadState {
     pub(crate) cancel_tx: Option<oneshot::Sender<()>>,
     pub(crate) experimental_raw_events: bool,
     pub(crate) listener_generation: u64,
-    pub(crate) realtime_history: RealtimeHistoryState,
     last_thread_settings: Option<ThreadSettings>,
     listener_command_tx: Option<mpsc::UnboundedSender<ThreadListenerCommand>>,
     current_turn_history: ThreadHistoryBuilder,

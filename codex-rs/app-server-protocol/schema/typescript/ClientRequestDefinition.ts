@@ -105,6 +105,8 @@ import type { PluginListParams } from "./v2/PluginListParams";
 import type { PluginListResponse } from "./v2/PluginListResponse";
 import type { PluginReadParams } from "./v2/PluginReadParams";
 import type { PluginReadResponse } from "./v2/PluginReadResponse";
+import type { PluginReconcileParams } from "./v2/PluginReconcileParams";
+import type { PluginReconcileResponse } from "./v2/PluginReconcileResponse";
 import type { PluginShareCheckoutParams } from "./v2/PluginShareCheckoutParams";
 import type { PluginShareCheckoutResponse } from "./v2/PluginShareCheckoutResponse";
 import type { PluginShareDeleteParams } from "./v2/PluginShareDeleteParams";
@@ -239,6 +241,7 @@ export type ClientRequestDefinition =
   | { method: "marketplace/upgrade"; params: MarketplaceUpgradeParams; response: MarketplaceUpgradeResponse; }
   | { method: "plugin/list"; params: PluginListParams; response: PluginListResponse; }
   | { method: "plugin/installed"; params: PluginInstalledParams; response: PluginInstalledResponse; }
+  | { method: "plugin/reconcile"; params: PluginReconcileParams; response: PluginReconcileResponse; }
   | { method: "plugin/read"; params: PluginReadParams; response: PluginReadResponse; }
   | { method: "plugin/skill/read"; params: PluginSkillReadParams; response: PluginSkillReadResponse; }
   | { method: "plugin/share/save"; params: PluginShareSaveParams; response: PluginShareSaveResponse; }

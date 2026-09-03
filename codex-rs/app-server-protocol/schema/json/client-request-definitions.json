@@ -195,6 +195,11 @@
     "responseSchema": "v2/PluginInstalledResponse"
   },
   {
+    "method": "plugin/reconcile",
+    "paramsSchema": "v2/PluginReconcileParams",
+    "responseSchema": "v2/PluginReconcileResponse"
+  },
+  {
     "method": "plugin/read",
     "paramsSchema": "v2/PluginReadParams",
     "responseSchema": "v2/PluginReadResponse"

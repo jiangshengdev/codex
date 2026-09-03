@@ -195,7 +195,7 @@ fi
 rp_require_no_staged_superpowers_diff
 
 rp_log verify "checking staged diff"
-rp_require_staged_diff_check_for_merge "$dev_branch"
+rp_require_staged_diff_check_for_merge
 
 rp_log verify "checking MERGE_HEAD matches $dev_branch"
 rp_require_merge_head_matches_dev
