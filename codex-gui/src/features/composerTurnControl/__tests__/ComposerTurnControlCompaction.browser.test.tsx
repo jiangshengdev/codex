@@ -53,8 +53,8 @@ test("routes context compression through the session role and follows session st
 
   const requestPending = {
     phase: "requestPending",
-    claimId: "claim-composer",
-    candidateTurnId: null,
+    canRequest: false,
+    startFailure: null,
   } satisfies ActiveThreadCompactionView;
   await screen.rerender(
     composer(
@@ -83,8 +83,8 @@ test("routes context compression through the session role and follows session st
         threadId,
         compaction: {
           phase: "running",
-          turnId: "turn-composer-compaction",
-          itemId: "item-composer-compaction",
+          canRequest: false,
+          startFailure: null,
         },
       }),
     ),

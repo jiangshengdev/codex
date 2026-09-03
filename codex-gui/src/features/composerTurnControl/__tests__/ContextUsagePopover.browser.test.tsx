@@ -21,7 +21,7 @@ const idleCompaction = {
 const renderPopover = (
   usage: ContextUsageModel | null,
   compaction: ActiveThreadCompactionView = idleCompaction,
-  onRequestCompaction = vi.fn(),
+  onRequestCompaction = vi.fn<() => void>(),
   locale: "en" | "zh-CN" = "en",
 ) =>
   renderWithProviders(
@@ -138,7 +138,7 @@ describe("ContextUsagePopover", () => {
   });
 
   it("localizes the button and details in Simplified Chinese", async () => {
-    const screen = await renderPopover(knownUsage, idleCompaction, vi.fn(), "zh-CN");
+    const screen = await renderPopover(knownUsage, idleCompaction, vi.fn<() => void>(), "zh-CN");
     const trigger = screen.getByRole("button", {
       name: "上下文用量详情，已用 58%，149k / 258k",
       exact: true,
@@ -187,7 +187,7 @@ describe("ContextUsagePopover", () => {
   });
 
   it("keeps compression available when context usage is unavailable", async () => {
-    const requestCompaction = vi.fn();
+    const requestCompaction = vi.fn<() => void>();
     const screen = await renderPopover(null, idleCompaction, requestCompaction);
     const trigger = screen.getByRole("button", {
       name: "Context usage details, usage unavailable",
@@ -213,13 +213,13 @@ describe("ContextUsagePopover", () => {
   it.each([
     {
       phase: "requestPending",
-      claimId: "claim-pending",
-      candidateTurnId: null,
+      canRequest: false,
+      startFailure: null,
     },
     {
       phase: "running",
-      turnId: "turn-running",
-      itemId: "compaction-running",
+      canRequest: false,
+      startFailure: null,
     },
   ] satisfies ActiveThreadCompactionView[])(
     "keeps the trigger available and disables the action while $phase",

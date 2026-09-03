@@ -15,7 +15,7 @@ export function ContextUsagePopover({
   usage,
 }: ContextUsagePopoverProps) {
   const { t } = useLingui();
-  const usedTokensLabel = usage?.usedTokensCompact ?? null;
+  const usedTokensLabel = usage?.usedTokensCompact ?? "";
   const contextWindowLabel = usage?.modelContextWindowCompact ?? null;
   const percentageLabel = usage?.percentage == null ? null : `${String(usage.percentage)}%`;
   const accessibleLabel =
