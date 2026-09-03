@@ -156,7 +156,7 @@ describe("LiveActiveThreadSession", () => {
 
   it("keeps acknowledgement separate from lifecycle and supports event-before-ack", async () => {
     const h = createHarness();
-    const response = createDeferred<void>();
+    const response = createDeferred<undefined>();
     h.compactThread.mockReturnValue(response.promise.then(() => ({})));
     h.session.requestCompaction(h.session.getSnapshot().revision);
 
@@ -170,7 +170,7 @@ describe("LiveActiveThreadSession", () => {
       startFailure: null,
     });
 
-    response.resolve();
+    response.resolve(undefined);
     await response.promise;
     await Promise.resolve();
     expect(h.session.getSnapshot()).toBe(running);
@@ -257,14 +257,14 @@ describe("LiveActiveThreadSession", () => {
   it("invalidates pending compaction callbacks on projection loss and dispose", async () => {
     for (const terminate of ["projection", "dispose"] as const) {
       const h = createHarness();
-      const response = createDeferred<void>();
+      const response = createDeferred<undefined>();
       h.compactThread.mockReturnValue(response.promise.then(() => ({})));
       h.session.requestCompaction(h.session.getSnapshot().revision);
       if (terminate === "projection") h.session.handleProjectionClosed(closedBackpressure);
       else h.session.dispose();
       const terminated = h.session.getSnapshot();
 
-      response.resolve();
+      response.resolve(undefined);
       await response.promise;
       await Promise.resolve();
       expect(h.session.getSnapshot()).toBe(terminated);

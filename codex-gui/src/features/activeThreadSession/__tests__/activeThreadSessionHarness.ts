@@ -115,11 +115,17 @@ const createComposerRole = (
 });
 
 const createCompactionRole = (
+  getRevision: () => number,
   overrides: Partial<ActiveThreadCompactionRole> = {},
 ): ActiveThreadCompactionRole => ({
   requestCompaction: vi
     .fn<ActiveThreadCompactionRole["requestCompaction"]>()
-    .mockReturnValue(ownerGone),
+    .mockImplementation(() => ({
+      type: "unavailable",
+      scope: "activeThreadSession",
+      reason: "disposed",
+      revision: getRevision(),
+    })),
   ...overrides,
 });
 
@@ -134,39 +140,45 @@ const createSkillsRole = (
 
 export const activeThreadSessionSnapshot = (
   options: ActiveSnapshotOptions = {},
-): ActiveSnapshot => ({
-  revision: 1,
-  threadId: "thread-1",
-  subscriptionId: "subscription-1",
-  activeTurnId: null,
-  compaction: { phase: "idle", canRequest: true, startFailure: null },
-  composer: emptyComposerSnapshot,
-  skills: emptySkillsState,
-  composerRole: createComposerRole(),
-  compactionRole: createCompactionRole(),
-  skillsRole: createSkillsRole(),
-  ...options,
-  phase: "active",
-});
+): ActiveSnapshot => {
+  const revision = options.revision ?? 1;
+  return {
+    revision,
+    threadId: "thread-1",
+    subscriptionId: "subscription-1",
+    activeTurnId: null,
+    compaction: { phase: "idle", canRequest: true, startFailure: null },
+    composer: emptyComposerSnapshot,
+    skills: emptySkillsState,
+    composerRole: createComposerRole(),
+    compactionRole: createCompactionRole(() => revision),
+    skillsRole: createSkillsRole(),
+    ...options,
+    phase: "active",
+  };
+};
 
 export const projectionUnavailableActiveThreadSessionSnapshot = (
   options: ProjectionUnavailableSnapshotOptions = {},
-): ProjectionUnavailableSnapshot => ({
-  reason: "backpressure",
-  recovery: "connectionRestartRequired",
-  revision: 1,
-  threadId: "thread-1",
-  subscriptionId: "subscription-1",
-  activeTurnId: null,
-  compaction: { phase: "idle", canRequest: false, startFailure: null },
-  composer: emptyComposerSnapshot,
-  skills: emptySkillsState,
-  composerRole: createComposerRole(),
-  compactionRole: createCompactionRole(),
-  skillsRole: createSkillsRole(),
-  ...options,
-  phase: "projectionUnavailable",
-});
+): ProjectionUnavailableSnapshot => {
+  const revision = options.revision ?? 1;
+  return {
+    reason: "backpressure",
+    recovery: "connectionRestartRequired",
+    revision,
+    threadId: "thread-1",
+    subscriptionId: "subscription-1",
+    activeTurnId: null,
+    compaction: { phase: "idle", canRequest: false, startFailure: null },
+    composer: emptyComposerSnapshot,
+    skills: emptySkillsState,
+    composerRole: createComposerRole(),
+    compactionRole: createCompactionRole(() => revision),
+    skillsRole: createSkillsRole(),
+    ...options,
+    phase: "projectionUnavailable",
+  };
+};
 
 export const disposedActiveThreadSessionSnapshot = (revision = 1): DisposedSnapshot => ({
   phase: "disposed",
@@ -177,6 +189,7 @@ export const createActiveThreadSessionHarness = (
   options: ActiveThreadSessionHarnessOptions = {},
 ): ActiveThreadSessionHarness => {
   const listeners = new Set<() => void>();
+  let currentRevision = options.initialSnapshot?.revision ?? 0;
   const initialRoles =
     options.initialSnapshot?.phase === "active" ||
     options.initialSnapshot?.phase === "projectionUnavailable"
@@ -189,7 +202,7 @@ export const createActiveThreadSessionHarness = (
   const compactionRole =
     options.compactionRole == null && initialRoles != null
       ? initialRoles.compactionRole
-      : createCompactionRole(options.compactionRole);
+      : createCompactionRole(() => currentRevision, options.compactionRole);
   const skillsRole =
     options.skillsRole == null && initialRoles != null
       ? initialRoles.skillsRole
@@ -254,6 +267,7 @@ export const createActiveThreadSessionHarness = (
         throw new Error("active thread session harness snapshots must preserve role identity");
       }
       snapshot = nextSnapshot;
+      currentRevision = nextSnapshot.revision;
       for (const listener of Array.from(listeners)) listener();
       return true;
     },
