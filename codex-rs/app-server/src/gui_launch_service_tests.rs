@@ -23,6 +23,7 @@ use crate::config_manager::ConfigManager;
 use crate::message_processor::MessageProcessor;
 use crate::message_processor::MessageProcessorArgs;
 use crate::outgoing_message::OutgoingMessageSender;
+use crate::plugin_config_reload::PluginStartupConfig;
 
 #[tokio::test]
 async fn app_server_gui_launch_service_returns_tool_urls() {
@@ -125,7 +126,7 @@ async fn build_test_processor(
         code_mode_session_provider: None,
         rpc_transport: AppServerRpcTransport::Stdio,
         remote_control_handle: None,
-        plugin_startup_tasks: crate::PluginStartupTasks::Start,
+        plugin_startup_tasks: Some(PluginStartupConfig::Current),
         gui_launch_service,
     }))
 }

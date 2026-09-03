@@ -217,6 +217,8 @@ fn thread(thread_id: &str, name: Option<String>, turns: Vec<Turn>) -> Result<Thr
         project_id: None,
         history_mode: Default::default(),
         model_provider: "openai".to_string(),
+        model: None,
+        reasoning_effort: None,
         created_at: 1_700_000_000,
         updated_at: 1_700_000_030,
         recency_at: Some(1_700_000_030),
