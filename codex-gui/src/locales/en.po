@@ -13,7 +13,7 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:258
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:259
 msgid "... and {count} more"
 msgstr "... and {count} more"
 
@@ -57,7 +57,7 @@ msgstr "{0} skill details, {1}"
 msgid "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {Intermediate updates · # items}}"
 
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:386
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:367
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
@@ -66,7 +66,7 @@ msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
 #. Activity detail showing a raw collaborating-agent thread ID followed by its translated status
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:153
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:154
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
@@ -90,7 +90,7 @@ msgid "Admin"
 msgstr "Admin"
 
 #. Status shown when creation of a collaborating agent fails
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:185
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:186
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
@@ -116,7 +116,7 @@ msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
 #. Collaboration activity showing the raw receiver value of the closed agent
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:239
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:240
 msgid "Closed {receiver}"
 msgstr "Closed {receiver}"
 
@@ -136,17 +136,17 @@ msgstr "Committed transcript"
 #. Status chip for a completed turn
 #. Status of a collaborating agent that completed its work
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:183
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:96
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:97
 msgid "Completed"
 msgstr "Completed"
 
 #. Status of a collaborating agent followed by its raw completion-message preview
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:100
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:101
 msgid "Completed - {messagePreview}"
 msgstr "Completed - {messagePreview}"
 
 #. Activity showing sub-agents that completed work and any omitted count
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:424
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:405
 msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
@@ -226,22 +226,22 @@ msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
 #. Status of a collaborating agent that failed
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:117
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:118
 msgid "Error"
 msgstr "Error"
 
 #. Status of a collaborating agent followed by its raw error-message preview
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:121
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:122
 msgid "Error - {messagePreview}"
 msgstr "Error - {messagePreview}"
 
 #. Status of a collaborating agent that failed without an error preview
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:110
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:111
 msgid "Error - Agent errored"
 msgstr "Error - Agent errored"
 
 #. Status shown when resuming a collaborating agent fails
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:247
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:248
 msgid "Error - Agent resume failed"
 msgstr "Error - Agent resume failed"
 
@@ -259,11 +259,11 @@ msgid "Failed"
 msgstr "Failed"
 
 #. Status entry indicating that transcript processing failed
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:55
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:105
 msgid "Failed."
 msgstr "Failed."
 
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:236
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:237
 msgid "Finished waiting"
 msgstr "Finished waiting"
 
@@ -316,24 +316,24 @@ msgid "In progress"
 msgstr "In progress"
 
 #. Activity showing sub-agents that were contacted and any omitted count
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:408
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:389
 msgid "Interacted with <0/> <1/>"
 msgstr "Interacted with <0/> <1/>"
 
 #. Status chip for an interrupted turn
 #. Status of a collaborating agent whose work was interrupted
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:188
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:87
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:88
 msgid "Interrupted"
 msgstr "Interrupted"
 
 #. Activity showing sub-agents that were interrupted and any omitted count
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:416
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:397
 msgid "Interrupted <0/> <1/>"
 msgstr "Interrupted <0/> <1/>"
 
 #. Status entry indicating that transcript processing was interrupted
-#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:49
+#: src/features/committedTranscriptSurface/TranscriptEntryRenderer.tsx:99
 msgid "Interrupted."
 msgstr "Interrupted."
 
@@ -439,7 +439,7 @@ msgid "Next context page"
 msgstr "Next context page"
 
 #. Status shown when waiting finishes before any collaborating agent completes
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:252
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:253
 msgid "No agents completed yet"
 msgstr "No agents completed yet"
 
@@ -460,7 +460,7 @@ msgid "No pending messages"
 msgstr "No pending messages"
 
 #. Status indicating that a collaborating agent could not be found
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:136
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:137
 msgid "Not found"
 msgstr "Not found"
 
@@ -490,7 +490,7 @@ msgid "Pending details"
 msgstr "Pending details"
 
 #. Status of a collaborating agent before initialization finishes
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:75
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:76
 msgid "Pending init"
 msgstr "Pending init"
 
@@ -575,12 +575,12 @@ msgid "Request failed"
 msgstr "Request failed"
 
 #. Collaboration activity showing the raw receiver value of the resumed agent
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:230
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:231
 msgid "Resumed {receiver}"
 msgstr "Resumed {receiver}"
 
 #. Collaboration activity resuming the agent identified by the raw receiver value
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:164
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:165
 msgid "Resuming {receiver}"
 msgstr "Resuming {receiver}"
 
@@ -596,7 +596,7 @@ msgid "Return to current task"
 msgstr "Return to current task"
 
 #. Status of a collaborating agent that is currently working
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:81
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:82
 msgid "Running"
 msgstr "Running"
 
@@ -614,7 +614,7 @@ msgid "Send"
 msgstr "Send"
 
 #. Collaboration activity showing the raw receiver value of the agent that received input
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:222
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:223
 msgid "Sent input to {receiver}"
 msgstr "Sent input to {receiver}"
 
@@ -635,7 +635,7 @@ msgid "Showing saved skills because refresh failed"
 msgstr "Showing saved skills because refresh failed"
 
 #. Status of a collaborating agent that has shut down
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:130
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:131
 msgid "Shutdown"
 msgstr "Shutdown"
 
@@ -653,23 +653,23 @@ msgstr "Sorry, we couldn’t find the page you’re looking for."
 
 #. Collaboration activity showing the raw receiver value of a newly created agent
 #. Collaboration activity showing the raw receiver value of a newly created agent
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:193
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:209
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:194
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:210
 msgid "Spawned {receiver}"
 msgstr "Spawned {receiver}"
 
 #. Collaboration activity showing raw receiver, model, and reasoning-effort values for a newly created agent
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:202
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:203
 msgid "Spawned {receiver} ({model} {reasoningEffort})"
 msgstr "Spawned {receiver} ({model} {reasoningEffort})"
 
 #. Collaboration activity showing raw receiver and reasoning-effort values for a newly created agent
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:214
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:215
 msgid "Spawned {receiver} ({reasoningEffort})"
 msgstr "Spawned {receiver} ({reasoningEffort})"
 
 #. Activity showing sub-agents that started and any omitted count
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:400
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:381
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
@@ -842,15 +842,15 @@ msgid "View"
 msgstr "View"
 
 #. Collaboration activity waiting for the agent identified by the raw receiver value
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:175
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:176
 msgid "Waiting for {receiver}"
 msgstr "Waiting for {receiver}"
 
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:182
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:183
 msgid "Waiting for {receiverCount} agents"
 msgstr "Waiting for {receiverCount} agents"
 
-#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:172
+#: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:173
 msgid "Waiting for agents"
 msgstr "Waiting for agents"
 
