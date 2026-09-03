@@ -12987,22 +12987,75 @@ function validate109(data, { instancePath = "", parentData, parentDataProperty, 
   validate109.errors = vErrors;
   return errors === 0;
 }
-var validateV2TurnError = validate115;
+var validateV2ThreadStatusChangedNotification = validate115;
 function validate116(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
-      if (data.message === void 0 && (missing0 = "message")) {
+      if (data.status === void 0 && (missing0 = "status") || data.threadId === void 0 && (missing0 = "threadId")) {
         validate116.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 } }];
+        return false;
+      } else {
+        if (data.status !== void 0) {
+          const _errs1 = errors;
+          if (!validate36(data.status, { instancePath: instancePath + "/status", parentData: data, parentDataProperty: "status", rootData })) {
+            vErrors = vErrors === null ? validate36.errors : vErrors.concat(validate36.errors);
+            errors = vErrors.length;
+          }
+          var valid0 = _errs1 === errors;
+        } else {
+          var valid0 = true;
+        }
+        if (valid0) {
+          if (data.threadId !== void 0) {
+            const _errs2 = errors;
+            if (typeof data.threadId !== "string") {
+              validate116.errors = [{ instancePath: instancePath + "/threadId", schemaPath: "#/properties/threadId/type", keyword: "type", params: { type: "string" } }];
+              return false;
+            }
+            var valid0 = _errs2 === errors;
+          } else {
+            var valid0 = true;
+          }
+        }
+      }
+    } else {
+      validate116.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
+      return false;
+    }
+  }
+  validate116.errors = vErrors;
+  return errors === 0;
+}
+function validate115(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+  ;
+  let vErrors = null;
+  let errors = 0;
+  if (!validate116(data, { instancePath, parentData, parentDataProperty, rootData })) {
+    vErrors = vErrors === null ? validate116.errors : vErrors.concat(validate116.errors);
+    errors = vErrors.length;
+  }
+  validate115.errors = vErrors;
+  return errors === 0;
+}
+var validateV2TurnError = validate119;
+function validate120(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+  let vErrors = null;
+  let errors = 0;
+  if (errors === 0) {
+    if (data && typeof data == "object" && !Array.isArray(data)) {
+      let missing0;
+      if (data.message === void 0 && (missing0 = "message")) {
+        validate120.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 } }];
         return false;
       } else {
         if (data.additionalDetails !== void 0) {
           let data0 = data.additionalDetails;
           const _errs1 = errors;
           if (typeof data0 !== "string" && data0 !== null) {
-            validate116.errors = [{ instancePath: instancePath + "/additionalDetails", schemaPath: "#/properties/additionalDetails/type", keyword: "type", params: { type: schema48.properties.additionalDetails.type } }];
+            validate120.errors = [{ instancePath: instancePath + "/additionalDetails", schemaPath: "#/properties/additionalDetails/type", keyword: "type", params: { type: schema48.properties.additionalDetails.type } }];
             return false;
           }
           var valid0 = _errs1 === errors;
@@ -13044,7 +13097,7 @@ function validate116(data, { instancePath = "", parentData, parentDataProperty, 
                 vErrors.push(err1);
               }
               errors++;
-              validate116.errors = vErrors;
+              validate120.errors = vErrors;
               return false;
             } else {
               errors = _errs4;
@@ -13064,7 +13117,7 @@ function validate116(data, { instancePath = "", parentData, parentDataProperty, 
             if (data.message !== void 0) {
               const _errs8 = errors;
               if (typeof data.message !== "string") {
-                validate116.errors = [{ instancePath: instancePath + "/message", schemaPath: "#/properties/message/type", keyword: "type", params: { type: "string" } }];
+                validate120.errors = [{ instancePath: instancePath + "/message", schemaPath: "#/properties/message/type", keyword: "type", params: { type: "string" } }];
                 return false;
               }
               var valid0 = _errs8 === errors;
@@ -13106,7 +13159,7 @@ function validate116(data, { instancePath = "", parentData, parentDataProperty, 
                     vErrors.push(err3);
                   }
                   errors++;
-                  validate116.errors = vErrors;
+                  validate120.errors = vErrors;
                   return false;
                 } else {
                   errors = _errs11;
@@ -13127,45 +13180,45 @@ function validate116(data, { instancePath = "", parentData, parentDataProperty, 
         }
       }
     } else {
-      validate116.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
+      validate120.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
       return false;
     }
-  }
-  validate116.errors = vErrors;
-  return errors === 0;
-}
-function validate115(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
-  ;
-  let vErrors = null;
-  let errors = 0;
-  if (!validate116(data, { instancePath, parentData, parentDataProperty, rootData })) {
-    vErrors = vErrors === null ? validate116.errors : vErrors.concat(validate116.errors);
-    errors = vErrors.length;
-  }
-  validate115.errors = vErrors;
-  return errors === 0;
-}
-var validateV2TurnInterruptResponse = validate120;
-function validate120(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
-  ;
-  let vErrors = null;
-  let errors = 0;
-  if (!(data && typeof data == "object" && !Array.isArray(data))) {
-    validate120.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnInterruptResponse/type", keyword: "type", params: { type: "object" } }];
-    return false;
   }
   validate120.errors = vErrors;
   return errors === 0;
 }
-var validateV2TurnStartResponse = validate121;
-function validate122(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+function validate119(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+  ;
+  let vErrors = null;
+  let errors = 0;
+  if (!validate120(data, { instancePath, parentData, parentDataProperty, rootData })) {
+    vErrors = vErrors === null ? validate120.errors : vErrors.concat(validate120.errors);
+    errors = vErrors.length;
+  }
+  validate119.errors = vErrors;
+  return errors === 0;
+}
+var validateV2TurnInterruptResponse = validate124;
+function validate124(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+  ;
+  let vErrors = null;
+  let errors = 0;
+  if (!(data && typeof data == "object" && !Array.isArray(data))) {
+    validate124.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnInterruptResponse/type", keyword: "type", params: { type: "object" } }];
+    return false;
+  }
+  validate124.errors = vErrors;
+  return errors === 0;
+}
+var validateV2TurnStartResponse = validate125;
+function validate126(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
   let errors = 0;
   if (errors === 0) {
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (data.turn === void 0 && (missing0 = "turn")) {
-        validate122.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 } }];
+        validate126.errors = [{ instancePath, schemaPath: "#/required", keyword: "required", params: { missingProperty: missing0 } }];
         return false;
       } else {
         if (data.turn !== void 0) {
@@ -13176,26 +13229,26 @@ function validate122(data, { instancePath = "", parentData, parentDataProperty, 
         }
       }
     } else {
-      validate122.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
+      validate126.errors = [{ instancePath, schemaPath: "#/type", keyword: "type", params: { type: "object" } }];
       return false;
     }
   }
-  validate122.errors = vErrors;
+  validate126.errors = vErrors;
   return errors === 0;
 }
-function validate121(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+function validate125(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   ;
   let vErrors = null;
   let errors = 0;
-  if (!validate122(data, { instancePath, parentData, parentDataProperty, rootData })) {
-    vErrors = vErrors === null ? validate122.errors : vErrors.concat(validate122.errors);
+  if (!validate126(data, { instancePath, parentData, parentDataProperty, rootData })) {
+    vErrors = vErrors === null ? validate126.errors : vErrors.concat(validate126.errors);
     errors = vErrors.length;
   }
-  validate121.errors = vErrors;
+  validate125.errors = vErrors;
   return errors === 0;
 }
-var validateV2TurnSteerResponse = validate125;
-function validate125(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
+var validateV2TurnSteerResponse = validate129;
+function validate129(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   ;
   let vErrors = null;
   let errors = 0;
@@ -13204,22 +13257,22 @@ function validate125(data, { instancePath = "", parentData, parentDataProperty, 
     if (data && typeof data == "object" && !Array.isArray(data)) {
       let missing0;
       if (data.turnId === void 0 && (missing0 = "turnId")) {
-        validate125.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/required", keyword: "required", params: { missingProperty: missing0 } }];
+        validate129.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/required", keyword: "required", params: { missingProperty: missing0 } }];
         return false;
       } else {
         if (data.turnId !== void 0) {
           if (typeof data.turnId !== "string") {
-            validate125.errors = [{ instancePath: instancePath + "/turnId", schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/properties/turnId/type", keyword: "type", params: { type: "string" } }];
+            validate129.errors = [{ instancePath: instancePath + "/turnId", schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/properties/turnId/type", keyword: "type", params: { type: "string" } }];
             return false;
           }
         }
       }
     } else {
-      validate125.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/type", keyword: "type", params: { type: "object" } }];
+      validate129.errors = [{ instancePath, schemaPath: "https://openai.com/codex/app-server-protocol.schema.json#/definitions/v2/TurnSteerResponse/type", keyword: "type", params: { type: "object" } }];
       return false;
     }
   }
-  validate125.errors = vErrors;
+  validate129.errors = vErrors;
   return errors === 0;
 }
 export {
@@ -13235,6 +13288,7 @@ export {
   validateV2ThreadProjectionEventNotification,
   validateV2ThreadReadResponse,
   validateV2ThreadResumeResponse,
+  validateV2ThreadStatusChangedNotification,
   validateV2TurnError,
   validateV2TurnInterruptResponse,
   validateV2TurnStartResponse,

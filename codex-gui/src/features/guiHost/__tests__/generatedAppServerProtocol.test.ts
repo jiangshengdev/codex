@@ -11,6 +11,7 @@ import {
   validateV2ThreadProjectionClosedNotification,
   validateV2ThreadProjectionDeltaNotification,
   validateV2ThreadProjectionEventNotification,
+  validateV2ThreadStatusChangedNotification,
 } from "@/generated/appServerProtocol/appServerPayloadValidators.js";
 import { validateJSONRPCMessage } from "@/generated/appServerProtocol/jsonRpcEnvelopeValidators.js";
 import type { RequestResponse } from "../appServerProtocol";
@@ -204,6 +205,28 @@ describe("generated app-server protocol", () => {
     expect(classifyServerNotification({ method: "skills/changed", params: null })).toEqual({
       type: "selectedInvalid",
       method: "skills/changed",
+    });
+  });
+
+  it("classifies legal and malformed thread/status/changed notifications", () => {
+    const notification = {
+      method: "thread/status/changed",
+      params: { threadId: historyThread.id, status: { type: "idle" } },
+    } as const;
+
+    expect(validateV2ThreadStatusChangedNotification(notification.params)).toBe(true);
+    expect(classifyServerNotification(notification)).toEqual({
+      type: "selected",
+      notification,
+    });
+    expect(
+      classifyServerNotification({
+        method: "thread/status/changed",
+        params: { threadId: historyThread.id, status: { type: "active" } },
+      }),
+    ).toEqual({
+      type: "selectedInvalid",
+      method: "thread/status/changed",
     });
   });
 

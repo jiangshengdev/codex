@@ -13,6 +13,7 @@ import type {
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
+  ThreadStatusChangedNotification,
 } from "@codex-protocol/v2";
 import { validateGuiAuthenticateResult } from "@/generated/guiHostContract";
 import { startGuiHostConnection, type GuiHostCommands } from "../guiHostClient";
@@ -351,6 +352,40 @@ describe("guiHostClient handshake", () => {
     expect(socket.closed).toEqual([]);
   });
 
+  it("forwards thread/status/changed notifications", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const notifications: ThreadStatusChangedNotification[] = [];
+    const socket = new RecordingWebSocket();
+    const notification = {
+      threadId: attachBaseline.snapshot.thread.id,
+      status: { type: "active", activeFlags: ["waitingOnApproval"] },
+    } as const satisfies ThreadStatusChangedNotification;
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/task/thread-abc"),
+      token: "secret",
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus,
+      onThreadStatusChanged: (statusChanged) => {
+        notifications.push(statusChanged);
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/status/changed",
+        params: notification,
+      }),
+    });
+
+    expect(notifications).toEqual([notification]);
+    expect(statuses.at(-1)).toEqual({ label: "initialized", message: undefined });
+    expect(socket.closed).toEqual([]);
+  });
+
   it("ignores a known unconsumed notification without validating its params", () => {
     const { summaries: statuses, onStatus } = recordStatusSummaries();
     const projectionCallbacks: string[] = [];
@@ -483,6 +518,42 @@ describe("guiHostClient handshake", () => {
     expect(statuses.at(-1)).toEqual({
       label: "error",
       message: "skills/changed returned malformed params payload",
+    });
+    expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
+  });
+
+  it("reports malformed thread/status/changed payloads without forwarding them", () => {
+    const { summaries: statuses, onStatus } = recordStatusSummaries();
+    const notifications: ThreadStatusChangedNotification[] = [];
+    const socket = new RecordingWebSocket();
+    startGuiHostConnection({
+      location: new URL("http://127.0.0.1:4567/task/thread-abc"),
+      token: "secret",
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus,
+      onThreadStatusChanged: (notification) => {
+        notifications.push(notification);
+      },
+    });
+
+    socket.onopen?.();
+    sendAuthenticateResult(socket);
+    sendInitializeResult(socket);
+    socket.onmessage?.({
+      data: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "thread/status/changed",
+        params: {
+          threadId: attachBaseline.snapshot.thread.id,
+          status: { type: "active" },
+        },
+      }),
+    });
+
+    expect(notifications).toEqual([]);
+    expect(statuses.at(-1)).toEqual({
+      label: "error",
+      message: "thread/status/changed returned malformed params payload",
     });
     expect(socket.closed).toEqual([{ code: 1000, reason: "protocol error" }]);
   });

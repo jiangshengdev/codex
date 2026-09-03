@@ -94,6 +94,10 @@ describe("generated GUI Host protocol boundary", () => {
   test("narrows selected notifications to their method-specific generated type", () => {
     const notifications = [
       { method: "skills/changed", params: {} },
+      {
+        method: "thread/status/changed",
+        params: { threadId: "thread-1", status: { type: "idle" } },
+      },
       { method: "thread/projection/event", params: eventTurnStarted },
       { method: "thread/projection/delta", params: eventAgentMessageDelta },
       { method: "thread/projection/closed", params: closedBackpressure },
@@ -110,6 +114,11 @@ describe("generated GUI Host protocol boundary", () => {
         case "skills/changed":
           expectTypeOf(classification.notification).toEqualTypeOf<
             Extract<ServerNotification, { method: "skills/changed" }>
+          >();
+          break;
+        case "thread/status/changed":
+          expectTypeOf(classification.notification).toEqualTypeOf<
+            Extract<ServerNotification, { method: "thread/status/changed" }>
           >();
           break;
         case "thread/projection/event":

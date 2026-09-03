@@ -56,6 +56,14 @@ export declare const validateV2ThreadReadResponse: ProtocolValidator<
 export declare const validateV2ThreadResumeResponse: ProtocolValidator<
   RequestResponse<"thread/resume">
 >;
+export declare const validateV2ThreadStatusChangedNotification: ProtocolValidator<
+  Extract<
+    ServerNotification,
+    {
+      method: "thread/status/changed";
+    }
+  >["params"]
+>;
 export declare const validateV2TurnError: ProtocolValidator<
   Partial<TurnError> & Required<Pick<TurnError, "message">>
 >;

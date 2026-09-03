@@ -30,6 +30,7 @@ export const APP_SERVER_REQUEST_METHODS = [
 
 export const APP_SERVER_NOTIFICATION_METHODS = [
   "skills/changed",
+  "thread/status/changed",
   "thread/projection/event",
   "thread/projection/delta",
   "thread/projection/closed",
