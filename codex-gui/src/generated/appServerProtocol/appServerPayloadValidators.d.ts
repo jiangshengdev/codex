@@ -14,6 +14,9 @@ export declare const validateV2SkillsChangedNotification: ProtocolValidator<
 export declare const validateV2SkillsListResponse: ProtocolValidator<
   RequestResponse<"skills/list">
 >;
+export declare const validateV2ThreadCompactStartResponse: ProtocolValidator<
+  RequestResponse<"thread/compact/start">
+>;
 export declare const validateV2ThreadListResponse: ProtocolValidator<
   RequestResponse<"thread/list">
 >;
@@ -52,6 +55,14 @@ export declare const validateV2ThreadReadResponse: ProtocolValidator<
 >;
 export declare const validateV2ThreadResumeResponse: ProtocolValidator<
   RequestResponse<"thread/resume">
+>;
+export declare const validateV2ThreadStatusChangedNotification: ProtocolValidator<
+  Extract<
+    ServerNotification,
+    {
+      method: "thread/status/changed";
+    }
+  >["params"]
 >;
 export declare const validateV2TurnError: ProtocolValidator<
   Partial<TurnError> & Required<Pick<TurnError, "message">>

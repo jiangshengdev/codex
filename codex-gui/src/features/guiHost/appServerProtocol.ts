@@ -17,6 +17,7 @@ export type RequestResponse<M extends ClientRequestDefinition["method"]> =
 export const APP_SERVER_REQUEST_METHODS = [
   "initialize",
   "skills/list",
+  "thread/compact/start",
   "thread/projection/attach",
   "thread/projection/detach",
   "thread/list",
@@ -29,6 +30,7 @@ export const APP_SERVER_REQUEST_METHODS = [
 
 export const APP_SERVER_NOTIFICATION_METHODS = [
   "skills/changed",
+  "thread/status/changed",
   "thread/projection/event",
   "thread/projection/delta",
   "thread/projection/closed",

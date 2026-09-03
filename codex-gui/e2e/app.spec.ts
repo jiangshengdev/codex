@@ -35,6 +35,7 @@ type LayoutMetrics = {
   bodyScrollWidth: number;
   clientWidth: number;
   composerRight: number;
+  composerStatusRight: number;
   scrollWidth: number;
   transcriptSurfaceRight: number;
 };
@@ -257,11 +258,13 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
 
   await expect(page.getByRole("article", { name: `Turn ${mobileStressTurnId}` })).toBeVisible();
   await expect(page.getByRole("region", { name: "Message composer" })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Current task is idle" })).toHaveText("Idle");
 
   const layout = await page.evaluate<LayoutMetrics>(`(() => {
     const appSurface = document.querySelector(".surface");
     const transcriptSurface = document.querySelector(".committed-transcript-surface");
     const composer = document.querySelector('[aria-label="Message composer"]');
+    const composerStatus = document.querySelector(".current-thread-status");
 
     return {
       clientWidth: document.documentElement.clientWidth,
@@ -271,6 +274,7 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
       appSurfaceRight: appSurface?.getBoundingClientRect().right ?? 0,
       transcriptSurfaceRight: transcriptSurface?.getBoundingClientRect().right ?? 0,
       composerRight: composer?.getBoundingClientRect().right ?? 0,
+      composerStatusRight: composerStatus?.getBoundingClientRect().right ?? 0,
     };
   })()`);
 
@@ -279,6 +283,8 @@ test("fits committed transcript and composer in a narrow mobile viewport", async
   expect(layout.appSurfaceRight).toBeLessThanOrEqual(layout.clientWidth);
   expect(layout.transcriptSurfaceRight).toBeLessThanOrEqual(layout.clientWidth);
   expect(layout.composerRight).toBeLessThanOrEqual(layout.clientWidth);
+  expect(layout.composerStatusRight).toBeGreaterThan(0);
+  expect(layout.composerStatusRight).toBeLessThanOrEqual(layout.clientWidth);
 });
 
 test("sends plain text through turn/start", async ({ page }) => {

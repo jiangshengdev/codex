@@ -51,9 +51,10 @@ describe("thread runtime derived read model", () => {
       buildActiveThreadCandidateReadModelTransition(1, attachBaseline),
     );
     const state = threadRuntimeSlice.reducer(undefined, action);
-    const { turns, ...thread } = attachBaseline.snapshot.thread;
+    const { turns, status, ...thread } = attachBaseline.snapshot.thread;
 
     expect(turns).toBe(attachBaseline.snapshot.thread.turns);
+    expect(status).toBe(attachBaseline.snapshot.thread.status);
     expect(state).toStrictEqual({
       sessionRevision: 1,
       current: {
@@ -68,6 +69,7 @@ describe("thread runtime derived read model", () => {
     expect(selectThreadRuntimeTokenUsage(runtimeRoot(state))).toBe(
       attachBaseline.snapshot.tokenUsage,
     );
+    expect(state.current?.thread).not.toHaveProperty("status");
   });
 
   it("updates display token usage from an accepted fact in the same transition", () => {

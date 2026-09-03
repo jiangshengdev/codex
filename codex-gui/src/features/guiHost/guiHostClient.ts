@@ -3,6 +3,7 @@ import type {
   ThreadProjectionClosedNotification,
   ThreadProjectionDeltaNotification,
   ThreadProjectionEventNotification,
+  ThreadStatusChangedNotification,
 } from "@codex-protocol/v2";
 import type { JSONRPCMessage } from "@codex-protocol/JSONRPCMessage";
 import { WEBSOCKET_PATH } from "@codex-gui-host-contract";
@@ -35,6 +36,7 @@ export type StartGuiHostConnectionOptions = {
   createWebSocket?: (url: string) => WebSocket;
   onStatus?: (status: GuiHostStatus) => void;
   onSkillsChanged?: (notification: SkillsChangedNotification) => void;
+  onThreadStatusChanged?: (notification: ThreadStatusChangedNotification) => void;
   onProjectionDelta?: (notification: ThreadProjectionDeltaNotification) => void;
   onProjectionEvent?: (notification: ThreadProjectionEventNotification) => void;
   onProjectionClosed?: (notification: ThreadProjectionClosedNotification) => void;
@@ -50,6 +52,7 @@ export function startGuiHostConnection({
   createWebSocket = (url) => new WebSocket(url),
   onStatus,
   onSkillsChanged,
+  onThreadStatusChanged,
   onProjectionDelta,
   onProjectionEvent,
   onProjectionClosed,
@@ -206,6 +209,9 @@ export function startGuiHostConnection({
         switch (notification.method) {
           case "skills/changed":
             onSkillsChanged?.(notification.params);
+            return;
+          case "thread/status/changed":
+            onThreadStatusChanged?.(notification.params);
             return;
           case "thread/projection/event":
             onProjectionEvent?.(notification.params);

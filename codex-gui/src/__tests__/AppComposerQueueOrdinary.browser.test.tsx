@@ -108,6 +108,7 @@ const steerTurnParamsAt = (
 const readGuiHostCommandCallCounts = (
   commands: GuiHostCommands,
 ): Record<keyof GuiHostCommands, number> => ({
+  compactThread: vi.mocked(commands.compactThread).mock.calls.length,
   attachThreadProjection: vi.mocked(commands.attachThreadProjection).mock.calls.length,
   listSkills: vi.mocked(commands.listSkills).mock.calls.length,
   listThreads: vi.mocked(commands.listThreads).mock.calls.length,
@@ -259,6 +260,7 @@ test("App drains ordinary inputs in the authoritative order selected through Pen
   const releaseReadinessBeforeMove = queueCoordinator.getReleaseReadiness();
   const hostCallsBeforeMove = readGuiHostCommandCallCounts(commandHandle);
   expect(hostCallsBeforeMove).toEqual({
+    compactThread: 0,
     attachThreadProjection: 1,
     listSkills: 1,
     listThreads: 0,

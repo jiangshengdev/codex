@@ -42,7 +42,7 @@ export const TranscriptContextPagination = ({
   }
 
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="-my-1 w-full overflow-x-auto py-1">
       <Pagination
         aria-label={t({
           comment: "Accessible name for pagination between transcript context generations",
@@ -51,7 +51,7 @@ export const TranscriptContextPagination = ({
         className="justify-center"
         size="sm"
       >
-        <Pagination.Content>
+        <Pagination.Content className="gap-2 px-1">
           <Pagination.Item>
             <Pagination.Previous
               aria-label={t({

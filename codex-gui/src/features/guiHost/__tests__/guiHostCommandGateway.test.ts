@@ -124,9 +124,22 @@ describe("GuiHostCommandGateway", () => {
     expect(gateway.commands).toBe(commands);
   });
 
-  it("maps startTurn, steerTurn, and interruptTurn to their generated descriptors", async () => {
+  it("maps compactThread, startTurn, steerTurn, and interruptTurn to generated descriptors", async () => {
     const { gateway, socket, transport } = setup();
     gateway.activate();
+    const compactParams = { threadId: "thread-1" };
+    const compactPromise = gateway.commands.compactThread(compactParams);
+    const compactRequest = readLatestRpcRequest(socket, "thread/compact/start");
+    expect(compactRequest).toEqual({
+      jsonrpc: "2.0",
+      id: compactRequest.id,
+      method: "thread/compact/start",
+      params: compactParams,
+    });
+    const compactResponse = {};
+    transport.settleResult(compactRequest.id, compactResponse);
+    await expect(compactPromise).resolves.toBe(compactResponse);
+
     const startParams = {
       threadId: "thread-1",
       clientUserMessageId: null,

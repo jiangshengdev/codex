@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from "react";
-import { Alert, Card, Separator, Typography } from "@heroui/react";
+import { Alert, Card, Typography } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   selectLastTranscriptFragmentIdsByTurnIdFromTranscriptState,
@@ -9,6 +9,7 @@ import {
   selectTranscriptTurnFragmentFromTranscriptState,
   selectTranscriptTurnFromTranscriptState,
 } from "@/features/transcriptState/transcriptStateSelectors";
+import { TranscriptContextBoundary } from "./TranscriptContextBoundary";
 import { TranscriptContextPagination } from "./TranscriptContextPagination";
 import { useTranscriptSelector } from "./TranscriptReadContext";
 
@@ -96,14 +97,7 @@ export const CommittedTranscriptSurfaceRenderer = ({
           ))}
         </div>
       ) : null}
-      {currentPage?.leadingBoundaryId == null ? null : (
-        <div className="committed-transcript-context-boundary grid min-w-0 gap-2">
-          <Separator variant="tertiary" />
-          <Typography color="muted" type="body-sm">
-            <Trans>Context compressed</Trans>
-          </Typography>
-        </div>
-      )}
+      {currentPage?.leadingBoundaryId == null ? null : <TranscriptContextBoundary />}
       {!hasSurfaceContent ? (
         <Card className="committed-transcript-empty">
           <Card.Content>

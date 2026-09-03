@@ -3,6 +3,7 @@ import type { ProtocolValidator, RequestResponse } from "../../features/guiHost/
 import {
   validateInitializeResponse,
   validateV2SkillsListResponse,
+  validateV2ThreadCompactStartResponse,
   validateV2ThreadProjectionAttachResponse,
   validateV2ThreadProjectionDetachResponse,
   validateV2ThreadListResponse,
@@ -24,6 +25,12 @@ export const requestDescriptors = {
     paramsSchema: "v2/SkillsListParams",
     responseSchema: "v2/SkillsListResponse",
     validateResponse: validateV2SkillsListResponse,
+  },
+  "thread/compact/start": {
+    method: "thread/compact/start",
+    paramsSchema: "v2/ThreadCompactStartParams",
+    responseSchema: "v2/ThreadCompactStartResponse",
+    validateResponse: validateV2ThreadCompactStartResponse,
   },
   "thread/projection/attach": {
     method: "thread/projection/attach",
@@ -77,6 +84,7 @@ export const requestDescriptors = {
   [M in
     | "initialize"
     | "skills/list"
+    | "thread/compact/start"
     | "thread/projection/attach"
     | "thread/projection/detach"
     | "thread/list"

@@ -351,6 +351,28 @@ test("disables controls while the projection is unavailable", async () => {
   await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "true");
 });
 
+test("presents thread status from the active session snapshot", async () => {
+  const screen = await renderAttached();
+  const activeSnapshot = screen.sessionHarness.session.getSnapshot();
+  if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
+  const composer = getComposer(screen);
+  composer.element().focus();
+  await expect.element(composer).toHaveFocus();
+
+  screen.sessionHarness.publish(
+    screen.sessionHarness.activeSnapshot({
+      ...activeSnapshot,
+      revision: activeSnapshot.revision + 1,
+      threadStatus: { type: "active", activeFlags: ["waitingOnApproval"] },
+    }),
+  );
+
+  await expect
+    .element(screen.getByRole("status", { name: "Current task is waiting for approval" }))
+    .toHaveTextContent("Waiting for approval");
+  await expect.element(composer).toHaveFocus();
+});
+
 test("shows attached context usage and opens its details", async () => {
   const screen = await renderAttached();
   const contextUsageButton = screen.getByRole("button", {
@@ -407,7 +429,7 @@ test("updates context usage from live runtime events", async () => {
   await expect.element(dialog.getByText("149k tokens used of 258k", { exact: true })).toBeVisible();
 });
 
-test("clears context usage when a replacement attach has no usage", async () => {
+test("hides context controls when a replacement attach has no percentage data", async () => {
   const screen = await renderAttached();
   const contextUsageButton = screen.getByRole("button", {
     name: "Context usage details, 0% used, 120 of 258k tokens",
@@ -417,9 +439,10 @@ test("clears context usage when a replacement attach has no usage", async () => 
 
   dispatchReadModelFacts(screen, [{ type: "baselineAttached", response: attachReplacement }]);
 
+  await expect.element(contextUsageButton).not.toBeInTheDocument();
   await expect
-    .poll(() => screen.container.querySelector('[aria-label^="Context usage details"]'))
-    .toBeNull();
+    .element(screen.getByRole("button", { name: /Context usage details/ }))
+    .not.toBeInTheDocument();
 });
 
 test("disposes active Composer applications once after a real StrictMode unmount", async () => {

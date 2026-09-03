@@ -61,7 +61,7 @@ msgstr "{middleEntryCount, plural, one {Intermediate updates · # item} other {I
 msgid "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 msgstr "{omittedCount, plural, one {and # more sub-agent} other {and # more sub-agents}}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:50
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:85
 msgid "{percentageLabel} used"
 msgstr "{percentageLabel} used"
 
@@ -70,11 +70,11 @@ msgstr "{percentageLabel} used"
 msgid "{threadId}: {agentState}"
 msgstr "{threadId}: {agentState}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:53
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:88
 msgid "{usedTokensLabel} tokens used of {contextWindowLabel}"
 msgstr "{usedTokensLabel} tokens used of {contextWindowLabel}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:45
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:80
 msgid "{usedTokensLabel} tokens used; context window capacity unknown"
 msgstr "{usedTokensLabel} tokens used; context window capacity unknown"
 
@@ -150,6 +150,18 @@ msgstr "Completed - {messagePreview}"
 msgid "Completed <0/> <1/>"
 msgstr "Completed <0/> <1/>"
 
+#. Button that starts compression for the current conversation context
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:111
+msgid "Compress context"
+msgstr "Compress context"
+
+#. Status shown while the current conversation context is compressed
+#. Status shown while the current conversation context is compressed
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:47
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:106
+msgid "Compressing"
+msgstr "Compressing"
+
 #: src/features/committedTranscriptSurface/CommittedTranscriptSurfaceRenderer.tsx:92
 msgid "Connection interrupted. Reconnect required."
 msgstr "Connection interrupted. Reconnect required."
@@ -162,23 +174,45 @@ msgstr "Contact support"
 msgid "Context compressed"
 msgstr "Context compressed"
 
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:118
+msgid "Context compression could not be started."
+msgstr "Context compression could not be started."
+
+#. Accessible name for context controls while compression is active
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:35
+msgid "Context compression in progress"
+msgstr "Context compression in progress"
+
 #. Accessible name for a numbered transcript context page button
 #: src/features/committedTranscriptSurface/TranscriptContextPagination.tsx:79
 msgid "Context page {item}"
 msgstr "Context page {item}"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:24
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:40
+#. Accessible label for the context usage progress indicator
+#. Heading for context usage and compression controls
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:54
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:73
 msgid "Context usage"
 msgstr "Context usage"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:17
+#. Accessible name for context controls with current token usage
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:29
 msgid "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
 msgstr "Context usage details, {percentageLabel} used, {usedTokensLabel} of {contextWindowLabel} tokens"
 
-#: src/features/composerTurnControl/ContextUsagePopover.tsx:16
+#. Accessible name for context controls when capacity is unknown
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:25
 msgid "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
 msgstr "Context usage details, {usedTokensLabel} tokens used, context window capacity unknown"
+
+#. Accessible name for context controls when usage data is unavailable
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:23
+#~ msgid "Context usage details, usage unavailable"
+#~ msgstr "Context usage details, usage unavailable"
+
+#: src/features/composerTurnControl/ContextUsagePopover.tsx:84
+#~ msgid "Context usage is unavailable."
+#~ msgstr "Context usage is unavailable."
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:132
 msgid "Continue sending"
@@ -193,6 +227,38 @@ msgstr "Continue this task"
 #: src/features/documentTitle/DocumentTitleOwner.tsx:43
 msgid "Current task"
 msgstr "Current task"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:69
+msgid "Current task has a system error"
+msgstr "Current task has a system error"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:29
+msgid "Current task is idle"
+msgstr "Current task is idle"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:37
+msgid "Current task is in progress"
+msgstr "Current task is in progress"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:21
+msgid "Current task is not loaded"
+msgstr "Current task is not loaded"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:45
+msgid "Current task is waiting for approval"
+msgstr "Current task is waiting for approval"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:61
+msgid "Current task is waiting for approval and input"
+msgstr "Current task is waiting for approval and input"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:53
+msgid "Current task is waiting for input"
+msgstr "Current task is waiting for input"
+
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:13
+msgid "Current task status is unknown"
+msgstr "Current task status is unknown"
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:98
 msgid "Currently unable to guide; added to queue"
@@ -225,8 +291,10 @@ msgstr "Edit pending message"
 msgid "Enter a message before saving."
 msgstr "Enter a message before saving."
 
+#. Short system-error label for the current task beside the composer QR button
 #. Status of a collaborating agent that failed
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:118
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:71
 msgid "Error"
 msgstr "Error"
 
@@ -271,7 +339,7 @@ msgstr "Finished waiting"
 msgid "Go back home"
 msgstr "Go back home"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:222
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:236
 msgid "Guide"
 msgstr "Guide"
 
@@ -306,12 +374,16 @@ msgstr "History context unavailable"
 msgid "History detail"
 msgstr "History detail"
 
+#. Short idle-state label for the current task beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:31
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:191
 msgid "Idle"
 msgstr "Idle"
 
+#. Short in-progress label for the current task beside the composer QR button
 #. Status chip for a turn that is still in progress
 #: src/features/committedTranscriptSurface/CommittedTranscriptTurnFragment.tsx:198
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:39
 msgid "In progress"
 msgstr "In progress"
 
@@ -339,7 +411,7 @@ msgstr "Interrupted."
 
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:41
 #: src/features/composerTurnControl/ComposerPendingInputEditor.tsx:90
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:92
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:95
 msgid "Invalid skill"
 msgstr "Invalid skill"
 
@@ -376,12 +448,12 @@ msgstr "Menu"
 msgid "Message cannot be empty"
 msgstr "Message cannot be empty"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:165
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:173
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:172
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:180
 msgid "Message Codex"
 msgstr "Message Codex"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:152
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:159
 msgid "Message composer"
 msgstr "Message composer"
 
@@ -464,6 +536,8 @@ msgstr "No pending messages"
 msgid "Not found"
 msgstr "Not found"
 
+#. Short label for a current task that is not loaded beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:23
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:190
 msgid "Not loaded"
 msgstr "Not loaded"
@@ -609,7 +683,7 @@ msgstr "Save"
 msgid "Scan with phone"
 msgstr "Scan with phone"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:234
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:248
 msgid "Send"
 msgstr "Send"
 
@@ -673,11 +747,11 @@ msgstr "Spawned {receiver} ({reasoningEffort})"
 msgid "Started <0/> <1/>"
 msgstr "Started <0/> <1/>"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:210
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:224
 msgid "Stop"
 msgstr "Stop"
 
-#: src/features/composerTurnControl/ComposerTurnControl.tsx:201
+#: src/features/composerTurnControl/ComposerTurnControl.tsx:215
 msgid "Stop failed"
 msgstr "Stop failed"
 
@@ -820,6 +894,11 @@ msgstr "Unable to start Codex GUI"
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
+#. Short label for an unknown current task status beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:15
+msgid "Unknown"
+msgstr "Unknown"
+
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:36
 #: src/features/threadHistory/ThreadHistoryDetailContent.tsx:46
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:137
@@ -841,6 +920,11 @@ msgstr "User"
 msgid "View"
 msgstr "View"
 
+#. Short label for a current task awaiting approval and input beside the QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:63
+msgid "Waiting"
+msgstr "Waiting"
+
 #. Collaboration activity waiting for the agent identified by the raw receiver value
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:176
 msgid "Waiting for {receiver}"
@@ -853,6 +937,16 @@ msgstr "Waiting for {receiverCount} agents"
 #: src/features/committedTranscriptSurface/TranscriptActivityEntries.tsx:173
 msgid "Waiting for agents"
 msgstr "Waiting for agents"
+
+#. Short label for a current task awaiting approval beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:47
+msgid "Waiting for approval"
+msgstr "Waiting for approval"
+
+#. Short label for a current task awaiting user input beside the composer QR button
+#: src/features/composerTurnControl/currentThreadStatusPresentation.ts:55
+msgid "Waiting for input"
+msgstr "Waiting for input"
 
 #: src/features/composerTurnControl/ComposerPendingInputRegion.tsx:91
 msgid "Will send first"
