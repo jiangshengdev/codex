@@ -231,9 +231,10 @@ class ActiveThreadCompactionImpl implements ActiveThreadCompaction {
   }
 
   private releaseRequestReservation(): void {
-    const reservation = this.requestClaim?.reservation;
-    if (reservation == null) return;
-    this.requestClaim.reservation = null;
+    const requestClaim = this.requestClaim;
+    if (requestClaim?.reservation == null) return;
+    const reservation = requestClaim.reservation;
+    requestClaim.reservation = null;
     reservation.release();
   }
 
