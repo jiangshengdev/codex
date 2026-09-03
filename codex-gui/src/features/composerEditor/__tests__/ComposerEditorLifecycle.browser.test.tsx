@@ -4,7 +4,6 @@ import {
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  COMPOSITION_END_COMMAND,
   FORMAT_ELEMENT_COMMAND,
   FORMAT_TEXT_COMMAND,
   getNearestEditorFromDOMNode,
@@ -25,6 +24,7 @@ import {
   type ComposerEditorProps,
 } from "../ComposerEditor";
 import type { ComposerDraft } from "../composerDraft";
+import { dispatchCompositionEnd } from "./composerEditorCompositionBrowserTestSupport";
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);
@@ -450,18 +450,6 @@ type RenderEditorOptions = Readonly<{
   onSubmit?: ComposerEditorProps["onSubmit"];
 }>;
 
-function dispatchCompositionEnd(root: Element, data: string): void {
-  const event = new CompositionEvent("compositionend", { bubbles: true, data });
-  root.dispatchEvent(event);
-
-  const editor = getNearestEditorFromDOMNode(root);
-  if (editor == null) {
-    throw new Error("composition root must belong to a Lexical editor");
-  }
-  if (editor.isComposing()) {
-    editor.dispatchCommand(COMPOSITION_END_COMMAND, event);
-  }
-}
 async function renderEditor(
   candidates: readonly SkillCatalogCandidate[],
   {
