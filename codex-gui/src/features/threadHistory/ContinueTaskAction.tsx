@@ -1,4 +1,4 @@
-import { Alert, Button, toast } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +12,7 @@ import {
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
 import { QrAccessPopover } from "@/features/qrAccess/QrAccessPopover";
+import { ContinueTaskFailureAlert } from "./ContinueTaskFailureAlert";
 
 type ContinueTaskState =
   | Readonly<{ type: "idle" }>
@@ -41,7 +42,7 @@ export function ContinueTaskAction({
 }>) {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const unavailableDescriptionId = useId();
+  const failureDescriptionId = useId();
   const warningMessages: ActivationWarningMessages = {
     authorizationPersistenceFailed: {
       title: t`Task opened`,
@@ -60,6 +61,8 @@ export function ContinueTaskAction({
   const currentCapabilityTokenRef = useRef(capabilityToken);
   const mountedRef = useRef(true);
   const inFlightRef = useRef<ContinueTaskRequest | null>(null);
+  const actionSurfaceRef = useRef<HTMLElement | null>(null);
+  const [actionSurfaceHeight, setActionSurfaceHeight] = useState(0);
   const [state, setState] = useState<ContinueTaskState>({ type: "idle" });
   const visibleState =
     state.type === "idle" || state.capabilityToken === capabilityToken
@@ -86,6 +89,43 @@ export function ContinueTaskAction({
       }
     };
   }, [capabilityToken]);
+
+  useLayoutEffect(() => {
+    const actionSurface = actionSurfaceRef.current;
+    if (actionSurface == null) {
+      return;
+    }
+
+    let animationFrame: number | null = null;
+    let pendingHeight: number | null = null;
+    const commitActionSurfaceHeight = (): void => {
+      animationFrame = null;
+      const nextHeight = pendingHeight;
+      pendingHeight = null;
+      if (nextHeight == null) {
+        return;
+      }
+      setActionSurfaceHeight((currentHeight) =>
+        currentHeight === nextHeight ? currentHeight : nextHeight,
+      );
+    };
+    const observer = new ResizeObserver((entries) => {
+      const borderBoxSize = entries[0]?.borderBoxSize[0];
+      if (borderBoxSize == null) {
+        return;
+      }
+      pendingHeight = borderBoxSize.blockSize;
+      animationFrame ??= window.requestAnimationFrame(commitActionSurfaceHeight);
+    });
+    observer.observe(actionSurface, { box: "border-box" });
+
+    return () => {
+      observer.disconnect();
+      if (animationFrame != null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, []);
 
   const navigateToReadyTask = (activeThreadId: string): void => {
     void navigate({
@@ -175,61 +215,40 @@ export function ContinueTaskAction({
 
   return (
     <>
-      {visibleState.type === "unavailable" ? (
-        <ContinueTaskUnavailableAlert
-          descriptionId={unavailableDescriptionId}
-          failure={visibleState.failure}
-          navigateToCurrentTask={navigateToCurrentTask}
-        />
-      ) : null}
-      {visibleState.type === "unexpectedFailure" ? (
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to continue this task</Trans>
-            </Alert.Title>
-            <Alert.Description>
-              <span className="block">
-                <Trans>An unexpected error occurred while continuing the task.</Trans>
-              </span>
-              <span className="mt-1 block">
-                <Trans>Diagnostic:</Trans> {errorText(visibleState.error)}
-              </span>
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : null}
-      {visibleState.type === "empty" ? (
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to continue this task</Trans>
-            </Alert.Title>
-            <Alert.Description>
-              <Trans>The task could not be activated.</Trans>
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      ) : null}
-      <aside className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-2">
-          <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
-          <Button
-            aria-describedby={
-              visibleState.type === "unavailable" ? unavailableDescriptionId : undefined
-            }
-            className="flex-1"
-            isDisabled={capability.activateThread == null}
-            isPending={visibleState.type === "pending"}
-            onPress={() => {
-              void handleContinue();
-            }}
-            variant="primary"
-          >
-            <Trans>Continue this task</Trans>
-          </Button>
+      <div
+        aria-hidden="true"
+        data-thread-history-continuation-action-space=""
+        style={{ height: actionSurfaceHeight }}
+      />
+      <aside
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-separator bg-surface/95 px-4 py-4 backdrop-blur"
+        ref={actionSurfaceRef}
+      >
+        <div className="mx-auto grid w-full max-w-3xl gap-3">
+          <ContinueTaskFailureAlert
+            descriptionId={failureDescriptionId}
+            navigateToCurrentTask={navigateToCurrentTask}
+            state={visibleState}
+          />
+          <div className="flex items-center gap-2">
+            <QrAccessPopover authorizationToken={authorizationToken} routeTarget={routeTarget} />
+            <Button
+              aria-describedby={
+                visibleState.type === "idle" || visibleState.type === "pending"
+                  ? undefined
+                  : failureDescriptionId
+              }
+              className="flex-1"
+              isDisabled={capability.activateThread == null}
+              isPending={visibleState.type === "pending"}
+              onPress={() => {
+                void handleContinue();
+              }}
+              variant="primary"
+            >
+              <Trans>Continue this task</Trans>
+            </Button>
+          </div>
         </div>
       </aside>
     </>
@@ -264,172 +283,4 @@ function showActivationWarning(
   }
 
   warning satisfies never;
-}
-
-function ContinueTaskUnavailableAlert({
-  descriptionId,
-  failure,
-  navigateToCurrentTask,
-}: Readonly<{
-  descriptionId: string;
-  failure: ActiveThreadActivationFailure;
-  navigateToCurrentTask: (threadId: string) => void;
-}>) {
-  switch (failure.type) {
-    case "switchInProgress":
-      return (
-        <Alert role="alert" status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to switch tasks yet</Trans>
-            </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <Trans>Another task switch is already in progress. Try again shortly.</Trans>
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      );
-    case "currentThreadChanged": {
-      const activeThreadId = failure.activeThreadId;
-      return (
-        <Alert role="alert" status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to continue this task</Trans>
-            </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <Trans>The task could not be activated.</Trans>
-            </Alert.Description>
-            {activeThreadId == null ? null : (
-              <Button
-                className="mt-3"
-                onPress={() => {
-                  navigateToCurrentTask(activeThreadId);
-                }}
-                variant="secondary"
-              >
-                <Trans>Return to current task</Trans>
-              </Button>
-            )}
-          </Alert.Content>
-        </Alert>
-      );
-    }
-    case "currentThreadUnresolved": {
-      const activeThreadId = failure.activeThreadId;
-      return (
-        <Alert role="alert" status="warning">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to switch tasks yet</Trans>
-            </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <Trans>
-                The current task still has queued or unresolved messages. Return to it before
-                switching.
-              </Trans>
-            </Alert.Description>
-            <Button
-              className="mt-3"
-              onPress={() => {
-                navigateToCurrentTask(activeThreadId);
-              }}
-              variant="secondary"
-            >
-              <Trans>Return to current task</Trans>
-            </Button>
-          </Alert.Content>
-        </Alert>
-      );
-    }
-    case "connectionLost":
-      return (
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              {failure.progress === "beforeCommit" ? (
-                <Trans>Unable to continue this task</Trans>
-              ) : (
-                <Trans>Task switched, but cannot be opened</Trans>
-              )}
-            </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <span className="block">
-                {failure.progress === "beforeCommit" ? (
-                  <Trans>
-                    The connection was interrupted before the task switch completed. Reconnect and
-                    try again.
-                  </Trans>
-                ) : (
-                  <Trans>
-                    The task switch was committed, but the connection was interrupted. Reconnect and
-                    confirm the current task.
-                  </Trans>
-                )}
-              </span>
-              {failure.cleanupError == null ? null : (
-                <span className="mt-1 block">
-                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
-                </span>
-              )}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      );
-    case "operationFailed":
-      return (
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              <Trans>Unable to continue this task</Trans>
-            </Alert.Title>
-            <Alert.Description id={descriptionId}>
-              <span className="block">
-                <OperationFailureSummary phase={failure.phase} />
-              </span>
-              <span className="mt-1 block">
-                <Trans>Operation diagnostic:</Trans> {errorText(failure.error)}
-              </span>
-              {failure.cleanupError == null ? null : (
-                <span className="mt-1 block">
-                  <Trans>Cleanup diagnostic:</Trans> {errorText(failure.cleanupError)}
-                </span>
-              )}
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      );
-  }
-
-  failure satisfies never;
-  return null;
-}
-
-function OperationFailureSummary({
-  phase,
-}: Readonly<{
-  phase: Extract<ActiveThreadActivationFailure, { type: "operationFailed" }>["phase"];
-}>) {
-  switch (phase) {
-    case "resume":
-      return <Trans>The task could not be resumed.</Trans>;
-    case "attach":
-      return <Trans>The task connection could not be prepared.</Trans>;
-    case "prepare":
-      return <Trans>The task connection could not be prepared.</Trans>;
-    case "activate":
-      return <Trans>The task could not be activated.</Trans>;
-  }
-
-  phase satisfies never;
-  return null;
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

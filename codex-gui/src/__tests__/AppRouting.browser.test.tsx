@@ -552,9 +552,11 @@ test("pure read-only history detail preserves its route when first activation fa
     await expect
       .element(alert.getByText("The task connection could not be prepared.", { exact: true }))
       .toBeVisible();
-    await expect
-      .element(alert.getByText("Operation diagnostic:", { exact: false }))
-      .toHaveTextContent("attach failed");
+    const operationDiagnostic = alert.getByText("Operation diagnostic:", { exact: false });
+    await expect.element(operationDiagnostic).not.toBeInTheDocument();
+    await alert.getByRole("button", { name: "View diagnostic information" }).click();
+    await expect.element(operationDiagnostic).toHaveTextContent("attach failed");
+    await expect.element(operationDiagnostic).toBeVisible();
     expect(commands.resumeThread).not.toHaveBeenCalled();
     expect(commands.attachThreadProjection).toHaveBeenCalledExactlyOnceWith({
       threadId: historyThreadId,

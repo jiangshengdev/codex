@@ -94,11 +94,11 @@ msgstr "Admin"
 msgid "Agent spawn failed"
 msgstr "Agent spawn failed"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:44
 msgid "An unexpected error occurred while continuing the task."
 msgstr "An unexpected error occurred while continuing the task."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:288
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:94
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "Another task switch is already in progress. Try again shortly."
 
@@ -115,8 +115,8 @@ msgstr "Browse task history"
 msgid "Cancel"
 msgstr "Cancel"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:376
-#: src/features/threadHistory/ContinueTaskAction.tsx:400
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:187
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:213
 msgid "Cleanup diagnostic:"
 msgstr "Cleanup diagnostic:"
 
@@ -212,7 +212,7 @@ msgstr "Context usage details, {usedTokensLabel} tokens used, context window cap
 msgid "Continue sending"
 msgstr "Continue sending"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:231
+#: src/features/threadHistory/ContinueTaskAction.tsx:249
 msgid "Continue this task"
 msgstr "Continue this task"
 
@@ -267,7 +267,7 @@ msgstr "Delete"
 msgid "Delete this pending message?"
 msgstr "Delete this pending message?"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:197
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:48
 msgid "Diagnostic:"
 msgstr "Diagnostic:"
 
@@ -545,7 +545,7 @@ msgstr "Open an active task in this browser tab before viewing its history."
 msgid "Open current task"
 msgstr "Open current task"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:396
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:209
 msgid "Operation diagnostic:"
 msgstr "Operation diagnostic:"
 
@@ -663,8 +663,8 @@ msgstr "Resuming {receiver}"
 msgid "Retry"
 msgstr "Retry"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:313
-#: src/features/threadHistory/ContinueTaskAction.tsx:342
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:121
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:152
 msgid "Return to current task"
 msgstr "Return to current task"
 
@@ -770,20 +770,20 @@ msgstr "System"
 msgid "System error"
 msgstr "System error"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:47
-#: src/features/threadHistory/ContinueTaskAction.tsx:51
+#: src/features/threadHistory/ContinueTaskAction.tsx:48
+#: src/features/threadHistory/ContinueTaskAction.tsx:52
 msgid "Task opened"
 msgstr "Task opened"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:357
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:167
 msgid "Task switched, but cannot be opened"
 msgstr "Task switched, but cannot be opened"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:363
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:173
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "The connection was interrupted before the task switch completed. Reconnect and try again."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:330
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:139
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "The current task still has queued or unresolved messages. Return to it before switching."
 
@@ -799,7 +799,7 @@ msgstr "The pending-message order did not change, and the refreshed order could 
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "The pending-message order did not change. Refresh complete; try again."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:52
+#: src/features/threadHistory/ContinueTaskAction.tsx:53
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "The previous task connection could not be fully cleaned up. Later state may be affected."
 
@@ -807,8 +807,8 @@ msgstr "The previous task connection could not be fully cleaned up. Later state 
 msgid "The target turn closed before the edit was saved."
 msgstr "The target turn closed before the edit was saved."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:422
-#: src/features/threadHistory/ContinueTaskAction.tsx:424
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:265
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:267
 msgid "The task connection could not be prepared."
 msgstr "The task connection could not be prepared."
 
@@ -816,21 +816,21 @@ msgstr "The task connection could not be prepared."
 msgid "The task connection was closed."
 msgstr "The task connection was closed."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:211
-#: src/features/threadHistory/ContinueTaskAction.tsx:303
-#: src/features/threadHistory/ContinueTaskAction.tsx:426
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:64
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:110
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:269
 msgid "The task could not be activated."
 msgstr "The task could not be activated."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:420
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:263
 msgid "The task could not be resumed."
 msgstr "The task could not be resumed."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:48
+#: src/features/threadHistory/ContinueTaskAction.tsx:49
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "The task opened, but some state synchronization did not finish."
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:368
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:178
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 
@@ -864,11 +864,11 @@ msgstr "Transcript context pages"
 msgid "Turn {resolvedTurnId}"
 msgstr "Turn {resolvedTurnId}"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:190
-#: src/features/threadHistory/ContinueTaskAction.tsx:208
-#: src/features/threadHistory/ContinueTaskAction.tsx:300
-#: src/features/threadHistory/ContinueTaskAction.tsx:355
-#: src/features/threadHistory/ContinueTaskAction.tsx:389
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:40
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:61
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:106
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:165
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:201
 msgid "Unable to continue this task"
 msgstr "Unable to continue this task"
 
@@ -884,12 +884,12 @@ msgstr "Unable to load task history"
 msgid "Unable to load the current task"
 msgstr "Unable to load the current task"
 
-#: src/features/appShell/AppShell.tsx:22
+#: src/features/appShell/AppShell.tsx:21
 msgid "Unable to start Codex GUI"
 msgstr "Unable to start Codex GUI"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:285
-#: src/features/threadHistory/ContinueTaskAction.tsx:327
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:91
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:135
 msgid "Unable to switch tasks yet"
 msgstr "Unable to switch tasks yet"
 
@@ -918,6 +918,11 @@ msgstr "User"
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:181
 msgid "View"
 msgstr "View"
+
+#. Button in a history continuation error that expands raw diagnostic details
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:234
+msgid "View diagnostic information"
+msgstr "View diagnostic information"
 
 #. Short label for a current task awaiting approval and input beside the QR button
 #: src/features/composerTurnControl/currentThreadStatusPresentation.ts:63
