@@ -1,314 +1,37 @@
-import { Toast } from "@heroui/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { userEvent } from "vitest/browser";
-import { StrictMode, useSyncExternalStore } from "react";
-import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
-import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
-import type {
-  ActiveThreadComposerRole,
-  ActiveThreadSession,
-  ActiveThreadSkillsRole,
-} from "@/features/activeThreadSession/activeThreadSession";
 import {
-  createComposerInputQueueCoordinator,
-  type ComposerInputQueueCoordinator,
-  type ComposerPendingInputCoordinatorEditReservation,
-} from "@/features/composerInputQueue/composerInputQueueCoordinator";
-import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import {
-  attachBaseline,
   attachReplacement,
   eventTokenUsageUpdated,
-  eventTurnStarted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import { tokenUsageUpdated } from "@/features/projection/__tests__/projectionTestBuilders";
-import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import type { AppLocale } from "@/i18n";
-import { renderWithProviders } from "@/utils/test-utils";
-import { ComposerTurnControl } from "../ComposerTurnControl";
 import { createComposerPendingInputSession } from "../composerPendingInputSession";
 import { createComposerTurnApplication } from "../composerTurnApplication";
+import {
+  renderComposerTurnControl,
+  type RenderedComposerTurnControl,
+} from "./composerTurnControlBrowserTestSupport";
 
 vi.mock(import("../composerPendingInputSession"), { spy: true });
 
 vi.mock(import("../composerTurnApplication"), { spy: true });
 
-const attachResponse = attachBaseline;
-
-const threadId = attachResponse.snapshot.thread.id;
-
-const readyEmptySkillCatalog: SkillCatalogState = {
-  type: "ready",
-  candidates: [],
-  partialErrorCount: 0,
-};
-
 beforeEach(async () => {
   await userEvent.unhover(document.body);
 });
 
-type SkillCatalogHarnessController = Readonly<{
-  getSnapshot(): SkillCatalogState;
-  subscribe(listener: () => void): () => void;
-  invalidate(): boolean;
-  retry(): boolean;
-}>;
-
-const createSkillCatalogHarness = (initial: SkillCatalogState = readyEmptySkillCatalog) => {
-  let snapshot = initial;
-  const listeners = new Set<() => void>();
-  const controller = {
-    getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    invalidate: vi.fn<SkillCatalogHarnessController["invalidate"]>().mockReturnValue(true),
-    retry: vi.fn<SkillCatalogHarnessController["retry"]>().mockReturnValue(true),
-  } satisfies SkillCatalogHarnessController;
-
-  return {
-    controller,
-    publish(next: SkillCatalogState): void {
-      snapshot = next;
-      for (const listener of listeners) listener();
-    },
-  };
-};
-
-const capturePendingInputEditReservations = (
-  controller: ComposerInputQueueCoordinator,
-): ComposerPendingInputCoordinatorEditReservation[] => {
-  const reservations: ComposerPendingInputCoordinatorEditReservation[] = [];
-  const beginPendingInputEdit = controller.beginPendingInputEdit;
-  vi.spyOn(controller, "beginPendingInputEdit").mockImplementation((request, restore) => {
-    const result = beginPendingInputEdit(request, restore);
-    if (result.type === "begun") reservations.push(result.reservation);
-    return result;
-  });
-  return reservations;
-};
-
-const composerRoleFor = (
-  controller: ComposerInputQueueCoordinator,
-  getRevision: () => number,
-): Partial<ActiveThreadComposerRole> => ({
-  beginPendingInputEdit: (revision, request, restore) =>
-    revision === getRevision()
-      ? controller.beginPendingInputEdit(request, restore)
-      : staleSessionOperation(getRevision()),
-  deletePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.deletePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  interruptActiveTurn: (revision) =>
-    revision === getRevision()
-      ? controller.interruptActiveTurn()
-      : staleSessionOperation(getRevision()),
-  movePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.movePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  promoteOrdinaryFrontToSteer: (revision) =>
-    revision === getRevision()
-      ? controller.promoteOrdinaryFrontToSteer()
-      : staleSessionOperation(getRevision()),
-  readPendingInputDetail: (request) => controller.readPendingInputDetail(request),
-  readPendingInputPage: (request) => controller.readPendingInputPage(request),
-  recover: (revision) =>
-    revision === getRevision() ? controller.recover() : staleSessionOperation(getRevision()),
-  submit: (revision, capture) =>
-    revision === getRevision() ? controller.submit(capture) : staleSessionOperation(getRevision()),
-  submitSteer: (revision, capture) =>
-    revision === getRevision()
-      ? controller.submitSteer(capture)
-      : staleSessionOperation(getRevision()),
-});
-
-const staleSessionOperation = (revision: number) =>
-  ({
-    type: "unavailable",
-    scope: "activeThreadSession",
-    reason: "staleRevision",
-    revision,
-  }) as const;
-
-const skillsRoleFor = (
-  controller: SkillCatalogHarnessController,
-): Partial<ActiveThreadSkillsRole> => ({
-  invalidateSkills: () => controller.invalidate(),
-  refreshSkills: () => controller.invalidate(),
-  retrySkills: () => controller.retry(),
-});
-
-function SessionComposerTurnControl({
-  guardCompositionEndEnter,
-  session,
-}: Readonly<{
-  guardCompositionEndEnter: boolean;
-  session: ActiveThreadSession;
-}>) {
-  const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
-  if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
-  return (
-    <ComposerTurnControl
-      authorizationToken={null}
-      guardCompositionEndEnter={guardCompositionEndEnter}
-      routeTarget={{ type: "currentTask", threadId }}
-      sessionSnapshot={snapshot}
-    />
-  );
-}
-
-async function renderAttached(
-  commandHandle: GuiHostCommands = createGuiHostCommands(),
-  guardCompositionEndEnter = false,
-  locale: AppLocale = "en",
-  controller: ComposerInputQueueCoordinator = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: null,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
-  }),
-  skillCatalogController: SkillCatalogHarnessController = createSkillCatalogHarness().controller,
-  activeTurnId?: string | null,
-  strictMode = false,
-) {
-  const fixtureActiveTurnId =
-    eventTurnStarted.event.type === "turnStarted"
-      ? eventTurnStarted.event.notification.turn.id
-      : null;
-  const sessionActiveTurnId =
-    activeTurnId === undefined && controller.getSnapshot().canStop
-      ? fixtureActiveTurnId
-      : (activeTurnId ?? null);
-  let revision = 1;
-  const sessionHarness = createActiveThreadSessionHarness({
-    composerRole: composerRoleFor(controller, () => revision),
-    skillsRole: skillsRoleFor(skillCatalogController),
-  });
-  sessionHarness.session.subscribe(() => {
-    revision = sessionHarness.session.getSnapshot().revision;
-  });
-  const publishActiveSnapshot = (): void => {
-    revision += 1;
-    sessionHarness.publish(
-      sessionHarness.activeSnapshot({
-        revision,
-        threadId,
-        subscriptionId: attachResponse.subscriptionId,
-        activeTurnId: sessionActiveTurnId,
-        composer: controller.getSnapshot(),
-        skills: skillCatalogController.getSnapshot(),
-      }),
-    );
-  };
-  sessionHarness.publish(
-    sessionHarness.activeSnapshot({
-      revision,
-      threadId,
-      subscriptionId: attachResponse.subscriptionId,
-      activeTurnId: sessionActiveTurnId,
-      composer: controller.getSnapshot(),
-      skills: skillCatalogController.getSnapshot(),
-    }),
-  );
-  controller.subscribe(publishActiveSnapshot);
-  skillCatalogController.subscribe(publishActiveSnapshot);
-  const app = (
-    <>
-      <Toast.Provider placement="top" />
-      <SessionComposerTurnControl
-        guardCompositionEndEnter={guardCompositionEndEnter}
-        session={sessionHarness.session}
-      />
-    </>
-  );
-  const result = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app, {
-    locale,
-  });
-  dispatchReadModelFacts(result, [{ type: "baselineAttached", response: attachResponse }]);
-  return { ...result, sessionHarness };
-}
-
-const dispatchReadModelFacts = (
-  screen: Pick<Awaited<ReturnType<typeof renderWithProviders>>, "store">,
-  facts: readonly ActiveThreadProjectionReadModelFact[],
-): void => {
-  const sessionRevision = screen.store.getState().threadRuntime.sessionRevision + 1;
-  screen.store.dispatch(activeThreadReadModelTransitionApplied({ sessionRevision, facts }));
-};
-
-const expectComposerDisabled = async (
-  screen: Awaited<ReturnType<typeof renderWithProviders>>,
-): Promise<void> => {
-  await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "false");
+const expectComposerDisabled = async (screen: RenderedComposerTurnControl): Promise<void> => {
+  await expect.element(screen.composer()).toHaveAttribute("contenteditable", "false");
   await expect.element(screen.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   await expect.element(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
 };
 
-const getComposer = (
-  screen: Awaited<ReturnType<typeof renderWithProviders>>,
-  name = "Message Codex",
-) => screen.getByRole("combobox", { name, exact: true });
-
-const getComposerPanel = (screen: Awaited<ReturnType<typeof renderWithProviders>>): HTMLElement => {
+const getComposerPanel = (screen: RenderedComposerTurnControl): HTMLElement => {
   const composerPanel = screen.container.querySelector(".composer-panel");
   if (!(composerPanel instanceof HTMLElement)) {
     throw new Error("composer panel must render");
   }
   return composerPanel;
-};
-
-type RenderActiveTurnOptions = Readonly<{
-  captureEditReservations?: boolean;
-  commandHandle?: GuiHostCommands;
-  skillCatalogController?: SkillCatalogHarnessController;
-  strictMode?: boolean;
-}>;
-
-const renderActiveTurn = async ({
-  captureEditReservations = false,
-  commandHandle = createGuiHostCommands(),
-  skillCatalogController,
-  strictMode = false,
-}: RenderActiveTurnOptions = {}) => {
-  const event = eventTurnStarted;
-  if (event.event.type !== "turnStarted") {
-    throw new Error("fixture must be turnStarted");
-  }
-  const turn = event.event.notification.turn;
-  const controller = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: turn.id,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
-  });
-  const reservations = captureEditReservations
-    ? capturePendingInputEditReservations(controller)
-    : [];
-  const screen = await renderAttached(
-    commandHandle,
-    false,
-    "en",
-    controller,
-    skillCatalogController ?? createSkillCatalogHarness().controller,
-    turn.id,
-    strictMode,
-  );
-  return {
-    commandHandle,
-    composer: getComposer(screen),
-    controller,
-    event,
-    reservations,
-    screen,
-    turn,
-  };
 };
 
 afterEach(() => {
@@ -317,7 +40,7 @@ afterEach(() => {
 
 test("disables controls while the projection is unavailable", async () => {
   expect.hasAssertions();
-  const screen = await renderAttached();
+  const screen = await renderComposerTurnControl();
   const activeSnapshot = screen.sessionHarness.session.getSnapshot();
   if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
   screen.sessionHarness.publish(
@@ -348,14 +71,14 @@ test("disables controls while the projection is unavailable", async () => {
 
   await expect.element(composerPanel).toHaveAttribute("aria-disabled", "false");
   await expect.element(composerPanel).toHaveAttribute("data-disabled", "false");
-  await expect.element(getComposer(screen)).toHaveAttribute("contenteditable", "true");
+  await expect.element(screen.composer()).toHaveAttribute("contenteditable", "true");
 });
 
 test("presents thread status from the active session snapshot", async () => {
-  const screen = await renderAttached();
+  const screen = await renderComposerTurnControl();
   const activeSnapshot = screen.sessionHarness.session.getSnapshot();
   if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
-  const composer = getComposer(screen);
+  const composer = screen.composer();
   composer.element().focus();
   await expect.element(composer).toHaveFocus();
 
@@ -374,7 +97,7 @@ test("presents thread status from the active session snapshot", async () => {
 });
 
 test("shows attached context usage and opens its details", async () => {
-  const screen = await renderAttached();
+  const screen = await renderComposerTurnControl();
   const contextUsageButton = screen.getByRole("button", {
     name: "Context usage details, 0% used, 120 of 258k tokens",
     exact: true,
@@ -395,7 +118,7 @@ test("updates context usage from live runtime events", async () => {
   if (eventTokenUsageUpdated.event.type !== "tokenUsageUpdated") {
     throw new Error("fixture must contain a tokenUsageUpdated projection event");
   }
-  const screen = await renderAttached();
+  const screen = await renderComposerTurnControl();
   const nextTokenUsage = {
     ...eventTokenUsageUpdated.event.notification.tokenUsage,
     last: {
@@ -405,7 +128,7 @@ test("updates context usage from live runtime events", async () => {
     modelContextWindow: 258_000,
   };
 
-  dispatchReadModelFacts(screen, [
+  screen.dispatchProjectionFacts([
     {
       type: "eventAccepted",
       payload: {
@@ -430,14 +153,14 @@ test("updates context usage from live runtime events", async () => {
 });
 
 test("hides context controls when a replacement attach has no percentage data", async () => {
-  const screen = await renderAttached();
+  const screen = await renderComposerTurnControl();
   const contextUsageButton = screen.getByRole("button", {
     name: "Context usage details, 0% used, 120 of 258k tokens",
     exact: true,
   });
   await expect.element(contextUsageButton).toBeVisible();
 
-  dispatchReadModelFacts(screen, [{ type: "baselineAttached", response: attachReplacement }]);
+  screen.dispatchProjectionFacts([{ type: "baselineAttached", response: attachReplacement }]);
 
   await expect.element(contextUsageButton).not.toBeInTheDocument();
   await expect
@@ -450,10 +173,13 @@ test("disposes active Composer applications once after a real StrictMode unmount
   const turnFactory = vi.mocked(createComposerTurnApplication);
   const pendingFactoryStart = pendingFactory.mock.results.length;
   const turnFactoryStart = turnFactory.mock.results.length;
-  const { composer, reservations, screen } = await renderActiveTurn({
-    captureEditReservations: true,
+  const view = await renderComposerTurnControl({
+    scenario: { type: "activeFixture", captureEditReservations: true },
     strictMode: true,
   });
+  const { reservations } = view;
+  const screen = view;
+  const composer = view.composer();
   const pendingInstances = pendingFactory.mock.results.slice(pendingFactoryStart).map((result) => {
     if (result.type !== "return")
       throw new Error("pending session factory must return an instance");
@@ -552,7 +278,7 @@ test("disposes active Composer applications once after a real StrictMode unmount
 test("manual reconnect disables composer operations", async () => {
   expect.hasAssertions();
 
-  const screen = await renderAttached(createGuiHostCommands());
+  const screen = await renderComposerTurnControl();
   const activeSnapshot = screen.sessionHarness.session.getSnapshot();
   if (activeSnapshot.phase !== "active") throw new Error("expected an active session");
   screen.sessionHarness.publish(

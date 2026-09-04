@@ -1,20 +1,8 @@
-import { Toast } from "@heroui/react";
-import { StrictMode, useSyncExternalStore } from "react";
 import { vi } from "vitest";
 
-import { createGuiHostCommands } from "@/__tests__/appBrowserTestSupport";
-import { createActiveThreadSessionHarness } from "@/features/activeThreadSession/__tests__/activeThreadSessionHarness";
-import type { ActiveThreadProjectionReadModelFact } from "@/features/activeThreadSession/activeThreadProjection";
-import { activeThreadReadModelTransitionApplied } from "@/features/activeThreadSession/activeThreadSessionReadModel";
 import type {
-  ActiveThreadComposerRole,
-  ActiveThreadSession,
-  ActiveThreadSkillsRole,
-} from "@/features/activeThreadSession/activeThreadSession";
-import {
-  createComposerInputQueueCoordinator,
-  type ComposerInputQueueCoordinator,
-  type ComposerInputQueueCoordinatorSnapshot,
+  ComposerInputQueueCoordinator,
+  ComposerInputQueueCoordinatorSnapshot,
 } from "@/features/composerInputQueue/composerInputQueueCoordinator";
 import type {
   ComposerPendingInputCursor,
@@ -26,26 +14,12 @@ import type {
   ComposerPendingInputPageRequest,
   ComposerPendingInputPageResult,
 } from "@/features/composerInputQueue/composerInputQueueContracts";
-import type { GuiHostCommands } from "@/features/guiHost/guiHostClient";
-import {
-  attachBaseline,
-  eventTurnStarted,
-} from "@/features/projection/__tests__/projectionFixtures";
-import type { SkillCatalogState } from "@/features/skillCatalog/skillCatalogOwner";
-import type { AppLocale } from "@/i18n";
-import { renderWithProviders } from "@/utils/test-utils";
-
-import { ComposerTurnControl } from "../ComposerTurnControl";
+import { attachBaseline } from "@/features/projection/__tests__/projectionFixtures";
 
 const attachResponse = attachBaseline;
 
 const threadId = attachResponse.snapshot.thread.id;
 
-const readyEmptySkillCatalog: SkillCatalogState = {
-  type: "ready",
-  candidates: [],
-  partialErrorCount: 0,
-};
 export const queueSnapshot = (
   overrides: Partial<ComposerInputQueueCoordinatorSnapshot> = {},
 ): ComposerInputQueueCoordinatorSnapshot => ({
@@ -345,183 +319,4 @@ export const createQueueControllerHarness = (
       pageReadFallbackOverride = null;
     },
   };
-};
-
-type SkillCatalogHarnessController = Readonly<{
-  getSnapshot(): SkillCatalogState;
-  subscribe(listener: () => void): () => void;
-  invalidate(): boolean;
-  retry(): boolean;
-}>;
-
-const createSkillCatalogHarness = (initial: SkillCatalogState = readyEmptySkillCatalog) => {
-  let snapshot = initial;
-  const listeners = new Set<() => void>();
-  const controller = {
-    getSnapshot: () => snapshot,
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    invalidate: vi.fn<SkillCatalogHarnessController["invalidate"]>().mockReturnValue(true),
-    retry: vi.fn<SkillCatalogHarnessController["retry"]>().mockReturnValue(true),
-  } satisfies SkillCatalogHarnessController;
-
-  return {
-    controller,
-    publish(next: SkillCatalogState): void {
-      snapshot = next;
-      for (const listener of listeners) listener();
-    },
-  };
-};
-const composerRoleFor = (
-  controller: ComposerInputQueueCoordinator,
-  getRevision: () => number,
-): Partial<ActiveThreadComposerRole> => ({
-  beginPendingInputEdit: (revision, request, restore) =>
-    revision === getRevision()
-      ? controller.beginPendingInputEdit(request, restore)
-      : staleSessionOperation(getRevision()),
-  deletePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.deletePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  interruptActiveTurn: (revision) =>
-    revision === getRevision()
-      ? controller.interruptActiveTurn()
-      : staleSessionOperation(getRevision()),
-  movePendingInput: (revision, request) =>
-    revision === getRevision()
-      ? controller.movePendingInput(request)
-      : staleSessionOperation(getRevision()),
-  promoteOrdinaryFrontToSteer: (revision) =>
-    revision === getRevision()
-      ? controller.promoteOrdinaryFrontToSteer()
-      : staleSessionOperation(getRevision()),
-  readPendingInputDetail: (request) => controller.readPendingInputDetail(request),
-  readPendingInputPage: (request) => controller.readPendingInputPage(request),
-  recover: (revision) =>
-    revision === getRevision() ? controller.recover() : staleSessionOperation(getRevision()),
-  submit: (revision, capture) =>
-    revision === getRevision() ? controller.submit(capture) : staleSessionOperation(getRevision()),
-  submitSteer: (revision, capture) =>
-    revision === getRevision()
-      ? controller.submitSteer(capture)
-      : staleSessionOperation(getRevision()),
-});
-
-const staleSessionOperation = (revision: number) =>
-  ({
-    type: "unavailable",
-    scope: "activeThreadSession",
-    reason: "staleRevision",
-    revision,
-  }) as const;
-
-const skillsRoleFor = (
-  controller: SkillCatalogHarnessController,
-): Partial<ActiveThreadSkillsRole> => ({
-  invalidateSkills: () => controller.invalidate(),
-  refreshSkills: () => controller.invalidate(),
-  retrySkills: () => controller.retry(),
-});
-
-export async function renderAttached(
-  commandHandle: GuiHostCommands = createGuiHostCommands(),
-  guardCompositionEndEnter = false,
-  locale: AppLocale = "en",
-  controller: ComposerInputQueueCoordinator = createComposerInputQueueCoordinator({
-    threadId,
-    activeTurnId: null,
-    startTurn: commandHandle.startTurn,
-    steerTurn: commandHandle.steerTurn,
-    interruptTurn: commandHandle.interruptTurn,
-  }),
-  skillCatalogController: SkillCatalogHarnessController = createSkillCatalogHarness().controller,
-  activeTurnId?: string | null,
-  strictMode = false,
-) {
-  function SessionComposerTurnControl({
-    guardCompositionEndEnter,
-    session,
-  }: Readonly<{
-    guardCompositionEndEnter: boolean;
-    session: ActiveThreadSession;
-  }>) {
-    const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
-    if (snapshot.phase !== "active" && snapshot.phase !== "projectionUnavailable") return null;
-    return (
-      <ComposerTurnControl
-        authorizationToken={null}
-        guardCompositionEndEnter={guardCompositionEndEnter}
-        routeTarget={{ type: "currentTask", threadId }}
-        sessionSnapshot={snapshot}
-      />
-    );
-  }
-
-  const fixtureActiveTurnId =
-    eventTurnStarted.event.type === "turnStarted"
-      ? eventTurnStarted.event.notification.turn.id
-      : null;
-  const sessionActiveTurnId =
-    activeTurnId === undefined && controller.getSnapshot().canStop
-      ? fixtureActiveTurnId
-      : (activeTurnId ?? null);
-  let revision = 1;
-  const sessionHarness = createActiveThreadSessionHarness({
-    composerRole: composerRoleFor(controller, () => revision),
-    skillsRole: skillsRoleFor(skillCatalogController),
-  });
-  sessionHarness.session.subscribe(() => {
-    revision = sessionHarness.session.getSnapshot().revision;
-  });
-  const publishActiveSnapshot = (): void => {
-    revision += 1;
-    sessionHarness.publish(
-      sessionHarness.activeSnapshot({
-        revision,
-        threadId,
-        subscriptionId: attachResponse.subscriptionId,
-        activeTurnId: sessionActiveTurnId,
-        composer: controller.getSnapshot(),
-        skills: skillCatalogController.getSnapshot(),
-      }),
-    );
-  };
-  sessionHarness.publish(
-    sessionHarness.activeSnapshot({
-      revision,
-      threadId,
-      subscriptionId: attachResponse.subscriptionId,
-      activeTurnId: sessionActiveTurnId,
-      composer: controller.getSnapshot(),
-      skills: skillCatalogController.getSnapshot(),
-    }),
-  );
-  controller.subscribe(publishActiveSnapshot);
-  skillCatalogController.subscribe(publishActiveSnapshot);
-  const app = (
-    <>
-      <Toast.Provider placement="top" />
-      <SessionComposerTurnControl
-        guardCompositionEndEnter={guardCompositionEndEnter}
-        session={sessionHarness.session}
-      />
-    </>
-  );
-  const result = await renderWithProviders(strictMode ? <StrictMode>{app}</StrictMode> : app, {
-    locale,
-  });
-  dispatchReadModelFacts(result, [{ type: "baselineAttached", response: attachResponse }]);
-  return { ...result, sessionHarness };
-}
-
-const dispatchReadModelFacts = (
-  screen: Pick<Awaited<ReturnType<typeof renderWithProviders>>, "store">,
-  facts: readonly ActiveThreadProjectionReadModelFact[],
-): void => {
-  const sessionRevision = screen.store.getState().threadRuntime.sessionRevision + 1;
-  screen.store.dispatch(activeThreadReadModelTransitionApplied({ sessionRevision, facts }));
 };
