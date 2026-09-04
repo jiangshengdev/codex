@@ -198,6 +198,44 @@ test("Drawer exposes named navigation and Escape closes it with focus returned t
   await expect.element(trigger).toHaveFocus();
 });
 
+test("Drawer preserves the full focus ring around the current task navigation button", async () => {
+  const { screen } = await renderTopBar({
+    initialEntry: `/task/${currentThreadId}`,
+    routeTarget: { type: "currentTask", threadId: currentThreadId },
+  });
+
+  await screen.getByRole("button", { name: "Menu" }).click();
+  const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+  const currentTaskButton = navigation.getByRole("button", {
+    name: "Current task",
+    exact: true,
+  });
+  const drawerBody = navigation.element().parentElement;
+
+  if (drawerBody == null) {
+    throw new Error("Expected navigation to be a direct child of Drawer.Body");
+  }
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await screen.user.tab();
+    if (document.activeElement === currentTaskButton.element()) {
+      break;
+    }
+  }
+
+  await expect.element(currentTaskButton).toHaveFocus();
+  const buttonElement = currentTaskButton.element();
+  const bodyBounds = drawerBody.getBoundingClientRect();
+  const buttonBounds = buttonElement.getBoundingClientRect();
+  // HeroUI 3.2.4 combines a 2px offset with a 2px focus ring.
+  const focusRingOutset = 4;
+
+  expect.soft(buttonElement.matches(":focus-visible")).toBe(true);
+  expect.soft(buttonBounds.top - bodyBounds.top).toBeGreaterThanOrEqual(focusRingOutset);
+  expect.soft(buttonBounds.left - bodyBounds.left).toBeGreaterThanOrEqual(focusRingOutset);
+  expect.soft(bodyBounds.right - buttonBounds.right).toBeGreaterThanOrEqual(focusRingOutset);
+});
+
 test("History navigation uses the canonical list URL and closes the Drawer", async () => {
   const { router, screen } = await renderTopBar({
     initialEntry: `/task/${currentThreadId}`,

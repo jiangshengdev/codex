@@ -67,7 +67,7 @@ export function AppShellTopBar() {
                 <Trans>Navigation</Trans>
               </Drawer.Heading>
             </Drawer.Header>
-            <Drawer.Body>
+            <Drawer.Body className="-mx-1 -my-px p-1">
               <nav aria-label={t`Main navigation`} className="flex flex-col gap-1">
                 <Button
                   aria-describedby="current-task-navigation-description"
