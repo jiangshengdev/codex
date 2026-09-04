@@ -94,11 +94,11 @@ msgstr "管理员"
 msgid "Agent spawn failed"
 msgstr "启动智能体失败"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:194
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:43
 msgid "An unexpected error occurred while continuing the task."
 msgstr "继续此任务时发生意外错误。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:288
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:91
 msgid "Another task switch is already in progress. Try again shortly."
 msgstr "另一项任务切换正在进行中。请稍后重试。"
 
@@ -110,8 +110,8 @@ msgstr "返回历史记录"
 msgid "Cancel"
 msgstr "取消"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:376
-#: src/features/threadHistory/ContinueTaskAction.tsx:400
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:179
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:203
 msgid "Cleanup diagnostic:"
 msgstr "清理诊断信息："
 
@@ -207,7 +207,7 @@ msgstr "上下文用量详情，已用 {usedTokensLabel} tokens，上下文窗�
 msgid "Continue sending"
 msgstr "继续发送"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:231
+#: src/features/threadHistory/ContinueTaskAction.tsx:199
 msgid "Continue this task"
 msgstr "继续此任务"
 
@@ -262,7 +262,7 @@ msgstr "删除"
 msgid "Delete this pending message?"
 msgstr "删除这条待处理消息？"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:197
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:46
 msgid "Diagnostic:"
 msgstr "诊断信息："
 
@@ -535,7 +535,7 @@ msgstr "未加载"
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "请先在此浏览器标签页中打开一个活动任务，再查看其历史记录。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:396
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:199
 msgid "Operation diagnostic:"
 msgstr "操作诊断信息："
 
@@ -653,8 +653,8 @@ msgstr "正在恢复 {receiver}"
 msgid "Retry"
 msgstr "重试"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:313
-#: src/features/threadHistory/ContinueTaskAction.tsx:342
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:116
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:145
 msgid "Return to current task"
 msgstr "返回当前任务"
 
@@ -760,20 +760,20 @@ msgstr "系统"
 msgid "System error"
 msgstr "系统错误"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:47
-#: src/features/threadHistory/ContinueTaskAction.tsx:51
+#: src/features/threadHistory/ContinueTaskAction.tsx:48
+#: src/features/threadHistory/ContinueTaskAction.tsx:52
 msgid "Task opened"
 msgstr "任务已打开"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:357
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:160
 msgid "Task switched, but cannot be opened"
 msgstr "任务已切换，但当前无法打开"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:363
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:166
 msgid "The connection was interrupted before the task switch completed. Reconnect and try again."
 msgstr "连接在任务切换完成前中断。重新连接后请重试。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:330
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:133
 msgid "The current task still has queued or unresolved messages. Return to it before switching."
 msgstr "当前任务仍有排队中或状态未确定的消息。请先返回当前任务再切换。"
 
@@ -789,7 +789,7 @@ msgstr "待处理消息的顺序没有改变，但由于队列持续变化，无
 msgid "The pending-message order did not change. Refresh complete; try again."
 msgstr "待处理消息的顺序没有改变。已刷新，请重试。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:52
+#: src/features/threadHistory/ContinueTaskAction.tsx:53
 msgid "The previous task connection could not be fully cleaned up. Later state may be affected."
 msgstr "上一个任务连接未能完全清理，后续状态可能受到影响。"
 
@@ -797,8 +797,8 @@ msgstr "上一个任务连接未能完全清理，后续状态可能受到影响
 msgid "The target turn closed before the edit was saved."
 msgstr "目标轮次已在编辑保存前关闭。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:422
-#: src/features/threadHistory/ContinueTaskAction.tsx:424
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:225
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:227
 msgid "The task connection could not be prepared."
 msgstr "无法准备任务连接。"
 
@@ -806,21 +806,21 @@ msgstr "无法准备任务连接。"
 msgid "The task connection was closed."
 msgstr "任务连接已关闭。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:211
-#: src/features/threadHistory/ContinueTaskAction.tsx:303
-#: src/features/threadHistory/ContinueTaskAction.tsx:426
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:61
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:106
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:229
 msgid "The task could not be activated."
 msgstr "无法激活任务。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:420
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:223
 msgid "The task could not be resumed."
 msgstr "无法恢复任务。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:48
+#: src/features/threadHistory/ContinueTaskAction.tsx:49
 msgid "The task opened, but some state synchronization did not finish."
 msgstr "任务已打开，但部分状态同步未完成。"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:368
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:171
 msgid "The task switch was committed, but the connection was interrupted. Reconnect and confirm the current task."
 msgstr "任务切换已提交，但连接已中断。重新连接后请确认当前任务。"
 
@@ -854,11 +854,11 @@ msgstr "上下文分页"
 msgid "Turn {resolvedTurnId}"
 msgstr "轮次 {resolvedTurnId}"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:190
-#: src/features/threadHistory/ContinueTaskAction.tsx:208
-#: src/features/threadHistory/ContinueTaskAction.tsx:300
-#: src/features/threadHistory/ContinueTaskAction.tsx:355
-#: src/features/threadHistory/ContinueTaskAction.tsx:389
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:39
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:58
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:103
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:158
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:192
 msgid "Unable to continue this task"
 msgstr "无法继续此任务"
 
@@ -878,8 +878,8 @@ msgstr "无法加载当前任务"
 msgid "Unable to start Codex GUI"
 msgstr "无法启动 Codex GUI"
 
-#: src/features/threadHistory/ContinueTaskAction.tsx:285
-#: src/features/threadHistory/ContinueTaskAction.tsx:327
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:88
+#: src/features/threadHistory/ContinueTaskFailureAlert.tsx:130
 msgid "Unable to switch tasks yet"
 msgstr "暂时无法切换任务"
 
