@@ -17,6 +17,7 @@ import type { AppCapabilities } from "@/features/appShell/AppCapabilities";
 import { AppCapabilitiesProvider } from "@/features/appShell/AppCapabilitiesContext";
 import {
   CURRENT_TASK_ROUTE_PATH,
+  HISTORY_DETAIL_ROUTE_PATH,
   HISTORY_LIST_ROUTE_PATH,
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
@@ -89,10 +90,15 @@ const renderTopBar = async ({
     path: HISTORY_LIST_ROUTE_PATH,
     component: RoutePlaceholder,
   });
+  const historyDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: HISTORY_DETAIL_ROUTE_PATH,
+    component: RoutePlaceholder,
+  });
 
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
-    routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute]),
+    routeTree: rootRoute.addChildren([currentTaskRoute, historyRoute, historyDetailRoute]),
   });
   const screen = await renderWithProviders(<RouterProvider router={router} />);
   return { router, screen };
@@ -165,12 +171,26 @@ test("Drawer exposes named navigation and Escape closes it with focus returned t
   await trigger.click();
   const dialog = screen.getByRole("dialog", { name: "Navigation" });
   const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+  const currentTaskButton = navigation.getByRole("button", {
+    name: "Current task",
+    exact: true,
+  });
+  const historyButton = navigation.getByRole("button", { name: "History", exact: true });
 
   await expect.element(dialog).toBeVisible();
-  await expect
-    .element(navigation.getByRole("button", { name: "Current task" }))
-    .toHaveAttribute("aria-current", "page");
-  await expect.element(navigation.getByRole("button", { name: "History" })).toBeVisible();
+  await expect.element(currentTaskButton).toHaveAccessibleName("Current task");
+  await expect.element(currentTaskButton).toHaveAccessibleDescription("Open current task");
+  await expect.element(currentTaskButton).toHaveAttribute("aria-current", "page");
+  expect(
+    currentTaskButton
+      .element()
+      .querySelector('[data-current-page-indicator="true"]')
+      ?.getAttribute("aria-hidden"),
+  ).toBe("true");
+  await expect.element(historyButton).toHaveAccessibleName("History");
+  await expect.element(historyButton).toHaveAccessibleDescription("Browse task history");
+  await expect.element(historyButton).not.toHaveAttribute("aria-current");
+  expect(historyButton.element().querySelector('[data-current-page-indicator="true"]')).toBeNull();
 
   await screen.user.keyboard("{Escape}");
 
@@ -205,14 +225,57 @@ test("Current task navigation uses the active thread id", async () => {
   });
 
   await screen.getByRole("button", { name: "Menu" }).click();
-  await screen
-    .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Current task" })
-    .click();
+  const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+  const currentTaskButton = navigation.getByRole("button", {
+    name: "Current task",
+    exact: true,
+  });
+  const historyButton = navigation.getByRole("button", { name: "History", exact: true });
+
+  await expect.element(currentTaskButton).not.toHaveAttribute("aria-current");
+  expect(
+    currentTaskButton.element().querySelector('[data-current-page-indicator="true"]'),
+  ).toBeNull();
+  await expect.element(historyButton).toHaveAttribute("aria-current", "page");
+  expect(
+    historyButton
+      .element()
+      .querySelector('[data-current-page-indicator="true"]')
+      ?.getAttribute("aria-hidden"),
+  ).toBe("true");
+
+  await currentTaskButton.click();
 
   expect(router.state.location.pathname).toBe(`/task/${currentThreadId}`);
   expect(router.state.location.search).toEqual({});
   expect(router.state.location.hash).toBe("");
+});
+
+test("History detail marks only History as the current navigation destination", async () => {
+  const { screen } = await renderTopBar({
+    initialEntry: `/history/${otherThreadId}`,
+    routeTarget: { type: "historyDetail", threadId: otherThreadId },
+  });
+
+  await screen.getByRole("button", { name: "Menu" }).click();
+  const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+  const currentTaskButton = navigation.getByRole("button", {
+    name: "Current task",
+    exact: true,
+  });
+  const historyButton = navigation.getByRole("button", { name: "History", exact: true });
+
+  await expect.element(currentTaskButton).not.toHaveAttribute("aria-current");
+  expect(
+    currentTaskButton.element().querySelector('[data-current-page-indicator="true"]'),
+  ).toBeNull();
+  await expect.element(historyButton).toHaveAttribute("aria-current", "page");
+  expect(
+    historyButton
+      .element()
+      .querySelector('[data-current-page-indicator="true"]')
+      ?.getAttribute("aria-hidden"),
+  ).toBe("true");
 });
 
 test("Current task navigation is disabled when no active thread id exists", async () => {

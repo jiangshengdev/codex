@@ -106,6 +106,11 @@ msgstr "Another task switch is already in progress. Try again shortly."
 msgid "Back to history"
 msgstr "Back to history"
 
+#. Description for the task history destination in the navigation drawer
+#: src/features/appShell/AppShellTopBar.tsx:143
+msgid "Browse task history"
+msgstr "Browse task history"
+
 #: src/features/composerTurnControl/ComposerPendingInputDrawer.tsx:273
 msgid "Cancel"
 msgstr "Cancel"
@@ -212,7 +217,7 @@ msgid "Continue this task"
 msgstr "Continue this task"
 
 #: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:80
+#: src/features/appShell/AppShellTopBar.tsx:99
 #: src/features/documentTitle/DocumentTitleOwner.tsx:43
 msgid "Current task"
 msgstr "Current task"
@@ -349,7 +354,7 @@ msgid "Guiding message moved to position {movedPosition} of {movedCount}."
 msgstr "Guiding message moved to position {movedPosition} of {movedCount}."
 
 #: src/features/appShell/AppShellTopBar.tsx:28
-#: src/features/appShell/AppShellTopBar.tsx:89
+#: src/features/appShell/AppShellTopBar.tsx:137
 #: src/features/documentTitle/DocumentTitleOwner.tsx:44
 msgid "History"
 msgstr "History"
@@ -534,6 +539,11 @@ msgstr "Not loaded"
 #: src/features/threadHistory/ThreadHistoryListPage.tsx:67
 msgid "Open an active task in this browser tab before viewing its history."
 msgstr "Open an active task in this browser tab before viewing its history."
+
+#. Description for the current task destination in the navigation drawer
+#: src/features/appShell/AppShellTopBar.tsx:105
+msgid "Open current task"
+msgstr "Open current task"
 
 #: src/features/threadHistory/ContinueTaskAction.tsx:396
 msgid "Operation diagnostic:"
