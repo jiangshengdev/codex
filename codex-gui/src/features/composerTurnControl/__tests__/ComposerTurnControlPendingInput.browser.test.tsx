@@ -17,7 +17,7 @@ import {
   eventTurnCompleted,
 } from "@/features/projection/__tests__/projectionFixtures";
 import type { SkillCatalogCandidate } from "@/features/skillCatalog/skillCatalogOwner";
-import { renderWithProviders } from "@/utils/test-utils";
+import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
 
 import { ComposerTurnControl } from "../ComposerTurnControl";
 import {
@@ -33,6 +33,7 @@ import {
 const attachResponse = attachBaseline;
 
 const threadId = attachResponse.snapshot.thread.id;
+let restoreMotion: (() => void) | undefined;
 
 beforeEach(async () => {
   await userEvent.unhover(document.body);
@@ -106,6 +107,8 @@ const dispatchGuideShortcut = (element: Element): void => {
 };
 
 afterEach(() => {
+  restoreMotion?.();
+  restoreMotion = undefined;
   vi.restoreAllMocks();
 });
 
@@ -196,6 +199,7 @@ test("gates operations by the active session phase", async () => {
 });
 
 test("uses the same skill chip and catalog tooltip while editing a pending message", async () => {
+  restoreMotion = disableMotionForTest();
   const selectedSkill: SkillCatalogCandidate = {
     name: "pending-skill",
     path: "/repo/skills/hidden-pending-location/SKILL.md",
@@ -273,6 +277,7 @@ test("uses the same skill chip and catalog tooltip while editing a pending messa
 });
 
 test("shows Guide only for an active turn and submits an accepted draft as steer", async () => {
+  restoreMotion = disableMotionForTest();
   const idleScreen = await renderComposerTurnControl();
   await expect
     .element(idleScreen.getByRole("button", { name: "Guide", exact: true }))
