@@ -1019,6 +1019,7 @@ test("does not reopen a closing Drawer when new pending input arrives before pre
 });
 
 test("replaces an open pending-input owner without leaking its cached view into the new owner", async () => {
+  restoreMotion = disableMotionForTest();
   const queueHarness = createQueueControllerHarness(
     queueSnapshot({ ordinaryQueuedCount: 1, detailRevision: 1 }),
     {

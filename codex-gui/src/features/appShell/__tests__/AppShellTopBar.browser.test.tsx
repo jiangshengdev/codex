@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -21,7 +21,7 @@ import {
   HISTORY_LIST_ROUTE_PATH,
   type GuiRouteTarget,
 } from "@/features/browserLaunch/guiRouteTarget";
-import { renderWithProviders } from "@/utils/test-utils";
+import { disableMotionForTest, renderWithProviders } from "@/utils/test-utils";
 import { AppShellTopBar } from "../AppShellTopBar";
 
 function RoutePlaceholder() {
@@ -31,6 +31,13 @@ function RoutePlaceholder() {
 const currentThreadId = attachResponse.snapshot.thread.id;
 const otherThreadId = "00000000-0000-0000-0000-000000000099";
 let sessionRevision = 0;
+let restoreMotion: (() => void) | undefined;
+
+afterEach(() => {
+  restoreMotion?.();
+  restoreMotion = undefined;
+});
+
 const baselineAttached = (
   response: Extract<ActiveThreadProjectionReadModelFact, { type: "baselineAttached" }>["response"],
 ) =>
@@ -237,6 +244,7 @@ test("Drawer preserves the full focus ring around the current task navigation bu
 });
 
 test("History navigation uses the canonical list URL and closes the Drawer", async () => {
+  restoreMotion = disableMotionForTest();
   const { router, screen } = await renderTopBar({
     initialEntry: `/task/${currentThreadId}`,
     routeTarget: { type: "currentTask", threadId: currentThreadId },
